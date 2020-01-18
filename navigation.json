@@ -1,7 +1,12 @@
 {
-    "navigation":
-    [
+    "navigation": [
         
+        {
+            "text": "JUC源码分析索引",
+            "target": "notes/JUC/_vnote.json",
+            "navi": true,
+            "toc": false,
+            "navi_index": "notes/JUC/1.JMM模型/先谈硬件.md"
+        }
     ]
-
 }
