@@ -7,6 +7,12 @@
             "navi": true,
             "toc": false,
             "navi_index": "notes/JUC/1.JMM模型/先谈硬件.md"
+        }, 
+        {
+            "text": "Netty源码分析索引",
+            "target": "notes/Netty/_vnote.json",
+            "navi": true,
+            "toc": false
         }
     ]
 }

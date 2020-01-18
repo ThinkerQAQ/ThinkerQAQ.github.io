@@ -1,0 +1,24 @@
+{
+    "created_time": "2020-01-17T13:06:57Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-18T09:52:12Z",
+            "name": "3.绑定端口.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+        {
+            "name": "1.实例化、初始化、并注册channel"
+        },
+        {
+            "name": "2.真正绑定监听端口"
+        }
+    ],
+    "version": "1"
+}

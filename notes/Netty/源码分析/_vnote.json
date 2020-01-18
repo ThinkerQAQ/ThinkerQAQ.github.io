@@ -1,0 +1,27 @@
+{
+    "created_time": "2020-01-17T13:06:57Z",
+    "files": [
+        
+    ],
+    "sub_directories": [
+        {
+            "name": "1.创建NioEventLoopGroup"
+        },
+        {
+            "name": "2.Bootstrap的创建"
+        },
+        {
+            "name": "3.绑定端口"
+        },
+        {
+            "name": "4.新连接的接入"
+        },
+        {
+            "name": "5.pipeline"
+        },
+        {
+            "name": "6.内存分配ByteBuf"
+        }
+    ],
+    "version": "1"
+}

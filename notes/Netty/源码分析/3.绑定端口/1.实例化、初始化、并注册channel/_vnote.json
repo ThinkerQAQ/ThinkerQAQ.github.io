@@ -1,0 +1,48 @@
+{
+    "created_time": "2020-01-17T13:06:57Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-18T11:30:44Z",
+            "name": "1.实例化channel.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-18T09:52:29Z",
+            "name": "2.初始化channel.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-18T09:52:33Z",
+            "name": "3.注册channel.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-18T09:52:42Z",
+            "name": "Channel类体系.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+    ],
+    "version": "1"
+}
