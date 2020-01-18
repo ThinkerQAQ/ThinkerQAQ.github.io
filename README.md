@@ -1,1 +1,1 @@
-[ThinkQAQ 部落阁](https://thinkerqaq.github.io/)
+[ThinkerQAQ 部落阁](https://thinkerqaq.github.io/)
