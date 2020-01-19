@@ -1,0 +1,33 @@
+{
+    "created_time": "2020-01-17T13:06:57Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-17T13:06:57Z",
+            "name": "SpringBoot.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+        {
+            "name": "Cache自动配置"
+        },
+        {
+            "name": "Spring_MVC自动配置"
+        },
+        {
+            "name": "SpringBoot启动原理"
+        },
+        {
+            "name": "Tomcat自动配置"
+        },
+        {
+            "name": "自定义Starters"
+        }
+    ],
+    "version": "1"
+}
