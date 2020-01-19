@@ -5,14 +5,19 @@
             "text": "JUC源码分析索引",
             "target": "notes/JUC/_vnote.json",
             "navi": true,
-            "toc": false,
-            "navi_index": "notes/JUC/1.JMM模型/先谈硬件.md"
+            "toc": false
         }, 
         {
             "text": "Netty源码分析索引",
             "target": "notes/Netty/_vnote.json",
             "navi": true,
             "toc": false
+        },
+        {
+            "text": "Spring系列源码分析索引",
+             "target": "notes/Spring/_vnote.json",
+             "navi": true,
+             "toc": false
         }
     ]
 }
