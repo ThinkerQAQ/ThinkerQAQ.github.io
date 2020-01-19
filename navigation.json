@@ -4,13 +4,13 @@
             "text": "JUC源码分析索引",
             "target": "notes/JUC/_vnote.json",
             "navi": true,
-            "toc": false
+            "toc": true
         }, 
         {
             "text": "Netty源码分析索引",
             "target": "notes/Netty/_vnote.json",
             "navi": true,
-            "toc": false
+            "toc": true
         },
         {
             "text": "Spring系列源码分析索引",
@@ -19,13 +19,13 @@
                     "text": "SpringBoot",
                     "target": "notes/SpringBoot/_vnote.json",
                     "navi": true,
-                    "toc": false
+                    "toc": true
                 },
                 {
                     "text": "Spring",
                     "target": "notes/Spring/_vnote.json",
                     "navi": true,
-                    "toc": false
+                    "toc": true
                 }
                
             ]
