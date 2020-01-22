@@ -18,9 +18,6 @@
         },
         {
             "name": "5.pipeline"
-        },
-        {
-            "name": "6.内存分配ByteBuf"
         }
     ],
     "version": "1"
