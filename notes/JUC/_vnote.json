@@ -53,6 +53,9 @@
         },
         {
             "name": "Unsafe"
+        },
+        {
+            "name": "Semaphore"
         }
     ],
     "version": "1"

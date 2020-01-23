@@ -5,7 +5,7 @@
     "footer": "",
     "show_suffix": true,
     "load_before_search": true,
-    "fuzzy_search": true,
+    "fuzzy_search": false,
     "markdown":
     {
         "html": true,
