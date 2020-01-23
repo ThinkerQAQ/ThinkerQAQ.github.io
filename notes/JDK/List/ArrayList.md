@@ -1,0 +1,247 @@
+[toc]
+
+ 
+
+## 1. 是什么
+
+底层由数组实现的，可扩容的顺序表
+有序、可以重复
+
+## 2. 如何使用
+
+```java
+public class ArrayListTest
+{
+    public static void main(String[] args)
+    {
+        ArrayList<String> list = new ArrayList<>();
+        list.add("1");
+        list.add("2");
+
+        System.out.println(list);
+        
+        list.remove(0);
+        list.remove("2");
+
+
+
+    }
+}
+```
+
+
+## 3. 原理分析
+### 3.1. uml
+![](https://raw.githubusercontent.com/TDoct/images/master/img/20200122170737.png)
+可以看出ArrayList是个List、可克隆、可序列化、可以使用下标访问
+
+### 3.2. 构造方法
+
+使用object数组，并且初始化长度为0
+```java
+public class ArrayList<E> extends AbstractList<E>
+        implements List<E>, RandomAccess, Cloneable, java.io.Serializable
+{
+    //默认的容量为10
+    private static final int DEFAULT_CAPACITY = 10;
+
+    //没有元素时使用空数组，两者区别是啥？
+    private static final Object[] EMPTY_ELEMENTDATA = {};
+    private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+
+    //List底层使用Object数组实现
+    transient Object[] elementData; 
+
+    //Object数组中实际使用的大小
+    private int size;
+
+    public ArrayList() {
+        //默认空数组
+        this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
+    }
+}
+```
+
+
+### 3.3. add方法
+
+- 不扩容O（1），扩容O（N）
+
+
+```java
+public boolean add(E e) {
+	//确保容量足够
+    ensureCapacityInternal(size + 1);  // Increments modCount!!
+    //在默认赋值
+    elementData[size++] = e;
+    return true;
+}
+
+```
+
+#### 3.3.1. 确保容量足够容纳新的元素
+```java
+private void ensureCapacityInternal(int minCapacity) {
+    ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
+}
+
+private void ensureExplicitCapacity(int minCapacity) {
+    modCount++;
+
+    // overflow-conscious code
+	//减法比较大小防止溢出
+    if (minCapacity - elementData.length > 0)
+    	//需要扩容
+        grow(minCapacity);
+}
+
+
+private void grow(int minCapacity) {
+    // overflow-conscious code
+    int oldCapacity = elementData.length;
+    //新长度=原长度*1.5
+    int newCapacity = oldCapacity + (oldCapacity >> 1);
+    //新长度<最小需要的长度，那么取最小需要的长度
+    if (newCapacity - minCapacity < 0)
+        newCapacity = minCapacity;
+    
+    //新长度比数组最大限制长度还大private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8
+    if (newCapacity - MAX_ARRAY_SIZE > 0)
+    	//转而使用最小需要的长度
+        newCapacity = hugeCapacity(minCapacity);
+    // minCapacity is usually close to size, so this is a win:
+    //复制原数组的元素到新数组中
+    elementData = Arrays.copyOf(elementData, newCapacity);
+}
+
+private static int hugeCapacity(int minCapacity) {
+	//最小需要的长度也溢出了，OOM
+    if (minCapacity < 0) // overflow
+        throw new OutOfMemoryError();
+    //最小需要的长度比数组最大限制长度大则使用Integer.MAX_VALUE，否则使用数组最大限制长度
+    return (minCapacity > MAX_ARRAY_SIZE) ?
+        Integer.MAX_VALUE :
+        MAX_ARRAY_SIZE;
+}
+```
+
+#### 3.3.2. 把元素放入数组最后一个位置
+
+```java
+//没啥好说的，赋值然后下标+1
+elementData[size++] = e;
+```
+
+### 3.4. remove方法【按下标删除元素】
+- O（N）
+
+```java
+public E remove(int index) {
+	//防止下标越界
+    rangeCheck(index);
+
+    modCount++;
+    //保存要删除的数以便返回
+    E oldValue = elementData(index);
+
+	//需要移动的个数
+    int numMoved = size - index - 1;
+    if (numMoved > 0)
+    	//后面的往前移
+        System.arraycopy(elementData, index+1, elementData, index,
+                         numMoved);
+     //其实数组大小没有变化。当然size属性必须更新的
+    elementData[--size] = null; // clear to let GC do its work
+
+    return oldValue;
+}
+```
+
+
+#### 3.4.1. 把数组index位置之后的数据往前挪
+
+```java
+//计算index后面需要移动的个数
+int numMoved = size - index - 1;
+if (numMoved > 0)
+	//后面的往前移
+    System.arraycopy(elementData, index+1, elementData, index,
+                     numMoved);
+```
+#### 3.4.2. 更新size【数组不缩容】
+
+```java
+ //其实数组大小没有变化。当然size属性必须更新的
+elementData[--size] = null; // clear to let GC do its work
+```
+
+### 3.5. remove方法【按元素内容删除】
+
+- O（N）
+
+```java
+public boolean remove(Object o) {
+    //为null
+    if (o == null) {
+    	//找到下标
+        for (int index = 0; index < size; index++)
+            //==null判断
+            if (elementData[index] == null) {
+            	//删除该下标的元素
+                fastRemove(index);
+                return true;
+            }
+    } else {
+        for (int index = 0; index < size; index++)
+            //equals判断
+            if (o.equals(elementData[index])) {
+                fastRemove(index);
+                return true;
+            }
+    }
+    return false;
+}
+
+```
+
+#### 3.5.1. 首先找到要删除的元素的下标
+
+```java
+for (int index = 0; index < size; index++)
+{
+//...
+}
+```
+如上无非就时遍历查找，效率O（N），然后按照下标删除，如下
+
+- fastRemove
+```java
+ private void fastRemove(int index) {
+    modCount++;
+    //计算移动元素的个数
+    int numMoved = size - index - 1;
+    if (numMoved > 0)
+    	//复制到前面
+        System.arraycopy(elementData, index+1, elementData, index,
+                         numMoved);
+ 	//赋为null，并且size--
+    elementData[--size] = null; // clear to let GC do its work
+}
+```
+这段代码同上面的remove方法【按下标删除元素】的逻辑
+
+#### 3.5.2. 把数组index位置之后的数据往前挪
+```java
+//计算移动元素的个数
+int numMoved = size - index - 1;
+if (numMoved > 0)
+	//复制到前面
+    System.arraycopy(elementData, index+1, elementData, index,
+                     numMoved);
+```
+#### 3.5.3. 更新size【数组不缩容】
+
+```java
+//赋为null，并且size--
+elementData[--size] = null; // clear to let GC do its work
+```

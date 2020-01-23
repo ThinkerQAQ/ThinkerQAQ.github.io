@@ -29,6 +29,12 @@
                 }
                
             ]
+        },
+        {
+            "text": "JDK源码分析索引",
+            "target": "notes/JDK/_vnote.json",
+            "navi": true,
+            "toc": true
         }
     ]
 }
