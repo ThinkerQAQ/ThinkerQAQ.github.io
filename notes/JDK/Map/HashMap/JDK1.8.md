@@ -172,22 +172,23 @@ final Node<K,V>[] resize() {
     //新的capacity和threshold初始化为0
     int newCap, newThr = 0;
     if (oldCap > 0) {
-    	//旧的capacity比int MAXIMUM_CAPACITY = 1 << 30还要大，那么更新threshold为Integer.MAX_VALUE，并且直接返回旧的table（不扩容）
+    	//旧的capacity比int MAXIMUM_CAPACITY = 1 << 30还要大，那么更新threshold为Integer.MAX_VALUE，并且直接返回旧的table（即不进行扩容）
         if (oldCap >= MAXIMUM_CAPACITY) {
             threshold = Integer.MAX_VALUE;
             return oldTab;
         }
-        //新的capacity为旧的capacity的两倍。（前提是<MAXIMUM_CAPACITY并且>=DEFAULT_INITIAL_CAPACITY）
+        //新的capacity为旧的capacity的两倍（即新的capacity为16*2=32）
+        //如果32 < MAXIMUM_CAPACITY 并且 oldCap >= DEFAULT_INITIAL_CAPACITY
         else if ((newCap = oldCap << 1) < MAXIMUM_CAPACITY &&
                  oldCap >= DEFAULT_INITIAL_CAPACITY)
-         	//同时把threshold也更新为旧的2倍
+         	//则把threshold也更新为旧的2倍（即新的threshold为12*2=24）
             newThr = oldThr << 1; // double threshold
     }
     //新的capacity就为threshold
     else if (oldThr > 0) // initial capacity was placed in threshold
         newCap = oldThr;
     //第一次初始化。
-    else {               // zero initial threshold signifies using defaults
+    else { // zero initial threshold signifies using defaults
         newCap = DEFAULT_INITIAL_CAPACITY;
         newThr = (int)(DEFAULT_LOAD_FACTOR * DEFAULT_INITIAL_CAPACITY);
     }
@@ -206,36 +207,39 @@ final Node<K,V>[] resize() {
         for (int j = 0; j < oldCap; ++j) {
             Node<K,V> e;
             if ((e = oldTab[j]) != null) {
-                //清空旧table
+                //置为null让gc及时回收，当然oldTab[j]已经保存到局部变量e中了
                 oldTab[j] = null;
-                //如果链表中只有一个节点
+                //第一种情况：如果链表中只有一个节点
                 if (e.next == null)
-                	//重新计算位置（e.hash & (newCap  1)）加入新的table
+                	//那么重新计算位置（e.hash & (newCap  1)），并放入新的table
                     newTab[e.hash & (newCap  1)] = e;
-                //链表中有多个节点，同时第一个节点为TreeNode，那么转调树的操作
+                //第二种情况：链表中有多个节点，同时第一个节点为TreeNode，那么转调树的操作
                 else if (e instanceof TreeNode)
                     ((TreeNode<K,V>)e).split(this, newTab, j, oldCap);
-                //链表中有多个节点，且是普通链表
+                //第三种情况：链表中有多个节点，且是普通链表
                 else { // preserve order
+                    //旧table的链表，rehash后在新table中的位置
+                        //要么跟旧table中的位置一样-----------（1）
+                        //要么是旧table中的位置+oldCap-------（2）
+                    //其实就是把原来的链表分成两部分，所以
+                        //loXXX代表（1）
+                        //hiXXX代表（2）
                     Node<K,V> loHead = null, loTail = null;
+
                     Node<K,V> hiHead = null, hiTail = null;
                     Node<K,V> next;
-                	//如下操作会把
                     do {
                         next = e.next;
-                      	//链表中第一个元素？？？
+                      	//高位是0，那么这个元素在新table中的位置跟在旧table一样
                         if ((e.hash & oldCap) == 0) {
-                          //并且尾节点为空，那么更新头节点为当前元素
                             if (loTail == null)
                                 loHead = e;
-                            //并且尾节点不为空，那么更新尾节点的next为当前元素
                             else
                                 loTail.next = e;
-                            //自然而然的当前节点就为尾节点
                             loTail = e;
                         }
+                        //高位是1，那么这个元素在新table中的位置是旧table的位置+oldCap
                         else {
-                        	//采用的是尾插法
                             if (hiTail == null)
                                 hiHead = e;
                             else
@@ -243,12 +247,15 @@ final Node<K,V>[] resize() {
                             hiTail = e;
                         }
                     } while ((e = next) != null);
+                    //上面的循环把链表瓜分完了，下面开始赋值到新table了
                     if (loTail != null) {
                         loTail.next = null;
+                        //（1）
                         newTab[j] = loHead;
                     }
                     if (hiTail != null) {
                         hiTail.next = null;
+                        //（2）
                         newTab[j + oldCap] = hiHead;
                     }
                 }
@@ -624,3 +631,5 @@ return false;
 ### 4.3. 什么时候扩容
 size>容量*负载因子
 
+
+### 4.4. 怎么扩容的
