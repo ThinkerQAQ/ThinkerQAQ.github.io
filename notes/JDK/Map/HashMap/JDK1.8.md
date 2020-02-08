@@ -304,7 +304,9 @@ else {
             if ((e = p.next) == null) {
                 p.next = newNode(hash, key, value, null);
                 //判断bitCount是否达到树化的限度，是则树化
-                if (binCount >= TREEIFY_THRESHOLD  1) // 1 for 1st
+                //这里binCount为TREEIFY_THRESHOLD - 1，也就是7的时候
+                //也就是这个链表中的节点（不包括头节点）个数为8的时候
+                if (binCount >= TREEIFY_THRESHOLD - 1) // 1 for 1st
                     treeifyBin(tab, hash);
                 break;
             }
@@ -326,8 +328,152 @@ else {
 }
 ```
 
+##### 3.3.5.1. 怎么转换成红黑树的
 
+- treeifyBin
 
+```java
+final void treeifyBin(Node<K,V>[] tab, int hash) {
+    int n, index; Node<K,V> e;
+    //这里table的长度<64的时候并不进行树化，而是进行扩容
+    //也就是说链表转换成红黑树的条件是 链表中元素个数为8个 并且 table长度为64
+    if (tab == null || (n = tab.length) < MIN_TREEIFY_CAPACITY)//MIN_TREEIFY_CAPACITY是64
+        resize();
+    //下面的操作是把链表中的节点（Node）转换成树中的节点（TreeNode）
+    else if ((e = tab[index = (n - 1) & hash]) != null) {
+        TreeNode<K,V> hd = null, tl = null;
+        //这个循环遍历链表
+        do {
+            //传入链表中的当前节点以及下一个节点，转换成TreeNode
+            TreeNode<K,V> p = replacementTreeNode(e, null);
+            //tail为空，就是说现在是树中的第一个元素
+            if (tl == null)
+                //那么同时得初始化head为当前节点
+                hd = p;
+            //不是树中的第一个元素，那么插入到树的末尾
+            else {
+                //这里的树节点怎么感觉像是个双向链表？？？
+                p.prev = tl;
+                tl.next = p;
+            }
+            tl = p;
+        } while ((e = e.next) != null);
+        if ((tab[index] = hd) != null)
+            //上面仅是构造了TreeNode为节点的双向链表，这里才是真正的树化操作
+            hd.treeify(tab);
+    }
+}
+
+```
+
+###### 3.3.5.1.1. Node->TreeNode
+
+- replacementTreeNode
+
+```java
+TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {
+    //就是把当前节点的hash、key、value初始化成TreeNode的hash、key、value
+    //把下一个节点初始化为TreeNode.next
+    return new TreeNode<>(p.hash, p.key, p.value, next);
+}
+    
+```
+
+- TreeNode
+
+```java
+static final class TreeNode<K,V> extends LinkedHashMap.Entry<K,V> {
+    TreeNode<K,V> parent;  // red-black tree links
+    TreeNode<K,V> left;
+    TreeNode<K,V> right;
+    TreeNode<K,V> prev;    // needed to unlink next upon deletion
+    boolean red;
+    //这个构造方法其实就是HashMap的Node的构造方法，没什么特殊的
+    TreeNode(int hash, K key, V val, Node<K,V> next) {
+    //LinkedHashMap.Entry
+        super(hash, key, val, next);
+    }
+
+```
+
+- LinkedHashMap.Entry
+
+```java
+static class Entry<K,V> extends HashMap.Node<K,V> {
+    Entry<K,V> before, after;
+    Entry(int hash, K key, V value, Node<K,V> next) {
+    //HashMap.Node
+        super(hash, key, value, next);
+    }
+}
+```
+
+- HashMap.Node
+
+```java
+static class Node<K,V> implements Map.Entry<K,V> {
+    final int hash;
+    final K key;
+    V value;
+    Node<K,V> next;
+
+    Node(int hash, K key, V value, Node<K,V> next) {
+        this.hash = hash;
+        this.key = key;
+        this.value = value;
+        this.next = next;
+    }
+
+```
+
+###### 3.3.5.1.2. 树化
+- treeify
+
+有点复杂，暂时飘过。。。
+
+```java
+final void treeify(Node<K,V>[] tab) {
+    TreeNode<K,V> root = null;
+    for (TreeNode<K,V> x = this, next; x != null; x = next) {
+        next = (TreeNode<K,V>)x.next;
+        x.left = x.right = null;
+        if (root == null) {
+            x.parent = null;
+            x.red = false;
+            root = x;
+        }
+        else {
+            K k = x.key;
+            int h = x.hash;
+            Class<?> kc = null;
+            for (TreeNode<K,V> p = root;;) {
+                int dir, ph;
+                K pk = p.key;
+                if ((ph = p.hash) > h)
+                    dir = -1;
+                else if (ph < h)
+                    dir = 1;
+                else if ((kc == null &&
+                          (kc = comparableClassFor(k)) == null) ||
+                         (dir = compareComparables(kc, k, pk)) == 0)
+                    dir = tieBreakOrder(k, pk);
+
+                TreeNode<K,V> xp = p;
+                if ((p = (dir <= 0) ? p.left : p.right) == null) {
+                    x.parent = xp;
+                    if (dir <= 0)
+                        xp.left = x;
+                    else
+                        xp.right = x;
+                    root = balanceInsertion(root, x);
+                    break;
+                }
+            }
+        }
+    }
+    moveRootToFront(tab, root);
+}
+```
 
 ### 3.4. get方法
 
@@ -633,3 +779,5 @@ size>容量*负载因子
 
 
 ### 4.4. 怎么扩容的
+参考
+> 3.3.2. 第一次进来table肯定为空，那么扩容
