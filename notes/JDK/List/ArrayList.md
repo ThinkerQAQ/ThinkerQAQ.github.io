@@ -42,7 +42,7 @@ public class ArrayListTest
 public class ArrayList<E> extends AbstractList<E>
         implements List<E>, RandomAccess, Cloneable, java.io.Serializable
 {
-    //默认的容量为10
+    //如果使用默认的无参构造初始容量为0，第一次扩容时容量为10
     private static final int DEFAULT_CAPACITY = 10;
 
     //没有元素时使用空数组，两者区别是啥？
@@ -83,6 +83,14 @@ public boolean add(E e) {
 ```java
 private void ensureCapacityInternal(int minCapacity) {
     ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
+}
+
+private static int calculateCapacity(Object[] elementData, int minCapacity) {
+    //使用默认的无参构造方法创建的容量为0，那么第一次扩容为10个
+    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+        return Math.max(DEFAULT_CAPACITY, minCapacity);
+    }
+    return minCapacity;
 }
 
 private void ensureExplicitCapacity(int minCapacity) {
@@ -245,3 +253,34 @@ if (numMoved > 0)
 //赋为null，并且size--
 elementData[--size] = null; // clear to let GC do its work
 ```
+
+## 4. ConcurrentModificationException
+参考：[fail-fast.md](fail-fast.md)
+```java
+public class ConcurrentModificationExceptionTest
+{
+    public static void main(String[] args)
+    {
+        List<String> stringList = new ArrayList<>();
+        for (int i = 0; i < 1000; i++)
+        {
+            stringList.add(String.valueOf(i));
+        }
+
+        for (String s : stringList)
+        {
+            stringList.remove(s);//java.util.ConcurrentModificationException
+        }
+    }
+}
+```
+
+如上的代码运行过程中会抛出ConcurrentModificationException异常
+![](https://raw.githubusercontent.com/TDoct/images/master/img/20200130164940.png)
+
+### 4.1. 原因分析
+遍历时（get）执行删除操作（remove）会抛出这个异常，这叫做fast-fail机制
+这是modCount和expectedCount不相等导致的
+
+### 4.2. 解决
+使用fail-safe的JUC包下的CopyOnWriteArrayList
