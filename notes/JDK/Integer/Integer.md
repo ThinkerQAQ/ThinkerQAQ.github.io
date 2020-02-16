@@ -134,3 +134,14 @@ System.out.println(val3 == val4);//true
 结果如下：
 ![](https://raw.githubusercontent.com/TDoct/images/master/img/20200119160551.png)
 可以看出字节码调用的仍然是`Integer.valueOf`方法
+
+#### 2.2.4. 解释(Integer val1 = 128) != (Integer val2 = 128)
+
+如下面的这段代码：
+```java
+Integer val3 = 128;
+Integer val4 = 128;
+System.out.println(val3 == val4);//false
+```
+
+IntegerCache只缓存了-128-127的Integer，这里的val3和val4虽然都是128，但是他们是不同的对象，所以引用不等。
