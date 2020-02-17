@@ -74,7 +74,7 @@ public class LinkedList<E>
 ```
 
 结构如下图：
-![](https://raw.githubusercontent.com/TDoct/images/master/img/20200122171533.png)
+![](https://raw.githubusercontent.com/TDoct/images/master/img/20200217101829.png)
 
 ### 3.3. add方法
 
