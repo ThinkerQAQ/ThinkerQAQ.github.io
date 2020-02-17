@@ -468,6 +468,7 @@ void afterNodeRemoval(Node<K,V> e) { // unlink
 ### 3.8. entrySet
 
 #### 3.8.1. 要研究的代码
+
 ```java
 Iterator<Map.Entry<String, Object>> iterator = map.entrySet().iterator();
 ```
@@ -592,11 +593,13 @@ final class LinkedEntryIterator extends LinkedHashIterator//继承了LinkedHashI
 
 ```
 
+可以看出迭代输出的时候是从头到尾输出的，也就是旧的先打印，然后在打印新的节点
+
 ## 4. 总结
 
 在HashMap的基础上+双向链表实现的
 迭代LinkedHashMap，就是从内部维护的双链表的表头开始循环输出。
-而双链表节点的顺序在LinkedHashMap的增、删、改、查时都会更新。以满足按照插入顺序输出，还是访问顺序输出。
+而双链表节点的顺序在LinkedHashMap的get、put时都会更新。以满足按照插入顺序输出，还是访问顺序输出。
 
 ## 5. 参考
 
