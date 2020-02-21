@@ -54,11 +54,72 @@ public class ConcurrentHashMapTest
 
 
 ### 3.1. 构造方法
+
+
 ```java
-public ConcurrentHashMap() {
+public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
+    implements ConcurrentMap<K,V>, Serializable {
+    private static final long serialVersionUID = 7249069246763182397L;
+
+    //最大的数组长度。必须是2的次幂
+    private static final int MAXIMUM_CAPACITY = 1 << 30;
+
+    //默认的数组长度。必须是2的次幂
+    private static final int DEFAULT_CAPACITY = 16;
+
+
+
+    //默认的加载因子。
+    //当数组中有元素的entry的数量>=数组长度*LOAD_FACTOR时会进行扩容
+    private static final float LOAD_FACTOR = 0.75f;
+
+     //当链表（不包括头节点）中元素的数目为8的时候需要转成红黑树
+    static final int TREEIFY_THRESHOLD = 8;
+
+    //当红黑树（不包括头节点）中元素的数目为6的时候需要转成链表
+    static final int UNTREEIFY_THRESHOLD = 6;
+
+    //数组中entry的数目为64的才转换成红黑树
+    static final int MIN_TREEIFY_CAPACITY = 64;        
+
+
+    //-1表示正在初始化，或者是（-1+正在扩容的线程数）
+    //0或正数则代表hash表还未被初始化
+    private transient volatile int sizeCtl;
+
+    //使用volatile修饰Node数组，如果这个数组引用（不是内容）改变
+    //那么其他线程能立马感知（volatile的可见性）
+    //这个应该是扩容的时候修改Node数组会用到
+    transient volatile Node<K,V>[] table;
+
+    public ConcurrentHashMap() {
+    }
 }
 ```
 
+
+#### 3.1.1. Node
+
+```java
+static class Node<K,V> implements Map.Entry<K,V> {
+    //final修饰key和hash表明这些是常量
+    //常量是线程安全的
+    final int hash;
+    final K key;
+    //val和next都用volatile修饰（可见性+有序性）
+    //配合CAS操作（原子性）就可以保证线程安全
+    //这也是get方法不用加锁的原因
+    volatile V val;
+    volatile Node<K,V> next;
+
+    Node(int hash, K key, V val, Node<K,V> next) {
+        this.hash = hash;
+        this.key = key;
+        this.val = val;
+        this.next = next;
+    }
+}
+```
 
 ### 3.2. put方法【有加锁】
 ```java
@@ -71,7 +132,7 @@ public V put(K key, V value) {
 - putVal
 ```java
 final V putVal(K key, V value, boolean onlyIfAbsent) {
-    if (key == null || value == null) throw new NullPointerException();
+    if (key == null || value == null) throw new NullPointerException();//不允许插入null的key或者value
     // (h ^ (h >>> 16)) & HASH_BITS(0x7fffffff)
     int hash = spread(key.hashCode());
     int binCount = 0;
@@ -85,19 +146,20 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
         else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
             if (casTabAt(tab, i, null,
                          new Node<K,V>(hash, key, value, null)))
-                break;                   // no lock when adding to empty bin
+                break;                   // cas设置头节点成功直接break
         }
-        //有其他线程正在扩容？？
+        //有其他线程正在移动元素
         else if ((fh = f.hash) == MOVED)
+            //协助其他线程扩容
             tab = helpTransfer(tab, f);
-        //链表头节点不为空
+        //链表头节点不为空，走到这里发生了hash碰撞
         else {
             V oldVal = null;
             //可能竞争很大，所以用synchronized加锁而不是cas
             //相比于JDK7的这里锁的粒度更加小了，锁的粒度缩小为数组中每个链表的头节点
             synchronized (f) {
                 if (tabAt(tab, i) == f) {
-                    if (fh >= 0) {
+                    if (fh >= 0) {//头节点的hash>=0说明是个链表
                         binCount = 1;
                         //遍历链表，并且用bitCount计数链表中节点个数
                         for (Node<K,V> e = f;; ++binCount) {
@@ -154,32 +216,19 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
 -   10-11行：第一次进来table为空，所以需要初始化table
 -   13-17行：第二次进来table不为空，链表肯定为空【头节点为空】，那么设置CAS头节点
 -   22-72行：第三次进来若链表不为空【头节点不为空】，那么对头节点加锁，使用链表的操作或树的操作插入
--   75行：扩容操作
+- 75行：数量+1并且判断是否需要扩容
 
 
 
 #### 3.2.1. 计算key的hash
 - spread
 ```java
-//h为key.hashCode()
 static final int spread(int h) {
-    //位运算
+    //通过把hashCode的高16位和低16位异或从而让每一位都参与运算减低hash碰撞的概率
+    //与HASH_BITS（0x7fffffff）相与保证不会出现负数？
     return (h ^ (h >>> 16)) & HASH_BITS;
 }
 ```
-`h >>> 16`表示右移16bit，前面补0
-`h ^ (h >>> 16)`表示保留高16bit
-`(h ^ (h >>> 16)) & HASH_BITS`，其中HASH_BITS是`0x7fffffff`，结果还是一样的
-
-
-假设Integer为8bit，右移4bit，HASH_BITS为`0111 1111`，那么计算如下：
-
-|            公式             |         计算          |   结果    |
-| --------------------------- | --------------------- | --------- |
-| h >>> 4                     | 1001 1100 >>> 4       | 0000 1001 |
-| h ^ (h >>> 4)               | 1001 1100 ^ 0000 1001 | 1001 0101 |
-| (h ^ (h >>> 4)) & HASH_BITS | 1001 0101 & 0111 1111 | 0001 0101 |
-
 #### 3.2.2. 死循环
 ```java
 for (Node<K,V>[] tab = table;;) {
@@ -206,7 +255,7 @@ private final Node<K,V>[] initTable() {
         if ((sc = sizeCtl) < 0)
         	//让出cpu，让扩容或者初始化的线程执行
             Thread.yield(); // lost initialization race; just spin
-        //当前线程正在尝试修改sizeCtl，成功后进入扩容逻辑
+        //当前线程尝试修改sizeCtl为-1（表示正在初始化数组），成功后进入扩容逻辑
         else if (U.compareAndSwapInt(this, SIZECTL, sc, -1)) {
             try {
             	//第一次初始化
@@ -252,7 +301,7 @@ else if (U.compareAndSwapInt(this, SIZECTL, sc, -1)) {
     break;
 }
 ```
-##### 3.2.3.2. 其他线程让出CPU自旋等待
+##### 3.2.3.2. 其他线程让出CPU直到扩容完毕
 ```java
 while ((tab = table) == null || tab.length == 0) {
 //sizeCtl<0表示正在初始化或者扩容
@@ -262,7 +311,7 @@ if ((sc = sizeCtl) < 0)
 }
 ```
 
-#### 3.2.4. 第二次进来table不为空，链表肯定为空【头节点为空】，那么设置CAS头节点
+#### 3.2.4. 第二次进来table不为空，链表肯定为空【头节点为空】，那么CAS设置头节点
 ```java
 //链表头节点为空，
 else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
@@ -272,15 +321,16 @@ else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
         break;                   // no lock when adding to empty bin
 }
 ```
-##### 3.2.4.1. 计算元素的位置
-首先通过`(n - 1) & hash`位运算取低几位，相当于对数组长度取模，只不过效率更高。
-然后拿到该位置的元素【每个元素都是一个链表的头节点】
+
+##### 3.2.4.1. 获取第一个元素
+
+首先通过`(n - 1) & hash`计算元素位置。n是2的次幂，n-1的话相当于最高位是0其余位都是1，hash与整个数相与结果跟对数组长度取模一样，只不过效率更高。
+然后通过UNSAFE类的CAS操作拿到该位置的元素【每个元素都是一个链表的头节点或者红黑树的根节点】
 ```java
 static final <K,V> Node<K,V> tabAt(Node<K,V>[] tab, int i) {
     //通过Unsafe类取的
     return (Node<K,V>)U.getObjectVolatile(tab, ((long)i << ASHIFT) + ABASE);
-}
-```
+}```
 ##### 3.2.4.2. CAS设置头节点
 - casTabAt
 ```java
@@ -408,18 +458,21 @@ public V get(Object key) {
     Node<K,V>[] tab; Node<K,V> e, p; int n, eh; K ek;
     //计算key的hash值
     int h = spread(key.hashCode());
-    //找到数组中的下标
     if ((tab = table) != null && (n = tab.length) > 0 &&
+        //找到第一个元素
         (e = tabAt(tab, (n - 1) & h)) != null) {
         //链表第一个节点就相等
         if ((eh = e.hash) == h) {
             if ((ek = e.key) == key || (ek != null && key.equals(ek)))
                 return e.val;
         }
-        else if (eh < 0)//hash<0指得是什么情况
+        //eh是第一个元素的hash值
+        //hash<0指得是什么情况？表示有其他线程正在扩容
+        
+        else if (eh < 0)
     		//find 啥用处??
             return (p = e.find(h, key)) != null ? p.val : null;
-        //遍历链表找到相等的节点
+        //eh>=0说明是一个链表，直接遍历该链表找到相等的节点
         while ((e = e.next) != null) {
             if (e.hash == h &&
                 ((ek = e.key) == key || (ek != null && key.equals(ek))))
@@ -435,12 +488,14 @@ public V get(Object key) {
 - spread
 ```java
 static final int spread(int h) {
+    //通过把hashCode的高16位和低16位异或从而让每一位都参与运算减低hash碰撞的概率
+    //与HASH_BITS（0x7fffffff）相与保证不会出现负数？
     return (h ^ (h >>> 16)) & HASH_BITS;
 }
 ```
-#### 3.3.2. 计算元素的位置
-首先通过`(n - 1) & hash`位运算取低几位，相当于对数组长度取模，只不过效率更高。
-然后拿到该位置的元素【每个元素都是一个链表的头节点】
+#### 3.3.2. 获取第一个元素
+首先通过`(n - 1) & hash`计算元素位置。n是2的次幂，n-1的话相当于最高位是0其余位都是1，hash与整个数相与结果跟对数组长度取模一样，只不过效率更高。
+然后通过UNSAFE类的CAS操作拿到该位置的元素【每个元素都是一个链表的头节点或者红黑树的根节点】
 ```java
 static final <K,V> Node<K,V> tabAt(Node<K,V>[] tab, int i) {
     //通过Unsafe类取的
@@ -448,15 +503,19 @@ static final <K,V> Node<K,V> tabAt(Node<K,V>[] tab, int i) {
 }
 ```
 
-#### 3.3.3. 比较链表头节点是否相等
+#### 3.3.3. 第一个元素就是要找的节点
 ```java
-//链表第一个节点就相等
-if ((eh = e.hash) == h) {
+if ((eh = e.hash) == h) {//hash相等
+    //key引用相等或者key内容相等
     if ((ek = e.key) == key || (ek != null && key.equals(ek)))
         return e.val;
 }
 ```
-#### 3.3.4. 遍历链表找到相等的节点
+
+
+#### 3.3.4. 第一个元素不是要找的节点且hash<=0
+
+#### 3.3.5. 第一个元素不是要找的节点且hash>=0说明是个链表那么遍历链表找到相等的节点
 ```java
 //遍历链表找到相等的节点
 while ((e = e.next) != null) {
@@ -674,4 +733,7 @@ public boolean containsKey(Object key) {
 ## 4. 参考链接
 
 - [聊聊并发（四）——深入分析ConcurrentHashMap\-InfoQ](https://www.infoq.cn/article/ConcurrentHashMap/)
+- [《吊打面试官》系列\-ConcurrentHashMap & Hashtable \- 掘金](https://juejin.im/post/5df8d7346fb9a015ff64eaf9)
+- [为什么ConcurrentHashMap的读操作不需要加锁？ \- 后端 \- 掘金](https://juejin.im/entry/5b98b89bf265da0abd35034c)
+- [并发编程——ConcurrentHashMap\#helpTransfer\(\) 分析 \- 简书](https://www.jianshu.com/p/39b747c99d32)
 
