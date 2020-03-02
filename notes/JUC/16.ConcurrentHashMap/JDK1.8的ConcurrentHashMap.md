@@ -330,9 +330,12 @@ else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
 static final <K,V> Node<K,V> tabAt(Node<K,V>[] tab, int i) {
     //通过Unsafe类取的
     return (Node<K,V>)U.getObjectVolatile(tab, ((long)i << ASHIFT) + ABASE);
-}```
+}
+```
+
 ##### 3.2.4.2. CAS设置头节点
 - casTabAt
+
 ```java
 static final <K,V> boolean casTabAt(Node<K,V>[] tab, int i,
                                     Node<K,V> c, Node<K,V> v) {
