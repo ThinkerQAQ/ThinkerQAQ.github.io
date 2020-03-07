@@ -17,6 +17,9 @@
         },
         {
             "name": "String"
+        },
+        {
+            "name": "Queue"
         }
     ],
     "version": "1"

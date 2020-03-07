@@ -1,0 +1,371 @@
+[toc]
+
+## 1. PriorityQueue是什么
+
+是一个队列，只不过加上了优先级的概念，换句话说队列里的元素是根据某种规则排好序的
+
+
+## 2. 使用
+
+```java
+public class PriorityQueueTest
+{
+    public static void main(String[] args)
+    {
+        List<Integer> list = Arrays.asList(20, 19, 18, 17, 16, 15, 14, 13, 12, 11);
+        PriorityQueue<Integer> queue = new PriorityQueue<>(list);
+        System.out.println("最开始的元素：" + queue);
+
+        System.out.println("============");
+        queue.offer(11);
+        System.out.println("添加了一个11：" + queue);
+
+        System.out.println("============");
+        List<Integer> sort = new ArrayList<>();
+        while (!queue.isEmpty())
+        {
+            Integer poll = queue.poll();
+            System.out.println("堆顶是：" + poll);
+            sort.add(poll);
+            System.out.println("剩余的元素：" + queue);
+            System.out.println("----------");
+        }
+
+        System.out.println("============");
+        System.out.println("堆排序的结果：" + sort);
+
+    }
+}
+```
+
+- 输出
+
+```java
+最开始的元素：[11, 12, 14, 13, 16, 15, 18, 20, 17, 19]
+============
+添加了一个11：[11, 11, 14, 13, 12, 15, 18, 20, 17, 19, 16]
+============
+堆顶是：11
+剩余的元素：[11, 12, 14, 13, 16, 15, 18, 20, 17, 19]
+----------
+堆顶是：11
+剩余的元素：[12, 13, 14, 17, 16, 15, 18, 20, 19]
+----------
+堆顶是：12
+剩余的元素：[13, 16, 14, 17, 19, 15, 18, 20]
+----------
+堆顶是：13
+剩余的元素：[14, 16, 15, 17, 19, 20, 18]
+----------
+堆顶是：14
+剩余的元素：[15, 16, 18, 17, 19, 20]
+----------
+堆顶是：15
+剩余的元素：[16, 17, 18, 20, 19]
+----------
+堆顶是：16
+剩余的元素：[17, 19, 18, 20]
+----------
+堆顶是：17
+剩余的元素：[18, 19, 20]
+----------
+堆顶是：18
+剩余的元素：[19, 20]
+----------
+堆顶是：19
+剩余的元素：[20]
+----------
+堆顶是：20
+剩余的元素：[]
+----------
+============
+堆排序的结果：[11, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+
+Process finished with exit code 0
+
+```
+
+
+## 3. 源码分析
+
+### 3.1. 属性
+
+```java
+public class PriorityQueue<E> extends AbstractQueue<E>
+    implements java.io.Serializable {
+
+    private static final long serialVersionUID = -7720805057305804111L;
+
+    //默认的大小为11
+    private static final int DEFAULT_INITIAL_CAPACITY = 11;
+
+    //二叉堆：物理上是个数组，逻辑上看成二叉树
+    transient Object[] queue; // non-private to simplify nested class access
+
+    //容量
+    private int size = 0;
+
+    //比较器，用来确定插入的元素在二叉堆中的位置
+    private final Comparator<? super E> comparator;
+
+
+
+    //无参构造
+    public PriorityQueue() {
+        this(DEFAULT_INITIAL_CAPACITY, null);
+    }
+
+}
+```
+### 3.2. 有参构造
+
+```java
+//有参构造方法。我们主要分析这个
+   public PriorityQueue(Collection<? extends E> c) {
+    if (c instanceof SortedSet<?>) {
+        SortedSet<? extends E> ss = (SortedSet<? extends E>) c;
+        this.comparator = (Comparator<? super E>) ss.comparator();
+        initElementsFromCollection(ss);
+    }
+    else if (c instanceof PriorityQueue<?>) {
+        PriorityQueue<? extends E> pq = (PriorityQueue<? extends E>) c;
+        this.comparator = (Comparator<? super E>) pq.comparator();
+        initFromPriorityQueue(pq);
+    }
+    //传入的List走的这个else逻辑
+    else {
+        this.comparator = null;
+        initFromCollection(c);
+    }
+```
+
+- initFromCollection
+
+```java
+private void initFromCollection(Collection<? extends E> c) {
+    initElementsFromCollection(c);
+    heapify();
+}
+```
+可以看出主要有两个步骤，一个是建立初始化元素到数组中，另一个是维护堆的属性
+
+
+#### 3.2.1. 初始化元素到数组中
+
+- initElementsFromCollection
+
+```java
+private void initElementsFromCollection(Collection<? extends E> c) {
+    //先转成数组，如果数组不是Object[]类型的，那么需要转成Object[]数组
+    //我们的是Integer数组，所以会走这段逻辑copy成Object数组
+    Object[] a = c.toArray();
+    if (a.getClass() != Object[].class)
+        a = Arrays.copyOf(a, a.length, Object[].class);
+    int len = a.length;
+    //元素不能有为null的
+    if (len == 1 || this.comparator != null)
+        for (int i = 0; i < len; i++)
+            if (a[i] == null)
+                throw new NullPointerException();
+    //对queue和size赋值，很普通
+    this.queue = a;
+    this.size = a.length;
+}
+```
+
+#### 3.2.2. 维护堆的属性
+
+- heapify
+
+```java
+private void heapify() {
+    //i会初始化为最后一个有左孩子或者右孩子后者两者都有的 非叶子节点的下标
+    //调用下沉操作维护堆的属性
+    //一直到头节点为止（i--）
+    for (int i = (size >>> 1) - 1; i >= 0; i--)
+        //位置i的元素为queue[i]，对其执行下沉操作
+        siftDown(i, (E) queue[i]);
+}
+```
+
+- siftDown
+
+```java
+//数组中位置k的元素为x，对其执行下沉操作，维护这棵子树的堆属性
+private void siftDown(int k, E x) {
+    //如果设置了自定义的comparator，那么使用之
+    if (comparator != null)
+        siftDownUsingComparator(k, x);
+    //我们没设置，那么走这一段
+    else
+        siftDownComparable(k, x);
+}
+```
+
+
+##### 3.2.2.1. 下沉操作
+
+```java
+
+private void siftDownComparable(int k, E x) {
+    //必须实现了Comparable接口
+    Comparable<? super E> key = (Comparable<? super E>)x;
+    //数组的一半大小，这个是下沉操作终止的条件
+   //即一直往下调整到叶子节点为止
+    int half = size >>> 1;
+    while (k < half) {
+        //获取左孩子
+        int child = (k << 1) + 1; // assume left child is least
+        Object c = queue[child];
+        //获取右孩子
+        int right = child + 1;
+        if (right < size &&
+            ((Comparable<? super E>) c).compareTo((E) queue[right]) > 0)
+            c = queue[child = right];
+        //c为左右孩子较小的那个，跟父亲（我自己）比，如果父亲较小，没必要调整，直接break退出
+        if (key.compareTo((E) c) <= 0)
+            break;
+        //否则把较小的孩子覆盖到父亲的位置
+        queue[k] = c;
+        //把较小的孩子作为下一个父亲，继续执行下沉操作
+        k = child;
+    }
+    //把key(其实就是x)放在他该在的位置
+    queue[k] = key;
+}
+```
+
+
+
+### 3.3. 插入
+
+- offer
+
+```java
+public boolean offer(E e) {
+    //插入的元素不能为空
+    if (e == null)
+        throw new NullPointerException();
+    modCount++;
+    //扩容
+    int i = size;
+    if (i >= queue.length)
+        grow(i + 1);
+    //更新容量
+    size = i + 1;
+    //一个元素都没有，那么这个元素就是堆顶多了
+    if (i == 0)
+        queue[0] = e;
+    //有元素了，那么插入到最后的位置并上浮维护堆的属性
+    else
+        siftUp(i, e);
+    return true;
+}
+```
+
+- siftUp 
+```java
+//数组中位置k的元素为x，对其执行上浮操作，维护这棵子树的堆属性
+private void siftUp(int k, E x) {
+    if (comparator != null)
+        siftUpUsingComparator(k, x);
+    //没有comparator走这段
+    else
+        siftUpComparable(k, x);
+}
+```
+
+
+#### 3.3.1. 上浮操作
+
+```java
+private void siftUpComparable(int k, E x) {
+    //必须实现Comparable接口
+    Comparable<? super E> key = (Comparable<? super E>) x;
+    while (k > 0) {
+        //获取父亲
+        int parent = (k - 1) >>> 1;
+        Object e = queue[parent];
+        //如果我比父亲大，那么不需要调整，直接break退出
+        if (key.compareTo((E) e) >= 0)
+            break;
+        //把父亲覆盖到我的位置
+        queue[k] = e;
+        //把父亲作为下一个节点，继续执行上浮操作
+        k = parent;
+    }
+    //把key(其实就是x)放在他该在的位置
+    queue[k] = key;
+}
+```
+
+### 3.4. 删除
+
+- poll
+
+```java
+public E poll() {
+    //一个元素都没有那么返回null
+    if (size == 0)
+        return null;
+    //更新容量
+    int s = --size;
+    modCount++;
+    //取出第一个元素就是所要的结果
+    E result = (E) queue[0];
+    //把原来末尾的元素放在第一个位置
+    E x = (E) queue[s];
+    queue[s] = null;
+    //执行下沉操作维护堆属性
+    if (s != 0)
+        siftDown(0, x);
+    return result;
+}
+```
+
+- siftDown
+
+```java
+//数组中位置k的元素为x，对其执行下沉操作，维护这棵子树的堆属性
+private void siftDown(int k, E x) {
+    //如果设置了自定义的comparator，那么使用之
+    if (comparator != null)
+        siftDownUsingComparator(k, x);
+    //我们没设置，那么走这一段
+    else
+        siftDownComparable(k, x);
+}
+```
+
+
+#### 3.4.1. 下沉操作
+
+```java
+
+private void siftDownComparable(int k, E x) {
+    //必须实现了Comparable接口
+    Comparable<? super E> key = (Comparable<? super E>)x;
+    //数组的一半大小，这个是下沉操作终止的条件
+   //即一直往下调整到叶子节点为止
+    int half = size >>> 1;
+    while (k < half) {
+        //获取左孩子
+        int child = (k << 1) + 1; // assume left child is least
+        Object c = queue[child];
+        //获取右孩子
+        int right = child + 1;
+        if (right < size &&
+            ((Comparable<? super E>) c).compareTo((E) queue[right]) > 0)
+            c = queue[child = right];
+        //c为左右孩子较小的那个，跟父亲（我自己）比，如果父亲较小，没必要调整，直接break退出
+        if (key.compareTo((E) c) <= 0)
+            break;
+        //否则把较小的孩子覆盖到父亲的位置
+        queue[k] = c;
+        //把较小的孩子作为下一个父亲，继续执行下沉操作
+        k = child;
+    }
+    //把key(其实就是x)放在他该在的位置
+    queue[k] = key;
+}
+```
