@@ -1,0 +1,31 @@
+{
+    "created_time": "2020-01-17T13:06:57Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-18T11:34:46Z",
+            "name": "pipeline的初始化.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-01-18T09:54:10Z",
+            "name": "添加删除ChannelHandler.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+        {
+            "name": "事件和异常的传播"
+        }
+    ],
+    "version": "1"
+}

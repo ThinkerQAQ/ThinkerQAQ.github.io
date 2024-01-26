@@ -1,0 +1,21 @@
+{
+    "brand": "ThinkerQAQ",
+    "title": "ThinkerQAQ",
+    "favicon": "ico/viki.ico",
+    "footer": "",
+    "show_suffix": true,
+    "load_before_search": true,
+    "fuzzy_search": true,
+    "markdown":
+    {
+        "html": true,
+        "breaks": true,
+        "linkify": true,
+        "typographer": true,
+        "lang_prefix": "lang-",
+        "image_caption": true,
+        "plantuml_server": "https://www.plantuml.com/plantuml",
+        "plantuml_format": "svg",
+        "code_block_line_number": true
+    }
+}
