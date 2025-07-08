@@ -1,8 +1,9 @@
 ## 1. Introduction
 
-[ThinkerQAQ](https://thinkerqaq.github.io/)
+本wiki记录个人编程学习成长的知识体系，难免有错误或疏漏的地方，敬请谅解～
+在线wiki链接：[ThinkerQAQ](https://thinkerqaq.github.io/)
 
-本地运行：
+### 1.1. 本地运行
 
 1. 安装http server
 
