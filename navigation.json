@@ -1,40 +1,116 @@
 {
-    "navigation": [
+  "navigation": [
+    {
+      "text": "语言",
+      "children": [
         {
-            "text": "JUC源码分析索引",
-            "target": "notes/JUC/_vnote.json",
-            "navi": true,
-            "toc": true
-        }, 
-        {
-            "text": "Netty源码分析索引",
-            "target": "notes/Netty/_vnote.json",
-            "navi": true,
-            "toc": true
+          "text": "Java JUC源码分析系列",
+          "target": "notes/Java/JUC/_vnote.json",
+          "navi": true,
+          "toc": true
         },
         {
-            "text": "Spring系列源码分析索引",
-            "children": [
-                {
-                    "text": "SpringBoot",
-                    "target": "notes/SpringBoot/_vnote.json",
-                    "navi": true,
-                    "toc": true
-                },
-                {
-                    "text": "Spring",
-                    "target": "notes/Spring/_vnote.json",
-                    "navi": true,
-                    "toc": true
-                }
-               
-            ]
+          "text": "Java SDK源码分析系列",
+          "target": "notes/Java/JDK/_vnote.json",
+          "navi": true,
+          "toc": true
         },
         {
-            "text": "JDK源码分析索引",
-            "target": "notes/JDK/_vnote.json",
-            "navi": true,
-            "toc": true
+          "text": "Java 框架源码分析系列",
+          "target": "notes/Java/Framework/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "Lua",
+          "target": "notes/Lua/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "ASM",
+          "target": "notes/ASM/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "Golang",
+          "target": "notes/Golang/_vnote.json",
+          "navi": true,
+          "toc": true
         }
-    ]
+      ]
+    },
+    {
+      "text": "数据层",
+      "children": [
+        {
+          "text": "数据库",
+          "target": "notes/Database/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "Redis",
+          "target": "notes/Redis/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "消息队列",
+          "target": "notes/Message_Queue/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "Elasticsearch",
+          "target": "notes/Search_Server/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "Zookeeper",
+          "target": "notes/Zookeeper/_vnote.json",
+          "navi": true,
+          "toc": true
+        }
+      ]
+    },
+    {
+      "text": "Web服务器",
+      "target": "notes/Web_Server/Nginx/_vnote.json",
+      "navi": true,
+      "toc": true
+    },
+     {
+      "text": "系统设计",
+      "target": "notes/System_Design/_vnote.json",
+      "navi": true,
+      "toc": true
+    },
+    {
+      "text": "数据结构与算法",
+      "target": "notes/Algorithm/_vnote.json",
+      "navi": true,
+      "toc": true
+    },
+    {
+      "text": "计算机网络",
+      "target": "notes/Computer_Network/_vnote.json",
+      "navi": true,
+      "toc": true
+    },
+    {
+      "text": "安全",
+      "target": "notes/Safe/_vnote.json",
+      "navi": true,
+      "toc": true
+    },
+    {
+      "text": "容器",
+      "target": "notes/Container/_vnote.json",
+      "navi": true,
+      "toc": true
+    }
+  ]
 }

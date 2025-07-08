@@ -1,0 +1,74 @@
+{
+    "created_time": "2022-03-11T14:49:14Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2022-03-11T14:49:20Z",
+            "modified_time": "2024-02-03T07:41:32Z",
+            "name": "架构模式.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2022-02-21T11:49:15Z",
+            "modified_time": "2022-03-12T06:46:48Z",
+            "name": "单体架构.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2022-02-21T11:50:42Z",
+            "modified_time": "2022-03-12T04:33:44Z",
+            "name": "分层架构.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2022-03-11T08:24:47Z",
+            "modified_time": "2022-03-23T05:19:29Z",
+            "name": "读写分离架构.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2022-03-12T04:31:40Z",
+            "modified_time": "2024-02-03T07:02:56Z",
+            "name": "事件驱动架构.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2024-02-03T07:41:25Z",
+            "modified_time": "2024-02-03T07:41:25Z",
+            "name": "可插拔架构.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+        {
+            "name": "微服务"
+        },
+        {
+            "name": "DDD"
+        }
+    ],
+    "version": "1"
+}

@@ -1,0 +1,68 @@
+{
+    "created_time": "2020-01-17T13:06:57Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-04-22T11:36:37Z",
+            "name": "单例模式.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2025-06-19T07:15:39Z",
+            "name": "原型模式.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-04-22T12:32:06Z",
+            "name": "工厂方法.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2021-05-10T14:17:08Z",
+            "name": "构建者模式.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-09-13T04:22:39Z",
+            "name": "简单工厂.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-04-22T12:34:47Z",
+            "modified_time": "2020-04-22T12:52:49Z",
+            "name": "抽象工厂.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+    ],
+    "version": "1"
+}

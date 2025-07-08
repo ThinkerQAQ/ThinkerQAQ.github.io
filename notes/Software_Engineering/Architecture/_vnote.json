@@ -1,0 +1,31 @@
+{
+    "created_time": "2021-08-15T08:33:38Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2021-08-15T08:34:27Z",
+            "modified_time": "2022-12-18T07:50:44Z",
+            "name": "架构.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2022-12-18T07:50:26Z",
+            "modified_time": "2024-04-28T14:03:00Z",
+            "name": "软技能.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+        {
+            "name": "架构模式"
+        }
+    ],
+    "version": "1"
+}

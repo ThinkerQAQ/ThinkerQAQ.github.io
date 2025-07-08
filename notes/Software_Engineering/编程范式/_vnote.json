@@ -1,0 +1,27 @@
+{
+    "created_time": "2021-08-29T12:18:10Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2021-08-29T12:32:21Z",
+            "modified_time": "2021-08-29T12:32:51Z",
+            "name": "编程范式.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+        {
+            "name": "OOP"
+        },
+        {
+            "name": "Concurrent"
+        },
+        {
+            "name": "Functional"
+        }
+    ],
+    "version": "1"
+}

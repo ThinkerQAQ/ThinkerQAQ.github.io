@@ -1,0 +1,2 @@
+[性能测评（1）：MySQL云数据库vs自建数据库 \- 云\+社区 \- 腾讯云](https://cloud.tencent.com/developer/article/1380867)
+[Mysql专栏 \- 线上调优与压力测试 \- SegmentFault 思否](https://segmentfault.com/a/1190000040590593?utm_source=pocket_mylist)
