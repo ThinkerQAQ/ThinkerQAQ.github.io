@@ -4,13 +4,18 @@
 
 本地运行：
 
-1. 安装Python3
+1. 安装http server
+
+
+[Simple Web Server](https://simplewebserver.org/)
+
 
 2. 运行http server
+![http server](image.png)
 
-```shell
-python -m http.server
-```
+3. 打开浏览器
+
+[ThinkerQAQ](http://127.0.0.1:8080/#)
 
 ## Ref
 
