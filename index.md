@@ -15,6 +15,7 @@
 - [MyBatis源码分析](#!notes/Java/Framework/MyBatis/源码分析.md)
 - [SpringBoot源码分析](#!notes/Java/Framework/SpringBoot/SpringBoot启动原理/源码分析/启动原理.md) 
 - [Netty源码分析](#!notes/Java/Framework/Netty/源码分析/1.创建NioEventLoopGroup/1.创建NioEventLoopGroup.md)
+- [JVM](#!notes/Java/JVM/内存分区/内存分区.md)
 
 ### 1.2. Lua
 
@@ -75,6 +76,7 @@
 - [数据结构与算法](#!notes/Algorithm/数据结构与算法.md)
 - [计算机网络](#!notes/Computer_Network/计算机网络.md)
 - [操作系统](#!notes/Operating_System/操作系统.md)
+- [计算机组成原理](#!notes/Computer_Composition_Principle/计算机组成.md)
 
 ## 7. 容器
 

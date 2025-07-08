@@ -22,6 +22,12 @@
           "toc": true
         },
         {
+          "text": "Java JVM",
+          "target": "notes/Java/JVM/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
           "text": "Lua",
           "target": "notes/Lua/_vnote.json",
           "navi": true,
@@ -106,6 +112,12 @@
         {
           "text": "操作系统",
           "target": "notes/Operating_System/_vnote.json",
+          "navi": true,
+          "toc": true
+        },
+        {
+          "text": "计算机组成原理",
+          "target": "notes/Computer_Composition_Principle/_vnote.json",
           "navi": true,
           "toc": true
         },

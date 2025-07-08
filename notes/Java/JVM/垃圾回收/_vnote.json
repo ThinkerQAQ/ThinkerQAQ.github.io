@@ -1,0 +1,68 @@
+{
+    "created_time": "2020-01-17T13:06:57Z",
+    "files": [
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-02-04T07:13:25Z",
+            "name": "1.垃圾回收思想.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-02-19T12:47:07Z",
+            "name": "2.垃圾回收算法.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-03-14T07:02:06Z",
+            "name": "3.垃圾回收器.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-03-14T06:18:09Z",
+            "name": "4.jvm参数选用具体的垃圾回收器.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2020-03-19T06:55:31Z",
+            "name": "垃圾回收.md",
+            "tags": [
+            ]
+        },
+        {
+            "attachment_folder": "",
+            "attachments": [
+            ],
+            "created_time": "2020-01-17T13:06:57Z",
+            "modified_time": "2022-02-26T14:03:03Z",
+            "name": "引用.md",
+            "tags": [
+            ]
+        }
+    ],
+    "sub_directories": [
+    ],
+    "version": "1"
+}
