@@ -69,20 +69,15 @@
 
 
 
-## 6. 安全
+## 6. CS基础
 
 - [安全](#!notes/Safe/安全.md)
-
+- [数据结构与算法](#!notes/Algorithm/数据结构与算法.md)
+- [计算机网络](#!notes/Computer_Network/计算机网络.md)
+- [操作系统](#!notes/Operating_System/操作系统.md)
 
 ## 7. 容器
 
 - [Docker](#!notes/Container/Docker/Docker.md)
 - [Kubernetes](#!notes/Container/Kubernetes/Kubernetes.md)
 
-## 8. 数据结构与算法
-
-- [数据结构与算法](#!notes/Algorithm/数据结构与算法.md)
-
-## 9. 计算机网络
-
-- [计算机网络](#!notes/Computer_Network/计算机网络.md)
