@@ -41,7 +41,9 @@
 HTTPDNS
 ## 6. 智能DNS解析
 [智能解析](https://help.aliyun.com/document_detail/29730.html)
-**通过识别LocalDNS（本地域名服务器）的出口IP来确定地域**
+- 前提是本地DNS是运营商的DNS
+- LocalDNS委派给智能DNS
+- 智能DNS**通过识别LocalDNS（本地域名服务器）的出口IP来确定地域**
 ![DNS-智能DNS](https://raw.githubusercontent.com/TDoct/images/master/1658754427_20220725210659104_23394.png)
 ![DNS-智能DNS ClientIP](https://raw.githubusercontent.com/TDoct/images/master/1658754428_20220725210704023_29753.png)
 ## 7. 参考
