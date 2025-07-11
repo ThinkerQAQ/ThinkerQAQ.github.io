@@ -83,9 +83,3 @@
 - [Docker](#!notes/Container/Docker/Docker.md)
 - [Kubernetes](#!notes/Container/Kubernetes/Kubernetes.md)
 
-
-## 8. 生活
-
-- [健身](#!notes/Container/Docker/Docker.md)
-- [饮食](#!notes/Container/Kubernetes/Kubernetes.md)
-- [摄影](#!notes/Container/Kubernetes/Kubernetes.md)
