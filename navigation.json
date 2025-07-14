@@ -134,6 +134,12 @@
       "target": "notes/Container/_vnote.json",
       "navi": true,
       "toc": true
+    },
+    {
+      "text": "测试",
+      "target": "notes/Test/_vnote.json",
+      "navi": true,
+      "toc": true
     }
   ]
 }
