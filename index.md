@@ -65,6 +65,7 @@
 
 ## 5. 系统设计
 
+- [技术规划](#!notes/System_Design/软件系统技术规划方法论.md)
 - [业务系统设计分析思路](#!notes/System_Design/业务系统设计分析思路.md)
 - [性能调优](#!notes/Operating_System/Linux/性能调优/Linux性能调优.md)
 
