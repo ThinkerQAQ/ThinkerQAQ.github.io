@@ -36,9 +36,9 @@
 
 ## 3. 数据层
 
-### 3.1. 数据库
+### 3.1. RDS
 
-- [数据库](#!notes/Database/关系型数据库.md)
+- [RDS](#!notes/Database/关系型数据库.md)
 
 ### 3.2. Redis
 
