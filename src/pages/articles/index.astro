@@ -1,0 +1,30 @@
+---
+import { getCollection } from "astro:content";
+import ArticleList from "../../components/ArticleList.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { sortArticles } from "../../lib/content";
+
+const articles = sortArticles(
+  (await getCollection("articles")).filter((article) => article.data.status === "published"),
+);
+const chineseArticles = articles.filter((article) => article.data.language === "zh");
+const englishArticles = articles.filter((article) => article.data.language === "en");
+---
+
+<BaseLayout title="文章" noindex={articles.length === 0}>
+  <div class="shell page">
+    <header class="page-header">
+      <h1>文章</h1>
+    </header>
+    <ArticleList entries={chineseArticles} emptyMessage="暂无文章。" />
+    {englishArticles.length > 0 && (
+      <section class="home-section">
+        <div class="section-heading">
+          <h2>English</h2>
+          <a href="/english/">查看全部</a>
+        </div>
+        <ArticleList entries={englishArticles.slice(0, 5)} />
+      </section>
+    )}
+  </div>
+</BaseLayout>

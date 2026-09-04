@@ -1,0 +1,14 @@
+---
+import { getCollection } from "astro:content";
+import ArticleList from "../../components/ArticleList.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { sortArticles } from "../../lib/content";
+const entries = sortArticles(await getCollection("articles", ({ data }) => data.status === "published" && data.language === "en"));
+---
+<BaseLayout title="English Articles" language="en" noindex={entries.length === 0}>
+  <div class="shell page">
+    <header class="page-header"><h1>English Articles</h1></header>
+    <ArticleList entries={entries} emptyMessage="No English articles published yet." />
+    <p><a href="/articles/">查看全部文章 / All articles</a></p>
+  </div>
+</BaseLayout>

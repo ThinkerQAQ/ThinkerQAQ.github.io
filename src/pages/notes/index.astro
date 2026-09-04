@@ -1,0 +1,36 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { categoryHref, groupByCategory } from "../../lib/content";
+
+const notes = await getCollection("notes");
+const categories = groupByCategory(notes);
+---
+
+<BaseLayout title="笔记" noindex={notes.length === 0}>
+  <div class="shell page">
+    <header class="page-header">
+      <h1>笔记</h1>
+    </header>
+
+    {notes.length === 0 && <p class="empty-state">暂无笔记。</p>}
+    <div class="category-index">
+      {categories.map((group) => (
+        <section>
+          <div class="category-title">
+            <h2><a href={categoryHref(group.category)}>{group.label}</a></h2>
+            <span>{group.entries.length} 篇</span>
+          </div>
+          <ul>
+            {group.entries.slice(0, 5).map((note) => (
+              <li><a href={`/notes/${note.id}/`}>{note.data.title}</a></li>
+            ))}
+          </ul>
+          {group.entries.length > 5 && (
+            <a class="more-link" href={categoryHref(group.category)}>查看全部 →</a>
+          )}
+        </section>
+      ))}
+    </div>
+  </div>
+</BaseLayout>

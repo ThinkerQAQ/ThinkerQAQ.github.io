@@ -1,0 +1,40 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import ContentList from "../../../components/ContentList.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { sortByUpdated } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  const groups = new Map<string, CollectionEntry<"notes">[]>();
+  for (const note of notes) {
+    const entries = groups.get(note.data.category) ?? [];
+    entries.push(note);
+    groups.set(note.data.category, entries);
+  }
+  return [...groups.entries()].map(([category, entries]) => ({
+    params: { category },
+    props: { entries, label: entries[0]?.data.categoryLabel ?? category },
+  }));
+}
+
+interface Props {
+  entries: CollectionEntry<"notes">[];
+  label: string;
+}
+
+const { entries, label } = Astro.props;
+const sortedEntries = sortByUpdated(entries);
+---
+
+<BaseLayout title={label} description={`${label}主题下的技术学习笔记。`}>
+  <div class="shell page">
+    <nav class="breadcrumb" aria-label="面包屑"><a href="/notes/">笔记</a><span>/</span></nav>
+    <header class="page-header compact">
+      <p class="eyebrow">TOPIC</p>
+      <h1>{label}</h1>
+      <p>{entries.length} 篇笔记</p>
+    </header>
+    <ContentList entries={sortedEntries} showCategory={false} />
+  </div>
+</BaseLayout>

@@ -1,1 +1,0 @@
-[SSHFS: How to Mount Remote File Systems Over SSH | phoenixNAP KB](https://phoenixnap.com/kb/sshfs?utm_source=pocket_saves)

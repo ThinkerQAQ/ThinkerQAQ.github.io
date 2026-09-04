@@ -1,0 +1,13 @@
+---
+import { SITE } from "../config/site";
+---
+
+<footer class="site-footer">
+  <div class="shell footer-inner">
+    <span>© {new Date().getFullYear()} {SITE.author}</span>
+    <span class="footer-links">
+      <a href="/rss.xml">RSS</a>
+      <a href={SITE.repository} rel="me">GitHub</a>
+    </span>
+  </div>
+</footer>

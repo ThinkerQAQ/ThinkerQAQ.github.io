@@ -1,0 +1,37 @@
+---
+import { getCollection, render } from "astro:content";
+import type { CollectionEntry } from "astro:content";
+import ArticleList from "../../components/ArticleList.astro";
+import ContentList from "../../components/ContentList.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatDate, seriesStatus } from "../../lib/content";
+export async function getStaticPaths() {
+  return (await getCollection("series")).map((series) => ({ params: { slug: series.id }, props: { series } }));
+}
+interface Props { series: CollectionEntry<"series"> }
+const { series } = Astro.props;
+const { data } = series;
+const { Content } = await render(series);
+const articles = await getCollection("articles", ({ data }) => data.status === "published");
+const notes = await getCollection("notes");
+function resolveEntries<T extends { id: string }>(ids: string[], entries: T[]): T[] {
+  return ids.map((id) => {
+    const entry = entries.find((item) => item.id === id);
+    if (!entry) throw new Error(`Series ${series.id}: referenced content not found: ${id}`);
+    return entry;
+  });
+}
+const relatedArticles = resolveEntries(data.relatedArticles, articles);
+const relatedNotes = resolveEntries(data.relatedNotes, notes);
+---
+<BaseLayout title={data.title} description={data.description}>
+  <div class="shell page">
+    <article data-pagefind-body>
+      <nav class="breadcrumb" aria-label="面包屑"><a href="/series/">系列</a></nav>
+      <header class="note-header"><p class="eyebrow">SERIES</p><h1 data-pagefind-meta="title">{data.title}</h1><p class="note-description">{data.description}</p><div class="note-meta"><span>{seriesStatus[data.status]}</span><span>更新于 {formatDate(data.updatedAt)}</span></div></header>
+      <div class="prose"><Content /></div>
+    </article>
+    <section class="related-content"><h2>按顺序阅读</h2><ArticleList entries={relatedArticles} emptyMessage="正式文章还在整理中，可以先阅读下方参考笔记。" /></section>
+    <section class="related-content"><h2>参考笔记</h2><ContentList entries={relatedNotes} /></section>
+  </div>
+</BaseLayout>

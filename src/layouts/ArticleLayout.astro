@@ -1,0 +1,79 @@
+---
+import type { CollectionEntry } from "astro:content";
+import TableOfContents from "../components/TableOfContents.astro";
+import { SITE } from "../config/site";
+import { formatDate, seriesHref } from "../lib/content";
+import BaseLayout from "./BaseLayout.astro";
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  article: CollectionEntry<"articles">;
+  headings: Heading[];
+  translation?: CollectionEntry<"articles">;
+}
+
+const { article, headings, translation } = Astro.props;
+const { data } = article;
+const articlePath = `/articles/${article.id}/`;
+const schema = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: data.title,
+  description: data.description,
+  datePublished: data.publishedAt.toISOString(),
+  dateModified: (data.updatedAt ?? data.publishedAt).toISOString(),
+  author: { "@type": "Person", name: SITE.author },
+  inLanguage: data.language === "en" ? "en" : "zh-CN",
+  mainEntityOfPage: new URL(articlePath, SITE.url).toString(),
+};
+---
+
+<BaseLayout title={data.title} description={data.description} type="article" canonicalPath={articlePath} language={schema.inLanguage}>
+  <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
+  {translation && <link slot="head" rel="alternate" hreflang={schema.inLanguage} href={new URL(articlePath, SITE.url)} />}
+  {translation && (
+    <link
+      slot="head"
+      rel="alternate"
+      hreflang={translation.data.language === "en" ? "en" : "zh-CN"}
+      href={new URL(`/articles/${translation.id}/`, SITE.url)}
+    />
+  )}
+  <div class="shell content-shell">
+    <article class="note" data-pagefind-body>
+      <nav class="breadcrumb" aria-label="面包屑">
+        <a href="/articles/">文章</a>
+        {data.series && <span aria-hidden="true">/</span>}
+        {data.series && <a href={seriesHref(data.series)}>所属系列</a>}
+      </nav>
+
+      <header class="note-header">
+        <p class="eyebrow">{data.language === "en" ? "ENGLISH ARTICLE" : "ARTICLE"}</p>
+        <h1 data-pagefind-meta="title">{data.title}</h1>
+        <p class="note-description">{data.description}</p>
+        <div class="note-meta">
+          <span data-pagefind-filter="language">{data.language === "en" ? "English" : "中文"}</span>
+          <span>发布于 <time datetime={data.publishedAt.toISOString()}>{formatDate(data.publishedAt)}</time></span>
+          {data.updatedAt && <span>更新于 {formatDate(data.updatedAt)}</span>}
+          {translation && <a href={`/articles/${translation.id}/`}>{translation.data.language === "en" ? "Read in English" : "阅读中文版"}</a>}
+        </div>
+        {data.tags.length > 0 && (
+          <div class="tag-list" aria-label="标签">
+            {data.tags.map((tag) => <span>{tag}</span>)}
+          </div>
+        )}
+      </header>
+
+      <div class="prose"><slot /></div>
+      {data.sourceNote && (
+        <p class="source-note">本文迁移自<a href={data.sourceNote}>原始学习笔记</a>，文章版本独立维护。</p>
+      )}
+    </article>
+    <TableOfContents headings={headings} />
+  </div>
+</BaseLayout>

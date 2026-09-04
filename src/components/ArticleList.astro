@@ -1,0 +1,32 @@
+---
+import type { ArticleEntry } from "../lib/content";
+import { articleHref, formatDate } from "../lib/content";
+
+interface Props {
+  entries: ArticleEntry[];
+  emptyMessage?: string;
+}
+
+const { entries, emptyMessage = "这里还没有已发布文章。" } = Astro.props;
+---
+
+{entries.length === 0 ? (
+  <p class="empty-state">{emptyMessage}</p>
+) : (
+  <ol class="content-list">
+    {entries.map((entry) => (
+      <li>
+        <div class="content-list-main">
+          <a class="content-title" href={articleHref(entry)}>{entry.data.title}</a>
+          <p>{entry.data.description}</p>
+        </div>
+        <div class="content-meta">
+          <span>{entry.data.language === "en" ? "English" : entry.data.tags[0] ?? "技术文章"}</span>
+          <time datetime={(entry.data.updatedAt ?? entry.data.publishedAt).toISOString()}>
+            {formatDate(entry.data.updatedAt ?? entry.data.publishedAt)}
+          </time>
+        </div>
+      </li>
+    ))}
+  </ol>
+)}

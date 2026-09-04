@@ -1,0 +1,13 @@
+---
+import { getCollection } from "astro:content";
+import ShowcaseList from "../../components/ShowcaseList.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { projectHref, projectStatus, sortProjects } from "../../lib/content";
+const entries = sortProjects(await getCollection("projects"));
+---
+<BaseLayout title="项目" noindex={entries.length === 0}>
+  <div class="shell page">
+    <header class="page-header"><h1>项目</h1></header>
+    <ShowcaseList items={entries.map((entry) => ({ href: projectHref(entry), title: entry.data.title, description: entry.data.description, label: entry.data.tags.join(" · "), status: projectStatus[entry.data.status] }))} />
+  </div>
+</BaseLayout>

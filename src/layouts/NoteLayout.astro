@@ -1,0 +1,72 @@
+---
+import type { CollectionEntry } from "astro:content";
+import TableOfContents from "../components/TableOfContents.astro";
+import { SITE } from "../config/site";
+import { categoryHref, formatDate } from "../lib/content";
+import BaseLayout from "./BaseLayout.astro";
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  note: CollectionEntry<"notes">;
+  headings: Heading[];
+}
+
+const { note, headings } = Astro.props;
+const { data } = note;
+const schema = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: data.title,
+  description: data.description,
+  dateModified: data.updatedAt.toISOString(),
+  author: { "@type": "Person", name: SITE.author },
+  inLanguage: data.language === "en" ? "en" : "zh-CN",
+  mainEntityOfPage: new URL(data.canonicalPath ?? Astro.url.pathname, SITE.url).toString(),
+};
+---
+
+<BaseLayout
+  title={data.title}
+  description={data.description}
+  noindex={!data.indexable}
+  type="article"
+  canonicalPath={data.canonicalPath}
+>
+  <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
+  <div class="shell content-shell">
+    <article class="note" data-pagefind-body>
+      <nav class="breadcrumb" aria-label="面包屑">
+        <a href="/notes/">笔记</a>
+        <span aria-hidden="true">/</span>
+        <a href={categoryHref(data.category)}>{data.categoryLabel}</a>
+      </nav>
+
+      <header class="note-header">
+        <p class="eyebrow">NOTE</p>
+        <h1 data-pagefind-meta="title">{data.title}</h1>
+        {data.description && <p class="note-description">{data.description}</p>}
+        <div class="note-meta">
+          <span data-pagefind-filter="category">{data.categoryLabel}</span>
+          <span>更新于 <time datetime={data.updatedAt.toISOString()}>{formatDate(data.updatedAt)}</time></span>
+          {!data.indexable && !data.canonicalPath && <span>整理中</span>}
+        </div>
+        {data.tags.length > 0 && (
+          <div class="tag-list" aria-label="标签">
+            {data.tags.map((tag) => <span>{tag}</span>)}
+          </div>
+        )}
+      </header>
+
+      {data.canonicalPath && <p class="source-note">这份笔记已有独立维护的<a href={data.canonicalPath}>文章版</a>。这里保留原始学习记录。</p>}
+      <div class="prose">
+        <slot />
+      </div>
+    </article>
+    <TableOfContents headings={headings} />
+  </div>
+</BaseLayout>

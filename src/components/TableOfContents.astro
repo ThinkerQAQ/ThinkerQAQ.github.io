@@ -1,0 +1,27 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+const visibleHeadings = headings.filter((heading) => heading.depth <= 3);
+---
+
+{visibleHeadings.length > 2 && (
+  <aside class="toc" aria-label="本页目录">
+    <p class="toc-title">本页目录</p>
+    <ol>
+      {visibleHeadings.map((heading) => (
+        <li class={`toc-depth-${heading.depth}`}>
+          <a href={`#${heading.slug}`}>{heading.text}</a>
+        </li>
+      ))}
+    </ol>
+  </aside>
+)}

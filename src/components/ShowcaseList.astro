@@ -1,0 +1,33 @@
+---
+interface Item {
+  href: string;
+  title: string;
+  description: string;
+  label: string;
+  status?: string;
+}
+
+interface Props {
+  items: Item[];
+  emptyMessage?: string;
+}
+
+const { items, emptyMessage = "这里还没有公开内容。" } = Astro.props;
+---
+
+{items.length === 0 ? (
+  <p class="empty-state">{emptyMessage}</p>
+) : (
+  <ol class="showcase-list">
+    {items.map((item) => (
+      <li>
+        <div class="showcase-heading">
+          <a href={item.href}>{item.title}</a>
+          {item.status && <span class="status-label">{item.status}</span>}
+        </div>
+        <p>{item.description}</p>
+        <small>{item.label}</small>
+      </li>
+    ))}
+  </ol>
+)}

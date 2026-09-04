@@ -1,0 +1,37 @@
+---
+import type { NoteEntry } from "../lib/content";
+import { formatDate, noteHref } from "../lib/content";
+
+interface Props {
+  entries: NoteEntry[];
+  showCategory?: boolean;
+  emptyMessage?: string;
+}
+
+const {
+  entries,
+  showCategory = true,
+  emptyMessage = "这里还没有公开内容。",
+} = Astro.props;
+---
+
+{entries.length === 0 ? (
+  <p class="empty-state">{emptyMessage}</p>
+) : (
+  <ol class="content-list">
+    {entries.map((entry) => (
+      <li>
+        <div class="content-list-main">
+          <a class="content-title" href={noteHref(entry)}>{entry.data.title}</a>
+          {entry.data.description && <p>{entry.data.description}</p>}
+        </div>
+        <div class="content-meta">
+          {showCategory && <span>{entry.data.categoryLabel}</span>}
+          <time datetime={entry.data.updatedAt.toISOString()}>
+            {formatDate(entry.data.updatedAt)}
+          </time>
+        </div>
+      </li>
+    ))}
+  </ol>
+)}
