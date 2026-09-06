@@ -1,5 +1,6 @@
 ---
 import type { CollectionEntry } from "astro:content";
+import ArticleComments from "../components/ArticleComments.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
 import { formatDate, seriesHref } from "../lib/content";
@@ -73,6 +74,7 @@ const schema = {
       {data.sourceNote && (
         <p class="source-note">本文迁移自<a href={data.sourceNote}>原始学习笔记</a>，文章版本独立维护。</p>
       )}
+      <ArticleComments language={data.language} pathname={articlePath} />
     </article>
     <TableOfContents headings={headings} />
   </div>

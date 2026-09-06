@@ -711,6 +711,37 @@ main {
   margin-top: 3rem;
 }
 
+.article-comments {
+  margin-top: 4rem;
+  padding-top: 2.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.article-comments-header {
+  margin-bottom: 1.5rem;
+}
+
+.article-comments-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.article-comments-header p,
+.article-comments noscript p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.article-comments-header a {
+  margin-left: 0.45rem;
+}
+
+.article-comments .utterances {
+  max-width: none;
+}
+
 .prose .plantuml-diagram {
   max-width: 100%;
   overflow-x: auto;
@@ -731,6 +762,10 @@ main {
   .site-footer,
   .toc,
   .breadcrumb {
+    display: none;
+  }
+
+  .article-comments {
     display: none;
   }
 

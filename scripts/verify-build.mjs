@@ -3,6 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NEVER_PUBLISH, PROMOTED_ARTICLES } from "./content-policy.mjs";
 import { MANIFEST as DIAGRAM_MANIFEST, validateSvg } from "./plantuml/core.mjs";
+import {
+  MANIFEST as DRAWIO_MANIFEST,
+  diagramUrl as drawIoUrl,
+  sha256,
+  validateSvg as validateDrawIoSvg,
+} from "./drawio/core.mjs";
 
 const startedAt = Date.now();
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -70,6 +76,13 @@ async function main() {
   invariant(home.includes("<main id=\"main-content\">"), "Home page has no static main content");
   invariant(!home.includes("viki.js"), "Legacy Viki runtime leaked into the production home page");
   const htmlSources = await Promise.all(htmlFiles.map((file) => readFile(file, "utf8")));
+  const articlePages = htmlSources.filter((html) => html.includes('<meta property="og:type" content="article">'));
+  for (const articlePage of articlePages) {
+    invariant(articlePage.includes('src="https://utteranc.es/client.js"'), "Published article is missing utterances comments");
+    invariant(articlePage.includes('repo="ThinkerQAQ/ThinkerQAQ.github.io"'), "Utterances repository mismatch");
+    invariant(articlePage.includes('issue-term="pathname"'), "Utterances must map comments by pathname");
+    invariant(articlePage.includes('label="blog-comment"'), "Utterances comment label mismatch");
+  }
   const hasSearchContent = htmlSources.some((html) => html.includes("data-pagefind-body"));
   invariant((await exists(path.join(distRoot, "pagefind", "pagefind.js"))) === hasSearchContent, "Search index must match published content (and must be absent on an empty site)");
   invariant(await exists(path.join(distRoot, "robots.txt")), "robots.txt is missing");
@@ -95,6 +108,13 @@ async function main() {
       invariant(html.includes(`src="${diagram.url}"`), `PlantUML image missing: ${origin.file}:${origin.line}`);
       diagramReferences += 1;
     }
+  }
+  const drawIoManifest = JSON.parse(await readFile(DRAWIO_MANIFEST, "utf8"));
+  for (const diagram of drawIoManifest.diagrams) {
+    invariant(diagram.url === drawIoUrl(diagram.output), `draw.io URL mismatch: ${diagram.source}`);
+    const svgFile = localTargetFile(diagram.url);
+    const svg = validateDrawIoSvg(await readFile(svgFile));
+    invariant(sha256(svg) === diagram.outputHash, `draw.io SVG hash mismatch: ${diagram.source}`);
   }
 
   const missingRoutes = [];
@@ -147,7 +167,9 @@ async function main() {
     indexableNotes: manifest.entries.filter((entry) => entry.indexable).length,
     plantumlImages: diagramManifest.diagrams.length,
     plantumlReferences: diagramReferences,
+    drawioImages: drawIoManifest.diagrams.length,
     checkedLocalLinks: "all",
+    commentEnabledArticles: articlePages.length,
     durationMs: Date.now() - startedAt,
   });
 }

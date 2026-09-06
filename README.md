@@ -1,6 +1,6 @@
 # ThinkerQAQ 网站骨架
 
-当前内容已清空，保留 Astro、Markdown 内容模型、Pagefind 搜索能力、PlantUML 静态渲染和 GitHub Pages 构建配置。没有预填笔记、文章、项目、系列或个人介绍。
+当前内容已清空，保留 Astro、Markdown 内容模型、Pagefind 搜索能力、draw.io / PlantUML 静态图表和 GitHub Pages 构建配置。没有预填笔记、文章、项目、系列或个人介绍。
 
 ## 本地打开
 
@@ -34,12 +34,20 @@ npm run local
 
 ## 图表、搜索与检查
 
-`puml` / `plantuml` 代码块在构建时转换成本地 SVG。保留内容哈希缓存、SANDBOX 渲染、失败文件与行号日志。首次生成需要 Java 17+，渲染器使用锁定版本与 SHA-256 校验；Windows 使用自带 Graphviz，Linux 的布局工具和中文字体已配置在工作流中。
+draw.io 用于需要手工布局的架构图和文章主图：源文件放在 `src/diagrams/drawio/`，构建脚本通过 draw.io Desktop 导出到 `public/diagrams/drawio/`。生成的 SVG 和源文件一起进入版本管理；没有 draw.io 图时不要求安装桌面程序。详细规则见 [`docs/diagrams.md`](docs/diagrams.md)。
 
-- `npm run diagrams`：生成当前内容的图表，空站点生成零张。
+`puml` / `plantuml` 代码块继续在构建时转换成本地 SVG。保留内容哈希缓存、SANDBOX 渲染、失败文件与行号日志。首次生成需要 Java 17+，渲染器使用锁定版本与 SHA-256 校验；Windows 使用自带 Graphviz，Linux 的布局工具和中文字体已配置在工作流中。
+
+- `npm run diagrams`：生成 draw.io 与 PlantUML 图表，空站点生成零张。
+- `npm run diagrams:drawio`：只导出发生变化的 `.drawio` 图源。
+- `npm run check:drawio`：不渲染，只校验已提交的 draw.io SVG 是否最新。
 - `npm run test:diagrams`：使用独立测试数据检查渲染能力，不向网站添加内容。
 - `npm test`：图表测试、类型检查、构建及链接校验。
 
 空站点不生成搜索索引；添加公开内容后，构建会重新启用索引。生成的附件不包含本地备份。
+
+## 文章评论
+
+正式文章通过 utterances 使用 `ThinkerQAQ/ThinkerQAQ.github.io` 仓库的 GitHub Issues 作为评论区，以文章 `pathname` 建立一一对应关系，并统一添加 `blog-comment` 标签。启用前需要为该仓库安装 [utterances GitHub App](https://github.com/apps/utterances)，并确保 Issues 功能已开启。
 
 推送到 `master` 后，GitHub Actions 会执行检查、构建并将 `dist/` 发布到 [GitHub Pages](https://thinkerqaq.github.io/)。仓库的 Pages 发布来源应设为 GitHub Actions。不要公开本地备份目录。

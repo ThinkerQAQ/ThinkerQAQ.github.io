@@ -1,0 +1,45 @@
+---
+import { COMMENTS, SITE } from "../config/site";
+
+interface Props {
+  language?: "zh" | "en";
+  pathname: string;
+}
+
+const { language = "zh", pathname } = Astro.props;
+const isEnglish = language === "en";
+const heading = isEnglish ? "Discussion" : "讨论";
+const description = isEnglish
+  ? "Sign in with GitHub to comment. Discussions are stored as GitHub Issues."
+  : "使用 GitHub 账号参与讨论，评论会保存在 GitHub Issues 中。";
+const utterancesAttributes = {
+  src: "https://utteranc.es/client.js",
+  repo: COMMENTS.repository,
+  "issue-term": COMMENTS.issueTerm,
+  label: COMMENTS.label,
+  theme: COMMENTS.theme,
+  crossorigin: "anonymous",
+  async: true,
+};
+const issueSearch = new URLSearchParams({
+  q: `is:issue label:${COMMENTS.label} "${pathname}"`,
+});
+const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
+---
+
+<section class="article-comments" aria-labelledby="article-comments-title">
+  <header class="article-comments-header">
+    <h2 id="article-comments-title">{heading}</h2>
+    <p>
+      {description}
+      <a href={issuesUrl} rel="external">{isEnglish ? "View on GitHub" : "在 GitHub 查看"}</a>
+    </p>
+  </header>
+  <script is:inline {...utterancesAttributes}></script>
+  <noscript>
+    <p>
+      {isEnglish ? "JavaScript is required to load comments." : "需要启用 JavaScript 才能加载评论。"}
+      <a href={issuesUrl} rel="external">GitHub Issues</a>
+    </p>
+  </noscript>
+</section>

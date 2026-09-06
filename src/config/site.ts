@@ -8,6 +8,14 @@ export const SITE = {
   locale: "zh-CN",
 } as const;
 
+export const COMMENTS = {
+  provider: "utterances",
+  repository: "ThinkerQAQ/ThinkerQAQ.github.io",
+  issueTerm: "pathname",
+  label: "blog-comment",
+  theme: "preferred-color-scheme",
+} as const;
+
 export const NAV_ITEMS = [
   { href: "/articles/", label: "文章" },
   { href: "/projects/", label: "项目" },
