@@ -8,6 +8,7 @@ import { ROOT, CACHE, OUTPUT, MANIFEST, VERSION, diagramKey, diagramUrl, visitCo
 import { ensureJar, renderSvg } from "./plantuml/runtime.mjs";
 
 const parser = unified().use(remarkParse);
+const includeDrafts = process.env.INCLUDE_DRAFTS === "true";
 
 async function markdownFiles(directory) {
   const files = [];
@@ -24,7 +25,7 @@ export async function collectDiagrams() {
   for (const collection of ["notes", "articles", "projects", "series"]) {
     for (const file of await markdownFiles(path.join(ROOT, "src", "content", collection))) {
       const { content, frontmatter } = parseFrontmatter(await readFile(file, "utf8"), { frontmatter: "empty-with-lines" });
-      const published = collection !== "articles" || frontmatter.status === "published";
+      const published = collection !== "articles" || frontmatter.status === "published" || includeDrafts;
       const id = path.relative(path.join(ROOT, "src", "content", collection), file).replaceAll(path.sep, "/").replace(/\.md$/, "");
       const route = `/${collection}/${id}/`;
       visitCode(parser.parse(content), (node) => {

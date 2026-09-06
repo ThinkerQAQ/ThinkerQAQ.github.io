@@ -4,7 +4,7 @@ import type { CollectionEntry } from "astro:content";
 import ArticleList from "../../components/ArticleList.astro";
 import ContentList from "../../components/ContentList.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { formatDate, seriesStatus } from "../../lib/content";
+import { articleIsIncluded, formatDate, seriesStatus } from "../../lib/content";
 export async function getStaticPaths() {
   return (await getCollection("series")).map((series) => ({ params: { slug: series.id }, props: { series } }));
 }
@@ -12,7 +12,7 @@ interface Props { series: CollectionEntry<"series"> }
 const { series } = Astro.props;
 const { data } = series;
 const { Content } = await render(series);
-const articles = await getCollection("articles", ({ data }) => data.status === "published");
+const articles = (await getCollection("articles")).filter(articleIsIncluded);
 const notes = await getCollection("notes");
 function resolveEntries<T extends { id: string }>(ids: string[], entries: T[]): T[] {
   return ids.map((id) => {

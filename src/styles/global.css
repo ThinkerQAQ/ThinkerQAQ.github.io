@@ -241,6 +241,18 @@ main {
   text-decoration: none;
 }
 
+.draft-badge {
+  display: inline-block;
+  margin-left: 0.55rem;
+  padding: 0.08rem 0.45rem;
+  border: 1px solid color-mix(in srgb, #b45309 45%, var(--border));
+  border-radius: 999px;
+  color: #b45309;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: 0.08rem;
+}
+
 .content-list-main p {
   display: -webkit-box;
   max-width: 54rem;

@@ -18,6 +18,7 @@ const { entries, emptyMessage = "这里还没有已发布文章。" } = Astro.pr
       <li>
         <div class="content-list-main">
           <a class="content-title" href={articleHref(entry)}>{entry.data.title}</a>
+          {entry.data.status === "draft" && <span class="draft-badge">草稿</span>}
           <p>{entry.data.description}</p>
         </div>
         <div class="content-meta">

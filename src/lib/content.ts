@@ -5,8 +5,14 @@ export type ArticleEntry = CollectionEntry<"articles">;
 export type ProjectEntry = CollectionEntry<"projects">;
 export type SeriesEntry = CollectionEntry<"series">;
 
+export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
+
 export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成" };
 export const seriesStatus = { planned: "规划中", active: "持续更新", complete: "已完结" };
+
+export function articleIsIncluded(article: ArticleEntry): boolean {
+  return article.data.status === "published" || includeDraftArticles;
+}
 
 export function noteHref(note: NoteEntry): string {
   return `/notes/${note.id}/`;

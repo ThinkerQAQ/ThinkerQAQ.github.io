@@ -1,9 +1,10 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { getCollection } from "astro:content";
+import { articleIsIncluded } from "../lib/content";
 const counts = await Promise.all([
   getCollection("notes"),
-  getCollection("articles", ({ data }) => data.status === "published"),
+  getCollection("articles").then((articles) => articles.filter(articleIsIncluded)),
   getCollection("projects"),
   getCollection("series"),
 ]);

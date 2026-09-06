@@ -2,8 +2,12 @@
 import { getCollection } from "astro:content";
 import ArticleList from "../../components/ArticleList.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { sortArticles } from "../../lib/content";
-const entries = sortArticles(await getCollection("articles", ({ data }) => data.status === "published" && data.language === "en"));
+import { articleIsIncluded, sortArticles } from "../../lib/content";
+const entries = sortArticles(
+  (await getCollection("articles")).filter(
+    (entry) => articleIsIncluded(entry) && entry.data.language === "en",
+  ),
+);
 ---
 <BaseLayout title="English Articles" language="en" noindex={entries.length === 0}>
   <div class="shell page">

@@ -13,6 +13,8 @@ npm run local
 
 使用终端显示的 localhost 地址。停止预览：`npm run stop:local`。本地操作不会发布线上。
 
+`npm run local` 和 `npm run dev` 默认包含 `status: draft` 的文章，并显示“草稿”标记，方便发布前审阅；正式的 `npm run build` 只生成 `status: published` 的文章，草稿不会进入页面、搜索索引或 RSS。
+
 ## 内容目录
 
 - `src/content/notes/`：笔记。

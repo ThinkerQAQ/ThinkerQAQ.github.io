@@ -34,7 +34,7 @@ const schema = {
 };
 ---
 
-<BaseLayout title={data.title} description={data.description} type="article" canonicalPath={articlePath} language={schema.inLanguage}>
+<BaseLayout title={data.title} description={data.description} type="article" canonicalPath={articlePath} language={schema.inLanguage} noindex={data.status === "draft"}>
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   {translation && <link slot="head" rel="alternate" hreflang={schema.inLanguage} href={new URL(articlePath, SITE.url)} />}
   {translation && (
@@ -54,12 +54,12 @@ const schema = {
       </nav>
 
       <header class="note-header">
-        <p class="eyebrow">{data.language === "en" ? "ENGLISH ARTICLE" : "ARTICLE"}</p>
+        <p class="eyebrow">{data.status === "draft" ? "DRAFT PREVIEW" : data.language === "en" ? "ENGLISH ARTICLE" : "ARTICLE"}</p>
         <h1 data-pagefind-meta="title">{data.title}</h1>
         <p class="note-description">{data.description}</p>
         <div class="note-meta">
           <span data-pagefind-filter="language">{data.language === "en" ? "English" : "中文"}</span>
-          <span>发布于 <time datetime={data.publishedAt.toISOString()}>{formatDate(data.publishedAt)}</time></span>
+          <span>{data.status === "draft" ? "草稿日期" : "发布于"} <time datetime={data.publishedAt.toISOString()}>{formatDate(data.publishedAt)}</time></span>
           {data.updatedAt && <span>更新于 {formatDate(data.updatedAt)}</span>}
           {translation && <a href={`/articles/${translation.id}/`}>{translation.data.language === "en" ? "Read in English" : "阅读中文版"}</a>}
         </div>
