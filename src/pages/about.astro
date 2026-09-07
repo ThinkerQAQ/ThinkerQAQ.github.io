@@ -1,9 +1,32 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
-<BaseLayout title="关于" noindex={true}>
-  <div class="shell page">
-    <header class="page-header"><h1>关于</h1></header>
-    <p class="empty-state">暂无内容。</p>
+<BaseLayout
+  title="关于"
+  description="关于 ThinkerQAQ，以及本站文章、项目、系列与笔记的组织方式。"
+>
+  <div class="shell page narrow">
+    <header class="page-header">
+      <h1>关于本站</h1>
+      <p>这里是 ThinkerQAQ 的个人网站，用来记录思考、学习过程和做过的事情。</p>
+    </header>
+
+    <div class="prose">
+      <h2>内容如何组织</h2>
+      <ul>
+        <li><strong>文章</strong>是正式发布的内容，按最近更新的时间倒序排列。</li>
+        <li><strong>项目</strong>记录正在探索、开发或维护的事情，以及最终留下的成果。</li>
+        <li><strong>系列</strong>把主题相关的文章和笔记组织在一起，提供更连贯的阅读路径。</li>
+        <li><strong>笔记</strong>保留学习记录、资料整理、实验过程和暂时还不需要写成文章的想法。</li>
+      </ul>
+      <p>
+        它们不是互相排斥的栏目：一篇文章或笔记可以属于某个系列，也可能来自某个项目。项目关注“做了什么”，系列关注“如何连续阅读”，笔记则保留探索途中更原始的过程。
+      </p>
+
+      <h2>更新方式</h2>
+      <p>
+        本站会随着学习和实践持续更新。笔记可能逐渐整理成文章，相关内容也会被补充进系列；项目页面则保留事情从开始到完成的线索。
+      </p>
+    </div>
   </div>
 </BaseLayout>
