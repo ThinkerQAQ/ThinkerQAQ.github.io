@@ -2,6 +2,11 @@ import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
 
+const timestamp = z
+  .string()
+  .pipe(z.iso.datetime({ offset: true }))
+  .transform((value) => new Date(value));
+
 const notes = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -33,8 +38,8 @@ const articles = defineCollection({
   schema: z.object({
     title: z.string(),
     description: z.string(),
-    publishedAt: z.coerce.date(),
-    updatedAt: z.coerce.date().optional(),
+    publishedAt: timestamp,
+    updatedAt: timestamp.optional(),
     language: z.enum(["zh", "en"]).default("zh"),
     tags: z.array(z.string()).default([]),
     status: z.enum(["draft", "published"]).default("draft"),

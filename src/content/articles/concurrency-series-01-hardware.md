@@ -1,7 +1,7 @@
 ---
 title: "并发编程（一）：先谈硬件——从 count++ 到 Hardware Memory Model"
 description: "从冯·诺依曼体系结构和指令执行过程出发，沿着 count++ 分析原子性、缓存一致性、内存顺序与硬件内存模型。"
-publishedAt: 2026-09-07
+publishedAt: "2026-09-07T11:08:48+08:00"
 language: zh
 tags:
   - 并发编程

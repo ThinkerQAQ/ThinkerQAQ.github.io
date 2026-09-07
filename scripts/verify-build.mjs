@@ -75,6 +75,16 @@ async function main() {
   invariant(htmlFiles.length >= manifest.entries.length, "Fewer HTML pages than imported notes");
   invariant(home.includes("<main id=\"main-content\">"), "Home page has no static main content");
   invariant(!home.includes("viki.js"), "Legacy Viki runtime leaked into the production home page");
+  const homeArticleLists = [...home.matchAll(/<ol class="content-list">([\s\S]*?)<\/ol>/g)];
+  for (const [, articleList] of homeArticleLists) {
+    const timestamps = [...articleList.matchAll(/<time datetime="([^"]+)">/g)]
+      .map(([, value]) => Date.parse(value));
+    invariant(
+      timestamps.every((timestamp, index) =>
+        Number.isFinite(timestamp) && (index === 0 || timestamps[index - 1] >= timestamp)),
+      `Home articles are not in reverse chronological order: ${timestamps.join(", ")}`,
+    );
+  }
   const htmlSources = await Promise.all(htmlFiles.map((file) => readFile(file, "utf8")));
   const articlePages = htmlSources.filter((html) => html.includes('<meta property="og:type" content="article">'));
   for (const articlePage of articlePages) {
