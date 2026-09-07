@@ -1142,28 +1142,28 @@ Language Memory Model
 整个链路可以表示为：
 
 ```text
-CPU / Cache / Memory
+Lock / Mutex / Atomic / Channel / Queue ...
+        ▲
         │
-        ▼
+Language Memory Model
+/ Concurrency Semantics
+        ▲
+        │
+Compiler / Runtime
+        ▲
+        │
+Hardware Memory Model
+        ▲
+        │
 Hardware mechanisms
         │
         ├── Atomic Instruction
         ├── Cache Coherence
         ├── Memory Ordering
         └── Fence / Barrier
+        ▲
         │
-        ▼
-Hardware Memory Model
-        │
-        ▼
-Compiler / Runtime
-        │
-        ▼
-Language Memory Model
-/ Concurrency Semantics
-        │
-        ▼
-Lock / Mutex / Atomic / Channel / Queue ...
+CPU / Cache / Memory
 ```
 
 硬件告诉上层：
