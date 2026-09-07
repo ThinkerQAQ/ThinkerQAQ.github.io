@@ -2,6 +2,7 @@
 title: "并发编程（零）：当我们讨论并发编程时，我们究竟在讨论什么？"
 description: "限定单机、单进程范围，从共享变量出发，建立共享内存、消息传递、语言并发语义与硬件实现之间的整体关系。"
 publishedAt: 2026-09-06
+updatedAt: 2026-09-07
 language: zh
 tags:
   - 并发编程
@@ -141,14 +142,32 @@ Thread B -> counter.increment()
 
 区别在于，两个线程不能同时进入 `increment()` 的临界区。
 
-因此，原来的：
+假设 Thread A 先获得锁，完整的执行过程会变成：
 
 ```text
-Thread A read -> 0
-Thread B read -> 0
+初始：count = 0
+
+Thread A 请求进入 increment()
+Thread A 获得锁
+
+Thread B 请求进入 increment()
+Thread B 无法获得同一把锁，等待
+
+Thread A 读取 count      -> 0
+Thread A 计算 count + 1  -> 1
+Thread A 写回 count      -> 1
+Thread A 退出临界区并释放锁
+
+Thread B 获得锁
+Thread B 读取 count      -> 1
+Thread B 计算 count + 1  -> 2
+Thread B 写回 count      -> 2
+Thread B 退出临界区并释放锁
+
+最终：count = 2
 ```
 
-这种交错不会出现在受同一把锁保护的更新过程中。
+如果 Thread B 先获得锁，A 和 B 的顺序会互换，但结果仍然是 `2`。关键不在于谁先执行，而在于一次 `读取 → 计算 → 写回` 完成之前，另一个线程不能进入同一个临界区。因此，原来两个线程都读取到 `0` 的交错不会再出现。
 
 Go 和 Python 中也有类似的方式，例如：
 
@@ -292,12 +311,12 @@ Python / CPython Concurrency Semantics
 
 这些规则需要回答：
 
-```text
-写入什么时候可见？
-哪些操作之间具有顺序关系？
-哪些操作具有原子性？
-哪些同步操作能够建立 happens-before / synchronizes-before？
-```
+| 语言规则要回答的问题 | 回到 `count` 例子意味着什么 |
+| --- | --- |
+| 写入什么时候可见？ | A 写入 `count = 1` 并释放锁后，B 获得同一把锁时必须能够看到 `1`。 |
+| 哪些操作之间具有顺序关系？ | A 在释放锁前的写入，不能在 B 获得锁后的读取之后才生效。 |
+| 哪些操作具有原子性？ | `count++` 本身通常不具备原子性；使用同一把锁后，整个临界区相对于其他持锁线程不可交错。 |
+| 哪些同步操作能够建立 happens-before / synchronizes-before？ | 同一把锁的释放与后续获取、Channel 的发送与对应接收，把两个执行单元的操作连接成可依赖的先后关系。 |
 
 也就是说，这一层回答的是：
 
