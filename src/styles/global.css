@@ -106,9 +106,21 @@ svg {
 }
 
 .site-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
   font-weight: 750;
   letter-spacing: -0.02em;
   text-decoration: none;
+}
+
+.site-avatar {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .main-nav {
@@ -141,9 +153,25 @@ main {
   min-height: calc(100vh - 9rem);
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .home,
 .page {
   padding-block: 5rem 6rem;
+}
+
+.article-index-page {
+  padding-top: 1.5rem;
 }
 
 .narrow {
@@ -634,6 +662,10 @@ main {
   .home,
   .page {
     padding-block: 3rem 4rem;
+  }
+
+  .article-index-page {
+    padding-top: 1.25rem;
   }
 
   .home-section {

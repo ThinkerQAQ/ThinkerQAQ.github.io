@@ -1,8 +1,15 @@
 ---
+import { getCollection } from "astro:content";
+import ArticleIndex from "../components/ArticleIndex.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { articleIsIncluded, sortArticles } from "../lib/content";
+
+const articles = sortArticles(
+  (await getCollection("articles")).filter(articleIsIncluded),
+);
 ---
-<BaseLayout noindex={true}>
-  <div class="shell page">
-    <p class="empty-state">暂无内容。</p>
+<BaseLayout noindex={articles.length === 0}>
+  <div class="shell page article-index-page">
+    <ArticleIndex articles={articles} />
   </div>
 </BaseLayout>

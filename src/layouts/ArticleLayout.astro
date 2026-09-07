@@ -47,14 +47,14 @@ const schema = {
   )}
   <div class="shell content-shell">
     <article class="note" data-pagefind-body>
-      <nav class="breadcrumb" aria-label="面包屑">
-        <a href="/articles/">文章</a>
-        {data.series && <span aria-hidden="true">/</span>}
-        {data.series && <a href={seriesHref(data.series)}>所属系列</a>}
-      </nav>
+      {data.series && (
+        <nav class="breadcrumb" aria-label="所属系列">
+          <a href={seriesHref(data.series)}>所属系列</a>
+        </nav>
+      )}
 
       <header class="note-header">
-        <p class="eyebrow">{data.status === "draft" ? "DRAFT PREVIEW" : data.language === "en" ? "ENGLISH ARTICLE" : "ARTICLE"}</p>
+        {data.status === "draft" && <p class="eyebrow">草稿预览</p>}
         <h1 data-pagefind-meta="title">{data.title}</h1>
         <p class="note-description">{data.description}</p>
         <div class="note-meta">

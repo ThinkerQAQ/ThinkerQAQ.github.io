@@ -3,12 +3,15 @@ import { NAV_ITEMS, SITE } from "../config/site";
 
 const pathname = Astro.url.pathname;
 const isActive = (href: string) =>
-  href === "/" ? pathname === href : pathname.startsWith(href);
+  (href === "/articles/" && pathname === "/") || pathname.startsWith(href);
 ---
 
 <header class="site-header">
   <div class="shell header-inner">
-    <a class="site-name" href="/" aria-label={`${SITE.title} 首页`}>{SITE.title}</a>
+    <a class="site-name" href="/" aria-label={`${SITE.title} 首页`}>
+      <img class="site-avatar" src="/favicon.ico" alt="" width="32" height="32" />
+      <span>{SITE.title}</span>
+    </a>
     <nav class="main-nav" aria-label="主导航">
       {NAV_ITEMS.map((item) => (
         <a href={item.href} aria-current={isActive(item.href) ? "page" : undefined}>

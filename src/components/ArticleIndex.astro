@@ -1,0 +1,24 @@
+---
+import type { ArticleEntry } from "../lib/content";
+import ArticleList from "./ArticleList.astro";
+
+interface Props {
+  articles: ArticleEntry[];
+}
+
+const { articles } = Astro.props;
+const chineseArticles = articles.filter((article) => article.data.language === "zh");
+const englishArticles = articles.filter((article) => article.data.language === "en");
+---
+
+<h1 class="visually-hidden">文章</h1>
+<ArticleList entries={chineseArticles} emptyMessage="暂无文章。" />
+{englishArticles.length > 0 && (
+  <section class="home-section">
+    <div class="section-heading">
+      <h2>English</h2>
+      <a href="/english/">查看全部</a>
+    </div>
+    <ArticleList entries={englishArticles.slice(0, 5)} />
+  </section>
+)}
