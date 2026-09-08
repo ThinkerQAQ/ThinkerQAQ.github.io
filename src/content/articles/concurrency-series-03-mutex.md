@@ -9,7 +9,7 @@ tags:
   - Java
   - Go
   - Python
-status: draft
+status: published
 featured: false
 series: concurrency-programming
 ---
@@ -50,8 +50,8 @@ series: concurrency-programming
     - [4.5.2 Visibility：前一个线程的写入如何被看到？](#452-visibility前一个线程的写入如何被看到)
     - [4.5.3 Ordering：同步边界如何约束重排序？](#453-ordering同步边界如何约束重排序)
 - [5. 三种语言放在一起看](#5-三种语言放在一起看)
-- [6. 从一把锁重新回到硬件](#6-从一把锁重新回到硬件)
-- [7. 下一篇](#7-下一篇)
+  - [5.1 三种语言的区别](#51-三种语言的区别)
+- [6. 下一篇](#6-下一篇)
 
 ---
 
@@ -1498,62 +1498,43 @@ x86-64 CPU
 
 # 5. 三种语言放在一起看
 
+### 5.1 三种语言的区别
+
+先看它们提供给程序员的抽象：
+
 | | Java | Go | CPython |
 |---|---|---|---|
 | 互斥工具 | `synchronized` | `sync.Mutex` | `threading.Lock` |
-| 进入 | 获得对象关联的 Monitor | `Lock()` | `acquire()` |
-| 退出 | 释放对象关联的 Monitor | `Unlock()` | `release()` |
-| 原子性 | 同一 Monitor 的临界区不能交错 | 同一 Mutex 的临界区不能交错 | 同一 Lock 的临界区不能交错 |
-| 正式 Memory Model | JMM | Go Memory Model | 无同等级统一正式模型 |
-| 同步规则 | `unlock → subsequent lock` happens-before | `Unlock → Lock` synchronized-before，并形成 happens-before | 依赖 Lock API 与 CPython 实现提供同步行为 |
-| 底层能力 | Atomic + Memory Ordering + Wait/Wakeup | Atomic + Memory Ordering + Runtime Semaphore | Atomic + Memory Ordering + Wait/Wakeup |
+| 形式 | 语言语法，对象关联 Monitor | 可嵌入数据结构的库类型 | 标准库中的 Lock 对象 |
+| 进入和退出 | `synchronized` 自动管理 | 显式 `Lock / Unlock` | `acquire / release` 或 `with lock:` |
+| 所有者 | Monitor 由获得它的线程持有，并且可重入 | 不记录 Goroutine owner | Primitive Lock 不绑定 owner |
+| 规范来源 | JLS / JMM | Go Memory Model | Python Lock API；内存顺序需结合具体实现讨论 |
 
-三种 API 的名字和规范不同，向下都要处理锁状态、内存顺序以及竞争时的等待与唤醒。
+再看一把锁提供的三项保证：
 
----
+| | Java | Go | CPython |
+|---|---|---|---|
+| Atomicity | 同一 Monitor 的临界区不能交错 | 同一 Mutex 的临界区不能交错 | 同一 Lock 的临界区不能交错 |
+| Visibility | `unlock` 前的写入对随后获得同一 Monitor 的线程可见 | `Unlock` 前的写入对随后 `Lock` 返回的 Goroutine 可见 | 依赖 `threading.Lock` 的同步语义与 CPython 实现 |
+| Ordering | `unlock → subsequent lock` 建立 happens-before | `Unlock → Lock` synchronized-before，并参与形成 happens-before | 没有正式的 Python happens-before 规则；CPython 通过 PyMutex 的原子顺序实现同步边界 |
 
-# 6. 从一把锁重新回到硬件
+Atomicity 的结果基本相同，差别主要出现在 Visibility 和 Ordering 的规范来源：Java、Go 可以直接引用 Memory Model；Python 只能先依赖 Lock API，继续下钻时再限定具体解释器。
 
-最上层的代码只有：
+最后看本文选择的三个具体实现：
 
-```text
-lock
-counter++
-unlock
-```
+| | Java / HotSpot | Go / Runtime | CPython |
+|---|---|---|---|
+| 锁状态 | 对象头；膨胀后使用 `ObjectMonitor._owner` | `internal/sync.Mutex.state` | `PyMutex._bits` |
+| Fast Path | 轻量级锁；膨胀后 CAS `_owner` | CAS 修改 `state` | CAS 设置 `_Py_LOCKED` |
+| x86-64 示例 | `LOCK CMPXCHG`；释放路径可使用 release store | `LOCK CMPXCHG` / `LOCK XADD` | `LOCK CMPXCHG`；原子操作使用 `__ATOMIC_SEQ_CST` |
+| 竞争失败 | 进入 Monitor 队列，由 HotSpot 管理等待 | Park Goroutine，OS Thread 可以继续运行其他 Goroutine | 通过 Parking Lot 等待对应的 OS Thread |
+| 唤醒 | `ObjectMonitor` 唤醒等待者 | Runtime Semaphore 唤醒 Goroutine | Parking Lot / Semaphore 唤醒线程 |
 
-向下拆解后，对应到这些系统层次：
-
-```text
-Application
-lock / counter++ / unlock
-
-        ↓
-
-Concurrency Primitive
-Mutex
-
-        ↓
-
-Language Rules / API Semantics
-happens-before、synchronized-before 或同步 API 语义
-
-        ↓
-
-Runtime / Compiler
-锁状态、内存顺序、调度
-
-        ↓
-
-CPU / Cache / OS
-Atomic RMW、Memory Ordering、线程等待与唤醒
-```
-
-互斥锁用统一的临界区接口，屏蔽了语言 Runtime、操作系统和处理器的实现差异。
+到了 CPU 层，三者都依赖原子 RMW、内存顺序和 Cache Coherence。真正不同的是 Runtime 如何保存锁状态，以及竞争失败后调度和唤醒哪一种执行单元。
 
 ---
 
-# 7. 下一篇
+# 6. 下一篇
 
 Mutex 使用底层的小范围原子操作，构造出可以保护任意代码范围的临界区。但如果我们只想完成 `counter++` 这样的简单操作，还可以直接使用语言提供的 Atomic 工具：
 
