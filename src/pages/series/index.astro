@@ -2,12 +2,15 @@
 import { getCollection } from "astro:content";
 import ShowcaseList from "../../components/ShowcaseList.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { seriesHref, seriesStatus, sortSeries } from "../../lib/content";
+import { articleIsIncluded, seriesHref, seriesStatus, sortSeries } from "../../lib/content";
 const entries = sortSeries(await getCollection("series"));
+const includedArticleIds = new Set(
+  (await getCollection("articles")).filter(articleIsIncluded).map((article) => article.id),
+);
 ---
 <BaseLayout title="系列" noindex={entries.length === 0}>
   <div class="shell page">
     <header class="page-header"><h1>系列</h1></header>
-    <ShowcaseList items={entries.map((entry) => ({ href: seriesHref(entry), title: entry.data.title, description: entry.data.description, label: `${entry.data.relatedArticles.length} 篇文章 · ${entry.data.relatedNotes.length} 篇参考笔记`, status: seriesStatus[entry.data.status] }))} />
+    <ShowcaseList items={entries.map((entry) => ({ href: seriesHref(entry), title: entry.data.title, description: entry.data.description, label: `${entry.data.relatedArticles.filter((id) => includedArticleIds.has(id)).length} 篇文章 · ${entry.data.relatedNotes.length} 篇参考笔记`, status: seriesStatus[entry.data.status] }))} />
   </div>
 </BaseLayout>

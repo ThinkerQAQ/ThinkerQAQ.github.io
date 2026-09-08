@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/run-with-drafts.mjs run dev:site",
-    "dev:site": "npm run diagrams && astro dev",
+    "dev:site": "npm run diagrams && astro dev --port 4321",
     "sync:notes": "node scripts/import-vnotes.mjs",
     "seed:articles": "node scripts/seed-articles.mjs",
     "diagrams": "node scripts/render-diagrams.mjs",
@@ -18,9 +18,9 @@
     "indexnow:submit": "node scripts/indexnow.mjs submit",
     "build": "node scripts/clean-dist.mjs && npm run diagrams && astro build && node scripts/build-search.mjs",
     "check": "astro check",
-    "preview": "astro preview",
+    "preview": "astro preview --port 4321",
     "build:local": "node scripts/run-with-drafts.mjs run build",
-    "local": "npm run build:local && astro preview --background --open",
+    "local": "npm run build:local && astro preview --port 4321 --background --open",
     "stop:local": "astro preview stop",
     "verify": "node scripts/verify-build.mjs",
     "test": "npm run test:diagrams && npm run test:indexnow && npm run check && npm run build && npm run verify"

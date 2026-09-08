@@ -25,6 +25,17 @@ try {
 export default defineConfig({
   site: "https://thinkerqaq.github.io",
   output: "static",
+  server: {
+    port: 4321,
+  },
+  vite: {
+    server: {
+      strictPort: true,
+    },
+    preview: {
+      strictPort: true,
+    },
+  },
   integrations: [
     sitemap({
       filter: (page) => {

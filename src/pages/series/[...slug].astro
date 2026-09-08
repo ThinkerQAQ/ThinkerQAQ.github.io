@@ -12,7 +12,7 @@ interface Props { series: CollectionEntry<"series"> }
 const { series } = Astro.props;
 const { data } = series;
 const { Content } = await render(series);
-const articles = (await getCollection("articles")).filter(articleIsIncluded);
+const articles = await getCollection("articles");
 const notes = await getCollection("notes");
 function resolveEntries<T extends { id: string }>(ids: string[], entries: T[]): T[] {
   return ids.map((id) => {
@@ -21,7 +21,7 @@ function resolveEntries<T extends { id: string }>(ids: string[], entries: T[]): 
     return entry;
   });
 }
-const relatedArticles = resolveEntries(data.relatedArticles, articles);
+const relatedArticles = resolveEntries(data.relatedArticles, articles).filter(articleIsIncluded);
 const relatedNotes = resolveEntries(data.relatedNotes, notes);
 ---
 <BaseLayout title={data.title} description={data.description}>

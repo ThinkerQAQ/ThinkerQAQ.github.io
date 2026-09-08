@@ -8,6 +8,7 @@ relatedArticles:
   - concurrency-series-00
   - concurrency-series-01-hardware
   - concurrency-series-02-language-memory-model
+  - concurrency-series-03-mutex
 relatedNotes: []
 ---
 
