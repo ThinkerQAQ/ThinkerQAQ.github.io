@@ -157,7 +157,7 @@ git commit -m "add: 文章标题"
 git push origin master
 ```
 
-Push 后 GitHub Actions 会自动构建，并将 `dist/` 发布到 GitHub Pages。
+Push 后 GitHub Actions 会自动构建，并将 `dist/` 发布到 GitHub Pages。部署成功后，工作流还会读取构建生成的 sitemap，并通过 IndexNow 批量通知参与该协议的搜索引擎发现本次发布的页面；部署失败时不会发送通知。
 
 ## 4. 在文章中新增图表
 
@@ -198,6 +198,7 @@ Alice -> Bob: Hello
 | 文章评论 | [utterances](https://utteranc.es/)；读者使用 GitHub 登录，评论保存到本仓库的 Issues，并按文章路径关联 |
 | 图表 | PlantUML 代码块和 draw.io 源文件在本地构建为 SVG |
 | 代码高亮 | Astro 内置的 Shiki，使用 GitHub Dark 主题 |
-| 订阅与索引 | 自动生成 RSS 和 sitemap |
+| 订阅与索引 | 自动生成 RSS 和 sitemap，并保留 Google、Bing 站长平台的所有权验证文件 |
+| 发布搜索增强 | GitHub Pages 部署成功后，根据 sitemap 自动调用 [IndexNow](https://www.indexnow.org/)，通知 Bing、Yandex 等参与者发现新增或更新页面 |
 | 明暗主题 | 根据操作系统的颜色偏好自动切换 |
 | 部署 | 推送到 `master` 后，由 GitHub Actions 构建并发布到 GitHub Pages |

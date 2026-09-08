@@ -40,6 +40,15 @@ jobs:
         uses: actions/configure-pages@v5
       - name: Test and build static site
         run: npm test
+      - name: Prepare IndexNow payload
+        run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
+      - name: Upload IndexNow payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: indexnow-payload
+          path: ${{ runner.temp }}/indexnow-payload.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -55,3 +64,21 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  notify-indexnow:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Download IndexNow payload
+        uses: actions/download-artifact@v5
+        with:
+          name: indexnow-payload
+          path: ${{ runner.temp }}/indexnow
+      - name: Notify IndexNow after deployment
+        run: node scripts/indexnow.mjs submit --input "$RUNNER_TEMP/indexnow/indexnow-payload.json"
