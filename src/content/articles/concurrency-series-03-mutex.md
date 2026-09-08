@@ -1530,7 +1530,18 @@ Atomicity 的结果基本相同，差别主要出现在 Visibility 和 Ordering 
 | 竞争失败 | 进入 Monitor 队列，由 HotSpot 管理等待 | Park Goroutine，OS Thread 可以继续运行其他 Goroutine | 通过 Parking Lot 等待对应的 OS Thread |
 | 唤醒 | `ObjectMonitor` 唤醒等待者 | Runtime Semaphore 唤醒 Goroutine | Parking Lot / Semaphore 唤醒线程 |
 
-到了 CPU 层，三者都依赖原子 RMW、内存顺序和 Cache Coherence。真正不同的是 Runtime 如何保存锁状态，以及竞争失败后调度和唤醒哪一种执行单元。
+再往下不能简单概括成“三条 CPU 原语”，因为它们并不处在同一层：
+
+| 底层能力 | x86-64 中的例子 | 在互斥锁中负责什么 |
+|---|---|---|
+| Atomic RMW | `LOCK CMPXCHG`、`LOCK XADD` | 原子地读取、比较并修改锁状态，保证竞争者中只有一个成功 |
+| Memory Ordering | `LOCK` 指令自带的顺序约束；必要时使用 Fence；x86-64 的 release store 可以是普通 Store | 阻止临界区内的读写越过 `lock / unlock` 边界 |
+| Cache Coherence | CPU 内部的缓存一致性协议，不是一条程序指令 | 传播缓存行的所有权和失效消息，使其他核心重新取得最新数据 |
+| Spin / Wait / Wakeup | Spin 时可使用 `PAUSE`；长期等待由 Runtime 和 OS 的 Park、Futex 或 Semaphore 完成 | 竞争失败时避免一直占用 CPU，并在锁释放后唤醒等待者 |
+
+因此，真正属于 CPU 指令的是原子 RMW、Fence 以及 Spin 中可能使用的 `PAUSE`。在 x86-64 上，`LOCK` 前缀既让 RMW 不可分割，也提供很强的内存顺序约束。Cache Coherence 是硬件协议，Park / Wakeup 则主要属于 Runtime 和操作系统。
+
+Java、Go 和 CPython 使用的是同一组底层能力，区别在于各自的 Runtime 如何组织锁状态，以及竞争失败后调度和唤醒哪一种执行单元。
 
 ---
 
