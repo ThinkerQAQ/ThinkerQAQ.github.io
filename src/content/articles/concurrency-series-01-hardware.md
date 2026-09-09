@@ -1,7 +1,8 @@
 ---
-title: "并发编程（一）：先谈硬件——从 count++ 到 Hardware Memory Model"
-description: "从冯·诺依曼体系结构和指令执行过程出发，沿着 count++ 分析原子性、缓存一致性、内存顺序与硬件内存模型。"
+title: "并发编程（一）：先谈硬件——从 count++ 到原子性、可见性与有序性"
+description: "从冯·诺依曼体系结构和指令执行过程出发，沿着 count++ 分析硬件层面的原子性、可见性与有序性问题。"
 publishedAt: "2026-09-07T11:08:48+08:00"
+updatedAt: "2026-09-09T18:30:26+08:00"
 language: zh
 tags:
   - 并发编程
@@ -17,126 +18,30 @@ series: concurrency-programming
 
 ## 目录
 
-- [0. 这一篇要解决什么问题？](#0-这一篇要解决什么问题)
-- [1. 继续从 `count++` 开始](#1-继续从-count-开始)
-- [2. CPU 到底怎样执行 `count++`？](#2-cpu-到底怎样执行-count)
-  - [2.1 从冯诺依曼体系结构开始](#21-从冯诺依曼体系结构开始)
-  - [2.2 `count++` 最终会变成什么？](#22-count-最终会变成什么)
+- [1. 从冯诺依曼体系结构说起](#1-从冯诺依曼体系结构说起)
+- [2. `count++` 最终会变成什么？](#2-count-最终会变成什么)
 - [3. 为什么需要 Cache？](#3-为什么需要-cache)
 - [4. 单核下的并发问题：为什么 `count++` 会丢失更新？](#4-单核下的并发问题为什么-count-会丢失更新)
-- [5. 从单核走向多核：多个缓存副本怎么办？](#5-从单核走向多核多个缓存副本怎么办)
+- [5. 从单核走向多核：可见性问题](#5-从单核走向多核可见性问题)
 - [6. 多个内存操作之间的顺序又怎么办？](#6-多个内存操作之间的顺序又怎么办)
   - [6.1 Store Buffer](#61-store-buffer)
   - [6.2 Out-of-Order Execution](#62-out-of-order-execution)
 - [7. 到这里，我们实际上遇到了三个问题](#7-到这里我们实际上遇到了三个问题)
 - [8. 硬件如何回答这三个问题？](#8-硬件如何回答这三个问题)
   - [8.1 Atomicity：Atomic Instruction](#81-atomicityatomic-instruction)
-  - [8.2 多个缓存副本：Cache Coherence](#82-多个缓存副本cache-coherence)
+  - [8.2 Visibility：Cache Coherence](#82-visibilitycache-coherence)
   - [8.3 Ordering：Memory Ordering / Fence](#83-orderingmemory-ordering--fence)
-- [9. Hardware Memory Model](#9-hardware-memory-model)
-- [10. 从硬件重新回到语言](#10-从硬件重新回到语言)
+- [9. 总结](#9-总结)
 
 ---
 
-## 0. 这一篇要解决什么问题？
-
-上一篇我们从一个非常简单的例子开始：
-
-```text
-count = 0
-
-Thread A -> count++
-Thread B -> count++
-```
-
-并讨论了两种主要的并发协作方式：
-
-```text
-Shared Memory
-Message Passing
-```
-
-上一篇最后把视角引向了硬件，并留下一个问题：
-
-> **硬件到底提供了什么保证？**
-
-为了回答它，这一篇需要进一步弄清楚：Lock、Mutex、Atomic、Channel 等并发工具依赖了哪些硬件能力。
-
-语言会通过自己的 Memory Model 或并发语义告诉程序员：
-
-```text
-哪些操作是原子的？
-一个执行单元的写入什么时候能被其他执行单元观察到？
-多个操作之间具有什么顺序关系？
-同步操作之间建立了什么关系？
-```
-
-但这些保证最终都必须落实到真实机器。
-
-所以这一篇继续沿用同一个 `count` 例子，向下一层追问：
+这一篇继续沿用 `count`，只关注硬件层：
 
 > **CPU 和内存系统到底会带来哪些并发问题，硬件又提供了什么能力？**
 
 ---
 
-## 1. 继续从 `count++` 开始
-
-假设：
-
-```text
-count = 0
-```
-
-两个执行单元都执行：
-
-```text
-count++
-```
-
-从程序语义上，可以把它理解成：
-
-```text
-读取 count
-计算 count + 1
-写回 count
-```
-
-因此可能出现：
-
-```text
-初始：
-
-count = 0
-
-
-A 读取 count -> 0
-B 读取 count -> 0
-
-A 计算 0 + 1
-B 计算 0 + 1
-
-A 写回 1
-B 写回 1
-
-
-最终：
-
-count = 1
-```
-
-上一篇关注的是：
-
-> **程序员应该怎样组织多个执行单元之间的协作？**
-
-这一篇换一个角度：
-
-> **这些“读取、计算、写入”，最终到底是怎样在 CPU 上发生的？**
-
----
-
-## 2. CPU 到底怎样执行 `count++`？
-
-### 2.1 从冯诺依曼体系结构开始
+## 1. 从冯诺依曼体系结构说起
 
 冯诺依曼提出将程序当作数据对待，把程序（指令）和数据用同样的方式存储。根据这个理论，计算机可以分成控制器、运算器、存储器、输入设备和输出设备。
 
@@ -173,77 +78,21 @@ Fetch 取指 → Decode 译码 → Execute 执行
 PC 指向下一条指令，继续循环
 ```
 
-后面提到 PC 时，只需要知道它决定 CPU 下一步从哪里取指令。
+也就是说，CPU 会不断重复 `Fetch → Decode → Execute`，依次执行程序中的机器指令。程序里的 `count++` 最终也要转换成这样的指令。
 
 ---
 
-### 2.2 `count++` 最终会变成什么？
+## 2. `count++` 最终会变成什么？
 
-继续看：
-
-```text
-count++
-```
-
-为了便于讨论，可以把它简化理解成几步机器操作：
+为了便于讨论，可以把 `count++` 简化成三条机器指令：
 
 ```text
-LOAD  R1, [count]
-ADD   R1, 1
-STORE [count], R1
+LOAD  R1, [count]    // 把 count 读入寄存器 R1
+ADD   R1, 1          // 在 CPU 内部把 R1 加 1
+STORE [count], R1    // 把结果写回 count
 ```
 
-它们分别表示：
-
-```text
-LOAD
-↓
-读取 count 到寄存器 R1
-
-ADD
-↓
-在 CPU 内部计算 R1 + 1
-
-STORE
-↓
-把 R1 写回 count
-```
-
-所以：
-
-```text
-count++
-
-        ↓
-
-LOAD R1, [count]
-        │
-        └── 读取 count
-
-        ↓
-
-ADD R1, 1
-        │
-        └── CPU 内部计算
-
-        ↓
-
-STORE [count], R1
-        │
-        └── 写回 count
-```
-
-每条机器指令本身仍然会经历类似：
-
-```text
-Fetch -> Decode -> Execute
-```
-
-但这里真正值得关注的是：
-
-> **LOAD 和 STORE 都需要访问数据。**
-
-于是下一个问题自然出现：
+这里值得关注的是，`LOAD` 和 `STORE` 都需要访问数据。于是下一个问题自然出现：
 
 > **如果每一次 LOAD / STORE 都要直接等待主存，会发生什么？**
 
@@ -251,27 +100,9 @@ Fetch -> Decode -> Execute
 
 ## 3. 为什么需要 Cache？
 
-CPU 的执行速度远高于主存访问速度。
+CPU 的执行速度远高于主存访问速度。如果每次 `LOAD` 都要等待主存返回数据，每次 `STORE` 都要等待主存完成写入，CPU 会浪费大量时间。
 
-如果：
-
-```text
-LOAD R1, [count]
-```
-
-每次都要等待主存返回数据，
-
-或者：
-
-```text
-STORE [count], R1
-```
-
-每次都要等待主存完成数据访问，
-
-CPU 会浪费大量时间等待 Memory。
-
-于是 CPU 和主存之间加入了更快、容量更小的 Cache：
+因此，现代处理器会在 CPU Core 和主存之间设置更快、容量更小的多级 Cache。下面是一个简化结构，具体层级以及哪些 Cache 由多个 Core 共享，取决于处理器设计：
 
 ```text
 CPU
@@ -289,16 +120,16 @@ L3 Cache
 Memory
 ```
 
-`count` 可能先被加载到 Cache：
+CPU 访问 `count` 时，通常会把包含它的整个 Cache Line 加载到 Cache。这里仍简化写成：
 
 ```text
-Memory
-count = 0
-
-   ↓
-
-Cache
-count = 0
+CPU
+ │
+ ▼
+Cache：count = 0
+ │
+ ▼
+Memory：count = 0
 ```
 
 之后 CPU 再访问 `count` 时，就可能直接命中 Cache，而不必每次都访问主存。
@@ -343,38 +174,22 @@ count = 0
 
 开始。
 
-Thread A 先执行：
-
 ```text
-LOAD count -> 0
+Thread A                              Thread B
+   │                                    │
+   ├─ LOAD count -> 0                   │
+   │                                    │
+   ├─────── context switch ────────────>│
+   │                                    ├─ LOAD  count -> 0
+   │                                    ├─ ADD   1
+   │                                    ├─ STORE count -> 1
+   │                                    │
+   │<────── context switch ─────────────┤
+   ├─ ADD   1                           │
+   ├─ STORE count -> 1                  │
 ```
 
-随后发生线程切换：
-
-```text
-Thread A
-
-LOAD count -> 0
-
-     │
-     │ context switch
-     ▼
-
-Thread B
-
-LOAD  count -> 0
-ADD   1
-STORE count -> 1
-
-     │
-     │ context switch
-     ▼
-
-Thread A
-
-ADD   1
-STORE count -> 1
-```
+线程切换时，操作系统会保存 Thread A 的执行上下文，包括它已经读到的中间结果。Thread A 恢复执行后，仍然会基于之前读到的 `0` 继续计算。
 
 最终：
 
@@ -414,19 +229,22 @@ Atomicity
 
 ---
 
-## 5. 从单核走向多核：多个缓存副本怎么办？
+## 5. 从单核走向多核：可见性问题
 
 如果处理器拥有多个 CPU Core，那么两个线程可能真正同时执行：
 
 ```text
-Thread A                     Thread B
-   │                             │
-   ▼                             ▼
-Core A                        Core B
-   │                             │
-Cache A                       Cache B
-   │                             │
-   └────────── Memory ───────────┘
+Thread A                       Thread B
+   │                              │
+   ▼                              ▼
+Core A                         Core B
+   │                              │
+   ▼                              ▼
+Cache A                        Cache B
+   │                              │
+   └──────────────┬───────────────┘
+                  ▼
+                Memory
 ```
 
 单核下的 `count++` 竞态仍然存在。
@@ -444,33 +262,23 @@ Core A 和 Core B 都读取过 `count`。
 那么同一份数据可能同时存在于不同 Cache 中：
 
 ```text
-Core A Cache
+Core A Cache                    Core B Cache
 
-count = 0
+count = 0                       count = 0
 
-
-Core B Cache
-
-count = 0
-
-
-Memory
-
-count = 0
+               Memory
+              count = 0
 ```
 
 现在 Core A 修改 `count`：
 
 ```text
-Core A Cache
+Core A Cache                    Core B Cache
 
-count = 1
-
-
-Core B Cache
-
-count = 0
+count = 1                       count = 0
 ```
+
+这张图表示硬件此时必须处理的协调问题，并不表示两个不同的值可以长期同时作为有效副本使用。
 
 于是问题来了：
 
@@ -478,7 +286,13 @@ count = 0
 
 也就是说：
 
-> **问题二：同一个内存位置存在于多个 Core 的 Cache 中，一个 Core 修改以后，其他 Core 的副本怎么办？**
+> **问题二：一个 Core 修改数据后，其他 Core 什么时候能够观察到新的值？**
+
+也就是：
+
+```text
+Visibility
+```
 
 这里仍然先不回答。
 
@@ -488,26 +302,18 @@ count = 0
 
 ## 6. 多个内存操作之间的顺序又怎么办？
 
-为了继续沿用同一个 Counter，我们给它增加一个发布状态：
+继续沿用前面的 Counter 例子：
 
 ```text
 count = 0
 ready = false
 ```
 
-Thread A 更新 Counter：
-
 ```text
-count = 1
-ready = true
-```
-
-Thread B：
-
-```text
-if ready {
-    print(count)
-}
+Thread A                         Thread B
+   │                                │
+   ├─ count = 1                     ├─ 读取 ready
+   └─ ready = true                  └─ 如果为 true，读取 count
 ```
 
 程序员自然会希望：
@@ -518,28 +324,34 @@ if ready {
 
 ```text
 结果一：
-B 读取 ready -> false
-B 不进入 if
+
+Thread A                         Thread B
+
+                                 读取 ready -> false
+                                 不进入 if
 
 结果二：
-B 读取 ready -> true
-B 进入 if
-B 读取 count -> 1
-B 打印 1
+
+Thread A                         Thread B
+
+count = 1
+ready = true                     读取 ready -> true
+                                 进入 if
+                                 读取 count -> 1
+                                 打印 1
 ```
 
 真正需要防止的是第三种结果：
 
 ```text
-A 执行 count = 1
-但这个写入还没有被 B 观察到
+Thread A                         Thread B
 
-A 执行 ready = true
-B 读取 ready -> true
-
-B 进入 if
-B 读取 count -> 0
-B 打印 0
+count = 1
+（这个写入尚未被 B 观察到）
+ready = true                     读取 ready -> true
+                                 进入 if
+                                 读取 count -> 0
+                                 打印 0
 ```
 
 问题不是 B 能不能读到 `ready = true`，而是：
@@ -606,17 +418,15 @@ Cache / Memory System
 
 CPU 不需要等待这个写入已经被其他 Core 观察到，才继续执行后面的工作。
 
-因此：
-
 ```text
-Core A 已经继续执行
+Core A                         Core B
+
+已经继续执行                   仍可能没有观察到 count = 1
 ```
 
-并不意味着：
+Store Buffer 在这里说明的是：**一个 Store 执行完成，不等于它已经对其他 Core 可见。**
 
-```text
-Core B 已经观察到 count = 1
-```
+但仅凭 Store Buffer，还不能断定 `count = 1` 和 `ready = true` 一定会被逆序观察。不同地址之间允许出现哪些顺序，取决于具体处理器的 Hardware Memory Model。例如，[Intel 64 的 Memory Ordering](https://cdrdv2-public.intel.com/835754/253668-sdm-vol-3a.pdf) 保持普通 Store 之间的顺序，而 [Arm 的 Memory Model](https://developer.arm.com/-/media/Arm%20Developer%20Community/PDF/Learn%20the%20Architecture/Armv8-A%20memory%20model%20guide.pdf) 允许更弱的内存顺序。
 
 ---
 
@@ -661,97 +471,17 @@ ready = true
 
 ## 7. 到这里，我们实际上遇到了三个问题
 
-现在先不要急着讲解决方案。
+前面的问题可以归纳成三类：
 
-把前面的问题放在一起看。
+| 问题 | 硬件层表现 | 需要回答什么 |
+|---|---|---|
+| Atomicity（原子性） | `count++` 的 Read-Modify-Write 可以被交错执行 | 哪些操作具有原子性？ |
+| Visibility（可见性） | 多个 Core 可能缓存同一个内存位置 | 一个 Core 写入后，其他 Core 什么时候能够观察到？ |
+| Ordering（有序性） | 不同内存位置的操作可能以不同顺序被观察 | 哪些操作之间具有顺序关系？ |
 
-### 问题一：Atomicity
+第一类问题既可能出现在单核线程切换时，也可能出现在多核并行执行时。关键不是 CPU Core 的数量，而是 Read-Modify-Write 的多个步骤能否被其他执行单元交错。
 
-来自单核线程交错：
-
-```text
-count++
-
-↓
-
-LOAD
-ADD
-STORE
-```
-
-如果中间可以插入另一个执行单元：
-
-```text
-A LOAD 0
-
-B LOAD 0
-B ADD
-B STORE 1
-
-A ADD
-A STORE 1
-```
-
-最终：
-
-```text
-count = 1
-```
-
-问题是：
-
-> **一个复合操作如何不可分割地完成？**
-
----
-
-### 问题二：多个缓存副本
-
-来自多核：
-
-```text
-Core A Cache      Core B Cache
-
- count = 1         count = 0
-```
-
-问题是：
-
-> **同一个内存位置被多个 Core 缓存，一个 Core 修改以后，其他 Core 的副本怎么办？**
-
----
-
-### 问题三：Memory Ordering
-
-来自多个不同的内存操作：
-
-```text
-count = 1
-ready = true
-```
-
-问题是：
-
-> **其他 Core 可以按照什么顺序观察这些内存操作？**
-
-所以到这里，硬件层真正暴露出来的是三类问题：
-
-```text
-单核线程交错
-    ↓
-Atomicity
-
-
-多核缓存副本
-    ↓
-副本协调
-
-
-多个内存操作
-    ↓
-Memory Ordering
-```
-
-接下来再统一回答：
+接下来分别看硬件提供了哪些基础能力：
 
 > **现代硬件分别提供了什么机制来处理这三个问题？**
 
@@ -761,30 +491,15 @@ Memory Ordering
 
 ### 8.1 Atomicity：Atomic Instruction
 
-先回答第一个问题：
+普通的 `LOAD + ADD + STORE` 是多个步骤。如果希望 Read-Modify-Write 对其他执行单元表现为不可分割的整体，就需要硬件提供原子操作，例如：
 
 ```text
-count++
-
-↓
-
-LOAD
-ADD
-STORE
-```
-
-普通的 `LOAD + ADD + STORE` 是多个步骤。
-
-如果希望某个 Read-Modify-Write 操作不可分割，就需要硬件提供更底层的原子能力。
-
-例如：
-
-```text
-Atomic Read-Modify-Write
 Compare-And-Swap
+Exchange
+Fetch-And-Add
 ```
 
-可以抽象成：
+这些操作在处理器内部不一定只包含一个微小步骤。“原子”描述的是它们对其他执行单元的可观察结果：
 
 ```text
 读取旧值
@@ -796,54 +511,26 @@ Compare-And-Swap
     └── 对竞争者表现为一个不可分割的原子操作
 ```
 
-语言层的很多并发工具最终都会建立在这些硬件能力之上，例如：
-
-```text
-Atomic
-CAS
-Lock
-```
-
 回到 `count++`。如果语言把自增实现为硬件支持的原子 Read-Modify-Write，那么执行过程可以理解为：
 
 ```text
 初始：count = 0
 
-Thread A：原子地把 count 从 0 改为 1
-Thread B：原子地把 count 从 1 改为 2
+Thread A                         Thread B
+
+原子地把 count 从 0 改为 1
+                                 原子地把 count 从 1 改为 2
 
 最终：count = 2
 ```
 
-A 和 B 谁先执行并不重要。重要的是，每次“读取旧值并写入新值”对另一个线程表现为一个不可分割的整体，因此不会再出现两边都读取 `0`、最后都写入 `1` 的情况。
-
-所以第一个问题：
-
-```text
-一个复合操作如何不可分割地完成？
-```
-
-硬件提供的基础答案是：
-
-> **Atomic Instruction。**
+A 和 B 谁先执行并不重要。每次原子更新必须基于某个确定的旧值完成，因此不会再出现两边都读取 `0`、最后都写入 `1` 的情况。Atomic Instruction 是语言原子类和锁实现所依赖的一项基础硬件能力。
 
 ---
 
-### 8.2 多个缓存副本：Cache Coherence
+### 8.2 Visibility：Cache Coherence
 
-再回答第二个问题：
-
-```text
-Core A Cache      Core B Cache
-
- count = 1         count = 0
-```
-
-多核处理器必须协调多个 Core 对同一个内存位置的缓存副本。
-
-这就是：
-
-> **Cache Coherence。**
+多核处理器通过 Cache Coherence Protocol 协调多个 Core 对同一个内存位置的缓存副本。
 
 MESI 是最经典的缓存一致性协议之一：
 
@@ -899,64 +586,18 @@ Core A 完成修改
 
 于是 Core B 原来的旧副本不能无限期继续被当成有效数据使用。
 
-这里需要注意：
-
-```text
-Cache Coherence
-      ≠
-每次修改都必须立即写回 DRAM
-```
-
-修改后的 Cache Line 可以继续留在 Cache 中。
-
-一致性协议负责的是：
-
-> **同一个内存位置在不同 Core 的 Cache 中如何保持协调。**
-
-回到 `count`。假设两个 Core 原来都缓存了 `count = 0`：
-
-```text
-Core A 要写入 count = 1
-        ↓
-Core A 取得对应 Cache Line 的写权限
-        ↓
-Core B 中 count = 0 的旧副本失效
-        ↓
-Core B 再次读取 count 时，不能继续使用旧副本
-```
-
-这样，Core B 后续访问 `count` 时必须取得有效副本，而不能无限期把旧的 `0` 当作当前值。需要注意，Cache Coherence 只协调同一内存位置的缓存副本，**它本身不会把 `LOAD + ADD + STORE` 变成原子操作**，所以不能单独解决 `count++` 的 Lost Update。
-
-所以第二个问题：
-
-```text
-一个 Core 修改以后，
-其他 Core 的缓存副本怎么办？
-```
-
-硬件提供的基础答案是：
-
-> **Cache Coherence Protocol。**
+Cache Coherence 协调的是同一个 Cache Line 在不同 Core 中的状态，并不要求每次修改都立即写回 DRAM。修改后的 Cache Line 可以继续留在 Cache 中，但其他 Core 不能继续使用旧副本。
 
 ---
 
 ### 8.3 Ordering：Memory Ordering / Fence
-
-最后回答第三个问题：
 
 ```text
 count = 1
 ready = true
 ```
 
-现代 CPU 为了性能会使用：
-
-```text
-Store Buffer
-Out-of-Order Execution
-```
-
-因此硬件必须明确：
+现代 CPU 会使用 Store Buffer 和 Out-of-Order Execution 等机制提高性能。Hardware Memory Model 必须明确：
 
 ```text
 哪些内存操作顺序是保证的？
@@ -964,229 +605,43 @@ Out-of-Order Execution
 不同 Core 允许观察到哪些结果？
 ```
 
-这就是：
+这就是 Memory Ordering。不同处理器架构允许的顺序并不完全相同；需要加强顺序时，可以使用 Fence 或带有顺序语义的内存操作。
 
-> **Memory Ordering。**
-
-不同处理器架构允许的 Memory Ordering 并不完全相同。
-
-在需要更强顺序保证的时候，硬件还会提供：
+回到前面的 Counter 发布例子。假设 `count = 1` 尚未被 B 观察到，在允许这种结果的硬件上可能出现：
 
 ```text
-Memory Barrier / Fence
+Thread A / Core A                       Thread B / Core B
+|                                       |
++-- STORE count = 1                     |
++-- STORE ready = true                  |
+|                                       +-- LOAD ready -> true
+|                                       +-- LOAD count -> 0
 ```
 
-以及与之相关的：
+使用带有 Release / Acquire 语义的内存操作后：
 
 ```text
-Acquire
-Release
+Thread A / Core A                       Thread B / Core B
+|                                       |
++-- STORE count = 1                     |
++-- STORE-RELEASE ready = true--------->+-- LOAD-ACQUIRE ready -> true
+|                                       +-- LOAD count -> 1
 ```
 
-等顺序约束语义。
+这里保证的不是 B 一定能读到 `ready = true`，而是：如果 B 的 Acquire 读取到了 A 通过 Release 写入的 `true`，那么 B 随后读取 `count` 时必须观察到 `1`。
 
-可以先高度理解成：
-
-```text
-普通执行
-↓
-CPU 可以进行某些优化和重排
-
-需要额外顺序保证
-↓
-Fence / Barrier
-↓
-限制某些内存操作跨越这个边界
-```
-
-回到前面的 Counter 发布例子：
-
-```text
-Thread A / Core A                 Thread B / Core B
-
-STORE count = 1                  value = LOAD-ACQUIRE ready
-STORE-RELEASE ready = true       if value == true:
-                                     LOAD count -> 1
-                                 else:
-                                     跳过本次读取
-```
-
-这里的 `ready` 必须是具有同步语义的原子变量。
-
-`LOAD-ACQUIRE` **不保证 B 这一次就能读到 `true`**。如果 B 执行得更早，它完全可能读到 `false`，然后直接跳过 `if` 中的代码。这个例子没有等待，也不保证 B 以后一定会再次检查。
-
-真正的保证是有条件的：**如果** B 的 `LOAD-ACQUIRE` 确实读到了 A 通过 `STORE-RELEASE` 写入的 `true`，这次发布和接收之间才建立同步关系。A 对 `count = 1` 的写入位于 Release 之前，B 对 `count` 的读取位于 Acquire 之后，因此 B 不能再把这次读取提前到 `ready` 检查之前，也不能在进入 `if` 后仍把旧的 `count = 0` 当作结果。
-
-所以 Release / Acquire 解决的不是“让 B 立刻看到 `ready`”，而是：
-
-> **当 B 已经看到 `ready = true` 时，让它也能正确看到 A 在发布之前完成的写入。**
-
-具体由哪条原子指令或 Fence 实现这些约束，取决于处理器架构和上层语言。
-
-所以第三个问题：
-
-```text
-多个内存操作允许按照什么顺序被其他 Core 观察？
-```
-
-硬件给出的基础答案是：
-
-> **Memory Ordering Rules + Fence / Barrier。**
+具体使用哪条指令，由处理器架构以及上层的编译器和 Runtime 决定。
 
 ---
 
-## 9. Hardware Memory Model
+## 9. 总结
 
-现在可以把这三个问题和硬件能力重新放在一起：
+硬件针对三个并发问题提供了不同的基础能力：
 
-```text
-问题一：
-复合操作可能被打断
-        ↓
-Atomicity
-        ↓
-Atomic Instruction
+| 问题 | 硬件提供的能力 |
+|---|---|
+| Atomicity（原子性） | Atomic Instruction 让 Read-Modify-Write 对其他执行单元表现为不可分割的操作。 |
+| Visibility（可见性） | Cache Coherence 协调同一个 Cache Line 在不同 Core 中的状态。 |
+| Ordering（有序性） | Hardware Memory Model 定义允许的内存顺序，Fence 或有序内存操作提供额外约束。 |
 
-
-问题二：
-多个 Core 持有同一个数据的缓存副本
-        ↓
-Cache Coherence
-        ↓
-MESI / MOESI / MESIF ...
-
-
-问题三：
-多个内存操作的观察顺序可能不同
-        ↓
-Memory Ordering
-        ↓
-Fence / Barrier
-```
-
-但不同 CPU 架构不会提供完全相同的顺序保证。
-
-例如：
-
-```text
-x86
-ARM
-```
-
-它们对内存操作允许的顺序和可观察行为存在差异。
-
-因此，硬件需要定义一套规则：
-
-```text
-哪些内存访问结果允许出现？
-哪些顺序得到保证？
-哪些原子操作可以依赖？
-Fence / Barrier 能建立什么约束？
-```
-
-这些规则共同构成：
-
-> **Hardware Memory Model。**
-
-它描述的是：
-
-> **在某种处理器架构上，不同执行单元被允许如何观察内存操作，以及软件可以依赖哪些硬件级保证。**
-
----
-
-## 10. 从硬件重新回到语言
-
-现在再回到本篇要解释的问题：
-
-```text
-为什么 synchronized 能工作？
-
-为什么 Mutex 能工作？
-
-为什么 Atomic / CAS 能工作？
-
-为什么 Channel 能建立同步关系？
-```
-
-我们已经知道，最底层的机器提供了：
-
-```text
-Atomic Instruction
-Cache Coherence
-Memory Ordering
-Fence / Barrier
-```
-
-但是程序员显然不希望直接面对：
-
-```text
-这台机器是 x86 还是 ARM？
-这个 CPU 使用哪种 Cache Coherence 实现？
-这里到底应该插入哪条 Fence？
-当前编译器允许怎样优化？
-```
-
-所以在 Hardware Memory Model 之上，还需要：
-
-```text
-Compiler / Runtime
-```
-
-以及更上层的：
-
-```text
-Language Memory Model
-/ Concurrency Semantics
-```
-
-整个链路可以表示为：
-
-```text
-Lock / Mutex / Atomic / Channel / Queue ...
-        ▲
-        │
-Language Memory Model
-/ Concurrency Semantics
-        ▲
-        │
-Compiler / Runtime
-        ▲
-        │
-Hardware Memory Model
-        ▲
-        │
-Hardware mechanisms
-        │
-        ├── Atomic Instruction
-        ├── Cache Coherence
-        ├── Memory Ordering
-        └── Fence / Barrier
-        ▲
-        │
-CPU / Cache / Memory
-```
-
-硬件告诉上层：
-
-> **机器能够提供什么。**
-
-语言内存模型告诉程序员：
-
-> **程序可以依赖什么。**
-
-下一篇就从这里重新向上走：
-
-继续沿用同一个 Counter：
-
-```text
-count++
-```
-
-看 Java、Go 和 Python 如何把底层硬件能力进一步抽象成程序员真正面对的：
-
-```text
-Atomicity
-Visibility
-Ordering
-Synchronization
-```
+下一篇回到语言层，讨论 Java、Go 和 CPython 的并发语义如何把这些硬件能力转换成程序员可以依赖的规则。
