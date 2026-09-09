@@ -1,0 +1,47 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import ArticleList from "../../../components/ArticleList.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { articleIsIncluded, sortArticles } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const articles = (await getCollection("articles")).filter(articleIsIncluded);
+  const articlesByTag = new Map<string, CollectionEntry<"articles">[]>();
+
+  for (const article of articles) {
+    for (const tag of new Set(article.data.tags)) {
+      const entries = articlesByTag.get(tag) ?? [];
+      entries.push(article);
+      articlesByTag.set(tag, entries);
+    }
+  }
+
+  return [...articlesByTag.entries()].map(([tag, entries]) => ({
+    params: { tag },
+    props: { tag, entries: sortArticles(entries) },
+  }));
+}
+
+interface Props {
+  tag: string;
+  entries: CollectionEntry<"articles">[];
+}
+
+const { tag, entries } = Astro.props;
+---
+
+<BaseLayout title={`标签：${tag}`} description={`收录使用「${tag}」标签的技术文章。`}>
+  <div class="shell page">
+    <nav class="breadcrumb" aria-label="面包屑">
+      <a href="/articles/">文章</a>
+      <span aria-hidden="true">/</span>
+      <span>标签</span>
+    </nav>
+    <header class="page-header compact">
+      <p class="eyebrow">TAG</p>
+      <h1>{tag}</h1>
+      <p>{entries.length} 篇文章</p>
+    </header>
+    <ArticleList entries={entries} />
+  </div>
+</BaseLayout>

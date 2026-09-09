@@ -3,7 +3,7 @@ import type { CollectionEntry } from "astro:content";
 import ArticleComments from "../components/ArticleComments.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { formatDate, seriesHref } from "../lib/content";
+import { articleTagHref, formatDate, seriesHref } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -65,7 +65,7 @@ const schema = {
         </div>
         {data.tags.length > 0 && (
           <div class="tag-list" aria-label="标签">
-            {data.tags.map((tag) => <span>{tag}</span>)}
+            {data.tags.map((tag) => <a href={articleTagHref(tag)} rel="tag">{tag}</a>)}
           </div>
         )}
       </header>

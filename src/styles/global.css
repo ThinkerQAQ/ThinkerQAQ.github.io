@@ -204,7 +204,7 @@ main {
 }
 
 .process-line span,
-.tag-list span {
+.tag-list :is(a, span) {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
@@ -441,9 +441,21 @@ main {
   margin-top: 0.75rem;
 }
 
-.tag-list span {
+.tag-list :is(a, span) {
   padding: 0.15rem 0.55rem;
   font-weight: 500;
+}
+
+.tag-list a {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.tag-list a:hover,
+.tag-list a:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .toc {

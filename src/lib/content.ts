@@ -26,6 +26,10 @@ export function articleHref(article: ArticleEntry): string {
   return `/articles/${article.id}/`;
 }
 
+export function articleTagHref(tag: string): string {
+  return `/articles/tags/${encodeURIComponent(tag)}/`;
+}
+
 export function projectHref(project: ProjectEntry): string {
   return `/projects/${project.id}/`;
 }
