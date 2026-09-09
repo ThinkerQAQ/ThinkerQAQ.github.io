@@ -57,8 +57,9 @@ count = 0
 现在有两个执行单元：
 
 ```text
-Thread A -> count++
-Thread B -> count++
+Thread A                    Thread B
+
+count++                     count++
 ```
 
 如果 A 和 B 各执行一次，最终结果是否一定是：
@@ -82,11 +83,12 @@ count = 2
 ```text
 初始：count = 0
 
-Thread A 读取 count -> 0
-Thread B 读取 count -> 0
+Thread A                    Thread B
 
-Thread A 写入 1
-Thread B 写入 1
+读取 count -> 0
+                            读取 count -> 0
+写入 count -> 1
+                            写入 count -> 1
 ```
 
 最终：
@@ -99,11 +101,7 @@ count = 1
 
 > **多个执行单元同时访问并修改了同一份状态。**
 
-如果多个执行单元之间完全没有关系，并发本身并不会带来这个问题。真正需要解决的是：
-
-> **当它们需要共享数据、交换信息或协调执行时，应该采用什么方式？**
-
-在单机、单进程范围内，可以先从两种主要的协作模型理解这个问题：
+在单机、单进程范围内，当多个执行单元需要共享数据时，主要通过两种模型协作：
 
 - **Shared Memory / Shared State**：多个执行单元直接访问同一份状态；
 - **Message Passing**：执行单元之间通过消息交换信息。
@@ -116,11 +114,7 @@ count = 1
 
 ### 3.1 Shared Memory：通过同步保护共享状态
 
-Shared Memory 最直接的形式是：
-
-> **多个执行单元直接访问同一份状态。**
-
-仍然以 `count` 为例。
+Shared Memory 中，多个执行单元直接访问同一份状态。仍然以 `count` 为例。
 
 Java 中可以通过同步保护这段共享状态：
 
@@ -137,33 +131,32 @@ class Counter {
 两个线程仍然访问同一个 `Counter`：
 
 ```text
-Thread A -> counter.increment()
-Thread B -> counter.increment()
-```
+Thread A                    Thread B
 
-区别在于，两个线程不能同时进入 `increment()` 的临界区。
+counter.increment()         counter.increment()
+```
+区别在于，两个线程不能同时进入 `increment()` 的临界区，也就是 `counter++`。
 
 假设 Thread A 先获得锁，完整的执行过程会变成：
 
 ```text
 初始：count = 0
 
-Thread A 请求进入 increment()
-Thread A 获得锁
+Thread A                         Thread B
 
-Thread B 请求进入 increment()
-Thread B 无法获得同一把锁，等待
-
-Thread A 读取 count      -> 0
-Thread A 计算 count + 1  -> 1
-Thread A 写回 count      -> 1
-Thread A 退出临界区并释放锁
-
-Thread B 获得锁
-Thread B 读取 count      -> 1
-Thread B 计算 count + 1  -> 2
-Thread B 写回 count      -> 2
-Thread B 退出临界区并释放锁
+请求进入 increment()
+获得锁
+                                 请求进入 increment()
+                                 无法获得同一把锁，等待
+读取 count      -> 0
+计算 count + 1  -> 1
+写回 count      -> 1
+退出临界区并释放锁
+                                 获得锁
+                                 读取 count      -> 1
+                                 计算 count + 1  -> 2
+                                 写回 count      -> 2
+                                 退出临界区并释放锁
 
 最终：count = 2
 ```
@@ -225,16 +218,7 @@ Goroutine A ── +1 ──┐
 Goroutine B ── +1 ──┘
 ```
 
-这里有两个发送消息的 Goroutine：
-
-```text
-Goroutine A
-Goroutine B
-```
-
-它们都把消息发送到同一个 Channel，再由一个独立的 `Counter Owner` 接收消息并修改 `count`。
-
-真正的 `count` 只由 `Counter Owner` 修改。
+两个 Goroutine 都只发送消息，真正的 `count` 由独立的 `Counter Owner` 修改。
 
 Java 和 Python 中也有类似的消息传递工具：
 
@@ -269,10 +253,9 @@ Queue / Channel
 
 例如：
 
-- 一个线程释放锁以后，另一个线程为什么能够看到它之前的写入？
-- 为什么两个线程不会同时进入同一个受保护的临界区？
-- 一次 Channel 发送和对应的接收之间，为什么能够建立确定的同步关系？
-- 消息发送之前的状态，接收方为什么能够正确观察？
+- **Atomicity（哪些操作具有原子性？）**：为什么两个线程不会同时进入同一个受保护的临界区？
+- **Visibility（写入什么时候可见？）**：一个线程释放锁以后，另一个线程为什么能够看到它之前的写入？消息发送之前的状态，接收方为什么能够正确观察？
+- **Ordering（哪些操作之间具有顺序关系？）**：一次 Channel 发送和对应的接收之间，为什么能够建立确定的同步关系？
 
 这些行为不能依赖某一种 CPU “刚好这样执行”。
 
@@ -310,14 +293,13 @@ Python / CPython Concurrency Semantics
 
 来讨论。
 
-这些规则需要回答：
+这些规则需要回答三个问题：
 
-| 语言规则要回答的问题 | 回到 `count` 例子意味着什么 |
+| 问题 | 回到 `count` 例子意味着什么 |
 | --- | --- |
-| 写入什么时候可见？ | A 写入 `count = 1` 并释放锁后，B 获得同一把锁时必须能够看到 `1`。 |
-| 哪些操作之间具有顺序关系？ | A 在释放锁前的写入，不能在 B 获得锁后的读取之后才生效。 |
-| 哪些操作具有原子性？ | `count++` 本身通常不具备原子性；使用同一把锁后，整个临界区相对于其他持锁线程不可交错。 |
-| 哪些同步操作能够建立 happens-before / synchronizes-before？ | 同一把锁的释放与后续获取、Channel 的发送与对应接收，把两个执行单元的操作连接成可依赖的先后关系。 |
+| Atomicity（哪些操作具有原子性？） | `count++` 本身通常不具备原子性；使用同一把锁后，整个临界区相对于其他持锁线程不可交错。 |
+| Visibility（写入什么时候可见？） | A 写入 `count = 1` 并释放锁后，B 获得同一把锁时必须能够看到 `1`。消息发送前完成的写入，也必须能够被接收方正确观察。 |
+| Ordering（哪些操作之间具有顺序关系？） | 同一把锁的释放与后续获取、Channel 的发送与对应接收，可以建立跨执行单元的先后关系。 |
 
 也就是说，这一层回答的是：
 
@@ -329,19 +311,22 @@ Python / CPython Concurrency Semantics
 
 语言定义了规则，但这些规则不能凭空实现。
 
-Java、Go 或 Python 最终都需要通过：
+Java、Go 或 Python 最终都需要通过下面三层，把语言提供的保证落实到真实机器上：
 
 ```text
+Concurrency Tools / Synchronization Mechanisms
+    └─ Mutex / Atomic / volatile / Channel / Queue
+            ↓
 Language Memory Model / Concurrency Semantics
-                 ↓
-          Compiler / Runtime
-                 ↓
-         Hardware Memory Model
-                 ↓
-CPU Cache / Memory Ordering / Atomic Instruction
+    ├─ JMM / Go Memory Model / CPython Concurrency Semantics
+    └─ 由 HotSpot JIT / Go Compiler + Runtime / CPython Runtime 落实
+            ↓
+Hardware
+    ├─ Computer Architecture：Von Neumann Architecture / CPU / Memory
+    ├─ Hardware Memory Model：x86-TSO / ARM Memory Model
+    ├─ Instruction / CPU Primitive：LOAD / STORE / Atomic RMW / Fence
+    └─ Microarchitecture：Cache / Store Buffer / Cache Coherence / Out-of-Order Execution
 ```
-
-把语言层的保证落实到真实机器上。
 
 而现代 CPU 为了提高性能，会使用：
 
@@ -350,6 +335,8 @@ CPU Cache / Memory Ordering / Atomic Instruction
 - 乱序执行；
 - 原子指令；
 - 不同的内存顺序规则。
+
+语言的并发语义最终都要建立在这些硬件能力之上。只有理解硬件允许哪些行为、提供哪些约束，才能继续理解语言规则和并发工具为什么能够正确工作。
 
 因此，在深入 Java、Go 和 Python 的具体并发语义之前，我们需要先回答：
 
@@ -361,7 +348,7 @@ CPU Cache / Memory Ordering / Atomic Instruction
 
 下一篇正式进入硬件：
 
-> **《并发编程（一）：先谈硬件——从 CPU Cache 到内存模型》**
+> **《并发编程（一）：先谈硬件——从 count++ 到 Hardware Memory Model》**
 
 主要讨论：
 
@@ -369,7 +356,6 @@ CPU Cache / Memory Ordering / Atomic Instruction
 - 多核 CPU 如何协调缓存数据；
 - 写缓冲和乱序执行为什么会影响内存访问顺序；
 - 原子指令提供什么能力；
-- Hardware Memory Model 解决什么问题。
 
 理解这些以后，我们再回到：
 
@@ -379,15 +365,4 @@ Go Memory Model
 Python / CPython Concurrency Semantics
 ```
 
-以及更具体的：
-
-```text
-Lock
-CAS
-volatile / atomic
-Condition
-Queue
-Channel
-Thread Pool
-Future
-```
+再以这些规则为基础，讨论互斥锁提供什么保证、这些保证如何落到 Runtime 和 CPU，以及 Atomic、Channel 等具体并发工具。
