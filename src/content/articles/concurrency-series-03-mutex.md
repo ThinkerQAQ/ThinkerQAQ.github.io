@@ -1,7 +1,8 @@
 ---
-title: "并发编程（三）：互斥锁——原子性、可见性与有序性"
+title: "并发编程（三）：互斥锁——语言层的原子性、可见性与有序性"
 description: "继续使用 counter++，理解互斥锁如何同时提供临界区原子性、可见性与有序性，并比较 Java synchronized、Go sync.Mutex 与 CPython threading.Lock 的语义和实现。"
 publishedAt: "2026-09-08T18:32:54+08:00"
+updatedAt: "2026-09-09T22:54:03+08:00"
 language: zh
 tags:
   - 并发编程
