@@ -14,8 +14,10 @@
     "check:drawio": "node scripts/render-drawio.mjs --check",
     "test:diagrams": "npm run diagrams && node --test scripts/plantuml/plantuml.test.mjs scripts/drawio/drawio.test.mjs",
     "test:indexnow": "node --test scripts/indexnow.test.mjs",
+    "test:distribute": "node --test scripts/distribute.test.mjs",
     "indexnow:prepare": "node scripts/indexnow.mjs prepare",
     "indexnow:submit": "node scripts/indexnow.mjs submit",
+    "distribute": "node scripts/distribute.mjs",
     "build": "node scripts/clean-dist.mjs && npm run diagrams && astro build && node scripts/build-search.mjs",
     "check": "astro check",
     "preview": "astro preview --port 4321",
@@ -23,7 +25,7 @@
     "local": "npm run build:local && astro preview --port 4321 --background --open",
     "stop:local": "astro preview stop",
     "verify": "node scripts/verify-build.mjs",
-    "test": "npm run test:diagrams && npm run test:indexnow && npm run check && npm run build && npm run verify"
+    "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run check && npm run build && npm run verify"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",

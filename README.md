@@ -33,6 +33,7 @@ cd ThinkerQAQ.github.io
 | `.\start-local.cmd build` | 构建用于正式发布的网站 |
 | `.\start-local.cmd check` | 执行类型、正式构建和链接检查 |
 | `.\start-local.cmd diagrams` | 生成 PlantUML 和 draw.io 图表 |
+| `.\start-local.cmd distribute` | 为掘金、CSDN 和博客园生成分发稿 |
 | `.\start-local.cmd stop` | 停止本地预览 |
 | `.\start-local.cmd help` | 查看脚本帮助 |
 
@@ -159,6 +160,83 @@ git push origin master
 
 Push 后 GitHub Actions 会自动构建，并将 `dist/` 发布到 GitHub Pages。部署成功后，工作流还会读取构建生成的 sitemap，并通过 IndexNow 批量通知参与该协议的搜索引擎发现本次发布的页面；部署失败时不会发送通知。
 
+### 3.6 分发到掘金、CSDN 和博客园
+
+博客 Markdown 是唯一内容源。分发命令只读取 `src/content/articles/` 中 `status: published` 的文章，在 `.distribution/` 下生成平台稿，不会修改原文。每份平台稿都会自动追加来源声明：
+
+```markdown
+> 本文首发于 [ThinkerQAQ 的个人博客](https://thinkerqaq.github.io/articles/文章-slug/)，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。
+```
+
+生成全部已发布文章的三个平台版本：
+
+```powershell
+.\start-local.cmd distribute
+```
+
+只生成指定文章或平台：
+
+```powershell
+.\start-local.cmd distribute --article concurrency-series-03-mutex
+.\start-local.cmd distribute --platforms juejin,csdn
+```
+
+高级参数也可以直接通过 npm 使用：
+
+```powershell
+npm run distribute -- --article concurrency-series-03-mutex --platforms juejin,csdn,cnblogs
+```
+
+生成结果示例：
+
+```text
+.distribution/
+├── juejin/concurrency-series-03-mutex.md
+├── csdn/concurrency-series-03-mutex.md
+├── cnblogs/concurrency-series-03-mutex.md
+└── manifest.json
+```
+
+分发稿会把以 `/` 开头的站内 Markdown/HTML 链接转换为个人博客的绝对链接；掘金和 CSDN 最多输出前 5 个标签，博客园稿会加入 `[Markdown]` 分类。`.distribution/` 是本地生成目录，已经被 Git 忽略。
+
+#### 使用 Wechatsync 发送草稿
+
+可选安装开源的 [Wechatsync](https://github.com/wechatsync/Wechatsync)，并按照其说明安装 Chrome 扩展、启用本地桥接、复制扩展生成的本地 Token，然后在 Chrome 中登录掘金、CSDN 和博客园：
+
+```powershell
+npm install -g @wechatsync/cli
+$env:WECHATSYNC_TOKEN = "从扩展复制的本地 Token"
+wechatsync platforms --auth
+```
+
+上面的环境变量只对当前 PowerShell 窗口生效，仓库不会保存 Token。
+
+将生成稿发送到三个平台的草稿箱：
+
+```powershell
+.\start-local.cmd distribute --sync
+```
+
+只发送内容发生变化的平台稿：
+
+```powershell
+.\start-local.cmd distribute --sync --changed
+```
+
+只检查登录、文件和平台连接，不创建草稿：
+
+```powershell
+.\start-local.cmd distribute --sync --dry-run
+```
+
+安全边界：
+
+- 命令不会读取、保存或输出平台 Cookie；登录态由本地 Chrome 和 Wechatsync 管理。
+- 当前集成只发送草稿，不会自动点击正式发布，也不会删除任何平台文章。
+- `manifest.json` 记录本地内容哈希和上次成功发送时间，用于 `--changed` 判断；它不包含账号凭证。
+- Wechatsync 当前公开 CLI 不保证覆盖同一篇已发布文章。已经公开的文章需要在平台侧确认更新目标，避免把新草稿误发布成重复文章。
+- 建议先完成博客部署并确认原文 URL 可访问，再发送平台草稿，确保“首发于个人博客”的描述准确。
+
 ## 4. 在文章中新增图表
 
 ### 4.1 新增 PlantUML 图表
@@ -194,6 +272,7 @@ Alice -> Bob: Hello
 | --- | --- |
 | 网站框架 | [Astro](https://astro.build/) 生成静态 HTML，适合以内容为主的博客 |
 | 内容管理 | Astro Content Collections + Markdown；内容分为文章、系列、笔记和项目 |
+| 多平台分发 | 以博客 Markdown 为唯一内容源，通过本地命令生成掘金、CSDN、博客园平台稿，自动追加原文链接，并可借助 Wechatsync 发送到各平台草稿箱 |
 | 全文搜索 | [Pagefind](https://pagefind.app/) 在构建后生成静态搜索索引，不需要单独的搜索服务 |
 | 文章评论 | [utterances](https://utteranc.es/)；读者使用 GitHub 登录，评论保存到本仓库的 Issues，并按文章路径关联 |
 | 图表 | PlantUML 代码块和 draw.io 源文件在本地构建为 SVG |

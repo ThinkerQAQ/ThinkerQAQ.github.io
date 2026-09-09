@@ -3,6 +3,7 @@ dist/
 .astro/
 .content-backups/
 .indexnow/
+.distribution/
 public/diagrams/plantuml/
 .DS_Store
 npm-debug.log*

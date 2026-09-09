@@ -14,6 +14,7 @@ if /i "%COMMAND%"=="preview" goto preview
 if /i "%COMMAND%"=="build" goto build
 if /i "%COMMAND%"=="check" goto check
 if /i "%COMMAND%"=="diagrams" goto diagrams
+if /i "%COMMAND%"=="distribute" goto distribute
 if /i "%COMMAND%"=="stop" goto stop
 if /i "%COMMAND%"=="help" goto help
 if /i "%COMMAND%"=="--help" goto help
@@ -68,6 +69,15 @@ if errorlevel 1 goto command_failed
 echo [DONE] Diagrams generated.
 exit /b 0
 
+:distribute
+call :prepare
+if errorlevel 1 goto command_failed
+echo [DISTRIBUTE] Generating platform-ready Markdown...
+call npm run distribute -- %2 %3 %4 %5 %6 %7 %8 %9
+if errorlevel 1 goto command_failed
+echo [DONE] Distribution output is available in the .distribution directory.
+exit /b 0
+
 :stop
 call :require_tools
 if errorlevel 1 goto command_failed
@@ -110,6 +120,7 @@ echo   preview    Build the local site with drafts and open it in a browser (def
 echo   build      Build the production site
 echo   check      Run type, production build, and link checks
 echo   diagrams   Generate PlantUML and draw.io diagrams
+echo   distribute Generate Markdown for Juejin, CSDN, and CNBlogs
 echo   stop       Stop the local preview
 echo   help       Show this help
 exit /b 0
