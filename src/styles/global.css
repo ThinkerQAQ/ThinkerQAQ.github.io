@@ -567,6 +567,25 @@ main {
   line-height: 1.55;
 }
 
+.prose pre[data-language="text"] {
+  white-space: pre !important;
+  overflow-wrap: normal !important;
+  word-wrap: normal !important;
+  word-break: normal;
+  font-family: "JetBrains Maple Mono", monospace;
+  font-variant-ligatures: none;
+}
+
+.prose pre[data-language="text"] code {
+  font-family: inherit;
+}
+
+.prose pre[data-language="text"] .text-code-wide {
+  display: inline-block;
+  width: 2ch;
+  text-align: center;
+}
+
 .prose table {
   display: block;
   width: max-content;

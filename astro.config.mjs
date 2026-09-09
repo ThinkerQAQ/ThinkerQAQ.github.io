@@ -4,6 +4,7 @@ import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
 import { satteri } from "@astrojs/markdown-satteri";
 import plantumlMarkdown from "./scripts/plantuml/markdown.mjs";
+import textCodeGrid from "./scripts/text-code-grid.mjs";
 
 const manifestPath = fileURLToPath(
   new URL("./src/data/content-manifest.json", import.meta.url),
@@ -45,7 +46,10 @@ export default defineConfig({
     }),
   ],
   markdown: {
-    processor: satteri({ mdastPlugins: [plantumlMarkdown] }),
+    processor: satteri({
+      mdastPlugins: [plantumlMarkdown],
+      hastPlugins: [textCodeGrid],
+    }),
     shikiConfig: {
       theme: "github-dark-default",
       wrap: true,
