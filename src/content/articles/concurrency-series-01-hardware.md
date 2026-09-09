@@ -2,7 +2,7 @@
 title: "并发编程（一）：先谈硬件——从 count++ 到原子性、可见性与有序性"
 description: "从冯·诺依曼体系结构和指令执行过程出发，沿着 count++ 分析硬件层面的原子性、可见性与有序性问题。"
 publishedAt: "2026-09-07T11:08:48+08:00"
-updatedAt: "2026-09-09T18:30:26+08:00"
+updatedAt: "2026-09-09T20:02:35+08:00"
 language: zh
 tags:
   - 并发编程
@@ -48,24 +48,25 @@ series: concurrency-programming
 运算器和控制器组成 CPU，CPU 内部还有寄存器。其中，**Program Counter（PC，程序计数器）保存下一条指令的地址**；Instruction Register（IR，指令寄存器）保存当前正在处理的指令；`R1` 这样的通用寄存器用于保存数据和中间结果。
 
 ```text
-┌────────────┐                         ┌────────────┐
-│  输入设备   │                         │  输出设备   │
-└─────┬──────┘                         └─────▲──────┘
-      │                                      │
-      └──────────┬───────────────────────────┘
-                 │ 系统总线
-                 │
-       ┌─────────┴─────────┐
-       │                   │
-       ▼                   ▼
-┌─────────────────┐   ┌─────────────────┐
-│       CPU       │   │     存储器       │
-│                 │   │                 │
-│  控制器          │   │  程序指令 + 数据 │
-│  运算器          │   │                 │
-│  寄存器          │   └─────────────────┘
-│  PC / IR / R1…  │
-└─────────────────┘
+┌──────────────────┐                    ┌──────────────────┐
+│     输入设备     │                    │     输出设备     │
+└─────────┬────────┘                    └─────────▲────────┘
+          │                                       │
+          └───────────────────┬───────────────────┘
+                              │
+                           系统总线
+                              │
+             ┌────────────────┴─────────────────┐
+             │                                  │
+             ▼                                  ▼
+┌────────────────────────┐         ┌────────────────────────┐
+│         ＣＰＵ         │         │         存储器         │
+│                        │         │                        │
+│         控制器         │         │     程序指令＋数据     │
+│         运算器         │         │                        │
+│         寄存器         │         │                        │
+│    ＰＣ／ＩＲ／Ｒ１    │         │                        │
+└────────────────────────┘         └────────────────────────┘
 ```
 
 CPU 执行程序的过程可以简化为：
@@ -136,11 +137,8 @@ Memory：count = 0
 
 所以：
 
-> **Cache 首先解决的是 CPU 与主存之间的速度差距。**
-
-但 Cache 解决的是性能问题。
-
-它并不会让：
+> **Cache 解决的是 CPU 与主存之间的速度差距。**
+也就是性能问题。但它并不会让：
 
 ```text
 count++
@@ -197,11 +195,7 @@ Thread A                              Thread B
 count = 1
 ```
 
-所以：
-
-> **单核并不意味着没有并发问题。**
-
-问题来自：
+原因是
 
 ```text
 LOAD
@@ -211,7 +205,7 @@ STORE
 
 不是一个不可分割的整体。
 
-只要一个执行单元进行到一半时，另一个执行单元插进来，就可能出现 Lost Update。
+只要一个执行单元进行到一半时，另一个执行单元插进来，就可能出现 丢失更新。
 
 于是得到第一个问题：
 
@@ -278,7 +272,6 @@ Core A Cache                    Core B Cache
 count = 1                       count = 0
 ```
 
-这张图表示硬件此时必须处理的协调问题，并不表示两个不同的值可以长期同时作为有效副本使用。
 
 于是问题来了：
 
@@ -288,7 +281,7 @@ count = 1                       count = 0
 
 > **问题二：一个 Core 修改数据后，其他 Core 什么时候能够观察到新的值？**
 
-也就是：
+即
 
 ```text
 Visibility
@@ -341,7 +334,7 @@ ready = true                     读取 ready -> true
                                  打印 1
 ```
 
-真正需要防止的是第三种结果：
+而不是第三种结果：
 
 ```text
 Thread A                         Thread B
@@ -354,7 +347,7 @@ ready = true                     读取 ready -> true
                                  打印 0
 ```
 
-问题不是 B 能不能读到 `ready = true`，而是：
+也就是说
 
 > **当 B 已经读到 `ready = true` 时，如何保证它不能再读到旧的 `count = 0`？**
 
@@ -398,35 +391,46 @@ Memory Ordering
 
 ### 6.1 Store Buffer
 
-假设 Core A 执行：
+继续沿用 `counter++`。假设 `count = 0`，Core A 执行：
 
 ```text
+LOAD  count -> 0
+ADD   1     -> 1
 STORE [count], 1
 ```
 
-写入可能先进入 Store Buffer：
+其中，`STORE` 写入的 `count = 1` 可能先进入 Store Buffer：
 
 ```text
-Core A
-  │
-  ▼
+CPU（Core A）
+执行 STORE [count], 1
+        │
+        ▼
 Store Buffer
-  │
-  ▼
-Cache / Memory System
+暂存 count = 1
+        │
+        ▼
+Memory
 ```
 
-CPU 不需要等待这个写入已经被其他 Core 观察到，才继续执行后面的工作。
+在 Store Buffer 中的写入对其他 Core 可见之前，Core A 已经可以继续执行：
 
 ```text
-Core A                         Core B
+初始：count = 0
 
-已经继续执行                   仍可能没有观察到 count = 1
+Core A                               Core B
+   │                                    │
+   ├─ LOAD  count -> 0                  │
+   ├─ ADD   1     -> 1                  │
+   ├─ STORE count -> 1                  │
+   │  写入 Store Buffer                 │
+   ├─ 继续执行后面的指令                │
+   │                                    ├─ LOAD count -> 0
+   │                                    │  仍然读到旧值
+   └─ count = 1 对外可见                │
 ```
 
-Store Buffer 在这里说明的是：**一个 Store 执行完成，不等于它已经对其他 Core 可见。**
 
-但仅凭 Store Buffer，还不能断定 `count = 1` 和 `ready = true` 一定会被逆序观察。不同地址之间允许出现哪些顺序，取决于具体处理器的 Hardware Memory Model。例如，[Intel 64 的 Memory Ordering](https://cdrdv2-public.intel.com/835754/253668-sdm-vol-3a.pdf) 保持普通 Store 之间的顺序，而 [Arm 的 Memory Model](https://developer.arm.com/-/media/Arm%20Developer%20Community/PDF/Learn%20the%20Architecture/Armv8-A%20memory%20model%20guide.pdf) 允许更弱的内存顺序。
 
 ---
 
@@ -434,38 +438,35 @@ Store Buffer 在这里说明的是：**一个 Store 执行完成，不等于它�
 
 现代 CPU 还会为了充分利用执行单元，在不破坏必要依赖关系的前提下调整内部执行顺序。
 
-所以需要区分：
+只要不改变当前线程自己的执行结果，这种调整本身没有问题。问题仍然出在多个 Core 之间。
+
+继续沿用前面的 Counter 发布例子：
 
 ```text
-源码中的顺序
+Thread A / Core A                 Thread B / Core B
 
-        ≠
-
-CPU 内部执行的顺序
-
-        ≠
-
-其他 Core 观察到内存效果的顺序
+count = 1                        if ready {
+ready = true                         print(count)
+                                 }
 ```
 
-回到：
+从源码顺序看，A 先写 `count`，再写 `ready`。但是在没有额外顺序约束、并且硬件允许这种内存顺序时，可能出现：
 
 ```text
-count = 1
-ready = true
+初始：count = 0，ready = false
+
+Thread A / Core A                 Thread B / Core B
+   │                                  │
+   ├─ STORE count = 1                 │
+   │  尚未被 Core B 观察到            │
+   ├─ STORE ready = true              │
+   │                                  ├─ LOAD ready -> true
+   │                                  └─ LOAD count -> 0
 ```
 
-真正需要回答的不是：
-
-```text
-源码里谁写在前面？
-```
-
-而是：
+也就是说，A 的源码先写了 `count`，B 却先观察到 `ready = true`，随后仍读到旧的 `count = 0`。
 
 > **其他 Core 被允许以什么顺序观察这些内存操作？**
-
-到这里，第三个问题也完整出现了。
 
 ---
 
@@ -524,7 +525,7 @@ Thread A                         Thread B
 最终：count = 2
 ```
 
-A 和 B 谁先执行并不重要。每次原子更新必须基于某个确定的旧值完成，因此不会再出现两边都读取 `0`、最后都写入 `1` 的情况。Atomic Instruction 是语言原子类和锁实现所依赖的一项基础硬件能力。
+A 和 B 谁先执行并不重要。每次原子更新必须基于某个确定的旧值完成，因此不会再出现两边都读取 `0`、最后都写入 `1` 的情况。
 
 ---
 
@@ -584,9 +585,7 @@ Core A 要修改 count
 Core A 完成修改
 ```
 
-于是 Core B 原来的旧副本不能无限期继续被当成有效数据使用。
-
-Cache Coherence 协调的是同一个 Cache Line 在不同 Core 中的状态，并不要求每次修改都立即写回 DRAM。修改后的 Cache Line 可以继续留在 Cache 中，但其他 Core 不能继续使用旧副本。
+Core A 获得写权限后，Core B 缓存中的 `count = 0` 会失效，下一次读取 `count` 时不能再使用这个旧值。
 
 ---
 
@@ -605,7 +604,7 @@ ready = true
 不同 Core 允许观察到哪些结果？
 ```
 
-这就是 Memory Ordering。不同处理器架构允许的顺序并不完全相同；需要加强顺序时，可以使用 Fence 或带有顺序语义的内存操作。
+这就是 Memory Ordering。
 
 回到前面的 Counter 发布例子。假设 `count = 1` 尚未被 B 观察到，在允许这种结果的硬件上可能出现：
 
@@ -618,19 +617,24 @@ Thread A / Core A                       Thread B / Core B
 |                                       +-- LOAD count -> 0
 ```
 
-使用带有 Release / Acquire 语义的内存操作后：
+要阻止这种结果，需要用 Fence 约束两侧内存操作的顺序：
 
 ```text
 Thread A / Core A                       Thread B / Core B
 |                                       |
 +-- STORE count = 1                     |
-+-- STORE-RELEASE ready = true--------->+-- LOAD-ACQUIRE ready -> true
++-- FENCE                               |
++-- STORE ready = true                  |
+|                                       +-- LOAD ready -> true
+|                                       +-- FENCE
 |                                       +-- LOAD count -> 1
 ```
 
-这里保证的不是 B 一定能读到 `ready = true`，而是：如果 B 的 Acquire 读取到了 A 通过 Release 写入的 `true`，那么 B 随后读取 `count` 时必须观察到 `1`。
+写入侧的 Fence 保证 `count = 1` 不能排到 `ready = true` 之后；读取侧的 Fence 保证对 `count` 的读取不能排到对 `ready` 的读取之前。
 
-具体使用哪条指令，由处理器架构以及上层的编译器和 Runtime 决定。
+Fence 不保证 B 一定读到 `ready = true`。但当 B 已经读到 `ready = true` 时，随后读取 `count` 不能再得到旧值 `0`。
+
+
 
 ---
 
@@ -640,8 +644,8 @@ Thread A / Core A                       Thread B / Core B
 
 | 问题 | 硬件提供的能力 |
 |---|---|
-| Atomicity（原子性） | Atomic Instruction 让 Read-Modify-Write 对其他执行单元表现为不可分割的操作。 |
-| Visibility（可见性） | Cache Coherence 协调同一个 Cache Line 在不同 Core 中的状态。 |
-| Ordering（有序性） | Hardware Memory Model 定义允许的内存顺序，Fence 或有序内存操作提供额外约束。 |
+| Atomicity（原子性） | Atomic Instruction 可以把 `counter++` 作为一个整体完成，其他执行单元不能在中间插入。 |
+| Visibility（可见性） | Core A 把 `count` 修改为 `1` 后，Core B 再读取 `count` 时不能继续使用缓存中的 `0`。 |
+| Ordering（有序性） | 加入 Fence 后，Core B 既然读到了 `ready = true`，再读取 `count` 就必须得到 `1`。 |
 
 下一篇回到语言层，讨论 Java、Go 和 CPython 的并发语义如何把这些硬件能力转换成程序员可以依赖的规则。
