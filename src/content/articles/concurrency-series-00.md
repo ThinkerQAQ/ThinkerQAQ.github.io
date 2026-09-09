@@ -348,8 +348,6 @@ Hardware
 
 下一篇正式进入硬件：
 
-> **《并发编程（一）：先谈硬件——从 count++ 到 Hardware Memory Model》**
-
 主要讨论：
 
 - CPU 为什么需要缓存；

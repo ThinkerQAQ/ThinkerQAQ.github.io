@@ -1,10 +1,11 @@
 ---
 import { getCollection, render, type CollectionEntry } from "astro:content";
 import ArticleLayout from "../../layouts/ArticleLayout.astro";
-import { articleIsIncluded } from "../../lib/content";
+import { articleIsIncluded, getArticleSeriesNavigation } from "../../lib/content";
 
 export async function getStaticPaths() {
   const articles = (await getCollection("articles")).filter(articleIsIncluded);
+  const seriesEntries = await getCollection("series");
   return articles.map((article) => {
     if (article.data.updatedAt && article.data.updatedAt < article.data.publishedAt) {
       throw new Error(`Article ${article.id}: updatedAt precedes publishedAt`);
@@ -22,19 +23,21 @@ export async function getStaticPaths() {
     if (translations.length > 1 || (article.data.translationOf && translations.length > 0)) {
       throw new Error(`Article ${article.id}: use one translationOf link per bilingual pair`);
     }
-    return { params: { slug: article.id }, props: { article, translation } };
+    const seriesNavigation = getArticleSeriesNavigation(article, articles, seriesEntries);
+    return { params: { slug: article.id }, props: { article, translation, seriesNavigation } };
   });
 }
 
 interface Props {
   article: CollectionEntry<"articles">;
   translation?: CollectionEntry<"articles">;
+  seriesNavigation?: import("../../lib/content").ArticleSeriesNavigation;
 }
 
-const { article, translation } = Astro.props;
+const { article, translation, seriesNavigation } = Astro.props;
 const { Content, headings } = await render(article);
 ---
 
-<ArticleLayout article={article} headings={headings} translation={translation}>
+<ArticleLayout article={article} headings={headings} translation={translation} seriesNavigation={seriesNavigation}>
   <Content />
 </ArticleLayout>

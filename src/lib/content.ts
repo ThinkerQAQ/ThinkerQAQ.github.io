@@ -5,6 +5,11 @@ export type ArticleEntry = CollectionEntry<"articles">;
 export type ProjectEntry = CollectionEntry<"projects">;
 export type SeriesEntry = CollectionEntry<"series">;
 
+export interface ArticleSeriesNavigation {
+  previous?: ArticleEntry;
+  next?: ArticleEntry;
+}
+
 export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
 
 export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成" };
@@ -37,6 +42,30 @@ export function projectHref(project: ProjectEntry): string {
 export function seriesHref(series: SeriesEntry | string): string {
   const id = typeof series === "string" ? series : series.id;
   return `/series/${id}/`;
+}
+
+export function getArticleSeriesNavigation(
+  article: ArticleEntry,
+  articles: ArticleEntry[],
+  seriesEntries: SeriesEntry[],
+): ArticleSeriesNavigation | undefined {
+  if (!article.data.series) return undefined;
+
+  const series = seriesEntries.find((entry) => entry.id === article.data.series);
+  if (!series) return undefined;
+
+  const articlesById = new Map(articles.map((entry) => [entry.id, entry]));
+  const orderedArticles = series.data.relatedArticles
+    .map((id) => articlesById.get(id))
+    .filter((entry): entry is ArticleEntry => entry !== undefined);
+  const currentIndex = orderedArticles.findIndex((entry) => entry.id === article.id);
+
+  if (currentIndex === -1) return undefined;
+
+  return {
+    previous: orderedArticles[currentIndex - 1],
+    next: orderedArticles[currentIndex + 1],
+  };
 }
 
 export function sortByUpdated(notes: NoteEntry[]): NoteEntry[] {

@@ -1,9 +1,10 @@
 ---
 import type { CollectionEntry } from "astro:content";
 import ArticleComments from "../components/ArticleComments.astro";
+import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { articleTagHref, formatDate, seriesHref } from "../lib/content";
+import { articleTagHref, formatDate, seriesHref, type ArticleSeriesNavigation as SeriesNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -16,9 +17,10 @@ interface Props {
   article: CollectionEntry<"articles">;
   headings: Heading[];
   translation?: CollectionEntry<"articles">;
+  seriesNavigation?: SeriesNavigation;
 }
 
-const { article, headings, translation } = Astro.props;
+const { article, headings, translation, seriesNavigation } = Astro.props;
 const { data } = article;
 const articlePath = `/articles/${article.id}/`;
 const schema = {
@@ -71,6 +73,9 @@ const schema = {
       </header>
 
       <div class="prose"><slot /></div>
+      {seriesNavigation && (seriesNavigation.previous || seriesNavigation.next) && (
+        <ArticleSeriesNavigation navigation={seriesNavigation} />
+      )}
       {data.sourceNote && (
         <p class="source-note">本文迁移自<a href={data.sourceNote}>原始学习笔记</a>，文章版本独立维护。</p>
       )}

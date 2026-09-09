@@ -1176,8 +1176,6 @@ CPU / Cache / Memory
 
 下一篇就从这里重新向上走：
 
-> **《并发编程（二）：从 Hardware Memory Model 到 Language Memory Model》**
-
 继续沿用同一个 Counter：
 
 ```text
