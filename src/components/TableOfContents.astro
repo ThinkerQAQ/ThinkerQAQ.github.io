@@ -10,7 +10,7 @@ interface Props {
 }
 
 const { headings } = Astro.props;
-const visibleHeadings = headings.filter((heading) => heading.depth <= 3);
+const visibleHeadings = headings.filter((heading) => heading.depth <= 4);
 const tocId = "page-table-of-contents";
 ---
 

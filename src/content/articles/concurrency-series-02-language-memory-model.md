@@ -2,7 +2,7 @@
 title: "并发编程（二）：语言内存模型——程序员可以依赖的规则"
 description: "从硬件内存模型回到语言层，理解语言为什么需要定义内存模型，以及 Java、Go 与 CPython 分别为并发程序提供哪些基本保证。"
 publishedAt: "2026-09-07T15:13:00+08:00"
-updatedAt: "2026-09-09T22:54:03+08:00"
+updatedAt: "2026-09-10T15:06:13+08:00"
 language: zh
 tags:
   - 并发编程
@@ -20,13 +20,13 @@ series: concurrency-programming
 - [0. 从上一篇继续](#0-从上一篇继续)
 - [1. 为什么有了 Hardware Memory Model 还不够？](#1-为什么有了-hardware-memory-model-还不够)
 - [2. 语言内存模型需要回答什么？](#2-语言内存模型需要回答什么)
-- [3. Java Memory Model](#3-java-memory-model)
-- [4. Go Memory Model](#4-go-memory-model)
-- [5. CPython 的并发语义](#5-cpython-的并发语义)
-  - [5.1 GIL 模式](#51-gil-模式)
-  - [5.2 Free-threaded 模式](#52-free-threaded-模式)
-  - [5.3 程序应该依赖什么？](#53-程序应该依赖什么)
-- [6. 下一篇：互斥锁](#6-下一篇互斥锁)
+  - [2.1 Java Memory Model](#21-java-memory-model)
+  - [2.2 Go Memory Model](#22-go-memory-model)
+  - [2.3 CPython 的并发语义](#23-cpython-的并发语义)
+    - [2.3.1 GIL 模式](#231-gil-模式)
+    - [2.3.2 Free-threaded 模式](#232-free-threaded-模式)
+    - [2.3.3 程序应该依赖什么？](#233-程序应该依赖什么)
+- [3. 下一篇：互斥锁](#3-下一篇互斥锁)
 
 ---
 
@@ -110,7 +110,7 @@ ready = true
 
 ---
 
-# 3. Java Memory Model
+### 2.1 Java Memory Model
 
 Java Memory Model（JMM）定义 Java 线程之间允许出现哪些内存访问结果，以及同步操作能够建立什么关系。
 
@@ -148,7 +148,7 @@ Atomic
 
 ---
 
-# 4. Go Memory Model
+### 2.2 Go Memory Model
 
 [The Go Memory Model](https://go.dev/ref/mem) 也需要回答一个读取在什么条件下能够观察到另一个 Goroutine 的写入。
 
@@ -182,11 +182,11 @@ Java 和 Go 都使用 happens-before，但具体规则不能直接互换。分�
 
 ---
 
-# 5. CPython 的并发语义
+### 2.3 CPython 的并发语义
 
 Python 没有一套适用于所有解释器实现、与 JMM 或 Go Memory Model 同等级的统一并发内存模型。本系列讨论最常用的 CPython。
 
-## 5.1 GIL 模式
+#### 2.3.1 GIL 模式
 
 默认的 GIL-enabled CPython 中：
 
@@ -206,7 +206,7 @@ counter += 1
 
 在 GIL 模式下，也不是并发安全的
 
-## 5.2 Free-threaded 模式
+#### 2.3.2 Free-threaded 模式
 
 从 Python 3.13 开始，CPython 提供可禁用 GIL 的 Free-threaded 构建。在这种模式下，多个线程可以同时在不同 CPU Core 上执行 Python 代码。
 
@@ -220,7 +220,7 @@ Free-threaded 模式加强的是解释器内部并行能力，不会自动把应
 
 具体范围和限制可以参考 Python 官方的 [Free-threading 文档](https://docs.python.org/3/howto/free-threading-python.html) 和 [PEP 703](https://peps.python.org/pep-0703/)。
 
-## 5.3 程序应该依赖什么？
+#### 2.3.3 程序应该依赖什么？
 
 Python 程序应该依赖明确的同步 API：
 
@@ -237,7 +237,7 @@ threading.Condition
 
 ---
 
-# 6. 下一篇：互斥锁
+## 3. 下一篇：互斥锁
 
 下一篇开始讨论第一个具体同步工具：Mutex。
 
