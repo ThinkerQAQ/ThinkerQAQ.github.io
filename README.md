@@ -160,7 +160,23 @@ git push origin master
 
 Push 后 GitHub Actions 会自动构建，并将 `dist/` 发布到 GitHub Pages。部署成功后，工作流还会读取构建生成的 sitemap，并通过 IndexNow 批量通知参与该协议的搜索引擎发现本次发布的页面；部署失败时不会发送通知。
 
-### 3.6 分发到掘金、CSDN 和博客园
+### 3.6 SEO 与搜索引擎收录
+
+生产构建会为可索引页面输出 canonical URL、Open Graph 元数据和 sitemap；首页还会输出 `WebSite` JSON-LD，以 `ThinkerQAQ` 为首选站点名称、`thinkerqaq.github.io` 为备用名称。文章和笔记页面分别输出对应的 `TechArticle` JSON-LD。
+
+部署完成后，在 [Google Search Console](https://search.google.com/search-console/) 和 [Bing Webmaster Tools](https://www.bing.com/webmasters/) 中使用以下 sitemap 地址：
+
+```text
+https://thinkerqaq.github.io/sitemap-index.xml
+```
+
+只需提交 `sitemap-index.xml`。它会自动引用包含实际页面 URL 的 `sitemap-0.xml`；本站不生成 `sitemap.xml`，不要提交该地址。仓库的 `public/robots.txt` 也已经声明了同一个 sitemap index。
+
+重要页面更新后，可以在两个站长平台中检查线上 URL 并请求重新抓取。IndexNow 会在部署成功后自动通知参与该协议的搜索引擎，但通知不等于保证收录或提升排名，Google 的抓取和收录状态仍应通过 Search Console 检查。
+
+相关资料：[Google 站点名称](https://developers.google.com/search/docs/appearance/site-names)、[Google sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)、[Bing sitemap](https://www.bing.com/webmasters/help/sitemaps-3b5cf6ed)、[IndexNow](https://www.indexnow.org/)。
+
+### 3.7 分发到掘金、CSDN 和博客园
 
 博客 Markdown 是唯一内容源。分发命令只读取 `src/content/articles/` 中 `status: published` 的文章，在 `.distribution/` 下生成平台稿，不会修改原文。每份平台稿都会自动追加来源声明：
 
@@ -277,7 +293,8 @@ Alice -> Bob: Hello
 | 文章评论 | [utterances](https://utteranc.es/)；读者使用 GitHub 登录，评论保存到本仓库的 Issues，并按文章路径关联 |
 | 图表 | PlantUML 代码块和 draw.io 源文件在本地构建为 SVG |
 | 代码高亮 | Astro 内置的 Shiki，使用 GitHub Dark 主题 |
-| 订阅与索引 | 自动生成 RSS 和 sitemap，并保留 Google、Bing 站长平台的所有权验证文件 |
+| SEO 元数据 | 输出 canonical URL、Open Graph、首页 `WebSite` JSON-LD，以及文章和笔记的 `TechArticle` JSON-LD |
+| 订阅与索引 | 自动生成 RSS、`sitemap-index.xml` 和子 sitemap，并保留 Google、Bing 站长平台的所有权验证文件 |
 | 发布搜索增强 | GitHub Pages 部署成功后，根据 sitemap 自动调用 [IndexNow](https://www.indexnow.org/)，通知 Bing、Yandex 等参与者发现新增或更新页面 |
 | 明暗主题 | 根据操作系统的颜色偏好自动切换 |
 | 部署 | 推送到 `master` 后，由 GitHub Actions 构建并发布到 GitHub Pages |
