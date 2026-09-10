@@ -1,14 +1,29 @@
 ---
 import { getCollection } from "astro:content";
 import ArticleIndex from "../components/ArticleIndex.astro";
+import { SITE } from "../config/site";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { articleIsIncluded, sortArticles } from "../lib/content";
 
 const articles = sortArticles(
   (await getCollection("articles")).filter(articleIsIncluded),
 );
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: SITE.title,
+  alternateName: ["thinkerqaq.github.io"],
+  url: new URL("/", SITE.url).toString(),
+};
 ---
 <BaseLayout noindex={articles.length === 0}>
+  <script
+    is:inline
+    slot="head"
+    type="application/ld+json"
+    set:html={JSON.stringify(websiteSchema).replaceAll("<", "\\u003c")}
+  />
   <div class="shell page article-index-page">
     <ArticleIndex articles={articles} />
   </div>

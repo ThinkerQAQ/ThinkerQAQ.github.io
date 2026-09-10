@@ -75,6 +75,19 @@ async function main() {
   invariant(htmlFiles.length >= manifest.entries.length, "Fewer HTML pages than imported notes");
   invariant(home.includes("<main id=\"main-content\">"), "Home page has no static main content");
   invariant(!home.includes("viki.js"), "Legacy Viki runtime leaked into the production home page");
+  const homeStructuredData = [...home.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)]
+    .map(([, value]) => JSON.parse(value));
+  const websiteSchema = homeStructuredData.find((entry) => entry["@type"] === "WebSite");
+  invariant(websiteSchema, "Home page is missing WebSite structured data");
+  invariant(websiteSchema.name === "ThinkerQAQ", "WebSite structured data has the wrong site name");
+  invariant(
+    websiteSchema.url === "https://thinkerqaq.github.io/",
+    "WebSite structured data has the wrong canonical home URL",
+  );
+  invariant(
+    websiteSchema.alternateName?.includes("thinkerqaq.github.io"),
+    "WebSite structured data is missing the domain fallback name",
+  );
   const homeArticleLists = [...home.matchAll(/<ol class="content-list">([\s\S]*?)<\/ol>/g)];
   for (const [, articleList] of homeArticleLists) {
     const timestamps = [...articleList.matchAll(/<time datetime="([^"]+)">/g)]
