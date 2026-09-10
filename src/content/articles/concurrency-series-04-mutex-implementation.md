@@ -9,7 +9,7 @@ tags:
   - JVM
   - Go Runtime
   - CPython
-status: draft
+status: published
 featured: false
 series: concurrency-programming
 ---
