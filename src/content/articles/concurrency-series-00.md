@@ -2,7 +2,7 @@
 title: "并发编程（零）：并发问题与讨论范围"
 description: "限定单机、单进程范围，从共享变量出发，建立共享内存、消息传递、语言并发语义与硬件实现之间的整体关系。"
 publishedAt: "2026-09-06T17:58:00+08:00"
-updatedAt: "2026-09-09T22:54:03+08:00"
+updatedAt: "2026-09-10T10:16:34+08:00"
 language: zh
 tags:
   - 并发编程
@@ -97,7 +97,7 @@ Thread A                    Thread B
 count = 1
 ```
 
-问题的关键在于：
+问题的关键在于两个Thread同时修改了`counter`，也就是
 
 > **多个执行单元同时访问并修改了同一份状态。**
 
@@ -116,7 +116,7 @@ count = 1
 
 Shared Memory 中，多个执行单元直接访问同一份状态。仍然以 `count` 为例。
 
-Java 中可以通过同步保护这段共享状态：
+Java 中可以通过同步保护这段共享状态，例如`sychronized`
 
 ```java
 class Counter {
@@ -135,7 +135,8 @@ Thread A                    Thread B
 
 counter.increment()         counter.increment()
 ```
-区别在于，两个线程不能同时进入 `increment()` 的临界区，也就是 `counter++`。
+
+但是，由于`sychronized`的作用两个线程不能同时进入 `increment()` 的临界区，也就是 `counter++`。
 
 假设 Thread A 先获得锁，完整的执行过程会变成：
 
@@ -189,7 +190,7 @@ Python  -> Lock
 ```go
 increments := make(chan int)
 
-go func() { // Counter Owner
+go func() { // Counter Owner Goroutine
     count := 0
 
     for delta := range increments {
@@ -214,11 +215,11 @@ go func() { // Goroutine B
 
 ```text
 Goroutine A ── +1 ──┐
-                     ├──> Channel ──> Counter Owner ──> count
+                     ├──> Channel ──> Counter Owner Goroutine ──> count++
 Goroutine B ── +1 ──┘
 ```
 
-两个 Goroutine 都只发送消息，真正的 `count` 由独立的 `Counter Owner` 修改。
+两个 Goroutine 都只发送消息，真正的 `count` 由独立的 `Counter Owner Goroutine` 修改。
 
 Java 和 Python 中也有类似的消息传递工具：
 
@@ -251,11 +252,11 @@ Queue / Channel
 
 > **为什么这些代码能够正确工作？**
 
-例如：
+回到最开始的 `count++`：
 
-- **Atomicity（哪些操作具有原子性？）**：为什么两个线程不会同时进入同一个受保护的临界区？
-- **Visibility（写入什么时候可见？）**：一个线程释放锁以后，另一个线程为什么能够看到它之前的写入？消息发送之前的状态，接收方为什么能够正确观察？
-- **Ordering（哪些操作之间具有顺序关系？）**：一次 Channel 发送和对应的接收之间，为什么能够建立确定的同步关系？
+- **Atomicity（哪些操作具有原子性？）**：`count++` 包含读取、加一和写回。A 获得锁以后，为什么 B 必须等到 A 把 `count` 从 `0` 写成 `1` 并释放锁，才能进入同一个临界区？
+- **Visibility（写入什么时候可见？）**：A 把 `count` 写成 `1` 并释放锁以后，B 获得同一把锁时，为什么必须读到 `1`，而不能继续读到旧值 `0`？使用 Channel 时，Counter Owner 为什么能够收到生产者发送的 `+1`？
+- **Ordering（哪些操作之间具有顺序关系？）**：为什么 A 的“写回 `count = 1` → 释放锁”必须先于 B 的“获得锁 → 读取 `count = 1`”？使用 Channel 时，为什么一次“发送 `+1`”必须先于对应的“接收 `+1` → 更新 `count`”？
 
 这些行为不能依赖某一种 CPU “刚好这样执行”。
 
@@ -297,9 +298,9 @@ Python / CPython Concurrency Semantics
 
 | 问题 | 回到 `count` 例子意味着什么 |
 | --- | --- |
-| Atomicity（哪些操作具有原子性？） | `count++` 本身通常不具备原子性；使用同一把锁后，整个临界区相对于其他持锁线程不可交错。 |
-| Visibility（写入什么时候可见？） | A 写入 `count = 1` 并释放锁后，B 获得同一把锁时必须能够看到 `1`。消息发送前完成的写入，也必须能够被接收方正确观察。 |
-| Ordering（哪些操作之间具有顺序关系？） | 同一把锁的释放与后续获取、Channel 的发送与对应接收，可以建立跨执行单元的先后关系。 |
+| Atomicity（哪些操作具有原子性？） | `count++` 包含“读取 → 加一 → 写回”。不加锁时，A 和 B 的三个步骤可能交错，最终只得到 `1`；使用同一把锁后，A 必须完整地把 `count` 从 `0` 改成 `1`，B 才能进入临界区并继续从 `1` 改成 `2`。 |
+| Visibility（写入什么时候可见？） | A 写回 `count = 1` 并释放锁后，B 获得同一把锁时必须读到 `1`，不能继续使用旧值 `0`。使用 Channel 时，Counter Owner 必须能够接收到生产者发送的 `+1`。 |
+| Ordering（哪些操作之间具有顺序关系？） | 对同一把锁，顺序是“A 写回 `count = 1` → A 释放锁 → B 获得锁 → B 读取 `count = 1`”。使用 Channel 时，顺序是“生产者发送 `+1` → Counter Owner 接收 `+1` → 更新 `count`”。 |
 
 也就是说，这一层回答的是：
 
