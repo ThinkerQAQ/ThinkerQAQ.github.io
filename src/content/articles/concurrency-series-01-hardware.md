@@ -2,7 +2,7 @@
 title: "并发编程（一）：先谈硬件——从 count++ 到原子性、可见性与有序性"
 description: "从冯·诺依曼体系结构和指令执行过程出发，沿着 count++ 分析硬件层面的原子性、可见性与有序性问题。"
 publishedAt: "2026-09-07T11:08:48+08:00"
-updatedAt: "2026-09-09T20:02:35+08:00"
+updatedAt: "2026-09-10T10:46:49+08:00"
 language: zh
 tags:
   - 并发编程
@@ -474,11 +474,11 @@ Thread A / Core A                 Thread B / Core B
 
 前面的问题可以归纳成三类：
 
-| 问题 | 硬件层表现 | 需要回答什么 |
+| 问题 | 问题表现 | 硬件需要回答什么 |
 |---|---|---|
-| Atomicity（原子性） | `count++` 的 Read-Modify-Write 可以被交错执行 | 哪些操作具有原子性？ |
-| Visibility（可见性） | 多个 Core 可能缓存同一个内存位置 | 一个 Core 写入后，其他 Core 什么时候能够观察到？ |
-| Ordering（有序性） | 不同内存位置的操作可能以不同顺序被观察 | 哪些操作之间具有顺序关系？ |
+| Atomicity（原子性） | A、B 都执行 `count++` 时，可能都读到 `0`，最后都写回 `1` | 哪些操作具有原子性？ |
+| Visibility（可见性） | Core A 已经通过 `count++` 把 `count` 写成 `1`，Core B 仍可能读到缓存中的 `0` | 一个 Core 写入后，其他 Core 什么时候能够观察到？ |
+| Ordering（有序性） | Core A 先完成 `count++`，再写入 `ready = true`；Core B 却可能先读到 `ready = true`，随后仍读到 `count = 0` | 哪些操作之间具有顺序关系？ |
 
 第一类问题既可能出现在单核线程切换时，也可能出现在多核并行执行时。关键不是 CPU Core 的数量，而是 Read-Modify-Write 的多个步骤能否被其他执行单元交错。
 
