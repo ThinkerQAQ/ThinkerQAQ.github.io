@@ -244,7 +244,7 @@ Visibility 和 Ordering 则不能像 Java、Go 那样从一条正式的 Memory M
 
 ## 3. 下一篇：互斥锁是怎么实现的？
 
-这一篇停在语言层。下一篇按同样的三个问题继续下钻实现层：
+这一篇停在语言层。下一篇 [《并发编程（四）：互斥锁的实现——从 Runtime 到 CPU》](/articles/concurrency-series-04-mutex-implementation/) 按同样的三个问题继续下钻实现层：
 
 - Atomicity：Atomic RMW 如何决定谁能获得锁？
 - Visibility：释放前的写入如何被后续获取者看到？
