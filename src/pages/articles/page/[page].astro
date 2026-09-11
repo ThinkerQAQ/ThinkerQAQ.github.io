@@ -1,0 +1,52 @@
+---
+import type { GetStaticPathsOptions, Page } from "astro";
+import { getCollection, type CollectionEntry } from "astro:content";
+import ArticleIndex from "../../../components/ArticleIndex.astro";
+import Pagination from "../../../components/Pagination.astro";
+import { ARTICLE_PAGE_SIZE } from "../../../config/site";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { articleIsIncluded, sortArticles } from "../../../lib/content";
+
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  const articles = sortArticles(
+    (await getCollection("articles")).filter(
+      (article) => articleIsIncluded(article) && article.data.language === "zh",
+    ),
+  );
+
+  return paginate(articles, { pageSize: ARTICLE_PAGE_SIZE }).filter(
+    ({ params }) => params.page !== "1",
+  );
+}
+
+interface Props {
+  page: Page<CollectionEntry<"articles">>;
+}
+
+const { page } = Astro.props;
+const currentUrl = `/articles/page/${page.currentPage}/`;
+const prevUrl = page.currentPage === 2
+  ? "/articles/"
+  : `/articles/page/${page.currentPage - 1}/`;
+const nextUrl = page.currentPage < page.lastPage
+  ? `/articles/page/${page.currentPage + 1}/`
+  : undefined;
+---
+
+<BaseLayout
+  title={`文章 · 第 ${page.currentPage} 页`}
+  canonicalPath={currentUrl}
+  noindex={page.data.length === 0}
+>
+  <link slot="head" rel="prev" href={prevUrl} />
+  {nextUrl && <link slot="head" rel="next" href={nextUrl} />}
+  <div class="shell page article-index-page">
+    <ArticleIndex articles={page.data} />
+    <Pagination
+      currentPage={page.currentPage}
+      lastPage={page.lastPage}
+      nextUrl={nextUrl}
+      prevUrl={prevUrl}
+    />
+  </div>
+</BaseLayout>

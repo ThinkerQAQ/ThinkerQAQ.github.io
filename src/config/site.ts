@@ -8,6 +8,8 @@ export const SITE = {
   locale: "zh-CN",
 } as const;
 
+export const ARTICLE_PAGE_SIZE = 10;
+
 export const COMMENTS = {
   provider: "utterances",
   repository: "ThinkerQAQ/ThinkerQAQ.github.io",

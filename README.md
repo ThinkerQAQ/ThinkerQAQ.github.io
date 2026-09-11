@@ -288,6 +288,7 @@ Alice -> Bob: Hello
 | --- | --- |
 | 网站框架 | [Astro](https://astro.build/) 生成静态 HTML，适合以内容为主的博客 |
 | 内容管理 | Astro Content Collections + Markdown；内容分为文章、系列、笔记和项目 |
+| 文章分页 | 中文文章按更新时间倒序排列，每页 10 篇；第一页为 `/articles/`，后续页面为 `/articles/page/2/` 等 |
 | 多平台分发 | 以博客 Markdown 为唯一内容源，通过本地命令生成掘金、CSDN、博客园平台稿，自动追加原文链接，并可借助 Wechatsync 发送到各平台草稿箱 |
 | 全文搜索 | [Pagefind](https://pagefind.app/) 在构建后生成静态搜索索引，不需要单独的搜索服务 |
 | 文章评论 | [utterances](https://utteranc.es/)；读者使用 GitHub 登录，评论保存到本仓库的 Issues，并按文章路径关联 |
