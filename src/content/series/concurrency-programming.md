@@ -10,6 +10,7 @@ relatedArticles:
   - concurrency-series-02-language-memory-model
   - concurrency-series-03-mutex
   - concurrency-series-04-mutex-implementation
+  - concurrency-series-05-atomic-cas
 relatedNotes: []
 ---
 
