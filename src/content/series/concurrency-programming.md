@@ -11,6 +11,7 @@ relatedArticles:
   - concurrency-series-03-mutex
   - concurrency-series-04-mutex-implementation
   - concurrency-series-05-atomic-cas
+  - concurrency-series-06-atomic-implementation
 relatedNotes: []
 ---
 

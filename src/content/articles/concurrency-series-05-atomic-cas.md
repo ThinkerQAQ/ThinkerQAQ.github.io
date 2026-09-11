@@ -395,14 +395,4 @@ unlock
 
 ## 4. 下一篇：Atomic 的实现
 
-这一篇讨论的是语言层保证。下一篇 [《并发编程（六）：Atomic 的实现——从 Runtime 到 CPU》](/articles/concurrency-series-06-atomic-implementation/) 继续沿着实现路径向下：
-
-```text
-Java AtomicInteger / Go sync/atomic / CPython Runtime
-        ↓
-编译器与 Runtime
-        ↓
-CPU Atomic Instruction / Memory Ordering
-```
-
-重点区分原子加法与 CAS，并讨论 CAS 重试、Cache Line 竞争和 ABA。
+下一篇继续向下看 Java、Go 和 CPython 中的 Atomic 如何经过编译器与 Runtime，最终落到 CPU。

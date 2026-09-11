@@ -623,12 +623,4 @@ lock cmpxchg
 
 ## 6. 下一篇：Atomic
 
-Mutex 使用小范围的原子操作，构造出能够保护任意代码范围的临界区。
-
-如果只想完成 `counter++` 这样的单变量更新，还可以直接使用 Atomic：
-
-```text
-Java   -> AtomicInteger
-Go     -> sync/atomic
-Python -> 标准库没有与前两者完全对称的通用 AtomicInteger API
-```
+下一篇进入 Atomic，讨论单变量原子更新提供什么保证，以及 Java、Go 和 CPython 的公开语义有什么差异。
