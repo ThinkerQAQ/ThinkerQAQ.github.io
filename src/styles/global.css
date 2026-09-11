@@ -407,6 +407,12 @@ main {
   padding-block: 4.5rem 7rem;
 }
 
+.content-shell--with-series {
+  width: min(calc(100% - 2.5rem), 96rem);
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, var(--reading-width)) minmax(12rem, 16rem);
+  gap: clamp(2rem, 4vw, 4rem);
+}
+
 .note {
   min-width: 0;
 }
@@ -458,16 +464,20 @@ main {
   color: var(--accent);
 }
 
-.toc {
+.toc-region {
   position: sticky;
   top: 6rem;
   align-self: start;
   max-height: calc(100vh - 8rem);
+  transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
+}
+
+.toc {
+  max-height: inherit;
   overflow-x: hidden;
   overflow-y: auto;
   color: var(--muted);
   font-size: 0.78rem;
-  transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
 }
 
 .toc-header {
@@ -496,16 +506,21 @@ main {
 }
 
 .toc-hide {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: -2.5rem;
   width: 2rem;
   height: 2rem;
   flex: none;
   border-radius: 0.4rem;
   opacity: 0.45;
+  transform: translateY(-50%);
   transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
 }
 
-.toc:hover .toc-hide,
-.toc:focus-within .toc-hide {
+.toc-region:hover .toc-hide,
+.toc-region:focus-within .toc-hide {
   opacity: 1;
 }
 
@@ -520,7 +535,7 @@ main {
   outline-offset: 0.2rem;
 }
 
-.toc-hidden {
+.toc-region-hidden {
   position: fixed;
   top: 6rem;
   right: 0;
@@ -535,13 +550,26 @@ main {
   grid-template-columns: minmax(0, var(--reading-width));
 }
 
+.content-shell--with-series.toc-collapsed {
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, var(--reading-width));
+}
+
+.content-shell--with-series.series-index-collapsed {
+  grid-template-columns: minmax(0, var(--reading-width)) minmax(12rem, 16rem);
+}
+
+.content-shell--with-series.toc-collapsed.series-index-collapsed {
+  grid-template-columns: minmax(0, var(--reading-width));
+}
+
 .toc-restore {
   position: fixed;
   z-index: 9;
-  top: 5rem;
+  top: 4rem;
+  bottom: 0;
   right: 0;
   width: 4rem;
-  height: 4rem;
+  height: auto;
 }
 
 .toc-restore-surface {
@@ -775,12 +803,34 @@ main {
   gap: 1rem;
 }
 
+@media (max-width: 1200px) {
+  .content-shell--with-series,
+  .content-shell--with-series.series-index-collapsed {
+    width: min(calc(100% - 2.5rem), var(--content-width));
+    grid-template-columns: minmax(0, var(--reading-width)) minmax(12rem, 16rem);
+    gap: 5rem;
+  }
+
+  .content-shell--with-series.toc-collapsed,
+  .content-shell--with-series.toc-collapsed.series-index-collapsed {
+    grid-template-columns: minmax(0, var(--reading-width));
+  }
+}
+
 @media (max-width: 900px) {
   .content-shell {
     grid-template-columns: minmax(0, var(--reading-width));
   }
 
+  .content-shell--with-series,
+  .content-shell--with-series.toc-collapsed,
+  .content-shell--with-series.series-index-collapsed,
+  .content-shell--with-series.toc-collapsed.series-index-collapsed {
+    grid-template-columns: minmax(0, var(--reading-width));
+  }
+
   .toc,
+  .toc-region,
   .toc-restore {
     display: none;
   }
@@ -962,6 +1012,7 @@ main {
   .site-header,
   .site-footer,
   .toc,
+  .toc-region,
   .toc-restore,
   .breadcrumb {
     display: none;

@@ -15,33 +15,35 @@ const tocId = "page-table-of-contents";
 ---
 
 {visibleHeadings.length > 2 && (
-  <aside class="toc" id={tocId} aria-label="本页目录" data-toc>
-    <div class="toc-header">
-      <p class="toc-title">本页目录</p>
-      <button
-        class="toc-hide"
-        type="button"
-        aria-controls={tocId}
-        aria-expanded="true"
-        aria-label="隐藏目录"
-        title="隐藏目录"
-        data-toc-hide
-      >
-        <svg class="toc-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-          <path d="M15 3v18"></path>
-          <path d="m8 9 3 3-3 3"></path>
-        </svg>
-      </button>
-    </div>
-    <ol>
-      {visibleHeadings.map((heading) => (
-        <li class={`toc-depth-${heading.depth}`}>
-          <a href={`#${heading.slug}`}>{heading.text}</a>
-        </li>
-      ))}
-    </ol>
-  </aside>
+  <div class="toc-region" data-toc-region>
+    <aside class="toc" id={tocId} aria-label="本页目录" data-toc>
+      <div class="toc-header">
+        <p class="toc-title">本页目录</p>
+      </div>
+      <ol>
+        {visibleHeadings.map((heading) => (
+          <li class={`toc-depth-${heading.depth}`}>
+            <a href={`#${heading.slug}`}>{heading.text}</a>
+          </li>
+        ))}
+      </ol>
+    </aside>
+    <button
+      class="toc-hide"
+      type="button"
+      aria-controls={tocId}
+      aria-expanded="true"
+      aria-label="隐藏目录"
+      title="隐藏目录"
+      data-toc-hide
+    >
+      <svg class="toc-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+        <path d="M15 3v18"></path>
+        <path d="m8 9 3 3-3 3"></path>
+      </svg>
+    </button>
+  </div>
   <button
     class="toc-restore"
     type="button"
@@ -64,14 +66,15 @@ const tocId = "page-table-of-contents";
 
 <script>
   const toc = document.querySelector<HTMLElement>("[data-toc]");
+  const region = toc?.closest<HTMLElement>("[data-toc-region]");
   const shell = toc?.closest<HTMLElement>(".content-shell");
-  const hideButton = toc?.querySelector<HTMLButtonElement>("[data-toc-hide]");
+  const hideButton = region?.querySelector<HTMLButtonElement>("[data-toc-hide]");
   const restoreButton = shell?.querySelector<HTMLButtonElement>("[data-toc-restore]");
 
-  if (toc && shell && hideButton && restoreButton) {
+  if (toc && region && shell && hideButton && restoreButton) {
     const setCollapsed = (collapsed: boolean) => {
       shell.classList.toggle("toc-collapsed", collapsed);
-      toc.classList.toggle("toc-hidden", collapsed);
+      region.classList.toggle("toc-region-hidden", collapsed);
       toc.setAttribute("aria-hidden", String(collapsed));
       hideButton.setAttribute("aria-expanded", String(!collapsed));
       restoreButton.setAttribute("aria-expanded", String(!collapsed));

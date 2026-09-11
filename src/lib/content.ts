@@ -6,6 +6,9 @@ export type ProjectEntry = CollectionEntry<"projects">;
 export type SeriesEntry = CollectionEntry<"series">;
 
 export interface ArticleSeriesNavigation {
+  series: SeriesEntry;
+  articles: ArticleEntry[];
+  currentIndex: number;
   previous?: ArticleEntry;
   next?: ArticleEntry;
 }
@@ -63,6 +66,9 @@ export function getArticleSeriesNavigation(
   if (currentIndex === -1) return undefined;
 
   return {
+    series,
+    articles: orderedArticles,
+    currentIndex,
     previous: orderedArticles[currentIndex - 1],
     next: orderedArticles[currentIndex + 1],
   };

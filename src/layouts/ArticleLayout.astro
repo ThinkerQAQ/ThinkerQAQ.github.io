@@ -1,10 +1,11 @@
 ---
 import type { CollectionEntry } from "astro:content";
 import ArticleComments from "../components/ArticleComments.astro";
+import ArticleSeriesIndex from "../components/ArticleSeriesIndex.astro";
 import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { articleTagHref, formatDate, seriesHref, type ArticleSeriesNavigation as SeriesNavigation } from "../lib/content";
+import { articleTagHref, formatDate, type ArticleSeriesNavigation as SeriesNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -47,14 +48,9 @@ const schema = {
       href={new URL(`/articles/${translation.id}/`, SITE.url)}
     />
   )}
-  <div class="shell content-shell">
+  <div class:list={["shell", "content-shell", { "content-shell--with-series": seriesNavigation }]}>
+    {seriesNavigation && <ArticleSeriesIndex navigation={seriesNavigation} />}
     <article class="note" data-pagefind-body>
-      {data.series && (
-        <nav class="breadcrumb" aria-label="所属系列">
-          <a href={seriesHref(data.series)}>所属系列</a>
-        </nav>
-      )}
-
       <header class="note-header">
         {data.status === "draft" && <p class="eyebrow">草稿预览</p>}
         <h1 data-pagefind-meta="title">{data.title}</h1>
