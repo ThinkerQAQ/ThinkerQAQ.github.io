@@ -509,7 +509,7 @@ main {
   position: absolute;
   z-index: 1;
   top: 50%;
-  right: -2.5rem;
+  left: -2.5rem;
   width: 2rem;
   height: 2rem;
   flex: none;
