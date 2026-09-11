@@ -486,4 +486,4 @@ Python 应用层没有公共 CAS API，也没有与 `AtomicStampedReference` 对
 
 ## 7. 下一篇：volatile
 
-Atomic 解决的是 `counter++` 这类复合更新。如果只是让一个线程发布状态，并让另一个线程看到这个状态以及此前的写入，就不一定需要 Atomic RMW。在 Java 中，这类场景可以使用 `volatile`。下一篇继续讨论这一点，并比较 Go 和 CPython 的做法。
+Atomic 解决的是 `counter++` 这类 RMW 的原子性问题。如果不需要原子更新，只需要通过 `ready` 让另一个线程看到已经写完的 `counter`，在 Java 中可以使用 `volatile`。下一篇继续说明它如何保证 Visibility 和 Ordering，同时说明 Go 和 Python 没有对应的 `volatile` 关键字。

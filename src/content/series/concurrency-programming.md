@@ -12,6 +12,7 @@ relatedArticles:
   - concurrency-series-04-mutex-implementation
   - concurrency-series-05-atomic-cas
   - concurrency-series-06-atomic-implementation
+  - concurrency-series-07-volatile
 relatedNotes: []
 ---
 
