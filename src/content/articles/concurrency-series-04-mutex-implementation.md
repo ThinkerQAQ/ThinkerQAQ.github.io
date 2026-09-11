@@ -61,7 +61,7 @@ CPU：Atomic RMW / Memory Ordering
 
 ---
 
-# 1. 一把锁需要哪些底层能力？
+## 1. 一把锁需要哪些底层能力？
 
 先不区分语言，继续看两个执行单元竞争同一把锁：
 
@@ -75,7 +75,7 @@ unlock                      unlock
 
 要让这段代码正确工作，实现至少需要解决三个问题。
 
-## 1.1 获取锁：原子地修改锁状态
+### 1.1 获取锁：原子地修改锁状态
 
 假设一把锁内部只有一个状态：
 
@@ -105,7 +105,7 @@ CAS 0 -> 1                   CAS 0 -> 1
 
 只有一个竞争者能够成功修改锁状态。Mutex 再用这个很小的硬件原子操作，保护 `counter++` 这样的任意临界区。
 
-## 1.2 竞争失败：Spin、Park 与 Wakeup
+### 1.2 竞争失败：Spin、Park 与 Wakeup
 
 CAS 失败以后，执行单元不能无休止地竞争锁状态。
 
@@ -131,7 +131,7 @@ Spin 适合等待时间很短的情况，可以避免立即进入操作系统阻
 
 Java 线程、Goroutine 和 Python 线程在这里已经不同：Java 和 CPython 最终等待的是平台线程，Go 可以只 Park 当前 Goroutine，让对应的 OS Thread 继续运行其他 Goroutine。
 
-## 1.3 释放和获取：建立内存顺序边界
+### 1.3 释放和获取：建立内存顺序边界
 
 获取锁时只做到“同一时刻只有一个执行单元进入”还不够。继续使用：
 
@@ -167,7 +167,7 @@ B 的临界区读取
 
 ---
 
-# 2. HotSpot 如何实现 synchronized？
+## 2. HotSpot 如何实现 synchronized？
 
 先看 Java。JMM 规定：对一个 Monitor 的解锁 happens-before 后续对同一个 Monitor 的加锁。换成前面的例子，就是 A 退出 `synchronized` 之前的写入，B 进入同一个 `synchronized` 之后能够看到。
 
@@ -179,7 +179,7 @@ synchronized (lock) {
 }
 ```
 
-## 2.1 从 Java 源码到 Monitor
+### 2.1 从 Java 源码到 Monitor
 
 对于同步代码块，Java 编译器使用：
 
@@ -208,7 +208,7 @@ HotSpot 解释器或 JIT
 
 不过，它们仍然是 JVM 字节码，不是 CPU 指令。真正如何加锁、如何限制重排，还要看 HotSpot 选择的执行路径。
 
-## 2.2 无竞争时：Lightweight Locking
+### 2.2 无竞争时：Lightweight Locking
 
 HotSpot 不会让每一次 `synchronized` 都直接进入重量级等待路径。
 
@@ -232,7 +232,7 @@ HotSpot 不会让每一次 `synchronized` 都直接进入重量级等待路径�
 
 这条 Fast Path 先解决原子性：只有成功修改锁状态的线程才能进入临界区。但 JMM 要求的可见性和有序性，不能只靠“谁抢到锁”来解释，获取和释放还必须带上正确的内存顺序。
 
-## 2.3 竞争时：ObjectMonitor
+### 2.3 竞争时：ObjectMonitor
 
 竞争持续，或者代码需要 `wait()` 等完整 Monitor 能力时，锁可以进入 `ObjectMonitor` 路径。
 
@@ -265,7 +265,7 @@ STORE counter
 释放 _owner                      被唤醒后重新竞争
 ```
 
-## 2.4 x86-64 上的原子操作和内存顺序
+### 2.4 x86-64 上的原子操作和内存顺序
 
 先看 JIT 如何阻止编译期重排。HotSpot 的 C2 编译器会在锁的两边放入两个内存屏障节点：
 
@@ -329,7 +329,7 @@ mov  ecx, dword ptr [counter]
 
 只有一个 owner，是原子性；A 的写入能被 B 看到，是可见性；JIT 和 CPU 不能把两边的读写移过获取和释放位置，是有序性。这些实现加在一起，才做出了 JMM 规定的 `unlock → lock` happens-before。
 
-## 2.5 **从 Runtime 到 CPU：Java 实现总结**
+### 2.5 **从 Runtime 到 CPU：Java 实现总结**
 
 ```text
 Java synchronized
@@ -351,7 +351,7 @@ lock cmpxchg / mov
 
 ---
 
-# 3. Go Runtime 如何实现 sync.Mutex？
+## 3. Go Runtime 如何实现 sync.Mutex？
 
 Go 源码中的：
 
@@ -370,7 +370,7 @@ state    锁状态和等待信息
 sema     Runtime 等待与唤醒使用的信号量
 ```
 
-## 3.1 Fast Path：直接修改 state
+### 3.1 Fast Path：直接修改 state
 
 当前 `Lock()` 的 Fast Path 是：
 
@@ -388,7 +388,7 @@ new := atomic.AddInt32(&m.state, -mutexLocked)
 
 没有竞争时，获取和释放主要围绕 `state` 完成，不需要进入等待路径。
 
-## 3.2 Slow Path：等待的是 Goroutine
+### 3.2 Slow Path：等待的是 Goroutine
 
 CAS 失败以后，Go 会进入 Slow Path：
 
@@ -412,7 +412,7 @@ runtime_Semrelease
 
 这里 Park 的是 Goroutine。Go Runtime 可以让对应的 OS Thread 继续运行其他 Goroutine，这和 Java、CPython 直接管理平台线程的锁等待不同。
 
-## 3.3 amd64 上的指令
+### 3.3 amd64 上的指令
 
 `sync/atomic` 再向下连接到 `internal/runtime/atomic`。在 amd64 上，获取和释放所使用的核心原子指令分别可以看到：
 
@@ -441,7 +441,7 @@ Go Memory Model 规定，一次 `Unlock` 要 synchronized before 后面对同一
 
 当前 amd64 实现选择了上面这些指令来做到这一点。其他架构可以使用不同指令，但不能改变程序员可以观察到的结果。
 
-## 3.4 **从 Runtime 到 CPU：Go 实现总结**
+### 3.4 **从 Runtime 到 CPU：Go 实现总结**
 
 ```text
 sync.Mutex
@@ -464,11 +464,11 @@ LOCK CMPXCHG / LOCK XADD
 
 ---
 
-# 4. CPython 如何实现 threading.Lock？
+## 4. CPython 如何实现 threading.Lock？
 
 这一节只讨论当前 CPython，不把实现结论扩大成所有 Python 解释器的语言规则。
 
-## 4.1 从 threading.Lock 到 PyMutex
+### 4.1 从 threading.Lock 到 PyMutex
 
 Python 文档说明 Primitive Lock 由 `_thread` 扩展模块直接实现。继续向下，当前 CPython 的路径可以表示为：
 
@@ -496,7 +496,7 @@ PyThread_release_lock()
 PyMutex_Unlock()
 ```
 
-## 4.2 Fast Path：修改 _bits
+### 4.2 Fast Path：修改 _bits
 
 `PyMutex` 使用 `_bits` 保存锁定状态以及是否存在等待者等信息。
 
@@ -512,7 +512,7 @@ _Py_atomic_compare_exchange_uint8(
 
 这一步原子地设置 `_Py_LOCKED`。多个线程同时竞争时，只有一个线程能够成功修改 `_bits`。
 
-## 4.3 竞争时：Parking Lot
+### 4.3 竞争时：Parking Lot
 
 Fast Path 失败后，路径与构建模式有关。
 
@@ -548,7 +548,7 @@ sem_post
 
 其他平台或构建配置可以使用不同的回退实现。
 
-## 4.4 Linux x86-64 上的实现
+### 4.4 Linux x86-64 上的实现
 
 在 GCC / Clang 下，当前 `_Py_atomic_compare_exchange_uint8()` 使用：
 
@@ -572,7 +572,7 @@ jne  contended
 
 `__ATOMIC_SEQ_CST` 同时限制编译器和目标机器对相关原子操作的排序。存在等待者时，解锁还需要更新 Mutex 状态并从 Parking Lot 中唤醒线程。
 
-## 4.5 **从 Runtime 到 CPU：CPython 实现总结**
+### 4.5 **从 Runtime 到 CPU：CPython 实现总结**
 
 ```text
 threading.Lock
@@ -597,7 +597,7 @@ lock cmpxchg
 
 ---
 
-# 5. 三种实现放在一起看
+## 5. 三种实现放在一起看
 
 先看 Runtime 如何组织一把锁：
 
@@ -621,7 +621,7 @@ lock cmpxchg
 
 ---
 
-# 6. 下一篇：Atomic
+## 6. 下一篇：Atomic
 
 Mutex 使用小范围的原子操作，构造出能够保护任意代码范围的临界区。
 
