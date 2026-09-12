@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -22,8 +22,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
@@ -40,26 +38,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Import reviewed Go notes from legacy VNote snapshot
-        if: ${{ hashFiles('src/content/notes/go/**/*.md') == '' }}
-        shell: bash
-        run: |
-          git worktree add --detach "$RUNNER_TEMP/legacy-vnote" 0e010570684010ef99d4055bb7c3d4611df44f4c
-          LEGACY_VNOTE_SOURCE="$RUNNER_TEMP/legacy-vnote/notes" node scripts/import-go-from-legacy.mjs
-          git worktree remove "$RUNNER_TEMP/legacy-vnote" --force
       - name: Test and build static site
         run: npm test
-      - name: Commit reviewed Go notes
-        shell: bash
-        run: |
-          if [ -n "$(git status --porcelain -- src/content/notes/go public/media/vnote/go src/data/content-manifest.json)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/content/notes/go src/data/content-manifest.json
-            if [ -d public/media/vnote/go ]; then git add public/media/vnote/go; fi
-            git commit -m "content: publish reviewed Go notes"
-            git push origin HEAD:master
-          fi
       - name: Prepare IndexNow payload
         run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
       - name: Upload IndexNow payload

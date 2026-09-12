@@ -276,12 +276,26 @@ export function createPublicNoteIndex(targets) {
   return { exact, byBasename };
 }
 
-export function resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex) {
+export function resolvePublishedNoteTarget(
+  absoluteTarget,
+  publicNoteIndex,
+  fileExists = existsSync,
+  sourceFile,
+) {
   const resolvedTarget = path.resolve(absoluteTarget);
   const exact = publicNoteIndex.exact.get(resolvedTarget.toLowerCase());
   if (exact) return { ...exact, strategy: "exact" };
 
-  const matches = publicNoteIndex.byBasename.get(path.basename(resolvedTarget).toLowerCase()) ?? [];
+  // If the original target still exists, it is a real unpublished note. Do not
+  // redirect it to an unrelated public note that merely shares the same basename.
+  if (fileExists(resolvedTarget)) return undefined;
+
+  // A missing cross-folder link can share a basename with the current note. Never
+  // "recover" that stale link as a self-link; only a different unique public note
+  // is a valid basename recovery candidate.
+  const sourceKey = sourceFile ? path.resolve(sourceFile).toLowerCase() : undefined;
+  const matches = (publicNoteIndex.byBasename.get(path.basename(resolvedTarget).toLowerCase()) ?? [])
+    .filter((candidate) => !sourceKey || candidate.sourceFile.toLowerCase() !== sourceKey);
   if (matches.length === 1) return { ...matches[0], strategy: "unique-basename" };
   return undefined;
 }
@@ -358,7 +372,7 @@ function transformMarkdown(
       const targetKey = absoluteTarget.toLowerCase();
       const isMarkdownTarget = path.extname(target).toLowerCase() === ".md";
       const publishedTarget = isMarkdownTarget
-        ? resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex)
+        ? resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex, existsSync, sourceFile)
         : undefined;
       if (publishedTarget) {
         rewrittenLinks += 1;

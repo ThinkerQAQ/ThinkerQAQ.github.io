@@ -16,10 +16,10 @@ featured: false
 indexable: true
 ---
 ## 1. 什么是GC
-[GC.md](/notes/go/GC/)
+GC.md（关联笔记尚未公开）
 
 ## 2. 为什么需要GC
-[GC.md](/notes/go/GC/)
+GC.md（关联笔记尚未公开）
 
 
 ### 2.1. GC的问题
