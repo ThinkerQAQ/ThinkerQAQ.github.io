@@ -1,6 +1,7 @@
 ---
 import type { CollectionEntry } from "astro:content";
 import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
+import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
 import { categoryHref, formatDate, noteTagHref, type NoteCollectionNavigation } from "../lib/content";
@@ -75,6 +76,9 @@ const schema = {
       <div class="prose">
         <slot />
       </div>
+      {(collectionNavigation.previous || collectionNavigation.next) && (
+        <NoteSequenceNavigation navigation={collectionNavigation} />
+      )}
     </article>
     <TableOfContents headings={headings} />
   </div>

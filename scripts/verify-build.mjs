@@ -119,6 +119,19 @@ async function main() {
   for (const route of ["/articles/", "/projects/", "/series/", "/notes/", "/about/", "/english/"]) {
     invariant(await exists(routeFile(route)), `Navigation route missing: ${route}`);
   }
+  const collectionIntros = new Map([
+    ["/articles/", ["文章", "正式发布并持续维护的内容，按最近更新时间倒序排列。"]],
+    ["/projects/", ["项目", "记录正在探索、开发或维护的事情，以及最终留下的成果。"]],
+    ["/series/", ["系列", "把主题相关的文章和笔记组织在一起，提供更连贯的阅读路径。"]],
+    ["/notes/", ["笔记", "保留学习记录、资料整理、实验过程，以及暂时还不需要写成文章的想法。"]],
+  ]);
+  for (const [route, [title, description]] of collectionIntros) {
+    const html = await readFile(routeFile(route), "utf8");
+    invariant(html.includes('class="page-header collection-header"'), `Collection header missing: ${route}`);
+    invariant(html.includes(`<h1>${title}</h1>`), `Collection title missing: ${route}`);
+    invariant(html.includes(`<p>${description}</p>`), `Collection introduction missing: ${route}`);
+  }
+  invariant(home.includes('class="page-header collection-header"'), "Home article collection header missing");
   for (const article of PROMOTED_ARTICLES) {
     const route = `/articles/${article.slug}/`;
     invariant(await exists(routeFile(route)), `Promoted article missing: ${route}`);
@@ -216,6 +229,24 @@ async function main() {
       listedRouteOrder.every((route, index) => route === expectedRouteOrder[index]),
       `Note category order mismatch: ${category}`,
     );
+    for (const [index, route] of expectedRouteOrder.entries()) {
+      const html = await readFile(routeFile(route), "utf8");
+      if (expectedRouteOrder.length > 1) {
+        invariant(html.includes('aria-label="笔记集导航"'), `Note collection navigation missing: ${route}`);
+      }
+      if (index > 0) {
+        invariant(
+          html.includes(`href="${expectedRouteOrder[index - 1]}" rel="prev"`),
+          `Previous note link mismatch: ${route}`,
+        );
+      }
+      if (index < expectedRouteOrder.length - 1) {
+        invariant(
+          html.includes(`href="${expectedRouteOrder[index + 1]}" rel="next"`),
+          `Next note link mismatch: ${route}`,
+        );
+      }
+    }
     noteCategoryPages += page - 1;
   }
   log("info", "verify-build", "note-category-pages-checked", {

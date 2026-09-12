@@ -1,6 +1,7 @@
 ---
 import type { ArticleEntry } from "../lib/content";
 import ArticleList from "./ArticleList.astro";
+import CollectionHeader from "./CollectionHeader.astro";
 
 interface Props {
   articles: ArticleEntry[];
@@ -11,7 +12,10 @@ const chineseArticles = articles.filter((article) => article.data.language === "
 const englishArticles = articles.filter((article) => article.data.language === "en");
 ---
 
-<h1 class="visually-hidden">文章</h1>
+<CollectionHeader
+  title="文章"
+  description="正式发布并持续维护的内容，按最近更新时间倒序排列。"
+/>
 <ArticleList entries={chineseArticles} emptyMessage="暂无文章。" />
 {englishArticles.length > 0 && (
   <section class="home-section">

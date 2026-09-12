@@ -22,6 +22,9 @@ export interface NoteCollectionNavigation {
     notes: NoteEntry[];
   }>;
   currentId: string;
+  currentIndex: number;
+  previous?: NoteEntry;
+  next?: NoteEntry;
 }
 
 export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
@@ -94,8 +97,12 @@ export function getNoteCollectionNavigation(
   notes: NoteEntry[],
 ): NoteCollectionNavigation {
   const topics = new Map<string, NoteCollectionNavigation["topics"][number]>();
+  const orderedNotes = sortNotes(
+    notes.filter((candidate) => candidate.data.category === note.data.category),
+  );
+  const currentIndex = orderedNotes.findIndex((entry) => entry.id === note.id);
 
-  for (const entry of sortNotes(notes.filter((candidate) => candidate.data.category === note.data.category))) {
+  for (const entry of orderedNotes) {
     const key = entry.data.topic ?? "__ungrouped";
     const topic = topics.get(key) ?? {
       id: entry.data.topic,
@@ -111,6 +118,9 @@ export function getNoteCollectionNavigation(
     categoryLabel: note.data.categoryLabel,
     topics: [...topics.values()],
     currentId: note.id,
+    currentIndex,
+    previous: orderedNotes[currentIndex - 1],
+    next: orderedNotes[currentIndex + 1],
   };
 }
 

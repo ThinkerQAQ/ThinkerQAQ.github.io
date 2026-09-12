@@ -1,6 +1,7 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import CollectionHeader from "../../components/CollectionHeader.astro";
 import { categoryHref, groupByCategory } from "../../lib/content";
 
 const notes = await getCollection("notes");
@@ -9,9 +10,10 @@ const categories = groupByCategory(notes);
 
 <BaseLayout title="笔记" noindex={notes.length === 0}>
   <div class="shell page">
-    <header class="page-header">
-      <h1>笔记</h1>
-    </header>
+    <CollectionHeader
+      title="笔记"
+      description="保留学习记录、资料整理、实验过程，以及暂时还不需要写成文章的想法。"
+    />
 
     {notes.length === 0 && <p class="empty-state">暂无笔记。</p>}
     <div class="category-index">

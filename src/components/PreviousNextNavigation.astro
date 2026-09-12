@@ -1,0 +1,82 @@
+---
+interface NavigationItem {
+  href: string;
+  title: string;
+}
+
+interface Props {
+  previous?: NavigationItem;
+  next?: NavigationItem;
+  ariaLabel: string;
+  itemLabel: string;
+}
+
+const { previous, next, ariaLabel, itemLabel } = Astro.props;
+---
+
+<nav class="series-navigation" aria-label={ariaLabel}>
+  {previous && (
+    <a class="series-navigation__item" href={previous.href} rel="prev">
+      <span>上一篇{itemLabel}</span>
+      <strong>{previous.title}</strong>
+    </a>
+  )}
+  {next && (
+    <a class="series-navigation__item series-navigation__item--next" href={next.href} rel="next">
+      <span>下一篇{itemLabel}</span>
+      <strong>{next.title}</strong>
+    </a>
+  )}
+</nav>
+
+<style>
+  .series-navigation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .series-navigation__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .series-navigation__item--next {
+    grid-column: 2;
+    text-align: right;
+  }
+
+  .series-navigation__item span {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .series-navigation__item strong {
+    line-height: 1.55;
+  }
+
+  .series-navigation__item:hover,
+  .series-navigation__item:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  @media (max-width: 640px) {
+    .series-navigation {
+      grid-template-columns: 1fr;
+    }
+
+    .series-navigation__item--next {
+      grid-column: 1;
+      text-align: left;
+    }
+  }
+</style>

@@ -1,10 +1,10 @@
 ---
-import type { ArticleSeriesNavigation } from "../lib/content";
-import { articleHref } from "../lib/content";
+import type { NoteCollectionNavigation } from "../lib/content";
+import { noteHref } from "../lib/content";
 import PreviousNextNavigation from "./PreviousNextNavigation.astro";
 
 interface Props {
-  navigation: ArticleSeriesNavigation;
+  navigation: NoteCollectionNavigation;
 }
 
 const { navigation } = Astro.props;
@@ -12,13 +12,13 @@ const { navigation } = Astro.props;
 
 <PreviousNextNavigation
   previous={navigation.previous && {
-    href: articleHref(navigation.previous),
+    href: noteHref(navigation.previous),
     title: navigation.previous.data.title,
   }}
   next={navigation.next && {
-    href: articleHref(navigation.next),
+    href: noteHref(navigation.next),
     title: navigation.next.data.title,
   }}
-  ariaLabel="系列文章导航"
-  itemLabel=""
+  ariaLabel="笔记集导航"
+  itemLabel="笔记"
 />

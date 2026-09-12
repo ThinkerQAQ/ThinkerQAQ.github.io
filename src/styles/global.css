@@ -171,7 +171,7 @@ main {
 }
 
 .article-index-page {
-  padding-top: 1.5rem;
+  padding-top: 5rem;
 }
 
 .narrow {
@@ -422,6 +422,21 @@ main {
   margin: 1rem 0 0;
   color: var(--muted);
   font-size: 1.06rem;
+}
+
+.collection-header {
+  max-width: none;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.collection-header > :is(h1, p) {
+  max-width: 48rem;
+}
+
+.collection-header + .content-list {
+  border-top: 0;
 }
 
 .category-index {
@@ -944,7 +959,7 @@ main {
   }
 
   .article-index-page {
-    padding-top: 1.25rem;
+    padding-top: 3rem;
   }
 
   .home-section {
