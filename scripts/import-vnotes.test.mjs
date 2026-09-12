@@ -34,6 +34,19 @@ test("resolves exact and unique-basename note targets across notebooks", () => {
   );
 });
 
+test("does not recover a missing cross-folder target as a self link", () => {
+  const current = path.resolve("fixtures", "Golang", "GC.md");
+  const missingCrossFolder = path.resolve("fixtures", "Virtual_Machine", "GC.md");
+  const index = createPublicNoteIndex([
+    { sourceFile: current, importId: "go", route: "/notes/go/GC/" },
+  ]);
+
+  assert.equal(
+    resolvePublishedNoteTarget(missingCrossFolder, index, () => false, current),
+    undefined,
+  );
+});
+
 test("does not recover by basename when the original unpublished target still exists", () => {
   const published = path.resolve("fixtures", "Golang", "GC.md");
   const unpublished = path.resolve("fixtures", "Virtual_Machine", "GC.md");
