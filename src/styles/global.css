@@ -1217,6 +1217,46 @@ main {
   margin-top: 3rem;
 }
 
+.series-reference-notes {
+  margin-top: 2rem;
+}
+
+.series-reference-notes > h2 {
+  margin: 0 0 1.15rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.series-reference-notes .category-index {
+  gap: 2rem 3rem;
+}
+
+.series-reference-notes .category-title {
+  margin-bottom: 0.65rem;
+}
+
+.series-reference-notes .category-title h2 {
+  font-size: 1rem;
+}
+
+.series-reference-notes .category-preview-label {
+  font-size: 0.72rem;
+}
+
+.series-reference-notes .category-index li {
+  padding: 0.28rem 0;
+}
+
+.series-reference-notes .category-index li a {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.series-reference-notes .category-more-link {
+  margin-top: 0.1rem;
+  font-size: 0.8rem;
+}
+
 .article-comments {
   margin-top: 4rem;
   padding-top: 2.25rem;

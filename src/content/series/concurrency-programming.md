@@ -14,5 +14,7 @@ relatedArticles:
   - concurrency-series-06-atomic-implementation
   - concurrency-series-07-volatile
   - concurrency-series-08-read-write-lock
+relatedNoteCategories:
+  - java-juc
 relatedNotes: []
 ---

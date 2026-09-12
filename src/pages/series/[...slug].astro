@@ -2,9 +2,9 @@
 import { getCollection } from "astro:content";
 import type { CollectionEntry } from "astro:content";
 import ArticleList from "../../components/ArticleList.astro";
-import ContentList from "../../components/ContentList.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { articleIsIncluded, formatDate, seriesStatus } from "../../lib/content";
+import NoteCategoryPreview from "../../components/NoteCategoryPreview.astro";
+import { articleIsIncluded, formatDate, groupByCategory, seriesStatus } from "../../lib/content";
 export async function getStaticPaths() {
   return (await getCollection("series")).map((series) => ({ params: { slug: series.id }, props: { series } }));
 }
@@ -21,7 +21,12 @@ function resolveEntries<T extends { id: string }>(ids: string[], entries: T[]): 
   });
 }
 const relatedArticles = resolveEntries(data.relatedArticles, articles).filter(articleIsIncluded);
-const relatedNotes = resolveEntries(data.relatedNotes, notes);
+const noteCategories = new Map(groupByCategory(notes).map((group) => [group.category, group]));
+const relatedNoteCategories = data.relatedNoteCategories.map((category) => {
+  const group = noteCategories.get(category);
+  if (!group) throw new Error(`Series ${series.id}: referenced note category not found: ${category}`);
+  return group;
+});
 ---
 <BaseLayout title={data.title} description={data.description}>
   <div class="shell page detail-page">
@@ -29,6 +34,15 @@ const relatedNotes = resolveEntries(data.relatedNotes, notes);
       <header class="note-header detail-page-header"><h1 data-pagefind-meta="title">{data.title}</h1><p class="note-description">{data.description}</p><div class="note-meta"><span>{seriesStatus[data.status]}</span><span>更新于 {formatDate(data.updatedAt)}</span></div></header>
       <section aria-label="系列文章"><ArticleList entries={relatedArticles} emptyMessage="正式文章还在整理中，可以先阅读下方参考笔记。" /></section>
     </article>
-    {relatedNotes.length > 0 && <section class="related-content"><h2>参考笔记</h2><ContentList entries={relatedNotes} /></section>}
+    {relatedNoteCategories.length > 0 && (
+      <section class="related-content series-reference-notes" aria-labelledby="reference-notes-heading">
+        <h2 id="reference-notes-heading">参考笔记</h2>
+        <div class="category-index">
+          {relatedNoteCategories.map((group) => (
+            <NoteCategoryPreview {...group} />
+          ))}
+        </div>
+      </section>
+    )}
   </div>
 </BaseLayout>

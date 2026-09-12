@@ -187,6 +187,17 @@ async function main() {
     concurrencySeriesPage.includes('aria-label="系列文章"') && concurrencySeriesPage.includes("/articles/concurrency-series-00/"),
     "Series article list missing after header simplification",
   );
+  invariant(
+      concurrencySeriesPage.includes('class="related-content series-reference-notes"') &&
+      concurrencySeriesPage.includes('id="reference-notes-heading"') &&
+      concurrencySeriesPage.includes('class="category-index"') &&
+      concurrencySeriesPage.includes('/notes/category/java-juc/') &&
+      concurrencySeriesPage.includes('/notes/java-juc/') &&
+      concurrencySeriesPage.includes('Java / JUC') &&
+      concurrencySeriesPage.includes('最近更新') &&
+      /查看 Java \/ JUC 的全部 \d+ 篇笔记/.test(concurrencySeriesPage),
+    "Series note category reference missing",
+  );
   for (const article of PROMOTED_ARTICLES) {
     const route = `/articles/${article.slug}/`;
     invariant(await exists(routeFile(route)), `Promoted article missing: ${route}`);

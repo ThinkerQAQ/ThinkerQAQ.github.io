@@ -1,0 +1,31 @@
+---
+import type { NoteEntry } from "../lib/content";
+import { categoryHref, noteHref } from "../lib/content";
+
+interface Props {
+  category: string;
+  label: string;
+  entries: NoteEntry[];
+}
+
+const { category, label, entries } = Astro.props;
+const hasMore = entries.length > 5;
+const previewLabel = hasMore ? "最近更新" : "全部笔记";
+---
+
+<section>
+  <div class="category-title">
+    <h2><a href={categoryHref(category)}>{label}</a></h2>
+  </div>
+  <p class="category-preview-label">{previewLabel}</p>
+  <ul aria-label={`${label}${previewLabel}`}>
+    {entries.slice(0, 5).map((note) => (
+      <li><a href={noteHref(note)}>{note.data.title}</a></li>
+    ))}
+  </ul>
+  {hasMore && (
+    <a class="more-link category-more-link" href={categoryHref(category)}>
+      查看 {label} 的全部 {entries.length} 篇笔记 →
+    </a>
+  )}
+</section>

@@ -15,6 +15,6 @@ const includedArticleIds = new Set(
       title="系列"
       description="把主题相关的文章和笔记组织在一起，提供更连贯的阅读路径。"
     />
-    <ShowcaseList items={entries.map((entry) => ({ href: seriesHref(entry), title: entry.data.title, description: entry.data.description, label: `${entry.data.relatedArticles.filter((id) => includedArticleIds.has(id)).length} 篇文章 · ${entry.data.relatedNotes.length} 篇参考笔记`, status: seriesStatus[entry.data.status] }))} />
+    <ShowcaseList items={entries.map((entry) => ({ href: seriesHref(entry), title: entry.data.title, description: entry.data.description, label: `${entry.data.relatedArticles.filter((id) => includedArticleIds.has(id)).length} 篇文章 · ${entry.data.relatedNoteCategories.length} 个笔记分类`, status: seriesStatus[entry.data.status] }))} />
   </div>
 </BaseLayout>

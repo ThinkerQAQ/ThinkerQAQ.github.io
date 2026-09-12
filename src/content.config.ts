@@ -86,6 +86,7 @@ const series = defineCollection({
     updatedAt: z.coerce.date(),
     featured: z.boolean().default(false),
     relatedArticles: z.array(z.string()).default([]),
+    relatedNoteCategories: z.array(z.string()).default([]),
     relatedNotes: z.array(z.string()).default([]),
   }),
 });
