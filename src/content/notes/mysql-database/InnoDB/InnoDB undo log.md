@@ -1,12 +1,12 @@
 ---
-title: "2.4 InnoDB undo log"
+title: "3.4 InnoDB undo log"
 description: "1. undo log是什么 - MySQL InnoDB存储引擎的日志 - 主要记录了数据的逻辑变化 - 一条 INSERT 语句，对应一条 DELETE 的 undo log - 一条 UPDATE 语句，对应一条相反的 UPDATE 的undo log - 一条 DELETE 语句，对应一条 "
 sourcePath: "Database/MySQL/InnoDB/InnoDB undo log.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "2.InnoDB"
-order: 32
+topicLabel: "3.InnoDB"
+order: 33
 tags: ["Database","MySQL"]
 createdAt: "2021-06-08T04:46:58Z"
 updatedAt: "2021-07-18T06:05:15Z"

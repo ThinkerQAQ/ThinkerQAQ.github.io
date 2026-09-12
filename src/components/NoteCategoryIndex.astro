@@ -25,7 +25,7 @@ const prevUrl = currentPage > 1
 const nextUrl = currentPage < lastPage ? `${pageUrlPrefix}${currentPage + 1}/` : undefined;
 const pageTitle = currentPage === 1 ? label : `${label} · 第 ${currentPage} 页`;
 const navigableTopics = topics.filter(
-  (topic): topic is NoteTopicGroup & { id: string } => Boolean(topic.id && topic.id !== "__root"),
+  (topic): topic is NoteTopicGroup & { id: string } => Boolean(topic.id),
 );
 ---
 

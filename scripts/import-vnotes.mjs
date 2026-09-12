@@ -17,6 +17,7 @@ import {
   IMPORT_ENABLED,
   NEVER_PUBLISH,
   PUBLIC_NOTEBOOKS,
+  REVIEWED_EXAMPLE_CREDENTIAL_PATHS,
   REVIEWED_NOTE_PATHS,
   ROOT_TOPIC_LABELS,
 } from "./content-policy.mjs";
@@ -73,7 +74,7 @@ const SENSITIVE_CONTENT_PATTERNS = [
   { reason: "aws-access-key", pattern: /\bAKIA[0-9A-Z]{16}\b/ },
   {
     reason: "credential-assignment",
-    pattern: /\b(?:password|passwd|pwd|secret|token|access[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9_./+=-]{12,}/i,
+    pattern: /\b(?:password|passwd|pwd|secret|token|access[_-]?key)[\t ]*[:=][\t ]*["']?[A-Za-z0-9_./+=-]{12,}/i,
   },
 ];
 const REDACTED_CONTENT_PATTERNS = [
@@ -155,16 +156,41 @@ export function sourceExclusionReason(config, relativePath) {
   return undefined;
 }
 
-async function readPublishableMarkdown(sourceFile) {
-  if ((await stat(sourceFile)).size === 0) return { reason: "empty-note" };
-  const raw = await readFile(sourceFile, "utf8");
-  const reason = sensitiveReason(raw);
-  if (reason) return { reason };
-  const sanitized = redactSensitiveContent(raw);
-  return { markdown: sanitized.markdown, redactionReasons: sanitized.reasons };
+export function sanitizeReviewedExampleCredentials(markdown, sourcePath) {
+  if (!REVIEWED_EXAMPLE_CREDENTIAL_PATHS.has(sourcePath)) {
+    return { markdown, reasons: [] };
+  }
+
+  const sanitized = markdown
+    .replace(/(IDENTIFIED\s+BY\s+)'[^'\r\n]*'/gi, "$1'<example-password>'")
+    .replace(
+      /(\b[\w.-]*(?:password|passwd)[\t ]*[:=][\t ]*)[^\s#\r\n]+/gi,
+      "$1<example-password>",
+    )
+    .replace(/(\bpwdPublicKey[\t ]*=[\t ]*)[^\s#\r\n]+/gi, "$1<example-public-key>")
+    .replace(/`admin\/123456`/g, "`admin/<example-password>`")
+    .replace(/[\t ]+$/gm, "");
+
+  return {
+    markdown: sanitized,
+    reasons: sanitized === markdown ? [] : ["reviewed-example-credentials"],
+  };
 }
 
-function sensitiveReason(markdown) {
+async function readPublishableMarkdown(sourceFile, sourcePath) {
+  if ((await stat(sourceFile)).size === 0) return { reason: "empty-note" };
+  const raw = await readFile(sourceFile, "utf8");
+  const reviewedExamples = sanitizeReviewedExampleCredentials(raw, sourcePath);
+  const reason = sensitiveReason(reviewedExamples.markdown);
+  if (reason) return { reason };
+  const sanitized = redactSensitiveContent(reviewedExamples.markdown);
+  return {
+    markdown: sanitized.markdown,
+    redactionReasons: [...reviewedExamples.reasons, ...sanitized.reasons],
+  };
+}
+
+export function sensitiveReason(markdown) {
   return SENSITIVE_CONTENT_PATTERNS.find(({ pattern }) => pattern.test(markdown))?.reason;
 }
 
@@ -326,7 +352,10 @@ async function buildPublicNoteIndex() {
       if (path.extname(sourceFile).toLowerCase() !== ".md") continue;
       const relativePath = toPosix(path.relative(sourceDirectory, sourceFile));
       if (sourceExclusionReason(config, relativePath)) continue;
-      const evaluated = await readPublishableMarkdown(sourceFile);
+      const evaluated = await readPublishableMarkdown(
+        sourceFile,
+        `${config.sourcePath}/${relativePath}`,
+      );
       if (!evaluated.markdown) continue;
       targets.push({
         sourceFile,
@@ -453,7 +482,10 @@ async function importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenam
     }
     const extension = path.extname(sourceFile).toLowerCase();
     if (extension === ".md") {
-      const evaluated = await readPublishableMarkdown(sourceFile);
+      const evaluated = await readPublishableMarkdown(
+        sourceFile,
+        `${config.sourcePath}/${relativePath}`,
+      );
       if (!evaluated.markdown) {
         exclusions.push({ sourcePath: relativePath, reason: evaluated.reason });
         continue;

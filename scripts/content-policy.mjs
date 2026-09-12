@@ -207,6 +207,12 @@ export const NOTE_TOPIC_OVERRIDES = {
   Computer_Network: new Map(computerNetworkTopicEntries),
 };
 
+// These reviewed notes contain documentation-only credentials. Keep the source
+// VNote untouched and replace those examples with explicit placeholders while importing.
+export const REVIEWED_EXAMPLE_CREDENTIAL_PATHS = new Set([
+  "Database/MySQL/canal/canal.md",
+]);
+
 export const NEVER_PUBLISH = new Set(["Others", "Interview", "公司", "_v_recycle_bin", ".obsidian"]);
 export const EXCLUDED_NOTE_PATHS = new Set([
   "Java/JUC/14.ThreadPool/线程池数目估算.md",

@@ -1,12 +1,12 @@
 ---
-title: "2.8 MySQL InnoDB"
+title: "3.8 MySQL InnoDB"
 description: "1. InnoDB特点 1.1. 支持事务 - InnoDB事务.md 1.2. 支持行级锁 - MySQL锁.md 1.3. 支持MVCC - InnoDB MVCC.md 2. InnoDB架构 2.1. 内存层 2.1.1. Buffer Pool - 读缓冲区，目的是提升InnoDB性能，加"
 sourcePath: "Database/MySQL/InnoDB/MySQL InnoDB.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "2.InnoDB"
-order: 36
+topicLabel: "3.InnoDB"
+order: 37
 tags: ["Database","MySQL"]
 createdAt: "2021-06-07T12:15:10Z"
 updatedAt: "2022-02-26T05:59:11Z"

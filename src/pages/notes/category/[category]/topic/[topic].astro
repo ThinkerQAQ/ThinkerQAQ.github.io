@@ -2,14 +2,20 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../../../../../layouts/BaseLayout.astro";
 import ContentList from "../../../../../components/ContentList.astro";
-import { categoryHref, noteTopicHref, sortNotes } from "../../../../../lib/content";
+import {
+  categoryHref,
+  noteTopicHref,
+  ROOT_NOTE_TOPIC,
+  ROOT_NOTE_TOPIC_ROUTE,
+  sortNotes,
+} from "../../../../../lib/content";
 
 export async function getStaticPaths() {
   const notes = await getCollection("notes");
   const groups = new Map<string, CollectionEntry<"notes">[]>();
 
   for (const note of notes) {
-    if (!note.data.topic || note.data.topic === "__root") continue;
+    if (!note.data.topic) continue;
     const key = `${note.data.category}\u0000${note.data.topic}`;
     const entries = groups.get(key) ?? [];
     entries.push(note);
@@ -18,9 +24,10 @@ export async function getStaticPaths() {
 
   return [...groups.entries()].map(([key, entries]) => {
     const [category, topic] = key.split("\u0000");
+    const routeTopic = topic === ROOT_NOTE_TOPIC ? ROOT_NOTE_TOPIC_ROUTE : topic;
     const first = entries[0];
     return {
-      params: { category, topic },
+      params: { category, topic: routeTopic },
       props: {
         entries,
         categoryLabel: first?.data.categoryLabel ?? category,
@@ -38,7 +45,8 @@ interface Props {
 
 const { entries, categoryLabel, topicLabel } = Astro.props;
 const category = Astro.params.category!;
-const topic = Astro.params.topic!;
+const routeTopic = Astro.params.topic!;
+const topic = routeTopic === ROOT_NOTE_TOPIC_ROUTE ? ROOT_NOTE_TOPIC : routeTopic;
 const sortedEntries = sortNotes(entries);
 ---
 

@@ -8,6 +8,8 @@ import {
   classifyUnresolvedMarkdownTarget,
   createPublicNoteIndex,
   resolvePublishedNoteTarget,
+  sanitizeReviewedExampleCredentials,
+  sensitiveReason,
   sourceExclusionReason,
 } from "./import-vnotes.mjs";
 
@@ -145,6 +147,31 @@ test("publishes only reviewed Computer Network notes with complete topics", () =
     label: "网络服务",
     number: 3,
   });
+});
+
+test("replaces reviewed Canal example credentials without changing other notes", () => {
+  const source = [
+    "CREATE USER canal IDENTIFIED BY 'canal';",
+    "canal.instance.dbPassword=canal",
+    "canal.admin.passwd = 4ACFE3202A5FF5CF467898FC58AAB1D615029441",
+    "canal.instance.pwdPublicKey=MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJB",
+    "用户名密码为`admin/123456`",
+  ].join("\n");
+  const reviewed = sanitizeReviewedExampleCredentials(
+    source,
+    "Database/MySQL/canal/canal.md",
+  );
+  assert.equal(reviewed.reasons.includes("reviewed-example-credentials"), true);
+  assert.equal(reviewed.markdown.includes("<example-password>"), true);
+  assert.equal(reviewed.markdown.includes("<example-public-key>"), true);
+  assert.equal(reviewed.markdown.includes("4ACFE3202A5FF5CF467898FC58AAB1D615029441"), false);
+  assert.deepEqual(
+    sanitizeReviewedExampleCredentials(source, "Database/MySQL/MySQL.md"),
+    { markdown: source, reasons: [] },
+  );
+  assert.equal(sensitiveReason(reviewed.markdown), undefined);
+  assert.equal(sensitiveReason("accessKey =\nsecretKey ="), undefined);
+  assert.equal(sensitiveReason("password = actual-example-secret"), "credential-assignment");
 });
 
 test("does not guess when a basename is ambiguous or unpublished", () => {

@@ -1,12 +1,12 @@
 ---
-title: "2.7 InnoDB和MyISAM索引对比"
+title: "3.7 InnoDB和MyISAM索引对比"
 description: "1. InnoDB - MySQL默认的存储引擎 - InnoDB把数据分成若干页，每个页大小16KB，以页作为磁盘和内存交互的基本单位 - 即读最少读一页，写最少写一页 1.1. 索引实现 1.1.1. 主键索引 - 叶子节点的data存放的就是实际的数据 - - 由于索引上面存放的是实际的数据，"
 sourcePath: "Database/MySQL/InnoDB/InnoDB和MyISAM索引对比.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "2.InnoDB"
-order: 35
+topicLabel: "3.InnoDB"
+order: 36
 tags: ["Database","MySQL"]
 createdAt: "2020-01-17T13:06:57Z"
 updatedAt: "2021-05-09T10:10:07Z"
@@ -53,6 +53,3 @@ indexable: true
 #### 2.1.2. 辅助索引
 跟主键索引一样，叶子节点的data存放的是数据的地址
 ![](https://raw.githubusercontent.com/TDoct/images/master/img/20191229200600.png)
-
-
-

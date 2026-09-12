@@ -1,12 +1,12 @@
 ---
-title: "2.3 InnoDB redo log"
+title: "3.3 InnoDB redo log"
 description: "1. redo log是什么 - MySQL InnoDB存储引擎的日志，用于崩溃恢复 - redo log是一种基于磁盘的数据结构，在崩溃恢复期间用于纠正不完整事务写入的数据 2. 为什么需要redo log - 根据持久性的要求，事务一旦commit完成那么就必须落盘保存。有两种方案 - 一种是"
 sourcePath: "Database/MySQL/InnoDB/InnoDB redo log.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "2.InnoDB"
-order: 31
+topicLabel: "3.InnoDB"
+order: 32
 tags: ["Database","MySQL"]
 createdAt: "2021-06-08T04:46:07Z"
 updatedAt: "2022-07-11T12:37:27Z"

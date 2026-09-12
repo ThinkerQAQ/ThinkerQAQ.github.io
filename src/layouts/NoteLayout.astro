@@ -21,7 +21,7 @@ interface Props {
 
 const { note, headings, collectionNavigation } = Astro.props;
 const { data } = note;
-const topicHref = data.topic && data.topic !== "__root"
+const topicHref = data.topic
   ? noteTopicHref(data.category, data.topic)
   : undefined;
 const schema = {

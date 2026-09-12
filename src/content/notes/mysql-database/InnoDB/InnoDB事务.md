@@ -1,12 +1,12 @@
 ---
-title: "2.5 InnoDB事务"
+title: "3.5 InnoDB事务"
 description: "1. 什么是事务 数据库事务.md 2. 事务的使用 - 开启事务： begin 或者 start transaction - 提交事务： commit - 自动提交事务： - SHOW VARIABLES LIKE 'autocommit' - 默认情况下，每一条语句都算是一个独立的事务 - 回滚"
 sourcePath: "Database/MySQL/InnoDB/InnoDB事务.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "2.InnoDB"
-order: 33
+topicLabel: "3.InnoDB"
+order: 34
 tags: ["Database","MySQL"]
 createdAt: "2021-05-05T12:46:03Z"
 updatedAt: "2022-06-19T05:59:45Z"

@@ -34,6 +34,8 @@ export interface NoteTopicGroup {
 }
 
 export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
+export const ROOT_NOTE_TOPIC = "__root";
+export const ROOT_NOTE_TOPIC_ROUTE = "overview";
 
 export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成" };
 export const seriesStatus = { planned: "规划中", active: "持续更新", complete: "已完结" };
@@ -51,7 +53,8 @@ export function categoryHref(category: string): string {
 }
 
 export function noteTopicHref(category: string, topic: string): string {
-  return `${categoryHref(category)}topic/${encodeURIComponent(topic)}/`;
+  const routeTopic = topic === ROOT_NOTE_TOPIC ? ROOT_NOTE_TOPIC_ROUTE : topic;
+  return `${categoryHref(category)}topic/${encodeURIComponent(routeTopic)}/`;
 }
 
 export function noteTagHref(tag: string): string {

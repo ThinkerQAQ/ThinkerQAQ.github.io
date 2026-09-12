@@ -1,12 +1,12 @@
 ---
-title: "2.1 InnoDB Buffer Pool"
+title: "3.1 InnoDB Buffer Pool"
 description: "1. Buffer Pool是什么 - MySQL启动时向操作系统申请的连续的内存空间 2. 为什么需要Buffer Pool - 磁盘和CPU的速度差异太大，因此需要内存作为缓存 - 在InnoDB访问表和索引数据时会在其中进行高速缓存，大量减少磁盘IO操作，提升效率 3. Buffer Pool"
 sourcePath: "Database/MySQL/InnoDB/InnoDB Buffer Pool.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "2.InnoDB"
-order: 29
+topicLabel: "3.InnoDB"
+order: 30
 tags: ["Database","MySQL"]
 createdAt: "2021-05-08T15:15:09Z"
 updatedAt: "2021-06-07T14:56:40Z"
