@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -22,8 +22,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
@@ -40,38 +38,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Check whether stale-link self-link fix is needed
-        id: note-link-fix
-        shell: bash
-        run: |
-          if grep -Fq '? resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex)' scripts/import-vnotes.mjs; then
-            echo "needed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "needed=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Fix stale note link resolution
-        if: ${{ steps.note-link-fix.outputs.needed == 'true' }}
-        run: node scripts/patch-note-link-resolution.mjs
-      - name: Re-import reviewed Go notes after link fix
-        if: ${{ steps.note-link-fix.outputs.needed == 'true' }}
-        shell: bash
-        run: |
-          git worktree add --detach "$RUNNER_TEMP/legacy-vnote" 0e010570684010ef99d4055bb7c3d4611df44f4c
-          LEGACY_VNOTE_SOURCE="$RUNNER_TEMP/legacy-vnote/notes" node scripts/import-go-from-legacy.mjs
-          git worktree remove "$RUNNER_TEMP/legacy-vnote" --force
       - name: Test and build static site
         run: npm test
-      - name: Commit reviewed note changes
-        shell: bash
-        run: |
-          if [ -n "$(git status --porcelain -- scripts/import-vnotes.mjs scripts/import-vnotes.test.mjs src/content/notes/go public/media/vnote/go src/data/content-manifest.json)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add scripts/import-vnotes.mjs scripts/import-vnotes.test.mjs src/content/notes/go src/data/content-manifest.json
-            if [ -d public/media/vnote/go ]; then git add public/media/vnote/go; fi
-            git commit -m "fix: avoid stale note self-links"
-            git push origin HEAD:master
-          fi
       - name: Prepare IndexNow payload
         run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
       - name: Upload IndexNow payload
