@@ -1,0 +1,77 @@
+---
+import type { NoteTopicGroup } from "../lib/content";
+import { categoryHref, noteTopicHref } from "../lib/content";
+import ContentCollectionIndex from "./ContentCollectionIndex.astro";
+
+interface Props {
+  category: string;
+  categoryLabel: string;
+  topics: NoteTopicGroup[];
+  total: number;
+  currentTopic?: string;
+}
+
+const { category, categoryLabel, topics, total, currentTopic } = Astro.props;
+const navigableTopics = topics.filter(
+  (topic): topic is NoteTopicGroup & { id: string } => Boolean(topic.id && topic.id !== "__root"),
+);
+const hasTopics = navigableTopics.length > 0;
+const items = [
+  {
+    href: categoryHref(category),
+    title: `全部 · ${total}`,
+    current: !currentTopic,
+  },
+  ...navigableTopics.map((topic) => ({
+    href: noteTopicHref(category, topic.id),
+    title: `${topic.label} · ${topic.notes.length}`,
+    current: topic.id === currentTopic,
+  })),
+];
+---
+
+<div class:list={["shell", "content-shell", "note-topic-shell", { "note-topic-shell--without-topics": !hasTopics }]}> 
+  {hasTopics && (
+    <ContentCollectionIndex
+      label="笔记主题"
+      title={categoryLabel}
+      href={categoryHref(category)}
+      groups={[{ items }]}
+      ariaLabel={`${categoryLabel}笔记主题`}
+      hideLabel="隐藏笔记主题"
+      restoreLabel="展开笔记主题"
+    />
+  )}
+  <div class="note-topic-shell__content">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .note-topic-shell {
+    width: min(calc(100% - 2.5rem), 96rem);
+    grid-template-columns: minmax(12rem, 16rem) minmax(0, var(--content-width));
+    justify-content: center;
+    gap: clamp(2rem, 4vw, 4rem);
+    padding-top: 1rem;
+  }
+
+  .note-topic-shell.series-index-collapsed,
+  .note-topic-shell--without-topics {
+    grid-template-columns: minmax(0, var(--content-width));
+  }
+
+  .note-topic-shell__content {
+    min-width: 0;
+  }
+
+  @media (max-width: 1200px) {
+    .note-topic-shell,
+    .note-topic-shell.series-index-collapsed,
+    .note-topic-shell--without-topics {
+      width: min(calc(100% - 2.5rem), var(--content-width));
+      grid-template-columns: minmax(0, var(--content-width));
+      gap: 0;
+    }
+  }
+</style>
