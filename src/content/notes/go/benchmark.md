@@ -1,6 +1,6 @@
 ---
 title: "4.3 benchmark"
-description: "1. 使用 - bench.go - bench test.go - 测试： - go test -bench=. - 查看内存分配信息： go test -bench=. -benchmem - 生成CPU信息： go test -bench=. -benchmem -cpuprofile pro"
+description: "Go benchmark 基础：使用 testing.B、b.Loop、-benchmem、CPU/内存 profile，并用 benchstat 做多次结果比较。保留 b.N 作为历史兼容写法。"
 sourcePath: "Golang/benchmark.md"
 category: "go"
 categoryLabel: "Go"
@@ -16,61 +16,174 @@ featured: false
 indexable: true
 ---
 ## 1. 使用
-- bench.go
-    ```go
-    func Fib(n int) int {
-    	if n < 2 {
-    		return n
-    	}
-    	return Fib(n-1) + Fib(n-2)
-    }
-    ```
 
-- bench_test.go
-    ```go
-    import (
-    	"testing"
-    )
+### 1.1. 被测代码
 
-    func BenchmarkFib(b *testing.B) {
-    	// run the Fib function b.N times
-    	for n := 0; n < b.N; n++ {
-    		Fib(10)
-    	}
-    }
-    ```
-- 测试：
-    - `go test -bench=.`
-        ```go
-        $ go test -bench=.
-        goos: windows
-        goarch: amd64
-        pkg: test/bench
-        BenchmarkFib-6           3888090               307 ns/op
-        PASS
-        ok      test/bench      1.850s
-        ```
-    - 查看内存分配信息：`go test -bench=. -benchmem`
-        ```
-        $ go test -bench=. -benchmem
-        goos: windows
-        goarch: amd64
-        pkg: test/bench
-        BenchmarkFib-6           3897542               307 ns/op               0 B/op          0 allocs/op
-        PASS
-        ok      test/bench      1.858s
-        ```
-    - 生成CPU信息：`go test -bench=. -benchmem -cpuprofile prof.cpu`
-        - `go tool pprof bench.test.exe prof.cpu`
-    - 生成内存信息：`go test -bench=. -benchmem -pmemprofile prof.mem`
-        - `go tool pprof bench.test.exe prof.mem`
-    - 生成全部信息： `go test -bench=".*" -benchtime=1000x -cpuprofile cpu.profile -benchmem -memprofile=mem.profile -blockprofile=block.profile -trace trace.out -mutexprofile mutex.out`
-## 2. 结果解读
-[go 语言 基准测试 结果解读 \| 睡月花儿](https://www.gagahappy.com/golang-test-benchmark-result-introducing/)
-## 3. 参考
-[How to write benchmarks in Go \| Dave Cheney](https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go)
-[Go十大常见错误第2篇：benchmark性能测试的坑 \- 掘金](https://juejin.cn/post/7110428881848369160)
-[benchmark 基准测试 \| Go 语言高性能编程 \| 极客兔兔](https://geektutu.com/post/hpg-benchmark.html)
-[benchmarking \- What does allocs/op and B/op mean in go benchmark? \- Stack Overflow](https://stackoverflow.com/questions/35588474/what-does-allocs-op-and-b-op-mean-in-go-benchmark)
-[go 语言 基准测试 结果解读 \| 睡月花儿](https://www.gagahappy.com/golang-test-benchmark-result-introducing/)
-[golang 性能优化分析：benchmark 结合 pprof \- 九卷 \- 博客园](https://www.cnblogs.com/jiujuan/p/14604609.html)
+```go
+func Fib(n int) int {
+	if n < 2 {
+		return n
+	}
+	return Fib(n-1) + Fib(n-2)
+}
+```
+
+### 1.2. Benchmark
+
+Go 1.24 起，新的 benchmark 推荐使用 `b.Loop()`：
+
+```go
+import "testing"
+
+func BenchmarkFib(b *testing.B) {
+	for b.Loop() {
+		Fib(10)
+	}
+}
+```
+
+`b.Loop()` 的好处：
+
+- setup 可以写在循环前，不计入 benchmark 主体时间；
+- testing 包负责控制循环；
+- 编译器会避免把 loop body 中需要测量的调用完全优化掉；
+- benchmark 函数在一次测量中不需要像传统 `b.N` 风格那样反复执行 setup。
+
+历史代码仍然可以使用：
+
+```go
+func BenchmarkFib(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		Fib(10)
+	}
+}
+```
+
+如果使用 `b.N` 风格并且 setup 成本较大，要注意 `b.ResetTimer()`。
+
+## 2. 常用命令
+
+### 2.1. 基准测试
+
+```bash
+go test -bench=.
+```
+
+典型结果：
+
+```text
+BenchmarkFib-8    4000000    300 ns/op
+```
+
+表示 benchmark body 平均每次执行大约 300ns。
+
+### 2.2. 查看内存分配
+
+```bash
+go test -bench=. -benchmem
+```
+
+常见字段：
+
+```text
+ns/op
+B/op
+allocs/op
+```
+
+分别表示每次操作耗时、每次操作分配的字节数、每次操作发生的分配次数。
+
+### 2.3. CPU profile
+
+```bash
+go test -bench=. -cpuprofile=cpu.profile
+```
+
+然后：
+
+```bash
+go tool pprof cpu.profile
+```
+
+### 2.4. 内存 profile
+
+原笔记这里写成了 `-pmemprofile`，正确参数是：
+
+```bash
+go test -bench=. -memprofile=mem.profile
+```
+
+然后：
+
+```bash
+go tool pprof mem.profile
+```
+
+### 2.5. 其他 profile / trace
+
+```bash
+go test \
+  -bench=. \
+  -benchmem \
+  -cpuprofile=cpu.profile \
+  -memprofile=mem.profile \
+  -blockprofile=block.profile \
+  -mutexprofile=mutex.profile \
+  -trace=trace.out
+```
+
+这些数据应按问题选择，不需要每次 benchmark 全部生成。
+
+## 3. 不要只跑一次
+
+benchmark 容易受到 CPU 调频、后台任务、缓存、调度等噪声影响。
+
+如果要比较优化前后，更合理的是多跑几次：
+
+```bash
+go test -bench=. -count=10 > old.txt
+# 修改代码
+go test -bench=. -count=10 > new.txt
+```
+
+然后使用 `benchstat`：
+
+```bash
+benchstat old.txt new.txt
+```
+
+`benchstat` 比手工比较一次 `ns/op` 更适合判断变化是否稳定。
+
+## 4. Benchmark 常见坑
+
+### 4.1. 编译器优化
+
+不要测一段最终完全没有可观察结果、可能被编译器消除的代码。
+
+`b.Loop()` 已经针对 loop body 做了额外保护，但依然应该让 benchmark 模拟真实使用方式。
+
+### 4.2. 把 setup 算进 benchmark
+
+`b.Loop()` 会自动处理第一次进入循环前的 timer；传统 `b.N` 写法则需要根据情况调用：
+
+```go
+b.ResetTimer()
+```
+
+### 4.3. benchmark 与生产环境不同
+
+benchmark 结果只是当前机器、当前 Go 版本、当前输入下的结果。
+
+真正做性能优化时，应结合：
+
+- benchmark；
+- pprof；
+- trace；
+- 生产 workload。
+
+## 5. 参考
+- [Package testing - Benchmarks](https://pkg.go.dev/testing#hdr-Benchmarks)
+- [testing.B.Loop](https://pkg.go.dev/testing#B.Loop)
+- [golang.org/x/perf/cmd/benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat)
+- [How to write benchmarks in Go | Dave Cheney](https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go)
+- [benchmark 基准测试 | Go 语言高性能编程](https://geektutu.com/post/hpg-benchmark.html)
