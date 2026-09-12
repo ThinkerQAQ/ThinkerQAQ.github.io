@@ -40,16 +40,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Check whether note link resolution needs migration
+      - name: Check whether stale-link self-link fix is needed
         id: note-link-fix
         shell: bash
         run: |
-          if grep -Fq 'export function resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex) {' scripts/import-vnotes.mjs; then
+          if grep -Fq '? resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex)' scripts/import-vnotes.mjs; then
             echo "needed=true" >> "$GITHUB_OUTPUT"
           else
             echo "needed=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Fix note link resolution
+      - name: Fix stale note link resolution
         if: ${{ steps.note-link-fix.outputs.needed == 'true' }}
         run: node scripts/patch-note-link-resolution.mjs
       - name: Re-import reviewed Go notes after link fix
@@ -69,7 +69,7 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add scripts/import-vnotes.mjs scripts/import-vnotes.test.mjs src/content/notes/go src/data/content-manifest.json
             if [ -d public/media/vnote/go ]; then git add public/media/vnote/go; fi
-            git commit -m "fix: preserve unpublished note link targets"
+            git commit -m "fix: avoid stale note self-links"
             git push origin HEAD:master
           fi
       - name: Prepare IndexNow payload
