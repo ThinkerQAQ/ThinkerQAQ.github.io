@@ -9,6 +9,7 @@ export const PUBLIC_NOTEBOOKS = [
   "Search_Server/Elasticsearch",
   "Message_Queue/Kafka",
   "Zookeeper",
+  "Golang",
 ];
 export const PROMOTED_ARTICLES = [];
 export const FEATURED_PATHS = new Set();
@@ -21,6 +22,7 @@ export const CATEGORY_LABELS = {
   "Search_Server/Elasticsearch": "Elasticsearch / Search",
   "Message_Queue/Kafka": "Kafka / Message Queue",
   Zookeeper: "ZooKeeper",
+  Golang: "Go",
 };
 export const CATEGORY_SLUGS = {
   "System_Design/分布式系统": "distributed-systems",
@@ -30,6 +32,7 @@ export const CATEGORY_SLUGS = {
   "Search_Server/Elasticsearch": "elasticsearch-search",
   "Message_Queue/Kafka": "kafka-message-queue",
   Zookeeper: "zookeeper",
+  Golang: "go",
 };
 export const ROOT_TOPIC_LABELS = {
   "System_Design/分布式系统": "基础与专题",
@@ -39,7 +42,89 @@ export const ROOT_TOPIC_LABELS = {
   "Search_Server/Elasticsearch": "基础与专题",
   "Message_Queue/Kafka": "基础与专题",
   Zookeeper: "基础与专题",
+  Golang: "Language",
 };
+
+const GO_NOTE_TOPICS = [
+  {
+    id: "language",
+    label: "Language",
+    number: 1,
+    notes: [
+      "array.md",
+      "slice.md",
+      "map.md",
+      "string.md",
+      "function.md",
+      "interface.md",
+      "类型系统.md",
+      "reflection.md",
+      "defer.md",
+      "error.md",
+      "panic和recover.md",
+      "make vs new.md",
+      "unsafe.md",
+    ],
+  },
+  {
+    id: "concurrency",
+    label: "Concurrency",
+    number: 2,
+    notes: [
+      "channel.md",
+      "concurrent.md",
+      "context.md",
+      "goroutine.md",
+      "select.md",
+      "sync.md",
+      "sync.Mutex.md",
+      "sync.RWMutex.md",
+      "sync.Cond.md",
+      "sync.Once.md",
+      "sync.WaitGroup.md",
+      "sync.map.md",
+      "sync.pool.md",
+      "atomic.md",
+      "协程池.md",
+    ],
+  },
+  {
+    id: "runtime",
+    label: "Runtime",
+    number: 3,
+    notes: [
+      "GMP.md",
+      "GC.md",
+      "Golang堆管理.md",
+      "Golang栈管理.md",
+      "内存管理.md",
+      "内存对齐.md",
+      "逃逸分析.md",
+      "Go构建过程.md",
+      "plan9汇编.md",
+    ],
+  },
+  {
+    id: "performance",
+    label: "Performance",
+    number: 4,
+    notes: [
+      "Golang内存泄露.md",
+      "benchmark.md",
+      "pprof.md",
+      "trace.md",
+      "unittest.md",
+    ],
+  },
+];
+
+const goTopicEntries = GO_NOTE_TOPICS.flatMap((topic) =>
+  topic.notes.map((note) => [
+    note,
+    { id: topic.id, label: topic.label, number: topic.number },
+  ]),
+);
+
 // Notebooks listed here use a strict per-note allowlist. New or previously rejected
 // source files stay private until they receive an explicit content review.
 export const REVIEWED_NOTE_PATHS = {
@@ -62,7 +147,15 @@ export const REVIEWED_NOTE_PATHS = {
     "System_Design/技术组件/如何设计超时与重试系统.md",
     "System_Design/技术组件/如何设计错误系统.md",
   ]),
+  Golang: new Set(goTopicEntries.map(([note]) => `Golang/${note}`)),
 };
+
+// Optional public taxonomy overrides. They change only the blog topic grouping;
+// the original VNote paths stay untouched. Keys are paths relative to the notebook root.
+export const NOTE_TOPIC_OVERRIDES = {
+  Golang: new Map(goTopicEntries),
+};
+
 export const NEVER_PUBLISH = new Set(["Others", "Interview", "公司", "_v_recycle_bin", ".obsidian"]);
 export const EXCLUDED_NOTE_PATHS = new Set([
   "Java/JUC/14.ThreadPool/线程池数目估算.md",

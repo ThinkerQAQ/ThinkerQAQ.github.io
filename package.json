@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/run-with-drafts.mjs run dev:site",
     "dev:site": "npm run diagrams && astro dev --port 4321",
-    "sync:notes": "node scripts/import-vnotes.mjs",
+    "sync:notes": "node scripts/import-vnotes.mjs && node scripts/apply-note-topics.mjs",
     "seed:articles": "node scripts/seed-articles.mjs",
     "diagrams": "node scripts/render-diagrams.mjs",
     "diagrams:plantuml": "node scripts/render-plantuml.mjs",
@@ -15,7 +15,7 @@
     "test:diagrams": "npm run diagrams && node --test scripts/plantuml/plantuml.test.mjs scripts/drawio/drawio.test.mjs",
     "test:indexnow": "node --test scripts/indexnow.test.mjs",
     "test:distribute": "node --test scripts/distribute.test.mjs",
-    "test:vnotes": "node --test scripts/import-vnotes.test.mjs",
+    "test:vnotes": "node --test scripts/import-vnotes.test.mjs scripts/apply-note-topics.test.mjs",
     "indexnow:prepare": "node scripts/indexnow.mjs prepare",
     "indexnow:submit": "node scripts/indexnow.mjs submit",
     "distribute": "node scripts/distribute.mjs",
