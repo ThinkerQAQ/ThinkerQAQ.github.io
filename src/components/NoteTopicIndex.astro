@@ -42,7 +42,7 @@ const items = [
       restoreLabel="展开笔记主题"
     />
   )}
-  <div class="note-topic-shell__content">
+  <div class="shell page detail-page">
     <slot />
   </div>
 </div>
@@ -61,8 +61,11 @@ const items = [
     grid-template-columns: minmax(0, var(--content-width));
   }
 
-  .note-topic-shell__content {
+  .note-topic-shell > .detail-page {
+    width: auto;
     min-width: 0;
+    margin-inline: 0;
+    padding: 0;
   }
 
   @media (max-width: 1200px) {
