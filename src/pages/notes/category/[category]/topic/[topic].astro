@@ -1,42 +1,56 @@
 ---
-import { getCollection, type CollectionEntry } from "astro:content";
+import { getCollection } from "astro:content";
 import BaseLayout from "../../../../../layouts/BaseLayout.astro";
 import ContentList from "../../../../../components/ContentList.astro";
-import { categoryHref, noteTopicHref, sortNotes } from "../../../../../lib/content";
+import NoteTopicIndex from "../../../../../components/NoteTopicIndex.astro";
+import {
+  categoryHref,
+  groupNotesByTopic,
+  noteTopicHref,
+  sortNotes,
+  type NoteEntry,
+  type NoteTopicGroup,
+} from "../../../../../lib/content";
 
 export async function getStaticPaths() {
   const notes = await getCollection("notes");
-  const groups = new Map<string, CollectionEntry<"notes">[]>();
+  const categories = new Map<string, NoteEntry[]>();
 
   for (const note of notes) {
-    if (!note.data.topic || note.data.topic === "__root") continue;
-    const key = `${note.data.category}\u0000${note.data.topic}`;
-    const entries = groups.get(key) ?? [];
+    const entries = categories.get(note.data.category) ?? [];
     entries.push(note);
-    groups.set(key, entries);
+    categories.set(note.data.category, entries);
   }
 
-  return [...groups.entries()].map(([key, entries]) => {
-    const [category, topic] = key.split("\u0000");
-    const first = entries[0];
-    return {
-      params: { category, topic },
-      props: {
-        entries,
-        categoryLabel: first?.data.categoryLabel ?? category,
-        topicLabel: first?.data.topicLabel ?? topic,
-      },
-    };
+  return [...categories.entries()].flatMap(([category, categoryEntries]) => {
+    const topics = groupNotesByTopic(categoryEntries);
+    const categoryLabel = categoryEntries[0]?.data.categoryLabel ?? category;
+
+    return topics.flatMap((topic) => {
+      if (!topic.id || topic.id === "__root") return [];
+      return [{
+        params: { category, topic: topic.id },
+        props: {
+          entries: topic.notes,
+          topics,
+          total: categoryEntries.length,
+          categoryLabel,
+          topicLabel: topic.label,
+        },
+      }];
+    });
   });
 }
 
 interface Props {
-  entries: CollectionEntry<"notes">[];
+  entries: NoteEntry[];
+  topics: NoteTopicGroup[];
+  total: number;
   categoryLabel: string;
   topicLabel: string;
 }
 
-const { entries, categoryLabel, topicLabel } = Astro.props;
+const { entries, topics, total, categoryLabel, topicLabel } = Astro.props;
 const category = Astro.params.category!;
 const topic = Astro.params.topic!;
 const sortedEntries = sortNotes(entries);
@@ -48,7 +62,13 @@ const sortedEntries = sortNotes(entries);
   canonicalPath={noteTopicHref(category, topic)}
   noindex={sortedEntries.length === 0}
 >
-  <div class="shell page detail-page">
+  <NoteTopicIndex
+    category={category}
+    categoryLabel={categoryLabel}
+    topics={topics}
+    total={total}
+    currentTopic={topic}
+  >
     <nav class="breadcrumb" aria-label="面包屑">
       <a href="/notes/">笔记</a>
       <span aria-hidden="true">/</span>
@@ -63,5 +83,5 @@ const sortedEntries = sortNotes(entries);
     </header>
 
     <ContentList entries={sortedEntries} showCategory={false} showTopic={false} />
-  </div>
+  </NoteTopicIndex>
 </BaseLayout>

@@ -3,7 +3,7 @@ import type { GetStaticPathsOptions, Page } from "astro";
 import { getCollection } from "astro:content";
 import NoteCategoryIndex from "../../../../../components/NoteCategoryIndex.astro";
 import { NOTE_PAGE_SIZE } from "../../../../../config/site";
-import { sortNotes, type NoteEntry } from "../../../../../lib/content";
+import { groupNotesByTopic, sortNotes, type NoteEntry, type NoteTopicGroup } from "../../../../../lib/content";
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
   const notes = await getCollection("notes");
@@ -18,7 +18,10 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
     paginate(sortNotes(entries), {
       pageSize: NOTE_PAGE_SIZE,
       params: { category },
-      props: { label: entries[0]?.data.categoryLabel ?? category },
+      props: {
+        label: entries[0]?.data.categoryLabel ?? category,
+        topics: groupNotesByTopic(entries),
+      },
     }).filter(({ params }) => params.page !== "1"),
   );
 }
@@ -26,15 +29,17 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
 interface Props {
   page: Page<NoteEntry>;
   label: string;
+  topics: NoteTopicGroup[];
 }
 
-const { page, label } = Astro.props;
+const { page, label, topics } = Astro.props;
 ---
 
 <NoteCategoryIndex
   category={Astro.params.category!}
   label={label}
   entries={page.data}
+  topics={topics}
   total={page.total}
   currentPage={page.currentPage}
   lastPage={page.lastPage}
