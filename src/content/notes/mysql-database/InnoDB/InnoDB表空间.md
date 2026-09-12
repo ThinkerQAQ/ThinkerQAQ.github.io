@@ -1,0 +1,43 @@
+---
+title: "3.6 InnoDB表空间"
+description: "1. 表空间是什么 - 表空间是个抽象的概念 - 逻辑上 - 可以想象成页的池子 - 物理上 - 对于系统表空间来说，对应着文件系统中一个或多个实际文件 - 默认情况下， InnoDB 会在 数据目录 下创建一个名为 ibdata1 、大小为 12M 的文件，并且大小自扩展 - 对于每个独立表空间来"
+sourcePath: "Database/MySQL/InnoDB/InnoDB表空间.md"
+category: "mysql-database"
+categoryLabel: "MySQL / Database"
+topic: "InnoDB"
+topicLabel: "3.InnoDB"
+order: 34
+tags: ["Database","MySQL"]
+createdAt: "2021-06-07T14:52:11Z"
+updatedAt: "2022-02-26T05:58:39Z"
+status: "historical"
+language: "zh"
+featured: false
+indexable: true
+---
+
+
+## 1. 表空间是什么
+- 表空间是个抽象的概念
+- 逻辑上
+    - 可以想象成页的池子
+- 物理上
+    - 对于系统表空间来说，对应着文件系统中一个或多个实际文件
+        - 默认情况下， InnoDB 会在 数据目录 下创建一个名为 **ibdata1**、大小为 12M 的文件，并且大小自扩展
+    - 对于每个独立表空间来说，对应着文件系统中一个名为 **表名.ibd** 的实际文件
+
+## 2. 表空间的结构
+### 2.1. 页
+- 表空间可以想象成页的池子
+- [MySQL页.md](/notes/mysql-database/MySQL%E9%A1%B5/)
+### 2.2. 区
+#### 2.2.1. 区是什么
+- 表空间被划分为许多连续的区 ，每个区默认由64个页组成
+- 每256个区划分为一组，每个组的最开始的几个页面类型是固定
+#### 2.2.2. 为什么要分区
+- 页本身就足够了，但是页是离散存储的，使用随机IO
+- 而一个区就是在物理位置上连续的64个页，使用顺序IO
+
+### 2.3. 段
+- 叶子节点有自己独有的 区 ，非叶子节点也有自己独有的区
+- 存放叶子节点的区的集合就算是一个 段 （ segment ），存放非叶子节点的区的集合也算是一个 段
