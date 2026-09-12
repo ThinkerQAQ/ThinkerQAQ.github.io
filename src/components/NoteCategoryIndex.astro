@@ -33,10 +33,8 @@ const pageTitle = currentPage === 1 ? label : `${label} · 第 ${currentPage} �
 >
   {prevUrl && <link slot="head" rel="prev" href={prevUrl} />}
   {nextUrl && <link slot="head" rel="next" href={nextUrl} />}
-  <div class="shell page">
-    <nav class="breadcrumb" aria-label="面包屑"><a href="/notes/">笔记</a><span>/</span></nav>
-    <header class="page-header compact">
-      <p class="eyebrow">TOPIC</p>
+  <div class="shell page detail-page">
+    <header class="page-header detail-page-header">
       <h1>{label}</h1>
       <p>{total} 篇笔记</p>
     </header>

@@ -1,4 +1,4 @@
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NEVER_PUBLISH, PROMOTED_ARTICLES } from "./content-policy.mjs";
@@ -113,6 +113,21 @@ async function main() {
   }
   const hasSearchContent = htmlSources.some((html) => html.includes("data-pagefind-body"));
   invariant((await exists(path.join(distRoot, "pagefind", "pagefind.js"))) === hasSearchContent, "Search index must match published content (and must be absent on an empty site)");
+  if (hasSearchContent) {
+    const pagefindRoot = path.join(distRoot, "pagefind");
+    const pagefindEntry = JSON.parse(await readFile(path.join(pagefindRoot, "pagefind-entry.json"), "utf8"));
+    const wasmIds = new Set(Object.values(pagefindEntry.languages ?? {}).map((language) => language.wasm));
+    invariant(wasmIds.size > 0 && !wasmIds.has(null), "Pagefind entry is missing a cache-busted WASM id");
+    for (const wasmId of wasmIds) {
+      const wasmFile = path.join(pagefindRoot, `wasm.${wasmId}.pagefind`);
+      invariant(await exists(wasmFile), `Pagefind WASM bundle is missing: ${path.basename(wasmFile)}`);
+      invariant((await stat(wasmFile)).size > 0, `Pagefind WASM bundle is empty: ${path.basename(wasmFile)}`);
+    }
+    invariant(
+      (await stat(path.join(pagefindRoot, "pagefind-worker.js"))).size > 0,
+      "Pagefind worker bundle is empty",
+    );
+  }
   invariant(await exists(path.join(distRoot, "robots.txt")), "robots.txt is missing");
   invariant(await exists(path.join(distRoot, "rss.xml")), "RSS feed is missing");
   const feed = await readFile(path.join(distRoot, "rss.xml"), "utf8");
@@ -145,6 +160,33 @@ async function main() {
     "Search page brand missing",
   );
   invariant(searchPage.includes("search-page--active"), "Search result layout transition missing");
+  const concurrencySeriesPage = await readFile(routeFile("/series/concurrency-programming/"), "utf8");
+  invariant(
+    !concurrencySeriesPage.includes('class="breadcrumb"') && !concurrencySeriesPage.includes(">SERIES</p>"),
+    "Series detail page still contains redundant type labels",
+  );
+  invariant(
+    !concurrencySeriesPage.includes("这个系列聚焦单机") && !concurrencySeriesPage.includes("按顺序阅读"),
+    "Series detail page still contains duplicate reading guidance",
+  );
+  invariant(
+    concurrencySeriesPage.includes('class="note-header detail-page-header"'),
+    "Series detail header spacing override missing",
+  );
+  const distributedNotesPage = await readFile(routeFile("/notes/category/distributed-systems/"), "utf8");
+  invariant(
+    distributedNotesPage.includes('class="shell page detail-page"') &&
+      distributedNotesPage.includes('class="page-header detail-page-header"'),
+    "Note topic detail structure does not match series details",
+  );
+  invariant(
+    !distributedNotesPage.includes('class="breadcrumb"') && !distributedNotesPage.includes(">TOPIC</p>"),
+    "Note topic detail still contains redundant type labels",
+  );
+  invariant(
+    concurrencySeriesPage.includes('aria-label="系列文章"') && concurrencySeriesPage.includes("/articles/concurrency-series-00/"),
+    "Series article list missing after header simplification",
+  );
   for (const article of PROMOTED_ARTICLES) {
     const route = `/articles/${article.slug}/`;
     invariant(await exists(routeFile(route)), `Promoted article missing: ${route}`);

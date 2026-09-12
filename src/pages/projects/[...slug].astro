@@ -12,11 +12,10 @@ const { data } = project;
 const { Content } = await render(project);
 ---
 <BaseLayout title={data.title} description={data.description}>
-  <div class="shell page">
+  <div class="shell page detail-page">
     <article data-pagefind-body>
-      <nav class="breadcrumb" aria-label="面包屑"><a href="/projects/">项目</a></nav>
-      <header class="note-header">
-        <p class="eyebrow">PROJECT</p><h1 data-pagefind-meta="title">{data.title}</h1>
+      <header class="note-header detail-page-header">
+        <h1 data-pagefind-meta="title">{data.title}</h1>
         <p class="note-description">{data.description}</p>
         <div class="note-meta"><span>{projectStatus[data.status]}</span><span>更新于 {formatDate(data.updatedAt)}</span>{data.repository && <a href={data.repository}>源代码</a>}</div>
       </header>

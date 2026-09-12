@@ -512,6 +512,22 @@ main {
   border-bottom: 1px solid var(--border);
 }
 
+.detail-page {
+  padding-top: 1rem;
+}
+
+.detail-page-header {
+  max-width: none;
+  margin-bottom: 0;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-page-header + .content-list,
+.detail-page-header + section .content-list {
+  border-top: 0;
+}
+
 .note-header h1 {
   font-size: clamp(2rem, 5vw, 3.35rem);
 }
@@ -1056,7 +1072,8 @@ main {
   }
 
   .article-index-page,
-  .collection-page {
+  .collection-page,
+  .detail-page {
     padding-top: 1rem;
   }
 
