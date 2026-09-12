@@ -7,6 +7,7 @@ interface IndexItem {
 
 interface IndexGroup {
   label?: string;
+  href?: string;
   items: IndexItem[];
 }
 
@@ -37,7 +38,13 @@ const hasGroups = groups.some((group) => group.label);
       <ol class="series-index__groups">
         {groups.map((group) => (
           <li class="series-index__group">
-            {group.label && <p class="series-index__group-label">{group.label}</p>}
+            {group.label && (
+              group.href ? (
+                <a class="series-index__group-label series-index__group-link" href={group.href}>{group.label}</a>
+              ) : (
+                <p class="series-index__group-label">{group.label}</p>
+              )
+            )}
             <ol class="series-index__items">
               {group.items.map((item) => (
                 <li>
@@ -292,10 +299,15 @@ const hasGroups = groups.some((group) => group.label);
   }
 
   .series-index__group-label {
+    display: block;
     margin: 0 0 0.2rem;
     color: var(--text);
     font-size: 0.76rem;
     font-weight: 650;
+  }
+
+  .series-index__group-link {
+    text-decoration: none;
   }
 
   .series-index__items {

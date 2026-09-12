@@ -27,6 +27,12 @@ export interface NoteCollectionNavigation {
   next?: NoteEntry;
 }
 
+export interface NoteTopicGroup {
+  id?: string;
+  label: string;
+  notes: NoteEntry[];
+}
+
 export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
 
 export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成" };
@@ -42,6 +48,10 @@ export function noteHref(note: NoteEntry): string {
 
 export function categoryHref(category: string): string {
   return `/notes/category/${encodeURIComponent(category)}/`;
+}
+
+export function noteTopicHref(category: string, topic: string): string {
+  return `${categoryHref(category)}topic/${encodeURIComponent(topic)}/`;
 }
 
 export function noteTagHref(tag: string): string {
@@ -92,17 +102,9 @@ export function getArticleSeriesNavigation(
   };
 }
 
-export function getNoteCollectionNavigation(
-  note: NoteEntry,
-  notes: NoteEntry[],
-): NoteCollectionNavigation {
-  const topics = new Map<string, NoteCollectionNavigation["topics"][number]>();
-  const orderedNotes = sortNotes(
-    notes.filter((candidate) => candidate.data.category === note.data.category),
-  );
-  const currentIndex = orderedNotes.findIndex((entry) => entry.id === note.id);
-
-  for (const entry of orderedNotes) {
+export function groupNotesByTopic(notes: NoteEntry[]): NoteTopicGroup[] {
+  const topics = new Map<string, NoteTopicGroup>();
+  for (const entry of sortNotes(notes)) {
     const key = entry.data.topic ?? "__ungrouped";
     const topic = topics.get(key) ?? {
       id: entry.data.topic,
@@ -112,11 +114,22 @@ export function getNoteCollectionNavigation(
     topic.notes.push(entry);
     topics.set(key, topic);
   }
+  return [...topics.values()];
+}
+
+export function getNoteCollectionNavigation(
+  note: NoteEntry,
+  notes: NoteEntry[],
+): NoteCollectionNavigation {
+  const orderedNotes = sortNotes(
+    notes.filter((candidate) => candidate.data.category === note.data.category),
+  );
+  const currentIndex = orderedNotes.findIndex((entry) => entry.id === note.id);
 
   return {
     category: note.data.category,
     categoryLabel: note.data.categoryLabel,
-    topics: [...topics.values()],
+    topics: groupNotesByTopic(orderedNotes),
     currentId: note.id,
     currentIndex,
     previous: orderedNotes[currentIndex - 1],

@@ -4,7 +4,7 @@ import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
 import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { categoryHref, formatDate, noteTagHref, type NoteCollectionNavigation } from "../lib/content";
+import { categoryHref, formatDate, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -21,6 +21,9 @@ interface Props {
 
 const { note, headings, collectionNavigation } = Astro.props;
 const { data } = note;
+const topicHref = data.topic && data.topic !== "__root"
+  ? noteTopicHref(data.category, data.topic)
+  : undefined;
 const schema = {
   "@context": "https://schema.org",
   "@type": "TechArticle",
@@ -49,6 +52,12 @@ const schema = {
         <a href="/notes/">笔记</a>
         <span aria-hidden="true">/</span>
         <a href={categoryHref(data.category)}>{data.categoryLabel}</a>
+        {topicHref && (
+          <>
+            <span aria-hidden="true">/</span>
+            <a href={topicHref}>{data.topicLabel ?? data.topic}</a>
+          </>
+        )}
       </nav>
 
       <header class="note-header">

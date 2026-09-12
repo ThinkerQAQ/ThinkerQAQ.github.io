@@ -2,7 +2,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import NoteCategoryIndex from "../../../components/NoteCategoryIndex.astro";
 import { NOTE_PAGE_SIZE } from "../../../config/site";
-import { sortNotes } from "../../../lib/content";
+import { groupNotesByTopic, sortNotes } from "../../../lib/content";
 
 export async function getStaticPaths() {
   const notes = await getCollection("notes");
@@ -25,6 +25,7 @@ interface Props {
 
 const { entries, label } = Astro.props;
 const sortedEntries = sortNotes(entries);
+const topics = groupNotesByTopic(sortedEntries);
 const lastPage = Math.ceil(sortedEntries.length / NOTE_PAGE_SIZE);
 ---
 
@@ -32,6 +33,7 @@ const lastPage = Math.ceil(sortedEntries.length / NOTE_PAGE_SIZE);
   category={Astro.params.category!}
   label={label}
   entries={sortedEntries.slice(0, NOTE_PAGE_SIZE)}
+  topics={topics}
   total={sortedEntries.length}
   currentPage={1}
   lastPage={lastPage}

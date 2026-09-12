@@ -1,6 +1,6 @@
 ---
 import type { NoteCollectionNavigation } from "../lib/content";
-import { categoryHref, noteHref } from "../lib/content";
+import { categoryHref, noteHref, noteTopicHref } from "../lib/content";
 import ContentCollectionIndex from "./ContentCollectionIndex.astro";
 
 interface Props {
@@ -16,6 +16,7 @@ const { navigation } = Astro.props;
   href={categoryHref(navigation.category)}
   groups={navigation.topics.map((topic) => ({
     label: topic.label,
+    href: topic.id && topic.id !== "__root" ? noteTopicHref(navigation.category, topic.id) : undefined,
     items: topic.notes.map((note) => ({
       href: noteHref(note),
       title: note.data.title,

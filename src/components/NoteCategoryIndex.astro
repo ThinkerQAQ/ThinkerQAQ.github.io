@@ -1,6 +1,6 @@
 ---
-import type { NoteEntry } from "../lib/content";
-import { categoryHref } from "../lib/content";
+import type { NoteEntry, NoteTopicGroup } from "../lib/content";
+import { categoryHref, noteTopicHref } from "../lib/content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import ContentList from "./ContentList.astro";
 import Pagination from "./Pagination.astro";
@@ -9,12 +9,13 @@ interface Props {
   category: string;
   label: string;
   entries: NoteEntry[];
+  topics?: NoteTopicGroup[];
   total: number;
   currentPage: number;
   lastPage: number;
 }
 
-const { category, label, entries, total, currentPage, lastPage } = Astro.props;
+const { category, label, entries, topics = [], total, currentPage, lastPage } = Astro.props;
 const firstPageUrl = categoryHref(category);
 const pageUrlPrefix = `${firstPageUrl}page/`;
 const currentUrl = currentPage === 1 ? firstPageUrl : `${pageUrlPrefix}${currentPage}/`;
@@ -23,6 +24,9 @@ const prevUrl = currentPage > 1
   : undefined;
 const nextUrl = currentPage < lastPage ? `${pageUrlPrefix}${currentPage + 1}/` : undefined;
 const pageTitle = currentPage === 1 ? label : `${label} · 第 ${currentPage} 页`;
+const navigableTopics = topics.filter(
+  (topic): topic is NoteTopicGroup & { id: string } => Boolean(topic.id && topic.id !== "__root"),
+);
 ---
 
 <BaseLayout
@@ -38,6 +42,20 @@ const pageTitle = currentPage === 1 ? label : `${label} · 第 ${currentPage} �
       <h1>{label}</h1>
       <p>{total} 篇笔记</p>
     </header>
+
+    {currentPage === 1 && navigableTopics.length > 0 && (
+      <ul class="topic-list" aria-label={`${label}子主题`}>
+        {navigableTopics.map((topic) => (
+          <li>
+            <a href={noteTopicHref(category, topic.id)}>
+              <span>{topic.label}</span>
+              <small>{topic.notes.length} 篇</small>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+
     <ContentList entries={entries} showCategory={false} showTopic={true} />
     <Pagination
       currentPage={currentPage}

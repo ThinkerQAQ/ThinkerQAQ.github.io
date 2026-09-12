@@ -1,0 +1,67 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import BaseLayout from "../../../../../layouts/BaseLayout.astro";
+import ContentList from "../../../../../components/ContentList.astro";
+import { categoryHref, noteTopicHref, sortNotes } from "../../../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  const groups = new Map<string, CollectionEntry<"notes">[]>();
+
+  for (const note of notes) {
+    if (!note.data.topic || note.data.topic === "__root") continue;
+    const key = `${note.data.category}\u0000${note.data.topic}`;
+    const entries = groups.get(key) ?? [];
+    entries.push(note);
+    groups.set(key, entries);
+  }
+
+  return [...groups.entries()].map(([key, entries]) => {
+    const [category, topic] = key.split("\u0000");
+    const first = entries[0];
+    return {
+      params: { category, topic },
+      props: {
+        entries,
+        categoryLabel: first?.data.categoryLabel ?? category,
+        topicLabel: first?.data.topicLabel ?? topic,
+      },
+    };
+  });
+}
+
+interface Props {
+  entries: CollectionEntry<"notes">[];
+  categoryLabel: string;
+  topicLabel: string;
+}
+
+const { entries, categoryLabel, topicLabel } = Astro.props;
+const category = Astro.params.category!;
+const topic = Astro.params.topic!;
+const sortedEntries = sortNotes(entries);
+---
+
+<BaseLayout
+  title={`${topicLabel} · ${categoryLabel}`}
+  description={`${categoryLabel}中的${topicLabel}学习笔记。`}
+  canonicalPath={noteTopicHref(category, topic)}
+  noindex={sortedEntries.length === 0}
+>
+  <div class="shell page detail-page">
+    <nav class="breadcrumb" aria-label="面包屑">
+      <a href="/notes/">笔记</a>
+      <span aria-hidden="true">/</span>
+      <a href={categoryHref(category)}>{categoryLabel}</a>
+      <span aria-hidden="true">/</span>
+      <span>{topicLabel}</span>
+    </nav>
+
+    <header class="page-header detail-page-header">
+      <h1>{topicLabel}</h1>
+      <p>{categoryLabel} · {sortedEntries.length} 篇笔记</p>
+    </header>
+
+    <ContentList entries={sortedEntries} showCategory={false} showTopic={false} />
+  </div>
+</BaseLayout>
