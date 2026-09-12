@@ -1,8 +1,9 @@
 ---
 import type { CollectionEntry } from "astro:content";
+import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { categoryHref, formatDate } from "../lib/content";
+import { categoryHref, formatDate, noteTagHref, type NoteCollectionNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -14,9 +15,10 @@ interface Heading {
 interface Props {
   note: CollectionEntry<"notes">;
   headings: Heading[];
+  collectionNavigation: NoteCollectionNavigation;
 }
 
-const { note, headings } = Astro.props;
+const { note, headings, collectionNavigation } = Astro.props;
 const { data } = note;
 const schema = {
   "@context": "https://schema.org",
@@ -39,7 +41,8 @@ const schema = {
   canonicalPath={data.canonicalPath}
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
-  <div class="shell content-shell">
+  <div class="shell content-shell content-shell--with-series">
+    <NoteCollectionIndex navigation={collectionNavigation} />
     <article class="note" data-pagefind-body>
       <nav class="breadcrumb" aria-label="面包屑">
         <a href="/notes/">笔记</a>
@@ -60,7 +63,7 @@ const schema = {
         </div>
         {data.tags.length > 0 && (
           <div class="tag-list" aria-label="标签">
-            {data.tags.map((tag) => <span>{tag}</span>)}
+            {data.tags.map((tag) => <a href={noteTagHref(tag)} rel="tag">{tag}</a>)}
           </div>
         )}
       </header>

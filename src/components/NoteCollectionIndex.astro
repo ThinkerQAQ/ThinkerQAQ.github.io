@@ -1,0 +1,28 @@
+---
+import type { NoteCollectionNavigation } from "../lib/content";
+import { categoryHref, noteHref } from "../lib/content";
+import ContentCollectionIndex from "./ContentCollectionIndex.astro";
+
+interface Props {
+  navigation: NoteCollectionNavigation;
+}
+
+const { navigation } = Astro.props;
+---
+
+<ContentCollectionIndex
+  label="笔记集"
+  title={navigation.categoryLabel}
+  href={categoryHref(navigation.category)}
+  groups={navigation.topics.map((topic) => ({
+    label: topic.label,
+    items: topic.notes.map((note) => ({
+      href: noteHref(note),
+      title: note.data.title,
+      current: note.id === navigation.currentId,
+    })),
+  }))}
+  ariaLabel={`${navigation.categoryLabel}笔记大纲`}
+  hideLabel="隐藏笔记大纲"
+  restoreLabel="展开笔记大纲"
+/>

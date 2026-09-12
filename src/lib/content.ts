@@ -13,6 +13,17 @@ export interface ArticleSeriesNavigation {
   next?: ArticleEntry;
 }
 
+export interface NoteCollectionNavigation {
+  category: string;
+  categoryLabel: string;
+  topics: Array<{
+    id?: string;
+    label: string;
+    notes: NoteEntry[];
+  }>;
+  currentId: string;
+}
+
 export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
 
 export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成" };
@@ -28,6 +39,10 @@ export function noteHref(note: NoteEntry): string {
 
 export function categoryHref(category: string): string {
   return `/notes/category/${encodeURIComponent(category)}/`;
+}
+
+export function noteTagHref(tag: string): string {
+  return `/notes/tags/${encodeURIComponent(tag)}/`;
 }
 
 export function articleHref(article: ArticleEntry): string {
@@ -71,6 +86,31 @@ export function getArticleSeriesNavigation(
     currentIndex,
     previous: orderedArticles[currentIndex - 1],
     next: orderedArticles[currentIndex + 1],
+  };
+}
+
+export function getNoteCollectionNavigation(
+  note: NoteEntry,
+  notes: NoteEntry[],
+): NoteCollectionNavigation {
+  const topics = new Map<string, NoteCollectionNavigation["topics"][number]>();
+
+  for (const entry of sortNotes(notes.filter((candidate) => candidate.data.category === note.data.category))) {
+    const key = entry.data.topic ?? "__ungrouped";
+    const topic = topics.get(key) ?? {
+      id: entry.data.topic,
+      label: entry.data.topicLabel ?? "其他",
+      notes: [],
+    };
+    topic.notes.push(entry);
+    topics.set(key, topic);
+  }
+
+  return {
+    category: note.data.category,
+    categoryLabel: note.data.categoryLabel,
+    topics: [...topics.values()],
+    currentId: note.id,
   };
 }
 

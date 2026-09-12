@@ -118,6 +118,8 @@ relatedNotes:
 
 `relatedArticles` 和 `relatedNotes` 填写内容文件相对于各自目录的路径，并去掉 `.md` 后缀；列表顺序就是系列页面的阅读顺序。
 
+单篇笔记页会按 `category` 自动生成左侧笔记集大纲，并按 `topic` 分组、按 `order` 排序；这些字段由 VNote 导入器根据原始笔记本目录和 `_vnote.json` 顺序生成。
+
 文章还需要在自己的 Frontmatter 中加入系列 ID，这样文章页才会显示“所属系列”入口：
 
 ```yaml

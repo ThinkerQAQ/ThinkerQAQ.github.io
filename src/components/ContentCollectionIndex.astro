@@ -1,0 +1,329 @@
+---
+interface IndexItem {
+  href: string;
+  title: string;
+  current: boolean;
+}
+
+interface IndexGroup {
+  label?: string;
+  items: IndexItem[];
+}
+
+interface Props {
+  label: string;
+  title: string;
+  href: string;
+  groups: IndexGroup[];
+  ariaLabel: string;
+  hideLabel: string;
+  restoreLabel: string;
+}
+
+const { label, title, href, groups, ariaLabel, hideLabel, restoreLabel } = Astro.props;
+const indexId = "content-collection-index";
+const hasGroups = groups.some((group) => group.label);
+---
+
+<div class="series-index-region" data-series-index-region>
+  <aside class="series-index" id={indexId} aria-label={ariaLabel} data-series-index>
+    <div class="series-index__context">
+      <div class="series-index__header">
+        <p class="series-index__label">{label}</p>
+      </div>
+      <a class="series-index__series-link" href={href}>{title}</a>
+    </div>
+    {hasGroups ? (
+      <ol class="series-index__groups">
+        {groups.map((group) => (
+          <li class="series-index__group">
+            {group.label && <p class="series-index__group-label">{group.label}</p>}
+            <ol class="series-index__items">
+              {group.items.map((item) => (
+                <li>
+                  <a href={item.href} aria-current={item.current ? "page" : undefined}>{item.title}</a>
+                </li>
+              ))}
+            </ol>
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <ol class="series-index__items">
+        {groups.flatMap((group) => group.items).map((item) => (
+          <li>
+            <a href={item.href} aria-current={item.current ? "page" : undefined}>{item.title}</a>
+          </li>
+        ))}
+      </ol>
+    )}
+  </aside>
+  <button
+    class="series-index__hide"
+    type="button"
+    aria-controls={indexId}
+    aria-expanded="true"
+    aria-label={hideLabel}
+    title={hideLabel}
+    data-series-index-hide
+  >
+    <svg class="series-index__toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+      <path d="M9 3v18"></path>
+      <path d="m16 9-3 3 3 3"></path>
+    </svg>
+  </button>
+</div>
+<button
+  class="series-index__restore"
+  type="button"
+  aria-controls={indexId}
+  aria-expanded="false"
+  aria-label={restoreLabel}
+  title={restoreLabel}
+  data-series-index-restore
+  hidden
+>
+  <span class="series-index__restore-surface" aria-hidden="true">
+    <svg class="series-index__toggle-icon" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+      <path d="M9 3v18"></path>
+      <path d="m14 15 3-3-3-3"></path>
+    </svg>
+  </span>
+</button>
+
+<script>
+  const seriesIndex = document.querySelector<HTMLElement>("[data-series-index]");
+  const region = seriesIndex?.closest<HTMLElement>("[data-series-index-region]");
+  const shell = seriesIndex?.closest<HTMLElement>(".content-shell");
+  const hideButton = region?.querySelector<HTMLButtonElement>("[data-series-index-hide]");
+  const restoreButton = shell?.querySelector<HTMLButtonElement>("[data-series-index-restore]");
+  const currentLink = seriesIndex?.querySelector<HTMLElement>('[aria-current="page"]');
+
+  if (seriesIndex && currentLink) {
+    seriesIndex.scrollTop = currentLink.offsetTop - seriesIndex.clientHeight / 2;
+  }
+
+  if (seriesIndex && region && shell && hideButton && restoreButton) {
+    const setCollapsed = (collapsed: boolean) => {
+      shell.classList.toggle("series-index-collapsed", collapsed);
+      region.classList.toggle("series-index-region--hidden", collapsed);
+      seriesIndex.setAttribute("aria-hidden", String(collapsed));
+      hideButton.setAttribute("aria-expanded", String(!collapsed));
+      restoreButton.setAttribute("aria-expanded", String(!collapsed));
+      restoreButton.hidden = !collapsed;
+    };
+
+    hideButton.addEventListener("click", () => setCollapsed(true));
+    restoreButton.addEventListener("click", () => setCollapsed(false));
+  }
+</script>
+
+<style>
+  .series-index-region {
+    position: sticky;
+    top: 6rem;
+    align-self: start;
+    max-height: calc(100vh - 8rem);
+    transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
+  }
+
+  .series-index {
+    max-height: inherit;
+    overflow-x: hidden;
+    overflow-y: auto;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .series-index__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .series-index__context {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    padding-bottom: 0.35rem;
+    background: var(--background);
+  }
+
+  .series-index__label {
+    margin: 0;
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .series-index__series-link {
+    display: block;
+    margin-bottom: 0.65rem;
+    color: var(--accent);
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .series-index__hide,
+  .series-index__restore {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--faint);
+    cursor: pointer;
+  }
+
+  .series-index__hide {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    right: -2.5rem;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    border-radius: 0.4rem;
+    opacity: 0.45;
+    transform: translateY(-50%);
+    transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+  }
+
+  .series-index-region:hover .series-index__hide,
+  .series-index-region:focus-within .series-index__hide {
+    opacity: 1;
+  }
+
+  .series-index__hide:hover,
+  .series-index__hide:focus-visible {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+
+  .series-index__hide:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 0.2rem;
+  }
+
+  .series-index-region--hidden {
+    position: fixed;
+    top: 6rem;
+    left: 0;
+    width: min(16rem, calc(100vw - 3rem));
+    visibility: hidden;
+    transform: translateX(-2rem);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .series-index__restore {
+    position: fixed;
+    z-index: 9;
+    top: 4rem;
+    bottom: 0;
+    left: 0;
+    width: 4rem;
+    height: auto;
+  }
+
+  .series-index__restore-surface {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transform: translateX(-0.25rem);
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease, transform 140ms ease;
+  }
+
+  .series-index__restore:hover,
+  .series-index__restore:focus-visible {
+    color: var(--text);
+  }
+
+  .series-index__restore:hover .series-index__restore-surface,
+  .series-index__restore:focus-visible .series-index__restore-surface {
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+    background: var(--accent-soft);
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .series-index__restore:focus-visible {
+    outline: none;
+  }
+
+  .series-index__restore:focus-visible .series-index__restore-surface {
+    outline: 2px solid var(--accent);
+    outline-offset: 0.2rem;
+  }
+
+  .series-index__toggle-icon {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.65;
+  }
+
+  .series-index__restore[hidden] {
+    display: none;
+  }
+
+  .series-index__groups,
+  .series-index__items {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .series-index__group + .series-index__group {
+    margin-top: 0.65rem;
+  }
+
+  .series-index__group-label {
+    margin: 0 0 0.2rem;
+    color: var(--text);
+    font-size: 0.76rem;
+    font-weight: 650;
+  }
+
+  .series-index__items {
+    border-left: 1px solid var(--border);
+  }
+
+  .series-index__items li {
+    line-height: 1.45;
+  }
+
+  .series-index__items li a {
+    display: block;
+    padding: 0.35rem 0.75rem 0.35rem 0.9rem;
+    text-decoration: none;
+  }
+
+  .series-index__items li a[aria-current="page"] {
+    border-left: 2px solid var(--accent);
+    margin-left: -1px;
+    background: var(--accent-soft);
+    color: var(--text);
+    font-weight: 650;
+  }
+
+  @media (max-width: 1200px), print {
+    .series-index-region,
+    .series-index__restore {
+      display: none;
+    }
+  }
+</style>

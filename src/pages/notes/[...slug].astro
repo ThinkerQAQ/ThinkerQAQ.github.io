@@ -1,20 +1,36 @@
 ---
 import { getCollection, render, type CollectionEntry } from "astro:content";
 import NoteLayout from "../../layouts/NoteLayout.astro";
+import { getNoteCollectionNavigation, type NoteCollectionNavigation } from "../../lib/content";
 
 export async function getStaticPaths() {
+  const startedAt = Date.now();
   const notes = await getCollection("notes");
-  return notes.map((note) => ({ params: { slug: note.id }, props: { note } }));
+  const paths = notes.map((note) => ({
+    params: { slug: note.id },
+    props: { note, collectionNavigation: getNoteCollectionNavigation(note, notes) },
+  }));
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    severity: "info",
+    operation: "build-note-navigation",
+    status: "completed",
+    noteCount: notes.length,
+    categoryCount: new Set(notes.map((note) => note.data.category)).size,
+    durationMs: Date.now() - startedAt,
+  }));
+  return paths;
 }
 
 interface Props {
   note: CollectionEntry<"notes">;
+  collectionNavigation: NoteCollectionNavigation;
 }
 
-const { note } = Astro.props;
+const { note, collectionNavigation } = Astro.props;
 const { Content, headings } = await render(note);
 ---
 
-<NoteLayout note={note} headings={headings}>
+<NoteLayout note={note} headings={headings} collectionNavigation={collectionNavigation}>
   <Content />
 </NoteLayout>
