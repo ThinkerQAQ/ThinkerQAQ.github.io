@@ -12,18 +12,40 @@ const hasContent = counts.some((entries) => entries.length > 0);
 ---
 
 <BaseLayout title="搜索" description="搜索 ThinkerQAQ 的技术文章与学习笔记。" noindex={true}>
-  <div class="shell page search-page">
-    <header class="page-header compact">
-      <h1>搜索</h1>
-    </header>
+  <div class="shell page search-page" data-search-page>
+    <h1 class="visually-hidden">搜索</h1>
     {hasContent ? <>
-    <link href="/pagefind/pagefind-component-ui.css" rel="stylesheet" />
-    <script is:inline src="/pagefind/pagefind-component-ui.js" type="module"></script>
-    <pagefind-config base-url="/"></pagefind-config>
-    <pagefind-input placeholder="搜索内容"></pagefind-input>
-    <pagefind-summary></pagefind-summary>
-    <pagefind-results></pagefind-results>
-    <noscript>搜索功能需要启用 JavaScript，但文章正文不需要。</noscript>
+    <div class="search-page__content">
+      <link href="/pagefind/pagefind-component-ui.css" rel="stylesheet" />
+      <script is:inline src="/pagefind/pagefind-component-ui.js" type="module"></script>
+      <pagefind-config base-url="/"></pagefind-config>
+      <div class="search-page__brand" aria-hidden="true">
+        <img src="/favicon.ico" alt="" width="64" height="64" />
+        <span>ThinkerQAQ</span>
+      </div>
+      <pagefind-input class="search-page__input" placeholder="搜索本站内容"></pagefind-input>
+      <div class="search-page__results">
+        <pagefind-summary></pagefind-summary>
+        <pagefind-results></pagefind-results>
+      </div>
+      <noscript>搜索功能需要启用 JavaScript，但文章正文不需要。</noscript>
+    </div>
     </> : <p class="empty-state">暂无可搜索的内容。</p>}
   </div>
 </BaseLayout>
+
+<script is:inline>
+  const searchPage = document.querySelector("[data-search-page]");
+  const pagefindInput = searchPage?.querySelector("pagefind-input");
+
+  const updateSearchLayout = () => {
+    requestAnimationFrame(() => {
+      const input = pagefindInput?.querySelector("input");
+      searchPage?.classList.toggle("search-page--active", Boolean(input?.value.trim()));
+    });
+  };
+
+  pagefindInput?.addEventListener("input", updateSearchLayout);
+  pagefindInput?.addEventListener("click", updateSearchLayout);
+  pagefindInput?.addEventListener("keydown", updateSearchLayout);
+</script>

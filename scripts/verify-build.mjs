@@ -116,7 +116,7 @@ async function main() {
   invariant(await exists(path.join(distRoot, "robots.txt")), "robots.txt is missing");
   invariant(await exists(path.join(distRoot, "rss.xml")), "RSS feed is missing");
   const feed = await readFile(path.join(distRoot, "rss.xml"), "utf8");
-  for (const route of ["/articles/", "/projects/", "/series/", "/notes/", "/about/", "/english/"]) {
+  for (const route of ["/articles/", "/projects/", "/series/", "/notes/", "/about/", "/search/", "/english/"]) {
     invariant(await exists(routeFile(route)), `Navigation route missing: ${route}`);
   }
   const collectionIntros = new Map([
@@ -124,14 +124,27 @@ async function main() {
     ["/projects/", ["项目", "记录正在探索、开发或维护的事情，以及最终留下的成果。"]],
     ["/series/", ["系列", "把主题相关的文章和笔记组织在一起，提供更连贯的阅读路径。"]],
     ["/notes/", ["笔记", "保留学习记录、资料整理、实验过程，以及暂时还不需要写成文章的想法。"]],
+    ["/about/", ["关于本站", "这里是 ThinkerQAQ 的个人网站，用来记录思考、学习过程和做过的事情。"]],
   ]);
   for (const [route, [title, description]] of collectionIntros) {
     const html = await readFile(routeFile(route), "utf8");
     invariant(html.includes('class="page-header collection-header"'), `Collection header missing: ${route}`);
-    invariant(html.includes(`<h1>${title}</h1>`), `Collection title missing: ${route}`);
+    invariant(
+      html.includes(`<h1 class="visually-hidden">${title}</h1>`),
+      `Semantic collection title missing or visible: ${route}`,
+    );
     invariant(html.includes(`<p>${description}</p>`), `Collection introduction missing: ${route}`);
   }
   invariant(home.includes('class="page-header collection-header"'), "Home article collection header missing");
+  const searchPage = await readFile(routeFile("/search/"), "utf8");
+  invariant(searchPage.includes('class="visually-hidden">搜索</h1>'), "Search title must be visually hidden");
+  invariant(searchPage.includes("data-search-page"), "Search page state container missing");
+  invariant(searchPage.includes('class="search-page__content"'), "Centered search content missing");
+  invariant(
+    searchPage.includes('class="search-page__brand"') && searchPage.includes("<span>ThinkerQAQ</span>"),
+    "Search page brand missing",
+  );
+  invariant(searchPage.includes("search-page--active"), "Search result layout transition missing");
   for (const article of PROMOTED_ARTICLES) {
     const route = `/articles/${article.slug}/`;
     invariant(await exists(routeFile(route)), `Promoted article missing: ${route}`);

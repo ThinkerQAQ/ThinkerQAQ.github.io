@@ -1,15 +1,16 @@
 ---
+import CollectionHeader from "../components/CollectionHeader.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 <BaseLayout
   title="关于"
   description="关于 ThinkerQAQ，以及本站文章、项目、系列与笔记的组织方式。"
 >
-  <div class="shell page narrow">
-    <header class="page-header">
-      <h1>关于本站</h1>
-      <p>这里是 ThinkerQAQ 的个人网站，用来记录思考、学习过程和做过的事情。</p>
-    </header>
+  <div class="shell page narrow collection-page">
+    <CollectionHeader
+      title="关于本站"
+      description="这里是 ThinkerQAQ 的个人网站，用来记录思考、学习过程和做过的事情。"
+    />
 
     <div class="prose">
       <h2>内容如何组织</h2>

@@ -7,7 +7,7 @@ import { projectHref, projectStatus, sortProjects } from "../../lib/content";
 const entries = sortProjects(await getCollection("projects"));
 ---
 <BaseLayout title="项目" noindex={entries.length === 0}>
-  <div class="shell page">
+  <div class="shell page collection-page">
     <CollectionHeader
       title="项目"
       description="记录正在探索、开发或维护的事情，以及最终留下的成果。"
