@@ -260,10 +260,18 @@ export function createPublicNoteIndex(targets) {
   return { exact, byBasename };
 }
 
-export function resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex) {
+export function resolvePublishedNoteTarget(
+  absoluteTarget,
+  publicNoteIndex,
+  fileExists = existsSync,
+) {
   const resolvedTarget = path.resolve(absoluteTarget);
   const exact = publicNoteIndex.exact.get(resolvedTarget.toLowerCase());
   if (exact) return { ...exact, strategy: "exact" };
+
+  // If the original target still exists, it is a real unpublished note. Do not
+  // redirect it to an unrelated public note that merely shares the same basename.
+  if (fileExists(resolvedTarget)) return undefined;
 
   const matches = publicNoteIndex.byBasename.get(path.basename(resolvedTarget).toLowerCase()) ?? [];
   if (matches.length === 1) return { ...matches[0], strategy: "unique-basename" };
