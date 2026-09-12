@@ -1,0 +1,210 @@
+CompilerOracle: print *TestVolatile.test
+Compiled method (c1)     542 1714       3       com.zsk.test.TestVolatile::test (9 bytes)
+ total in heap  [0x0000000003c89a50,0x0000000003c89d70] = 800
+ relocation     [0x0000000003c89b70,0x0000000003c89b98] = 40
+ main code      [0x0000000003c89ba0,0x0000000003c89c60] = 192
+ stub code      [0x0000000003c89c60,0x0000000003c89cf0] = 144
+ oops           [0x0000000003c89cf0,0x0000000003c89cf8] = 8
+ metadata       [0x0000000003c89cf8,0x0000000003c89d00] = 8
+ scopes data    [0x0000000003c89d00,0x0000000003c89d18] = 24
+ scopes pcs     [0x0000000003c89d18,0x0000000003c89d68] = 80
+ dependencies   [0x0000000003c89d68,0x0000000003c89d70] = 8
+Loaded disassembler from C:\software\Java8\jre\bin\server\hsdis-amd64.dll
+Decoding compiled method 0x0000000003c89a50:
+Code:
+[Disassembling for mach='i386:x86-64']
+[Entry Point]
+[Verified Entry Point]
+[Constants]
+  # {method} {0x0000000017fb2b08} 'test' '()V' in 'com/zsk/test/TestVolatile'
+  #           [sp+0x40]  (sp of caller)
+  0x0000000003c89ba0: mov    %eax,-0x6000(%rsp)
+  0x0000000003c89ba7: push   %rbp
+  0x0000000003c89ba8: sub    $0x30,%rsp
+  0x0000000003c89bac: movabs $0x17fb3028,%rsi   ;   {metadata(method data for {method} {0x0000000017fb2b08} 'test' '()V' in 'com/zsk/test/TestVolatile')}
+  0x0000000003c89bb6: mov    0xdc(%rsi),%edi
+  0x0000000003c89bbc: add    $0x8,%edi
+  0x0000000003c89bbf: mov    %edi,0xdc(%rsi)
+  0x0000000003c89bc5: movabs $0x17fb2b00,%rsi   ;   {metadata({method} {0x0000000017fb2b08} 'test' '()V' in 'com/zsk/test/TestVolatile')}
+  0x0000000003c89bcf: and    $0x0,%edi
+  0x0000000003c89bd2: cmp    $0x0,%edi
+  0x0000000003c89bd5: je     0x0000000003c89bf9
+  0x0000000003c89bdb: movabs $0xd64d3430,%rsi   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestVolatile')}
+  0x0000000003c89be5: mov    0x68(%rsi),%edi    ;*getstatic i
+                                                ; - com.zsk.test.TestVolatile::test@0 (line 18)
+
+  0x0000000003c89be8: inc    %edi
+  0x0000000003c89bea: mov    %edi,0x68(%rsi)    ;*putstatic i
+                                                ; - com.zsk.test.TestVolatile::test@5 (line 18)
+
+  0x0000000003c89bed: add    $0x30,%rsp
+  0x0000000003c89bf1: pop    %rbp
+  0x0000000003c89bf2: test   %eax,-0x28b9af8(%rip)        # 0x00000000013d0100
+                                                ;   {poll_return}
+  0x0000000003c89bf8: retq   
+  0x0000000003c89bf9: mov    %rsi,0x8(%rsp)
+  0x0000000003c89bfe: movq   $0xffffffffffffffff,(%rsp)
+  0x0000000003c89c06: callq  0x0000000003991560  ; OopMap{off=107}
+                                                ;*synchronization entry
+                                                ; - com.zsk.test.TestVolatile::test@-1 (line 18)
+                                                ;   {runtime_call}
+  0x0000000003c89c0b: jmp    0x0000000003c89bdb
+  0x0000000003c89c0d: nop
+  0x0000000003c89c0e: nop
+  0x0000000003c89c0f: mov    0x2a8(%r15),%rax
+  0x0000000003c89c16: movabs $0x0,%r10
+  0x0000000003c89c20: mov    %r10,0x2a8(%r15)
+  0x0000000003c89c27: movabs $0x0,%r10
+  0x0000000003c89c31: mov    %r10,0x2b0(%r15)
+  0x0000000003c89c38: add    $0x30,%rsp
+  0x0000000003c89c3c: pop    %rbp
+  0x0000000003c89c3d: jmpq   0x00000000038ff5a0  ;   {runtime_call}
+  0x0000000003c89c42: hlt    
+  0x0000000003c89c43: hlt    
+  0x0000000003c89c44: hlt    
+  0x0000000003c89c45: hlt    
+  0x0000000003c89c46: hlt    
+  0x0000000003c89c47: hlt    
+  0x0000000003c89c48: hlt    
+  0x0000000003c89c49: hlt    
+  0x0000000003c89c4a: hlt    
+  0x0000000003c89c4b: hlt    
+  0x0000000003c89c4c: hlt    
+  0x0000000003c89c4d: hlt    
+  0x0000000003c89c4e: hlt    
+  0x0000000003c89c4f: hlt    
+  0x0000000003c89c50: hlt    
+  0x0000000003c89c51: hlt    
+  0x0000000003c89c52: hlt    
+  0x0000000003c89c53: hlt    
+  0x0000000003c89c54: hlt    
+  0x0000000003c89c55: hlt    
+  0x0000000003c89c56: hlt    
+  0x0000000003c89c57: hlt    
+  0x0000000003c89c58: hlt    
+  0x0000000003c89c59: hlt    
+  0x0000000003c89c5a: hlt    
+  0x0000000003c89c5b: hlt    
+  0x0000000003c89c5c: hlt    
+  0x0000000003c89c5d: hlt    
+  0x0000000003c89c5e: hlt    
+  0x0000000003c89c5f: hlt    
+[Exception Handler]
+[Stub Code]
+  0x0000000003c89c60: callq  0x000000000398eb20  ;   {no_reloc}
+  0x0000000003c89c65: mov    %rsp,-0x28(%rsp)
+  0x0000000003c89c6a: sub    $0x80,%rsp
+  0x0000000003c89c71: mov    %rax,0x78(%rsp)
+  0x0000000003c89c76: mov    %rcx,0x70(%rsp)
+  0x0000000003c89c7b: mov    %rdx,0x68(%rsp)
+  0x0000000003c89c80: mov    %rbx,0x60(%rsp)
+  0x0000000003c89c85: mov    %rbp,0x50(%rsp)
+  0x0000000003c89c8a: mov    %rsi,0x48(%rsp)
+  0x0000000003c89c8f: mov    %rdi,0x40(%rsp)
+  0x0000000003c89c94: mov    %r8,0x38(%rsp)
+  0x0000000003c89c99: mov    %r9,0x30(%rsp)
+  0x0000000003c89c9e: mov    %r10,0x28(%rsp)
+  0x0000000003c89ca3: mov    %r11,0x20(%rsp)
+  0x0000000003c89ca8: mov    %r12,0x18(%rsp)
+  0x0000000003c89cad: mov    %r13,0x10(%rsp)
+  0x0000000003c89cb2: mov    %r14,0x8(%rsp)
+  0x0000000003c89cb7: mov    %r15,(%rsp)
+  0x0000000003c89cbb: movabs $0x5c401820,%rcx   ;   {external_word}
+  0x0000000003c89cc5: movabs $0x3c89c65,%rdx    ;   {internal_word}
+  0x0000000003c89ccf: mov    %rsp,%r8
+  0x0000000003c89cd2: and    $0xfffffffffffffff0,%rsp
+  0x0000000003c89cd6: callq  0x000000005c0b6f40  ;   {runtime_call}
+  0x0000000003c89cdb: hlt    
+[Deopt Handler Code]
+  0x0000000003c89cdc: movabs $0x3c89cdc,%r10    ;   {section_word}
+  0x0000000003c89ce6: push   %r10
+  0x0000000003c89ce8: jmpq   0x00000000038d7600  ;   {runtime_call}
+  0x0000000003c89ced: hlt    
+  0x0000000003c89cee: hlt    
+  0x0000000003c89cef: hlt    
+OopMapSet contains 1 OopMaps
+
+#0 
+OopMap{off=107}
+Compiled method (c1)     545 1716       1       com.zsk.test.TestVolatile::test (9 bytes)
+ total in heap  [0x0000000003c91610,0x0000000003c918b8] = 680
+ relocation     [0x0000000003c91730,0x0000000003c91758] = 40
+ main code      [0x0000000003c91760,0x0000000003c917c0] = 96
+ stub code      [0x0000000003c917c0,0x0000000003c91850] = 144
+ oops           [0x0000000003c91850,0x0000000003c91858] = 8
+ metadata       [0x0000000003c91858,0x0000000003c91860] = 8
+ scopes data    [0x0000000003c91860,0x0000000003c91870] = 16
+ scopes pcs     [0x0000000003c91870,0x0000000003c918b0] = 64
+ dependencies   [0x0000000003c918b0,0x0000000003c918b8] = 8
+Decoding compiled method 0x0000000003c91610:
+Code:
+[Entry Point]
+[Verified Entry Point]
+[Constants]
+  # {method} {0x0000000017fb2b08} 'test' '()V' in 'com/zsk/test/TestVolatile'
+  #           [sp+0x40]  (sp of caller)
+  0x0000000003c91760: mov    %eax,-0x6000(%rsp)
+  0x0000000003c91767: push   %rbp
+  0x0000000003c91768: sub    $0x30,%rsp
+  0x0000000003c9176c: movabs $0xd64d3430,%rsi   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestVolatile')}
+  0x0000000003c91776: mov    0x68(%rsi),%edi    ;*getstatic i
+                                                ; - com.zsk.test.TestVolatile::test@0 (line 18)
+
+  0x0000000003c91779: inc    %edi
+  0x0000000003c9177b: mov    %edi,0x68(%rsi)    ;*putstatic i
+                                                ; - com.zsk.test.TestVolatile::test@5 (line 18)
+
+  0x0000000003c9177e: add    $0x30,%rsp
+  0x0000000003c91782: pop    %rbp
+  0x0000000003c91783: test   %eax,-0x28c1689(%rip)        # 0x00000000013d0100
+                                                ;   {poll_return}
+  0x0000000003c91789: retq   
+  0x0000000003c9178a: nop
+  0x0000000003c9178b: nop
+  0x0000000003c9178c: mov    0x2a8(%r15),%rax
+  0x0000000003c91793: movabs $0x0,%r10
+  0x0000000003c9179d: mov    %r10,0x2a8(%r15)
+  0x0000000003c917a4: movabs $0x0,%r10
+  0x0000000003c917ae: mov    %r10,0x2b0(%r15)
+  0x0000000003c917b5: add    $0x30,%rsp
+  0x0000000003c917b9: pop    %rbp
+  0x0000000003c917ba: jmpq   0x00000000038ff5a0  ;   {runtime_call}
+  0x0000000003c917bf: hlt    
+[Exception Handler]
+[Stub Code]
+  0x0000000003c917c0: callq  0x000000000398eb20  ;   {no_reloc}
+  0x0000000003c917c5: mov    %rsp,-0x28(%rsp)
+  0x0000000003c917ca: sub    $0x80,%rsp
+  0x0000000003c917d1: mov    %rax,0x78(%rsp)
+  0x0000000003c917d6: mov    %rcx,0x70(%rsp)
+  0x0000000003c917db: mov    %rdx,0x68(%rsp)
+  0x0000000003c917e0: mov    %rbx,0x60(%rsp)
+  0x0000000003c917e5: mov    %rbp,0x50(%rsp)
+  0x0000000003c917ea: mov    %rsi,0x48(%rsp)
+  0x0000000003c917ef: mov    %rdi,0x40(%rsp)
+  0x0000000003c917f4: mov    %r8,0x38(%rsp)
+  0x0000000003c917f9: mov    %r9,0x30(%rsp)
+  0x0000000003c917fe: mov    %r10,0x28(%rsp)
+  0x0000000003c91803: mov    %r11,0x20(%rsp)
+  0x0000000003c91808: mov    %r12,0x18(%rsp)
+  0x0000000003c9180d: mov    %r13,0x10(%rsp)
+  0x0000000003c91812: mov    %r14,0x8(%rsp)
+  0x0000000003c91817: mov    %r15,(%rsp)
+  0x0000000003c9181b: movabs $0x5c401820,%rcx   ;   {external_word}
+  0x0000000003c91825: movabs $0x3c917c5,%rdx    ;   {internal_word}
+  0x0000000003c9182f: mov    %rsp,%r8
+  0x0000000003c91832: and    $0xfffffffffffffff0,%rsp
+  0x0000000003c91836: callq  0x000000005c0b6f40  ;   {runtime_call}
+  0x0000000003c9183b: hlt    
+[Deopt Handler Code]
+  0x0000000003c9183c: movabs $0x3c9183c,%r10    ;   {section_word}
+  0x0000000003c91846: push   %r10
+  0x0000000003c91848: jmpq   0x00000000038d7600  ;   {runtime_call}
+  0x0000000003c9184d: hlt    
+  0x0000000003c9184e: hlt    
+  0x0000000003c9184f: hlt    
+OopMapSet contains 0 OopMaps
+
+Java HotSpot(TM) 64-Bit Server VM warning: printing of assembly code is enabled; turning on DebugNonSafepoints to gain additional output
+
+Process finished with exit code 0

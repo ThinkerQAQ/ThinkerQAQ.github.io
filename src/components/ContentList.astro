@@ -5,12 +5,14 @@ import { formatDate, noteHref } from "../lib/content";
 interface Props {
   entries: NoteEntry[];
   showCategory?: boolean;
+  showTopic?: boolean;
   emptyMessage?: string;
 }
 
 const {
   entries,
   showCategory = true,
+  showTopic = false,
   emptyMessage = "这里还没有公开内容。",
 } = Astro.props;
 ---
@@ -23,10 +25,12 @@ const {
       <li>
         <div class="content-list-main">
           <a class="content-title" href={noteHref(entry)}>{entry.data.title}</a>
+          {entry.data.status === "historical" && <span class="historical-badge">historical</span>}
           {entry.data.description && <p>{entry.data.description}</p>}
         </div>
         <div class="content-meta">
           {showCategory && <span>{entry.data.categoryLabel}</span>}
+          {showTopic && entry.data.topicLabel && <span>{entry.data.topicLabel}</span>}
           <time datetime={entry.data.updatedAt.toISOString()}>
             {formatDate(entry.data.updatedAt)}
           </time>

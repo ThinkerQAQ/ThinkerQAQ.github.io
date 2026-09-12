@@ -1,8 +1,8 @@
 ---
 import { getCollection, type CollectionEntry } from "astro:content";
-import ContentList from "../../../components/ContentList.astro";
-import BaseLayout from "../../../layouts/BaseLayout.astro";
-import { sortByUpdated } from "../../../lib/content";
+import NoteCategoryIndex from "../../../components/NoteCategoryIndex.astro";
+import { NOTE_PAGE_SIZE } from "../../../config/site";
+import { sortNotes } from "../../../lib/content";
 
 export async function getStaticPaths() {
   const notes = await getCollection("notes");
@@ -24,17 +24,15 @@ interface Props {
 }
 
 const { entries, label } = Astro.props;
-const sortedEntries = sortByUpdated(entries);
+const sortedEntries = sortNotes(entries);
+const lastPage = Math.ceil(sortedEntries.length / NOTE_PAGE_SIZE);
 ---
 
-<BaseLayout title={label} description={`${label}主题下的技术学习笔记。`}>
-  <div class="shell page">
-    <nav class="breadcrumb" aria-label="面包屑"><a href="/notes/">笔记</a><span>/</span></nav>
-    <header class="page-header compact">
-      <p class="eyebrow">TOPIC</p>
-      <h1>{label}</h1>
-      <p>{entries.length} 篇笔记</p>
-    </header>
-    <ContentList entries={sortedEntries} showCategory={false} />
-  </div>
-</BaseLayout>
+<NoteCategoryIndex
+  category={Astro.params.category!}
+  label={label}
+  entries={sortedEntries.slice(0, NOTE_PAGE_SIZE)}
+  total={sortedEntries.length}
+  currentPage={1}
+  lastPage={lastPage}
+/>

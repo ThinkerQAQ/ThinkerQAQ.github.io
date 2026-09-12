@@ -99,8 +99,13 @@ async function main() {
     );
   }
   const htmlSources = await Promise.all(htmlFiles.map((file) => readFile(file, "utf8")));
-  const articlePages = htmlSources.filter((html) => html.includes('<meta property="og:type" content="article">'));
-  for (const articlePage of articlePages) {
+  const articlePages = htmlFiles
+    .map((file, index) => ({ file, html: htmlSources[index] }))
+    .filter(({ file, html }) =>
+      path.relative(distRoot, file).startsWith(`articles${path.sep}`) &&
+      html.includes('<meta property="og:type" content="article">'));
+  log("info", "verify-build", "article-pages-detected", { count: articlePages.length });
+  for (const { html: articlePage } of articlePages) {
     invariant(articlePage.includes('src="https://utteranc.es/client.js"'), "Published article is missing utterances comments");
     invariant(articlePage.includes('repo="ThinkerQAQ/ThinkerQAQ.github.io"'), "Utterances repository mismatch");
     invariant(articlePage.includes('issue-term="pathname"'), "Utterances must map comments by pathname");
@@ -165,6 +170,58 @@ async function main() {
   }
   invariant(missingRoutes.length === 0, `Missing note routes: ${missingRoutes.slice(0, 5).join(", ")}`);
   invariant(sitemapErrors.length === 0, `Sitemap policy mismatch: ${sitemapErrors.slice(0, 5).join(", ")}`);
+
+  const notesByCategory = new Map();
+  for (const entry of manifest.entries) {
+    const entries = notesByCategory.get(entry.category) ?? [];
+    entries.push(entry);
+    notesByCategory.set(entry.category, entries);
+  }
+  let noteCategoryPages = 0;
+  for (const [category, entries] of notesByCategory) {
+    const orders = entries.map((entry) => entry.order);
+    invariant(
+      orders.every((order) => Number.isInteger(order) && order > 0),
+      `Invalid note order in category: ${category}`,
+    );
+    invariant(new Set(orders).size === orders.length, `Duplicate note order in category: ${category}`);
+    const firstPageRoute = `/notes/category/${encodeURIComponent(category)}/`;
+    invariant(await exists(routeFile(firstPageRoute)), `Note category first page missing: ${firstPageRoute}`);
+    const listedRoutes = new Set();
+    const listedRouteOrder = [];
+    let page = 1;
+    while (page <= entries.length) {
+      const route = page === 1 ? firstPageRoute : `${firstPageRoute}page/${page}/`;
+      if (!(await exists(routeFile(route)))) break;
+      const html = await readFile(routeFile(route), "utf8");
+      const list = html.match(/<ol class="content-list">([\s\S]*?)<\/ol>/)?.[1] ?? "";
+      for (const match of list.matchAll(/href="(\/notes\/[^"#?]+\/)"/g)) {
+        const noteRoute = decodeURI(match[1]);
+        invariant(!listedRoutes.has(noteRoute), `Duplicate note across category pages: ${noteRoute}`);
+        listedRoutes.add(noteRoute);
+        listedRouteOrder.push(noteRoute);
+      }
+      if (page > 1) invariant(html.includes("笔记分页"), `Note pagination missing: ${route}`);
+      page += 1;
+    }
+    const expectedRoutes = new Set(entries.map((entry) => entry.route));
+    invariant(
+      listedRoutes.size === expectedRoutes.size && [...expectedRoutes].every((route) => listedRoutes.has(route)),
+      `Note category pagination coverage mismatch: ${category}`,
+    );
+    const expectedRouteOrder = [...entries]
+      .sort((left, right) => left.order - right.order)
+      .map((entry) => entry.route);
+    invariant(
+      listedRouteOrder.every((route, index) => route === expectedRouteOrder[index]),
+      `Note category order mismatch: ${category}`,
+    );
+    noteCategoryPages += page - 1;
+  }
+  log("info", "verify-build", "note-category-pages-checked", {
+    categories: notesByCategory.size,
+    pages: noteCategoryPages,
+  });
 
   const forbiddenSegments = [...NEVER_PUBLISH].map((value) => encodeURIComponent(value).toLowerCase());
   const brokenTargets = new Set();

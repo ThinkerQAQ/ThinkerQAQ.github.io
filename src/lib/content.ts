@@ -74,10 +74,8 @@ export function getArticleSeriesNavigation(
   };
 }
 
-export function sortByUpdated(notes: NoteEntry[]): NoteEntry[] {
-  return [...notes].sort(
-    (left, right) => right.data.updatedAt.getTime() - left.data.updatedAt.getTime(),
-  );
+export function sortNotes(notes: NoteEntry[]): NoteEntry[] {
+  return [...notes].sort((left, right) => left.data.order - right.data.order);
 }
 
 export function sortArticles(articles: ArticleEntry[]): ArticleEntry[] {
@@ -111,7 +109,7 @@ export function groupByCategory(notes: NoteEntry[]) {
     .map(([category, entries]) => ({
       category,
       label: entries[0]?.data.categoryLabel ?? category,
-      entries: sortByUpdated(entries),
+      entries: sortNotes(entries),
     }))
     .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
 }

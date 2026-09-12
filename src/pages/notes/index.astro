@@ -19,15 +19,17 @@ const categories = groupByCategory(notes);
         <section>
           <div class="category-title">
             <h2><a href={categoryHref(group.category)}>{group.label}</a></h2>
-            <span>{group.entries.length} 篇</span>
           </div>
-          <ul>
+          <p class="category-preview-label">{group.entries.length > 5 ? "最近更新" : "全部笔记"}</p>
+          <ul aria-label={`${group.label}${group.entries.length > 5 ? "最近更新" : "全部笔记"}`}>
             {group.entries.slice(0, 5).map((note) => (
               <li><a href={`/notes/${note.id}/`}>{note.data.title}</a></li>
             ))}
           </ul>
           {group.entries.length > 5 && (
-            <a class="more-link" href={categoryHref(group.category)}>查看全部 →</a>
+            <a class="more-link category-more-link" href={categoryHref(group.category)}>
+              查看 {group.label} 的全部 {group.entries.length} 篇笔记 →
+            </a>
           )}
         </section>
       ))}

@@ -85,6 +85,16 @@ indexable: true
 
 笔记目前没有 `draft` 状态：只要 Push 到 `master` 就会参与线上构建。尚未完成的笔记不要提交，或者暂时保留在本地。
 
+#### 导入历史 VNote 笔记
+
+当前导入策略只允许 `Java/JUC` 来源，并输出到 `src/content/notes/java-juc/`；导入器只重建自己管理的子目录，不会清空其他 Notes，也不会修改 Articles。重复运行下面的命令会按来源路径覆盖同一批笔记，不会产生重复内容：
+
+```powershell
+npm run sync:notes
+```
+
+导入内容会保留 VNote 元数据中的创建和修改时间，标记为 `historical`，并迁移范围内的相对链接与安全附件。疑似公司内部、隐私或凭据内容会被保守排除，并在结构化导入日志中记录原因。
+
 ### 3.3 把文章或笔记加入系列
 
 系列文件放在 `src/content/series/`。例如要创建 `concurrency-programming` 系列，新建 `src/content/series/concurrency-programming.md`：

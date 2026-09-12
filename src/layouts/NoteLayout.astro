@@ -23,6 +23,7 @@ const schema = {
   "@type": "TechArticle",
   headline: data.title,
   description: data.description,
+  ...(data.createdAt ? { dateCreated: data.createdAt.toISOString() } : {}),
   dateModified: data.updatedAt.toISOString(),
   author: { "@type": "Person", name: SITE.author },
   inLanguage: data.language === "en" ? "en" : "zh-CN",
@@ -52,7 +53,9 @@ const schema = {
         {data.description && <p class="note-description">{data.description}</p>}
         <div class="note-meta">
           <span data-pagefind-filter="category">{data.categoryLabel}</span>
+          {data.createdAt && <span>创建于 <time datetime={data.createdAt.toISOString()}>{formatDate(data.createdAt)}</time></span>}
           <span>更新于 <time datetime={data.updatedAt.toISOString()}>{formatDate(data.updatedAt)}</time></span>
+          {data.status === "historical" && <span class="historical-badge">historical</span>}
           {!data.indexable && !data.canonicalPath && <span>整理中</span>}
         </div>
         {data.tags.length > 0 && (
@@ -62,6 +65,9 @@ const schema = {
         )}
       </header>
 
+      {data.status === "historical" && (
+        <p class="historical-note">这是历史学习笔记，可能存在过时或不完整的理解。</p>
+      )}
       {data.canonicalPath && <p class="source-note">这份笔记已有独立维护的<a href={data.canonicalPath}>文章版</a>。这里保留原始学习记录。</p>}
       <div class="prose">
         <slot />

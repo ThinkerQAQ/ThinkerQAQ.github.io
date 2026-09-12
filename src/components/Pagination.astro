@@ -3,6 +3,8 @@ interface Props {
   currentPage: number;
   lastPage: number;
   firstPageUrl?: string;
+  pageUrlPrefix?: string;
+  ariaLabel?: string;
   nextUrl?: string;
   prevUrl?: string;
 }
@@ -15,12 +17,14 @@ const {
   currentPage,
   lastPage,
   firstPageUrl = "/articles/",
+  pageUrlPrefix = "/articles/page/",
+  ariaLabel = "文章分页",
   nextUrl,
   prevUrl,
 } = Astro.props;
 
 function pageUrl(page: number): string {
-  return page === 1 ? firstPageUrl : `/articles/page/${page}/`;
+  return page === 1 ? firstPageUrl : `${pageUrlPrefix}${page}/`;
 }
 
 function paginationItems(): PaginationItem[] {
@@ -45,7 +49,7 @@ const items = paginationItems();
 ---
 
 {lastPage > 1 && (
-  <nav class="pagination" aria-label="文章分页">
+  <nav class="pagination" aria-label={ariaLabel}>
     {prevUrl ? (
       <a class="pagination-direction" href={prevUrl} rel="prev">← 上一页</a>
     ) : (

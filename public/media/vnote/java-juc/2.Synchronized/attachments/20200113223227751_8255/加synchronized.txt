@@ -1,0 +1,365 @@
+CompilerOracle: print *TestSynchronized.test
+Compiled method (c1)    1321 1653   !   3       com.zsk.test.TestSynchronized::test (24 bytes)
+ total in heap  [0x0000000003325250,0x0000000003325758] = 1288
+ relocation     [0x0000000003325370,0x00000000033253a8] = 56
+ main code      [0x00000000033253c0,0x00000000033255a0] = 480
+ stub code      [0x00000000033255a0,0x0000000003325630] = 144
+ oops           [0x0000000003325630,0x0000000003325640] = 16
+ metadata       [0x0000000003325640,0x0000000003325648] = 8
+ scopes data    [0x0000000003325648,0x0000000003325690] = 72
+ scopes pcs     [0x0000000003325690,0x0000000003325740] = 176
+ dependencies   [0x0000000003325740,0x0000000003325748] = 8
+ nul chk table  [0x0000000003325748,0x0000000003325758] = 16
+Loaded disassembler from C:\software\Java8\jre\bin\server\hsdis-amd64.dll
+Decoding compiled method 0x0000000003325250:
+Code:
+[Disassembling for mach='i386:x86-64']
+[Entry Point]
+[Verified Entry Point]
+[Constants]
+  # {method} {0x0000000017662b50} 'test' '()V' in 'com/zsk/test/TestSynchronized'
+  #           [sp+0x50]  (sp of caller)
+  0x00000000033253c0: mov    %eax,-0x6000(%rsp)
+  0x00000000033253c7: push   %rbp
+  0x00000000033253c8: sub    $0x40,%rsp
+  0x00000000033253cc: movabs $0x17663028,%rax   ;   {metadata(method data for {method} {0x0000000017662b50} 'test' '()V' in 'com/zsk/test/TestSynchronized')}
+  0x00000000033253d6: mov    0xdc(%rax),%esi
+  0x00000000033253dc: add    $0x8,%esi
+  0x00000000033253df: mov    %esi,0xdc(%rax)
+  0x00000000033253e5: movabs $0x17662b48,%rax   ;   {metadata({method} {0x0000000017662b50} 'test' '()V' in 'com/zsk/test/TestSynchronized')}
+  0x00000000033253ef: and    $0x0,%esi
+  0x00000000033253f2: cmp    $0x0,%esi
+  0x00000000033253f5: je     0x000000000332552a  ;*ldc
+                                                ; - com.zsk.test.TestSynchronized::test@0 (line 13)
+
+  0x00000000033253fb: movabs $0xd64d34d8,%rsi   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003325405: lea    0x20(%rsp),%rdi
+  0x000000000332540a: mov    %rsi,0x8(%rdi)
+  0x000000000332540e: mov    (%rsi),%rax        ; implicit exception: dispatches to 0x0000000003325541
+  0x0000000003325411: mov    %rax,%rbx
+  0x0000000003325414: and    $0x7,%rbx
+  0x0000000003325418: cmp    $0x5,%rbx
+  0x000000000332541c: jne    0x00000000033254a3
+  0x0000000003325422: mov    0x8(%rsi),%ebx
+  0x0000000003325425: shl    $0x3,%rbx
+  0x0000000003325429: mov    0xa8(%rbx),%rbx
+  0x0000000003325430: or     %r15,%rbx
+  0x0000000003325433: xor    %rax,%rbx
+  0x0000000003325436: and    $0xffffffffffffff87,%rbx
+  0x000000000332543a: je     0x00000000033254cb
+  0x0000000003325440: test   $0x7,%rbx
+  0x0000000003325447: jne    0x0000000003325490
+  0x0000000003325449: test   $0x300,%rbx
+  0x0000000003325450: jne    0x000000000332546f
+  0x0000000003325452: and    $0x37f,%rax
+  0x0000000003325459: mov    %rax,%rbx
+  0x000000000332545c: or     %r15,%rbx
+  0x000000000332545f: lock cmpxchg %rbx,(%rsi)
+  0x0000000003325464: jne    0x0000000003325546
+  0x000000000332546a: jmpq   0x00000000033254cb
+  0x000000000332546f: mov    0x8(%rsi),%ebx
+  0x0000000003325472: shl    $0x3,%rbx
+  0x0000000003325476: mov    0xa8(%rbx),%rbx
+  0x000000000332547d: or     %r15,%rbx
+  0x0000000003325480: lock cmpxchg %rbx,(%rsi)
+  0x0000000003325485: jne    0x0000000003325546
+  0x000000000332548b: jmpq   0x00000000033254cb
+  0x0000000003325490: mov    0x8(%rsi),%ebx
+  0x0000000003325493: shl    $0x3,%rbx
+  0x0000000003325497: mov    0xa8(%rbx),%rbx
+  0x000000000332549e: lock cmpxchg %rbx,(%rsi)
+  0x00000000033254a3: mov    (%rsi),%rax
+  0x00000000033254a6: or     $0x1,%rax
+  0x00000000033254aa: mov    %rax,(%rdi)
+  0x00000000033254ad: lock cmpxchg %rdi,(%rsi)
+  0x00000000033254b2: je     0x00000000033254cb
+  0x00000000033254b8: sub    %rsp,%rax
+  0x00000000033254bb: and    $0xfffffffffffff007,%rax
+  0x00000000033254c2: mov    %rax,(%rdi)
+  0x00000000033254c5: jne    0x0000000003325546  ;*monitorenter
+                                                ; - com.zsk.test.TestSynchronized::test@4 (line 13)
+
+  0x00000000033254cb: movabs $0xd64d34d8,%rax   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x00000000033254d5: mov    0x68(%rax),%esi    ;*getstatic i
+                                                ; - com.zsk.test.TestSynchronized::test@5 (line 15)
+
+  0x00000000033254d8: inc    %esi
+  0x00000000033254da: mov    %esi,0x68(%rax)    ;*putstatic i
+                                                ; - com.zsk.test.TestSynchronized::test@10 (line 15)
+
+  0x00000000033254dd: lea    0x20(%rsp),%rax
+  0x00000000033254e2: mov    0x8(%rax),%rdi
+  0x00000000033254e6: mov    (%rdi),%rsi
+  0x00000000033254e9: and    $0x7,%rsi
+  0x00000000033254ed: cmp    $0x5,%rsi
+  0x00000000033254f1: je     0x000000000332550e
+  0x00000000033254f7: mov    (%rax),%rsi
+  0x00000000033254fa: test   %rsi,%rsi
+  0x00000000033254fd: je     0x000000000332550e
+  0x0000000003325503: lock cmpxchg %rsi,(%rdi)
+  0x0000000003325508: jne    0x0000000003325559  ;*monitorexit
+                                                ; - com.zsk.test.TestSynchronized::test@14 (line 16)
+
+  0x000000000332550e: movabs $0x17663028,%rsi   ;   {metadata(method data for {method} {0x0000000017662b50} 'test' '()V' in 'com/zsk/test/TestSynchronized')}
+  0x0000000003325518: incl   0x108(%rsi)        ;*goto
+                                                ; - com.zsk.test.TestSynchronized::test@15 (line 16)
+
+  0x000000000332551e: add    $0x40,%rsp
+  0x0000000003325522: pop    %rbp
+  0x0000000003325523: test   %eax,-0x2b35429(%rip)        # 0x00000000007f0100
+                                                ;   {poll_return}
+  0x0000000003325529: retq   
+  0x000000000332552a: mov    %rax,0x8(%rsp)
+  0x000000000332552f: movq   $0xffffffffffffffff,(%rsp)
+  0x0000000003325537: callq  0x0000000003041560  ; OopMap{off=380}
+                                                ;*synchronization entry
+                                                ; - com.zsk.test.TestSynchronized::test@-1 (line 13)
+                                                ;   {runtime_call}
+  0x000000000332553c: jmpq   0x00000000033253fb
+  0x0000000003325541: callq  0x000000000303cb80  ; OopMap{rsi=Oop off=390}
+                                                ;*monitorenter
+                                                ; - com.zsk.test.TestSynchronized::test@4 (line 13)
+                                                ;   {runtime_call}
+  0x0000000003325546: mov    %rsi,0x8(%rsp)
+  0x000000000332554b: mov    %rdi,(%rsp)
+  0x000000000332554f: callq  0x000000000303f660  ; OopMap{rsi=Oop [40]=Oop off=404}
+                                                ;*monitorenter
+                                                ; - com.zsk.test.TestSynchronized::test@4 (line 13)
+                                                ;   {runtime_call}
+  0x0000000003325554: jmpq   0x00000000033254cb
+  0x0000000003325559: lea    0x20(%rsp),%rax
+  0x000000000332555e: mov    %rax,(%rsp)
+  0x0000000003325562: callq  0x000000000303faa0  ;   {runtime_call}
+  0x0000000003325567: jmp    0x000000000332550e
+  0x0000000003325569: nop
+  0x000000000332556a: nop
+  0x000000000332556b: mov    0x2a8(%r15),%rax
+  0x0000000003325572: movabs $0x0,%r10
+  0x000000000332557c: mov    %r10,0x2a8(%r15)
+  0x0000000003325583: movabs $0x0,%r10
+  0x000000000332558d: mov    %r10,0x2b0(%r15)
+  0x0000000003325594: add    $0x40,%rsp
+  0x0000000003325598: pop    %rbp
+  0x0000000003325599: jmpq   0x0000000002faf5a0  ;   {runtime_call}
+  0x000000000332559e: hlt    
+  0x000000000332559f: hlt    
+[Exception Handler]
+[Stub Code]
+  0x00000000033255a0: callq  0x000000000303eb20  ;   {no_reloc}
+  0x00000000033255a5: mov    %rsp,-0x28(%rsp)
+  0x00000000033255aa: sub    $0x80,%rsp
+  0x00000000033255b1: mov    %rax,0x78(%rsp)
+  0x00000000033255b6: mov    %rcx,0x70(%rsp)
+  0x00000000033255bb: mov    %rdx,0x68(%rsp)
+  0x00000000033255c0: mov    %rbx,0x60(%rsp)
+  0x00000000033255c5: mov    %rbp,0x50(%rsp)
+  0x00000000033255ca: mov    %rsi,0x48(%rsp)
+  0x00000000033255cf: mov    %rdi,0x40(%rsp)
+  0x00000000033255d4: mov    %r8,0x38(%rsp)
+  0x00000000033255d9: mov    %r9,0x30(%rsp)
+  0x00000000033255de: mov    %r10,0x28(%rsp)
+  0x00000000033255e3: mov    %r11,0x20(%rsp)
+  0x00000000033255e8: mov    %r12,0x18(%rsp)
+  0x00000000033255ed: mov    %r13,0x10(%rsp)
+  0x00000000033255f2: mov    %r14,0x8(%rsp)
+  0x00000000033255f7: mov    %r15,(%rsp)
+  0x00000000033255fb: movabs $0x606e1820,%rcx   ;   {external_word}
+  0x0000000003325605: movabs $0x33255a5,%rdx    ;   {internal_word}
+  0x000000000332560f: mov    %rsp,%r8
+  0x0000000003325612: and    $0xfffffffffffffff0,%rsp
+  0x0000000003325616: callq  0x0000000060396f40  ;   {runtime_call}
+  0x000000000332561b: hlt    
+[Deopt Handler Code]
+  0x000000000332561c: movabs $0x332561c,%r10    ;   {section_word}
+  0x0000000003325626: push   %r10
+  0x0000000003325628: jmpq   0x0000000002f87600  ;   {runtime_call}
+  0x000000000332562d: hlt    
+  0x000000000332562e: hlt    
+  0x000000000332562f: hlt    
+OopMapSet contains 3 OopMaps
+
+#0 
+OopMap{off=380}
+#1 
+OopMap{rsi=Oop off=390}
+#2 
+OopMap{rsi=Oop [40]=Oop off=404}
+Compiled method (c2)    1426 1654   !   4       com.zsk.test.TestSynchronized::test (24 bytes)
+ total in heap  [0x0000000003324910,0x0000000003324d68] = 1112
+ relocation     [0x0000000003324a30,0x0000000003324a50] = 32
+ main code      [0x0000000003324a60,0x0000000003324c80] = 544
+ stub code      [0x0000000003324c80,0x0000000003324c98] = 24
+ oops           [0x0000000003324c98,0x0000000003324ca8] = 16
+ metadata       [0x0000000003324ca8,0x0000000003324cb8] = 16
+ scopes data    [0x0000000003324cb8,0x0000000003324ce0] = 40
+ scopes pcs     [0x0000000003324ce0,0x0000000003324d60] = 128
+ dependencies   [0x0000000003324d60,0x0000000003324d68] = 8
+Decoding compiled method 0x0000000003324910:
+Code:
+[Entry Point]
+[Verified Entry Point]
+[Constants]
+  # {method} {0x0000000017662b50} 'test' '()V' in 'com/zsk/test/TestSynchronized'
+  #           [sp+0x40]  (sp of caller)
+  0x0000000003324a60: mov    %eax,-0x6000(%rsp)
+  0x0000000003324a67: push   %rbp
+  0x0000000003324a68: sub    $0x30,%rsp         ;*synchronization entry
+                                                ; - com.zsk.test.TestSynchronized::test@-1 (line 13)
+
+  0x0000000003324a6c: movabs $0xd64d34d8,%r10   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324a76: mov    (%r10),%rax
+  0x0000000003324a79: mov    %rax,%r10
+  0x0000000003324a7c: and    $0x7,%r10
+  0x0000000003324a80: cmp    $0x5,%r10
+  0x0000000003324a84: jne    0x0000000003324b00
+  0x0000000003324a86: mov    $0x200003df,%r11d  ;   {metadata('java/lang/Class')}
+  0x0000000003324a8c: movabs $0x0,%r10
+  0x0000000003324a96: lea    (%r10,%r11,8),%r10
+  0x0000000003324a9a: mov    0xa8(%r10),%r10
+  0x0000000003324aa1: mov    %r10,%r11
+  0x0000000003324aa4: or     %r15,%r11
+  0x0000000003324aa7: mov    %r11,%r8
+  0x0000000003324aaa: xor    %rax,%r8
+  0x0000000003324aad: test   $0xffffffffffffff87,%r8
+  0x0000000003324ab4: jne    0x0000000003324c26  ;*monitorenter
+                                                ; - com.zsk.test.TestSynchronized::test@4 (line 13)
+
+  0x0000000003324aba: movabs $0xd64d34d8,%r10   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324ac4: incl   0x68(%r10)
+  0x0000000003324ac8: mov    $0x7,%r10d
+  0x0000000003324ace: movabs $0xd64d34d8,%r11   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324ad8: and    (%r11),%r10
+  0x0000000003324adb: cmp    $0x5,%r10
+  0x0000000003324adf: jne    0x0000000003324b79  ;*monitorexit
+                                                ; - com.zsk.test.TestSynchronized::test@14 (line 16)
+
+  0x0000000003324ae5: add    $0x30,%rsp
+  0x0000000003324ae9: pop    %rbp
+  0x0000000003324aea: test   %eax,-0x2b34af0(%rip)        # 0x00000000007f0000
+                                                ;   {poll_return}
+  0x0000000003324af0: retq   
+  0x0000000003324af1: movabs $0xd64d34d8,%r11   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324afb: lock cmpxchg %r10,(%r11)
+  0x0000000003324b00: movabs $0xd64d34d8,%r11   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324b0a: lea    0x20(%rsp),%rbx
+  0x0000000003324b0f: mov    (%r11),%rax
+  0x0000000003324b12: test   $0x2,%rax
+  0x0000000003324b18: jne    0x0000000003324b3e
+  0x0000000003324b1a: or     $0x1,%rax
+  0x0000000003324b1e: mov    %rax,(%rbx)
+  0x0000000003324b21: lock cmpxchg %rbx,(%r11)
+  0x0000000003324b26: je     0x0000000003324b57
+  0x0000000003324b2c: sub    %rsp,%rax
+  0x0000000003324b2f: and    $0xfffffffffffff007,%rax
+  0x0000000003324b36: mov    %rax,(%rbx)
+  0x0000000003324b39: jmpq   0x0000000003324b57
+  0x0000000003324b3e: movq   $0x3,(%rbx)
+  0x0000000003324b45: mov    %rax,%rbx
+  0x0000000003324b48: mov    0x16(%rbx),%rax
+  0x0000000003324b4c: test   %rax,%rax
+  0x0000000003324b4f: jne    0x0000000003324b57
+  0x0000000003324b51: lock cmpxchg %r15,0x16(%rbx)
+  0x0000000003324b57: je     0x0000000003324aba
+  0x0000000003324b5d: movabs $0xd64d34d8,%rdx   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324b67: lea    0x20(%rsp),%r8
+  0x0000000003324b6c: data16 xchg %ax,%ax
+  0x0000000003324b6f: callq  0x0000000003041c20  ; OopMap{off=276}
+                                                ;*monitorenter
+                                                ; - com.zsk.test.TestSynchronized::test@4 (line 13)
+                                                ;   {runtime_call}
+  0x0000000003324b74: jmpq   0x0000000003324aba
+  0x0000000003324b79: lea    0x20(%rsp),%rax
+  0x0000000003324b7e: cmpq   $0x0,(%rax)
+  0x0000000003324b85: je     0x0000000003324bff
+  0x0000000003324b8b: mov    (%r11),%r10
+  0x0000000003324b8e: test   $0x2,%r10
+  0x0000000003324b95: je     0x0000000003324bf7
+  0x0000000003324b97: mov    0x16(%r10),%rax
+  0x0000000003324b9b: xor    %r15,%rax
+  0x0000000003324b9e: or     0x26(%r10),%rax
+  0x0000000003324ba2: jne    0x0000000003324bff
+  0x0000000003324ba4: mov    0x36(%r10),%rax
+  0x0000000003324ba8: or     0x3e(%r10),%rax
+  0x0000000003324bac: jne    0x0000000003324bb8
+  0x0000000003324bae: movq   $0x0,0x16(%r10)
+  0x0000000003324bb6: jmp    0x0000000003324bff
+  0x0000000003324bb8: cmpq   $0x0,0x46(%r10)
+  0x0000000003324bc0: je     0x0000000003324beb
+  0x0000000003324bc2: movq   $0x0,0x16(%r10)
+  0x0000000003324bca: lock addl $0x0,(%rsp)
+  0x0000000003324bcf: cmpq   $0x0,0x46(%r10)
+  0x0000000003324bd7: jne    0x0000000003324bf0
+  0x0000000003324bd9: movabs $0x0,%rax
+  0x0000000003324be3: lock cmpxchg %r15,0x16(%r10)
+  0x0000000003324be9: jne    0x0000000003324bf0
+  0x0000000003324beb: or     $0x1,%eax
+  0x0000000003324bee: jmp    0x0000000003324bff
+  0x0000000003324bf0: test   $0x0,%eax
+  0x0000000003324bf5: jmp    0x0000000003324bff
+  0x0000000003324bf7: mov    (%rax),%r10
+  0x0000000003324bfa: lock cmpxchg %r10,(%r11)
+  0x0000000003324bff: je     0x0000000003324ae5
+  0x0000000003324c05: movabs $0xd64d34d8,%rcx   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324c0f: lea    0x20(%rsp),%rdx    ;*monitorenter
+                                                ; - com.zsk.test.TestSynchronized::test@4 (line 13)
+
+  0x0000000003324c14: movabs $0x602ce010,%r10
+  0x0000000003324c1e: callq  *%r10              ;*monitorexit
+                                                ; - com.zsk.test.TestSynchronized::test@14 (line 16)
+
+  0x0000000003324c21: jmpq   0x0000000003324ae5
+  0x0000000003324c26: test   $0x7,%r8
+  0x0000000003324c2d: jne    0x0000000003324af1
+  0x0000000003324c33: test   $0x300,%r8
+  0x0000000003324c3a: jne    0x0000000003324c49
+  0x0000000003324c3c: and    $0x37f,%rax
+  0x0000000003324c43: mov    %rax,%r11
+  0x0000000003324c46: or     %r15,%r11
+  0x0000000003324c49: movabs $0xd64d34d8,%r10   ;   {oop(a 'java/lang/Class' = 'com/zsk/test/TestSynchronized')}
+  0x0000000003324c53: lock cmpxchg %r11,(%r10)
+  0x0000000003324c58: jne    0x0000000003324b5d
+  0x0000000003324c5e: jmpq   0x0000000003324aba
+  0x0000000003324c63: hlt    
+  0x0000000003324c64: hlt    
+  0x0000000003324c65: hlt    
+  0x0000000003324c66: hlt    
+  0x0000000003324c67: hlt    
+  0x0000000003324c68: hlt    
+  0x0000000003324c69: hlt    
+  0x0000000003324c6a: hlt    
+  0x0000000003324c6b: hlt    
+  0x0000000003324c6c: hlt    
+  0x0000000003324c6d: hlt    
+  0x0000000003324c6e: hlt    
+  0x0000000003324c6f: hlt    
+  0x0000000003324c70: hlt    
+  0x0000000003324c71: hlt    
+  0x0000000003324c72: hlt    
+  0x0000000003324c73: hlt    
+  0x0000000003324c74: hlt    
+  0x0000000003324c75: hlt    
+  0x0000000003324c76: hlt    
+  0x0000000003324c77: hlt    
+  0x0000000003324c78: hlt    
+  0x0000000003324c79: hlt    
+  0x0000000003324c7a: hlt    
+  0x0000000003324c7b: hlt    
+  0x0000000003324c7c: hlt    
+  0x0000000003324c7d: hlt    
+  0x0000000003324c7e: hlt    
+  0x0000000003324c7f: hlt    
+[Exception Handler]
+[Stub Code]
+  0x0000000003324c80: jmpq   0x0000000002faf8a0  ;   {no_reloc}
+[Deopt Handler Code]
+  0x0000000003324c85: callq  0x0000000003324c8a
+  0x0000000003324c8a: subq   $0x5,(%rsp)
+  0x0000000003324c8f: jmpq   0x0000000002f87600  ;   {runtime_call}
+  0x0000000003324c94: hlt    
+  0x0000000003324c95: hlt    
+  0x0000000003324c96: hlt    
+  0x0000000003324c97: hlt    
+OopMapSet contains 1 OopMaps
+
+#0 
+OopMap{off=276}

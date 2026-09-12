@@ -11,10 +11,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CATEGORY_LABELS,
+  EXCLUDED_NOTE_PATHS,
   IMPORT_ENABLED,
-  FEATURED_PATHS,
   NEVER_PUBLISH,
-  PROMOTED_ARTICLES,
   PUBLIC_NOTEBOOKS,
 } from "./content-policy.mjs";
 
@@ -24,79 +23,90 @@ const repositoryRoot = path.resolve(scriptDir, "..");
 const sourceRoot = path.resolve(
   process.env.VNOTE_SOURCE ?? "C:\\software\\Others\\Sync\\Notes\\vnotes",
 );
-const outputRoot = path.resolve(repositoryRoot, "src", "content", "notes");
-const mediaRoot = path.resolve(repositoryRoot, "public", "media");
-const manifestPath = path.resolve(
-  repositoryRoot,
-  "src",
-  "data",
-  "content-manifest.json",
-);
+const notesRoot = path.join(repositoryRoot, "src", "content", "notes");
+const mediaRoot = path.join(repositoryRoot, "public", "media", "vnote");
+const manifestPath = path.join(repositoryRoot, "src", "data", "content-manifest.json");
 
-const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]);
-const PUBLIC_NOTEBOOK_SET = new Set(PUBLIC_NOTEBOOKS);
-const PUBLIC_SOURCE_FILES = new Set();
-const PROMOTED_BY_SOURCE = new Map(
-  PROMOTED_ARTICLES.map((article) => [article.sourcePath, article]),
-);
-let sanitizedPrivateLinks = 0;
-let sanitizedBrokenLinks = 0;
+const IMPORTS = PUBLIC_NOTEBOOKS.map((sourcePath) => ({
+  sourcePath,
+  importId: sourcePath.toLowerCase().replaceAll("/", "-"),
+  outputPath: sourcePath.toLowerCase().replaceAll("/", "-"),
+  category: sourcePath.toLowerCase().replaceAll("/", "-"),
+  categoryLabel: CATEGORY_LABELS[sourcePath] ?? sourcePath,
+  tags: sourcePath.split("/"),
+}));
+const ASSET_EXTENSIONS = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".txt", ".pdf", ".zip", ".7z",
+]);
+const BLOCKED_PATH_SEGMENTS = new Set([
+  ...NEVER_PUBLISH,
+  "internal",
+  "private",
+  "privacy",
+  "secret",
+  "secrets",
+  "credential",
+  "credentials",
+]);
+const SENSITIVE_CONTENT_PATTERNS = [
+  { reason: "private-key", pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i },
+  { reason: "aws-access-key", pattern: /\bAKIA[0-9A-Z]{16}\b/ },
+  {
+    reason: "credential-assignment",
+    pattern: /\b(?:password|passwd|pwd|secret|token|access[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9_./+=-]{12,}/i,
+  },
+  { reason: "private-network-address", pattern: /\b(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})\b/ },
+  { reason: "email-address", pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i },
+  { reason: "mainland-phone-number", pattern: /(?<!\d)1[3-9]\d{9}(?!\d)/ },
+  { reason: "mainland-id-number", pattern: /(?<!\d)\d{17}[\dXx](?!\d)/ },
+];
+
+let rewrittenLinks = 0;
+let sanitizedLinks = 0;
+let removedTocMarkers = 0;
 
 function log(severity, operation, status, details = {}) {
-  console.log(
-    JSON.stringify({
-      timestamp: new Date().toISOString(),
-      severity,
-      operation,
-      status,
-      ...details,
-    }),
-  );
-}
-
-function assertGeneratedPath(target, expectedSuffix) {
-  const relative = path.relative(repositoryRoot, target);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`Refusing to write outside repository: ${target}`);
-  }
-  if (!target.replaceAll("\\", "/").endsWith(expectedSuffix)) {
-    throw new Error(`Unexpected generated path: ${target}`);
-  }
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    severity,
+    operation,
+    status,
+    durationMs: Date.now() - startedAt,
+    ...details,
+  }));
 }
 
 function toPosix(value) {
   return value.split(path.sep).join("/");
 }
 
-function isPublicRelativePath(relativePath) {
-  const normalized = toPosix(relativePath);
-  return !normalized.startsWith("../") && PUBLIC_NOTEBOOK_SET.has(normalized.split("/")[0]);
-}
-
-function isPublishableTarget(relativePath) {
-  if (!isPublicRelativePath(relativePath)) {
-    sanitizedPrivateLinks += 1;
-    return false;
-  }
-  if (!PUBLIC_SOURCE_FILES.has(toPosix(relativePath))) {
-    sanitizedBrokenLinks += 1;
-    return false;
-  }
-  return true;
-}
-
 function yamlString(value) {
   return JSON.stringify(value);
 }
 
-function routeFor(relativePath) {
-  const withoutExtension = relativePath.replace(/\.md$/i, "");
-  return `/notes/${toPosix(withoutExtension)}/`;
+function isInside(root, target) {
+  const relative = path.relative(root, target);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function assertManagedPath(root, target) {
+  if (!isInside(root, target)) throw new Error(`Refusing to manage path outside ${root}: ${target}`);
+}
+
+function blockedPath(relativePath) {
+  return toPosix(relativePath)
+    .split("/")
+    .some((segment) => BLOCKED_PATH_SEGMENTS.has(segment.toLowerCase()) || BLOCKED_PATH_SEGMENTS.has(segment));
+}
+
+function sensitiveReason(markdown) {
+  return SENSITIVE_CONTENT_PATTERNS.find(({ pattern }) => pattern.test(markdown))?.reason;
 }
 
 function plainText(markdown) {
   return markdown
     .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^\s*\[toc\]\s*$/gim, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/^#{1,6}\s+/gm, "")
@@ -107,78 +117,8 @@ function plainText(markdown) {
 
 function descriptionFor(markdown, title) {
   const text = plainText(markdown);
-  const withoutRepeatedTitle = text.startsWith(title)
-    ? text.slice(title.length).trim()
-    : text;
-  return (withoutRepeatedTitle || `${title}的技术学习笔记`).slice(0, 150);
-}
-
-function localTargetParts(rawTarget) {
-  const hashIndex = rawTarget.indexOf("#");
-  const target = hashIndex >= 0 ? rawTarget.slice(0, hashIndex) : rawTarget;
-  const hash = hashIndex >= 0 ? rawTarget.slice(hashIndex) : "";
-  return { target: decodeURIComponent(target), hash };
-}
-
-function transformInlineMarkdown(line, sourceFile) {
-  let result = line.replace(
-    /!\[([^\]]*)\]\(([^)\s]+)\s+=\d+(?:x\d*)?\)/g,
-    "![$1]($2)",
-  );
-
-  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, rawTarget) => {
-    const trimmed = rawTarget.trim();
-    if (/^(?:https?:)?\/\//i.test(trimmed) || trimmed.startsWith("data:")) {
-      return match;
-    }
-    const { target } = localTargetParts(trimmed);
-    const absoluteTarget = path.resolve(path.dirname(sourceFile), target);
-    const relativeTarget = toPosix(path.relative(sourceRoot, absoluteTarget));
-    if (!isPublishableTarget(relativeTarget)) return alt || "图片未公开";
-    return `![${alt}](/media/${encodeURI(relativeTarget)})`;
-  });
-
-  result = result.replace(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g, (match, label, rawTarget) => {
-    const trimmed = rawTarget.trim();
-    if (/^(?:https?:)?\/\//i.test(trimmed) || trimmed.startsWith("mailto:")) {
-      return match;
-    }
-
-    const { target, hash } = localTargetParts(trimmed.replace(/^#!/, ""));
-    if (/\.md$/i.test(target)) {
-      const absoluteTarget = path.resolve(path.dirname(sourceFile), target);
-      const relativeTarget = toPosix(path.relative(sourceRoot, absoluteTarget));
-      if (!isPublishableTarget(relativeTarget)) return label;
-      return `[${label}](${encodeURI(routeFor(relativeTarget))}${hash})`;
-    }
-
-    const absoluteTarget = path.resolve(path.dirname(sourceFile), target);
-    const relativeTarget = toPosix(path.relative(sourceRoot, absoluteTarget));
-    if (!isPublishableTarget(relativeTarget) || !IMAGE_EXTENSIONS.has(path.extname(relativeTarget).toLowerCase())) {
-      return label;
-    }
-    return `[${label}](/media/${encodeURI(relativeTarget)}${hash})`;
-  });
-
-  return result;
-}
-
-function transformMarkdown(markdown, sourceFile) {
-  const lines = markdown.replace(/^\uFEFF/, "").replaceAll("\r\n", "\n").split("\n");
-  let inFence = false;
-
-  return lines
-    .map((line) => {
-      if (/^\s*```/.test(line)) {
-        inFence = !inFence;
-        return line;
-      }
-      if (inFence) return line;
-      if (/^\s*\[toc\]\s*$/i.test(line)) return "";
-      return transformInlineMarkdown(line, sourceFile);
-    })
-    .join("\n")
-    .trim();
+  const withoutRepeatedTitle = text.startsWith(title) ? text.slice(title.length).trim() : text;
+  return (withoutRepeatedTitle || `${title}的历史学习笔记`).slice(0, 150);
 }
 
 async function walk(directory) {
@@ -192,154 +132,314 @@ async function walk(directory) {
   return files;
 }
 
-async function main() {
-  if (!IMPORT_ENABLED) {
-    log("info", "import-vnotes", "disabled", { message: "Content import is disabled after the site reset. No source files were read or copied." });
-    return;
+async function readVNoteMetadata(sourceDirectory, files) {
+  const metadataByFile = new Map();
+  for (const metadataFile of files.filter((file) => path.basename(file) === "_vnote.json")) {
+    const parsed = JSON.parse(await readFile(metadataFile, "utf8"));
+    for (const [order, entry] of (parsed.files ?? []).entries()) {
+      const sourceFile = path.resolve(path.dirname(metadataFile), entry.name);
+      if (!isInside(sourceDirectory, sourceFile)) continue;
+      metadataByFile.set(sourceFile.toLowerCase(), {
+        createdAt: entry.created_time,
+        updatedAt: entry.modified_time,
+        order,
+      });
+    }
   }
-  log("info", "import-vnotes", "started", {
-    source: sourceRoot,
-    publicNotebookCount: PUBLIC_NOTEBOOKS.length,
-  });
+  return metadataByFile;
+}
 
-  const sourceEntries = await readdir(sourceRoot, { withFileTypes: true });
-  const sourceNames = new Set(sourceEntries.map((entry) => entry.name));
+async function readTopicNumbers(sourceDirectory) {
+  const metadata = JSON.parse(await readFile(path.join(sourceDirectory, "_vnote.json"), "utf8"));
+  const topics = (metadata.sub_directories ?? []).map(({ name }) => name);
+  const numbers = new Map();
+  let nextNumber = topics.reduce((maximum, topic) => {
+    const match = topic.match(/^(\d+)\./);
+    return match ? Math.max(maximum, Number(match[1])) : maximum;
+  }, 0);
 
-  for (const blocked of NEVER_PUBLISH) {
-    if (sourceNames.has(blocked)) {
-      log("info", "privacy-policy", "excluded", { notebook: blocked });
+  for (const topic of topics) {
+    const match = topic.match(/^(\d+)\./);
+    numbers.set(topic, match ? Number(match[1]) : ++nextNumber);
+  }
+  return numbers;
+}
+
+function splitTarget(rawTarget) {
+  const trimmed = rawTarget.trim();
+  const hashIndex = trimmed.indexOf("#");
+  const target = hashIndex >= 0 ? trimmed.slice(0, hashIndex) : trimmed;
+  const hash = hashIndex >= 0 ? trimmed.slice(hashIndex) : "";
+  try {
+    return { target: decodeURIComponent(target), hash };
+  } catch {
+    return { target, hash };
+  }
+}
+
+function transformMarkdown(markdown, sourceFile, importedFiles, copiedAssets, importedNoteRoot, publicNoteRoot, publicMediaRoot) {
+  let inFence = false;
+  const parts = markdown.split(/(\r\n|\n)/);
+  return parts.map((part, index) => {
+    if (index % 2 === 1) return part;
+    if (/^\s*(?:```|~~~)/.test(part)) {
+      inFence = !inFence;
+      return part;
+    }
+    if (inFence) return part;
+    if (/^\s*\[toc\]\s*$/i.test(part)) {
+      removedTocMarkers += 1;
+      return "";
+    }
+
+    return part.replace(/(!?\[[^\]]*\]\()([^)]+)(\))/g, (match, prefix, rawTarget, suffix) => {
+      const trimmed = rawTarget.trim();
+      if (/^(?:https?:)?\/\//i.test(trimmed) || /^(?:mailto:|data:|#)/i.test(trimmed)) return match;
+
+      const { target, hash } = splitTarget(trimmed.replace(/^#!/, ""));
+      const absoluteTarget = path.resolve(path.dirname(sourceFile), target);
+      const targetKey = absoluteTarget.toLowerCase();
+      if (importedFiles.has(targetKey)) {
+        const relativeTarget = toPosix(path.relative(importedNoteRoot, absoluteTarget)).replace(/\.md$/i, "");
+        rewrittenLinks += 1;
+        return `${prefix}${publicNoteRoot}/${encodeURI(relativeTarget)}/${hash}${suffix}`;
+      }
+      if (copiedAssets.has(targetKey)) {
+        const relativeTarget = toPosix(path.relative(importedNoteRoot, absoluteTarget));
+        rewrittenLinks += 1;
+        return `${prefix}${publicMediaRoot}/${encodeURI(relativeTarget)}${hash}${suffix}`;
+      }
+
+      sanitizedLinks += 1;
+      const label = prefix.slice(prefix.indexOf("[") + 1, -2);
+      return prefix.startsWith("!") ? label || "图片未迁移" : label;
+    });
+  }).join("");
+}
+
+function linkedAssets(markdown, sourceFile, candidateAssets) {
+  const assets = new Set();
+  for (const match of markdown.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)) {
+    const trimmed = match[1].trim();
+    if (/^(?:https?:)?\/\//i.test(trimmed) || /^(?:mailto:|data:|#)/i.test(trimmed)) continue;
+    const { target } = splitTarget(trimmed.replace(/^#!/, ""));
+    const absoluteTarget = path.resolve(path.dirname(sourceFile), target).toLowerCase();
+    if (candidateAssets.has(absoluteTarget)) assets.add(absoluteTarget);
+  }
+  return assets;
+}
+
+async function readExistingManifest() {
+  try {
+    return JSON.parse(await readFile(manifestPath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return { entries: [] };
+    throw error;
+  }
+}
+
+async function importNotebook(config) {
+  const sourceDirectory = path.resolve(sourceRoot, config.sourcePath);
+  const outputDirectory = path.resolve(notesRoot, config.outputPath);
+  const outputMediaDirectory = path.resolve(mediaRoot, config.outputPath);
+  const publicMediaRoot = `/media/vnote/${config.outputPath}`;
+  assertManagedPath(notesRoot, outputDirectory);
+  assertManagedPath(mediaRoot, outputMediaDirectory);
+
+  const files = (await walk(sourceDirectory)).sort((left, right) => left.localeCompare(right, "zh-CN"));
+  const metadataByFile = await readVNoteMetadata(sourceDirectory, files);
+  const topicNumbers = await readTopicNumbers(sourceDirectory);
+  const includedMarkdown = new Map();
+  const candidateAssets = new Set();
+  const exclusions = [];
+
+  for (const sourceFile of files) {
+    const relativePath = toPosix(path.relative(sourceDirectory, sourceFile));
+    const completeSourcePath = `${config.sourcePath}/${relativePath}`;
+    if (EXCLUDED_NOTE_PATHS.has(completeSourcePath)) {
+      exclusions.push({ sourcePath: relativePath, reason: "content-review" });
+      continue;
+    }
+    if (blockedPath(relativePath)) {
+      exclusions.push({ sourcePath: relativePath, reason: "blocked-path" });
+      continue;
+    }
+    const extension = path.extname(sourceFile).toLowerCase();
+    if (extension === ".md") {
+      if ((await stat(sourceFile)).size === 0) {
+        exclusions.push({ sourcePath: relativePath, reason: "empty-note" });
+        continue;
+      }
+      const raw = await readFile(sourceFile, "utf8");
+      const reason = sensitiveReason(raw);
+      if (reason) {
+        exclusions.push({ sourcePath: relativePath, reason });
+        continue;
+      }
+      includedMarkdown.set(sourceFile.toLowerCase(), raw);
+    } else if (ASSET_EXTENSIONS.has(extension)) {
+      candidateAssets.add(sourceFile.toLowerCase());
     }
   }
 
-  const missingNotebooks = PUBLIC_NOTEBOOKS.filter((name) => !sourceNames.has(name));
-  if (missingNotebooks.length > 0) {
-    log("warn", "source-validation", "missing-notebooks", {
-      notebooks: missingNotebooks,
+  const copiedAssets = new Set();
+  for (const [sourceKey, raw] of includedMarkdown) {
+    const sourceFile = files.find((file) => file.toLowerCase() === sourceKey);
+    for (const asset of linkedAssets(raw, sourceFile, candidateAssets)) copiedAssets.add(asset);
+  }
+
+  await rm(outputDirectory, { recursive: true, force: true });
+  await rm(outputMediaDirectory, { recursive: true, force: true });
+  await mkdir(outputDirectory, { recursive: true });
+  await mkdir(outputMediaDirectory, { recursive: true });
+
+  const orderedMarkdown = [...includedMarkdown.entries()].sort(([leftKey], [rightKey]) => {
+    const leftFile = files.find((file) => file.toLowerCase() === leftKey);
+    const rightFile = files.find((file) => file.toLowerCase() === rightKey);
+    const leftPath = toPosix(path.relative(sourceDirectory, leftFile));
+    const rightPath = toPosix(path.relative(sourceDirectory, rightFile));
+    const leftTopic = leftPath.split("/")[0];
+    const rightTopic = rightPath.split("/")[0];
+    const topicDifference = (topicNumbers.get(leftTopic) ?? Infinity) - (topicNumbers.get(rightTopic) ?? Infinity);
+    if (topicDifference !== 0) return topicDifference;
+
+    const topicName = leftTopic.replace(/^\d+\./, "");
+    const leftTitle = path.basename(leftFile, path.extname(leftFile));
+    const rightTitle = path.basename(rightFile, path.extname(rightFile));
+    const leftIsOverview = leftTitle.replace(/^\d+\./, "").toLowerCase() === topicName.toLowerCase();
+    const rightIsOverview = rightTitle.replace(/^\d+\./, "").toLowerCase() === topicName.toLowerCase();
+    if (leftIsOverview !== rightIsOverview) return leftIsOverview ? -1 : 1;
+
+    const depthDifference = leftPath.split("/").length - rightPath.split("/").length;
+    if (depthDifference !== 0) return depthDifference;
+    const orderDifference = (metadataByFile.get(leftKey)?.order ?? Infinity) - (metadataByFile.get(rightKey)?.order ?? Infinity);
+    return orderDifference || leftPath.localeCompare(rightPath, "zh-CN", { numeric: true });
+  });
+
+  const entries = [];
+  const childIndexes = new Map();
+  let order = 0;
+  for (const [sourceKey, raw] of orderedMarkdown) {
+    const sourceFile = files.find((file) => file.toLowerCase() === sourceKey);
+    const relativePath = toPosix(path.relative(sourceDirectory, sourceFile));
+    const metadata = metadataByFile.get(sourceKey);
+    if (!metadata?.createdAt || !metadata?.updatedAt) {
+      throw new Error(`Missing VNote timestamps for ${config.sourcePath}/${relativePath}`);
+    }
+
+    const transformed = transformMarkdown(
+      raw,
+      sourceFile,
+      includedMarkdown,
+      copiedAssets,
+      sourceDirectory,
+      `/notes/${config.outputPath}`,
+      publicMediaRoot,
+    );
+    const originalTitle = path.basename(sourceFile, path.extname(sourceFile));
+    const topic = relativePath.split("/")[0];
+    const topicName = topic.replace(/^\d+\./, "");
+    const topicNumber = topicNumbers.get(topic);
+    if (!topicNumber) throw new Error(`Missing topic number for ${config.sourcePath}/${relativePath}`);
+    const topicLabel = `${topicNumber}.${topicName}`;
+    const isOverview = originalTitle.replace(/^\d+\./, "").toLowerCase() === topicName.toLowerCase();
+    const childIndex = isOverview ? undefined : (childIndexes.get(topic) ?? 0) + 1;
+    if (childIndex) childIndexes.set(topic, childIndex);
+    const title = isOverview ? topicLabel : `${topicNumber}.${childIndex} ${originalTitle}`;
+    const outputFile = path.join(outputDirectory, relativePath);
+    const route = `/notes/${config.outputPath}/${toPosix(relativePath).replace(/\.md$/i, "")}/`;
+    const frontmatter = [
+      "---",
+      `title: ${yamlString(title)}`,
+      `description: ${yamlString(descriptionFor(raw, originalTitle))}`,
+      `sourcePath: ${yamlString(`${config.sourcePath}/${relativePath}`)}`,
+      `category: ${yamlString(config.category)}`,
+      `categoryLabel: ${yamlString(config.categoryLabel)}`,
+      `topic: ${yamlString(topic)}`,
+      `topicLabel: ${yamlString(topicLabel)}`,
+      `order: ${++order}`,
+      `tags: ${JSON.stringify(config.tags)}`,
+      `createdAt: ${yamlString(metadata.createdAt)}`,
+      `updatedAt: ${yamlString(metadata.updatedAt)}`,
+      `status: "historical"`,
+      `language: "zh"`,
+      `featured: false`,
+      `indexable: true`,
+      "---",
+      "",
+    ].join("\n");
+
+    await mkdir(path.dirname(outputFile), { recursive: true });
+    await writeFile(outputFile, `${frontmatter}${transformed}`, "utf8");
+    entries.push({
+      importId: config.importId,
+      sourcePath: `${config.sourcePath}/${relativePath}`,
+      route,
+      title,
+      category: config.category,
+      topic,
+      order,
+      status: "historical",
+      createdAt: metadata.createdAt,
+      updatedAt: metadata.updatedAt,
+      featured: false,
+      indexable: true,
     });
   }
 
-  assertGeneratedPath(outputRoot, "/src/content/notes");
-  assertGeneratedPath(mediaRoot, "/public/media");
-  await rm(outputRoot, { recursive: true, force: true });
-  await rm(mediaRoot, { recursive: true, force: true });
-  await mkdir(outputRoot, { recursive: true });
-  await mkdir(mediaRoot, { recursive: true });
+  for (const sourceKey of copiedAssets) {
+    const sourceFile = files.find((file) => file.toLowerCase() === sourceKey);
+    const relativePath = path.relative(sourceDirectory, sourceFile);
+    const outputFile = path.join(outputMediaDirectory, relativePath);
+    await mkdir(path.dirname(outputFile), { recursive: true });
+    await copyFile(sourceFile, outputFile);
+  }
+
+  log("info", "import-vnotes", "notebook-completed", {
+    importId: config.importId,
+    importedNotes: entries.length,
+    copiedAssets: copiedAssets.size,
+    exclusions,
+  });
+  return entries;
+}
+
+async function main() {
+  if (!IMPORT_ENABLED) {
+    log("info", "import-vnotes", "disabled");
+    return;
+  }
+
+  log("info", "import-vnotes", "started", {
+    sourceRoot,
+    imports: IMPORTS.map(({ sourcePath, importId }) => ({ sourcePath, importId })),
+  });
+
+  const existingManifest = await readExistingManifest();
+  const managedImportIds = new Set(IMPORTS.map(({ importId }) => importId));
+  const entries = (existingManifest.entries ?? []).filter((entry) => !managedImportIds.has(entry.importId));
+  for (const config of IMPORTS) entries.push(...(await importNotebook(config)));
+  entries.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath, "zh-CN"));
+
   await mkdir(path.dirname(manifestPath), { recursive: true });
-
-  const manifest = [];
-  const notebookFiles = new Map();
-  let importedNotes = 0;
-  let copiedImages = 0;
-  let skippedEmpty = 0;
-
-  for (const notebook of PUBLIC_NOTEBOOKS) {
-    const notebookRoot = path.join(sourceRoot, notebook);
-    if (!sourceNames.has(notebook)) continue;
-    const files = await walk(notebookRoot);
-    notebookFiles.set(notebook, files);
-    for (const sourceFile of files) {
-      const extension = path.extname(sourceFile).toLowerCase();
-      if (extension === ".md" && (await stat(sourceFile)).size === 0) continue;
-      if (extension === ".md" || IMAGE_EXTENSIONS.has(extension)) {
-        PUBLIC_SOURCE_FILES.add(toPosix(path.relative(sourceRoot, sourceFile)));
-      }
-    }
-  }
-
-  for (const notebook of PUBLIC_NOTEBOOKS) {
-    const files = notebookFiles.get(notebook);
-    if (!files) continue;
-    for (const sourceFile of files) {
-      const extension = path.extname(sourceFile).toLowerCase();
-      const relativePath = toPosix(path.relative(sourceRoot, sourceFile));
-
-      if (extension === ".md") {
-        const raw = await readFile(sourceFile, "utf8");
-        const transformed = transformMarkdown(raw, sourceFile);
-        if (!transformed.trim()) {
-          skippedEmpty += 1;
-          continue;
-        }
-
-        const fileInfo = await stat(sourceFile);
-        const title = path.basename(sourceFile, extension);
-        const category = relativePath.split("/")[0];
-        const pathTags = relativePath
-          .split("/")
-          .slice(0, -1)
-          .filter((part) => !["attachments", "_v_images"].includes(part));
-        const tags = [...new Set([CATEGORY_LABELS[category] ?? category, ...pathTags.slice(1, 4)])];
-        const promotedArticle = PROMOTED_BY_SOURCE.get(relativePath);
-        const canonicalPath = promotedArticle
-          ? `/articles/${promotedArticle.slug}/`
-          : undefined;
-        const indexable = plainText(transformed).length >= 300 && !promotedArticle;
-        const route = routeFor(relativePath);
-        const featured = FEATURED_PATHS.has(relativePath);
-
-        const frontmatter = [
-          "---",
-          `title: ${yamlString(title)}`,
-          `description: ${yamlString(descriptionFor(transformed, title))}`,
-          `sourcePath: ${yamlString(relativePath)}`,
-          `category: ${yamlString(category)}`,
-          `categoryLabel: ${yamlString(CATEGORY_LABELS[category] ?? category)}`,
-          `tags: ${JSON.stringify(tags)}`,
-          `updatedAt: ${yamlString(fileInfo.mtime.toISOString())}`,
-          `language: "zh"`,
-          `featured: ${featured}`,
-          `indexable: ${indexable}`,
-          ...(canonicalPath ? [`canonicalPath: ${yamlString(canonicalPath)}`] : []),
-          "---",
-          "",
-        ].join("\n");
-
-        const outputFile = path.join(outputRoot, relativePath);
-        await mkdir(path.dirname(outputFile), { recursive: true });
-        await writeFile(outputFile, `${frontmatter}${transformed}\n`, "utf8");
-
-        manifest.push({
-          sourcePath: relativePath,
-          route,
-          title,
-          category,
-          featured,
-          indexable,
-          canonicalPath,
-        });
-        importedNotes += 1;
-      } else if (IMAGE_EXTENSIONS.has(extension)) {
-        const outputFile = path.join(mediaRoot, relativePath);
-        await mkdir(path.dirname(outputFile), { recursive: true });
-        await copyFile(sourceFile, outputFile);
-        copiedImages += 1;
-      }
-    }
-  }
-
-  manifest.sort((a, b) => a.sourcePath.localeCompare(b.sourcePath, "zh-CN"));
   await writeFile(
     manifestPath,
-    `${JSON.stringify({ generatedAt: new Date().toISOString(), entries: manifest }, null, 2)}\n`,
+    `${JSON.stringify({ generatedAt: new Date().toISOString(), entries }, null, 2)}\n`,
     "utf8",
   );
 
   log("info", "import-vnotes", "completed", {
-    importedNotes,
-    copiedImages,
-    skippedEmpty,
-    sanitizedPrivateLinks,
-    sanitizedBrokenLinks,
-    indexableNotes: manifest.filter((entry) => entry.indexable).length,
-    promotedCanonicalCount: manifest.filter((entry) => entry.canonicalPath).length,
-    durationMs: Date.now() - startedAt,
+    importedNotes: entries.filter((entry) => managedImportIds.has(entry.importId)).length,
+    rewrittenLinks,
+    sanitizedLinks,
+    removedTocMarkers,
   });
 }
 
 main().catch((error) => {
   log("error", "import-vnotes", "failed", {
-    durationMs: Date.now() - startedAt,
     error: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
   });
   process.exitCode = 1;
 });

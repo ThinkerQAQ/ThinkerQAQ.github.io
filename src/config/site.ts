@@ -9,6 +9,7 @@ export const SITE = {
 } as const;
 
 export const ARTICLE_PAGE_SIZE = 10;
+export const NOTE_PAGE_SIZE = 10;
 
 export const COMMENTS = {
   provider: "utterances",

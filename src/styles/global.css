@@ -281,6 +281,23 @@ main {
   vertical-align: 0.08rem;
 }
 
+.historical-badge {
+  display: inline-block;
+  margin-left: 0.55rem;
+  padding: 0.08rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--muted) 45%, var(--border));
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: 0.08rem;
+}
+
+.note-meta .historical-badge {
+  margin-left: 0;
+}
+
 .content-list-main p {
   display: -webkit-box;
   max-width: 54rem;
@@ -417,25 +434,25 @@ main {
   min-width: 0;
 }
 
-.category-title {
-  align-items: baseline;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-
 .category-title h2 a {
   text-decoration: none;
-}
-
-.category-title span {
-  color: var(--faint);
-  font-size: 0.78rem;
 }
 
 .category-index ul {
   margin: 0 0 0.8rem;
   padding: 0;
   list-style: none;
+}
+
+.category-preview-label {
+  margin: 0 0 0.3rem;
+  color: var(--faint);
+  font-size: 0.78rem;
+}
+
+.category-more-link {
+  display: inline-block;
+  margin-top: 0.15rem;
 }
 
 .category-index li {
@@ -1021,6 +1038,15 @@ main {
   border-left: 2px solid var(--accent);
   background: var(--accent-soft);
   margin-block: 2rem;
+  font-size: 0.95rem;
+}
+
+.historical-note {
+  margin-block: -1rem 2rem;
+  padding: 1rem 1.25rem;
+  border-left: 2px solid #b45309;
+  background: color-mix(in srgb, #b45309 8%, var(--surface));
+  color: var(--muted);
   font-size: 0.95rem;
 }
 

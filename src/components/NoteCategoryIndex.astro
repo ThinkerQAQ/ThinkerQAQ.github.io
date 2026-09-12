@@ -1,0 +1,54 @@
+---
+import type { NoteEntry } from "../lib/content";
+import { categoryHref } from "../lib/content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ContentList from "./ContentList.astro";
+import Pagination from "./Pagination.astro";
+
+interface Props {
+  category: string;
+  label: string;
+  entries: NoteEntry[];
+  total: number;
+  currentPage: number;
+  lastPage: number;
+}
+
+const { category, label, entries, total, currentPage, lastPage } = Astro.props;
+const firstPageUrl = categoryHref(category);
+const pageUrlPrefix = `${firstPageUrl}page/`;
+const currentUrl = currentPage === 1 ? firstPageUrl : `${pageUrlPrefix}${currentPage}/`;
+const prevUrl = currentPage > 1
+  ? currentPage === 2 ? firstPageUrl : `${pageUrlPrefix}${currentPage - 1}/`
+  : undefined;
+const nextUrl = currentPage < lastPage ? `${pageUrlPrefix}${currentPage + 1}/` : undefined;
+const pageTitle = currentPage === 1 ? label : `${label} · 第 ${currentPage} 页`;
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={`${label}主题下的技术学习笔记。`}
+  canonicalPath={currentUrl}
+  noindex={entries.length === 0}
+>
+  {prevUrl && <link slot="head" rel="prev" href={prevUrl} />}
+  {nextUrl && <link slot="head" rel="next" href={nextUrl} />}
+  <div class="shell page">
+    <nav class="breadcrumb" aria-label="面包屑"><a href="/notes/">笔记</a><span>/</span></nav>
+    <header class="page-header compact">
+      <p class="eyebrow">TOPIC</p>
+      <h1>{label}</h1>
+      <p>{total} 篇笔记</p>
+    </header>
+    <ContentList entries={entries} showCategory={false} showTopic={true} />
+    <Pagination
+      currentPage={currentPage}
+      lastPage={lastPage}
+      firstPageUrl={firstPageUrl}
+      pageUrlPrefix={pageUrlPrefix}
+      ariaLabel={`${label}笔记分页`}
+      nextUrl={nextUrl}
+      prevUrl={prevUrl}
+    />
+  </div>
+</BaseLayout>
