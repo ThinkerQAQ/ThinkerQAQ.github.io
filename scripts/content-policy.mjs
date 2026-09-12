@@ -10,6 +10,7 @@ export const PUBLIC_NOTEBOOKS = [
   "Message_Queue/Kafka",
   "Zookeeper",
   "Golang",
+  "Computer_Network",
 ];
 export const PROMOTED_ARTICLES = [];
 export const FEATURED_PATHS = new Set();
@@ -23,6 +24,7 @@ export const CATEGORY_LABELS = {
   "Message_Queue/Kafka": "Kafka / Message Queue",
   Zookeeper: "ZooKeeper",
   Golang: "Go",
+  Computer_Network: "计算机网络",
 };
 export const CATEGORY_SLUGS = {
   "System_Design/分布式系统": "distributed-systems",
@@ -33,6 +35,7 @@ export const CATEGORY_SLUGS = {
   "Message_Queue/Kafka": "kafka-message-queue",
   Zookeeper: "zookeeper",
   Golang: "go",
+  Computer_Network: "computer-network",
 };
 export const ROOT_TOPIC_LABELS = {
   "System_Design/分布式系统": "基础与专题",
@@ -43,6 +46,7 @@ export const ROOT_TOPIC_LABELS = {
   "Message_Queue/Kafka": "基础与专题",
   Zookeeper: "基础与专题",
   Golang: "Language",
+  Computer_Network: "基础",
 };
 
 const GO_NOTE_TOPICS = [
@@ -125,6 +129,49 @@ const goTopicEntries = GO_NOTE_TOPICS.flatMap((topic) =>
   ]),
 );
 
+const COMPUTER_NETWORK_NOTE_TOPICS = [
+  {
+    id: "transport",
+    label: "传输层",
+    number: 1,
+    notes: [
+      "传输层/TCP/TCP.md",
+      "传输层/TCP/TCP三次握手.md",
+      "传输层/TCP/TCP四次挥手.md",
+      "传输层/TCP/TCP close wait.md",
+      "传输层/TCP/TCP KeepAlive.md",
+      "传输层/TCP/TCP流量控制.md",
+      "传输层/TCP/TCP拥塞控制.md",
+    ],
+  },
+  {
+    id: "http",
+    label: "HTTP 与 WebSocket",
+    number: 2,
+    notes: [
+      "应用层/HTTP/HTTP版本.md",
+      "应用层/HTTP/HTTP状态码.md",
+      "应用层/HTTP/WebSocket.md",
+    ],
+  },
+  {
+    id: "network-services",
+    label: "网络服务",
+    number: 3,
+    notes: [
+      "应用层/DNS/DNS.md",
+      "应用层/CDN/CDN.md",
+    ],
+  },
+];
+
+const computerNetworkTopicEntries = COMPUTER_NETWORK_NOTE_TOPICS.flatMap((topic) =>
+  topic.notes.map((note) => [
+    note,
+    { id: topic.id, label: topic.label, number: topic.number },
+  ]),
+);
+
 // Notebooks listed here use a strict per-note allowlist. New or previously rejected
 // source files stay private until they receive an explicit content review.
 export const REVIEWED_NOTE_PATHS = {
@@ -148,12 +195,16 @@ export const REVIEWED_NOTE_PATHS = {
     "System_Design/技术组件/如何设计错误系统.md",
   ]),
   Golang: new Set(goTopicEntries.map(([note]) => `Golang/${note}`)),
+  Computer_Network: new Set(
+    computerNetworkTopicEntries.map(([note]) => `Computer_Network/${note}`),
+  ),
 };
 
 // Optional public taxonomy overrides. They change only the blog topic grouping;
 // the original VNote paths stay untouched. Keys are paths relative to the notebook root.
 export const NOTE_TOPIC_OVERRIDES = {
   Golang: new Map(goTopicEntries),
+  Computer_Network: new Map(computerNetworkTopicEntries),
 };
 
 export const NEVER_PUBLISH = new Set(["Others", "Interview", "公司", "_v_recycle_bin", ".obsidian"]);

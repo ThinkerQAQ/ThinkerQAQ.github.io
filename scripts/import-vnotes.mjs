@@ -43,6 +43,18 @@ const IMPORTS = PUBLIC_NOTEBOOKS.map((sourcePath) => {
     tags: sourcePath.split("/"),
   };
 });
+const requestedImportIds = new Set(
+  (process.env.VNOTE_IMPORT_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
+const ACTIVE_IMPORTS = requestedImportIds.size === 0
+  ? IMPORTS
+  : IMPORTS.filter(({ importId }) => requestedImportIds.has(importId));
+const unknownImportIds = [...requestedImportIds].filter(
+  (importId) => !IMPORTS.some((config) => config.importId === importId),
+);
 const ASSET_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".txt", ".pdf", ".zip", ".7z",
 ]);
@@ -183,6 +195,10 @@ function descriptionFor(markdown, title) {
   const text = plainText(markdown);
   const withoutRepeatedTitle = text.startsWith(title) ? text.slice(title.length).trim() : text;
   return (withoutRepeatedTitle || `${title}的历史学习笔记`).slice(0, 150);
+}
+
+function normalizeGeneratedMarkdown(markdown) {
+  return markdown.replace(/^[\t ]+$/gm, "").trimEnd();
 }
 
 async function walk(directory) {
@@ -543,7 +559,7 @@ async function importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenam
     ].join("\n");
 
     await mkdir(path.dirname(outputFile), { recursive: true });
-    await writeFile(outputFile, `${frontmatter}${transformed}`, "utf8");
+    await writeFile(outputFile, `${frontmatter}${normalizeGeneratedMarkdown(transformed)}\n`, "utf8");
     entries.push({
       importId: config.importId,
       sourcePath: `${config.sourcePath}/${relativePath}`,
@@ -585,9 +601,13 @@ async function main() {
     return;
   }
 
+  if (unknownImportIds.length > 0) {
+    throw new Error(`Unknown VNOTE_IMPORT_IDS: ${unknownImportIds.join(", ")}`);
+  }
+
   log("info", "import-vnotes", "started", {
     sourceRoot,
-    imports: IMPORTS.map(({ sourcePath, importId }) => ({ sourcePath, importId })),
+    imports: ACTIVE_IMPORTS.map(({ sourcePath, importId }) => ({ sourcePath, importId })),
   });
 
   const publicNoteIndex = await buildPublicNoteIndex();
@@ -598,9 +618,9 @@ async function main() {
   });
 
   const existingManifest = await readExistingManifest();
-  const managedImportIds = new Set(IMPORTS.map(({ importId }) => importId));
+  const managedImportIds = new Set(ACTIVE_IMPORTS.map(({ importId }) => importId));
   const entries = (existingManifest.entries ?? []).filter((entry) => !managedImportIds.has(entry.importId));
-  for (const config of IMPORTS) {
+  for (const config of ACTIVE_IMPORTS) {
     entries.push(...(await importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenames)));
   }
   entries.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath, "zh-CN"));

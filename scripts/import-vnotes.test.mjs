@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
+import { NOTE_TOPIC_OVERRIDES } from "./content-policy.mjs";
+
 import {
   classifyUnresolvedMarkdownTarget,
   createPublicNoteIndex,
@@ -94,6 +96,31 @@ test("Go Markdown links resolve only to published notes", () => {
     classifyUnresolvedMarkdownTarget(filtered, new Set(["go语言学习.md"]), () => true),
     "target-not-published",
   );
+});
+
+test("publishes only reviewed Computer Network notes with complete topics", () => {
+  const config = { sourcePath: "Computer_Network" };
+  assert.equal(sourceExclusionReason(config, "传输层/TCP/TCP.md"), undefined);
+  assert.equal(sourceExclusionReason(config, "应用层/DNS/DNS.md"), undefined);
+  assert.equal(
+    sourceExclusionReason(config, "应用层/HTTP/URL编码.md"),
+    "not-reviewed",
+  );
+  assert.equal(sourceExclusionReason(config, "网络层/IP/IP协议.md"), "not-reviewed");
+  assert.equal(sourceExclusionReason(config, "应用层/HTTP/Fiddler/Fiddler.md"), "not-reviewed");
+
+  const topics = NOTE_TOPIC_OVERRIDES.Computer_Network;
+  assert.equal(topics.size, 12);
+  assert.deepEqual(topics.get("传输层/TCP/TCP.md"), {
+    id: "transport",
+    label: "传输层",
+    number: 1,
+  });
+  assert.deepEqual(topics.get("应用层/DNS/DNS.md"), {
+    id: "network-services",
+    label: "网络服务",
+    number: 3,
+  });
 });
 
 test("does not guess when a basename is ambiguous or unpublished", () => {
