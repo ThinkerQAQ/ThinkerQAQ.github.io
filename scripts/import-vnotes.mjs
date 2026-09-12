@@ -261,6 +261,24 @@ export function resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex) {
   return undefined;
 }
 
+export function classifyUnresolvedMarkdownTarget(
+  absoluteTarget,
+  knownVNoteMarkdownBasenames,
+  fileExists = existsSync,
+) {
+  const knownByName = knownVNoteMarkdownBasenames.has(path.basename(absoluteTarget).toLowerCase());
+  return fileExists(absoluteTarget) || knownByName ? "target-not-published" : "target-not-found";
+}
+
+async function readKnownVNoteMarkdownBasenames() {
+  const files = await walk(sourceRoot);
+  return new Set(
+    files
+      .filter((file) => path.extname(file).toLowerCase() === ".md")
+      .map((file) => path.basename(file).toLowerCase()),
+  );
+}
+
 async function buildPublicNoteIndex() {
   const targets = [];
   for (const config of IMPORTS) {
@@ -288,6 +306,7 @@ function transformMarkdown(
   importedNoteRoot,
   publicMediaRoot,
   publicNoteIndex,
+  knownVNoteMarkdownBasenames,
   currentImportId,
   sourceRelativePath,
 ) {
@@ -332,7 +351,7 @@ function transformMarkdown(
       const label = prefix.slice(prefix.indexOf("[") + 1, -2);
       if (isMarkdownTarget) {
         unresolvedMarkdownLinks += 1;
-        const reason = existsSync(absoluteTarget) ? "target-not-published" : "target-not-found";
+        const reason = classifyUnresolvedMarkdownTarget(absoluteTarget, knownVNoteMarkdownBasenames);
         const key = `${currentImportId}:${sourceRelativePath}:${target}:${reason}`;
         unresolvedMarkdownTargets.set(key, {
           importId: currentImportId,
@@ -370,7 +389,7 @@ async function readExistingManifest() {
   }
 }
 
-async function importNotebook(config, publicNoteIndex) {
+async function importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenames) {
   const sourceDirectory = path.resolve(sourceRoot, config.sourcePath);
   const outputDirectory = path.resolve(notesRoot, config.outputPath);
   const outputMediaDirectory = path.resolve(mediaRoot, config.outputPath);
@@ -467,6 +486,7 @@ async function importNotebook(config, publicNoteIndex) {
       sourceDirectory,
       publicMediaRoot,
       publicNoteIndex,
+      knownVNoteMarkdownBasenames,
       config.importId,
       relativePath,
     );
@@ -553,14 +573,18 @@ async function main() {
   });
 
   const publicNoteIndex = await buildPublicNoteIndex();
+  const knownVNoteMarkdownBasenames = await readKnownVNoteMarkdownBasenames();
   log("info", "import-vnotes", "link-index-completed", {
     indexedNotes: publicNoteIndex.exact.size,
+    knownVNoteMarkdownBasenames: knownVNoteMarkdownBasenames.size,
   });
 
   const existingManifest = await readExistingManifest();
   const managedImportIds = new Set(IMPORTS.map(({ importId }) => importId));
   const entries = (existingManifest.entries ?? []).filter((entry) => !managedImportIds.has(entry.importId));
-  for (const config of IMPORTS) entries.push(...(await importNotebook(config, publicNoteIndex)));
+  for (const config of IMPORTS) {
+    entries.push(...(await importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenames)));
+  }
   entries.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath, "zh-CN"));
 
   await mkdir(path.dirname(manifestPath), { recursive: true });

@@ -3,6 +3,7 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  classifyUnresolvedMarkdownTarget,
   createPublicNoteIndex,
   resolvePublishedNoteTarget,
 } from "./import-vnotes.mjs";
@@ -29,6 +30,22 @@ test("resolves exact and unique-basename note targets across notebooks", () => {
       route: "/notes/distributed-systems/分布式系统分区/分布式系统分区/",
       strategy: "unique-basename",
     },
+  );
+});
+
+test("distinguishes moved unpublished notes from truly missing targets", () => {
+  const knownNames = new Set(["moved.md"]);
+  assert.equal(
+    classifyUnresolvedMarkdownTarget(path.resolve("old", "moved.md"), knownNames, () => false),
+    "target-not-published",
+  );
+  assert.equal(
+    classifyUnresolvedMarkdownTarget(path.resolve("old", "missing.md"), knownNames, () => false),
+    "target-not-found",
+  );
+  assert.equal(
+    classifyUnresolvedMarkdownTarget(path.resolve("existing.md"), knownNames, () => true),
+    "target-not-published",
   );
 });
 

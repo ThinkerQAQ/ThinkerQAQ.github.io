@@ -422,7 +422,7 @@ return main()
 ```
 ## 5. QA
 ### 5.1. CROSSSLOT Keys in request don't hash to the same slot
-集群.md（原链接已失效）
+集群.md（关联笔记尚未公开）
 ## 6. 参考
 - [Write Redis Lua Script with ZeroBrane Studio \| Blackie's Failed Notes](https://blackie1019.github.io/2018/05/01/Write-Redis-Lua-Script-with-ZeroBrane-Studio/index.html)
 - [Redis Lua scripts debugger – Redis](https://redis.io/topics/ldb)
