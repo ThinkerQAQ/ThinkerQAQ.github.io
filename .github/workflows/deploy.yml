@@ -40,8 +40,20 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Import reviewed Go notes from legacy VNote snapshot
-        if: ${{ hashFiles('src/content/notes/go/**/*.md') == '' }}
+      - name: Check whether note link resolution needs migration
+        id: note-link-fix
+        shell: bash
+        run: |
+          if grep -Fq 'export function resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex) {' scripts/import-vnotes.mjs; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fix note link resolution
+        if: ${{ steps.note-link-fix.outputs.needed == 'true' }}
+        run: node scripts/patch-note-link-resolution.mjs
+      - name: Re-import reviewed Go notes after link fix
+        if: ${{ steps.note-link-fix.outputs.needed == 'true' }}
         shell: bash
         run: |
           git worktree add --detach "$RUNNER_TEMP/legacy-vnote" 0e010570684010ef99d4055bb7c3d4611df44f4c
@@ -49,15 +61,15 @@ jobs:
           git worktree remove "$RUNNER_TEMP/legacy-vnote" --force
       - name: Test and build static site
         run: npm test
-      - name: Commit reviewed Go notes
+      - name: Commit reviewed note changes
         shell: bash
         run: |
-          if [ -n "$(git status --porcelain -- src/content/notes/go public/media/vnote/go src/data/content-manifest.json)" ]; then
+          if [ -n "$(git status --porcelain -- scripts/import-vnotes.mjs scripts/import-vnotes.test.mjs src/content/notes/go public/media/vnote/go src/data/content-manifest.json)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/content/notes/go src/data/content-manifest.json
+            git add scripts/import-vnotes.mjs scripts/import-vnotes.test.mjs src/content/notes/go src/data/content-manifest.json
             if [ -d public/media/vnote/go ]; then git add public/media/vnote/go; fi
-            git commit -m "content: publish reviewed Go notes"
+            git commit -m "fix: preserve unpublished note link targets"
             git push origin HEAD:master
           fi
       - name: Prepare IndexNow payload
