@@ -175,13 +175,26 @@ async function main() {
   );
   const distributedNotesPage = await readFile(routeFile("/notes/category/distributed-systems/"), "utf8");
   invariant(
-    distributedNotesPage.includes('class="shell page detail-page"') &&
+    distributedNotesPage.includes('class="shell content-shell note-topic-shell"') &&
+      distributedNotesPage.includes('class="series-index"') &&
       distributedNotesPage.includes('class="page-header detail-page-header"'),
-    "Note topic detail structure does not match series details",
+    "Note category page is missing the persistent topic sidebar structure",
   );
   invariant(
     !distributedNotesPage.includes('class="breadcrumb"') && !distributedNotesPage.includes(">TOPIC</p>"),
     "Note topic detail still contains redundant type labels",
+  );
+  const distributedOverviewRoute = "/notes/category/distributed-systems/topic/overview/";
+  const distributedOverviewPage = await readFile(routeFile(distributedOverviewRoute), "utf8");
+  invariant(
+    distributedOverviewPage.includes('class="shell content-shell note-topic-shell"') &&
+      distributedOverviewPage.includes('aria-current="page"') &&
+      distributedOverviewPage.includes("1.基础与专题"),
+    "Root note topic overview is missing from the persistent topic sidebar",
+  );
+  invariant(
+    !(await exists(routeFile("/notes/category/distributed-systems/topic/__root/"))),
+    "Internal root topic id leaked into a public route",
   );
   invariant(
     concurrencySeriesPage.includes('aria-label="系列文章"') && concurrencySeriesPage.includes("/articles/concurrency-series-00/"),
