@@ -11,10 +11,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CATEGORY_LABELS,
+  CATEGORY_SLUGS,
   EXCLUDED_NOTE_PATHS,
   IMPORT_ENABLED,
   NEVER_PUBLISH,
   PUBLIC_NOTEBOOKS,
+  ROOT_TOPIC_LABELS,
 } from "./content-policy.mjs";
 
 const startedAt = Date.now();
@@ -27,14 +29,18 @@ const notesRoot = path.join(repositoryRoot, "src", "content", "notes");
 const mediaRoot = path.join(repositoryRoot, "public", "media", "vnote");
 const manifestPath = path.join(repositoryRoot, "src", "data", "content-manifest.json");
 
-const IMPORTS = PUBLIC_NOTEBOOKS.map((sourcePath) => ({
-  sourcePath,
-  importId: sourcePath.toLowerCase().replaceAll("/", "-"),
-  outputPath: sourcePath.toLowerCase().replaceAll("/", "-"),
-  category: sourcePath.toLowerCase().replaceAll("/", "-"),
-  categoryLabel: CATEGORY_LABELS[sourcePath] ?? sourcePath,
-  tags: sourcePath.split("/"),
-}));
+const IMPORTS = PUBLIC_NOTEBOOKS.map((sourcePath) => {
+  const category = CATEGORY_SLUGS[sourcePath] ?? sourcePath.toLowerCase().replaceAll("/", "-");
+  return {
+    sourcePath,
+    importId: category,
+    outputPath: category,
+    category,
+    categoryLabel: CATEGORY_LABELS[sourcePath] ?? sourcePath,
+    rootTopicLabel: ROOT_TOPIC_LABELS[sourcePath] ?? "概览",
+    tags: sourcePath.split("/"),
+  };
+});
 const ASSET_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".txt", ".pdf", ".zip", ".7z",
 ]);
@@ -55,10 +61,28 @@ const SENSITIVE_CONTENT_PATTERNS = [
     reason: "credential-assignment",
     pattern: /\b(?:password|passwd|pwd|secret|token|access[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9_./+=-]{12,}/i,
   },
-  { reason: "private-network-address", pattern: /\b(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})\b/ },
-  { reason: "email-address", pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i },
-  { reason: "mainland-phone-number", pattern: /(?<!\d)1[3-9]\d{9}(?!\d)/ },
-  { reason: "mainland-id-number", pattern: /(?<!\d)\d{17}[\dXx](?!\d)/ },
+];
+const REDACTED_CONTENT_PATTERNS = [
+  {
+    reason: "private-network-address",
+    pattern: /\b(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})\b/g,
+    replacement: "[已脱敏内网地址]",
+  },
+  {
+    reason: "email-address",
+    pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+    replacement: "[已脱敏邮箱]",
+  },
+  {
+    reason: "mainland-phone-number",
+    pattern: /(?<!\d)1[3-9]\d{9}(?!\d)/g,
+    replacement: "[已脱敏手机号]",
+  },
+  {
+    reason: "mainland-id-number",
+    pattern: /(?<!\d)\d{17}[\dXx](?!\d)/g,
+    replacement: "[已脱敏证件号]",
+  },
 ];
 
 let rewrittenLinks = 0;
@@ -101,6 +125,17 @@ function blockedPath(relativePath) {
 
 function sensitiveReason(markdown) {
   return SENSITIVE_CONTENT_PATTERNS.find(({ pattern }) => pattern.test(markdown))?.reason;
+}
+
+function redactSensitiveContent(markdown) {
+  const reasons = [];
+  let redacted = markdown;
+  for (const { reason, pattern, replacement } of REDACTED_CONTENT_PATTERNS) {
+    const next = redacted.replace(pattern, replacement);
+    if (next !== redacted) reasons.push(reason);
+    redacted = next;
+  }
+  return { markdown: redacted, reasons };
 }
 
 function plainText(markdown) {
@@ -149,7 +184,7 @@ async function readVNoteMetadata(sourceDirectory, files) {
   return metadataByFile;
 }
 
-async function readTopicNumbers(sourceDirectory) {
+async function readTopicNumbers(sourceDirectory, hasRootNotes) {
   const metadata = JSON.parse(await readFile(path.join(sourceDirectory, "_vnote.json"), "utf8"));
   const topics = (metadata.sub_directories ?? []).map(({ name }) => name);
   const numbers = new Map();
@@ -157,6 +192,8 @@ async function readTopicNumbers(sourceDirectory) {
     const match = topic.match(/^(\d+)\./);
     return match ? Math.max(maximum, Number(match[1])) : maximum;
   }, 0);
+
+  if (hasRootNotes) numbers.set("__root", ++nextNumber);
 
   for (const topic of topics) {
     const match = topic.match(/^(\d+)\./);
@@ -248,10 +285,11 @@ async function importNotebook(config) {
 
   const files = (await walk(sourceDirectory)).sort((left, right) => left.localeCompare(right, "zh-CN"));
   const metadataByFile = await readVNoteMetadata(sourceDirectory, files);
-  const topicNumbers = await readTopicNumbers(sourceDirectory);
   const includedMarkdown = new Map();
   const candidateAssets = new Set();
   const exclusions = [];
+  const metadataFallbacks = [];
+  const redactions = [];
 
   for (const sourceFile of files) {
     const relativePath = toPosix(path.relative(sourceDirectory, sourceFile));
@@ -276,11 +314,20 @@ async function importNotebook(config) {
         exclusions.push({ sourcePath: relativePath, reason });
         continue;
       }
-      includedMarkdown.set(sourceFile.toLowerCase(), raw);
+      const sanitized = redactSensitiveContent(raw);
+      includedMarkdown.set(sourceFile.toLowerCase(), sanitized.markdown);
+      if (sanitized.reasons.length > 0) {
+        redactions.push({ sourcePath: relativePath, reasons: sanitized.reasons });
+      }
     } else if (ASSET_EXTENSIONS.has(extension)) {
       candidateAssets.add(sourceFile.toLowerCase());
     }
   }
+
+  const hasRootNotes = [...includedMarkdown.keys()].some(
+    (sourceKey) => path.dirname(files.find((file) => file.toLowerCase() === sourceKey)) === sourceDirectory,
+  );
+  const topicNumbers = await readTopicNumbers(sourceDirectory, hasRootNotes);
 
   const copiedAssets = new Set();
   for (const [sourceKey, raw] of includedMarkdown) {
@@ -298,12 +345,12 @@ async function importNotebook(config) {
     const rightFile = files.find((file) => file.toLowerCase() === rightKey);
     const leftPath = toPosix(path.relative(sourceDirectory, leftFile));
     const rightPath = toPosix(path.relative(sourceDirectory, rightFile));
-    const leftTopic = leftPath.split("/")[0];
-    const rightTopic = rightPath.split("/")[0];
+    const leftTopic = leftPath.includes("/") ? leftPath.split("/")[0] : "__root";
+    const rightTopic = rightPath.includes("/") ? rightPath.split("/")[0] : "__root";
     const topicDifference = (topicNumbers.get(leftTopic) ?? Infinity) - (topicNumbers.get(rightTopic) ?? Infinity);
     if (topicDifference !== 0) return topicDifference;
 
-    const topicName = leftTopic.replace(/^\d+\./, "");
+    const topicName = leftTopic === "__root" ? config.rootTopicLabel : leftTopic.replace(/^\d+\./, "");
     const leftTitle = path.basename(leftFile, path.extname(leftFile));
     const rightTitle = path.basename(rightFile, path.extname(rightFile));
     const leftIsOverview = leftTitle.replace(/^\d+\./, "").toLowerCase() === topicName.toLowerCase();
@@ -323,9 +370,10 @@ async function importNotebook(config) {
     const sourceFile = files.find((file) => file.toLowerCase() === sourceKey);
     const relativePath = toPosix(path.relative(sourceDirectory, sourceFile));
     const metadata = metadataByFile.get(sourceKey);
-    if (!metadata?.createdAt || !metadata?.updatedAt) {
-      throw new Error(`Missing VNote timestamps for ${config.sourcePath}/${relativePath}`);
-    }
+    const sourceStat = metadata?.updatedAt ? undefined : await stat(sourceFile);
+    const createdAt = metadata?.createdAt;
+    const updatedAt = metadata?.updatedAt ?? sourceStat.mtime.toISOString();
+    if (!metadata?.updatedAt) metadataFallbacks.push(relativePath);
 
     const transformed = transformMarkdown(
       raw,
@@ -337,12 +385,13 @@ async function importNotebook(config) {
       publicMediaRoot,
     );
     const originalTitle = path.basename(sourceFile, path.extname(sourceFile));
-    const topic = relativePath.split("/")[0];
-    const topicName = topic.replace(/^\d+\./, "");
+    const topic = relativePath.includes("/") ? relativePath.split("/")[0] : "__root";
+    const topicName = topic === "__root" ? config.rootTopicLabel : topic.replace(/^\d+\./, "");
     const topicNumber = topicNumbers.get(topic);
     if (!topicNumber) throw new Error(`Missing topic number for ${config.sourcePath}/${relativePath}`);
     const topicLabel = `${topicNumber}.${topicName}`;
-    const isOverview = originalTitle.replace(/^\d+\./, "").toLowerCase() === topicName.toLowerCase();
+    const isOverview = topic !== "__root"
+      && originalTitle.replace(/^\d+\./, "").toLowerCase() === topicName.toLowerCase();
     const childIndex = isOverview ? undefined : (childIndexes.get(topic) ?? 0) + 1;
     if (childIndex) childIndexes.set(topic, childIndex);
     const title = isOverview ? topicLabel : `${topicNumber}.${childIndex} ${originalTitle}`;
@@ -359,8 +408,8 @@ async function importNotebook(config) {
       `topicLabel: ${yamlString(topicLabel)}`,
       `order: ${++order}`,
       `tags: ${JSON.stringify(config.tags)}`,
-      `createdAt: ${yamlString(metadata.createdAt)}`,
-      `updatedAt: ${yamlString(metadata.updatedAt)}`,
+      ...(createdAt ? [`createdAt: ${yamlString(createdAt)}`] : []),
+      `updatedAt: ${yamlString(updatedAt)}`,
       `status: "historical"`,
       `language: "zh"`,
       `featured: false`,
@@ -380,8 +429,8 @@ async function importNotebook(config) {
       topic,
       order,
       status: "historical",
-      createdAt: metadata.createdAt,
-      updatedAt: metadata.updatedAt,
+      createdAt,
+      updatedAt,
       featured: false,
       indexable: true,
     });
@@ -400,6 +449,8 @@ async function importNotebook(config) {
     importedNotes: entries.length,
     copiedAssets: copiedAssets.size,
     exclusions,
+    metadataFallbacks,
+    redactions,
   });
   return entries;
 }
