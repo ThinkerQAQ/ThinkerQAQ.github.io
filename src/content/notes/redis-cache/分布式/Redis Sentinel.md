@@ -206,7 +206,7 @@ slave宕机重连同[Redis Replication.md](/notes/redis-cache/%E5%88%86%E5%B8%83
     - 选举出sentinel的临时主节点：所有sentinel向集群发送竞选主，先收到谁的就投谁
 - leader选举
     - 选举某台slave为master：排除离线的、响应慢的，基于优先级原则选择某个slave
-    - 分布式一致性算法之Raft.md
+    - [分布式一致性算法之Raft.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7%E7%AE%97%E6%B3%95/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7%E7%AE%97%E6%B3%95%E4%B9%8BRaft/)
 
 ## 5. Redis Sentinel的问题
  - 写能力受到单机的限制

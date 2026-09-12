@@ -23,7 +23,7 @@ indexable: true
 ## 2. Kafka集群搭建
 
 ### 2.1. 搭建zookeeper环境
-Zookeeper安装.md
+Zookeeper安装.md（关联笔记尚未公开）
 ### 2.2. 搭建scala环境
 
 #### 2.2.1. 下载scala

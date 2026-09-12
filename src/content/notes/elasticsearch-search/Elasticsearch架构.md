@@ -132,7 +132,7 @@ Elasticsearch不使用日志，而是由primary shard并行同步请求发送给
 ### 3.4. 故障处理
 
 #### 3.4.1. 故障检测
-分布式系统故障.md
+[分布式系统故障.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E6%95%85%E9%9A%9C/)
 #### 3.4.2. 故障恢复
 ##### 3.4.2.1. Follower宕机
 - Follower宕机之后重启，可以从本地日志知道自己当前复制到哪个位置，重新连接Leader之后从这个位置往后复制即可，这叫做增量同步。过程如下：
@@ -147,7 +147,7 @@ Elasticsearch不使用日志，而是由primary shard并行同步请求发送给
 
 
 ## 4. 分区
-分布式系统分区.md
+[分布式系统分区.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/)
 
 ### 4.1. 拆分数据
 #### 4.1.1. 拆分key的选择

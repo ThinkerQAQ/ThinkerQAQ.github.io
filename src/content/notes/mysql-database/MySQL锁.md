@@ -16,7 +16,7 @@ featured: false
 indexable: true
 ---
 ## 1. 锁是什么
-- 数据库锁.md
+- 数据库锁.md（关联笔记尚未公开）
 ## 2. 锁的实现
 - trx信息 ：代表这个锁结构是哪个事务生成的。
 - is_waiting ：代表当前事务是否在等待

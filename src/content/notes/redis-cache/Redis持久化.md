@@ -132,7 +132,7 @@ appendfsync no
 ![](https://raw.githubusercontent.com/TDoct/images/master/1619794775_20210430225930676_2678.png)
 
 ##### 2.2.5.2. 解决
-`iotop`或iostat.md观察磁盘负载
+`iotop`或iostat.md（原链接已失效）观察磁盘负载
 #### 2.2.6. 开启AOF
 ```conf
 appendonly  yes

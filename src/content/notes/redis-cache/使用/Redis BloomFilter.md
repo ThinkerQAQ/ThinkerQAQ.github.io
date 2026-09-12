@@ -25,6 +25,6 @@ indexable: true
 
 
 ## 2. 参考
-- BloomFilter.md
+- BloomFilter.md（原链接已失效）
 - [\[轮子系列\]Google Guava之BloomFilter源码分析及基于Redis的重构 \- 个人文章 \- SegmentFault 思否](https://segmentfault.com/a/1190000012620152)
 - [基于Redis的BloomFilter实现 \- Martin的专栏 \- SegmentFault 思否](https://segmentfault.com/a/1190000017370384)

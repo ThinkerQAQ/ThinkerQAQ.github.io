@@ -41,7 +41,7 @@ Kafka的副本数目为`2`，那么跨`2`个可用区部署，Leader分区数目
 **Broker的数目是程序自动根据带宽计算的，然后平均分配到两个可用区**
 
 - 单个可用区不可用：
-Zookeeper同云Redis.mdB可用区挂了，那么A可用区会把B可用区的从节点剔除出集群；A可用区挂了，那么B、C会重新选举主
+Zookeeper同[云Redis.md](/notes/redis-cache/%E4%BA%91Redis/)B可用区挂了，那么A可用区会把B可用区的从节点剔除出集群；A可用区挂了，那么B、C会重新选举主
 Kafka：B可用区挂了，那么A可用区的Controller通过Zokeeper的事件回调收到通知，把B可用区的Broker3和Broker4剔除出集群；A可用区挂了，那么B可用区的Broker3和Broker4会通过Zookeeper选举出Controller，然后把A可用区的Broker1和Broker2剔除出集群
 - 网络隔离：如果A、B可用区发生网络隔离了，这个时候会变成两个集群么？
 Zookeeper不会，由于过半机制

@@ -39,7 +39,7 @@ indexable: true
 每个log-segment对应两个索引`.index`、`.timeindex`，用来提高查找消息的效率
 - `.index`：offset->物理地址
 - `.timeindex`：timestamp->offset
-索引以稀疏索引的形式存储，每写入一定量的消息才会增加一个索引项，查找的时候通过二分法查找（不大于该offset的最大offset）
+索引以稀疏索引（关联笔记尚未公开）的形式存储，每写入一定量的消息才会增加一个索引项，查找的时候通过二分法查找（不大于该offset的最大offset）
 - `.index`
     - ![](https://raw.githubusercontent.com/TDoct/images/master/1619360566_20210425161437590_44.png)
 - `.timeindex`
@@ -63,7 +63,7 @@ timestamp的索引文件也保持严格的单调递增，同样使用二分查�
 
 ## 2. Kafka为什么这么快
 - 零拷贝
-    - 零拷贝机制.md
+    - 零拷贝机制.md（关联笔记尚未公开）
     - 非零拷贝：4次拷贝，4次上下文切换
         - ![](https://raw.githubusercontent.com/TDoct/images/master/1619275578_20210424224245788_18856.png)
     - 零拷贝：2次拷贝，2次上下文切换

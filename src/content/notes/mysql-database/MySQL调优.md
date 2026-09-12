@@ -32,7 +32,7 @@ indexable: true
     - 视情况使用join或者exists
     - 不用select *
 
-数据库优化.md
+数据库优化.md（关联笔记尚未公开）
 
 ## 2. 单机MySQL瓶颈
 

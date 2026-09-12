@@ -33,7 +33,7 @@ data节点个数是申请的时候指定的，必须为可用区个数的倍数�
 ![Elasticsearch](https://raw.githubusercontent.com/TDoct/images/master/1656167205_20220625222637635_336.png)
 ##### 1.1.2.1. 问题
 - 单个可用区不可用
-同云Redis.md
+同[云Redis.md](/notes/redis-cache/%E4%BA%91Redis/)
 - 网络隔离问题：如果A、B可用区发生网络隔离了，这个时候会变成两个集群么？
 由于ES的过半机制，所以不会发生脑裂问题
 

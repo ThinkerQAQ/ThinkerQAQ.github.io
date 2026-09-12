@@ -18,7 +18,7 @@ indexable: true
 
 ## 1. 为什么需要redis cluster
 
-- 分布式系统分区.md
+- [分布式系统分区.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/)
 ## 2. 什么是redis cluster
 - Redis的分布式方案，解决了主从复制写能力受到单机限制的问题和无法自动进行故障转移的问题
 
@@ -127,7 +127,7 @@ bin/redis-cli -c -p 7000
 ## 4. redis cluster原理
 
 ### 4.1. 分区
-分布式系统分区.md
+[分布式系统分区.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/)
 #### 4.1.1. 拆分数据
 ##### 4.1.1.1. 拆分key的选择
 Redis本身就是key value型数据库，拆分自然用的key
@@ -159,7 +159,7 @@ slot在节点之间移动
 #### 4.2.3. 故障处理
 ##### 4.2.3.1. 故障检测
 
-分布式一致性算法之Gossip.md
+[分布式一致性算法之Gossip.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7%E7%AE%97%E6%B3%95/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7%E7%AE%97%E6%B3%95%E4%B9%8BGossip/)
 
 - 每个节点在固定周期内选择几个节点发送ping消息,接收到ping消息的节点用pong消息作为回应
 - 主观下线：如果slave节点超过一段时间没收到master节点的pong，那么认为他挂了，那么就是主观下线
@@ -170,7 +170,7 @@ slot在节点之间移动
 slave宕机重连同[Redis Replication.md](/notes/redis-cache/%E5%88%86%E5%B8%83%E5%BC%8F/Redis%20Replication/)
 ###### 4.2.3.2.2. master宕机
 - slave发起投票，如果超过半数的master同意，那么当选为master
-- 分布式一致性算法之Raft.md
+- [分布式一致性算法之Raft.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7%E7%AE%97%E6%B3%95/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7%E7%AE%97%E6%B3%95%E4%B9%8BRaft/)
 
 
 

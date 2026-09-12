@@ -16,7 +16,7 @@ featured: false
 indexable: true
 ---
 ## 1. Lua入门
-Lua.md
+Lua.md（关联笔记尚未公开）
 
 ## 2. Redis Lua使用
 ### 2.1. 执行Lua脚本
@@ -422,7 +422,7 @@ return main()
 ```
 ## 5. QA
 ### 5.1. CROSSSLOT Keys in request don't hash to the same slot
-集群.md
+集群.md（原链接已失效）
 ## 6. 参考
 - [Write Redis Lua Script with ZeroBrane Studio \| Blackie's Failed Notes](https://blackie1019.github.io/2018/05/01/Write-Redis-Lua-Script-with-ZeroBrane-Studio/index.html)
 - [Redis Lua scripts debugger – Redis](https://redis.io/topics/ldb)

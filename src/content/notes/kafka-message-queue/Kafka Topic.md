@@ -24,7 +24,7 @@ indexable: true
 ## 2. Partition
 - Topic分成多个Partition
 ### 2.1. 为什么要有Partition
-分布式系统分区.md
+[分布式系统分区.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%88%86%E5%8C%BA/)
 
 ### 2.2. Partition的有序性
 - Kafka无法保证Topic的有序性
@@ -46,7 +46,7 @@ indexable: true
 Partition可以有多个Replication，这就是多副本机制
 
 ### 4.1. 为什么要有Replication
-分布式系统复制.md
+[分布式系统复制.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%A4%8D%E5%88%B6/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%A4%8D%E5%88%B6/)
 ### 4.2. Leader和Follower
 - Partition的所有副本中有个叫Leader，其他叫做Follower
 - 我们发送的消息会被发送到Leader副本，然后Follower副本才能从Leader副本中拉取消息进行同步

@@ -18,7 +18,7 @@ indexable: true
 
 ## 1. Redis Pub/Sub是什么
 publisher把消息丢给channel，有多个subcriber可以订阅这个channel。
-类似于消息队列介绍.md的发布订阅模式，解耦了publisher和subcriber
+类似于消息队列介绍.md（关联笔记尚未公开）的发布订阅模式，解耦了publisher和subcriber
 
 
 ## 2. Redis Pub/Sub使用

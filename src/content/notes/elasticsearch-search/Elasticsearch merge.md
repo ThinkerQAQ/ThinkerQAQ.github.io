@@ -20,7 +20,7 @@ indexable: true
 - 这个segment是不可变的，merge操作就是把多个小的segment合并成一个大的
 ## 2. 为什么需要merge
 - 每次refresh都会生成一个小的segment，随着时间推移segment会越来越多，而每次search时都需要扫描所有的segment，这会导致查询效率降低
-- 执行物理删除Elasticsearch数据读写流程.md
+- 执行物理删除Elasticsearch数据读写流程.md（原链接已失效）
 ## 3. merge触发时机
 ### 3.1. 自动
 ### 3.2. 手动

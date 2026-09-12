@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
   copyFile,
   mkdir,
@@ -88,6 +89,11 @@ const REDACTED_CONTENT_PATTERNS = [
 let rewrittenLinks = 0;
 let sanitizedLinks = 0;
 let removedTocMarkers = 0;
+let crossNotebookLinks = 0;
+let recoveredStaleLinks = 0;
+let unresolvedMarkdownLinks = 0;
+let unresolvedAssetLinks = 0;
+const unresolvedMarkdownTargets = new Map();
 
 function log(severity, operation, status, details = {}) {
   console.log(JSON.stringify({
@@ -121,6 +127,22 @@ function blockedPath(relativePath) {
   return toPosix(relativePath)
     .split("/")
     .some((segment) => BLOCKED_PATH_SEGMENTS.has(segment.toLowerCase()) || BLOCKED_PATH_SEGMENTS.has(segment));
+}
+
+function sourceExclusionReason(config, relativePath) {
+  const completeSourcePath = `${config.sourcePath}/${relativePath}`;
+  if (EXCLUDED_NOTE_PATHS.has(completeSourcePath)) return "content-review";
+  if (blockedPath(relativePath)) return "blocked-path";
+  return undefined;
+}
+
+async function readPublishableMarkdown(sourceFile) {
+  if ((await stat(sourceFile)).size === 0) return { reason: "empty-note" };
+  const raw = await readFile(sourceFile, "utf8");
+  const reason = sensitiveReason(raw);
+  if (reason) return { reason };
+  const sanitized = redactSensitiveContent(raw);
+  return { markdown: sanitized.markdown, redactionReasons: sanitized.reasons };
 }
 
 function sensitiveReason(markdown) {
@@ -214,7 +236,61 @@ function splitTarget(rawTarget) {
   }
 }
 
-function transformMarkdown(markdown, sourceFile, importedFiles, copiedAssets, importedNoteRoot, publicNoteRoot, publicMediaRoot) {
+export function createPublicNoteIndex(targets) {
+  const exact = new Map();
+  const byBasename = new Map();
+  for (const target of targets) {
+    const sourceFile = path.resolve(target.sourceFile);
+    const indexed = { ...target, sourceFile };
+    exact.set(sourceFile.toLowerCase(), indexed);
+    const basename = path.basename(sourceFile).toLowerCase();
+    const matches = byBasename.get(basename) ?? [];
+    matches.push(indexed);
+    byBasename.set(basename, matches);
+  }
+  return { exact, byBasename };
+}
+
+export function resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex) {
+  const resolvedTarget = path.resolve(absoluteTarget);
+  const exact = publicNoteIndex.exact.get(resolvedTarget.toLowerCase());
+  if (exact) return { ...exact, strategy: "exact" };
+
+  const matches = publicNoteIndex.byBasename.get(path.basename(resolvedTarget).toLowerCase()) ?? [];
+  if (matches.length === 1) return { ...matches[0], strategy: "unique-basename" };
+  return undefined;
+}
+
+async function buildPublicNoteIndex() {
+  const targets = [];
+  for (const config of IMPORTS) {
+    const sourceDirectory = path.resolve(sourceRoot, config.sourcePath);
+    for (const sourceFile of await walk(sourceDirectory)) {
+      if (path.extname(sourceFile).toLowerCase() !== ".md") continue;
+      const relativePath = toPosix(path.relative(sourceDirectory, sourceFile));
+      if (sourceExclusionReason(config, relativePath)) continue;
+      const evaluated = await readPublishableMarkdown(sourceFile);
+      if (!evaluated.markdown) continue;
+      targets.push({
+        sourceFile,
+        importId: config.importId,
+        route: `/notes/${config.outputPath}/${relativePath.replace(/\.md$/i, "")}/`,
+      });
+    }
+  }
+  return createPublicNoteIndex(targets);
+}
+
+function transformMarkdown(
+  markdown,
+  sourceFile,
+  copiedAssets,
+  importedNoteRoot,
+  publicMediaRoot,
+  publicNoteIndex,
+  currentImportId,
+  sourceRelativePath,
+) {
   let inFence = false;
   const parts = markdown.split(/(\r\n|\n)/);
   return parts.map((part, index) => {
@@ -236,10 +312,15 @@ function transformMarkdown(markdown, sourceFile, importedFiles, copiedAssets, im
       const { target, hash } = splitTarget(trimmed.replace(/^#!/, ""));
       const absoluteTarget = path.resolve(path.dirname(sourceFile), target);
       const targetKey = absoluteTarget.toLowerCase();
-      if (importedFiles.has(targetKey)) {
-        const relativeTarget = toPosix(path.relative(importedNoteRoot, absoluteTarget)).replace(/\.md$/i, "");
+      const isMarkdownTarget = path.extname(target).toLowerCase() === ".md";
+      const publishedTarget = isMarkdownTarget
+        ? resolvePublishedNoteTarget(absoluteTarget, publicNoteIndex)
+        : undefined;
+      if (publishedTarget) {
         rewrittenLinks += 1;
-        return `${prefix}${publicNoteRoot}/${encodeURI(relativeTarget)}/${hash}${suffix}`;
+        if (publishedTarget.importId !== currentImportId) crossNotebookLinks += 1;
+        if (publishedTarget.strategy === "unique-basename") recoveredStaleLinks += 1;
+        return `${prefix}${encodeURI(publishedTarget.route)}${hash}${suffix}`;
       }
       if (copiedAssets.has(targetKey)) {
         const relativeTarget = toPosix(path.relative(importedNoteRoot, absoluteTarget));
@@ -249,6 +330,20 @@ function transformMarkdown(markdown, sourceFile, importedFiles, copiedAssets, im
 
       sanitizedLinks += 1;
       const label = prefix.slice(prefix.indexOf("[") + 1, -2);
+      if (isMarkdownTarget) {
+        unresolvedMarkdownLinks += 1;
+        const reason = existsSync(absoluteTarget) ? "target-not-published" : "target-not-found";
+        const key = `${currentImportId}:${sourceRelativePath}:${target}:${reason}`;
+        unresolvedMarkdownTargets.set(key, {
+          importId: currentImportId,
+          sourcePath: sourceRelativePath,
+          target,
+          reason,
+        });
+        const marker = reason === "target-not-published" ? "关联笔记尚未公开" : "原链接已失效";
+        return `${label || path.basename(target)}（${marker}）`;
+      }
+      unresolvedAssetLinks += 1;
       return prefix.startsWith("!") ? label || "图片未迁移" : label;
     });
   }).join("");
@@ -275,7 +370,7 @@ async function readExistingManifest() {
   }
 }
 
-async function importNotebook(config) {
+async function importNotebook(config, publicNoteIndex) {
   const sourceDirectory = path.resolve(sourceRoot, config.sourcePath);
   const outputDirectory = path.resolve(notesRoot, config.outputPath);
   const outputMediaDirectory = path.resolve(mediaRoot, config.outputPath);
@@ -293,31 +388,21 @@ async function importNotebook(config) {
 
   for (const sourceFile of files) {
     const relativePath = toPosix(path.relative(sourceDirectory, sourceFile));
-    const completeSourcePath = `${config.sourcePath}/${relativePath}`;
-    if (EXCLUDED_NOTE_PATHS.has(completeSourcePath)) {
-      exclusions.push({ sourcePath: relativePath, reason: "content-review" });
-      continue;
-    }
-    if (blockedPath(relativePath)) {
-      exclusions.push({ sourcePath: relativePath, reason: "blocked-path" });
+    const exclusionReason = sourceExclusionReason(config, relativePath);
+    if (exclusionReason) {
+      exclusions.push({ sourcePath: relativePath, reason: exclusionReason });
       continue;
     }
     const extension = path.extname(sourceFile).toLowerCase();
     if (extension === ".md") {
-      if ((await stat(sourceFile)).size === 0) {
-        exclusions.push({ sourcePath: relativePath, reason: "empty-note" });
+      const evaluated = await readPublishableMarkdown(sourceFile);
+      if (!evaluated.markdown) {
+        exclusions.push({ sourcePath: relativePath, reason: evaluated.reason });
         continue;
       }
-      const raw = await readFile(sourceFile, "utf8");
-      const reason = sensitiveReason(raw);
-      if (reason) {
-        exclusions.push({ sourcePath: relativePath, reason });
-        continue;
-      }
-      const sanitized = redactSensitiveContent(raw);
-      includedMarkdown.set(sourceFile.toLowerCase(), sanitized.markdown);
-      if (sanitized.reasons.length > 0) {
-        redactions.push({ sourcePath: relativePath, reasons: sanitized.reasons });
+      includedMarkdown.set(sourceFile.toLowerCase(), evaluated.markdown);
+      if (evaluated.redactionReasons.length > 0) {
+        redactions.push({ sourcePath: relativePath, reasons: evaluated.redactionReasons });
       }
     } else if (ASSET_EXTENSIONS.has(extension)) {
       candidateAssets.add(sourceFile.toLowerCase());
@@ -378,11 +463,12 @@ async function importNotebook(config) {
     const transformed = transformMarkdown(
       raw,
       sourceFile,
-      includedMarkdown,
       copiedAssets,
       sourceDirectory,
-      `/notes/${config.outputPath}`,
       publicMediaRoot,
+      publicNoteIndex,
+      config.importId,
+      relativePath,
     );
     const originalTitle = path.basename(sourceFile, path.extname(sourceFile));
     const topic = relativePath.includes("/") ? relativePath.split("/")[0] : "__root";
@@ -466,10 +552,15 @@ async function main() {
     imports: IMPORTS.map(({ sourcePath, importId }) => ({ sourcePath, importId })),
   });
 
+  const publicNoteIndex = await buildPublicNoteIndex();
+  log("info", "import-vnotes", "link-index-completed", {
+    indexedNotes: publicNoteIndex.exact.size,
+  });
+
   const existingManifest = await readExistingManifest();
   const managedImportIds = new Set(IMPORTS.map(({ importId }) => importId));
   const entries = (existingManifest.entries ?? []).filter((entry) => !managedImportIds.has(entry.importId));
-  for (const config of IMPORTS) entries.push(...(await importNotebook(config)));
+  for (const config of IMPORTS) entries.push(...(await importNotebook(config, publicNoteIndex)));
   entries.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath, "zh-CN"));
 
   await mkdir(path.dirname(manifestPath), { recursive: true });
@@ -483,14 +574,24 @@ async function main() {
     importedNotes: entries.filter((entry) => managedImportIds.has(entry.importId)).length,
     rewrittenLinks,
     sanitizedLinks,
+    crossNotebookLinks,
+    recoveredStaleLinks,
+    unresolvedMarkdownLinks,
+    unresolvedAssetLinks,
+    unresolvedMarkdownTargets: [...unresolvedMarkdownTargets.values()],
     removedTocMarkers,
   });
 }
 
-main().catch((error) => {
-  log("error", "import-vnotes", "failed", {
-    error: error instanceof Error ? error.message : String(error),
-    stack: error instanceof Error ? error.stack : undefined,
+const isMain = process.argv[1]
+  && path.resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase();
+
+if (isMain) {
+  main().catch((error) => {
+    log("error", "import-vnotes", "failed", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    process.exitCode = 1;
   });
-  process.exitCode = 1;
-});
+}

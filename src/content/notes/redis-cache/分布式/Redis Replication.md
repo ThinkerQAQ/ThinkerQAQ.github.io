@@ -17,7 +17,7 @@ indexable: true
 ---
 ## 1. 为什么需要Redis Replication
 
-- 分布式系统复制.md
+- [分布式系统复制.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%A4%8D%E5%88%B6/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%A4%8D%E5%88%B6/)
 ## 2. 什么是Redis Replication
 - 把数据复制多个副本部署到其他机器
 - 复制是Redis高可用（Redis Cluster/Redis Sentinel）的基础
@@ -61,7 +61,7 @@ indexable: true
 
 ## 4. Redis Replication原理
 ### 4.1. 主从复制
-分布式系统复制架构之主从复制.md
+[分布式系统复制架构之主从复制.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%A4%8D%E5%88%B6/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F%E5%A4%8D%E5%88%B6%E6%9E%B6%E6%9E%84%E4%B9%8B%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/)
 #### 4.1.1. Leader选举
 ##### 4.1.1.1. 选举方法
 启动的时候手动指定master

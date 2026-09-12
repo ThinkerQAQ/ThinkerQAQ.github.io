@@ -16,7 +16,7 @@ featured: false
 indexable: true
 ---
 ## 1. 什么是一致性
-- 分布式一致性.md
+- [分布式一致性.md](/notes/distributed-systems/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7/)
 - 就是Elasticsearch的Index上的document会先写入primary shard，然后同步到replica shard上，如何保证primary和replica shard上的数据一致性
 
 ## 2. consistency参数

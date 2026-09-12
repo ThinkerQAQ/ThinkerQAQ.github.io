@@ -16,7 +16,7 @@ featured: false
 indexable: true
 ---
 ## 1. 什么是事务
-数据库事务.md
+数据库事务.md（关联笔记尚未公开）
 ## 2. 事务的使用
 - 开启事务：`begin`或者`start transaction`
 - 提交事务：`commit`
@@ -28,7 +28,7 @@ indexable: true
 ## 3. 一致性
 
 ### 3.1. 如何实现
-- 数据库事务.md
+- 数据库事务.md（关联笔记尚未公开）
 ## 4. 持久性
 
 ### 4.1. 如何实现
@@ -56,7 +56,7 @@ indexable: true
 - 能解决脏写、脏读、不可重复读、幻读的问题
 ### 6.2. 如何实现
 
-- 数据库粒度锁.md
+- 数据库粒度锁.md（关联笔记尚未公开）
 - [InnoDB MVCC.md](/notes/mysql-database/InnoDB/InnoDB%20MVCC/)
 
 #### 6.2.1. Read Uncommited
