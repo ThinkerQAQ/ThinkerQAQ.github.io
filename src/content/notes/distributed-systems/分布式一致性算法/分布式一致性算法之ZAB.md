@@ -15,4 +15,4 @@ language: "zh"
 featured: false
 indexable: true
 ---
-- ZAB协议.md（关联笔记尚未公开）
+- [ZAB协议.md](/notes/zookeeper/%E5%8E%9F%E7%90%86/ZAB%E5%8D%8F%E8%AE%AE/)

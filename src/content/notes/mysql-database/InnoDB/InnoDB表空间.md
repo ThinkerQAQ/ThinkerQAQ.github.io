@@ -1,11 +1,11 @@
 ---
-title: "3.6 InnoDB表空间"
+title: "2.6 InnoDB表空间"
 description: "1. 表空间是什么 - 表空间是个抽象的概念 - 逻辑上 - 可以想象成页的池子 - 物理上 - 对于系统表空间来说，对应着文件系统中一个或多个实际文件 - 默认情况下， InnoDB 会在 数据目录 下创建一个名为 ibdata1 、大小为 12M 的文件，并且大小自扩展 - 对于每个独立表空间来"
 sourcePath: "Database/MySQL/InnoDB/InnoDB表空间.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "3.InnoDB"
+topicLabel: "2.InnoDB"
 order: 34
 tags: ["Database","MySQL"]
 createdAt: "2021-06-07T14:52:11Z"

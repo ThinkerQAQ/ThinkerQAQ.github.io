@@ -184,7 +184,7 @@ end
 return main()
 ```
 ## 3. 参考
-- 如何设计一个限流系统.md（关联笔记尚未公开）
+- [如何设计一个限流系统.md](/notes/system-design/%E6%8A%80%E6%9C%AF%E7%BB%84%E4%BB%B6/%E5%A6%82%E4%BD%95%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E9%99%90%E6%B5%81%E7%B3%BB%E7%BB%9F/)
 - [基于Redis的限流系统的设计 \- 简书](https://www.jianshu.com/p/a3d068f2586d)
 - [基于Redis的分布式令牌桶限流器\_Jason\_LiuMeng的博客\-CSDN博客](https://blog.csdn.net/a314368439/article/details/84026680)
 - [spring cloud gateway 之限流篇 \- 方志朋的专栏 \- 博客园](https://www.cnblogs.com/forezp/p/10140316.html)

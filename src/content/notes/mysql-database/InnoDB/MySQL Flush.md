@@ -1,11 +1,11 @@
 ---
-title: "3.9 MySQL Flush"
+title: "2.9 MySQL Flush"
 description: "1. 什么是Flush - 当内存数据页跟磁盘数据页内容不一致的时候，我们称这个内存页为“脏页”。内存数据写入到磁盘后，内存和磁盘上的数据页的内容就一致了，称为“干净页” - Flush就是把脏页刷入磁盘 2. Flush触发时机 - 当出现几种情况的时候会把 - redo-log写满了（尽量避免，"
 sourcePath: "Database/MySQL/InnoDB/MySQL Flush.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "3.InnoDB"
+topicLabel: "2.InnoDB"
 order: 37
 tags: ["Database","MySQL"]
 createdAt: "2021-07-18T11:52:59Z"

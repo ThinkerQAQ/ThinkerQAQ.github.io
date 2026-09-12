@@ -17,6 +17,7 @@ import {
   IMPORT_ENABLED,
   NEVER_PUBLISH,
   PUBLIC_NOTEBOOKS,
+  REVIEWED_NOTE_PATHS,
   ROOT_TOPIC_LABELS,
 } from "./content-policy.mjs";
 
@@ -129,8 +130,14 @@ function blockedPath(relativePath) {
     .some((segment) => BLOCKED_PATH_SEGMENTS.has(segment.toLowerCase()) || BLOCKED_PATH_SEGMENTS.has(segment));
 }
 
-function sourceExclusionReason(config, relativePath) {
+export function sourceExclusionReason(config, relativePath) {
   const completeSourcePath = `${config.sourcePath}/${relativePath}`;
+  const reviewedPaths = REVIEWED_NOTE_PATHS[config.sourcePath];
+  if (path.extname(relativePath).toLowerCase() === ".md"
+      && reviewedPaths
+      && !reviewedPaths.has(completeSourcePath)) {
+    return "not-reviewed";
+  }
   if (EXCLUDED_NOTE_PATHS.has(completeSourcePath)) return "content-review";
   if (blockedPath(relativePath)) return "blocked-path";
   return undefined;
@@ -206,9 +213,11 @@ async function readVNoteMetadata(sourceDirectory, files) {
   return metadataByFile;
 }
 
-async function readTopicNumbers(sourceDirectory, hasRootNotes) {
+async function readTopicNumbers(sourceDirectory, hasRootNotes, includedTopics) {
   const metadata = JSON.parse(await readFile(path.join(sourceDirectory, "_vnote.json"), "utf8"));
-  const topics = (metadata.sub_directories ?? []).map(({ name }) => name);
+  const topics = (metadata.sub_directories ?? [])
+    .map(({ name }) => name)
+    .filter((name) => includedTopics.has(name));
   const numbers = new Map();
   let nextNumber = topics.reduce((maximum, topic) => {
     const match = topic.match(/^(\d+)\./);
@@ -431,7 +440,16 @@ async function importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenam
   const hasRootNotes = [...includedMarkdown.keys()].some(
     (sourceKey) => path.dirname(files.find((file) => file.toLowerCase() === sourceKey)) === sourceDirectory,
   );
-  const topicNumbers = await readTopicNumbers(sourceDirectory, hasRootNotes);
+  const includedTopics = new Set(
+    [...includedMarkdown.keys()]
+      .map((sourceKey) => toPosix(path.relative(
+        sourceDirectory,
+        files.find((file) => file.toLowerCase() === sourceKey),
+      )))
+      .filter((relativePath) => relativePath.includes("/"))
+      .map((relativePath) => relativePath.split("/")[0]),
+  );
+  const topicNumbers = await readTopicNumbers(sourceDirectory, hasRootNotes, includedTopics);
 
   const copiedAssets = new Set();
   for (const [sourceKey, raw] of includedMarkdown) {

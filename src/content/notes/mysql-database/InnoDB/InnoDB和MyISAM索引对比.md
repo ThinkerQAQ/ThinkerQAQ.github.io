@@ -1,11 +1,11 @@
 ---
-title: "3.7 InnoDB和MyISAM索引对比"
+title: "2.7 InnoDB和MyISAM索引对比"
 description: "1. InnoDB - MySQL默认的存储引擎 - InnoDB把数据分成若干页，每个页大小16KB，以页作为磁盘和内存交互的基本单位 - 即读最少读一页，写最少写一页 1.1. 索引实现 1.1.1. 主键索引 - 叶子节点的data存放的就是实际的数据 - - 由于索引上面存放的是实际的数据，"
 sourcePath: "Database/MySQL/InnoDB/InnoDB和MyISAM索引对比.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "3.InnoDB"
+topicLabel: "2.InnoDB"
 order: 35
 tags: ["Database","MySQL"]
 createdAt: "2020-01-17T13:06:57Z"

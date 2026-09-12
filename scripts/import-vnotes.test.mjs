@@ -6,6 +6,7 @@ import {
   classifyUnresolvedMarkdownTarget,
   createPublicNoteIndex,
   resolvePublishedNoteTarget,
+  sourceExclusionReason,
 } from "./import-vnotes.mjs";
 
 test("resolves exact and unique-basename note targets across notebooks", () => {
@@ -46,6 +47,22 @@ test("distinguishes moved unpublished notes from truly missing targets", () => {
   assert.equal(
     classifyUnresolvedMarkdownTarget(path.resolve("existing.md"), knownNames, () => true),
     "target-not-published",
+  );
+});
+
+test("publishes only reviewed System Design notes", () => {
+  const config = { sourcePath: "System_Design" };
+  assert.equal(
+    sourceExclusionReason(config, "技术组件/如何设计一个RPC框架.md"),
+    undefined,
+  );
+  assert.equal(
+    sourceExclusionReason(config, "业务系统/如何设计打车软件.md"),
+    "not-reviewed",
+  );
+  assert.equal(
+    sourceExclusionReason(config, "业务系统/如何设计频控系统.md"),
+    "not-reviewed",
   );
 });
 

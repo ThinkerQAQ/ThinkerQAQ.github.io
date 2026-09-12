@@ -1,11 +1,11 @@
 ---
-title: "3.2 InnoDB MVCC"
+title: "2.2 InnoDB MVCC"
 description: "1. MVCC是什么 - 多版本并发控制 - 为了使不同事务的 读-写操作可以并发执行 ，对数据进行多版本处理，并通过事务的可见性来确定自己应该看到的数据版本 2. MVCC原理 - 从哪里取数据：版本链 - 取哪个版本的数据：ReadView 2.1. 版本链 - InnoDB undo log."
 sourcePath: "Database/MySQL/InnoDB/InnoDB MVCC.md"
 category: "mysql-database"
 categoryLabel: "MySQL / Database"
 topic: "InnoDB"
-topicLabel: "3.InnoDB"
+topicLabel: "2.InnoDB"
 order: 30
 tags: ["Database","MySQL"]
 createdAt: "2021-05-09T11:59:00Z"

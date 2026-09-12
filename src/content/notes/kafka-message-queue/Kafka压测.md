@@ -29,7 +29,7 @@ kafka-producer-perf-test.sh --topic test_perf --num-records 100000 --record-size
 ./kafka-consumer-perf-test.sh --broker-list 127.0.0.1:9092 --topic test_perf --fetch-size 1048576 --messages 100000 --threads 1
 ```
 ## 2. 分片数和机器数确定
-同业务系统设计分析思路.md（关联笔记尚未公开）的**发布**
+同[业务系统设计分析思路.md](/notes/system-design/%E4%B8%9A%E5%8A%A1%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E5%88%86%E6%9E%90%E6%80%9D%E8%B7%AF/)的**发布**
 1. 计算单个分片/机器所能支撑的QPS，参考压力测试.md（关联笔记尚未公开）
 2. 计算分片/机器数 = 业务预估QPS/单个分片/机器所能支撑的QPS + 一点富余量
 ## 3. 参考

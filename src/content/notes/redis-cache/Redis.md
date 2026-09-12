@@ -71,7 +71,7 @@ Redis所有的数据都是存在内存中的
 [Redis Cluster.md](/notes/redis-cache/%E5%88%86%E5%B8%83%E5%BC%8F/Redis%20Cluster/)
 ## 7. 使用场景
 ### 7.1. 缓存
-如何设计缓存系统.md（关联笔记尚未公开）
+[如何设计缓存系统.md](/notes/system-design/%E6%8A%80%E6%9C%AF%E7%BB%84%E4%BB%B6/%E5%A6%82%E4%BD%95%E8%AE%BE%E8%AE%A1%E7%BC%93%E5%AD%98%E7%B3%BB%E7%BB%9F/)
 ### 7.2. 分布式锁
 [Redis分布式锁.md](/notes/redis-cache/%E4%BD%BF%E7%94%A8/Redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/)
 
