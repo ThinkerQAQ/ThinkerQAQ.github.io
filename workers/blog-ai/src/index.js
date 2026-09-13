@@ -143,9 +143,15 @@ function normalizeAiSearchChunks(chunks, blogOrigin) {
 }
 
 async function retrieveAiSearchSources(question, env, blogOrigin) {
-  if (!env.AI_SEARCH) return [];
+  if (!env.AI_SEARCH) {
+    throw new Error("AI_SEARCH binding is not configured");
+  }
 
   const instanceName = String(env.AI_SEARCH_INSTANCE || DEFAULT_AI_SEARCH_INSTANCE).trim();
+  if (!instanceName) {
+    throw new Error("AI_SEARCH_INSTANCE is not configured");
+  }
+
   const instance = env.AI_SEARCH.get(instanceName);
   const result = await instance.search({
     messages: [{ role: "user", content: question }],

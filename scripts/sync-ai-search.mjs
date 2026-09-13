@@ -14,6 +14,8 @@ const beforeSha = String(process.env.GITHUB_EVENT_BEFORE || "").trim();
 const currentSha = String(process.env.GITHUB_SHA || "HEAD").trim();
 const apiBase = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai-search/instances`;
 const collections = ["articles", "notes", "projects", "series"];
+const readyTimeoutMs = Number(process.env.AI_SEARCH_READY_TIMEOUT_MS || 180_000);
+const readyPollMs = Number(process.env.AI_SEARCH_READY_POLL_MS || 2_000);
 
 function log(status, details = {}) {
   console.log(JSON.stringify({
@@ -93,6 +95,7 @@ async function loadDocuments() {
         key: itemKey(collection, id),
         collection,
         id,
+        title,
         sourcePath: `src/content/${collection}/${relative}`,
         content,
       });
@@ -119,7 +122,14 @@ async function cloudflareRequest(url, options = {}, accepted = [200]) {
   }
 
   if (response.status === 204) return null;
-  return response.json();
+  const payload = await response.json();
+  if (payload?.success === false) {
+    const details = Array.isArray(payload.errors)
+      ? payload.errors.map((entry) => entry?.message || entry?.code).filter(Boolean).join("; ")
+      : "unknown Cloudflare API error";
+    throw new Error(`Cloudflare API returned success=false: ${details}`);
+  }
+  return payload;
 }
 
 async function ensureInstance() {
@@ -135,6 +145,7 @@ async function ensureInstance() {
     index_method: { vector: true, keyword: true },
     fusion_method: "rrf",
     indexing_options: { keyword_tokenizer: "trigram" },
+    retrieval_options: { keyword_match_mode: "or" },
     reranking: true,
     reranking_model: "@cf/baai/bge-reranker-base",
     rewrite_query: true,
@@ -157,7 +168,9 @@ async function ensureInstance() {
     || info?.index_method?.vector !== true
     || info?.fusion_method !== "rrf"
     || info?.indexing_options?.keyword_tokenizer !== "trigram"
-    || info?.reranking !== true;
+    || info?.retrieval_options?.keyword_match_mode !== "or"
+    || info?.reranking !== true
+    || info?.rewrite_query !== true;
 
   if (needsUpdate) {
     await cloudflareRequest(instanceUrl, {
@@ -228,9 +241,112 @@ async function runPool(items, concurrency, handler) {
   await Promise.all(workers);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function getStats() {
+  const payload = await cloudflareRequest(
+    `${apiBase}/${encodeURIComponent(instanceName)}/stats`,
+    {},
+    [200],
+  );
+  return payload?.result || payload || {};
+}
+
+async function waitForIndexReady(expectedDocuments) {
+  const deadline = Date.now() + readyTimeoutMs;
+  let lastStats = {};
+
+  while (Date.now() < deadline) {
+    lastStats = await getStats();
+    const queued = Number(lastStats.queued || 0);
+    const running = Number(lastStats.running || 0);
+    const outdated = Number(lastStats.outdated || 0);
+    const errors = Number(lastStats.error || 0);
+    const objectCount = Number(lastStats?.engine?.r2?.objectCount || 0);
+    const vectorsCount = Number(lastStats?.engine?.vectorize?.vectorsCount || 0);
+
+    if (errors > 0) {
+      throw new Error(`AI Search indexing reported ${errors} error(s)`);
+    }
+
+    const pending = queued + running + outdated;
+    const hasIndexedData = expectedDocuments === 0 || objectCount > 0 || vectorsCount > 0 || Number(lastStats.completed || 0) > 0;
+    if (pending === 0 && hasIndexedData) {
+      log("index-ready", {
+        queued,
+        running,
+        outdated,
+        completed: Number(lastStats.completed || 0),
+        objectCount,
+        vectorsCount,
+      });
+      return lastStats;
+    }
+
+    log("index-waiting", {
+      queued,
+      running,
+      outdated,
+      completed: Number(lastStats.completed || 0),
+      objectCount,
+      vectorsCount,
+    });
+    await sleep(readyPollMs);
+  }
+
+  throw new Error(`Timed out after ${readyTimeoutMs}ms waiting for AI Search indexing to become ready: ${JSON.stringify(lastStats)}`);
+}
+
+async function verifySearch(documents) {
+  const sample = documents.values().next().value;
+  if (!sample) return;
+
+  const payload = await cloudflareRequest(
+    `${apiBase}/${encodeURIComponent(instanceName)}/search`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        query: sample.title,
+        ai_search_options: {
+          retrieval: {
+            retrieval_type: "hybrid",
+            fusion_method: "rrf",
+            keyword_match_mode: "or",
+            max_num_results: 3,
+            return_on_failure: false,
+          },
+        },
+      }),
+    },
+    [200],
+  );
+
+  const result = payload?.result || payload || {};
+  const chunks = Array.isArray(result.chunks) ? result.chunks : [];
+  if (!chunks.length) {
+    throw new Error(`AI Search readiness query returned no chunks for sample title: ${sample.title}`);
+  }
+
+  log("search-verified", {
+    query: sample.title,
+    chunks: chunks.length,
+  });
+}
+
 if (!accountId || !apiToken) {
-  log("skipped", { reason: "CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_AI_SEARCH_TOKEN is not configured" });
-  process.exit(0);
+  const missing = [
+    !accountId ? "CLOUDFLARE_ACCOUNT_ID" : null,
+    !apiToken ? "CLOUDFLARE_AI_SEARCH_TOKEN" : null,
+  ].filter(Boolean);
+  console.error(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    operation: "sync-ai-search",
+    status: "failed",
+    error: `Missing required configuration: ${missing.join(", ")}`,
+  }));
+  process.exit(1);
 }
 
 try {
@@ -254,6 +370,9 @@ try {
     if (existing) await deleteItem(existing);
     await uploadDocument(document);
   });
+
+  await waitForIndexReady(documents.size);
+  await verifySearch(documents);
 
   log("completed", {
     instance: instanceName,
