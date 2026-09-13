@@ -1,6 +1,6 @@
 ---
 title: "3.7 GC"
-description: "Go GC 的基本模型、三色标记与写屏障、当前 Green Tea GC、GOGC/GOMEMLIMIT、观测和调优。保留历史学习脉络，同时标注已经过时的 memory ballast 等做法。"
+description: "1. 什么是GC GC.md 2. 为什么需要GC GC.md 2.1. GC的问题 2.1.1. 内存泄露 Golang内存泄露.md 2.1.2. STW 通过三色标记法减少GC STW的时间 3. 如何进行垃圾回收 3.1. GC触发 - 主动触发 - 通过调用 runtime.GC 来触发 "
 sourcePath: "Golang/GC.md"
 category: "go"
 categoryLabel: "Go"
@@ -15,288 +15,334 @@ language: "zh"
 featured: false
 indexable: true
 ---
-## 1. 什么是 GC
+## 1. 什么是GC
+GC.md（关联笔记尚未公开）
 
-GC（Garbage Collection）负责回收程序已经不可达的堆对象，使 Go 程序不需要手工 `free` 每一个对象。
+## 2. 为什么需要GC
+GC.md（关联笔记尚未公开）
 
-Go GC 的核心目标是在 **吞吐量、暂停时间和内存占用** 之间做平衡。
 
-## 2. 为什么需要 GC
+### 2.1. GC的问题
+#### 2.1.1. 内存泄露
+[Golang内存泄露.md](/notes/go/Golang%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2/)
+#### 2.1.2. STW
+通过三色标记法减少GC STW的时间
+## 3. 如何进行垃圾回收
+### 3.1. GC触发
+- 主动触发
+    - 通过调用 runtime.GC 来触发 GC，此调用阻塞式地等待当前 GC 运行完毕。
+- 被动触发，分为两种方式：
+    1. 定时。系统监控超过两分钟（`runtime.forcegcperiod`）没有产生任何 GC 时，强制触发 GC。
+    2. 步调（Pacing）算法。当一定时间内内存增长比例超过一定值时触发GC
 
-如果对象分配到堆上，它的生命周期不再和某一个函数栈帧完全一致，就需要 runtime 判断对象什么时候已经不可达，再回收对应内存。
+### 3.2. GC过程
+1. 标记准备(Mark Setup，需 STW)，打开写屏障(Write Barrier)
+2. 使用三色标记法标记（Marking, 并发）
+3. 标记结束(Mark Termination，需 STW)，关闭写屏障。
+4. 清理(Sweeping, 并发)
+### 3.3. Golang GC演进
+#### 3.3.1. 传统的标记清除算法
+- 分两个阶段：
+    - 标记：从根对象出发，DFS遍历可达的对象并标记
+    - 清除：没被标记的是垃圾，回收之
+- 有几个缺点：
+    - STW：标记之前需要STW，直到标记结束
+    - 内存碎片
+#### 3.3.2. 三色标记清除算法
+- 三色标记针对传统的标记清除的STW进行改进
+- 一样分两个阶段：
+    - 标记：从根对象出发，BFS遍历所有对象，遍历完成的标记为黑，遍历中的标记为灰，不可达的标记为白色
+        - 白色对象（可能死亡）：未被回收器访问到的对象。在回收开始阶段，所有对象均为白色，当回收结束后，白色对象均不可达。
+        - 灰色对象（波面）：已被回收器访问到的对象，但回收器需要对其中的一个或多个指针进行扫描，因为他们可能还指向白色对象。
+        - 黑色对象（确定存活）：已被回收器访问到的对象，其中所有字段都已被扫描，黑色对象中任何一个指针都不可能直接指向白色对象。
+        - ![](https://raw.githubusercontent.com/TDoct/images/master/1598282292_20200820160540373_21178.png)
+    - 清除：没被标记（白色）是垃圾，回收之
+- 如果没有STW，GC和用户线程执行有一个问题，可能把不是垃圾的对象给回收掉。如下：
+    1. 灰色对象A引用了白色对象B
+    2. 黑色对象C引用了白色对象B
+    3. 灰色对象A断开引用白色对象B
+    4. 由于黑色对象C已经被标记为黑色不可能在被扫描，此时白色对象B明明被引用了但是却被回收了
+- 分析上述情况，可以看出有两个条件会造成这种错误
+    - 条件1：白色被挂在黑色下
+    - 条件2：灰色同时丢了该白色
+- 只要干掉其中之一就能解决这个问题，因此引入了两种方式
+    - 强三色不变式（针对条件1）：不存在黑色对象引用到白色对象的指针。即如果白色被挂在黑色下，那么把白色改成灰色
+    - 弱三色不变式（针对条件2）：所有被黑色对象引用的白色对象都处于灰色保护状态。即白色被挂在黑色下，那么白色必须同时被其他链路上的灰色引用
+#### 3.3.3. 写屏障
+##### 3.3.3.1. 插入屏障
+为了实现强三色不变式，引入了插入屏障：在A对象引用B对象的时候，B对象被标记为灰色
+也引入新的问题：需要re-scan栈上的根对象
+##### 3.3.3.2. 删除屏障
+为了实现弱三色不变式，引入了删除屏障：被删除的对象，如果自身为灰色或者白色，那么被标记为灰色。
+也引入新的问题：明明是垃圾，却要第二次GC才能回收
+##### 3.3.3.3. 混合写屏障
+混合写屏障则是结合了插入和删除
+1. GC开始将栈上的对象DFS全部扫描并标记为黑色(之后不再进行第二次重复扫描，无需STW)，
+2. GC期间，任何在栈上创建的新对象，均为黑色。
+3. 被删除的对象标记为灰色。
+4. 被添加的对象标记为灰色。
 
-GC 本身也会带来成本：
 
-- 扫描对象需要 CPU；
-- 某些阶段需要短暂 STW；
-- 堆越大、指针越多，扫描成本通常越高；
-- GC 频率太高会增加 CPU 开销，太低又会增加内存占用。
 
-内存泄漏相关问题见：[Golang内存泄露.md](/notes/go/Golang%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2/)
+## 4. Golang内存泄漏
+[Golang内存泄露.md](/notes/go/Golang%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2/)
 
-## 3. Go GC 的基本过程
 
-从概念上看，一个 GC cycle 可以理解成：
 
-1. 标记准备（短暂 STW）；
-2. 并发标记；
-3. 标记终止（短暂 STW）；
-4. 并发清扫 / 后续回收工作。
 
-Go runtime 的实现一直在演进，所以这里适合记住的是 **并发 tracing GC + 很短的 STW 边界**，不要把某个版本的 runtime 源码流程当成语言规范。
 
-## 4. 三色标记模型
+## 5. GC调优
+GC调优.md（原链接已失效）
 
-三色标记是理解 tracing GC 很常见的教学模型：
+### 5.1. 如何观察GC
 
-- **白色**：还没有被 GC 证明存活；
-- **灰色**：对象本身已确认存活，但它引用的对象还需要继续扫描；
-- **黑色**：对象和它引用的对象都已经扫描完成。
-
-GC 最终要找出从 roots 可达的对象，剩下不可达对象才可以回收。
-
-### 4.1. 为什么需要写屏障
-
-如果 GC 和用户 goroutine 并发执行，对象引用关系会在标记过程中变化。
-
-典型问题是：
-
-1. GC 已经扫描完一个黑色对象；
-2. 用户代码把某个白色对象挂到这个黑色对象下面；
-3. 原来能发现白色对象的灰色引用又被删除；
-4. 如果没有额外机制，这个实际上仍然存活的对象可能被漏标。
-
-因此并发 GC 需要写屏障，在指针写入时维持 GC 所需的不变式。
-
-历史上常用两个概念解释：
-
-- 强三色不变式；
-- 弱三色不变式。
-
-Go 的具体 barrier 设计和实现会随版本变化，理解“不允许并发修改让存活对象从 tracing graph 中消失”比背某段旧 runtime 源码更重要。
-
-## 5. 当前 GC：Green Tea
-
-Go 1.25 引入了实验性的 Green Tea GC，Go 1.26 起默认启用，Go 1.27 继续沿用这一代 GC 实现。
-
-Green Tea 的重点不是改变 Go 的 GC 语义，而是优化标记和扫描阶段的执行方式，尤其改善：
-
-- 小对象扫描的局部性；
-- 多核扩展能力；
-- 新一些 amd64 CPU 上的扫描效率。
-
-Go 官方给出的预期是：在 GC 压力较重的真实 workload 中，GC overhead 可能下降约 10%～40%，但具体收益依赖 workload。
-
-因此这篇旧笔记里的三色标记、写屏障仍适合做概念理解，但不能直接等同于当前 Green Tea 的具体实现细节。
-
-## 6. GC 如何触发
-
-### 6.1. 主动触发
-
-```go
-runtime.GC()
-```
-
-`runtime.GC` 会强制执行一次 GC，并等待本次 GC 完成。正常业务代码很少需要主动调用。
-
-### 6.2. `GOGC`
-
-`GOGC` 控制 GC 的内存增长目标。
-
-默认：
-
-```text
-GOGC=100
-```
-
-也可以运行时调整：
+1. GODEBUG=gctrace=1
 
 ```go
-debug.SetGCPercent(100)
+
+package main
+
+func allocate() {
+	_ = make([]byte, 1<<20)
+}
+
+func main() {
+	for n := 1; n < 100000; n++ {
+		allocate()
+	}
+}
 ```
 
-大体规律：
-
-- 更大的 `GOGC`：GC 更少，CPU 开销通常更低，但使用更多内存；
-- 更小的 `GOGC`：GC 更频繁，内存更紧，但消耗更多 CPU。
-
-### 6.3. `GOMEMLIMIT`
-
-Go 1.19 起增加了 soft memory limit：
-
-```text
-GOMEMLIMIT=2GiB
+- 观察GC
+```go
+go build -o main
+GODEBUG=gctrace=1 ./main
 ```
 
-或者：
+- 日志
+```log
+gc 2 @0.001s 2%: 0.018+1.1+0.029 ms clock, 0.22+0.047/0.074/0.048+0.34 ms cpu, 4->7->3 MB, 5 MB goal, 12 P
+```
+
+
+- 解析
+```go
+gc 2	第二个 GC 周期
+0.001	程序开始后的 0.001 秒
+2%	该 GC 周期中 CPU 的使用率
+0.018	标记开始时， STW 所花费的时间（wall clock）
+1.1	标记过程中，并发标记所花费的时间（wall clock）
+0.029	标记终止时， STW 所花费的时间（wall clock）
+0.22	标记开始时， STW 所花费的时间（cpu time）
+0.047	标记过程中，标记辅助所花费的时间（cpu time）
+0.074	标记过程中，并发标记所花费的时间（cpu time）
+0.048	标记过程中，GC 空闲的时间（cpu time）
+0.34	标记终止时， STW 所花费的时间（cpu time）
+4	标记开始时，堆的大小的实际值
+7	标记结束时，堆的大小的实际值
+3	标记结束时，标记为存活的对象大小
+5	标记结束时，堆的大小的预测值
+12	P 的数量
+```
+
+
+2. go tool trace
 
 ```go
-debug.SetMemoryLimit(2 << 30)
+
+package main
+
+func main() {
+  f, _ := os.Create("trace.out")
+  defer f.Close()
+  trace.Start(f)
+  defer trace.Stop()
+}
 ```
 
-这个限制针对 Go runtime 管理的内存，不等于操作系统看到的进程 RSS，也不包含所有 cgo / mmap 等外部内存。
+- 运行`go tool trace trace.out`
+![](https://raw.githubusercontent.com/TDoct/images/master/1598282297_20200820193444765_18405.png)
 
-runtime 会通过更积极的 GC 和内存归还来尽量遵守这个限制。
-
-需要注意：**不要把 GOMEMLIMIT 设得比程序稳定运行所需内存还低**，否则可能造成 GC 几乎持续运行。
-
-## 7. 如何观察 GC
-
-### 7.1. `GODEBUG=gctrace=1`
-
-```bash
-GODEBUG=gctrace=1 ./app
-```
-
-可以快速观察：
-
-- GC 次数；
-- STW / concurrent mark 时间；
-- GC 前后 heap 大小；
-- heap goal；
-- CPU 消耗。
-
-具体日志格式属于 runtime 诊断输出，会随 Go 版本变化，不应该依赖固定列位置做长期监控协议。
-
-### 7.2. `go tool trace`
-
-程序中记录 trace：
+3. `debug.ReadGCStats`
+4. `runtime.ReadMemStats`
+### 5.2. 如何调优
+#### 5.2.1. 调整的参数只有 GOGC 环境变量
+#### 5.2.2. 提高触发GC的阈值
+##### 5.2.2.1. memory ballast
+指定GC运行的最小heapSize, 低于该值不进行GC
+##### 5.2.2.2. 自动调整GCPercent
+标准库runtime包提供了`debug.SetGCPercent(int)`调整GC的目标百分比, 默认是100, 即堆内存占用达到上次GC后的一倍后, 触发GC，可以把他调大即可降低GC频率
+#### 5.2.3. 减少用户代码分配内存的数量
+##### 5.2.3.1. 优化内存的申请速度
 
 ```go
-f, _ := os.Create("trace.out")
-defer f.Close()
+package main
 
-trace.Start(f)
-defer trace.Stop()
+import (
+  "fmt"
+  "os"
+  "runtime"
+  "runtime/trace"
+  "sync/atomic"
+  "time"
+)
+
+var (
+  stop  int32
+  count int64
+  sum   time.Duration
+)
+
+func concat() {
+  for n := 0; n < 100; n++ {
+    for i := 0; i < 8; i++ {
+      go func() {
+        s := "Go GC"
+        s += " " + "Hello"
+        s += " " + "World"
+        _ = s
+      }()
+    }
+  }
+}
+
+func main() {
+  f, _ := os.Create("trace.out")
+  defer f.Close()
+  trace.Start(f)
+  defer trace.Stop()
+
+  go func() {
+    var t time.Time
+    for atomic.LoadInt32(&stop) == 0 {
+      t = time.Now()
+      runtime.GC()
+      sum += time.Since(t)
+      count++
+    }
+    fmt.Printf("GC spend avg: %v\n", time.Duration(int64(sum)/count))
+  }()
+
+  concat()
+  atomic.StoreInt32(&stop, 1)
+}
 ```
 
-查看：
-
-```bash
-go tool trace trace.out
+- 输出
+```go
+$ go build -o main
+$ ./main
+GC spend avg: 2.583421ms
 ```
 
-适合分析 GC、调度、goroutine、网络阻塞等事件之间的时间关系。
 
-### 7.3. `runtime.MemStats`
+大部分时间都耗在调度器的等待而不是goroutine的执行，改成一批批地创建goroutine
 
 ```go
-var m runtime.MemStats
-runtime.ReadMemStats(&m)
+
+func concat() {
+  wg := sync.WaitGroup{}
+  for n := 0; n < 100; n++ {
+    wg.Add(8)
+    for i := 0; i < 8; i++ {
+      go func() {
+        s := "Go GC"
+        s += " " + "Hello"
+        s += " " + "World"
+        _ = s
+        wg.Done()
+      }()
+    }
+    wg.Wait()
+  }
+}
+```
+- 输出
+```go
+$ go build -o main
+$ ./main
+GC spend avg: 328.54µs
 ```
 
-可以查看：
+##### 5.2.3.2. 尽可能的少申请内存
+##### 5.2.3.3. 复用已申请的内存
+```go
+package main
 
-```text
-HeapAlloc
-HeapSys
-HeapObjects
-NumGC
-PauseTotalNs
-GCCPUFraction
-...
+import (
+  "fmt"
+  "net/http"
+  _ "net/http/pprof"
+)
+
+func newBuf() []byte {
+  return make([]byte, 10<<20)
+}
+
+func main() {
+  go func() {
+    http.ListenAndServe("localhost:6060", nil)
+  }()
+  
+  http.HandleFunc("/example2", func(w http.ResponseWriter, r *http.Request) {
+    b := newBuf()
+
+    // 模拟执行一些工作
+    for idx := range b {
+      b[idx] = 1
+    }
+
+    fmt.Fprintf(w, "done, %v", r.URL.Path[1:])
+  })
+  http.ListenAndServe(":8080", nil)
+}
 ```
 
-### 7.4. `runtime/metrics`
+- 使用sync.Pool复用内存
 
-现在做长期监控时，也应该了解 `runtime/metrics`。它提供更通用的 runtime metric API，例如：
+```go
 
-```text
-/gc/heap/live:bytes
-/gc/heap/goal:bytes
-/gc/gogc:percent
-/gc/gomemlimit:bytes
-/memory/classes/total:bytes
+package main
+
+import (
+  "fmt"
+  "net/http"
+  _ "net/http/pprof"
+  "sync"
+)
+
+// 使用 sync.Pool 复用需要的 buf
+var bufPool = sync.Pool{
+  New: func() interface{} {
+    return make([]byte, 10<<20)
+  },
+}
+
+func main() {
+  go func() {
+    http.ListenAndServe("localhost:6060", nil)
+  }()
+  http.HandleFunc("/example2", func(w http.ResponseWriter, r *http.Request) {
+    b := bufPool.Get().([]byte)
+    for idx := range b {
+      b[idx] = 0
+    }
+    fmt.Fprintf(w, "done, %v", r.URL.Path[1:])
+    bufPool.Put(b)
+  })
+  http.ListenAndServe(":8080", nil)
+}
 ```
 
-## 8. GC 调优
 
-### 8.1. 先确认问题是不是 GC
 
-不要看到 CPU 高就直接调 `GOGC`。
-
-先结合：
-
-- CPU profile；
-- heap / alloc profile；
-- `gctrace`；
-- `runtime/metrics`；
-- trace；
-- 实际延迟和吞吐指标。
-
-确认 GC 真的是瓶颈再调整。
-
-### 8.2. 第一优先级：减少 live heap 和 allocation rate
-
-常见手段：
-
-- 减少不必要的临时对象；
-- 预分配确定容量的 slice / map；
-- 避免无意义的 string / `[]byte` 来回转换；
-- 减少对象生命周期；
-- benchmark + pprof 验证热点分配。
-
-这通常比直接调 GC 参数更稳定。
-
-### 8.3. 调整 `GOGC`
-
-如果机器内存充足而 CPU 更紧，可以适当提高 `GOGC`，用更多内存换更少 GC。
-
-如果内存非常紧，降低 `GOGC` 可以缩小 heap，但会增加 GC CPU。
-
-### 8.4. 配合 `GOMEMLIMIT`
-
-对容器、Kubernetes 或有明确 memory budget 的进程，`GOMEMLIMIT` 比单独依赖 `GOGC` 更直接。
-
-通常应给 Go runtime 留出一定 headroom，因为进程总内存还可能包括：
-
-- 可执行文件；
-- cgo/C 内存；
-- mmap；
-- kernel / OS 侧记账；
-- 其他 runtime 之外的内存。
-
-### 8.5. memory ballast 已经过时
-
-早期常见做法是分配一块很大的 ballast，让 GC 根据更大的 heap target 降低频率。
-
-在没有 `GOMEMLIMIT` 的时代，这是一种工程 workaround。
-
-现在已有官方 soft memory limit，**不应该再把 memory ballast 当成默认调优方案**。
-
-### 8.6. `sync.Pool`
-
-`sync.Pool` 可以复用临时对象，减少 allocation rate，但它不是通用缓存：Pool 中对象可以在任意 GC 周期被 runtime 清理。
-
-因此适合：
-
-- 生命周期短；
-- 创建成本较高；
-- 可以被安全复用的临时对象。
-
-是否有效仍然需要 benchmark / profile 验证。
-
-## 9. 一个更实用的调优顺序
-
-```text
-先测量
-  ↓
-确认 GC / allocation 是否真是瓶颈
-  ↓
-减少 live heap / allocation rate
-  ↓
-再考虑 GOGC
-  ↓
-有明确 memory budget 时配置 GOMEMLIMIT
-  ↓
-重新 benchmark + profile
-```
-
-## 10. 参考
-- [A Guide to the Go Garbage Collector](https://go.dev/doc/gc-guide)
-- [Go 1.26 Release Notes - Green Tea GC](https://go.dev/doc/go1.26)
-- [The Green Tea Garbage Collector](https://go.dev/blog/greenteagc)
-- [runtime/debug.SetGCPercent](https://pkg.go.dev/runtime/debug#SetGCPercent)
-- [runtime/debug.SetMemoryLimit](https://pkg.go.dev/runtime/debug#SetMemoryLimit)
-- [runtime/metrics](https://pkg.go.dev/runtime/metrics)
-- [Golang内存泄露.md](/notes/go/Golang%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2/)
+## 6. 参考
+- [Golang中GC回收机制三色标记与混合写屏障\_哔哩哔哩 \(゜\-゜\)つロ 干杯~\-bilibili](https://www.bilibili.com/video/BV1wz4y1y7Kd)
+- [5、Golang三色标记\+混合写屏障GC模式全分析 · Golang修养之路 · 看云](https://www.kancloud.cn/aceld/golang/1958308)
+- [GoLab 2019 \- Fabio Falzoi \- An insight into Go Garbage Collection \- YouTube](https://www.youtube.com/watch?v=etRF1Cpx5Ok)
+- [GC 的认识 \- 9\. 什么是写屏障、混合写屏障，如何实现？ \- 《Go 语言问题集\(Go Questions\)》 \- 书栈网 · BookStack](https://www.bookstack.cn/read/qcrao-Go-Questions/spilt.9.GC-GC.md)
+- [Go memory ballast: How I learnt to stop worrying and love the heap \| Twitch Blog](https://web.archive.org/web/20210929130001/https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap-26c2462549a2/)
+- [How We Saved 70K Cores Across 30 Mission\-Critical Services \(Large\-cale, Semi\-Automated Go GC Tuning @Uber\)](https://eng.uber.com/how-we-saved-70k-cores-across-30-mission-critical-services/)
+- 降本增效: 一种可节约30%CPU资源的tRPC\-Go插件 \- KM平台（内部链接已移除）
+- [go \- Why 'Total MB' in golang heap profile is less than 'RES' in top? \- Stack Overflow](https://stackoverflow.com/questions/16516189/why-total-mb-in-golang-heap-profile-is-less-than-res-in-top)
+- [CMS与三色标记算法 \- 知乎](https://zhuanlan.zhihu.com/p/340530051)
