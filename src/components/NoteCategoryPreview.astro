@@ -6,16 +6,17 @@ interface Props {
   category: string;
   label: string;
   entries: NoteEntry[];
+  href?: string;
 }
 
-const { category, label, entries } = Astro.props;
+const { category, label, entries, href = categoryHref(category) } = Astro.props;
 const hasMore = entries.length > 5;
 const previewLabel = hasMore ? "最近更新" : "全部笔记";
 ---
 
 <section>
   <div class="category-title">
-    <h2><a href={categoryHref(category)}>{label}</a></h2>
+    <h2><a href={href}>{label}</a></h2>
   </div>
   <p class="category-preview-label">{previewLabel}</p>
   <ul aria-label={`${label}${previewLabel}`}>
@@ -24,7 +25,7 @@ const previewLabel = hasMore ? "最近更新" : "全部笔记";
     ))}
   </ul>
   {hasMore && (
-    <a class="more-link category-more-link" href={categoryHref(category)}>
+    <a class="more-link category-more-link" href={href}>
       查看 {label} 的全部 {entries.length} 篇笔记 →
     </a>
   )}
