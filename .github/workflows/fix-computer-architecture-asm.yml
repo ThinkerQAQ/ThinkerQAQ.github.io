@@ -1,0 +1,72 @@
+name: Repair Computer Architecture Assembly note
+
+on:
+  push:
+    branches:
+      - fix-computer-architecture-asm
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Restore historical assembly note as UTF-8
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+
+          raw = subprocess.check_output([
+              'git', 'show',
+              '0e010570684010ef99d4055bb7c3d4611df44f4c:notes/ASM/汇编语言.md'
+          ]).decode('utf-8')
+
+          raw = raw.replace('/c/Users/scottezhang/', '/c/Users/user/')
+          raw = raw.replace('C:/Users/zsk/', 'C:/Users/user/')
+          raw = raw.replace('C:\\Users\\zsk\\', 'C:\\Users\\user\\')
+
+          frontmatter = '''---
+          title: "3.1 汇编语言"
+          description: "x86-64 AT&T 汇编、寄存器、寻址、函数调用与 C/Go 反汇编的历史学习笔记。"
+          sourcePath: "ASM/汇编语言.md"
+          category: "computer-architecture-assembly"
+          categoryLabel: "Computer Architecture & Assembly"
+          topic: "assembly"
+          topicLabel: "3.Assembly"
+          order: 8
+          tags: ["ASM"]
+          createdAt: "2020-08-23T15:46:35Z"
+          updatedAt: "2020-09-01T15:11:38Z"
+          status: "historical"
+          language: "zh"
+          featured: false
+          indexable: true
+          ---
+          > 2026 注：本文主要按 x86-64 + AT&T 语法理解汇编，但调用约定取决于 ABI。文中既出现了 System V AMD64 的参数寄存器，也包含 Windows x64 的反汇编示例，阅读时应区分平台；Go 的 ABI 也已随版本演进。
+
+          '''
+          frontmatter = '\n'.join(line[10:] if line.startswith('          ') else line for line in frontmatter.splitlines()) + '\n'
+
+          target = Path('src/content/notes/computer-architecture-assembly/ASM/汇编语言.md')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(frontmatter + raw, encoding='utf-8')
+
+      - name: Verify publication set
+        run: |
+          node --test scripts/computer-architecture-publication.test.mjs
+          test "$(find src/content/notes/computer-architecture-assembly -type f -name '*.md' | wc -l)" -eq 8
+          ! grep -RniE 'scottezhang|C:[/\\]Users[/\\]zsk|/c/Users/zsk' src/content/notes/computer-architecture-assembly
+
+      - name: Commit repaired note
+        run: |
+          git add src/content/notes/computer-architecture-assembly/ASM/汇编语言.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: restore assembly note encoding [skip ci]'
+          git push
