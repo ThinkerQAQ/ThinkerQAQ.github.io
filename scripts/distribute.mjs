@@ -5,7 +5,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
-export const SUPPORTED_PLATFORMS = ["juejin", "csdn", "cnblogs"];
+export const SUPPORTED_PLATFORMS = [
+  "cnblogs",
+  "juejin",
+  "csdn",
+  "segmentfault",
+  "zhihu",
+  "51cto",
+  "oschina",
+  "toutiao",
+];
 export const DEFAULT_OUTPUT_ROOT = ".distribution";
 export const MANIFEST_FILE = "manifest.json";
 
@@ -264,12 +273,21 @@ export async function exportArticles({
 function runProcess(command, args, { cwd = process.cwd() } = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
+    const output = [];
     const child = spawn(command, args, {
       cwd,
       env: process.env,
-      stdio: "inherit",
+      stdio: ["inherit", "pipe", "pipe"],
       shell: process.platform === "win32",
       windowsHide: true,
+    });
+    child.stdout.on("data", (chunk) => {
+      output.push(chunk);
+      process.stdout.write(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      output.push(chunk);
+      process.stderr.write(chunk);
     });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
@@ -281,9 +299,20 @@ function runProcess(command, args, { cwd = process.cwd() } = {}) {
         reject(new Error(`${command} exited with code ${code}`));
         return;
       }
-      resolve({ durationMs: Date.now() - startedAt });
+      resolve({
+        durationMs: Date.now() - startedAt,
+        output: Buffer.concat(output).toString("utf8"),
+      });
     });
   });
+}
+
+function wechatsyncFailure(output = "") {
+  const normalized = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/gu, "");
+  if (/文章频繁发布，请稍后再试/u.test(normalized)) return "rate-limited";
+  if (/Invalid or missing token/u.test(normalized)) return "invalid-token";
+  if (/同步完成:\s*0\s*成功,\s*[1-9]\d*\s*失败/u.test(normalized)) return "platform-failed";
+  return null;
 }
 
 export async function syncExports({
@@ -293,6 +322,8 @@ export async function syncExports({
   changedOnly = false,
   dryRun = false,
   run = runProcess,
+  wait = (durationMs) => new Promise((resolve) => setTimeout(resolve, durationMs)),
+  rateLimitRetryMs = 60_000,
 } = {}) {
   const selected = changedOnly ? exported.filter((item) => item.pending) : exported;
   for (const item of selected) {
@@ -305,7 +336,19 @@ export async function syncExports({
       dryRun,
     });
     try {
-      await run("wechatsync", args);
+      let result = await run("wechatsync", args);
+      let failure = wechatsyncFailure(result?.output);
+      if (!dryRun && item.platform === "csdn" && failure === "rate-limited") {
+        log("warn", "distribution-sync", "rate-limit-retry-wait", {
+          slug: item.slug,
+          platform: item.platform,
+          retryDelayMs: rateLimitRetryMs,
+        });
+        await wait(rateLimitRetryMs);
+        result = await run("wechatsync", args);
+        failure = wechatsyncFailure(result?.output);
+      }
+      if (failure) throw new Error(`Wechatsync reported ${failure}`);
       if (!dryRun) {
         const state = manifest.articles[item.slug].platforms[item.platform];
         state.lastSyncedHash = item.contentHash;
@@ -391,7 +434,7 @@ Generate platform-ready Markdown from published articles. Add --sync to send dra
 
 Options:
   --article <slug>       Export one article; may be repeated
-  --platforms <list>     Comma- or space-separated: juejin,csdn,cnblogs
+  --platforms <list>     Comma- or space-separated: cnblogs,juejin,csdn,segmentfault,zhihu,51cto,oschina,toutiao
   --output <directory>   Output directory (default: .distribution)
   --sync                 Send generated Markdown to platform drafts
   --changed              With --sync, send only content not synced before
