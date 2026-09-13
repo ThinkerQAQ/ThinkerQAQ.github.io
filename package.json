@@ -15,7 +15,7 @@
     "test:diagrams": "npm run diagrams && node --test scripts/plantuml/plantuml.test.mjs scripts/drawio/drawio.test.mjs",
     "test:indexnow": "node --test scripts/indexnow.test.mjs",
     "test:distribute": "node --test scripts/distribute.test.mjs",
-    "test:vnotes": "node --test scripts/import-vnotes.test.mjs scripts/apply-note-topics.test.mjs scripts/container-policy.test.mjs scripts/algorithm-policy.test.mjs",
+    "test:vnotes": "node --test scripts/import-vnotes.test.mjs scripts/apply-note-topics.test.mjs scripts/container-policy.test.mjs scripts/algorithm-policy.test.mjs scripts/operating-system-policy.test.mjs",
     "indexnow:prepare": "node scripts/indexnow.mjs prepare",
     "indexnow:submit": "node scripts/indexnow.mjs submit",
     "distribute": "node scripts/distribute.mjs",
