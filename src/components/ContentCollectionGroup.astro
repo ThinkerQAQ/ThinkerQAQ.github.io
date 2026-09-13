@@ -1,0 +1,51 @@
+---
+interface IndexItem {
+  href: string;
+  title: string;
+  current: boolean;
+}
+
+interface IndexGroup {
+  label?: string;
+  href?: string;
+  current?: boolean;
+  items: IndexItem[];
+  children?: IndexGroup[];
+}
+
+interface Props {
+  group: IndexGroup;
+  depth?: number;
+}
+
+const { group, depth = 0 } = Astro.props;
+const children = group.children ?? [];
+---
+
+<li class="series-index__group" data-navigation-depth={depth}>
+  {group.label && (
+    group.href ? (
+      <a
+        class="series-index__group-label series-index__group-link"
+        href={group.href}
+        aria-current={group.current ? "page" : undefined}
+      >{group.label}</a>
+    ) : (
+      <p class="series-index__group-label">{group.label}</p>
+    )
+  )}
+  {group.items.length > 0 && (
+    <ol class="series-index__items">
+      {group.items.map((item) => (
+        <li>
+          <a href={item.href} aria-current={item.current ? "page" : undefined}>{item.title}</a>
+        </li>
+      ))}
+    </ol>
+  )}
+  {children.length > 0 && (
+    <ol class="series-index__children">
+      {children.map((child) => <Astro.self group={child} depth={depth + 1} />)}
+    </ol>
+  )}
+</li>

@@ -1,4 +1,6 @@
 ---
+import ContentCollectionGroup from "./ContentCollectionGroup.astro";
+
 interface IndexItem {
   href: string;
   title: string;
@@ -10,6 +12,7 @@ interface IndexGroup {
   href?: string;
   current?: boolean;
   items: IndexItem[];
+  children?: IndexGroup[];
 }
 
 interface Props {
@@ -37,28 +40,7 @@ const hasGroups = groups.some((group) => group.label);
     </div>
     {hasGroups ? (
       <ol class="series-index__groups">
-        {groups.map((group) => (
-          <li class="series-index__group">
-            {group.label && (
-              group.href ? (
-                <a
-                  class="series-index__group-label series-index__group-link"
-                  href={group.href}
-                  aria-current={group.current ? "page" : undefined}
-                >{group.label}</a>
-              ) : (
-                <p class="series-index__group-label">{group.label}</p>
-              )
-            )}
-            <ol class="series-index__items">
-              {group.items.map((item) => (
-                <li>
-                  <a href={item.href} aria-current={item.current ? "page" : undefined}>{item.title}</a>
-                </li>
-              ))}
-            </ol>
-          </li>
-        ))}
+        {groups.map((group) => <ContentCollectionGroup group={group} />)}
       </ol>
     ) : (
       <ol class="series-index__items">
@@ -115,6 +97,17 @@ const hasGroups = groups.some((group) => group.label);
 
   if (seriesIndex && currentLink) {
     seriesIndex.scrollTop = currentLink.offsetTop - seriesIndex.clientHeight / 2;
+  }
+
+  if (seriesIndex) {
+    console.debug("navigation-tree-initialized", {
+      timestamp: new Date().toISOString(),
+      severity: "debug",
+      node: "content-collection-index",
+      operation: "render-navigation-tree",
+      result: "ready",
+      nestedGroupCount: seriesIndex.querySelectorAll('[data-navigation-depth]:not([data-navigation-depth="0"])').length,
+    });
   }
 
   if (seriesIndex && region && shell && hideButton && restoreButton) {
@@ -314,18 +307,19 @@ const hasGroups = groups.some((group) => group.label);
     display: none;
   }
 
-  .series-index__groups,
-  .series-index__items {
+  :global(.series-index__groups),
+  :global(.series-index__items),
+  :global(.series-index__children) {
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .series-index__group + .series-index__group {
+  :global(.series-index__group + .series-index__group) {
     margin-top: 0.65rem;
   }
 
-  .series-index__group-label {
+  :global(.series-index__group-label) {
     display: block;
     margin: 0 0 0.2rem;
     color: var(--text);
@@ -333,34 +327,41 @@ const hasGroups = groups.some((group) => group.label);
     font-weight: 650;
   }
 
-  .series-index__group-link {
+  :global(.series-index__group-link) {
     text-decoration: none;
   }
 
-  .series-index__group-link[aria-current="page"] {
+  :global(.series-index__group-link[aria-current="page"]) {
     color: var(--accent);
   }
 
-  .series-index__items {
+  :global(.series-index__items) {
     border-left: 1px solid var(--border);
   }
 
-  .series-index__items li {
+  :global(.series-index__items li) {
     line-height: 1.45;
   }
 
-  .series-index__items li a {
+  :global(.series-index__items li a) {
     display: block;
     padding: 0.35rem 0.75rem 0.35rem 0.9rem;
     text-decoration: none;
   }
 
-  .series-index__items li a[aria-current="page"] {
+  :global(.series-index__items li a[aria-current="page"]) {
     border-left: 2px solid var(--accent);
     margin-left: -1px;
     background: var(--accent-soft);
     color: var(--text);
     font-weight: 650;
+  }
+
+  :global(.series-index__children) {
+    margin-top: 0.5rem;
+    margin-left: 0.55rem;
+    padding-left: 0.7rem;
+    border-left: 1px solid var(--border);
   }
 
   @media (max-width: 1200px) {

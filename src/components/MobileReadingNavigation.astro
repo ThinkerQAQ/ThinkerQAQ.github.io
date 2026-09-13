@@ -1,4 +1,6 @@
 ---
+import MobileReadingNavigationGroup from "./MobileReadingNavigationGroup.astro";
+
 interface NavigationItem {
   href: string;
   title: string;
@@ -10,6 +12,7 @@ interface NavigationGroup {
   href?: string;
   current?: boolean;
   items: NavigationItem[];
+  children?: NavigationGroup[];
 }
 
 interface CollectionNavigation {
@@ -129,28 +132,7 @@ const tocPanelId = "mobile-reading-navigation-toc";
               <a href={collection.href}>{collection.title}</a>
             </div>
             <ol class="mobile-reading-nav__groups">
-              {collection.groups.map((group) => (
-                <li class="mobile-reading-nav__group">
-                  {group.label && (
-                    group.href ? (
-                      <a
-                        class="mobile-reading-nav__group-label"
-                        href={group.href}
-                        aria-current={group.current ? "page" : undefined}
-                      >{group.label}</a>
-                    ) : (
-                      <p class="mobile-reading-nav__group-label">{group.label}</p>
-                    )
-                  )}
-                  <ol class="mobile-reading-nav__items">
-                    {group.items.map((item) => (
-                      <li>
-                        <a href={item.href} aria-current={item.current ? "page" : undefined}>{item.title}</a>
-                      </li>
-                    ))}
-                  </ol>
-                </li>
-              ))}
+              {collection.groups.map((group) => <MobileReadingNavigationGroup group={group} />)}
             </ol>
           </section>
         )}
@@ -431,19 +413,20 @@ const tocPanelId = "mobile-reading-navigation-toc";
       text-decoration: none;
     }
 
-    .mobile-reading-nav__groups,
-    .mobile-reading-nav__items,
+    :global(.mobile-reading-nav__groups),
+    :global(.mobile-reading-nav__items),
+    :global(.mobile-reading-nav__children),
     .mobile-reading-nav__toc {
       margin: 0;
       padding: 0;
       list-style: none;
     }
 
-    .mobile-reading-nav__group + .mobile-reading-nav__group {
+    :global(.mobile-reading-nav__group + .mobile-reading-nav__group) {
       margin-top: 0.7rem;
     }
 
-    .mobile-reading-nav__group-label {
+    :global(.mobile-reading-nav__group-label) {
       display: block;
       margin: 0 0 0.25rem;
       color: var(--text);
@@ -452,16 +435,16 @@ const tocPanelId = "mobile-reading-navigation-toc";
       text-decoration: none;
     }
 
-    .mobile-reading-nav__group-label[aria-current="page"] {
+    :global(.mobile-reading-nav__group-label[aria-current="page"]) {
       color: var(--accent);
     }
 
-    .mobile-reading-nav__items,
+    :global(.mobile-reading-nav__items),
     .mobile-reading-nav__toc {
       border-left: 1px solid var(--border);
     }
 
-    .mobile-reading-nav__items a,
+    :global(.mobile-reading-nav__items a),
     .mobile-reading-nav__toc a {
       display: block;
       padding: 0.38rem 0.6rem 0.38rem 0.85rem;
@@ -470,12 +453,19 @@ const tocPanelId = "mobile-reading-navigation-toc";
       text-decoration: none;
     }
 
-    .mobile-reading-nav__items a[aria-current="page"] {
+    :global(.mobile-reading-nav__items a[aria-current="page"]) {
       margin-left: -1px;
       border-left: 2px solid var(--accent);
       background: var(--accent-soft);
       color: var(--text);
       font-weight: 650;
+    }
+
+    :global(.mobile-reading-nav__children) {
+      margin-top: 0.55rem;
+      margin-left: 0.65rem;
+      padding-left: 0.75rem;
+      border-left: 1px solid var(--border);
     }
 
     .mobile-reading-nav__toc-depth-3 a {

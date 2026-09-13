@@ -1,6 +1,6 @@
 ---
-import type { NoteTopicGroup } from "../lib/content";
-import { categoryHref, noteHref, noteTopicHref } from "../lib/content";
+import type { NoteTopicGroup, NoteTopicTreeNode } from "../lib/content";
+import { buildNoteTopicTree, categoryHref, noteHref, noteTopicHref } from "../lib/content";
 import ContentCollectionIndex from "./ContentCollectionIndex.astro";
 import MobileReadingNavigation from "./MobileReadingNavigation.astro";
 
@@ -12,10 +12,29 @@ interface Props {
   currentTopicPath?: string[];
 }
 
+interface TopicNavigationGroup {
+  label: string;
+  href: string;
+  current: boolean;
+  items: Array<{ href: string; title: string; current: boolean }>;
+  children: TopicNavigationGroup[];
+}
+
 const { category, categoryLabel, topics, total, currentTopicPath = [] } = Astro.props;
 const navigableTopics = topics.filter((topic) => topic.path.length > 0);
 const hasTopics = navigableTopics.length > 0;
 const currentPathKey = currentTopicPath.join("/");
+const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
+  label: topic.label,
+  href: noteTopicHref(category, topic.path),
+  current: topic.path.map((segment) => segment.id).join("/") === currentPathKey,
+  items: topic.notes.map((note) => ({
+    href: noteHref(note),
+    title: note.data.title,
+    current: false,
+  })),
+  children: topic.children.map(topicToGroup),
+});
 const groups = [
   {
     items: [{
@@ -24,16 +43,7 @@ const groups = [
       current: currentTopicPath.length === 0,
     }],
   },
-  ...navigableTopics.map((topic) => ({
-    label: topic.depth > 0 ? `${"› ".repeat(topic.depth)}${topic.label}` : topic.label,
-    href: noteTopicHref(category, topic.path),
-    current: topic.path.map((segment) => segment.id).join("/") === currentPathKey,
-    items: topic.notes.map((note) => ({
-      href: noteHref(note),
-      title: note.data.title,
-      current: false,
-    })),
-  })),
+  ...buildNoteTopicTree(navigableTopics).map(topicToGroup),
 ];
 ---
 

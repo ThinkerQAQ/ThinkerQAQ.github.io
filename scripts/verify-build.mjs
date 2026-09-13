@@ -217,8 +217,19 @@ async function main() {
     "Java category is missing the JUC subtopic",
   );
   invariant(
+    javaNotesPage.includes('class="series-index__children"') &&
+      javaNotesPage.includes('data-navigation-depth="6"'),
+    "Java sidebar does not preserve deeply nested topic structure",
+  );
+  invariant(
     await exists(routeFile("/notes/category/java/topic/JUC/")),
     "Java JUC topic route missing",
+  );
+  const databaseNotesPage = await readFile(routeFile("/notes/category/database/"), "utf8");
+  invariant(
+    /href="\/notes\/category\/database\/topic\/MySQL\/"[^>]*>1\.MySQL<\/a>[\s\S]*class="series-index__children"[\s\S]*href="\/notes\/category\/database\/topic\/MySQL\/InnoDB\/"[^>]*>InnoDB<\/a>/.test(databaseNotesPage) &&
+      !databaseNotesPage.includes("› InnoDB"),
+    "Database sidebar does not render InnoDB as a nested MySQL topic",
   );
   const legacyJavaCategoryPage = await readFile(routeFile("/notes/category/java-juc/"), "utf8");
   invariant(

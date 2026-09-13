@@ -1,28 +1,37 @@
 ---
-import type { NoteCollectionNavigation } from "../lib/content";
-import { categoryHref, noteHref, noteTopicHref } from "../lib/content";
+import type { NoteCollectionNavigation, NoteTopicTreeNode } from "../lib/content";
+import { buildNoteTopicTree, categoryHref, noteHref, noteTopicHref } from "../lib/content";
 import ContentCollectionIndex from "./ContentCollectionIndex.astro";
 
 interface Props {
   navigation: NoteCollectionNavigation;
 }
 
+interface TopicNavigationGroup {
+  label: string;
+  href?: string;
+  items: Array<{ href: string; title: string; current: boolean }>;
+  children: TopicNavigationGroup[];
+}
+
 const { navigation } = Astro.props;
+const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
+  label: topic.label,
+  href: topic.path.length > 0 ? noteTopicHref(navigation.category, topic.path) : undefined,
+  items: topic.notes.map((note) => ({
+    href: noteHref(note),
+    title: note.data.title,
+    current: note.id === navigation.currentId,
+  })),
+  children: topic.children.map(topicToGroup),
+});
 ---
 
 <ContentCollectionIndex
   label="笔记集"
   title={navigation.categoryLabel}
   href={categoryHref(navigation.category)}
-  groups={navigation.topics.map((topic) => ({
-    label: topic.depth > 0 ? `${"› ".repeat(topic.depth)}${topic.label}` : topic.label,
-    href: topic.path.length > 0 ? noteTopicHref(navigation.category, topic.path) : undefined,
-    items: topic.notes.map((note) => ({
-      href: noteHref(note),
-      title: note.data.title,
-      current: note.id === navigation.currentId,
-    })),
-  }))}
+  groups={buildNoteTopicTree(navigation.topics).map(topicToGroup)}
   ariaLabel={`${navigation.categoryLabel}笔记大纲`}
   hideLabel="隐藏笔记大纲"
   restoreLabel="展开笔记大纲"

@@ -37,6 +37,10 @@ export interface NoteTopicGroup {
   allNotes: NoteEntry[];
 }
 
+export interface NoteTopicTreeNode extends NoteTopicGroup {
+  children: NoteTopicTreeNode[];
+}
+
 export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
 export const ROOT_NOTE_TOPIC = "__root";
 export const ROOT_NOTE_TOPIC_ROUTE = "overview";
@@ -200,6 +204,31 @@ export function groupNotesByTopic(notes: NoteEntry[]): NoteTopicGroup[] {
   }
 
   return [...topics.values()];
+}
+
+export function buildNoteTopicTree(topics: NoteTopicGroup[]): NoteTopicTreeNode[] {
+  const nodes = new Map<string, NoteTopicTreeNode>();
+
+  for (const topic of topics) {
+    if (topic.path.length === 0) continue;
+    nodes.set(topicPathKey(topic.path), { ...topic, children: [] });
+  }
+
+  const roots: NoteTopicTreeNode[] = [];
+  for (const topic of topics) {
+    if (topic.path.length === 0) {
+      roots.push({ ...topic, children: [] });
+      continue;
+    }
+    const node = nodes.get(topicPathKey(topic.path));
+    if (!node) continue;
+
+    const parent = nodes.get(topicPathKey(topic.path.slice(0, -1)));
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  return roots;
 }
 
 export function getNoteCollectionNavigation(
