@@ -136,9 +136,56 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       return `${fallback}\n${content}`.trim().slice(0, 5000);
     };
 
+    const buildSearchQueries = (question) => {
+      const normalized = question.normalize("NFKC").trim();
+      const candidates = [{ value: normalized, strategy: "question" }];
+      const latinTokens = normalized.match(/[A-Za-z][A-Za-z0-9+.#/_-]*/g) ?? [];
+      const acronyms = latinTokens
+        .filter((token) => token.length >= 2 && token === token.toUpperCase())
+        .sort((left, right) => right.length - left.length);
+      const identifiers = latinTokens
+        .filter((token) => token.length >= 2 && token !== token.toUpperCase())
+        .sort((left, right) => right.length - left.length);
+      const chineseTerms = (normalized.match(/\p{Script=Han}+/gu) ?? [])
+        .flatMap((term) => term
+          .replace(/为什么|怎么样|如何|怎么|什么|是否|能否|可不可以|可以|有没有|请问|帮我|一下/g, " ")
+          .split(/\s+/))
+        .map((term) => term.replace(/[吗么呢呀啊]$/u, ""))
+        .filter((term) => term.length >= 2)
+        .sort((left, right) => right.length - left.length);
+
+      for (const [strategy, values] of [
+        ["acronym", acronyms],
+        ["identifier", identifiers],
+        ["chinese-term", chineseTerms],
+      ]) {
+        for (const value of values) candidates.push({ value, strategy });
+      }
+
+      const seen = new Set();
+      return candidates.filter(({ value }) => {
+        const key = value.toLocaleLowerCase();
+        if (!value || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
     const retrieveSources = async (question) => {
       const pagefind = await getPagefind();
-      const search = await pagefind.search(question);
+      let search;
+      for (const { value, strategy } of buildSearchQueries(question)) {
+        const startedAt = performance.now();
+        search = await pagefind.search(value);
+        console.info("Ask blog Pagefind search", {
+          operation: "pagefind-search",
+          strategy,
+          resultCount: search.results.length,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+        if (search.results.length > 0) break;
+      }
+      if (!search) return [];
       const loaded = await Promise.all(search.results.slice(0, 5).map((entry) => entry.data()));
 
       return loaded
