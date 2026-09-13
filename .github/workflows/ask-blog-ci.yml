@@ -1,0 +1,37 @@
+name: Ask Blog feature CI
+
+on:
+  push:
+    branches: [feat/ask-this-blog]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+      PUBLIC_ASK_BLOG_WORKER_URL: https://example.invalid/chat
+      PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Setup Java for local PlantUML rendering
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install diagram layout and Chinese fonts
+        run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
+      - name: Check Worker syntax
+        run: node --check workers/blog-ai/src/index.js
+      - name: Test and build static site
+        run: npm test
