@@ -21,7 +21,12 @@ const {
   canonicalPath = Astro.url.pathname,
   language = SITE.locale,
 } = Astro.props;
-const pageTitle = title === SITE.title ? title : `${title} · ${SITE.title}`;
+const pageTitle =
+  title === SITE.title && Astro.url.pathname === "/"
+    ? SITE.homeTitle
+    : title === SITE.title
+      ? title
+      : `${title} · ${SITE.title}`;
 const canonical = new URL(canonicalPath, SITE.url);
 ---
 
