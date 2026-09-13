@@ -6,6 +6,13 @@
   "ai": {
     "binding": "AI"
   },
+  "ai_search_namespaces": [
+    {
+      "binding": "AI_SEARCH",
+      "namespace": "default",
+      "remote": true
+    }
+  ],
   "ratelimits": [
     {
       "name": "AI_RATE_LIMITER",
@@ -19,6 +26,7 @@
   "vars": {
     "BLOG_ORIGIN": "https://thinkerqaq.github.io",
     "ALLOWED_ORIGINS": "https://thinkerqaq.github.io,http://localhost:4321,http://127.0.0.1:4321",
-    "AI_MODEL": "@cf/zai-org/glm-4.7-flash"
+    "AI_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "AI_SEARCH_INSTANCE": "thinkerqaq-blog"
   }
 }
