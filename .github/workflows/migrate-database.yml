@@ -1,1 +1,164 @@
+name: Migrate reviewed Database notes
 
+on:
+  push:
+    branches:
+      - database-taxonomy-work
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Configure Database taxonomy
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+          import re
+
+          mysql_paths = []
+          for note in sorted(Path('src/content/notes/mysql-database').rglob('*.md')):
+              text = note.read_text(encoding='utf-8')
+              match = re.search(r'^sourcePath:\s+"([^"]+)"\s*$', text, re.M)
+              if not match:
+                  raise SystemExit(f'sourcePath missing: {note}')
+              source_path = match.group(1)
+              if not source_path.startswith('Database/MySQL/'):
+                  raise SystemExit(f'unexpected MySQL sourcePath: {source_path}')
+              mysql_paths.append(source_path)
+
+          postgres_paths = [
+              'Database/PostgreSQL/PostgreSQL.md',
+              'Database/PostgreSQL/PostgreSQL MVCC.md',
+              'Database/PostgreSQL/PostgreSQL explain.md',
+              'Database/PostgreSQL/PostgreSQL隔离级别.md',
+          ]
+          reviewed_paths = sorted(set(mysql_paths + postgres_paths))
+          if len(reviewed_paths) != len(mysql_paths) + 4:
+              raise SystemExit('duplicate Database paths')
+
+          policy_path = Path('scripts/content-policy.mjs')
+          policy = policy_path.read_text(encoding='utf-8')
+
+          def replace_once(old, new):
+              global policy
+              if old not in policy:
+                  raise SystemExit(f'policy marker not found: {old!r}')
+              policy = policy.replace(old, new, 1)
+
+          replace_once('  "Database/MySQL",\n', '  "Database",\n')
+          replace_once('  "Database/MySQL": "MySQL / Database",\n', '  Database: "Database",\n')
+          replace_once('  "Database/MySQL": "mysql-database",\n', '  Database: "database",\n')
+          replace_once('  "Database/MySQL": "基础与专题",\n', '  Database: "Database",\n')
+          replace_once(
+              'export const LEGACY_IMPORT_IDS = {\n  java: ["java-juc"],\n};',
+              'export const LEGACY_IMPORT_IDS = {\n  java: ["java-juc"],\n  database: ["mysql-database"],\n};',
+          )
+
+          rendered = ',\n'.join(f'    {json.dumps(path, ensure_ascii=False)}' for path in reviewed_paths)
+          allowlist = f'  Database: new Set([\n{rendered},\n  ]),\n'
+          marker = '  Golang: new Set(goTopicEntries.map(([note]) => `Golang/${note}`)),\n'
+          if marker not in policy:
+              raise SystemExit('reviewed-note insertion marker not found')
+          policy = policy.replace(marker, allowlist + marker, 1)
+          policy_path.write_text(policy, encoding='utf-8')
+
+          package_path = Path('package.json')
+          package = package_path.read_text(encoding='utf-8')
+          marker = 'scripts/computer-architecture-publication.test.mjs'
+          if marker not in package:
+              raise SystemExit('package test marker not found')
+          package_path.write_text(
+              package.replace(marker, marker + ' scripts/database-policy.test.mjs', 1),
+              encoding='utf-8',
+          )
+
+          expected = len(reviewed_paths)
+          test = f'''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport {{ CATEGORY_LABELS, CATEGORY_SLUGS, REVIEWED_NOTE_PATHS }} from "./content-policy.mjs";\nimport {{ sourceExclusionReason }} from "./import-vnotes.mjs";\n\ntest("Database is one category with MySQL and PostgreSQL topics", () => {{\n  assert.equal(CATEGORY_LABELS.Database, "Database");\n  assert.equal(CATEGORY_SLUGS.Database, "database");\n  const reviewed = REVIEWED_NOTE_PATHS.Database;\n  assert.equal(reviewed.size, {expected});\n  assert.equal(reviewed.has("Database/PostgreSQL/PostgreSQL.md"), true);\n  assert.equal(reviewed.has("Database/PostgreSQL/PostgreSQL MVCC.md"), true);\n  assert.equal([...reviewed].every((path) => path.startsWith("Database/MySQL/") || path.startsWith("Database/PostgreSQL/")), true);\n  assert.equal(sourceExclusionReason({{ sourcePath: "Database" }}, "数据库事务.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason({{ sourcePath: "Database" }}, "SQL Join查询.md"), "not-reviewed");\n}});\n'''
+          Path('scripts/database-policy.test.mjs').write_text(test, encoding='utf-8')
+          Path('.database-expected-count').write_text(str(expected), encoding='utf-8')
+          Path('.database-mysql-count').write_text(str(len(mysql_paths)), encoding='utf-8')
+
+      - name: Recover historical VNote source
+        run: |
+          rm -rf .migration
+          mkdir -p .migration
+          git archive 0e010570684010ef99d4055bb7c3d4611df44f4c:notes | tar -x -C .migration
+          mkdir -p .migration/Virtual_Machine
+          for f in 'GC.md' 'GC调优.md' 'STW.md' '内存泄露.md'; do
+            printf '# %s\n' "$f" > ".migration/Virtual_Machine/$f"
+          done
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import Database category
+        env:
+          VNOTE_SOURCE: ${{ github.workspace }}/.migration
+          VNOTE_IMPORT_IDS: database
+        run: |
+          npm run sync:notes
+          test ! -d src/content/notes/mysql-database
+          test "$(find src/content/notes/database -type f -name '*.md' | wc -l)" -eq "$(cat .database-expected-count)"
+          test "$(find src/content/notes/database/PostgreSQL -type f -name '*.md' | wc -l)" -eq 4
+          test "$(grep -R '^topic: "MySQL"$' src/content/notes/database/MySQL -l --include='*.md' | wc -l)" -eq "$(cat .database-mysql-count)"
+          test "$(grep -R '^topic: "PostgreSQL"$' src/content/notes/database/PostgreSQL -l --include='*.md' | wc -l)" -eq 4
+          test "$(grep -R '^category: "database"$' src/content/notes/database -l --include='*.md' | wc -l)" -eq "$(cat .database-expected-count)"
+
+      - name: Add minimal PostgreSQL historical annotations
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def add_after(path, needle, note):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if note in text:
+                  return
+              if needle not in text:
+                  raise SystemExit(f'annotation marker not found: {path}: {needle}')
+              p.write_text(text.replace(needle, needle + '\n\n' + note, 1), encoding='utf-8')
+
+          add_after(
+              'src/content/notes/database/PostgreSQL/PostgreSQL MVCC.md',
+              '- 当一个事务开始时，PostgreSQL递增XID，然后把它赋给这个事务。',
+              '> 2026 注：这里是简化理解。PostgreSQL 的事务 ID 可以延迟到真正需要时再分配；行可见性也不能只按 XID 大小判断，还要结合快照中的 `xmin` / `xmax` / 活跃事务集合以及事务提交状态。旧的 `txid_*` 查询接口目前主要用于兼容。',
+          )
+          add_after(
+              'src/content/notes/database/PostgreSQL/PostgreSQL隔离级别.md',
+              '- Serializable：使用锁系统来实现',
+              '> 2026 注：PostgreSQL 的 `READ UNCOMMITTED` 实际按 `READ COMMITTED` 处理；Serializable 也不只是普通锁，而是通过 Serializable Snapshot Isolation（SSI）并结合 predicate locking 检测可能破坏串行化的依赖。',
+          )
+
+      - name: Verify policy and generated taxonomy
+        run: |
+          node --test scripts/database-policy.test.mjs
+          test -z "$(find src/content/notes/database -maxdepth 1 -type f -name '*.md' -print -quit)"
+          ! grep -RniE 'INTERNAL_URL|REDACTED_LOCAL_PATH' src/content/notes/database
+          npm run test:vnotes
+
+      - name: Commit generated Database category
+        run: |
+          rm -rf .migration .database-expected-count .database-mysql-count
+          git rm -f .github/workflows/migrate-database.yml
+          git add package.json scripts/content-policy.mjs scripts/database-policy.test.mjs src/content/notes/database src/data/content-manifest.json
+          git add -u src/content/notes/mysql-database public/media/vnote/mysql-database || true
+          if [ -d public/media/vnote/database ]; then git add public/media/vnote/database; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'content: organize database notes under MySQL and PostgreSQL [skip ci]'
+          git push
