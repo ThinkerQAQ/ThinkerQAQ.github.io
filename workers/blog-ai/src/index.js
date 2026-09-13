@@ -227,8 +227,16 @@ function buildMessages(question, sources) {
 
 function getAnswer(aiResult) {
   if (typeof aiResult?.response === "string") return aiResult.response.trim();
+
   const content = aiResult?.choices?.[0]?.message?.content;
   if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => typeof part === "string" ? part : String(part?.text || ""))
+      .join("")
+      .trim();
+  }
+
   return "";
 }
 
@@ -428,6 +436,8 @@ export default {
         messages: buildMessages(question, sources),
         temperature: 0.2,
         max_completion_tokens: 900,
+        reasoning_effort: null,
+        chat_template_kwargs: { enable_thinking: false },
       });
       const answer = getAnswer(aiResult);
       if (!answer) throw new Error("Workers AI returned an empty response");
