@@ -27,6 +27,7 @@ thinkerqaq-blog
 - vector search enabled
 - keyword/BM25 search enabled
 - trigram keyword tokenizer for mixed Chinese + code identifiers
+- keyword `or` matching for higher recall
 - RRF fusion
 - query rewriting
 - `@cf/baai/bge-reranker-base` reranking
@@ -49,7 +50,7 @@ Account > AI Search:Edit
 Account > AI Search:Run
 ```
 
-If the account ID or token is absent, the sync job exits successfully with `status=skipped`, so GitHub Pages deployment is not blocked.
+The sync job is intentionally strict: missing credentials, Cloudflare API errors, indexing errors, indexing timeouts, or an empty readiness search all fail the job. A green `sync-ai-search` job therefore means the instance exists, indexing has settled, and a real hybrid search returned indexed content.
 
 ## Turnstile setup
 
