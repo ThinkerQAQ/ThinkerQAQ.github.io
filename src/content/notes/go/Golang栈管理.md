@@ -27,6 +27,9 @@ indexable: true
 ### 2.1. 动态扩容
 - go runtime不是给每个goroutine分配固定的空间，而是需要的动态分配栈空间
 - 创建goroutine的时候会分配一个8KB的内存给goroutine的栈使用，用完了咋办
+
+> 2026 注：8KB 是旧版本实现细节。当前 Go 的最小栈为 2KiB，实际起始栈大小还会由 runtime 调整。
+
     - 怎么检测用完？go函数的开头有一个检测代码
     - 如何扩容？参考连续栈和分段栈
 
