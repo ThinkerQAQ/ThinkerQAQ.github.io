@@ -15,8 +15,8 @@ const { navigation } = Astro.props;
   title={navigation.categoryLabel}
   href={categoryHref(navigation.category)}
   groups={navigation.topics.map((topic) => ({
-    label: topic.label,
-    href: topic.id ? noteTopicHref(navigation.category, topic.id) : undefined,
+    label: topic.depth > 0 ? `${"› ".repeat(topic.depth)}${topic.label}` : topic.label,
+    href: topic.path.length > 0 ? noteTopicHref(navigation.category, topic.path) : undefined,
     items: topic.notes.map((note) => ({
       href: noteHref(note),
       title: note.data.title,
