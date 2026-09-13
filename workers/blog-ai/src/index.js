@@ -9,9 +9,6 @@ const MAX_SOURCES = 5;
 const MAX_SOURCE_LENGTH = 5000;
 const MAX_TOTAL_CONTEXT = 20000;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
-const TECHNICAL_QUERY_STOPWORDS = new Set([
-  "a", "an", "and", "are", "can", "does", "for", "how", "in", "is", "of", "or", "the", "to", "what", "why", "with",
-]);
 
 function logRequest(level, message, context) {
   console[level](message, {
@@ -166,26 +163,7 @@ function normalizeAiSearchChunks(chunks, blogOrigin) {
   return [...documents.values()].filter((source) => source.content);
 }
 
-function technicalFallbackQuery(question) {
-  const tokens = String(question).match(/[A-Za-z][A-Za-z0-9_+#./-]*/g) || [];
-  const candidates = [];
-  const seen = new Set();
-
-  for (const token of tokens) {
-    const normalized = token.toLowerCase();
-    if (token.length < 2 || TECHNICAL_QUERY_STOPWORDS.has(normalized) || seen.has(normalized)) continue;
-    seen.add(normalized);
-
-    const looksTechnical = /^[A-Z][A-Z0-9_+#.-]+$/.test(token)
-      || /[A-Z].*[A-Z]/.test(token)
-      || /[+#./_-]/.test(token);
-    if (looksTechnical) candidates.push(token);
-  }
-
-  return candidates.slice(0, 3).join(" ");
-}
-
-async function searchAiSearch(instance, query, rewriteQuery) {
+async function searchAiSearch(instance, query) {
   return instance.search({
     query,
     ai_search_options: {
@@ -198,7 +176,10 @@ async function searchAiSearch(instance, query, rewriteQuery) {
         context_expansion: 1,
         return_on_failure: true,
       },
-      query_rewrite: { enabled: rewriteQuery },
+      // Preserve the user's original mixed natural-language + code query.
+      // The AI Search instance uses trigram tokenization for the BM25 lane,
+      // while the same raw query is embedded for semantic retrieval.
+      query_rewrite: { enabled: false },
       reranking: {
         enabled: true,
         model: RERANKER_MODEL,
@@ -219,15 +200,8 @@ async function retrieveAiSearchSources(question, env, blogOrigin) {
   }
 
   const instance = env.AI_SEARCH.get(instanceName);
-  const primary = await searchAiSearch(instance, question, true);
-  const primarySources = normalizeAiSearchChunks(primary?.chunks, blogOrigin);
-  if (primarySources.length) return primarySources;
-
-  const fallback = technicalFallbackQuery(question);
-  if (!fallback || fallback.toLowerCase() === question.toLowerCase()) return [];
-
-  const fallbackResult = await searchAiSearch(instance, fallback, false);
-  return normalizeAiSearchChunks(fallbackResult?.chunks, blogOrigin);
+  const result = await searchAiSearch(instance, question);
+  return normalizeAiSearchChunks(result?.chunks, blogOrigin);
 }
 
 function buildMessages(question, sources) {
