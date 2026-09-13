@@ -1,0 +1,161 @@
+name: Migrate reviewed Software Engineering notes v2
+
+on:
+  push:
+    branches:
+      - migrate/software-engineering-notes-v2
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Configure policy
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('scripts/content-policy.mjs')
+          s = p.read_text(encoding='utf-8')
+          def r(old, new):
+              global s
+              if old not in s: raise SystemExit(f'marker missing: {old!r}')
+              s = s.replace(old, new, 1)
+
+          r('  "Virtual_Machine",\n];', '  "Virtual_Machine",\n  "Software_Engineering",\n];')
+          r('  Virtual_Machine: "Garbage Collection / Runtime",\n};', '  Virtual_Machine: "Garbage Collection / Runtime",\n  Software_Engineering: "Software Architecture & Engineering",\n};')
+          r('  Virtual_Machine: "garbage-collection",\n};', '  Virtual_Machine: "garbage-collection",\n  Software_Engineering: "software-engineering",\n};')
+          r('  Virtual_Machine: "Fundamentals",\n};', '  Virtual_Machine: "Fundamentals",\n  Software_Engineering: "Architecture",\n};')
+
+          block = r'''
+          const SOFTWARE_ENGINEERING_NOTE_TOPICS = [
+            { id: "architecture", label: "Architecture", number: 1, notes: [
+              "Architecture/架构.md", "Architecture/架构模式/架构模式.md",
+              "Architecture/架构模式/单体架构.md", "Architecture/架构模式/分层架构.md",
+              "Architecture/架构模式/事件驱动架构.md", "Architecture/架构模式/读写分离架构.md",
+              "Architecture/架构模式/DDD/DDD.md", "Architecture/架构模式/微服务/微服务.md",
+            ] },
+            { id: "platform-services", label: "Microservices & Platform", number: 2, notes: [
+              "Architecture/架构模式/微服务/JWT.md", "Architecture/架构模式/微服务/OAuth.md",
+              "Architecture/架构模式/微服务/OpenId Connect.md", "Architecture/架构模式/微服务/如何设计API网关.md",
+              "Architecture/架构模式/微服务/如何设计metrics监控.md", "Architecture/架构模式/微服务/如何设计容错组件.md",
+              "Architecture/架构模式/微服务/如何设计日志监控.md", "Architecture/架构模式/微服务/如何设计注册中心.md",
+              "Architecture/架构模式/微服务/如何设计监控系统.md", "Architecture/架构模式/微服务/如何设计认证授权.md",
+              "Architecture/架构模式/微服务/如何设计负载均衡组件.md", "Architecture/架构模式/微服务/如何设计配置中心.md",
+              "Architecture/架构模式/微服务/如何设计链路追踪.md",
+            ] },
+            { id: "modeling", label: "Modeling", number: 3, notes: [
+              "建模/ER图.md", "建模/UML.md", "建模/时序图.md", "建模/架构图.md", "建模/流程图.md",
+              "建模/状态图.md", "建模/类图.md", "建模/组件图.md", "建模/部署图.md",
+            ] },
+            { id: "programming-patterns", label: "Programming Patterns", number: 4, notes: [
+              "编程范式/Concurrent/事件溯源模式.md", "编程范式/Concurrent/发布订阅模式.md",
+              "编程范式/Concurrent/生产者消费者模式.md", "编程范式/Functional/函数式选项模式.md",
+              "编程范式/Functional/接口型函数.md",
+            ] },
+            { id: "design-principles", label: "Design Principles", number: 5, notes: [
+              "编程范式/OOP/OOP设计原则/OOP设计原则.md", "编程范式/OOP/OOP设计原则/依赖倒置原则.md",
+              "编程范式/OOP/OOP设计原则/单一职责原则.md", "编程范式/OOP/OOP设计原则/合成复用原则.md",
+              "编程范式/OOP/OOP设计原则/开闭原则.md", "编程范式/OOP/OOP设计原则/接口隔离原则.md",
+              "编程范式/OOP/OOP设计原则/迪米特法则.md", "编程范式/OOP/OOP设计原则/里氏替换原则.md",
+            ] },
+            { id: "design-patterns", label: "Design Patterns", number: 6, notes: [
+              "编程范式/OOP/OOP设计模式/OOP设计模式.md", "编程范式/OOP/OOP设计模式/创建型模式/单例模式.md",
+              "编程范式/OOP/OOP设计模式/创建型模式/工厂方法.md", "编程范式/OOP/OOP设计模式/创建型模式/构建者模式.md",
+              "编程范式/OOP/OOP设计模式/结构型模式/代理模式.md", "编程范式/OOP/OOP设计模式/结构型模式/装饰器模式.md",
+              "编程范式/OOP/OOP设计模式/结构型模式/适配器模式.md", "编程范式/OOP/OOP设计模式/行为型模式/模板方法.md",
+              "编程范式/OOP/OOP设计模式/行为型模式/状态模式.md", "编程范式/OOP/OOP设计模式/行为型模式/策略模式.md",
+              "编程范式/OOP/OOP设计模式/行为型模式/观察者模式.md", "编程范式/OOP/OOP设计模式/行为型模式/责任链.md",
+            ] },
+          ];
+          const softwareEngineeringTopicEntries = SOFTWARE_ENGINEERING_NOTE_TOPICS.flatMap((topic) =>
+            topic.notes.map((note) => [note, { id: topic.id, label: topic.label, number: topic.number }]),
+          );
+
+          '''
+          marker = '// Notebooks listed here use a strict per-note allowlist.'
+          if marker not in s: raise SystemExit('allowlist marker missing')
+          s = s.replace(marker, block + marker, 1)
+          r('  Virtual_Machine: new Set(virtualMachineTopicEntries.map(([note]) => `Virtual_Machine/${note}`)),\n};',
+            '  Virtual_Machine: new Set(virtualMachineTopicEntries.map(([note]) => `Virtual_Machine/${note}`)),\n  Software_Engineering: new Set(softwareEngineeringTopicEntries.map(([note]) => `Software_Engineering/${note}`)),\n};')
+          r('  Virtual_Machine: new Map(virtualMachineTopicEntries),\n};',
+            '  Virtual_Machine: new Map(virtualMachineTopicEntries),\n  Software_Engineering: new Map(softwareEngineeringTopicEntries),\n};')
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('package.json')
+          s = p.read_text(encoding='utf-8')
+          old = 'scripts/virtual-machine-policy.test.mjs'
+          if old not in s: raise SystemExit('package marker missing')
+          p.write_text(s.replace(old, old + ' scripts/software-engineering-policy.test.mjs', 1), encoding='utf-8')
+
+          Path('scripts/software-engineering-policy.test.mjs').write_text('''import assert from "node:assert/strict";\nimport test from "node:test";\nimport { NOTE_TOPIC_OVERRIDES, REVIEWED_NOTE_PATHS } from "./content-policy.mjs";\nimport { sourceExclusionReason } from "./import-vnotes.mjs";\ntest("publishes exactly the reviewed Software Engineering notes", () => {\n  assert.equal(REVIEWED_NOTE_PATHS.Software_Engineering.size, 55);\n  assert.equal(NOTE_TOPIC_OVERRIDES.Software_Engineering.size, 55);\n  for (const path of [\n    "Software_Engineering/Architecture/架构.md",\n    "Software_Engineering/Architecture/架构模式/微服务/如何设计配置中心.md",\n    "Software_Engineering/建模/UML.md",\n    "Software_Engineering/编程范式/OOP/OOP设计模式/行为型模式/策略模式.md",\n  ]) assert.equal(REVIEWED_NOTE_PATHS.Software_Engineering.has(path), true, path);\n  assert.equal(sourceExclusionReason({ sourcePath: "Software_Engineering" }, "Architecture/架构模式/可插拔架构.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason({ sourcePath: "Software_Engineering" }, "编程范式/Concurrent/Pipeline.md"), "not-reviewed");\n});\n''', encoding='utf-8')
+
+      - name: Recover source snapshot
+        run: |
+          rm -rf .migration
+          mkdir -p .migration
+          git archive 0e010570684010ef99d4055bb7c3d4611df44f4c:notes | tar -x -C .migration
+          # Virtual_Machine was recovered separately in the previous migration and is
+          # absent from this historical git tree. The importer only needs non-empty
+          # source files here to build its cross-category public-link index.
+          mkdir -p .migration/Virtual_Machine
+          for f in 'GC.md' 'GC调优.md' 'STW.md' '内存泄露.md'; do
+            printf '# %s\n' "$f" > ".migration/Virtual_Machine/$f"
+          done
+
+      - run: npm ci
+
+      - name: Import reviewed notes
+        env:
+          VNOTE_SOURCE: ${{ github.workspace }}/.migration
+          VNOTE_IMPORT_IDS: software-engineering
+        run: |
+          npm run sync:notes
+          node --test scripts/software-engineering-policy.test.mjs
+          test "$(find src/content/notes/software-engineering -type f -name '*.md' | wc -l)" -eq 55
+
+      - name: Annotate stale protocol claims
+        shell: python
+        run: |
+          from pathlib import Path
+          root = Path('src/content/notes/software-engineering')
+          notes = {
+            'Architecture/架构模式/微服务/JWT.md': '> 这是一篇早期 JWT 学习笔记。JWT 是一种令牌格式，本身不等于认证或会话方案；Payload 默认只是编码而不是加密，不应放入敏感信息。具体登录态、吊销与密钥管理仍需由系统设计解决。',
+            'Architecture/架构模式/微服务/OAuth.md': '> 这是一篇早期 OAuth 2.0 学习笔记。文中的 Implicit 与 Resource Owner Password Credentials 属于历史流程，不应直接作为现代客户端的新方案；实际选型应以当前 OAuth 安全最佳实践与客户端类型为准。',
+            'Architecture/架构模式/微服务/OpenId Connect.md': '> 这是一篇早期身份协议笔记。OpenID Connect 是建立在 OAuth 2.0 之上的身份层，用于认证和传递身份信息；OAuth 2.0 本身主要解决授权问题。',
+            'Architecture/架构模式/微服务/微服务.md': '> 这是一篇历史架构学习笔记。微服务不是默认优于单体的目标形态；服务拆分粒度、注册发现、治理与基础设施选择都依赖组织规模、业务边界和实际约束。',
+          }
+          for rel, annotation in notes.items():
+              p = root / rel
+              text = p.read_text(encoding='utf-8')
+              first = text.find('---\n')
+              second = text.find('---\n', first + 4)
+              if first != 0 or second < 0: raise SystemExit(f'frontmatter missing: {p}')
+              pos = second + 4
+              p.write_text(text[:pos] + f'\n## 0. 版本说明（2026）\n\n{annotation}\n\n' + text[pos:].lstrip('\n'), encoding='utf-8')
+
+      - name: Verify privacy and policy
+        run: |
+          test "$(find src/content/notes/software-engineering -type f -name '*.md' | wc -l)" -eq 55
+          ! grep -RniE 'woa\.com|(^|[^a-z])oa\.com|bytedance\.feishu\.cn|bytedance\.larkoffice\.com|INTERNAL_URL|REDACTED_LOCAL_PATH' src/content/notes/software-engineering
+          ! grep -RniE '\]\((file:///|[A-Za-z]:\\|/Users/|/home/[^ )]+/)' src/content/notes/software-engineering
+          npm run test:vnotes
+
+      - name: Commit generated content
+        run: |
+          rm -rf .migration
+          git add package.json scripts/content-policy.mjs scripts/software-engineering-policy.test.mjs src/content/notes/software-engineering src/data/content-manifest.json
+          if [ -d public/media/vnote/software-engineering ]; then git add public/media/vnote/software-engineering; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'content: publish reviewed software engineering notes [skip ci]'
+          git push
