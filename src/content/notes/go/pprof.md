@@ -1,6 +1,6 @@
 ---
 title: "4.2 pprof"
-description: "1. pprof是什么 Golang的性能分析工具。 2. 如何使用pprof 有两个库： runtime/pprof ：采集工具型应用运行数据进行分析 net/http/pprof ：采集web应用运行时数据进行分析 benchmark ：压测 2.1. runtime/pprof 2.1.1. "
+description: "Go pprof 性能分析：CPU、heap/allocs、goroutine、block、mutex profile，以及 runtime/pprof、net/http/pprof 和 go tool pprof 的当前使用方式。"
 sourcePath: "Golang/pprof.md"
 category: "go"
 categoryLabel: "Go"
@@ -15,240 +15,327 @@ language: "zh"
 featured: false
 indexable: true
 ---
-## 1. pprof是什么
-Golang的性能分析工具。
 
-## 2. 如何使用pprof
-有两个库：
-`runtime/pprof`：采集工具型应用运行数据进行分析
-`net/http/pprof`：采集web应用运行时数据进行分析
-`benchmark`：压测
-### 2.1. runtime/pprof
-#### 2.1.1. CPU分析
-假设应用如下：
+## 1. pprof 是什么
+
+pprof 是 Go 常用的 **sampling profiler**：采样程序运行中的 CPU、内存分配、goroutine、阻塞和锁竞争等信息，再用 `go tool pprof` 分析。
+
+它适合回答的问题包括：
+
+- CPU 时间主要耗在哪里？
+- 当前 live heap 主要被哪些调用路径占用？
+- 程序运行以来哪些地方累计分配了最多内存？
+- goroutine 是否持续增长或阻塞？
+- 哪些同步点阻塞严重？
+- 哪些 mutex 形成明显竞争？
+
+如果问题是 **goroutine 调度时间线、syscall、GC、并行度和延迟**，通常应该看 [trace.md](/notes/go/trace/)，而不是只看 pprof。
+
+## 2. profile 类型
+
+当前最常用的 profile：
+
+| profile | 主要看什么 |
+| --- | --- |
+| CPU | CPU active time 的热点 |
+| heap | 当前仍存活对象的采样分配信息，默认关注 `inuse_space` |
+| allocs | 程序启动以来累计分配，默认关注 `alloc_space` |
+| goroutine | 当前 goroutine 的 stack trace |
+| block | goroutine 在同步原语上阻塞的时间 |
+| mutex | mutex contention |
+| threadcreate | 导致 OS thread 创建的 stack trace |
+
+注意：
+
+- heap / allocs 是 **采样结果**，不是每一个 allocation 的完整日志；
+- block profile 默认不开，需要配置 `runtime.SetBlockProfileRate`；
+- mutex profile 默认也不开，需要配置 `runtime.SetMutexProfileFraction`；
+- 不同 profiler 会给程序带来额外开销，生产环境要控制采样时长和频率。
+
+## 3. runtime/pprof
+
+`runtime/pprof` 适合 CLI、离线任务，或者你希望由程序自己决定 profile 文件写到哪里。
+
+### 3.1. CPU profile
+
 ```go
+package main
+
 import (
-	"fmt"
-	"time"
+    "os"
+    "runtime/pprof"
+    "time"
 )
 
-// 一段有问题的代码
-func logicCode() {
-	var c chan int
-	for {
-		select {
-		case v := <-c:
-			fmt.Printf("recv from chan, value:%v\n", v)
-		default:
-		}
-	}
+func work() {
+    for i := 0; i < 100_000_000; i++ {
+        _ = i * i
+    }
 }
 
 func main() {
-	for i := 0; i < 8; i++ {
-		go logicCode()
-	}
-	time.Sleep(20 * time.Second)
-}
+    f, err := os.Create("cpu.pprof")
+    if err != nil {
+        panic(err)
+    }
+    defer f.Close()
 
+    if err := pprof.StartCPUProfile(f); err != nil {
+        panic(err)
+    }
+    defer pprof.StopCPUProfile()
+
+    work()
+    time.Sleep(time.Second)
+}
 ```
-如果要开启CPU分析，那么步骤如下：
-1. 导入包`import "runtime/pprof"`
-2. 开启CPU性能分析：`pprof.StartCPUProfile(w io.Writer)`+停止CPU性能分析：`pprof.StopCPUProfile()`
-代码如下
+
+分析：
+
+```bash
+go tool pprof cpu.pprof
+```
+
+常用命令：
+
+```text
+top
+ top -cum
+list <func>
+web
+```
+
+也可以直接启动浏览器 UI：
+
+```bash
+go tool pprof -http=:9090 cpu.pprof
+```
+
+`top` 中几个重要字段：
+
+- `flat`：样本直接落在当前函数上的成本；
+- `flat%`：当前函数自身成本占比；
+- `cum`：当前函数连同其调用链向下累计的成本；
+- `cum%`：累计成本占比。
+
+因此排查热点时通常会同时看 `flat` 和 `cum`，而不是只按一个字段排序。
+
+### 3.2. heap profile
+
+程序内可以写 heap profile：
+
 ```go
+f, err := os.Create("heap.pprof")
+if err != nil {
+    panic(err)
+}
+defer f.Close()
+
+if err := pprof.WriteHeapProfile(f); err != nil {
+    panic(err)
+}
+```
+
+**要在你想观察的 workload 执行之后、问题已经出现的时候采集。**
+
+分析：
+
+```bash
+go tool pprof heap.pprof
+```
+
+常见视角：
+
+```text
+-inuse_space    当前 live objects 占用的字节数
+-inuse_objects  当前 live objects 数量
+-alloc_space    累计分配字节数
+-alloc_objects  累计分配对象数
+```
+
+排查“为什么当前内存高”通常先看 `inuse_space`；排查“为什么 GC 压力大、allocation rate 高”则常看 `alloc_space`。
+
+内存问题见：[Golang内存泄露.md](/notes/go/Golang%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2/)
+
+## 4. net/http/pprof
+
+对于长期运行的服务，更常用 `net/http/pprof` 暴露 profile endpoint。
+
+如果使用 `http.DefaultServeMux`：
+
+```go
+package main
+
 import (
-	"fmt"
-	"os"
-	"runtime/pprof"
-	"time"
-)
-
-// 一段有问题的代码
-func logicCode() {
-	var c chan int
-	for {
-		select {
-		case v := <-c:
-			fmt.Printf("recv from chan, value:%v\n", v)
-		default:
-		}
-	}
-}
-
-func main() {
-	//开启CPU分析
-	file, err := os.Create("./cpu.pprof")
-	if err != nil {
-		fmt.Printf("create cpu pprof failed, err:%v\n", err)
-		return
-	}
-	pprof.StartCPUProfile(file)
-	defer pprof.StopCPUProfile()
-
-	for i := 0; i < 8; i++ {
-		go logicCode()
-	}
-	time.Sleep(20 * time.Second)
-}
-
-```
-
-3.  运行代码生成报告
-    - ![](https://raw.githubusercontent.com/TDoct/images/master/1618715360_20210418110917262_19995.png)
-4. 命令行分析
-    - `go tool pprof cpu.pprof`
-        - ![](https://raw.githubusercontent.com/TDoct/images/master/1618715064_20210418110029954_14854.png)
-    - 几个比较重要的命令：
-        - `top`：找出我们写的代码中占用CPU高的函数
-            - ![](https://raw.githubusercontent.com/TDoct/images/master/1618715065_20210418110053469_7514.png)
-                - flat：当前函数占用CPU的耗时。举例来说，`runtime.selectnbrecv`这个函数的耗时占用了56.08s，**不包括调用子函数**
-                - flat%：:当前函数占用CPU的耗时百分比。举例来说，`runtime.selectnbrecv`这个函数的耗时占用了CPU48.75%的时间，**不包括调用子函数**
-                - sum%：该函数及以上函数占用CPU的耗时累计百分比，即flat%的累加。举例来说，`mainlogicCode`及以上的函数占用了48.75+34.60+16.06=99.41%的时间
-                - cum：当前函数加上当前函数调用的函数占用CPU的总耗时。举例来说，`runtime.selectnbrecv`这个函数的耗时占用了96.02s，**包括调用子函数**。可以使用`top -cum`按照cum排序
-                - cum%：当前函数加上调用当前函数的函数占用CPU的总耗时百分比。举例来说，`runtime.selectnbrecv`这个函数的耗时占用了CPU83.47%的时间，**包括调用子函数**
-                - 最后一列：函数名称
-        - `list函数名`：查看源代码
-            - ![](https://raw.githubusercontent.com/TDoct/images/master/1618715065_20210418110421512_11906.png)
-        - `web`：图形化方式查看报告(需要安装graphviz)
-            - ![](https://raw.githubusercontent.com/TDoct/images/master/1618715226_20210418110639068_19599.png)
-            - ![](https://raw.githubusercontent.com/TDoct/images/master/1618715226_20210418110703487_13579.png)
-                - Edge：调用
-                    - 代表A调用B，其中虚线表示省略了中间一些不重要的函数调用
-                    - 连线上的值表示该子函数耗时
-                - Node：函数
-                    - CPU占用时间越多那么图形越大越红
-                    - main.logicCode函数本身占用了18.47s，占比16.06%，该函数以及子函数占用了114.49s，占比99.52%
-5. 浏览器分析
-    - `go tool pprof -http=:9090 cpu.pprof`
-    - 其中的![](https://raw.githubusercontent.com/TDoct/images/master/1648297530_20220326202525980_3227.png)火焰图.md（关联笔记尚未公开）特别有用
-6. 修改代码
-```go
-func logicCode() {
-	var c chan int
-	for {
-		select {
-		case v := <-c:
-			fmt.Printf("recv from chan, value:%v\n", v)
-		default:
-			time.Sleep(time.Second)
-		}
-	}
-}
-```
-7. 重新运行分析
-    - ![](https://raw.githubusercontent.com/TDoct/images/master/1618715754_20210418111531227_31758.png)
-    - 可以看出没有我们写的代码占用高的情况了
-#### 2.1.2. 内存分析
-
-步骤如下
-1. 导入包：`import "runtime/pprof"`
-2. 记录程序的堆栈信息：`pprof.WriteHeapProfile(w io.Writer)`
-代码如下：
-```go
-port (
-	"fmt"
-	"os"
-	"runtime/pprof"
-	"time"
+    "log"
+    "net/http"
+    _ "net/http/pprof"
 )
 
 func main() {
-	//开启内存分析
-	file, err := os.Create("./memory.pprof")
-	if err != nil {
-		fmt.Printf("create cpu pprof failed, err:%v\n", err)
-		return
-	}
-	pprof.WriteHeapProfile(file)
+    go func() {
+        log.Println(http.ListenAndServe("127.0.0.1:6060", nil))
+    }()
 
-	for i := 0; i < 8; i++ {
-		go logicCode()
-	}
-	time.Sleep(20 * time.Second)
-}
-
-```
-
-3. 运行代码生成报告
-    -  ![](https://raw.githubusercontent.com/TDoct/images/master/1618716798_20210418113314347_31046.png)
-4. 命令行分析
-    - `go tool pprof -inuse_space memory.pprof `
-    - `go tool pprof -inuse_objects memory.pprof `
-
-[Golang内存泄露.md](/notes/go/Golang%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2/)
-
-
-#### 2.1.3. 阻塞分析
-[In the Go programming language, what happens when a goroutine blocks? \- Quora](https://www.quora.com/In-the-Go-programming-language-what-happens-when-a-goroutine-blocks)
-
-### 2.2. net/http/pprof
-假设Web应用如下：
-```go
-func main() {
-	go func() {
-		http.ListenAndServe("0.0.0.0:9999", nil)
-	}()
+    // service logic...
+    select {}
 }
 ```
-如果要开启分析，那么步骤如下：
-1. 导入包：`import _ "net/http/pprof"`
-```go
-import _ "net/http/pprof"
-func main() {
-	go func() {
-		http.ListenAndServe("0.0.0.0:9999", nil)
-	}()
-}
-```
-2. 使用浏览器访问`http://127.0.0.1:9999/debug/pprof/`
-    - ![](https://raw.githubusercontent.com/TDoct/images/master/1598453934_20200826175205433_17389.png)
-    - 点击不同端点查看
-        - 内存：`allocs`、`heap`
-        - CPU：`profile`
-        - 线程：`threadcreate`
-        - 协程：`goroutine`
-3. 除了用浏览器实时查看外，也可以用`go tool pprof`查看不同端点
-```go
-go tool pprof http://localhost:9999/debug/pprof/allocs
-go tool pprof http://localhost:9999/debug/pprof/heap
-go tool pprof http://localhost:9999/debug/pprof/goroutine
-go tool pprof http://localhost:9999/debug/pprof/threadcreate
-go tool pprof http://localhost:9999/debug/pprof/profile
-```
-4. 也可以保存当时的快照以便以后分析
-```curl
-curl http://localhost:9999/debug/pprof/allocs > allocs.out
-curl http://localhost:9999/debug/pprof/heap > heap.out
-curl http://localhost:9999/debug/pprof/goroutine > goroutine.out
-curl http://localhost:9999/debug/pprof/threadcreate > threadcreate.out
-curl http://localhost:9999/debug/pprof/profile > profile.out
-```
-然后用`go tool pprof`分析，同工具型应用
 
-### 2.3. benchmark
+然后访问：
+
+```text
+http://127.0.0.1:6060/debug/pprof/
+```
+
+### 4.1. CPU
+
+采集 30 秒 CPU profile：
+
+```bash
+go tool pprof 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30'
+```
+
+### 4.2. heap / allocs
+
+```bash
+go tool pprof http://127.0.0.1:6060/debug/pprof/heap
+go tool pprof http://127.0.0.1:6060/debug/pprof/allocs
+```
+
+如果只是想看文本 stack/profile，而不是交给 `go tool pprof`，部分 endpoint 支持 `?debug=1`。
+
+不要把 `?debug=1` 拼到 `go tool pprof` 的 heap URL 后面：那会请求文本格式，而 pprof 正常分析需要 profile 数据。
+
+### 4.3. goroutine
+
+查看 goroutine profile：
+
+```bash
+go tool pprof http://127.0.0.1:6060/debug/pprof/goroutine
+```
+
+如果只是临时查看 goroutine stack：
+
+```bash
+curl 'http://127.0.0.1:6060/debug/pprof/goroutine?debug=2'
+```
+
+这对定位 goroutine leak、channel send/receive 卡住、锁等待等问题很实用。
+
+### 4.4. block
+
+先在程序启动阶段设置采样率，例如：
+
+```go
+runtime.SetBlockProfileRate(1)
+```
+
+然后：
+
+```bash
+go tool pprof http://127.0.0.1:6060/debug/pprof/block
+```
+
+block profile 会记录在 `Mutex`、`RWMutex`、`WaitGroup`、`Cond`、channel send/receive/select 等同步位置等待的时间。
+
+`rate=1` 会记录所有 blocking event，成本也更高；生产环境应该按实际需要调整采样率。
+
+### 4.5. mutex
+
+启用 mutex contention sampling：
+
+```go
+runtime.SetMutexProfileFraction(5)
+```
+
+然后：
+
+```bash
+go tool pprof http://127.0.0.1:6060/debug/pprof/mutex
+```
+
+mutex profile 用于分析 **谁长期持锁，导致其他 goroutine 等待**。
+
+## 5. pprof 的分析顺序
+
+不要一看到服务慢就把所有 profile 全开。
+
+一个简单顺序：
+
+```text
+CPU 高
+  → CPU profile
+
+RSS / heap 高
+  → runtime metrics + heap profile
+
+GC CPU 高
+  → allocs / heap + GC metrics
+
+Goroutine 持续增加
+  → goroutine profile
+
+吞吐不高但 CPU 又不满
+  → block / mutex profile
+
+调度、syscall、GC、并行度或 latency 时间线问题
+  → execution trace
+```
+
+profile 最有价值的用法通常是**对比**：
+
+```text
+正常时 profile
+        ↓
+异常时 profile
+        ↓
+比较调用路径 / allocation / contention 的变化
+```
+
+## 6. 生产环境安全
+
+`/debug/pprof/` 会暴露程序内部 stack、函数名、运行状态等调试信息。
+
+不要直接把它暴露到公网。更安全的方式包括：
+
+- 只监听 `127.0.0.1`；
+- 放在内部管理端口；
+- 通过认证 / ACL / VPN / SSH tunnel 访问；
+- 采集完成后再离线分析。
+
+## 7. pprof 与 benchmark
+
+benchmark 用于构造**可重复的局部 workload**，pprof 用于找这个 workload 中的热点，两者经常一起使用：
+
 [benchmark.md](/notes/go/benchmark/)
-## 3. pprof原理
-采样：开启之后每隔一段时间（10ms）收集堆栈信息，获取每个函数占用的CPU和内存等资源，
-分析：通过对这些采样数据进行分析，形成一个性能分析报告
 
-## 4. 参考
-- [深度解密Go语言之pprof \| qcrao](https://qcrao.com/2019/11/10/dive-into-go-pprof/)
-- [Golang 大杀器之性能剖析 PProf \- SegmentFault 思否](https://segmentfault.com/a/1190000016412013)
-- [Go性能调优 \| 李文周的博客](https://www.liwenzhou.com/posts/Go/performance_optimisation/)
-- go pprof实战 \- QQ音乐项目 \- KM平台（内部链接已移除）
-- [内存泄漏，8次goroutine泄漏，1次真正内存泄漏 \- rsapaper\_ing \- 博客园](https://www.cnblogs.com/rsapaper/p/15208841.html)
-- [golang pprof 实战 \| Wolfogre's Blog](https://blog.wolfogre.com/posts/go-ppof-practice/)
-- [go pprof实战 \- 云\+社区 \- 腾讯云](https://cloud.tencent.com/developer/article/1823588)
-- [一文搞懂pprof\_程序员麻辣烫的博客\-CSDN博客\_pprof](https://blog.csdn.net/shida219/article/details/116709430)
-- 降本增效: 一种可节约30%CPU资源的tRPC\-Go插件 \- KM平台（内部链接已移除）
-- tRPC\-Go: 性能优化之路 \- KM平台（内部链接已移除）
-- [How I investigated memory leaks in Go using pprof on a large codebase](https://www.freecodecamp.org/news/how-i-investigated-memory-leaks-in-go-using-pprof-on-a-large-codebase-4bec4325e192/)
-- [An Introduction to go tool trace](https://about.sourcegraph.com/go/an-introduction-to-go-tool-trace-rhys-hiltner/)
-- [pprof中flat和cum的区别\_i\-neojos的博客\-CSDN博客](https://blog.csdn.net/whynottrythis/article/details/108765944)
-- [linux \- Pprof and golang \- how to interpret a results? \- Stack Overflow](https://stackoverflow.com/questions/32571396/pprof-and-golang-how-to-interpret-a-results)
-- [Profiling and Optimizing Go \- YouTube](https://www.youtube.com/watch?v=N3PWzBeLX2M)
-- [Go Profiling and Optimization \- Google 幻灯片](https://docs.google.com/presentation/d/1n6bse0JifemG7yve0Bb0ZAC-IWhTQjCNAclblnn2ANY/present?slide=id.g3a3e2af65_029)
-- [Commits · prashantv/go\_profiling\_talk](https://github.com/prashantv/go_profiling_talk/commits/master)
-- [\[golang\]7种 Go 程序性能分析方法 \- landv \- 博客园](https://www.cnblogs.com/landv/p/11274877.html)
-- [golang 内存分析/动态追踪 — 源代码](https://lrita.github.io/2017/05/26/golang-memory-pprof/)
+例如：
+
+```bash
+go test -bench=. -cpuprofile=cpu.out -memprofile=mem.out
+
+go tool pprof cpu.out
+go tool pprof mem.out
+```
+
+## 8. 原理
+
+pprof 的核心是 **sampling**。
+
+它不是逐条记录所有 CPU 指令或每一次内存分配，而是在运行期间采样 stack / allocation / blocking / contention 等事件，再根据样本重建热点分布。
+
+因此：
+
+- profile 是统计结果；
+- 样本越少，噪声越大；
+- profile 时间过短可能没有代表性；
+- profile 本身也有开销；
+- 某些采样频率属于 runtime 实现细节，不应该把“固定每 10ms 一次”当成长期 API 保证。
+
+## 9. 参考
+
+- [Go Diagnostics](https://go.dev/doc/diagnostics)
+- [runtime/pprof](https://pkg.go.dev/runtime/pprof)
+- [net/http/pprof](https://pkg.go.dev/net/http/pprof)
+- [Profiling Go Programs](https://go.dev/blog/pprof)
