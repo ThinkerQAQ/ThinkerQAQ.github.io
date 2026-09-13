@@ -26,7 +26,7 @@ const groups = [
     }],
   },
   ...navigableTopics.map((topic) => ({
-    label: `${topic.label} · ${topic.notes.length}`,
+    label: topic.label,
     href: noteTopicHref(category, topic.id),
     current: topic.id === currentTopic,
     items: topic.notes.map((note) => ({
