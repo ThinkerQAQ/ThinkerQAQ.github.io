@@ -2,9 +2,16 @@
 import { SITE } from "../config/site";
 
 const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
+const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "";
 ---
 
-<div class="ask-blog" data-ask-blog data-endpoint={workerEndpoint} data-blog-origin={SITE.url}>
+<div
+  class="ask-blog"
+  data-ask-blog
+  data-endpoint={workerEndpoint}
+  data-blog-origin={SITE.url}
+  data-turnstile-sitekey={turnstileSiteKey}
+>
   <button
     class="ask-blog__trigger"
     type="button"
@@ -43,6 +50,7 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
         required
         data-ask-input
       ></textarea>
+      <div class="ask-blog__turnstile" data-turnstile-container aria-label="安全验证"></div>
       <div class="ask-blog__actions">
         <span class="ask-blog__hint">先用 Pagefind 检索本站，再交给 AI 回答。</span>
         <button type="submit" data-ask-submit>提问</button>
@@ -68,6 +76,7 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
 
     const endpoint = root.dataset.endpoint?.trim() || "";
     const blogOrigin = root.dataset.blogOrigin?.trim() || window.location.origin;
+    const turnstileSiteKey = root.dataset.turnstileSitekey?.trim() || "";
     const toggle = root.querySelector("[data-ask-toggle]");
     const close = root.querySelector("[data-ask-close]");
     const panel = root.querySelector("[data-ask-panel]");
@@ -79,8 +88,12 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
     const answer = root.querySelector("[data-ask-answer]");
     const sourcesWrap = root.querySelector("[data-ask-sources-wrap]");
     const sourcesList = root.querySelector("[data-ask-sources]");
+    const turnstileContainer = root.querySelector("[data-turnstile-container]");
 
     let pagefindPromise;
+    let turnstileLoadPromise;
+    let turnstileWidgetId = null;
+    let turnstileAttempt = null;
 
     const setOpen = (open) => {
       panel.hidden = !open;
@@ -158,6 +171,92 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
       sourcesWrap.hidden = sources.length === 0;
     };
 
+    const loadTurnstile = () => {
+      if (window.turnstile) return Promise.resolve(window.turnstile);
+      if (turnstileLoadPromise) return turnstileLoadPromise;
+
+      turnstileLoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.dataset.askTurnstile = "";
+        script.addEventListener("load", () => {
+          if (window.turnstile) resolve(window.turnstile);
+          else reject(new Error("安全验证加载失败。"));
+        });
+        script.addEventListener("error", () => reject(new Error("安全验证加载失败。")));
+        document.head.append(script);
+      });
+
+      return turnstileLoadPromise;
+    };
+
+    const settleTurnstile = (error, token = "") => {
+      if (!turnstileAttempt) return;
+      const pending = turnstileAttempt;
+      turnstileAttempt = null;
+      window.clearTimeout(pending.timeoutId);
+      if (error) pending.reject(error);
+      else pending.resolve(token);
+    };
+
+    const ensureTurnstileWidget = async () => {
+      if (!turnstileSiteKey) throw new Error("Turnstile 尚未配置。请先设置公开的 Site Key。 ");
+      const turnstile = await loadTurnstile();
+      if (turnstileWidgetId !== null) return turnstile;
+
+      turnstileWidgetId = turnstile.render(turnstileContainer, {
+        sitekey: turnstileSiteKey,
+        action: "ask_blog",
+        theme: "auto",
+        size: "flexible",
+        appearance: "interaction-only",
+        execution: "execute",
+        callback: (token) => settleTurnstile(null, token),
+        "error-callback": () => {
+          settleTurnstile(new Error("安全验证失败，请重试。"));
+          return true;
+        },
+        "expired-callback": () => settleTurnstile(new Error("安全验证已过期，请重试。")),
+        "timeout-callback": () => settleTurnstile(new Error("安全验证超时，请重试。")),
+      });
+
+      return turnstile;
+    };
+
+    const getTurnstileToken = async () => {
+      const turnstile = await ensureTurnstileWidget();
+      if (turnstileAttempt) return turnstileAttempt.promise;
+
+      let resolveAttempt;
+      let rejectAttempt;
+      const promise = new Promise((resolve, reject) => {
+        resolveAttempt = resolve;
+        rejectAttempt = reject;
+      });
+      const timeoutId = window.setTimeout(
+        () => settleTurnstile(new Error("安全验证超时，请重试。")),
+        90000,
+      );
+      turnstileAttempt = { promise, resolve: resolveAttempt, reject: rejectAttempt, timeoutId };
+
+      try {
+        turnstile.execute(turnstileWidgetId);
+      } catch (error) {
+        settleTurnstile(error instanceof Error ? error : new Error("安全验证失败，请重试。"));
+      }
+
+      return promise;
+    };
+
+    const resetTurnstile = () => {
+      if (turnstileAttempt) settleTurnstile(new Error("安全验证已重置。"));
+      if (turnstileWidgetId !== null && window.turnstile) {
+        window.turnstile.reset(turnstileWidgetId);
+      }
+    };
+
     toggle.addEventListener("click", () => setOpen(panel.hidden));
     close.addEventListener("click", () => setOpen(false));
     document.addEventListener("keydown", (event) => {
@@ -178,6 +277,12 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
         return;
       }
 
+      if (!turnstileSiteKey) {
+        setStatus("安全验证尚未配置。请设置 PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY。", true);
+        submit.disabled = false;
+        return;
+      }
+
       try {
         setStatus("正在检索本站内容…");
         const sources = await retrieveSources(question);
@@ -186,11 +291,14 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
           return;
         }
 
+        setStatus("正在进行安全验证…");
+        const turnstileToken = await getTurnstileToken();
+
         setStatus(`找到 ${sources.length} 个相关来源，正在生成回答…`);
         const response = await fetch(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ question, sources }),
+          body: JSON.stringify({ question, sources, turnstileToken }),
         });
 
         const payload = await response.json().catch(() => ({}));
@@ -206,6 +314,7 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
         console.error("Ask this blog failed", error);
         setStatus(error instanceof Error ? error.message : "问博客暂时不可用。", true);
       } finally {
+        resetTurnstile();
         submit.disabled = false;
       }
     });
@@ -334,6 +443,10 @@ const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
   .ask-blog__form textarea:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .ask-blog__turnstile:empty {
+    display: none;
   }
 
   .ask-blog__actions {
