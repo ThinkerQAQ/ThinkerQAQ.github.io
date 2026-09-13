@@ -12,6 +12,8 @@ interface Props {
 const { category, label, entries, href = categoryHref(category) } = Astro.props;
 const hasMore = entries.length > 5;
 const previewLabel = hasMore ? "最近更新" : "全部笔记";
+const [baseLabel, ...scopeSegments] = label.split(" · ");
+const scopeLabel = scopeSegments.join(" · ");
 ---
 
 <section>
@@ -26,7 +28,7 @@ const previewLabel = hasMore ? "最近更新" : "全部笔记";
   </ul>
   {hasMore && (
     <a class="more-link category-more-link" href={href}>
-      查看 {label} 的全部 {entries.length} 篇笔记 →
+      查看 {baseLabel} 的全部 {entries.length} 篇笔记{scopeLabel && `（${scopeLabel}）`} →
     </a>
   )}
 </section>
