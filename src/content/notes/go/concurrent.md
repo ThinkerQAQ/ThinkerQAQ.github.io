@@ -36,6 +36,9 @@ indexable: true
 - unbuffered channel:  `v <- ch` **≤**  `ch <- v`
     - 解释：从unbuffered channel中接收数据 **happens before** 发送数据到unbuffered channel
     - 即reader从channel中读取数据，会一直阻塞到writer往channel生产数据
+
+> 2026 注：这里是简化记法。更精确地说，send happens before 对应 receive 完成；无缓冲 channel 中 receive happens before 对应 send 完成。
+
 ## 3. 并发模式
 - [扇入扇出 · Concurrency in Go 中文笔记 · 看云](https://www.kancloud.cn/mutouzhang/go/596844)
 ## 4. 多核CPU

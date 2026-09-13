@@ -86,6 +86,8 @@ func TestAtomic1(t *testing.T) {
 
 ## 4. 源码分析
 
+> 2026 注：下面是这篇笔记写作时期的 `atomic.Value` 实现；当前源码细节已经变化，这里保留当时的源码理解。
+
 ### 4.1. 数据结构
 ```go
 type Value struct {

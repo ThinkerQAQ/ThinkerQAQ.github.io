@@ -39,6 +39,9 @@ indexable: true
     	}
     }
     ```
+
+> 2026 注：Go 1.24+ 新写的 benchmark 也可以使用 `b.Loop()`；这里保留原来的 `b.N` 写法。
+
 - 测试：
     - `go test -bench=.`
         ```go
@@ -62,7 +65,7 @@ indexable: true
         ```
     - 生成CPU信息：`go test -bench=. -benchmem -cpuprofile prof.cpu`
         - `go tool pprof bench.test.exe prof.cpu`
-    - 生成内存信息：`go test -bench=. -benchmem -pmemprofile prof.mem`
+    - 生成内存信息：`go test -bench=. -benchmem -memprofile prof.mem`
         - `go tool pprof bench.test.exe prof.mem`
     - 生成全部信息： `go test -bench=".*" -benchtime=1000x -cpuprofile cpu.profile -benchmem -memprofile=mem.profile -blockprofile=block.profile -trace trace.out -mutexprofile mutex.out`
 ## 2. 结果解读
