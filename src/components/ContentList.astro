@@ -1,6 +1,6 @@
 ---
 import type { NoteEntry } from "../lib/content";
-import { formatDate, noteHref } from "../lib/content";
+import { formatDate, getNoteTopicPath, noteHref } from "../lib/content";
 
 interface Props {
   entries: NoteEntry[];
@@ -21,21 +21,24 @@ const {
   <p class="empty-state">{emptyMessage}</p>
 ) : (
   <ol class="content-list">
-    {entries.map((entry) => (
-      <li>
-        <div class="content-list-main">
-          <a class="content-title" href={noteHref(entry)}>{entry.data.title}</a>
-          {entry.data.status === "historical" && <span class="historical-badge">historical</span>}
-          {entry.data.description && <p>{entry.data.description}</p>}
-        </div>
-        <div class="content-meta">
-          {showCategory && <span>{entry.data.categoryLabel}</span>}
-          {showTopic && entry.data.topicLabel && <span>{entry.data.topicLabel}</span>}
-          <time datetime={entry.data.updatedAt.toISOString()}>
-            {formatDate(entry.data.updatedAt)}
-          </time>
-        </div>
-      </li>
-    ))}
+    {entries.map((entry) => {
+      const topicPath = getNoteTopicPath(entry);
+      return (
+        <li>
+          <div class="content-list-main">
+            <a class="content-title" href={noteHref(entry)}>{entry.data.title}</a>
+            {entry.data.status === "historical" && <span class="historical-badge">historical</span>}
+            {entry.data.description && <p>{entry.data.description}</p>}
+          </div>
+          <div class="content-meta">
+            {showCategory && <span>{entry.data.categoryLabel}</span>}
+            {showTopic && topicPath.length > 0 && <span>{topicPath.map((segment) => segment.label).join(" / ")}</span>}
+            <time datetime={entry.data.updatedAt.toISOString()}>
+              {formatDate(entry.data.updatedAt)}
+            </time>
+          </div>
+        </li>
+      );
+    })}
   </ol>
 )}
