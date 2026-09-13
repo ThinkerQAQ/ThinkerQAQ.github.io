@@ -48,10 +48,7 @@ jobs:
               id: "overview",
               label: "Overview",
               number: 1,
-              notes: [
-                "操作系统.md",
-                "Linux/Linux.md",
-              ],
+              notes: ["操作系统.md", "Linux/Linux.md"],
             },
             {
               id: "processes-concurrency",
@@ -151,18 +148,18 @@ jobs:
               raise SystemExit('package test marker not found')
           package_path.write_text(package.replace(old, new, 1), encoding='utf-8')
 
-          test = '''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport { NOTE_TOPIC_OVERRIDES, REVIEWED_NOTE_PATHS, sourceExclusionReason } from "./content-policy.mjs";\n\ntest("publishes exactly the reviewed Operating System notes", () => {\n  const reviewed = REVIEWED_NOTE_PATHS.Operating_System;\n  const topics = NOTE_TOPIC_OVERRIDES.Operating_System;\n  assert.equal(reviewed.size, 39);\n  assert.equal(topics.size, 39);\n\n  for (const path of [\n    "Operating_System/操作系统.md",\n    "Operating_System/进程管理/IPC.md",\n    "Operating_System/存储管理/虚拟内存.md",\n    "Operating_System/Linux/IO/select、poll、epoll.md",\n    "Operating_System/Linux/IO/零拷贝机制.md",\n    "Operating_System/Linux/性能调优/Linux性能调优.md",\n    "Operating_System/Linux/虚拟化/Linux cgroup.md",\n  ]) {\n    assert.equal(reviewed.has(path), true, path);\n  }\n\n  const config = { sourcePath: "Operating_System" };\n  assert.equal(sourceExclusionReason(config, "Linux/manjaro/manjaro.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/命令/perf.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/虚拟化/Linux AUFS.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/命令/lsof.md"), "not-reviewed");\n});\n'''
+          test = '''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport { NOTE_TOPIC_OVERRIDES, REVIEWED_NOTE_PATHS } from "./content-policy.mjs";\nimport { sourceExclusionReason } from "./import-vnotes.mjs";\n\ntest("publishes exactly the reviewed Operating System notes", () => {\n  const reviewed = REVIEWED_NOTE_PATHS.Operating_System;\n  const topics = NOTE_TOPIC_OVERRIDES.Operating_System;\n  assert.equal(reviewed.size, 39);\n  assert.equal(topics.size, 39);\n\n  for (const path of [\n    "Operating_System/操作系统.md",\n    "Operating_System/进程管理/IPC.md",\n    "Operating_System/存储管理/虚拟内存.md",\n    "Operating_System/Linux/IO/select、poll、epoll.md",\n    "Operating_System/Linux/IO/零拷贝机制.md",\n    "Operating_System/Linux/性能调优/Linux性能调优.md",\n    "Operating_System/Linux/虚拟化/Linux cgroup.md",\n  ]) assert.equal(reviewed.has(path), true, path);\n\n  const config = { sourcePath: "Operating_System" };\n  assert.equal(sourceExclusionReason(config, "Linux/manjaro/manjaro.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/命令/perf.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/虚拟化/Linux AUFS.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/命令/lsof.md"), "not-reviewed");\n});\n'''
           Path('scripts/operating-system-policy.test.mjs').write_text(test, encoding='utf-8')
 
-      - name: Recover historical Operating System VNote source
+      - name: Recover historical VNote source
         run: |
           rm -rf .migration
-          mkdir -p .migration/Operating_System
-          git archive 0e010570684010ef99d4055bb7c3d4611df44f4c:notes/Operating_System | tar -x -C .migration/Operating_System
+          mkdir -p .migration
+          git archive 0e010570684010ef99d4055bb7c3d4611df44f4c:notes | tar -x -C .migration
           python - <<'PY'
           from pathlib import Path
           import re
-          root = Path('.migration/Operating_System')
+          root = Path('.migration')
           internal = re.compile(r'https?://[^\s)\]>]*(?:woa\.com|oa\.com|bytedance\.feishu\.cn|bytedance\.larkoffice\.com)[^\s)\]>]*', re.I)
           for p in root.rglob('*.md'):
               text = p.read_text(encoding='utf-8', errors='replace')
@@ -195,8 +192,7 @@ jobs:
                   return
               if needle not in text:
                   raise SystemExit(f'annotation marker not found: {path}: {needle}')
-              text = text.replace(needle, needle + '\n\n' + note, 1)
-              p.write_text(text, encoding='utf-8')
+              p.write_text(text.replace(needle, needle + '\n\n' + note, 1), encoding='utf-8')
 
           add_after(
               'src/content/notes/operating-system/Linux/IO/IO.md',
