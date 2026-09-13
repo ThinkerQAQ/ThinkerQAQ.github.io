@@ -40,8 +40,22 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Test and build static site
-        run: npm test
+      - name: Test diagrams
+        run: npm run test:diagrams
+      - name: Test IndexNow
+        run: npm run test:indexnow
+      - name: Test distribution
+        run: npm run test:distribute
+      - name: Test VNote import and policies
+        run: npm run test:vnotes
+      - name: Check AI search scripts
+        run: npm run test:ai-search
+      - name: Astro check
+        run: npm run check
+      - name: Build static site
+        run: npm run build
+      - name: Verify build output
+        run: npm run verify
       - name: Prepare IndexNow payload
         run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
       - name: Upload IndexNow payload
