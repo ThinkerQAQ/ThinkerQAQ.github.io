@@ -21,7 +21,8 @@ series: concurrency-programming
 - [1. Atomic 需要哪些底层能力？](#1-atomic-需要哪些底层能力)
   - [1.1 Atomic RMW：直接完成一次更新](#11-atomic-rmw直接完成一次更新)
   - [1.2 CAS：当前值符合预期时才更新](#12-cas当前值符合预期时才更新)
-  - [1.3 Memory Ordering：限制编译器和 CPU 重排](#13-memory-ordering限制编译器和-cpu-重排)
+  - [1.3 CAS 与 Lock-Free：不要混为一谈](#13-cas-与-lock-free不要混为一谈)
+  - [1.4 Memory Ordering：限制编译器和 CPU 重排](#14-memory-ordering限制编译器和-cpu-重排)
 - [2. Java：从 AtomicInteger 到 CPU](#2-java从-atomicinteger-到-cpu)
   - [2.1 AtomicInteger 与 HotSpot Intrinsic](#21-atomicinteger-与-hotspot-intrinsic)
   - [2.2 x86-64 上的原子加法和 CAS](#22-x86-64-上的原子加法和-cas)
@@ -135,7 +136,13 @@ loop:
 
 但这不是 Atomic Add 的唯一实现方式。具体使用原子加法还是 CAS，由语言 API、编译器和目标架构决定。
 
-### 1.3 Memory Ordering：限制编译器和 CPU 重排
+### 1.3 CAS 与 Lock-Free：不要混为一谈
+
+CAS 是一种原子条件更新原语，它本身不是锁。使用 CAS，可以让算法在更新某个共享状态时不必先获取 Mutex；CAS 失败后，调用方可以重新读取状态并再次尝试。
+
+但“使用 CAS”和“算法是 Lock-Free”不是同一个概念。Lock-Free 描述的是算法整体的进展保证：即使发生竞争，系统整体仍然能够持续有操作完成。仅仅看到实现里用了 CAS，或者底层出现了 `LOCK CMPXCHG`，不能直接推出整个算法就是 Lock-Free；更高层是否还会阻塞、等待，以及失败后的重试策略，都属于算法本身的设计。
+
+### 1.4 Memory Ordering：限制编译器和 CPU 重排
 
 原子地修改 `ready` 只解决了这一次读写本身不能交错。要让它发布前面的 `counter`，还需要相应的内存顺序：
 

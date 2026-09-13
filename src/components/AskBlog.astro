@@ -65,7 +65,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   </section>
 </div>
 
-<script is:inline>
+<script>
+  // @ts-nocheck
+  import { unified } from "unified";
+  import remarkParse from "remark-parse";
+
   (() => {
     const root = document.querySelector("[data-ask-blog]");
     if (!root) return;
@@ -84,6 +88,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
     const sourcesWrap = root.querySelector("[data-ask-sources-wrap]");
     const sourcesList = root.querySelector("[data-ask-sources]");
     const turnstileContainer = root.querySelector("[data-turnstile-container]");
+    const markdownParser = unified().use(remarkParse);
 
     let turnstileLoadPromise;
     let turnstileWidgetId = null;
@@ -102,15 +107,119 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
 
     const clearResult = () => {
       result.hidden = true;
-      answer.textContent = "";
+      answer.replaceChildren();
       sourcesList.replaceChildren();
       sourcesWrap.hidden = true;
+    };
+
+    const renderMarkdownNode = (node, parent) => {
+      const appendChildren = (element = parent) => {
+        for (const child of node.children || []) renderMarkdownNode(child, element);
+      };
+
+      switch (node.type) {
+        case "root":
+          appendChildren();
+          return;
+        case "text":
+          parent.append(document.createTextNode(node.value || ""));
+          return;
+        case "paragraph": {
+          const paragraph = document.createElement("p");
+          appendChildren(paragraph);
+          parent.append(paragraph);
+          return;
+        }
+        case "strong": {
+          const strong = document.createElement("strong");
+          appendChildren(strong);
+          parent.append(strong);
+          return;
+        }
+        case "emphasis": {
+          const em = document.createElement("em");
+          appendChildren(em);
+          parent.append(em);
+          return;
+        }
+        case "inlineCode": {
+          const code = document.createElement("code");
+          code.textContent = node.value || "";
+          parent.append(code);
+          return;
+        }
+        case "code": {
+          const pre = document.createElement("pre");
+          const code = document.createElement("code");
+          if (node.lang) code.dataset.language = node.lang;
+          code.textContent = node.value || "";
+          pre.append(code);
+          parent.append(pre);
+          return;
+        }
+        case "heading": {
+          const heading = document.createElement(node.depth <= 2 ? "h3" : "h4");
+          appendChildren(heading);
+          parent.append(heading);
+          return;
+        }
+        case "list": {
+          const list = document.createElement(node.ordered ? "ol" : "ul");
+          if (node.ordered && Number(node.start) > 1) list.start = Number(node.start);
+          appendChildren(list);
+          parent.append(list);
+          return;
+        }
+        case "listItem": {
+          const item = document.createElement("li");
+          appendChildren(item);
+          parent.append(item);
+          return;
+        }
+        case "blockquote": {
+          const blockquote = document.createElement("blockquote");
+          appendChildren(blockquote);
+          parent.append(blockquote);
+          return;
+        }
+        case "break":
+          parent.append(document.createElement("br"));
+          return;
+        case "thematicBreak":
+          parent.append(document.createElement("hr"));
+          return;
+        case "link":
+        case "linkReference":
+          // Model-authored links are intentionally rendered as text. Canonical
+          // blog links are rendered separately from trusted source metadata.
+          appendChildren();
+          return;
+        case "html":
+          // Never interpret model-authored HTML. Show it literally instead.
+          parent.append(document.createTextNode(node.value || ""));
+          return;
+        default:
+          if (node.children) appendChildren();
+          else if (typeof node.value === "string") parent.append(document.createTextNode(node.value));
+      }
+    };
+
+    const renderMarkdown = (markdown) => {
+      answer.replaceChildren();
+      const tree = markdownParser.parse(String(markdown || ""));
+      renderMarkdownNode(tree, answer);
     };
 
     const renderSources = (sources) => {
       sourcesList.replaceChildren();
       for (const source of sources) {
         const item = document.createElement("li");
+        if (source.collection === "articles" || source.collection === "notes") {
+          const badge = document.createElement("span");
+          badge.className = "ask-blog__source-type";
+          badge.textContent = source.collection === "articles" ? "文章" : "笔记";
+          item.append(badge, document.createTextNode(" "));
+        }
         const link = document.createElement("a");
         link.href = source.url;
         link.textContent = source.title;
@@ -248,7 +357,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
           throw new Error(payload.error || `请求失败（${response.status}）`);
         }
 
-        answer.textContent = payload.answer || "AI 没有返回回答。";
+        renderMarkdown(payload.answer || "AI 没有返回回答。");
         renderSources(Array.isArray(payload.sources) ? payload.sources : []);
         result.hidden = false;
         setStatus("");
@@ -434,9 +543,76 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   .ask-blog__answer {
     padding-top: 0.9rem;
     border-top: 1px solid var(--border);
-    white-space: pre-wrap;
     font-size: 0.9rem;
     line-height: 1.7;
+  }
+
+  .ask-blog__answer :global(p),
+  .ask-blog__answer :global(ul),
+  .ask-blog__answer :global(ol),
+  .ask-blog__answer :global(pre),
+  .ask-blog__answer :global(blockquote),
+  .ask-blog__answer :global(h3),
+  .ask-blog__answer :global(h4),
+  .ask-blog__answer :global(hr) {
+    margin: 0.6rem 0 0;
+  }
+
+  .ask-blog__answer :global(p:first-child),
+  .ask-blog__answer :global(h3:first-child),
+  .ask-blog__answer :global(h4:first-child),
+  .ask-blog__answer :global(pre:first-child) {
+    margin-top: 0;
+  }
+
+  .ask-blog__answer :global(ul),
+  .ask-blog__answer :global(ol) {
+    padding-left: 1.25rem;
+  }
+
+  .ask-blog__answer :global(li > p) {
+    margin: 0;
+  }
+
+  .ask-blog__answer :global(h3) {
+    font-size: 0.96rem;
+  }
+
+  .ask-blog__answer :global(h4) {
+    font-size: 0.9rem;
+  }
+
+  .ask-blog__answer :global(code) {
+    padding: 0.08rem 0.28rem;
+    border-radius: 0.3rem;
+    background: var(--background);
+    font-size: 0.86em;
+  }
+
+  .ask-blog__answer :global(pre) {
+    overflow-x: auto;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    background: var(--background);
+    line-height: 1.5;
+  }
+
+  .ask-blog__answer :global(pre code) {
+    padding: 0;
+    background: transparent;
+    white-space: pre;
+  }
+
+  .ask-blog__answer :global(blockquote) {
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+  }
+
+  .ask-blog__answer :global(hr) {
+    border: 0;
+    border-top: 1px solid var(--border);
   }
 
   .ask-blog__sources {
@@ -458,6 +634,16 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
 
   .ask-blog__sources li + li {
     margin-top: 0.28rem;
+  }
+
+  .ask-blog__source-type {
+    display: inline-block;
+    padding: 0.04rem 0.28rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    color: var(--muted);
+    font-size: 0.68rem;
+    line-height: 1.35;
   }
 
   @media (max-width: 640px) {

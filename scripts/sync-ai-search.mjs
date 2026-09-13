@@ -14,7 +14,9 @@ const blogOrigin = String(process.env.BLOG_ORIGIN || "https://thinkerqaq.github.
 const beforeSha = String(process.env.GITHUB_EVENT_BEFORE || "").trim();
 const currentSha = String(process.env.GITHUB_SHA || "HEAD").trim();
 const apiBase = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai-search/instances`;
-const collections = ["articles", "notes", "projects", "series"];
+const collections = ["articles", "notes"];
+const collectionPriority = { articles: 2, notes: 1 };
+const indexSchemaVersion = 2;
 const readyTimeoutMs = Number(process.env.AI_SEARCH_READY_TIMEOUT_MS || 180_000);
 const readyPollMs = Number(process.env.AI_SEARCH_READY_POLL_MS || 2_000);
 const maxItemKeyLength = 128;
@@ -50,7 +52,7 @@ function parseFrontmatter(markdown) {
 function isPublic(collection, data) {
   if (collection === "articles") return data.status === "published";
   if (collection === "notes") return String(data.indexable || "true").toLowerCase() !== "false";
-  return true;
+  return false;
 }
 
 function itemKey(collection, id) {
@@ -92,6 +94,7 @@ async function loadDocuments() {
 
       const title = data.title || id.split("/").pop();
       const url = sourceUrl(collection, id);
+      const priority = collectionPriority[collection];
       const description = data.description ? `\n${data.description}\n` : "";
       const content = [
         `# ${title}`,
@@ -108,6 +111,8 @@ async function loadDocuments() {
         id,
         title,
         url,
+        priority,
+        schemaVersion: indexSchemaVersion,
         sourcePath: `src/content/${collection}/${relative}`,
         content,
       });
@@ -144,6 +149,11 @@ async function cloudflareRequest(url, options = {}, accepted = [200]) {
   return payload;
 }
 
+function hasPriorityBoost(info) {
+  const boosts = Array.isArray(info?.retrieval_options?.boost_by) ? info.retrieval_options.boost_by : [];
+  return boosts.some((boost) => boost?.field === "priority" && boost?.direction === "desc");
+}
+
 async function ensureInstance() {
   const instanceUrl = `${apiBase}/${encodeURIComponent(instanceName)}`;
   let existing;
@@ -157,18 +167,23 @@ async function ensureInstance() {
     index_method: { vector: true, keyword: true },
     fusion_method: "rrf",
     indexing_options: { keyword_tokenizer: "trigram" },
-    retrieval_options: { keyword_match_mode: "or" },
+    retrieval_options: {
+      keyword_match_mode: "or",
+      boost_by: [{ field: "priority", direction: "desc" }],
+    },
     custom_metadata: [
       { field_name: "source_url", data_type: "text" },
       { field_name: "title", data_type: "text" },
       { field_name: "collection", data_type: "text" },
+      { field_name: "priority", data_type: "number" },
+      { field_name: "schema_version", data_type: "number" },
     ],
     reranking: true,
     reranking_model: "@cf/baai/bge-reranker-base",
-    rewrite_query: true,
+    rewrite_query: false,
     chunk_size: 512,
     chunk_overlap: 15,
-    max_num_results: 10,
+    max_num_results: 20,
   };
 
   if (!existing) {
@@ -190,11 +205,15 @@ async function ensureInstance() {
     || info?.fusion_method !== "rrf"
     || info?.indexing_options?.keyword_tokenizer !== "trigram"
     || info?.retrieval_options?.keyword_match_mode !== "or"
+    || !hasPriorityBoost(info)
     || metadataSchema.get("source_url") !== "text"
     || metadataSchema.get("title") !== "text"
     || metadataSchema.get("collection") !== "text"
+    || metadataSchema.get("priority") !== "number"
+    || metadataSchema.get("schema_version") !== "number"
     || info?.reranking !== true
-    || info?.rewrite_query !== true;
+    || info?.rewrite_query !== false
+    || Number(info?.max_num_results || 0) !== 20;
 
   if (needsUpdate) {
     await cloudflareRequest(instanceUrl, {
@@ -236,6 +255,15 @@ async function changedContentPaths() {
   }
 }
 
+function itemMetadataNeedsRefresh(existing, document) {
+  const metadata = existing?.metadata || {};
+  return String(metadata.source_url || "") !== document.url
+    || String(metadata.title || "") !== document.title
+    || String(metadata.collection || "") !== document.collection
+    || Number(metadata.priority) !== document.priority
+    || Number(metadata.schema_version) !== document.schemaVersion;
+}
+
 async function deleteItem(item) {
   await cloudflareRequest(
     `${apiBase}/${encodeURIComponent(instanceName)}/items/${encodeURIComponent(item.id)}`,
@@ -251,6 +279,8 @@ async function uploadDocument(document) {
     source_url: document.url,
     title: document.title,
     collection: document.collection,
+    priority: document.priority,
+    schema_version: document.schemaVersion,
   }));
   await cloudflareRequest(
     `${apiBase}/${encodeURIComponent(instanceName)}/items`,
@@ -330,49 +360,73 @@ async function waitForIndexSearchable(expectedDocuments) {
 async function verifySearch(documents) {
   if (!documents.size) return;
 
-  const refreshedItems = await listItems();
-  const completedItem = refreshedItems.find((item) =>
-    item?.status === "completed"
-    && Number(item?.chunks_count || 0) > 0
-    && String(item?.metadata?.title || "").trim(),
-  );
-  if (!completedItem) {
-    throw new Error("AI Search reports indexed data but no completed blog item with searchable chunks is available yet");
-  }
+  const deadline = Date.now() + readyTimeoutMs;
+  let lastReason = "no current-schema item is completed yet";
 
-  const probe = String(completedItem.metadata.title).trim();
-  const payload = await cloudflareRequest(
-    `${apiBase}/${encodeURIComponent(instanceName)}/search`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        query: probe,
-        ai_search_options: {
-          retrieval: {
-            retrieval_type: "hybrid",
-            fusion_method: "rrf",
-            keyword_match_mode: "or",
-            max_num_results: 5,
-            return_on_failure: false,
+  while (Date.now() < deadline) {
+    const refreshedItems = await listItems();
+    const completedItem = refreshedItems.find((item) =>
+      item?.status === "completed"
+      && Number(item?.chunks_count || 0) > 0
+      && String(item?.metadata?.title || "").trim()
+      && Number(item?.metadata?.schema_version) === indexSchemaVersion,
+    );
+
+    if (!completedItem) {
+      log("search-verification-waiting", { reason: lastReason });
+      await sleep(readyPollMs);
+      continue;
+    }
+
+    const probe = String(completedItem.metadata.title).trim();
+    const payload = await cloudflareRequest(
+      `${apiBase}/${encodeURIComponent(instanceName)}/search`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          query: probe,
+          ai_search_options: {
+            retrieval: {
+              retrieval_type: "hybrid",
+              fusion_method: "rrf",
+              keyword_match_mode: "or",
+              boost_by: [{ field: "priority", direction: "desc" }],
+              max_num_results: 10,
+              return_on_failure: false,
+            },
+            query_rewrite: { enabled: false },
+            reranking: {
+              enabled: true,
+              model: "@cf/baai/bge-reranker-base",
+              match_threshold: 0,
+            },
           },
-        },
-      }),
-    },
-    [200],
-  );
+        }),
+      },
+      [200],
+    );
 
-  const result = payload?.result || payload || {};
-  const chunks = Array.isArray(result.chunks) ? result.chunks : [];
-  const blogChunks = chunks.filter((chunk) => String(chunk?.item?.key || "").startsWith("blog--"));
-  if (!blogChunks.length) {
-    throw new Error(`AI Search returned no blog chunks for completed item title: ${probe}`);
+    const result = payload?.result || payload || {};
+    const chunks = Array.isArray(result.chunks) ? result.chunks : [];
+    const blogChunks = chunks.filter((chunk) =>
+      String(chunk?.item?.key || "").startsWith("blog--")
+      && Number(chunk?.item?.metadata?.schema_version) === indexSchemaVersion,
+    );
+    if (blogChunks.length) {
+      log("search-verified", {
+        query: probe,
+        completedItem: completedItem.key,
+        chunks: blogChunks.length,
+      });
+      return;
+    }
+
+    lastReason = `search returned no schema v${indexSchemaVersion} blog chunks for ${probe}`;
+    log("search-verification-waiting", { reason: lastReason });
+    await sleep(readyPollMs);
   }
 
-  log("search-verified", {
-    query: probe,
-    completedItem: completedItem.key,
-    chunks: blogChunks.length,
-  });
+  throw new Error(`Timed out after ${readyTimeoutMs}ms verifying AI Search: ${lastReason}`);
 }
 
 if (!accountId || !apiToken) {
@@ -402,8 +456,11 @@ try {
   const uploads = [];
   for (const document of documents.values()) {
     const existing = existingByKey.get(document.key);
-    const changed = !changedPaths || changedPaths.has(document.sourcePath);
-    if (!existing || changed) uploads.push({ document, existing });
+    const contentChanged = !changedPaths || changedPaths.has(document.sourcePath);
+    const metadataChanged = existing ? itemMetadataNeedsRefresh(existing, document) : true;
+    if (!existing || contentChanged || metadataChanged) {
+      uploads.push({ document, existing, metadataChanged });
+    }
   }
 
   await runPool(uploads, 4, async ({ document, existing }) => {
@@ -423,8 +480,10 @@ try {
     instance: instanceName,
     publicDocuments: documents.size,
     uploaded: uploads.length,
+    metadataRefreshes: uploads.filter((entry) => entry.metadataChanged).length,
     deleted: staleItems.length,
     incremental: Boolean(changedPaths),
+    schemaVersion: indexSchemaVersion,
     backgroundIndexing: stats.queued + stats.running + stats.outdated > 0,
     queued: stats.queued,
     running: stats.running,

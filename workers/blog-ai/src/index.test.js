@@ -26,6 +26,17 @@ function createRequest(body) {
   });
 }
 
+function mockTurnstile() {
+  return async (url) => {
+    assert.equal(String(url), "https://challenges.cloudflare.com/turnstile/v0/siteverify");
+    return Response.json({
+      success: true,
+      hostname: "thinkerqaq.github.io",
+      action: "ask_blog",
+    });
+  };
+}
+
 test("accepts the compact question and token request", async () => {
   const request = createRequest({
     question: `Go CAS 为什么无锁？${"中".repeat(900)}`,
@@ -43,14 +54,7 @@ test("accepts the compact question and token request", async () => {
 
 test("reports a missing AI Search binding as a service failure", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    assert.equal(String(url), "https://challenges.cloudflare.com/turnstile/v0/siteverify");
-    return Response.json({
-      success: true,
-      hostname: "thinkerqaq.github.io",
-      action: "ask_blog",
-    });
-  };
+  globalThis.fetch = mockTurnstile();
 
   try {
     const response = await worker.fetch(
@@ -67,16 +71,10 @@ test("reports a missing AI Search binding as a service failure", async () => {
   }
 });
 
-test("answers a compact request using AI Search metadata for hashed item keys", async () => {
+test("uses article authority metadata, hybrid boosting, and canonical titles", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    assert.equal(String(url), "https://challenges.cloudflare.com/turnstile/v0/siteverify");
-    return Response.json({
-      success: true,
-      hostname: "thinkerqaq.github.io",
-      action: "ask_blog",
-    });
-  };
+  globalThis.fetch = mockTurnstile();
+  let searchOptions;
 
   try {
     const response = await worker.fetch(
@@ -85,14 +83,81 @@ test("answers a compact request using AI Search metadata for hashed item keys", 
         TURNSTILE_SECRET_KEY: "test-secret",
         AI_SEARCH: {
           get: () => ({
+            search: async (options) => {
+              searchOptions = options;
+              return {
+                chunks: [{
+                  text: "CAS 是一种原子条件更新原语，本身不是锁。",
+                  item: {
+                    key: "blog--articles--h-0123456789abcdef0123456789abcdef.md",
+                    metadata: {
+                      source_url: `${BLOG_ORIGIN}/articles/concurrency-series-06-atomic-implementation/`,
+                      title: "并发编程（六）：Atomic 的实现——从 Runtime 到 CPU",
+                      collection: "articles",
+                      priority: 2,
+                      schema_version: 2,
+                    },
+                  },
+                }],
+              };
+            },
+          }),
+        },
+        AI: {
+          run: async (_model, options) => {
+            assert.match(options.messages[0].content, /Articles are curated explanatory content/);
+            assert.match(options.messages[0].content, /Keep abstraction levels distinct/);
+            assert.match(options.messages[1].content, /TYPE: article/);
+            assert.match(options.messages[1].content, /CAS 是一种原子条件更新原语/);
+            return { response: "CAS 本身不是锁；它提供原子的条件更新能力。[1]" };
+          },
+        },
+      }),
+    );
+
+    assert.equal(searchOptions.query, "Go CAS 为什么无锁");
+    assert.equal(searchOptions.ai_search_options.retrieval.retrieval_type, "hybrid");
+    assert.equal(searchOptions.ai_search_options.retrieval.fusion_method, "rrf");
+    assert.equal(searchOptions.ai_search_options.retrieval.max_num_results, 20);
+    assert.deepEqual(searchOptions.ai_search_options.retrieval.boost_by, [
+      { field: "priority", direction: "desc" },
+    ]);
+    assert.equal(searchOptions.ai_search_options.query_rewrite.enabled, false);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      answer: "CAS 本身不是锁；它提供原子的条件更新能力。[1]",
+      retrieval: "ai-search-hybrid",
+      sources: [{
+        title: "并发编程（六）：Atomic 的实现——从 Runtime 到 CPU",
+        url: `${BLOG_ORIGIN}/articles/concurrency-series-06-atomic-implementation/`,
+        collection: "articles",
+      }],
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("does not use a chunk heading as a source title when canonical metadata is missing", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockTurnstile();
+  let aiCalled = false;
+
+  try {
+    const response = await worker.fetch(
+      createRequest({ question: "CAS", turnstileToken: "valid-token" }),
+      createEnv({
+        TURNSTILE_SECRET_KEY: "test-secret",
+        AI_SEARCH: {
+          get: () => ({
             search: async () => ({
               chunks: [{
-                text: "CAS 通过原子比较并交换更新共享状态。",
+                text: "## 0. 这一篇继续回答什么？\nCAS 内容",
                 item: {
-                  key: "blog--articles--h-0123456789abcdef0123456789abcdef.md",
+                  key: "blog--articles--concurrency-series-06-atomic-implementation.md",
                   metadata: {
-                    source_url: `${BLOG_ORIGIN}/articles/concurrency-series-05-atomic-cas/`,
-                    title: "Go CAS",
+                    source_url: `${BLOG_ORIGIN}/articles/concurrency-series-06-atomic-implementation/`,
                     collection: "articles",
                   },
                 },
@@ -101,24 +166,17 @@ test("answers a compact request using AI Search metadata for hashed item keys", 
           }),
         },
         AI: {
-          run: async (_model, options) => {
-            assert.match(options.messages[1].content, /CAS 通过原子比较并交换/);
-            assert.match(options.messages[1].content, /concurrency-series-05-atomic-cas/);
-            return { response: "CAS 通过原子比较并交换更新共享状态。[1]" };
+          run: async () => {
+            aiCalled = true;
+            return { response: "should not happen" };
           },
         },
       }),
     );
 
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
-      answer: "CAS 通过原子比较并交换更新共享状态。[1]",
-      retrieval: "ai-search-hybrid",
-      sources: [{
-        title: "Go CAS",
-        url: `${BLOG_ORIGIN}/articles/concurrency-series-05-atomic-cas/`,
-      }],
-    });
+    assert.equal(response.status, 404);
+    assert.equal(aiCalled, false);
+    assert.deepEqual(await response.json(), { error: "本站暂未检索到相关内容。" });
   } finally {
     globalThis.fetch = originalFetch;
   }
