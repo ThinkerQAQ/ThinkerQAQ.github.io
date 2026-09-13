@@ -1,17 +1,57 @@
 # Ask this blog Worker
 
-Minimal Cloudflare Worker backend for the blog's **Ask / 问博客** feature.
+Cloudflare Worker backend for the blog's **Ask / 问博客** feature.
 
 ## Architecture
 
-1. The browser searches the existing Pagefind index.
-2. It takes at most five relevant blog excerpts.
-3. Before sending the question, the browser obtains a one-time Cloudflare Turnstile token.
-4. The browser sends the question, excerpts and Turnstile token to `POST /chat`.
-5. The Worker validates origin, input size, source URLs, rate limit and Turnstile, then calls Workers AI through the `env.AI` binding.
-6. The response contains the answer and source links shown by the blog UI.
+The production path is now hybrid retrieval:
 
-No Workers AI API key is stored in the browser or repository. `env.AI` is a Cloudflare binding.
+1. The browser prepares a small Pagefind candidate set as a compatibility fallback. Multiple Pagefind queries are fused with Reciprocal Rank Fusion (RRF).
+2. Before sending the question, the browser obtains a one-time Cloudflare Turnstile token.
+3. The browser sends the question, optional Pagefind fallback sources and Turnstile token to `POST /chat`.
+4. The Worker validates origin, input size, rate limit and Turnstile.
+5. The Worker queries Cloudflare AI Search with hybrid keyword + vector retrieval, RRF fusion, query rewriting and reranking.
+6. If AI Search is unavailable or has no indexed content yet, the Worker falls back to the Pagefind candidates.
+7. The Worker sends the retrieved blog context to Workers AI and returns the answer plus source links.
+
+The browser no longer decides the primary AI context. Pagefind remains useful for normal site search and as a safe fallback.
+
+## AI Search setup
+
+The Worker uses the `default` AI Search namespace and expects an instance named:
+
+```text
+thinkerqaq-blog
+```
+
+`wrangler.jsonc` declares the namespace binding as `AI_SEARCH`. The deployment sync script creates or upgrades the instance with:
+
+- vector search enabled
+- keyword/BM25 search enabled
+- trigram keyword tokenizer for mixed Chinese + code identifiers
+- RRF fusion
+- query rewriting
+- `@cf/baai/bge-reranker-base` reranking
+- 512-token chunks with a small overlap
+
+Public Markdown under `src/content/{articles,notes,projects,series}` is uploaded to AI Search built-in storage. Draft articles and notes with `indexable: false` are excluded. Deleted or newly private documents are removed from the AI Search instance.
+
+The GitHub Pages deployment runs `scripts/sync-ai-search.mjs` after the site deploy. Configure these repository values:
+
+```text
+Variable: CLOUDFLARE_ACCOUNT_ID
+Variable: CLOUDFLARE_AI_SEARCH_INSTANCE=thinkerqaq-blog   # optional; this is the default
+Secret:   CLOUDFLARE_AI_SEARCH_TOKEN
+```
+
+Create `CLOUDFLARE_AI_SEARCH_TOKEN` as a Cloudflare custom API token with:
+
+```text
+Account > AI Search:Edit
+Account > AI Search:Run
+```
+
+If the account ID or token is absent, the sync job exits successfully with `status=skipped`, so GitHub Pages deployment is not blocked.
 
 ## Turnstile setup
 
@@ -34,15 +74,11 @@ npx wrangler@latest secret put TURNSTILE_SECRET_KEY
 
 Do not put the secret key in Astro environment variables, source files, `wrangler.jsonc`, or GitHub Pages JavaScript.
 
-When building the Astro site, provide the public site key:
-
-```bash
-PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY="<public-site-key>" npm run build
-```
-
 For local testing, Cloudflare provides dedicated test credentials. Use the always-pass test site key in the Astro build and put the always-pass test secret in `workers/blog-ai/.dev.vars`; never use those test credentials in production.
 
-## Deploy manually
+## Deploy the Worker
+
+The AI Search namespace binding is a Worker binding, so redeploy the Worker after changing `wrangler.jsonc` or Worker code:
 
 ```bash
 cd workers/blog-ai
@@ -50,28 +86,26 @@ npx wrangler@latest login
 npx wrangler@latest deploy
 ```
 
-After deployment, copy the Worker `/chat` URL and provide it when building the Astro site together with the Turnstile site key:
+After deployment, the existing `/chat` URL remains the frontend endpoint. For the GitHub Pages build, keep these public repository variables configured:
 
-```bash
-PUBLIC_ASK_BLOG_WORKER_URL="https://<worker-host>/chat" \
-PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY="<public-site-key>" \
-npm run build
+```text
+PUBLIC_ASK_BLOG_WORKER_URL
+PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY
 ```
 
-For GitHub Pages later, both `PUBLIC_ASK_BLOG_WORKER_URL` and `PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY` can be ordinary build variables. Neither is a credential. The Turnstile **secret** stays in Cloudflare Worker Secrets.
+Neither is a credential. The Turnstile **secret** stays in Cloudflare Worker Secrets.
 
 ## Security boundaries
 
 - CORS only accepts origins in `ALLOWED_ORIGINS`. CORS is not treated as authentication.
-- Every `/chat` request must include a Turnstile token and the Worker validates it with Cloudflare Siteverify before calling Workers AI.
-- The Worker also validates the returned Turnstile hostname against the request origin and requires action `ask_blog`.
-- Turnstile tokens are short-lived and single-use, so a captured token cannot be replayed indefinitely.
-- Source URLs must belong to `BLOG_ORIGIN`, so the Worker cannot be used as a generic proxy for arbitrary URLs.
+- Every `/chat` request must include a Turnstile token and the Worker validates it with Cloudflare Siteverify before calling retrieval or Workers AI.
+- The Worker validates the returned Turnstile hostname against the request origin and requires action `ask_blog`.
+- Turnstile tokens are short-lived and single-use.
+- Pagefind fallback source URLs must belong to `BLOG_ORIGIN`.
+- AI Search item keys are decoded only for known blog collections before being exposed as source URLs.
 - Question length: max 1,000 characters.
-- Sources: max 5, max 5,000 characters each, max 20,000 characters total.
-- Worker rate limit: 10 calls per 60 seconds per connecting IP. The rate limit runs before Turnstile Siteverify to limit verification abuse as well as AI quota abuse.
-- The prompt treats retrieved blog text as untrusted data and tells the model not to follow instructions embedded in it.
+- Sources: max 5 documents, max 5,000 characters each, max 20,000 characters total.
+- Worker rate limit: 10 calls per 60 seconds per connecting IP.
+- Retrieved blog text is treated as untrusted reference material in the prompt and cannot override system instructions.
 
-Turnstile reduces automated abuse; it does not turn this anonymous public feature into user authentication. A human visitor who passes Turnstile is still intentionally allowed to ask the blog.
-
-The rate-limit `namespace_id` must be unique within your Cloudflare account if you later add other rate-limit bindings.
+Turnstile reduces automated abuse; it does not turn this anonymous public feature into user authentication. A human visitor who passes Turnstile is intentionally allowed to ask the blog.

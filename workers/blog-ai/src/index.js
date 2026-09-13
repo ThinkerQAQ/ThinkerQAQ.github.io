@@ -1,4 +1,6 @@
 const DEFAULT_MODEL = "@cf/zai-org/glm-4.7-flash";
+const DEFAULT_AI_SEARCH_INSTANCE = "thinkerqaq-blog";
+const RERANKER_MODEL = "@cf/baai/bge-reranker-base";
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const TURNSTILE_ACTION = "ask_blog";
 const MAX_TURNSTILE_TOKEN_LENGTH = 2048;
@@ -40,8 +42,9 @@ function corsHeaders(origin) {
 }
 
 function normalizeSources(rawSources, blogOrigin) {
-  if (!Array.isArray(rawSources) || rawSources.length === 0 || rawSources.length > MAX_SOURCES) {
-    throw new Error(`sources must contain 1-${MAX_SOURCES} items`);
+  if (rawSources == null) return [];
+  if (!Array.isArray(rawSources) || rawSources.length > MAX_SOURCES) {
+    throw new Error(`sources must contain at most ${MAX_SOURCES} items`);
   }
 
   let totalContext = 0;
@@ -67,6 +70,93 @@ function normalizeSources(rawSources, blogOrigin) {
 
     return { title, url: url.href, content };
   });
+}
+
+function decodeAiSearchKey(key) {
+  const match = String(key || "").match(/^blog--(articles|notes|projects|series)--(.+)\.md$/i);
+  if (!match) return null;
+  try {
+    return { collection: match[1].toLowerCase(), id: decodeURIComponent(match[2]) };
+  } catch {
+    return null;
+  }
+}
+
+function sourceFromAiSearchKey(key, blogOrigin) {
+  const decoded = decodeAiSearchKey(key);
+  if (!decoded) return null;
+  const path = `/${decoded.collection}/${decoded.id.split("/").map(encodeURIComponent).join("/")}/`;
+  return new URL(path, `${blogOrigin}/`).href;
+}
+
+function titleFromChunk(chunk) {
+  const text = String(chunk?.text || "");
+  const heading = text.match(/^#{1,3}\s+(.+)$/m)?.[1]?.trim();
+  if (heading) return heading.slice(0, 200);
+
+  const decoded = decodeAiSearchKey(chunk?.item?.key);
+  if (decoded) return decoded.id.split("/").pop().replace(/[-_]+/g, " ").slice(0, 200);
+  return "博客内容";
+}
+
+function normalizeAiSearchChunks(chunks, blogOrigin) {
+  const documents = new Map();
+  let totalContext = 0;
+
+  for (const chunk of Array.isArray(chunks) ? chunks : []) {
+    const content = String(chunk?.text || "").trim();
+    const key = String(chunk?.item?.key || "");
+    const url = sourceFromAiSearchKey(key, blogOrigin);
+    if (!content || !url) continue;
+
+    let document = documents.get(key);
+    if (!document) {
+      if (documents.size >= MAX_SOURCES) continue;
+      document = { title: titleFromChunk(chunk), url, content: "" };
+      documents.set(key, document);
+    }
+
+    const remainingSource = MAX_SOURCE_LENGTH - document.content.length;
+    const remainingTotal = MAX_TOTAL_CONTEXT - totalContext;
+    const remaining = Math.min(remainingSource, remainingTotal);
+    if (remaining <= 0) break;
+
+    const separator = document.content ? "\n\n" : "";
+    const addition = `${separator}${content}`.slice(0, remaining);
+    document.content += addition;
+    totalContext += addition.length;
+    if (totalContext >= MAX_TOTAL_CONTEXT) break;
+  }
+
+  return [...documents.values()].filter((source) => source.content);
+}
+
+async function retrieveAiSearchSources(question, env, blogOrigin) {
+  if (!env.AI_SEARCH) return [];
+
+  const instanceName = String(env.AI_SEARCH_INSTANCE || DEFAULT_AI_SEARCH_INSTANCE).trim();
+  const instance = env.AI_SEARCH.get(instanceName);
+  const result = await instance.search({
+    messages: [{ role: "user", content: question }],
+    ai_search_options: {
+      retrieval: {
+        retrieval_type: "hybrid",
+        fusion_method: "rrf",
+        keyword_match_mode: "or",
+        max_num_results: 10,
+        context_expansion: 1,
+        return_on_failure: true,
+      },
+      query_rewrite: { enabled: true },
+      reranking: {
+        enabled: true,
+        model: RERANKER_MODEL,
+        match_threshold: 0.25,
+      },
+    },
+  });
+
+  return normalizeAiSearchChunks(result?.chunks, blogOrigin);
 }
 
 function buildMessages(question, sources) {
@@ -113,11 +203,7 @@ async function verifyTurnstile(token, request, env, origin) {
     response = await fetch(TURNSTILE_VERIFY_URL, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        secret: env.TURNSTILE_SECRET_KEY,
-        response: token,
-        remoteip,
-      }),
+      body: JSON.stringify({ secret: env.TURNSTILE_SECRET_KEY, response: token, remoteip }),
     });
   } catch (error) {
     console.error("Turnstile Siteverify request failed", error);
@@ -193,10 +279,11 @@ export default {
       return json({ error: "Security verification is required." }, 400, origin);
     }
 
-    let sources;
+    let blogOrigin;
+    let fallbackSources;
     try {
-      const blogOrigin = new URL(env.BLOG_ORIGIN).origin;
-      sources = normalizeSources(body?.sources, blogOrigin);
+      blogOrigin = new URL(env.BLOG_ORIGIN).origin;
+      fallbackSources = normalizeSources(body?.sources ?? [], blogOrigin);
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Invalid sources" }, 400, origin);
     }
@@ -207,6 +294,22 @@ export default {
 
     const turnstile = await verifyTurnstile(turnstileToken, request, env, origin);
     if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status, origin);
+
+    let sources = [];
+    let retrieval = "pagefind-fallback";
+    try {
+      sources = await retrieveAiSearchSources(question, env, blogOrigin);
+      if (sources.length) retrieval = "ai-search-hybrid";
+    } catch (error) {
+      console.error("AI Search retrieval failed; using Pagefind fallback", error);
+    }
+
+    if (!sources.length) sources = fallbackSources;
+    if (!sources.length) {
+      return json({ error: "本站暂未检索到相关内容。" }, 404, origin);
+    }
+
+    console.info("Ask blog retrieval", { retrieval, sourceCount: sources.length });
 
     try {
       const aiResult = await env.AI.run(env.AI_MODEL || DEFAULT_MODEL, {
@@ -220,6 +323,7 @@ export default {
       return json(
         {
           answer,
+          retrieval,
           sources: sources.map(({ title, url }) => ({ title, url })),
         },
         200,

@@ -172,20 +172,37 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
 
     const retrieveSources = async (question) => {
       const pagefind = await getPagefind();
-      let search;
-      for (const { value, strategy } of buildSearchQueries(question)) {
-        const startedAt = performance.now();
-        search = await pagefind.search(value);
-        console.info("Ask blog Pagefind search", {
-          operation: "pagefind-search",
-          strategy,
-          resultCount: search.results.length,
-          durationMs: Math.round(performance.now() - startedAt),
+      const strategyWeights = { question: 1.25, acronym: 1.15, identifier: 1.05, "chinese-term": 1 };
+      const searches = await Promise.all(
+        buildSearchQueries(question).slice(0, 6).map(async ({ value, strategy }) => {
+          const startedAt = performance.now();
+          const search = await pagefind.search(value);
+          console.info("Ask blog Pagefind search", {
+            operation: "pagefind-search",
+            strategy,
+            query: value,
+            resultCount: search.results.length,
+            durationMs: Math.round(performance.now() - startedAt),
+          });
+          return { strategy, results: search.results.slice(0, 10) };
+        }),
+      );
+
+      const fused = new Map();
+      for (const { strategy, results } of searches) {
+        const weight = strategyWeights[strategy] ?? 1;
+        results.forEach((entry, index) => {
+          const current = fused.get(entry.id) ?? { entry, score: 0, hits: 0 };
+          current.score += weight / (60 + index + 1);
+          current.hits += 1;
+          fused.set(entry.id, current);
         });
-        if (search.results.length > 0) break;
       }
-      if (!search) return [];
-      const loaded = await Promise.all(search.results.slice(0, 5).map((entry) => entry.data()));
+
+      const ranked = [...fused.values()]
+        .sort((left, right) => right.score - left.score || right.hits - left.hits)
+        .slice(0, 5);
+      const loaded = await Promise.all(ranked.map(({ entry }) => entry.data()));
 
       return loaded
         .map((data) => {
@@ -330,17 +347,20 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       }
 
       try {
-        setStatus("正在检索本站内容…");
-        const sources = await retrieveSources(question);
-        if (sources.length === 0) {
-          setStatus("本站暂未检索到相关内容。", true);
-          return;
+        setStatus("正在准备本站检索候选…");
+        let sources = [];
+        try {
+          sources = await retrieveSources(question);
+        } catch (error) {
+          console.warn("Pagefind fallback retrieval failed", error);
         }
 
         setStatus("正在进行安全验证…");
         const turnstileToken = await getTurnstileToken();
 
-        setStatus(`找到 ${sources.length} 个相关来源，正在生成回答…`);
+        setStatus(sources.length
+          ? `已准备 ${sources.length} 个本地候选来源，正在进行混合检索并生成回答…`
+          : "正在进行语义与关键词混合检索并生成回答…");
         const response = await fetch(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },

@@ -16,6 +16,7 @@
     "test:indexnow": "node --test scripts/indexnow.test.mjs",
     "test:distribute": "node --test scripts/distribute.test.mjs",
     "test:vnotes": "node --test scripts/import-vnotes.test.mjs scripts/apply-note-topics.test.mjs scripts/container-policy.test.mjs scripts/algorithm-policy.test.mjs scripts/operating-system-policy.test.mjs scripts/virtual-machine-policy.test.mjs scripts/software-engineering-policy.test.mjs scripts/computer-architecture-publication.test.mjs",
+    "test:ai-search": "node --check workers/blog-ai/src/index.js && node --check scripts/sync-ai-search.mjs",
     "indexnow:prepare": "node scripts/indexnow.mjs prepare",
     "indexnow:submit": "node scripts/indexnow.mjs submit",
     "distribute": "node scripts/distribute.mjs",
@@ -26,7 +27,7 @@
     "local": "npm run build:local && astro preview --port 4321 --background --open",
     "stop:local": "astro preview stop",
     "verify": "node scripts/verify-build.mjs",
-    "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run test:vnotes && npm run check && npm run build && npm run verify"
+    "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run test:vnotes && npm run test:ai-search && npm run check && npm run build && npm run verify"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
