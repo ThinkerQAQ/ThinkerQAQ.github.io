@@ -201,7 +201,7 @@ jobs:
           )
           add_after(
               'src/content/notes/operating-system/Linux/虚拟化/Linux cgroup.md',
-              '## 1. 什么是cgroup',
+              '## 2. 什么是Linux cgroup',
               '> 2026 注：本文记录的是较早期的 cgroup 使用方式；现代 Linux 发行版普遍以 cgroup v2 为主。',
           )
           add_after(
