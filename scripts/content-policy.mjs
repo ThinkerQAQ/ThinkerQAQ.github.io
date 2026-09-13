@@ -15,6 +15,7 @@ export const PUBLIC_NOTEBOOKS = [
   "Algorithm",
   "Operating_System",
   "Virtual_Machine",
+  "Software_Engineering",
 ];
 export const PROMOTED_ARTICLES = [];
 export const FEATURED_PATHS = new Set();
@@ -33,6 +34,7 @@ export const CATEGORY_LABELS = {
   Algorithm: "Data Structures & Algorithms",
   Operating_System: "Operating System / Linux",
   Virtual_Machine: "Garbage Collection / Runtime",
+  Software_Engineering: "Software Architecture & Engineering",
 };
 export const CATEGORY_SLUGS = {
   Java: "java",
@@ -49,6 +51,7 @@ export const CATEGORY_SLUGS = {
   Algorithm: "algorithm",
   Operating_System: "operating-system",
   Virtual_Machine: "garbage-collection",
+  Software_Engineering: "software-engineering",
 };
 
 // Import IDs replaced by a broader public notebook. During a selective sync,
@@ -71,6 +74,7 @@ export const ROOT_TOPIC_LABELS = {
   Algorithm: "Overview",
   Operating_System: "Overview",
   Virtual_Machine: "Fundamentals",
+  Software_Engineering: "Architecture",
 };
 
 const GO_NOTE_TOPICS = [
@@ -360,6 +364,51 @@ const virtualMachineTopicEntries = VIRTUAL_MACHINE_NOTE_TOPICS.flatMap((topic) =
   topic.notes.map((note) => [note, { id: topic.id, label: topic.label, number: topic.number }]),
 );
 
+
+const SOFTWARE_ENGINEERING_NOTE_TOPICS = [
+  { id: "architecture", label: "Architecture", number: 1, notes: [
+    "Architecture/架构.md", "Architecture/架构模式/架构模式.md",
+    "Architecture/架构模式/单体架构.md", "Architecture/架构模式/分层架构.md",
+    "Architecture/架构模式/事件驱动架构.md", "Architecture/架构模式/读写分离架构.md",
+    "Architecture/架构模式/DDD/DDD.md", "Architecture/架构模式/微服务/微服务.md",
+  ] },
+  { id: "platform-services", label: "Microservices & Platform", number: 2, notes: [
+    "Architecture/架构模式/微服务/JWT.md", "Architecture/架构模式/微服务/OAuth.md",
+    "Architecture/架构模式/微服务/OpenId Connect.md", "Architecture/架构模式/微服务/如何设计API网关.md",
+    "Architecture/架构模式/微服务/如何设计metrics监控.md", "Architecture/架构模式/微服务/如何设计容错组件.md",
+    "Architecture/架构模式/微服务/如何设计日志监控.md", "Architecture/架构模式/微服务/如何设计注册中心.md",
+    "Architecture/架构模式/微服务/如何设计监控系统.md", "Architecture/架构模式/微服务/如何设计认证授权.md",
+    "Architecture/架构模式/微服务/如何设计负载均衡组件.md", "Architecture/架构模式/微服务/如何设计配置中心.md",
+    "Architecture/架构模式/微服务/如何设计链路追踪.md",
+  ] },
+  { id: "modeling", label: "Modeling", number: 3, notes: [
+    "建模/ER图.md", "建模/UML.md", "建模/时序图.md", "建模/架构图.md", "建模/流程图.md",
+    "建模/状态图.md", "建模/类图.md", "建模/组件图.md", "建模/部署图.md",
+  ] },
+  { id: "programming-patterns", label: "Programming Patterns", number: 4, notes: [
+    "编程范式/Concurrent/事件溯源模式.md", "编程范式/Concurrent/发布订阅模式.md",
+    "编程范式/Concurrent/生产者消费者模式.md", "编程范式/Functional/函数式选项模式.md",
+    "编程范式/Functional/接口型函数.md",
+  ] },
+  { id: "design-principles", label: "Design Principles", number: 5, notes: [
+    "编程范式/OOP/OOP设计原则/OOP设计原则.md", "编程范式/OOP/OOP设计原则/依赖倒置原则.md",
+    "编程范式/OOP/OOP设计原则/单一职责原则.md", "编程范式/OOP/OOP设计原则/合成复用原则.md",
+    "编程范式/OOP/OOP设计原则/开闭原则.md", "编程范式/OOP/OOP设计原则/接口隔离原则.md",
+    "编程范式/OOP/OOP设计原则/迪米特法则.md", "编程范式/OOP/OOP设计原则/里氏替换原则.md",
+  ] },
+  { id: "design-patterns", label: "Design Patterns", number: 6, notes: [
+    "编程范式/OOP/OOP设计模式/OOP设计模式.md", "编程范式/OOP/OOP设计模式/创建型模式/单例模式.md",
+    "编程范式/OOP/OOP设计模式/创建型模式/工厂方法.md", "编程范式/OOP/OOP设计模式/创建型模式/构建者模式.md",
+    "编程范式/OOP/OOP设计模式/结构型模式/代理模式.md", "编程范式/OOP/OOP设计模式/结构型模式/装饰器模式.md",
+    "编程范式/OOP/OOP设计模式/结构型模式/适配器模式.md", "编程范式/OOP/OOP设计模式/行为型模式/模板方法.md",
+    "编程范式/OOP/OOP设计模式/行为型模式/状态模式.md", "编程范式/OOP/OOP设计模式/行为型模式/策略模式.md",
+    "编程范式/OOP/OOP设计模式/行为型模式/观察者模式.md", "编程范式/OOP/OOP设计模式/行为型模式/责任链.md",
+  ] },
+];
+const softwareEngineeringTopicEntries = SOFTWARE_ENGINEERING_NOTE_TOPICS.flatMap((topic) =>
+  topic.notes.map((note) => [note, { id: topic.id, label: topic.label, number: topic.number }]),
+);
+
 // Notebooks listed here use a strict per-note allowlist. New or previously rejected
 // source files stay private until they receive an explicit content review.
 export const REVIEWED_NOTE_PATHS = {
@@ -395,6 +444,7 @@ export const REVIEWED_NOTE_PATHS = {
     operatingSystemTopicEntries.map(([note]) => `Operating_System/${note}`),
   ),
   Virtual_Machine: new Set(virtualMachineTopicEntries.map(([note]) => `Virtual_Machine/${note}`)),
+  Software_Engineering: new Set(softwareEngineeringTopicEntries.map(([note]) => `Software_Engineering/${note}`)),
 };
 
 // Optional public taxonomy overrides. They change only the blog topic grouping;
@@ -405,6 +455,7 @@ export const NOTE_TOPIC_OVERRIDES = {
   Algorithm: new Map(algorithmTopicEntries),
   Operating_System: new Map(operatingSystemTopicEntries),
   Virtual_Machine: new Map(virtualMachineTopicEntries),
+  Software_Engineering: new Map(softwareEngineeringTopicEntries),
 };
 
 // These reviewed notes contain documentation-only credentials. Keep the source
