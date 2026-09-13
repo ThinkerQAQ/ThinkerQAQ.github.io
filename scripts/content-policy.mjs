@@ -14,6 +14,7 @@ export const PUBLIC_NOTEBOOKS = [
   "Container",
   "Algorithm",
   "Operating_System",
+  "Virtual_Machine",
 ];
 export const PROMOTED_ARTICLES = [];
 export const FEATURED_PATHS = new Set();
@@ -31,6 +32,7 @@ export const CATEGORY_LABELS = {
   Container: "Docker / Kubernetes",
   Algorithm: "Data Structures & Algorithms",
   Operating_System: "Operating System / Linux",
+  Virtual_Machine: "Garbage Collection / Runtime",
 };
 export const CATEGORY_SLUGS = {
   "System_Design/分布式系统": "distributed-systems",
@@ -45,6 +47,7 @@ export const CATEGORY_SLUGS = {
   Container: "container",
   Algorithm: "algorithm",
   Operating_System: "operating-system",
+  Virtual_Machine: "garbage-collection",
 };
 export const ROOT_TOPIC_LABELS = {
   "System_Design/分布式系统": "基础与专题",
@@ -59,6 +62,7 @@ export const ROOT_TOPIC_LABELS = {
   Container: "基础",
   Algorithm: "Overview",
   Operating_System: "Overview",
+  Virtual_Machine: "Fundamentals",
 };
 
 const GO_NOTE_TOPICS = [
@@ -339,6 +343,29 @@ const operatingSystemTopicEntries = OPERATING_SYSTEM_NOTE_TOPICS.flatMap((topic)
   ]),
 );
 
+
+const VIRTUAL_MACHINE_NOTE_TOPICS = [
+  {
+    id: "fundamentals",
+    label: "Fundamentals",
+    number: 1,
+    notes: ["GC.md", "STW.md", "内存泄露.md"],
+  },
+  {
+    id: "tuning",
+    label: "Tuning",
+    number: 2,
+    notes: ["GC调优.md"],
+  },
+];
+
+const virtualMachineTopicEntries = VIRTUAL_MACHINE_NOTE_TOPICS.flatMap((topic) =>
+  topic.notes.map((note) => [
+    note,
+    { id: topic.id, label: topic.label, number: topic.number },
+  ]),
+);
+
 // Notebooks listed here use a strict per-note allowlist. New or previously rejected
 // source files stay private until they receive an explicit content review.
 export const REVIEWED_NOTE_PATHS = {
@@ -373,6 +400,9 @@ export const REVIEWED_NOTE_PATHS = {
   Operating_System: new Set(
     operatingSystemTopicEntries.map(([note]) => `Operating_System/${note}`),
   ),
+  Virtual_Machine: new Set(
+    virtualMachineTopicEntries.map(([note]) => `Virtual_Machine/${note}`),
+  ),
 };
 
 // Optional public taxonomy overrides. They change only the blog topic grouping;
@@ -382,6 +412,7 @@ export const NOTE_TOPIC_OVERRIDES = {
   Computer_Network: new Map(computerNetworkTopicEntries),
   Algorithm: new Map(algorithmTopicEntries),
   Operating_System: new Map(operatingSystemTopicEntries),
+  Virtual_Machine: new Map(virtualMachineTopicEntries),
 };
 
 // These reviewed notes contain documentation-only credentials. Keep the source
