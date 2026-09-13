@@ -1,0 +1,360 @@
+name: Migrate reviewed Message Queue notes
+
+on:
+  push:
+    branches:
+      - migrate/message-queue-notes
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Configure Message Queue taxonomy and policy
+        shell: python
+        run: |
+          from pathlib import Path
+
+          policy_path = Path('scripts/content-policy.mjs')
+          policy = policy_path.read_text(encoding='utf-8')
+
+          def replace_once(old, new):
+              global policy
+              if old not in policy:
+                  raise SystemExit(f'policy marker not found: {old!r}')
+              policy = policy.replace(old, new, 1)
+
+          replace_once('  "Message_Queue/Kafka",\n', '  "Message_Queue",\n')
+          replace_once('  "Message_Queue/Kafka": "Kafka / Message Queue",\n', '  Message_Queue: "Message Queue",\n')
+          replace_once('  "Message_Queue/Kafka": "kafka-message-queue",\n', '  Message_Queue: "message-queue",\n')
+          replace_once('  database: ["mysql-database"],\n};', '  database: ["mysql-database"],\n  "message-queue": ["kafka-message-queue"],\n};')
+          replace_once('  "Message_Queue/Kafka": "基础与专题",\n', '  Message_Queue: "Fundamentals",\n')
+
+          reviewed = '''  Message_Queue: new Set([\n    "Message_Queue/消息队列介绍.md",\n    "Message_Queue/消息队列消息的顺序性.md",\n    "Message_Queue/Kafka/Kafka Broker.md",\n    "Message_Queue/Kafka/Kafka Topic.md",\n    "Message_Queue/Kafka/Kafka介绍.md",\n    "Message_Queue/Kafka/Kafka优化.md",\n    "Message_Queue/Kafka/Kafka使用.md",\n    "Message_Queue/Kafka/Kafka压测.md",\n    "Message_Queue/Kafka/Kafka安装.md",\n    "Message_Queue/Kafka/Kafka架构.md",\n    "Message_Queue/Kafka/Kafka消息磁盘存储.md",\n    "Message_Queue/Kafka/Kafka消费者.md",\n    "Message_Queue/Kafka/Kafka源码阅读.md",\n    "Message_Queue/Kafka/Kafka生产者.md",\n    "Message_Queue/Kafka/云Kafka.md",\n    "Message_Queue/RabbitMQ/RabbitMQ.md",\n    "Message_Queue/RabbitMQ/RabbitMQ使用.md",\n    "Message_Queue/RabbitMQ/RabbitMQ消息的可靠性.md",\n    "Message_Queue/RabbitMQ/RabbitMQ集群模式.md",\n  ]),\n'''
+          marker = '  Golang: new Set(goTopicEntries.map(([note]) => `Golang/${note}`)),\n'
+          if marker not in policy:
+              raise SystemExit('reviewed policy insertion marker not found')
+          policy = policy.replace(marker, reviewed + marker, 1)
+          policy_path.write_text(policy, encoding='utf-8')
+
+          package_path = Path('package.json')
+          package = package_path.read_text(encoding='utf-8')
+          old = 'scripts/database-policy.test.mjs'
+          if old not in package:
+              raise SystemExit('package test marker not found')
+          package_path.write_text(package.replace(old, old + ' scripts/message-queue-policy.test.mjs', 1), encoding='utf-8')
+
+          Path('scripts/message-queue-policy.test.mjs').write_text('''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport { CATEGORY_LABELS, CATEGORY_SLUGS, LEGACY_IMPORT_IDS, REVIEWED_NOTE_PATHS, ROOT_TOPIC_LABELS } from "./content-policy.mjs";\nimport { sourceExclusionReason } from "./import-vnotes.mjs";\n\ntest("Message Queue is one category with Kafka and RabbitMQ topics", () => {\n  assert.equal(CATEGORY_LABELS.Message_Queue, "Message Queue");\n  assert.equal(CATEGORY_SLUGS.Message_Queue, "message-queue");\n  assert.equal(ROOT_TOPIC_LABELS.Message_Queue, "Fundamentals");\n  assert.deepEqual(LEGACY_IMPORT_IDS["message-queue"], ["kafka-message-queue"]);\n  const reviewed = REVIEWED_NOTE_PATHS.Message_Queue;\n  assert.equal(reviewed.size, 19);\n  for (const path of [\n    "Message_Queue/消息队列介绍.md",\n    "Message_Queue/消息队列消息的顺序性.md",\n    "Message_Queue/Kafka/Kafka介绍.md",\n    "Message_Queue/Kafka/Kafka架构.md",\n    "Message_Queue/RabbitMQ/RabbitMQ.md",\n    "Message_Queue/RabbitMQ/RabbitMQ集群模式.md",\n  ]) assert.equal(reviewed.has(path), true, path);\n  assert.equal(sourceExclusionReason({ sourcePath: "Message_Queue" }, "OtherMQ.md"), "not-reviewed");\n});\n''', encoding='utf-8')
+
+      - name: Recover historical VNote source
+        run: |
+          rm -rf .migration
+          mkdir -p .migration
+          git archive 0e010570684010ef99d4055bb7c3d4611df44f4c:notes | tar -x -C .migration
+
+          # Virtual_Machine was recovered separately in an earlier migration and is
+          # absent from the old Git snapshot. Stubs only let the link index build.
+          mkdir -p .migration/Virtual_Machine
+          for f in 'GC.md' 'GC调优.md' 'STW.md' '内存泄露.md'; do
+            printf '# %s\n' "$f" > ".migration/Virtual_Machine/$f"
+          done
+
+          mkdir -p .migration/Message_Queue/RabbitMQ
+
+          cat > .migration/Message_Queue/RabbitMQ/RabbitMQ.md <<'EOF'
+          ## 1. RabbitMQ使用
+          - [RabbitMQ使用.md](RabbitMQ使用.md)
+          ## 2. RabbitMQ安装
+          - [RabbitMQ集群模式.md](RabbitMQ集群模式.md)
+
+          ## 3. RabbitMQ原理
+          - [RabbitMQ消息的可靠性.md](RabbitMQ消息的可靠性.md)
+
+          ## 4. 参考
+          - [RabbitMQ面试题 - 昕友软件开发 - 博客园](https://www.cnblogs.com/starcrm/p/10619449.html)
+          - [2019年12道RabbitMQ高频面试题你都会了吗？（含答案解析） - 掘金](https://juejin.im/post/5dfc93a5f265da339b500273)
+          - [从零实现消息中间件 :: steven的个人博客](https://stevenbai.top/rust/rnats/)
+          EOF
+
+          cat > .migration/Message_Queue/RabbitMQ/RabbitMQ使用.md <<'EOF'
+          [toc]
+
+          ## 1. 数据传输流程
+
+          生产者发送消息->rabbitmq的exchange，通过routing key路由到相应的queue上->消费者接收消息
+
+          ## 2. 工作模式
+
+          发送消息的代码
+          ```java
+          void basicPublish(String exchange, String routingKey, BasicProperties props, byte[] body)
+          ```
+
+          - 工作队列，交换机为空
+          这种模式会把消息发送到QUEUE_NAME的队列上
+          ```java
+          ("",  "QUEUE_NAME", ...)
+          ```
+          - 发布订阅，fanout交换机
+          这种模式会广播所有消息到绑定了fanout交互机的队列上
+          ```java
+          ("fanout",  "",  ...)
+          ```
+          - 发布订阅，direct交换机
+          这种模式会按照条件路由消息，把direct交互机上的消息一部分丢给队列1，另一部分丢给队列2
+          ```java
+          ("direct",  "routing_key",  ...)
+          ```
+          - 发布订阅，topic交换机，比direct更加细化，把direct交互机上的消息一部分丢给队列1，另一部分丢给队列2
+          这种模式会按照条件路由消息
+          ```java
+          ("topic",  "routing_key",  ...)
+          ```
+          EOF
+
+          cat > .migration/Message_Queue/RabbitMQ/RabbitMQ消息的可靠性.md <<'EOF'
+          [toc]
+
+          ## 1. 三种情况
+          ### 1.1. 生产者
+          消息没传到mq丢失了，或者到了mq但是mq出问题了没保存消息
+          ### 1.2. MQ
+          mq把消息暂存在内存中，还未写入磁盘，挂了
+          ### 1.3. 消费者
+          消费了这条消息，但是没有处理成功就挂了
+
+          ## 2. 解决
+
+          ### 2.1. 生产者
+
+          #### 2.1.1. 开启事务
+          开始事务后生产者会同步阻塞直到mq返回成功还是失败
+
+          - 缺点
+          导致mq吞吐量下降，一般不使用
+
+          #### 2.1.2. 确认机制
+          将channel配置成confirm模式，发送完后生产者就不管了，mq会异步回调生产者的接口
+          当消息成功发送到mq的时候，会回调生产者的成功接口【ack】
+          当消息发送失败的时候，会回调生产者的失败接口【nack】，这里可以重新发送消息
+
+          ### 2.2. MQ
+          - 创建queue的时候设置为持久化
+          这里会持久化mq的元数据
+          - 发送消息的时候设置deliveryMode为2
+          这里会持久化mq的数据
+
+          ### 2.3. 消费者
+          - 关闭自动ack，使用手动ack
+          EOF
+
+          cat > .migration/Message_Queue/RabbitMQ/RabbitMQ集群模式.md <<'EOF'
+          [toc]
+
+          ## 1. 集群模式
+
+          ### 1.1. 普通集群模式
+          master节点存放元数据和队列数据，其他节点只存放元数据。
+          消费者可以向任意一个节点发出请求，如果是slave会将请求转发给master进行处理后返回给客户端
+
+          - 优点
+              - 提高消费者的吞吐量
+          - 缺点
+              - 可能会在集群内部产生大量的数据传输
+              - master挂了那么数据全丢了
+
+          ![](https://raw.githubusercontent.com/TDoct/images/master/img/20191229141110.png)
+
+          ### 1.2. 镜像集群模式
+          集群中每个节点都有一份完整的队列数据，某个节点挂了也不影响其他节点
+
+          - 优点
+              - 真正的高可用
+          - 缺点
+              - 不是分布式的，数据可能大到无法在一台机器上存储
+
+          ![](https://raw.githubusercontent.com/TDoct/images/master/img/20191229144620.png)
+          ## 2. 集群搭建
+
+          rabbitmq的集群模式是每个节点都有队列元数据，但是只有一个节点有队列的数据。
+          如果要把队列数据复制到所有节点，那么必须开启镜像队列模式
+
+          ### 2.1. 普通集群
+
+          #### 2.1.1. rabbitmq5673.sh
+          ```bash
+          #!/bin/bash
+          RABBITMQ_NODE_PORT=5673 RABBITMQ_SERVER_START_ARGS="-rabbitmq_management listener [{port,15673}] -rabbitmq_stomp tcp_listeners [61613] -rabbitmq_mqtt tcp_listeners [1883]" RABBITMQ_NODENAME=rabbit5673 ./rabbitmq-server
+          ```
+
+          #### 2.1.2. rabbitmq5674.sh
+          ```bash
+          #!/bin/bash
+          RABBITMQ_NODE_PORT=5674 RABBITMQ_SERVER_START_ARGS="-rabbitmq_management listener [{port,15674}] -rabbitmq_stomp tcp_listeners [61614] -rabbitmq_mqtt tcp_listeners [1884]" RABBITMQ_NODENAME=rabbit5674 ./rabbitmq-server
+          ```
+
+          #### 2.1.3. join_cluster.sh
+          ```bash
+          #!/bin/bash
+          sudo rabbitmqctl -n rabbit5674@zsk-arch stop_app
+          sudo rabbitmqctl -n rabbit5674@zsk-arch reset
+          sudo rabbitmqctl -n rabbit5674@zsk-arch join_cluster rabbit5673@zsk-arch
+          sudo rabbitmqctl -n rabbit5674@zsk-arch start_app
+          ```
+
+          ![](https://raw.githubusercontent.com/TDoct/images/master/img/20191229163543.png)
+
+          ### 2.2. 镜像复制
+
+          ![](https://raw.githubusercontent.com/TDoct/images/master/img/20191229163400.png)
+          EOF
+
+          cat > .migration/Message_Queue/消息队列消息的顺序性.md <<'EOF'
+          [toc]
+
+          ## 1. 什么是消息的顺序性问题
+          如图，生产者先后向消息队列发送了两条数据：**插入数据**、**更新数据**，假设消费者有两个节点，消息队列会把这两条数据轮询发送消费者，消费者1消费了 **插入数据**，消费者2消费了**更新数据**，最后插入MySQL的顺序先后是**更新数据**、**插入数据**，这样的话更新数据的时候还没有这条数据，那么报错
+          ![顺序性问题-顺序性问题](https://raw.githubusercontent.com/TDoct/images/master/1645790541_20220225194618931_32027.png)
+          ## 2. 如何解决
+          EOF
+
+          sed -i 's/^          //' .migration/Message_Queue/RabbitMQ/*.md .migration/Message_Queue/消息队列消息的顺序性.md
+
+          cat > .migration/Message_Queue/_vnote.json <<'EOF'
+          {
+            "created_time": "2026-09-08T13:53:12Z",
+            "files": [
+              {"attachment_folder":"","attachments":[],"modified_time":"2026-09-08T13:53:12Z","name":"消息队列介绍.md","tags":[]},
+              {"attachment_folder":"","attachments":[],"modified_time":"2026-09-08T13:53:12Z","name":"消息队列消息的顺序性.md","tags":[]}
+            ],
+            "sub_directories": [{"name":"Kafka"},{"name":"RabbitMQ"}],
+            "version": "1"
+          }
+          EOF
+          sed -i 's/^          //' .migration/Message_Queue/_vnote.json
+
+          cat > .migration/Message_Queue/RabbitMQ/_vnote.json <<'EOF'
+          {
+            "created_time": "2026-09-08T13:53:12Z",
+            "files": [
+              {"attachment_folder":"","attachments":[],"modified_time":"2026-09-08T13:53:12Z","name":"RabbitMQ.md","tags":[]},
+              {"attachment_folder":"","attachments":[],"modified_time":"2026-09-08T13:53:12Z","name":"RabbitMQ使用.md","tags":[]},
+              {"attachment_folder":"","attachments":[],"modified_time":"2026-09-08T13:53:12Z","name":"RabbitMQ消息的可靠性.md","tags":[]},
+              {"attachment_folder":"","attachments":[],"modified_time":"2026-09-08T13:53:12Z","name":"RabbitMQ集群模式.md","tags":[]}
+            ],
+            "sub_directories": [],
+            "version": "1"
+          }
+          EOF
+          sed -i 's/^          //' .migration/Message_Queue/RabbitMQ/_vnote.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import reviewed Message Queue notes
+        env:
+          VNOTE_SOURCE: ${{ github.workspace }}/.migration
+          VNOTE_IMPORT_IDS: message-queue
+        run: |
+          npm run sync:notes
+          node --test scripts/message-queue-policy.test.mjs
+          test "$(find src/content/notes/message-queue -type f -name '*.md' | wc -l)" -eq 19
+          test ! -e src/content/notes/kafka-message-queue
+          grep -q 'topic: "Kafka"' 'src/content/notes/message-queue/Kafka/Kafka介绍.md'
+          grep -q 'topic: "RabbitMQ"' 'src/content/notes/message-queue/RabbitMQ/RabbitMQ.md'
+          grep -q 'topic: "__root"' 'src/content/notes/message-queue/消息队列介绍.md'
+
+      - name: Add minimal 2026 annotations
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def add_after(path, needle, note):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if note in text:
+                  return
+              if needle not in text:
+                  raise SystemExit(f'annotation marker not found: {path}: {needle}')
+              p.write_text(text.replace(needle, needle + '\n\n' + note, 1), encoding='utf-8')
+
+          add_after(
+              'src/content/notes/message-queue/消息队列介绍.md',
+              '### 7.3. MQ选型',
+              '> 2026 注：下面的选型表是当时的粗略经验值；QPS、社区活跃度和可靠性能力都会随版本、配置与部署方式变化，不应作为固定基准。',
+          )
+          add_after(
+              'src/content/notes/message-queue/RabbitMQ/RabbitMQ集群模式.md',
+              '### 1.2. 镜像集群模式',
+              '> 2026 注：镜像经典队列是旧版 RabbitMQ 的高可用方案；现代 RabbitMQ 更推荐 quorum queues，具体以当前版本文档为准。',
+          )
+          add_after(
+              'src/content/notes/message-queue/Kafka/Kafka安装.md',
+              '## 2. Kafka集群搭建',
+              '> 2026 注：本文记录的是 Kafka 2.8.0 / ZooKeeper 时代的安装方式；现代 Kafka 已转向 KRaft，Kafka 4.x 已移除 ZooKeeper 模式。',
+          )
+
+      - name: Add legacy Kafka redirects
+        run: |
+          mkdir -p src/pages/notes/kafka-message-queue
+          cat > 'src/pages/notes/kafka-message-queue/[...slug].astro' <<'EOF'
+          ---
+          import { getCollection } from "astro:content";
+          import LegacyRedirect from "../../../components/LegacyRedirect.astro";
+          import { noteHref } from "../../../lib/content";
+
+          export async function getStaticPaths() {
+            const notes = await getCollection("notes");
+            return notes
+              .filter(
+                (note) =>
+                  note.data.category === "message-queue" &&
+                  note.data.topic === "Kafka" &&
+                  note.id.startsWith("message-queue/Kafka/"),
+              )
+              .map((note) => ({
+                params: { slug: note.id.slice("message-queue/Kafka/".length) },
+                props: { target: noteHref(note) },
+              }));
+          }
+
+          interface Props {
+            target: string;
+          }
+
+          const { target } = Astro.props;
+          ---
+
+          <LegacyRedirect target={target} />
+          EOF
+          sed -i 's/^          //' 'src/pages/notes/kafka-message-queue/[...slug].astro'
+
+      - name: Verify and commit generated content
+        run: |
+          test "$(find src/content/notes/message-queue/Kafka -type f -name '*.md' | wc -l)" -eq 13
+          test "$(find src/content/notes/message-queue/RabbitMQ -type f -name '*.md' | wc -l)" -eq 4
+          test "$(find src/content/notes/message-queue -maxdepth 1 -type f -name '*.md' | wc -l)" -eq 2
+          ! grep -RniE 'woa\.com|(^|[^a-z])oa\.com|bytedance\.feishu\.cn|bytedance\.larkoffice\.com|INTERNAL_URL|REDACTED_LOCAL_PATH' src/content/notes/message-queue
+          npm run test:vnotes
+          npm run check
+          rm -rf .migration
+          git add package.json scripts/content-policy.mjs scripts/message-queue-policy.test.mjs src/content/notes/message-queue src/data/content-manifest.json 'src/pages/notes/kafka-message-queue/[...slug].astro'
+          if [ -d public/media/vnote/message-queue ]; then git add public/media/vnote/message-queue; fi
+          git add -u src/content/notes/kafka-message-queue public/media/vnote/kafka-message-queue || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'content: organize message queue notes under Kafka and RabbitMQ [skip ci]'
+          git push
