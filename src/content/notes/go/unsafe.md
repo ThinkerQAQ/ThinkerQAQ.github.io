@@ -64,6 +64,9 @@ Golang的指针类型是安全的
 ### 2.2. 使用
 ![](https://raw.githubusercontent.com/TDoct/images/master/1598085216_20200822162728725_14849.png)
 安全的指针类型无法进行计算，可以先转换成unsafe.Pointer，再转换成uintptr进行计算
+
+> 2026 注：下面直接读取 slice / map 内部布局的例子依赖具体 Go 版本和架构，只适合作为当时的实现实验，不应当作稳定接口使用。
+
 #### 2.2.1. 获取slice的长度
 
 ```go
