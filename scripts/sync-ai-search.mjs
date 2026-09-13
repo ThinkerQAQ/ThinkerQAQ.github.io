@@ -18,6 +18,7 @@ const collections = ["articles", "notes", "projects", "series"];
 const readyTimeoutMs = Number(process.env.AI_SEARCH_READY_TIMEOUT_MS || 180_000);
 const readyPollMs = Number(process.env.AI_SEARCH_READY_POLL_MS || 2_000);
 const maxItemKeyLength = 128;
+const readinessProbe = "Source URL";
 
 function log(status, details = {}) {
   console.log(JSON.stringify({
@@ -328,21 +329,20 @@ async function waitForIndexSearchable(expectedDocuments) {
 }
 
 async function verifySearch(documents) {
-  const sample = documents.values().next().value;
-  if (!sample) return;
+  if (!documents.size) return;
 
   const payload = await cloudflareRequest(
     `${apiBase}/${encodeURIComponent(instanceName)}/search`,
     {
       method: "POST",
       body: JSON.stringify({
-        query: sample.title,
+        query: readinessProbe,
         ai_search_options: {
           retrieval: {
             retrieval_type: "hybrid",
             fusion_method: "rrf",
             keyword_match_mode: "or",
-            max_num_results: 3,
+            max_num_results: 5,
             return_on_failure: false,
           },
         },
@@ -353,13 +353,14 @@ async function verifySearch(documents) {
 
   const result = payload?.result || payload || {};
   const chunks = Array.isArray(result.chunks) ? result.chunks : [];
-  if (!chunks.length) {
-    throw new Error(`AI Search readiness query returned no chunks for sample title: ${sample.title}`);
+  const blogChunks = chunks.filter((chunk) => String(chunk?.item?.key || "").startsWith("blog--"));
+  if (!blogChunks.length) {
+    throw new Error(`AI Search readiness query returned no blog chunks for corpus marker: ${readinessProbe}`);
   }
 
   log("search-verified", {
-    query: sample.title,
-    chunks: chunks.length,
+    query: readinessProbe,
+    chunks: blogChunks.length,
   });
 }
 
