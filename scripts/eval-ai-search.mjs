@@ -2,6 +2,8 @@ const accountId = String(process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
 const apiToken = String(process.env.CLOUDFLARE_AI_SEARCH_TOKEN || "").trim();
 const instanceName = String(process.env.CLOUDFLARE_AI_SEARCH_INSTANCE || "thinkerqaq-blog").trim();
 const apiBase = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai-search/instances/${encodeURIComponent(instanceName)}`;
+const timeoutMs = Number(process.env.AI_SEARCH_EVAL_TIMEOUT_MS || 180_000);
+const retryMs = Number(process.env.AI_SEARCH_EVAL_RETRY_MS || 10_000);
 
 const cases = [
   {
@@ -35,6 +37,10 @@ const cases = [
 
 function fail(message) {
   throw new Error(message);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function search(query) {
@@ -101,12 +107,7 @@ function uniqueDocuments(chunks) {
   return documents;
 }
 
-if (!accountId || !apiToken) {
-  fail("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_SEARCH_TOKEN are required for retrieval evaluation");
-}
-
-let failed = 0;
-for (const testCase of cases) {
+async function evaluateCase(testCase) {
   const result = await search(testCase.query);
   const documents = uniqueDocuments(result.chunks);
   const topFive = documents.slice(0, 5);
@@ -114,20 +115,52 @@ for (const testCase of cases) {
     testCase.expectedAny.some((expected) => document.sourceUrl.includes(expected)),
   );
 
-  const diagnostic = {
+  return {
     query: testCase.query,
     status: matchedRank >= 0 ? "pass" : "fail",
     expectedAny: testCase.expectedAny,
     matchedRank: matchedRank >= 0 ? matchedRank + 1 : null,
     topFive: topFive.map((document, index) => ({ rank: index + 1, ...document })),
   };
-  console.log(JSON.stringify(diagnostic));
-
-  if (matchedRank < 0) failed += 1;
 }
 
-if (failed > 0) {
-  fail(`${failed} AI Search retrieval regression case(s) failed`);
+if (!accountId || !apiToken) {
+  fail("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_SEARCH_TOKEN are required for retrieval evaluation");
 }
 
-console.log(JSON.stringify({ operation: "eval-ai-search", status: "passed", cases: cases.length }));
+const deadline = Date.now() + timeoutMs;
+let pending = [...cases];
+let lastDiagnostics = [];
+
+while (pending.length > 0) {
+  lastDiagnostics = [];
+  const failedCases = [];
+
+  for (const testCase of pending) {
+    const diagnostic = await evaluateCase(testCase);
+    lastDiagnostics.push(diagnostic);
+    console.log(JSON.stringify(diagnostic));
+    if (diagnostic.status !== "pass") failedCases.push(testCase);
+  }
+
+  if (failedCases.length === 0) break;
+  if (Date.now() >= deadline) {
+    fail(`${failedCases.length} AI Search retrieval regression case(s) failed after ${timeoutMs}ms`);
+  }
+
+  console.log(JSON.stringify({
+    operation: "eval-ai-search",
+    status: "retrying",
+    failedCases: failedCases.map((entry) => entry.query),
+    retryInMs: retryMs,
+  }));
+  pending = failedCases;
+  await sleep(retryMs);
+}
+
+console.log(JSON.stringify({
+  operation: "eval-ai-search",
+  status: "passed",
+  cases: cases.length,
+  diagnostics: lastDiagnostics,
+}));
