@@ -9,26 +9,26 @@ interface Props {
   categoryLabel: string;
   topics: NoteTopicGroup[];
   total: number;
-  currentTopic?: string;
+  currentTopicPath?: string[];
 }
 
-const { category, categoryLabel, topics, total, currentTopic } = Astro.props;
-const navigableTopics = topics.filter(
-  (topic): topic is NoteTopicGroup & { id: string } => Boolean(topic.id),
-);
+const { category, categoryLabel, topics, total, currentTopicPath = [] } = Astro.props;
+const navigableTopics = topics.filter((topic) => topic.path.length > 0);
 const hasTopics = navigableTopics.length > 0;
+const currentPathKey = currentTopicPath.join("/");
 const groups = [
   {
     items: [{
       href: categoryHref(category),
       title: `全部 · ${total}`,
-      current: !currentTopic,
+      current: currentTopicPath.length === 0,
     }],
   },
   ...navigableTopics.map((topic) => ({
     label: topic.label,
-    href: noteTopicHref(category, topic.id),
-    current: topic.id === currentTopic,
+    href: noteTopicHref(category, topic.path),
+    current: topic.path.map((segment) => segment.id).join("/") === currentPathKey,
+    depth: topic.depth,
     items: topic.notes.map((note) => ({
       href: noteHref(note),
       title: note.data.title,
@@ -36,12 +36,18 @@ const groups = [
     })),
   })),
 ];
+const mobileGroups = groups.map(({ depth = 0, ...group }) => ({
+  ...group,
+  label: group.label && depth > 0
+    ? `${"› ".repeat(depth)}${group.label}`
+    : group.label,
+}));
 ---
 
 <div class:list={["shell", "content-shell", "note-topic-shell", { "note-topic-shell--without-topics": !hasTopics }]}>
   {hasTopics && (
     <MobileReadingNavigation
-      collection={{ label: "笔记主题", title: categoryLabel, href: categoryHref(category), groups }}
+      collection={{ label: "笔记主题", title: categoryLabel, href: categoryHref(category), groups: mobileGroups }}
       collectionTabLabel="笔记大纲"
     />
   )}
