@@ -1,4 +1,5 @@
 ---
+import AskBlog from "../components/AskBlog.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import { SITE } from "../config/site";
@@ -52,5 +53,6 @@ const canonical = new URL(canonicalPath, SITE.url);
       <slot />
     </main>
     <SiteFooter />
+    <AskBlog />
   </body>
 </html>

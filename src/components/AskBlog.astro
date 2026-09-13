@@ -1,0 +1,424 @@
+---
+import { SITE } from "../config/site";
+
+const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
+---
+
+<div class="ask-blog" data-ask-blog data-endpoint={workerEndpoint} data-blog-origin={SITE.url}>
+  <button
+    class="ask-blog__trigger"
+    type="button"
+    aria-expanded="false"
+    aria-controls="ask-blog-panel"
+    data-ask-toggle
+  >
+    <span aria-hidden="true">✦</span>
+    <span>Ask</span>
+  </button>
+
+  <section
+    class="ask-blog__panel"
+    id="ask-blog-panel"
+    role="dialog"
+    aria-labelledby="ask-blog-title"
+    hidden
+    data-ask-panel
+  >
+    <header class="ask-blog__header">
+      <div>
+        <h2 id="ask-blog-title">问博客</h2>
+        <p>只根据本站文章与笔记回答。</p>
+      </div>
+      <button class="ask-blog__close" type="button" aria-label="关闭问博客" data-ask-close>×</button>
+    </header>
+
+    <form class="ask-blog__form" data-ask-form>
+      <label for="ask-blog-question">问题</label>
+      <textarea
+        id="ask-blog-question"
+        name="question"
+        rows="3"
+        maxlength="1000"
+        placeholder="例如：Go CAS 为什么可以无锁？"
+        required
+        data-ask-input
+      ></textarea>
+      <div class="ask-blog__actions">
+        <span class="ask-blog__hint">先用 Pagefind 检索本站，再交给 AI 回答。</span>
+        <button type="submit" data-ask-submit>提问</button>
+      </div>
+    </form>
+
+    <p class="ask-blog__status" role="status" aria-live="polite" data-ask-status></p>
+
+    <div class="ask-blog__result" hidden data-ask-result>
+      <div class="ask-blog__answer" data-ask-answer></div>
+      <div class="ask-blog__sources" hidden data-ask-sources-wrap>
+        <h3>来源</h3>
+        <ol data-ask-sources></ol>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script is:inline>
+  (() => {
+    const root = document.querySelector("[data-ask-blog]");
+    if (!root) return;
+
+    const endpoint = root.dataset.endpoint?.trim() || "";
+    const blogOrigin = root.dataset.blogOrigin?.trim() || window.location.origin;
+    const toggle = root.querySelector("[data-ask-toggle]");
+    const close = root.querySelector("[data-ask-close]");
+    const panel = root.querySelector("[data-ask-panel]");
+    const form = root.querySelector("[data-ask-form]");
+    const input = root.querySelector("[data-ask-input]");
+    const submit = root.querySelector("[data-ask-submit]");
+    const status = root.querySelector("[data-ask-status]");
+    const result = root.querySelector("[data-ask-result]");
+    const answer = root.querySelector("[data-ask-answer]");
+    const sourcesWrap = root.querySelector("[data-ask-sources-wrap]");
+    const sourcesList = root.querySelector("[data-ask-sources]");
+
+    let pagefindPromise;
+
+    const setOpen = (open) => {
+      panel.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+      if (open) window.setTimeout(() => input.focus(), 0);
+    };
+
+    const setStatus = (message, isError = false) => {
+      status.textContent = message;
+      status.classList.toggle("is-error", isError);
+    };
+
+    const clearResult = () => {
+      result.hidden = true;
+      answer.textContent = "";
+      sourcesList.replaceChildren();
+      sourcesWrap.hidden = true;
+    };
+
+    const getPagefind = async () => {
+      pagefindPromise ??= import("/pagefind/pagefind.js").then(async (pagefind) => {
+        await pagefind.init();
+        return pagefind;
+      });
+      return pagefindPromise;
+    };
+
+    const extractChunk = (data, fallback) => {
+      const content = typeof data.content === "string" ? data.content.trim() : "";
+      if (!content) return fallback.slice(0, 5000);
+
+      const words = content.split(/\s+/).filter(Boolean);
+      const location = Number(data.weighted_locations?.[0]?.location ?? data.locations?.[0] ?? 0);
+      if (words.length > 20 && Number.isFinite(location) && location >= 0 && location < words.length) {
+        const start = Math.max(0, location - 120);
+        const end = Math.min(words.length, location + 480);
+        return `${fallback}\n${words.slice(start, end).join(" ")}`.trim().slice(0, 5000);
+      }
+
+      return `${fallback}\n${content}`.trim().slice(0, 5000);
+    };
+
+    const retrieveSources = async (question) => {
+      const pagefind = await getPagefind();
+      const search = await pagefind.search(question);
+      const loaded = await Promise.all(search.results.slice(0, 5).map((entry) => entry.data()));
+
+      return loaded
+        .map((data) => {
+          const section = data.sub_results?.[0];
+          const title = section?.title || data.meta?.title || "未命名内容";
+          const relativeUrl = section?.url || data.url;
+          const fallback = section?.plain_excerpt || data.plain_excerpt || "";
+          if (!relativeUrl) return null;
+
+          return {
+            title: String(title).slice(0, 200),
+            url: new URL(relativeUrl, blogOrigin).href,
+            content: extractChunk(data, String(fallback)),
+          };
+        })
+        .filter((source) => source && source.content.trim());
+    };
+
+    const renderSources = (sources) => {
+      sourcesList.replaceChildren();
+      for (const source of sources) {
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = source.url;
+        link.textContent = source.title;
+        item.append(link);
+        sourcesList.append(item);
+      }
+      sourcesWrap.hidden = sources.length === 0;
+    };
+
+    toggle.addEventListener("click", () => setOpen(panel.hidden));
+    close.addEventListener("click", () => setOpen(false));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !panel.hidden) setOpen(false);
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const question = input.value.trim();
+      if (!question) return;
+
+      clearResult();
+      submit.disabled = true;
+
+      if (!endpoint) {
+        setStatus("AI 后端尚未配置。部署 Cloudflare Worker 后设置 PUBLIC_ASK_BLOG_WORKER_URL。", true);
+        submit.disabled = false;
+        return;
+      }
+
+      try {
+        setStatus("正在检索本站内容…");
+        const sources = await retrieveSources(question);
+        if (sources.length === 0) {
+          setStatus("本站暂未检索到相关内容。", true);
+          return;
+        }
+
+        setStatus(`找到 ${sources.length} 个相关来源，正在生成回答…`);
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ question, sources }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error || `请求失败（${response.status}）`);
+        }
+
+        answer.textContent = payload.answer || "AI 没有返回回答。";
+        renderSources(Array.isArray(payload.sources) && payload.sources.length ? payload.sources : sources);
+        result.hidden = false;
+        setStatus("");
+      } catch (error) {
+        console.error("Ask this blog failed", error);
+        setStatus(error instanceof Error ? error.message : "问博客暂时不可用。", true);
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  })();
+</script>
+
+<style>
+  .ask-blog {
+    position: fixed;
+    right: clamp(1rem, 3vw, 2rem);
+    bottom: clamp(1rem, 3vw, 2rem);
+    z-index: 30;
+  }
+
+  .ask-blog__trigger,
+  .ask-blog__form button,
+  .ask-blog__close {
+    font: inherit;
+  }
+
+  .ask-blog__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.68rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__trigger:hover,
+  .ask-blog__trigger:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .ask-blog__panel {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.75rem);
+    width: min(26rem, calc(100vw - 2rem));
+    max-height: min(42rem, calc(100vh - 7rem));
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background: var(--surface);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.14);
+  }
+
+  .ask-blog__panel[hidden] {
+    display: none;
+  }
+
+  .ask-blog__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ask-blog__header h2,
+  .ask-blog__header p,
+  .ask-blog__sources h3 {
+    margin: 0;
+  }
+
+  .ask-blog__header h2 {
+    font-size: 1rem;
+  }
+
+  .ask-blog__header p,
+  .ask-blog__hint,
+  .ask-blog__status {
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .ask-blog__header p {
+    margin-top: 0.2rem;
+  }
+
+  .ask-blog__close {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1.35rem;
+    line-height: 1;
+  }
+
+  .ask-blog__form {
+    display: grid;
+    gap: 0.55rem;
+    padding: 1rem;
+  }
+
+  .ask-blog__form label {
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__form textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    outline: none;
+    background: var(--background);
+    color: var(--text);
+    font: inherit;
+    line-height: 1.55;
+  }
+
+  .ask-blog__form textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .ask-blog__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .ask-blog__hint {
+    line-height: 1.4;
+  }
+
+  .ask-blog__form button {
+    flex: none;
+    padding: 0.48rem 0.8rem;
+    border: 1px solid var(--accent);
+    border-radius: 0.55rem;
+    background: var(--accent);
+    color: var(--background);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__form button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+
+  .ask-blog__status {
+    margin: 0;
+    padding: 0 1rem 0.9rem;
+  }
+
+  .ask-blog__status:empty {
+    display: none;
+  }
+
+  .ask-blog__status.is-error {
+    color: #b42318;
+  }
+
+  .ask-blog__result {
+    padding: 0 1rem 1rem;
+  }
+
+  .ask-blog__answer {
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+    white-space: pre-wrap;
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .ask-blog__sources {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .ask-blog__sources h3 {
+    font-size: 0.78rem;
+  }
+
+  .ask-blog__sources ol {
+    margin: 0.45rem 0 0;
+    padding-left: 1.2rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .ask-blog__sources li + li {
+    margin-top: 0.28rem;
+  }
+
+  @media (max-width: 640px) {
+    .ask-blog {
+      right: 0.8rem;
+      bottom: 0.8rem;
+    }
+
+    .ask-blog__panel {
+      width: calc(100vw - 1.6rem);
+      max-height: calc(100vh - 6rem);
+    }
+  }
+</style>

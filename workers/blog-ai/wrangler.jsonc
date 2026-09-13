@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "thinkerqaq-blog-ai",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-13",
+  "ai": {
+    "binding": "AI"
+  },
+  "ratelimits": [
+    {
+      "name": "AI_RATE_LIMITER",
+      "namespace_id": "10001",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "BLOG_ORIGIN": "https://thinkerqaq.github.io",
+    "ALLOWED_ORIGINS": "https://thinkerqaq.github.io,http://localhost:4321,http://127.0.0.1:4321",
+    "AI_MODEL": "@cf/zai-org/glm-4.7-flash"
+  }
+}
