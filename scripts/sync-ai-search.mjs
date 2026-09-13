@@ -279,8 +279,8 @@ async function uploadDocument(document) {
     source_url: document.url,
     title: document.title,
     collection: document.collection,
-    priority: document.priority,
-    schema_version: document.schemaVersion,
+    priority: String(document.priority),
+    schema_version: String(document.schemaVersion),
   }));
   await cloudflareRequest(
     `${apiBase}/${encodeURIComponent(instanceName)}/items`,
