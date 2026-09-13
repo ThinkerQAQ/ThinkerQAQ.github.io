@@ -52,7 +52,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       ></textarea>
       <div class="ask-blog__turnstile" data-turnstile-container aria-label="安全验证"></div>
       <div class="ask-blog__actions">
-        <span class="ask-blog__hint">先用 Pagefind 检索本站，再交给 AI 回答。</span>
         <button type="submit" data-ask-submit>提问</button>
       </div>
     </form>
@@ -440,7 +439,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   }
 
   .ask-blog__header p,
-  .ask-blog__hint,
   .ask-blog__status {
     color: var(--muted);
     font-size: 0.78rem;
@@ -499,12 +497,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   .ask-blog__actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 0.75rem;
-  }
-
-  .ask-blog__hint {
-    line-height: 1.4;
   }
 
   .ask-blog__form button {
