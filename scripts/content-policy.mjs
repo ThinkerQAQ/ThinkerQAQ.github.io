@@ -13,6 +13,7 @@ export const PUBLIC_NOTEBOOKS = [
   "Computer_Network",
   "Container",
   "Algorithm",
+  "Operating_System",
 ];
 export const PROMOTED_ARTICLES = [];
 export const FEATURED_PATHS = new Set();
@@ -29,6 +30,7 @@ export const CATEGORY_LABELS = {
   Computer_Network: "计算机网络",
   Container: "Docker / Kubernetes",
   Algorithm: "Data Structures & Algorithms",
+  Operating_System: "Operating System / Linux",
 };
 export const CATEGORY_SLUGS = {
   "System_Design/分布式系统": "distributed-systems",
@@ -42,6 +44,7 @@ export const CATEGORY_SLUGS = {
   Computer_Network: "computer-network",
   Container: "container",
   Algorithm: "algorithm",
+  Operating_System: "operating-system",
 };
 export const ROOT_TOPIC_LABELS = {
   "System_Design/分布式系统": "基础与专题",
@@ -55,6 +58,7 @@ export const ROOT_TOPIC_LABELS = {
   Computer_Network: "基础",
   Container: "基础",
   Algorithm: "Overview",
+  Operating_System: "Overview",
 };
 
 const GO_NOTE_TOPICS = [
@@ -246,6 +250,95 @@ const algorithmTopicEntries = ALGORITHM_NOTE_TOPICS.flatMap((topic) =>
   ]),
 );
 
+
+const OPERATING_SYSTEM_NOTE_TOPICS = [
+  {
+    id: "overview",
+    label: "Overview",
+    number: 1,
+    notes: ["操作系统.md", "Linux/Linux.md"],
+  },
+  {
+    id: "processes-concurrency",
+    label: "Processes & Concurrency",
+    number: 2,
+    notes: [
+      "进程管理/进程管理.md",
+      "进程管理/程序、进程、线程.md",
+      "进程管理/IPC.md",
+      "进程管理/同步.md",
+      "进程管理/死锁.md",
+      "Linux/进程/进程.md",
+      "Linux/进程/线程.md",
+    ],
+  },
+  {
+    id: "memory",
+    label: "Memory",
+    number: 3,
+    notes: [
+      "存储管理/存储管理.md",
+      "存储管理/内存分配和回收.md",
+      "存储管理/段页式存储.md",
+      "存储管理/虚拟内存.md",
+      "存储管理/页面置换.md",
+      "存储管理/Linux的内存管理.md",
+      "Linux/内存/内存管理.md",
+    ],
+  },
+  {
+    id: "io-syscalls",
+    label: "I/O & Syscalls",
+    number: 4,
+    notes: [
+      "Linux/系统调用/系统调用.md",
+      "Linux/IO/IO.md",
+      "Linux/IO/IO模型.md",
+      "Linux/IO/select、poll、epoll.md",
+      "Linux/IO/零拷贝机制.md",
+    ],
+  },
+  {
+    id: "performance-diagnostics",
+    label: "Performance & Diagnostics",
+    number: 5,
+    notes: [
+      "Linux/性能调优/Linux性能调优.md",
+      "Linux/性能调优/CPU调优.md",
+      "Linux/性能调优/内存调优.md",
+      "Linux/性能调优/磁盘调优.md",
+      "Linux/性能调优/网络调优.md",
+      "Linux/性能调优/火焰图.md",
+      "Linux/命令/Linux常用命令.md",
+      "Linux/命令/top.md",
+      "Linux/命令/vmstat.md",
+      "Linux/命令/iostat.md",
+      "Linux/命令/pidstat.md",
+      "Linux/命令/sar.md",
+      "Linux/命令/strace.md",
+      "Linux/命令/tcpdump.md",
+      "Linux/命令/ulimit.md",
+    ],
+  },
+  {
+    id: "isolation-containers",
+    label: "Isolation & Containers",
+    number: 6,
+    notes: [
+      "Linux/虚拟化/Linux Namespace.md",
+      "Linux/虚拟化/Linux cgroup.md",
+      "Linux/命令/chroot.md",
+    ],
+  },
+];
+
+const operatingSystemTopicEntries = OPERATING_SYSTEM_NOTE_TOPICS.flatMap((topic) =>
+  topic.notes.map((note) => [
+    note,
+    { id: topic.id, label: topic.label, number: topic.number },
+  ]),
+);
+
 // Notebooks listed here use a strict per-note allowlist. New or previously rejected
 // source files stay private until they receive an explicit content review.
 export const REVIEWED_NOTE_PATHS = {
@@ -277,6 +370,9 @@ export const REVIEWED_NOTE_PATHS = {
     "Container/Kubernetes/Kubernetes.md",
   ]),
   Algorithm: new Set(algorithmTopicEntries.map(([note]) => `Algorithm/${note}`)),
+  Operating_System: new Set(
+    operatingSystemTopicEntries.map(([note]) => `Operating_System/${note}`),
+  ),
 };
 
 // Optional public taxonomy overrides. They change only the blog topic grouping;
@@ -285,6 +381,7 @@ export const NOTE_TOPIC_OVERRIDES = {
   Golang: new Map(goTopicEntries),
   Computer_Network: new Map(computerNetworkTopicEntries),
   Algorithm: new Map(algorithmTopicEntries),
+  Operating_System: new Map(operatingSystemTopicEntries),
 };
 
 // These reviewed notes contain documentation-only credentials. Keep the source
