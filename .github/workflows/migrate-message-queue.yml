@@ -65,8 +65,6 @@ jobs:
           mkdir -p .migration
           git archive 0e010570684010ef99d4055bb7c3d4611df44f4c:notes | tar -x -C .migration
 
-          # Virtual_Machine was recovered separately in an earlier migration and is
-          # absent from the old Git snapshot. Stubs only let the link index build.
           mkdir -p .migration/Virtual_Machine
           for f in 'GC.md' 'GC调优.md' 'STW.md' '内存泄露.md'; do
             printf '# %s\n' "$f" > ".migration/Virtual_Machine/$f"
@@ -293,7 +291,7 @@ jobs:
 
           add_after(
               'src/content/notes/message-queue/消息队列介绍.md',
-              '### 7.3. MQ选型',
+              '### 7.2. MQ选型',
               '> 2026 注：下面的选型表是当时的粗略经验值；QPS、社区活跃度和可靠性能力都会随版本、配置与部署方式变化，不应作为固定基准。',
           )
           add_after(
