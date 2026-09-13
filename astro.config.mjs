@@ -11,6 +11,7 @@ const manifestPath = fileURLToPath(
 );
 
 let noindexRoutes = new Set();
+const legacyRedirectPrefixes = ["/notes/java-juc/", "/notes/category/java-juc/"];
 
 try {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -41,7 +42,9 @@ export default defineConfig({
     sitemap({
       filter: (page) => {
         const route = decodeURI(new URL(page).pathname);
-        return !["/search/", "/agent/", "/404/"].includes(route) && !noindexRoutes.has(route);
+        return !["/search/", "/agent/", "/404/"].includes(route)
+          && !noindexRoutes.has(route)
+          && !legacyRedirectPrefixes.some((prefix) => route.startsWith(prefix));
       },
     }),
   ],

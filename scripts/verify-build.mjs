@@ -204,13 +204,36 @@ async function main() {
       concurrencySeriesPage.includes('class="related-content series-reference-notes"') &&
       concurrencySeriesPage.includes('id="reference-notes-heading"') &&
       concurrencySeriesPage.includes('class="category-index"') &&
-      concurrencySeriesPage.includes('/notes/category/java-juc/') &&
-      concurrencySeriesPage.includes('/notes/java-juc/') &&
-      concurrencySeriesPage.includes('Java / JUC') &&
+      concurrencySeriesPage.includes('/notes/category/java/') &&
+      concurrencySeriesPage.includes('Java') &&
       concurrencySeriesPage.includes('最近更新') &&
-      /查看 Java \/ JUC 的全部 \d+ 篇笔记/.test(concurrencySeriesPage),
+      /查看 Java 的全部 \d+ 篇笔记/.test(concurrencySeriesPage),
     "Series note category reference missing",
   );
+  const javaNotesPage = await readFile(routeFile("/notes/category/java/"), "utf8");
+  invariant(
+    javaNotesPage.includes('/notes/category/java/topic/JUC/') &&
+      javaNotesPage.includes('6.JUC'),
+    "Java category is missing the JUC subtopic",
+  );
+  invariant(
+    await exists(routeFile("/notes/category/java/topic/JUC/")),
+    "Java JUC topic route missing",
+  );
+  const legacyJavaCategoryPage = await readFile(routeFile("/notes/category/java-juc/"), "utf8");
+  invariant(
+    legacyJavaCategoryPage.includes('/notes/category/java/topic/JUC/'),
+    "Legacy Java/JUC category redirect missing",
+  );
+  const legacyJavaNotePage = await readFile(
+    routeFile("/notes/java-juc/1.JMM模型/先谈硬件/"),
+    "utf8",
+  );
+  invariant(
+    legacyJavaNotePage.includes('/notes/java/JUC/1.JMM模型/先谈硬件/'),
+    "Legacy Java/JUC note redirect missing",
+  );
+  invariant(!sitemap.includes("java-juc"), "Legacy Java/JUC redirects leaked into sitemap");
   for (const article of PROMOTED_ARTICLES) {
     const route = `/articles/${article.slug}/`;
     invariant(await exists(routeFile(route)), `Promoted article missing: ${route}`);

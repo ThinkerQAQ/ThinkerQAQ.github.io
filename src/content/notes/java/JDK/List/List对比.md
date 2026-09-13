@@ -1,0 +1,52 @@
+---
+title: "5.19 List对比"
+description: "1. ArrayList vs LinkedList ArrayList LinkedList ----------- ---------------------------------------------------- -------------------- 底层实现 数组 双向链表 复杂度"
+sourcePath: "Java/JDK/List/List对比.md"
+category: "java"
+categoryLabel: "Java"
+topic: "JDK"
+topicLabel: "5.JDK"
+order: 141
+tags: ["Java"]
+createdAt: "2020-01-17T13:06:57Z"
+updatedAt: "2020-02-17T02:58:02Z"
+status: "historical"
+language: "zh"
+featured: false
+indexable: true
+---
+
+
+
+
+## 1. ArrayList vs LinkedList
+
+
+|             |                      ArrayList                       |      LinkedList      |
+| ----------- | ---------------------------------------------------- | -------------------- |
+| 底层实现     | 数组                                                 | 双向链表              |
+| 复杂度       | 根据索引查询快，增删慢                                 | 根据索引查询慢、增删快 |
+| 是否需要扩容 | 初始值0，满了之后扩容。第一次扩容为10，扩容为原来的1.5倍 | 否                   |
+
+
+
+## 2. Vector vs ArrayList
+
+|             |                                      Vector                                      |                      ArrayList                       |
+| ----------- | -------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 是否线程安全 | 是                                                                               | 否                                                   |
+| 是否需要扩容 | 初始值10，满了之后扩容。扩容为原来的2倍 | 初始值0，满了之后扩容。第一次扩容为10，扩容为原来的1.5倍 |
+
+
+
+## 3. SynchronizedList vs Vector
+
+|             |                         SynchronizedList                          |                Vector                 |
+| ----------- | ----------------------------------------------------------------- | ------------------------------------- |
+| 是否线程安全 | 是                                                                | 是                                    |
+| 同步方式     | sychronized块，使用当前list作为锁对象。可以将任意list转换成线程安全的 | sychronized方法，使用当前list作为锁对象 |
+
+
+
+## 4. 参考
+- [SynchronizedList和Vector的区别\-HollisChuang's Blog](https://www.hollischuang.com/archives/498)

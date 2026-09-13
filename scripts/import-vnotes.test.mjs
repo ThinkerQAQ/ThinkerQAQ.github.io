@@ -2,16 +2,56 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
-import { NOTE_TOPIC_OVERRIDES } from "./content-policy.mjs";
+import {
+  CATEGORY_LABELS,
+  CATEGORY_SLUGS,
+  NOTE_TOPIC_OVERRIDES,
+  PUBLIC_NOTEBOOKS,
+} from "./content-policy.mjs";
 
 import {
   classifyUnresolvedMarkdownTarget,
   createPublicNoteIndex,
   resolvePublishedNoteTarget,
+  redactSensitiveContent,
   sanitizeReviewedExampleCredentials,
   sensitiveReason,
   sourceExclusionReason,
 } from "./import-vnotes.mjs";
+
+test("publishes Java as one category with JUC kept as a source subtopic", () => {
+  assert.equal(PUBLIC_NOTEBOOKS.includes("Java"), true);
+  assert.equal(PUBLIC_NOTEBOOKS.includes("Java/JUC"), false);
+  assert.equal(CATEGORY_SLUGS.Java, "java");
+  assert.equal(CATEGORY_LABELS.Java, "Java");
+
+  const config = { sourcePath: "Java" };
+  assert.equal(sourceExclusionReason(config, "JUC/1.JMM模型/先谈硬件.md"), undefined);
+  assert.equal(
+    sourceExclusionReason(config, "JUC/14.ThreadPool/线程池数目估算.md"),
+    "content-review",
+  );
+});
+
+test("redacts personal Windows profile names while preserving the remaining path", () => {
+  const result = redactSensitiveContent(
+    "C:\\Users\\zsk\\code\\demo and D:\\\\Users\\\\Alice\\\\Desktop\\\\Example.class",
+  );
+  assert.equal(
+    result.markdown,
+    "C:\\Users\\[user]\\code\\demo and D:\\\\Users\\\\[user]\\\\Desktop\\\\Example.class",
+  );
+  assert.deepEqual(result.reasons, ["windows-user-profile-path"]);
+});
+
+test("does not mistake an 18-digit URL path segment for an identity number", () => {
+  const url = "https://example.com/tutorial/582534840956485632.html";
+  assert.equal(redactSensitiveContent(url).markdown, url);
+  assert.equal(
+    redactSensitiveContent("身份证 11010519491231002X").markdown,
+    "身份证 [已脱敏证件号]",
+  );
+});
 
 test("resolves exact and unique-basename note targets across notebooks", () => {
   const redisLock = path.resolve("fixtures", "Redis", "使用", "Redis分布式锁.md");

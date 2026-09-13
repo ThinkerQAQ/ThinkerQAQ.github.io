@@ -15,6 +15,7 @@ import {
   CATEGORY_SLUGS,
   EXCLUDED_NOTE_PATHS,
   IMPORT_ENABLED,
+  LEGACY_IMPORT_IDS,
   NEVER_PUBLISH,
   PUBLIC_NOTEBOOKS,
   REVIEWED_EXAMPLE_CREDENTIAL_PATHS,
@@ -79,6 +80,11 @@ const SENSITIVE_CONTENT_PATTERNS = [
 ];
 const REDACTED_CONTENT_PATTERNS = [
   {
+    reason: "windows-user-profile-path",
+    pattern: /\b([A-Za-z]:\\+Users\\+)[^\\\s]+/gi,
+    replacement: "$1[user]",
+  },
+  {
     reason: "private-network-address",
     pattern: /\b(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})\b/g,
     replacement: "[已脱敏内网地址]",
@@ -95,7 +101,7 @@ const REDACTED_CONTENT_PATTERNS = [
   },
   {
     reason: "mainland-id-number",
-    pattern: /(?<!\d)\d{17}[\dXx](?!\d)/g,
+    pattern: /(?<![\d/])\d{17}[\dXx](?!\d)/g,
     replacement: "[已脱敏证件号]",
   },
 ];
@@ -194,7 +200,7 @@ export function sensitiveReason(markdown) {
   return SENSITIVE_CONTENT_PATTERNS.find(({ pattern }) => pattern.test(markdown))?.reason;
 }
 
-function redactSensitiveContent(markdown) {
+export function redactSensitiveContent(markdown) {
   const reasons = [];
   let redacted = markdown;
   for (const { reason, pattern, replacement } of REDACTED_CONTENT_PATTERNS) {
@@ -641,6 +647,22 @@ async function importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenam
   return entries;
 }
 
+async function removeLegacyImportOutputs(config) {
+  const legacyImportIds = LEGACY_IMPORT_IDS[config.importId] ?? [];
+  for (const legacyImportId of legacyImportIds) {
+    const legacyNotesDirectory = path.resolve(notesRoot, legacyImportId);
+    const legacyMediaDirectory = path.resolve(mediaRoot, legacyImportId);
+    assertManagedPath(notesRoot, legacyNotesDirectory);
+    assertManagedPath(mediaRoot, legacyMediaDirectory);
+    await rm(legacyNotesDirectory, { recursive: true, force: true });
+    await rm(legacyMediaDirectory, { recursive: true, force: true });
+    log("info", "import-vnotes", "legacy-import-removed", {
+      importId: config.importId,
+      legacyImportId,
+    });
+  }
+}
+
 async function main() {
   if (!IMPORT_ENABLED) {
     log("info", "import-vnotes", "disabled");
@@ -664,9 +686,13 @@ async function main() {
   });
 
   const existingManifest = await readExistingManifest();
-  const managedImportIds = new Set(ACTIVE_IMPORTS.map(({ importId }) => importId));
+  const managedImportIds = new Set(ACTIVE_IMPORTS.flatMap(({ importId }) => [
+    importId,
+    ...(LEGACY_IMPORT_IDS[importId] ?? []),
+  ]));
   const entries = (existingManifest.entries ?? []).filter((entry) => !managedImportIds.has(entry.importId));
   for (const config of ACTIVE_IMPORTS) {
+    await removeLegacyImportOutputs(config);
     entries.push(...(await importNotebook(config, publicNoteIndex, knownVNoteMarkdownBasenames)));
   }
   entries.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath, "zh-CN"));

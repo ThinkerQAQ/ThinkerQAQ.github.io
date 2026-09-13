@@ -15,6 +15,6 @@ relatedArticles:
   - concurrency-series-07-volatile
   - concurrency-series-08-read-write-lock
 relatedNoteCategories:
-  - java-juc
+  - java
 relatedNotes: []
 ---

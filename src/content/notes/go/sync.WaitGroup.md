@@ -19,7 +19,7 @@ indexable: true
 ## 1. 是什么
 一种控制并发的方式
 让一个goroutine等待其他goroutine完成
-类似于[9.CountDownLatch.md](/notes/java-juc/9.CountDownLatch/9.CountDownLatch/)
+类似于[9.CountDownLatch.md](/notes/java/JUC/9.CountDownLatch/9.CountDownLatch/)
 
 ## 2. 使用
 
