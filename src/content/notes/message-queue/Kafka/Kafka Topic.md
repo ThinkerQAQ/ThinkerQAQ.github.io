@@ -1,13 +1,13 @@
 ---
-title: "1.9 Kafka Topic"
+title: "2.9 Kafka Topic"
 description: "1. Topic - Kafka中的消息以Topic分类，是个逻辑概念 - Kakfa有两个内部Topic - consumer offsets 用于存放存放消费者偏移量 - transcation state 用于持久化事务状态信息。 2. Partition - Topic分成多个Partiti"
 sourcePath: "Message_Queue/Kafka/Kafka Topic.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 9
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 11
+tags: ["Message_Queue"]
 createdAt: "2021-06-06T11:57:27Z"
 updatedAt: "2022-02-25T13:18:37Z"
 status: "historical"

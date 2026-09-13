@@ -1,13 +1,13 @@
 ---
-title: "1.1 Kafka安装"
+title: "2.1 Kafka安装"
 description: "1. Kafka版本号 kafka 2.12-2.8.0.tgz 前面的数字 2.12 表示Scala版本，后面的数字 2.8.0 便是Kafka的版本 2. Kafka集群搭建 2.1. 搭建zookeeper环境 Zookeeper安装.md 2.2. 搭建scala环境 2.2.1. 下载sc"
 sourcePath: "Message_Queue/Kafka/Kafka安装.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 1
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 3
+tags: ["Message_Queue"]
 createdAt: "2020-03-26T03:27:37Z"
 updatedAt: "2022-05-31T13:51:06Z"
 status: "historical"
@@ -21,6 +21,8 @@ indexable: true
 `kafka_2.12-2.8.0.tgz`前面的数字`2.12`表示Scala版本，后面的数字`2.8.0`便是Kafka的版本
 
 ## 2. Kafka集群搭建
+
+> 2026 注：本文记录的是 Kafka 2.8.0 / ZooKeeper 时代的安装方式；现代 Kafka 已转向 KRaft，Kafka 4.x 已移除 ZooKeeper 模式。
 
 ### 2.1. 搭建zookeeper环境
 [Zookeeper安装.md](/notes/zookeeper/Zookeeper%E5%AE%89%E8%A3%85/)

@@ -1,13 +1,13 @@
 ---
-title: "1.11 Kafka压测"
+title: "2.11 Kafka压测"
 description: "1. 压测 1.1. 生产者 1.2. 消费者 2. 分片数和机器数确定 同业务系统设计分析思路.md的 发布 1. 计算单个分片/机器所能支撑的QPS，参考压力测试.md 2. 计算分片/机器数 = 业务预估QPS/单个分片/机器所能支撑的QPS + 一点富余量 3. 参考 - Kafka压力测试"
 sourcePath: "Message_Queue/Kafka/Kafka压测.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 11
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 13
+tags: ["Message_Queue"]
 createdAt: "2022-05-15T12:51:39Z"
 updatedAt: "2022-05-15T13:54:31Z"
 status: "historical"

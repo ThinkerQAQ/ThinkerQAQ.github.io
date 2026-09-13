@@ -1,13 +1,13 @@
 ---
-title: "1.6 Kafka Broker"
+title: "2.6 Kafka Broker"
 description: "1. Broker是什么 - Kafka的服务端，负责存储消息 - Kafka Cluster中的每个节点叫做Broker。可以看作是一个独立的 Kafka 实例。多个 Kafka Broker 组成一个 Kafka Cluster。 2. Controller 2.1. Controller是什么"
 sourcePath: "Message_Queue/Kafka/Kafka Broker.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 6
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 8
+tags: ["Message_Queue"]
 createdAt: "2021-05-02T09:29:03Z"
 updatedAt: "2022-07-16T08:39:33Z"
 status: "historical"
@@ -28,8 +28,8 @@ indexable: true
 
 ### 2.2. 为什么要有Controller
 
-- Leader选举：[Kafka Topic.md](/notes/kafka-message-queue/Kafka%20Topic/)当某个分区的 leader副本出现故障时，由控制器负责为该分区选举新的 leader副本
-- 分区重分配：[Kafka Topic.md](/notes/kafka-message-queue/Kafka%20Topic/)当使用 kafka- topics.sh脚本为某个 topic，增加分区数量时，同样还是由控制器负责分区的重新分配
+- Leader选举：[Kafka Topic.md](/notes/message-queue/Kafka/Kafka%20Topic/)当某个分区的 leader副本出现故障时，由控制器负责为该分区选举新的 leader副本
+- 分区重分配：[Kafka Topic.md](/notes/message-queue/Kafka/Kafka%20Topic/)当使用 kafka- topics.sh脚本为某个 topic，增加分区数量时，同样还是由控制器负责分区的重新分配
 - ISR变更通知：当检测到某个分区的ISR集合发生变化时，由控制器负责通知所有 broker更新其元数据信息
 
 
@@ -75,7 +75,7 @@ Kafka通过HW来处理这种情况，HW=min(所有replication的LEO)，这上面
 默认值为true，表示允许非ISR的副本成为leader
 设置`unclean.leader.election.enable = false`。表示允许leader挂了仅从ISR中选取leader
 ## 5. Kafka消息的物理存储
-- [Kafka消息磁盘存储.md](/notes/kafka-message-queue/Kafka%E6%B6%88%E6%81%AF%E7%A3%81%E7%9B%98%E5%AD%98%E5%82%A8/)
+- [Kafka消息磁盘存储.md](/notes/message-queue/Kafka/Kafka%E6%B6%88%E6%81%AF%E7%A3%81%E7%9B%98%E5%AD%98%E5%82%A8/)
 
 ## 6. 参考
 - [Kafka高可靠配置解析\-云社区\-华为云](https://bbs.huaweicloud.com/blogs/245618)

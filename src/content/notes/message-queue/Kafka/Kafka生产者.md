@@ -1,13 +1,13 @@
 ---
-title: "1.5 Kafka生产者"
+title: "2.5 Kafka生产者"
 description: "1. 生产者是什么 - Kafka的客户端之一，负责生产消息，push到Kafka 2. 生产者消息发送流程 - 涉及三个对象： main 线程、Sender 线程、一个线程共享变量： RecordAccumulator（存放待发送的数据） - 过程：main 线程创建消息，通过Intercepto"
 sourcePath: "Message_Queue/Kafka/Kafka生产者.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 5
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 7
+tags: ["Message_Queue"]
 createdAt: "2021-05-02T09:28:35Z"
 updatedAt: "2022-02-25T13:01:04Z"
 status: "historical"

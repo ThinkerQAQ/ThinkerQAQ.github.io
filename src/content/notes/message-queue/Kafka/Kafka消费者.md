@@ -1,13 +1,13 @@
 ---
-title: "1.7 Kafka消费者"
+title: "2.7 Kafka消费者"
 description: "1. 消费者是什么 - Kafka的客户端之一，负责消费消息，从Kafka pull消息 1.1. 消费者组 - 一个Consumer Group可以有多个Consumer - 每个Consumer Group可以独立消费Topic的所有消息 - 对于一个Topic，同一个Group的两个Consu"
 sourcePath: "Message_Queue/Kafka/Kafka消费者.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 7
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 9
+tags: ["Message_Queue"]
 createdAt: "2021-05-02T09:29:34Z"
 updatedAt: "2022-07-16T08:19:23Z"
 status: "historical"
@@ -128,11 +128,10 @@ indexable: true
 - 通过`enable.auto.commit=false`关闭自动提交offset，处理完之后再手动提交offset
 - 宁愿重复消费也不能漏消费，可以把一些一直不能消费成功的放入死信队列
 #### 5.2.2. 保证生产者不丢失消息
-- [Kafka生产者.md](/notes/kafka-message-queue/Kafka%E7%94%9F%E4%BA%A7%E8%80%85/)
+- [Kafka生产者.md](/notes/message-queue/Kafka/Kafka%E7%94%9F%E4%BA%A7%E8%80%85/)
 #### 5.2.3. 保证Broker不丢失消息
-- [Kafka Broker.md](/notes/kafka-message-queue/Kafka%20Broker/)
+- [Kafka Broker.md](/notes/message-queue/Kafka/Kafka%20Broker/)
 
 
 ## 6. 参考
 - [线上Kafka突发rebalance异常，如何快速解决？ \- 陈树义 \- 博客园](https://www.cnblogs.com/chanshuyi/p/kafka_rebalance_quick_guide.html)
-

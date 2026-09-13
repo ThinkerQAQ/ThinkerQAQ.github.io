@@ -1,13 +1,13 @@
 ---
-title: "1.3 Kafka使用"
+title: "2.3 Kafka使用"
 description: "1. 命令行使用 1.1. Topic 1. 创建Topic Topic名叫first； --partition设置为2表示有2个分片，可以在logs目录中看到； replication-factor设置为1表明只有一份数据，就是他自己。如果设置为2为报错，因为只有一个broker，无法分散副本； "
 sourcePath: "Message_Queue/Kafka/Kafka使用.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 3
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 5
+tags: ["Message_Queue"]
 createdAt: "2021-05-02T09:16:42Z"
 updatedAt: "2021-05-03T05:12:55Z"
 status: "historical"

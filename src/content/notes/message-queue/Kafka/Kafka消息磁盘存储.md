@@ -1,13 +1,13 @@
 ---
-title: "1.8 Kafka消息磁盘存储"
+title: "2.8 Kafka消息磁盘存储"
 description: "1. 日志 1.1. 日志目录结构 - 每个partition一个文件夹，包含四类文件 .index .log .timeindex leader-epoch-checkpoint - .index .log .timeindex 三个文件成对出现 前缀为上一个segment的最后一个消息的偏移 -"
 sourcePath: "Message_Queue/Kafka/Kafka消息磁盘存储.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 8
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 10
+tags: ["Message_Queue"]
 createdAt: "2021-06-06T11:35:51Z"
 updatedAt: "2022-07-16T12:47:26Z"
 status: "historical"
@@ -39,7 +39,7 @@ indexable: true
 每个log-segment对应两个索引`.index`、`.timeindex`，用来提高查找消息的效率
 - `.index`：offset->物理地址
 - `.timeindex`：timestamp->offset
-索引以稀疏索引（关联笔记尚未公开）的形式存储，每写入一定量的消息才会增加一个索引项，查找的时候通过二分法查找（不大于该offset的最大offset）
+索引以[稀疏索引](/notes/algorithm/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/%E7%A8%80%E7%96%8F%E7%B4%A2%E5%BC%95/)的形式存储，每写入一定量的消息才会增加一个索引项，查找的时候通过二分法查找（不大于该offset的最大offset）
 - `.index`
     - ![](https://raw.githubusercontent.com/TDoct/images/master/1619360566_20210425161437590_44.png)
 - `.timeindex`
@@ -63,7 +63,7 @@ timestamp的索引文件也保持严格的单调递增，同样使用二分查�
 
 ## 2. Kafka为什么这么快
 - 零拷贝
-    - 零拷贝机制.md（关联笔记尚未公开）
+    - [零拷贝机制.md](/notes/operating-system/Linux/IO/%E9%9B%B6%E6%8B%B7%E8%B4%9D%E6%9C%BA%E5%88%B6/)
     - 非零拷贝：4次拷贝，4次上下文切换
         - ![](https://raw.githubusercontent.com/TDoct/images/master/1619275578_20210424224245788_18856.png)
     - 零拷贝：2次拷贝，2次上下文切换

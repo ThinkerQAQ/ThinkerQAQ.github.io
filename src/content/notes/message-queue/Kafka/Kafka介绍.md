@@ -1,13 +1,13 @@
 ---
-title: "1.2 Kafka介绍"
+title: "2.2 Kafka介绍"
 description: "1. Kafka是什么 - 分布式的消息系统 2. Kafka使用场景 - 消息系统：基于发布订阅模式 - 存储系统：消息会持久化到磁盘 - 流式处理平台 3. Kafka安装 Kafka安装.md 4. Kafka使用 Kafka使用.md 5. Kafka原理 Kafka架构.md 6. Kaf"
 sourcePath: "Message_Queue/Kafka/Kafka介绍.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 2
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 4
+tags: ["Message_Queue"]
 createdAt: "2020-04-08T02:23:33Z"
 updatedAt: "2022-06-25T06:44:56Z"
 status: "historical"
@@ -23,19 +23,19 @@ indexable: true
 - 存储系统：消息会持久化到磁盘
 - 流式处理平台
 ## 3. Kafka安装
-[Kafka安装.md](/notes/kafka-message-queue/Kafka%E5%AE%89%E8%A3%85/)
+[Kafka安装.md](/notes/message-queue/Kafka/Kafka%E5%AE%89%E8%A3%85/)
 ## 4. Kafka使用
-[Kafka使用.md](/notes/kafka-message-queue/Kafka%E4%BD%BF%E7%94%A8/)
+[Kafka使用.md](/notes/message-queue/Kafka/Kafka%E4%BD%BF%E7%94%A8/)
 
 ## 5. Kafka原理
 
-[Kafka架构.md](/notes/kafka-message-queue/Kafka%E6%9E%B6%E6%9E%84/)
+[Kafka架构.md](/notes/message-queue/Kafka/Kafka%E6%9E%B6%E6%9E%84/)
 
 ## 6. Kafka优化
-[Kafka优化.md](/notes/kafka-message-queue/Kafka%E4%BC%98%E5%8C%96/)
+[Kafka优化.md](/notes/message-queue/Kafka/Kafka%E4%BC%98%E5%8C%96/)
 
 ## 7. 云Kafka
-[云Kafka.md](/notes/kafka-message-queue/%E4%BA%91Kafka/)
+[云Kafka.md](/notes/message-queue/Kafka/%E4%BA%91Kafka/)
 ## 8. 参考
 - [Java\-Guide/Kafka常见面试题总结\.md at master · IcyBiscuit/Java\-Guide](https://github.com/IcyBiscuit/Java-Guide/blob/master/docs/system-design/distributed-system/message-queue/Kafka%E5%B8%B8%E8%A7%81%E9%9D%A2%E8%AF%95%E9%A2%98%E6%80%BB%E7%BB%93.md)
 - [Kafka面试题与答案全套整理 \| Truman's Blog](http://trumandu.github.io/2019/04/13/Kafka%E9%9D%A2%E8%AF%95%E9%A2%98%E4%B8%8E%E7%AD%94%E6%A1%88%E5%85%A8%E5%A5%97%E6%95%B4%E7%90%86/)

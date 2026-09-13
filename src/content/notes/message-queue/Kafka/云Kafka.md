@@ -1,13 +1,13 @@
 ---
-title: "1.12 云Kafka"
+title: "2.12 云Kafka"
 description: "1. 腾讯云Kafka 基于VIP+原生Kafka - VIP：就是北极星注册中心的寻址+健康检查+就近路由的功能 CKafka 会为客户端暴露一个 VIP，客户端在连接到 VIP 后，会拿到主题分区的元数据信息 当某个可用区不可用时，该 VIP 会自动漂移到该地域另一个可用的节点，从而实现跨可用区"
 sourcePath: "Message_Queue/Kafka/云Kafka.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 12
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 14
+tags: ["Message_Queue"]
 createdAt: "2022-06-24T14:23:43Z"
 updatedAt: "2022-06-25T14:26:43Z"
 status: "historical"

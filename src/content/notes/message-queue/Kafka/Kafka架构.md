@@ -1,13 +1,13 @@
 ---
-title: "1.4 Kafka架构"
+title: "2.4 Kafka架构"
 description: "1. Kafka拓扑结构 Producer 将消息发送到特定的Topic，Topic中的消息存储在Broker上，Consumer 通过订阅特定的Topic来消费消息。 2. 三大组件 2.1. 生产者 Kafka生产者.md 2.2. Broker Kafka Broker.md Kafka To"
 sourcePath: "Message_Queue/Kafka/Kafka架构.md"
-category: "kafka-message-queue"
-categoryLabel: "Kafka / Message Queue"
-topic: "__root"
-topicLabel: "1.基础与专题"
-order: 4
-tags: ["Message_Queue","Kafka"]
+category: "message-queue"
+categoryLabel: "Message Queue"
+topic: "Kafka"
+topicLabel: "2.Kafka"
+order: 6
+tags: ["Message_Queue"]
 createdAt: "2021-05-02T09:20:19Z"
 updatedAt: "2022-07-16T12:45:37Z"
 status: "historical"
@@ -22,13 +22,13 @@ Producer 将消息发送到特定的Topic，Topic中的消息存储在Broker上�
 
 # 2. 三大组件
 ## 2.1. 生产者
-[Kafka生产者.md](/notes/kafka-message-queue/Kafka%E7%94%9F%E4%BA%A7%E8%80%85/)
+[Kafka生产者.md](/notes/message-queue/Kafka/Kafka%E7%94%9F%E4%BA%A7%E8%80%85/)
 
 ## 2.2. Broker
-[Kafka Broker.md](/notes/kafka-message-queue/Kafka%20Broker/)
-[Kafka Topic.md](/notes/kafka-message-queue/Kafka%20Topic/)
+[Kafka Broker.md](/notes/message-queue/Kafka/Kafka%20Broker/)
+[Kafka Topic.md](/notes/message-queue/Kafka/Kafka%20Topic/)
 ## 2.3. 消费者
-[Kafka消费者.md](/notes/kafka-message-queue/Kafka%E6%B6%88%E8%B4%B9%E8%80%85/)
+[Kafka消费者.md](/notes/message-queue/Kafka/Kafka%E6%B6%88%E8%B4%B9%E8%80%85/)
 
 
 # 3. 分布式原理
@@ -49,7 +49,7 @@ Partition中的Leader由Controller负责选举
     3. follower重放快照
     4. follower拉取leader快照之后的所有数据变更
 #### 3.1.2.2. 同步方式
-[Kafka Broker](/notes/kafka-message-queue/Kafka%20Broker/)有个ack参数，可以看作支持同步、异步
+[Kafka Broker](/notes/message-queue/Kafka/Kafka%20Broker/)有个ack参数，可以看作支持同步、异步
 
 #### 3.1.2.3. 同步日志
 
