@@ -95,18 +95,39 @@ function decodeAiSearchKey(key) {
 
 function sourceFromAiSearchKey(key, blogOrigin) {
   const decoded = decodeAiSearchKey(key);
-  if (!decoded) return null;
+  if (!decoded || /^h-[a-f0-9]{32}$/i.test(decoded.id)) return null;
   const path = `/${decoded.collection}/${decoded.id.split("/").map(encodeURIComponent).join("/")}/`;
   return new URL(path, `${blogOrigin}/`).href;
 }
 
+function sourceFromChunk(chunk, blogOrigin) {
+  const metadataUrl = String(chunk?.item?.metadata?.source_url || "").trim();
+  if (metadataUrl) {
+    try {
+      const candidate = new URL(metadataUrl, `${blogOrigin}/`);
+      if (candidate.origin === blogOrigin && /^\/(articles|notes|projects|series)\//.test(candidate.pathname)) {
+        return candidate.href;
+      }
+    } catch {
+      // Fall through to legacy key decoding.
+    }
+  }
+
+  return sourceFromAiSearchKey(chunk?.item?.key, blogOrigin);
+}
+
 function titleFromChunk(chunk) {
+  const metadataTitle = String(chunk?.item?.metadata?.title || "").trim();
+  if (metadataTitle) return metadataTitle.slice(0, 200);
+
   const text = String(chunk?.text || "");
   const heading = text.match(/^#{1,3}\s+(.+)$/m)?.[1]?.trim();
   if (heading) return heading.slice(0, 200);
 
   const decoded = decodeAiSearchKey(chunk?.item?.key);
-  if (decoded) return decoded.id.split("/").pop().replace(/[-_]+/g, " ").slice(0, 200);
+  if (decoded && !/^h-[a-f0-9]{32}$/i.test(decoded.id)) {
+    return decoded.id.split("/").pop().replace(/[-_]+/g, " ").slice(0, 200);
+  }
   return "博客内容";
 }
 
@@ -117,7 +138,7 @@ function normalizeAiSearchChunks(chunks, blogOrigin) {
   for (const chunk of Array.isArray(chunks) ? chunks : []) {
     const content = String(chunk?.text || "").trim();
     const key = String(chunk?.item?.key || "");
-    const url = sourceFromAiSearchKey(key, blogOrigin);
+    const url = sourceFromChunk(chunk, blogOrigin);
     if (!content || !url) continue;
 
     let document = documents.get(key);

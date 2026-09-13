@@ -67,7 +67,7 @@ test("reports a missing AI Search binding as a service failure", async () => {
   }
 });
 
-test("answers a compact request using only server-side AI Search context", async () => {
+test("answers a compact request using AI Search metadata for hashed item keys", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     assert.equal(String(url), "https://challenges.cloudflare.com/turnstile/v0/siteverify");
@@ -87,8 +87,15 @@ test("answers a compact request using only server-side AI Search context", async
           get: () => ({
             search: async () => ({
               chunks: [{
-                text: "# Go CAS\nCAS 通过原子比较并交换更新共享状态。",
-                item: { key: "blog--articles--concurrency-series-05-atomic-cas.md" },
+                text: "CAS 通过原子比较并交换更新共享状态。",
+                item: {
+                  key: "blog--articles--h-0123456789abcdef0123456789abcdef.md",
+                  metadata: {
+                    source_url: `${BLOG_ORIGIN}/articles/concurrency-series-05-atomic-cas/`,
+                    title: "Go CAS",
+                    collection: "articles",
+                  },
+                },
               }],
             }),
           }),
@@ -96,6 +103,7 @@ test("answers a compact request using only server-side AI Search context", async
         AI: {
           run: async (_model, options) => {
             assert.match(options.messages[1].content, /CAS 通过原子比较并交换/);
+            assert.match(options.messages[1].content, /concurrency-series-05-atomic-cas/);
             return { response: "CAS 通过原子比较并交换更新共享状态。[1]" };
           },
         },
