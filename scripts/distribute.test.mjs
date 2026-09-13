@@ -9,6 +9,7 @@ import {
   exportArticles,
   parseArguments,
   parseArticle,
+  SUPPORTED_PLATFORMS,
   syncExports,
 } from "./distribute.mjs";
 
@@ -125,7 +126,60 @@ test("syncExports records successful draft delivery and changed-only skips it ne
   }
 });
 
+test("syncExports retries CSDN rate limits and does not record platform failures", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-sync-failure-test-"));
+  const manifestPath = path.join(root, "manifest.json");
+  const makeState = () => ({
+    version: 1,
+    articles: { example: { platforms: { csdn: { contentHash: "abc" } } } },
+  });
+  const exported = [{
+    slug: "example",
+    platform: "csdn",
+    outputFile: path.join(root, "example.md"),
+    contentHash: "abc",
+    pending: true,
+  }];
+  try {
+    await writeFile(exported[0].outputFile, "example");
+    const retryManifest = makeState();
+    let attempts = 0;
+    const count = await syncExports({
+      exported,
+      manifest: retryManifest,
+      manifestPath,
+      run: async () => ({
+        output: ++attempts === 1
+          ? "文章频繁发布，请稍后再试\n同步完成: 0 成功, 1 失败"
+          : "同步完成: 1 成功, 0 失败",
+      }),
+      wait: async () => {},
+      rateLimitRetryMs: 0,
+    });
+    assert.equal(count, 1);
+    assert.equal(attempts, 2);
+    assert.equal(retryManifest.articles.example.platforms.csdn.lastSyncedHash, "abc");
+
+    const failedManifest = makeState();
+    await assert.rejects(
+      syncExports({
+        exported,
+        manifest: failedManifest,
+        manifestPath,
+        run: async () => ({ output: "同步完成: 0 成功, 1 失败" }),
+      }),
+      /Failed to sync example to csdn/u,
+    );
+    assert.equal(failedManifest.articles.example.platforms.csdn.lastSyncedHash, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("parseArguments validates platform and changed options", () => {
+  assert.deepEqual(SUPPORTED_PLATFORMS, [
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
+  ]);
   assert.deepEqual(
     parseArguments(["--article", "a", "--platforms", "juejin,cnblogs", "--sync", "--changed"]),
     {

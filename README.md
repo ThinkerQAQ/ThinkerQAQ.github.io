@@ -33,7 +33,7 @@ cd ThinkerQAQ.github.io
 | `.\start-local.cmd build` | 构建用于正式发布的网站 |
 | `.\start-local.cmd check` | 执行类型、正式构建和链接检查 |
 | `.\start-local.cmd diagrams` | 生成 PlantUML 和 draw.io 图表 |
-| `.\start-local.cmd distribute` | 为掘金、CSDN 和博客园生成分发稿 |
+| `.\start-local.cmd distribute` | 为博客园、掘金、CSDN、思否、知乎、51CTO、开源中国和头条生成分发稿 |
 | `.\start-local.cmd stop` | 停止本地预览 |
 | `.\start-local.cmd help` | 查看脚本帮助 |
 
@@ -188,7 +188,7 @@ https://thinkerqaq.github.io/sitemap-index.xml
 
 相关资料：[Google 站点名称](https://developers.google.com/search/docs/appearance/site-names)、[Google sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)、[Bing sitemap](https://www.bing.com/webmasters/help/sitemaps-3b5cf6ed)、[IndexNow](https://www.indexnow.org/)。
 
-### 3.7 分发到掘金、CSDN 和博客园
+### 3.7 分发到博客园、掘金、CSDN、思否、知乎、51CTO、开源中国和头条
 
 博客 Markdown 是唯一内容源。分发命令只读取 `src/content/articles/` 中 `status: published` 的文章，在 `.distribution/` 下生成平台稿，不会修改原文。每份平台稿都会自动追加来源声明：
 
@@ -196,7 +196,7 @@ https://thinkerqaq.github.io/sitemap-index.xml
 > 本文首发于 [ThinkerQAQ 的个人博客](https://thinkerqaq.github.io/articles/文章-slug/)，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。
 ```
 
-生成全部已发布文章的三个平台版本：
+生成全部已发布文章的八个平台版本：
 
 ```powershell
 .\start-local.cmd distribute
@@ -212,7 +212,7 @@ https://thinkerqaq.github.io/sitemap-index.xml
 高级参数也可以直接通过 npm 使用：
 
 ```powershell
-npm run distribute -- --article concurrency-series-03-mutex --platforms juejin,csdn,cnblogs
+npm run distribute -- --article concurrency-series-03-mutex --platforms cnblogs,juejin,csdn,segmentfault,zhihu,51cto,oschina,toutiao
 ```
 
 生成结果示例：
@@ -222,14 +222,26 @@ npm run distribute -- --article concurrency-series-03-mutex --platforms juejin,c
 ├── juejin/concurrency-series-03-mutex.md
 ├── csdn/concurrency-series-03-mutex.md
 ├── cnblogs/concurrency-series-03-mutex.md
+├── segmentfault/concurrency-series-03-mutex.md
+├── zhihu/concurrency-series-03-mutex.md
+├── 51cto/concurrency-series-03-mutex.md
+├── oschina/concurrency-series-03-mutex.md
+├── toutiao/concurrency-series-03-mutex.md
 └── manifest.json
 ```
 
-分发稿会把以 `/` 开头的站内 Markdown/HTML 链接转换为个人博客的绝对链接；掘金和 CSDN 最多输出前 5 个标签，博客园稿会加入 `[Markdown]` 分类。`.distribution/` 是本地生成目录，已经被 Git 忽略。
+分发稿会把以 `/` 开头的站内 Markdown/HTML 链接转换为个人博客的绝对链接；除博客园外，各平台最多输出前 5 个标签，博客园稿会加入 `[Markdown]` 分类。`.distribution/` 是本地生成目录，已经被 Git 忽略。
 
 #### 使用 Wechatsync 发送草稿
 
-可选安装开源的 [Wechatsync](https://github.com/wechatsync/Wechatsync)，并按照其说明安装 Chrome 扩展、启用本地桥接、复制扩展生成的本地 Token，然后在 Chrome 中登录掘金、CSDN 和博客园：
+同步不需要手工复制各平台的 Cookie。平台登录态由本机 Chrome 保存，Wechatsync 扩展直接使用当前 Chrome 用户资料中的登录态；命令行只需要扩展生成的本地桥接 Token。不要把平台 Cookie、Token 或账号密码写入仓库。
+
+##### 第一次使用
+
+1. 安装开源的 [Wechatsync](https://github.com/wechatsync/Wechatsync) Chrome 扩展。
+2. 在同一个 Chrome 用户资料中分别登录博客园、掘金、CSDN、思否、知乎、51CTO、开源中国和头条。
+3. 在扩展设置中启用“同步桥接”或“MCP 连接”，复制扩展生成的本地 Token。
+4. 安装 CLI，并在当前 PowerShell 窗口配置 Token：
 
 ```powershell
 npm install -g @wechatsync/cli
@@ -237,29 +249,51 @@ $env:WECHATSYNC_TOKEN = "从扩展复制的本地 Token"
 wechatsync platforms --auth
 ```
 
-上面的环境变量只对当前 PowerShell 窗口生效，仓库不会保存 Token。
-
-将生成稿发送到三个平台的草稿箱：
+`wechatsync platforms --auth` 应显示 `cnblogs`、`juejin`、`csdn`、`segmentfault`、`zhihu`、`51cto`、`oschina` 和 `toutiao` 已登录。如果某个平台未登录，请在同一个 Chrome 用户资料中重新登录，再执行：
 
 ```powershell
-.\start-local.cmd distribute --sync
+wechatsync auth --refresh
+wechatsync platforms --auth
 ```
 
-只发送内容发生变化的平台稿：
+`WECHATSYNC_TOKEN` 只对当前 PowerShell 窗口生效，关闭窗口后需要重新设置；仓库不会保存它。
+
+##### 首次同步一篇文章
+
+先执行预检，确认文章文件、扩展连接和平台登录态正常。预检不会创建草稿：
+
+```powershell
+.\start-local.cmd distribute --article concurrency-series-08-read-write-lock --sync --dry-run
+```
+
+预检通过后，将同一篇文章发送到八个平台的草稿箱：
+
+```powershell
+.\start-local.cmd distribute --article concurrency-series-08-read-write-lock --sync
+```
+
+命令默认只创建草稿。请分别打开八个平台的草稿箱，检查标题、摘要、分类、标签、图片、代码块和来源链接，再人工发布。CSDN 批量同步触发“文章频繁发布”时，脚本会等待 60 秒并自动重试一次；重试仍失败时会停止并保留真实失败状态。
+
+##### 日常同步
+
+只发送自上次成功同步后内容发生变化的平台稿：
 
 ```powershell
 .\start-local.cmd distribute --sync --changed
 ```
 
-只检查登录、文件和平台连接，不创建草稿：
+只同步指定文章或平台：
 
 ```powershell
-.\start-local.cmd distribute --sync --dry-run
+.\start-local.cmd distribute --article concurrency-series-08-read-write-lock --platforms juejin,csdn --sync --changed
 ```
+
+不加 `--changed` 会重新发送全部选中的已发布文章；第一次使用时应先指定一篇文章验证，避免一次生成大量重复草稿。
 
 安全边界：
 
 - 命令不会读取、保存或输出平台 Cookie；登录态由本地 Chrome 和 Wechatsync 管理。
+- `WECHATSYNC_TOKEN` 只是 CLI 与浏览器扩展之间的桥接凭证，不是平台 Cookie；不要提交到 Git，也不要在日志或聊天中公开。
 - 当前集成只发送草稿，不会自动点击正式发布，也不会删除任何平台文章。
 - `manifest.json` 记录本地内容哈希和上次成功发送时间，用于 `--changed` 判断；它不包含账号凭证。
 - Wechatsync 当前公开 CLI 不保证覆盖同一篇已发布文章。已经公开的文章需要在平台侧确认更新目标，避免把新草稿误发布成重复文章。

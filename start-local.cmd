@@ -120,7 +120,7 @@ echo   preview    Build the local site with drafts and open it in a browser (def
 echo   build      Build the production site
 echo   check      Run type, production build, and link checks
 echo   diagrams   Generate PlantUML and draw.io diagrams
-echo   distribute Generate Markdown for Juejin, CSDN, and CNBlogs
+echo   distribute Generate Markdown for all configured distribution platforms
 echo   stop       Stop the local preview
 echo   help       Show this help
 exit /b 0
