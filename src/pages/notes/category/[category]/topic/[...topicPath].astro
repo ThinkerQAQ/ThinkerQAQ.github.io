@@ -7,6 +7,8 @@ import {
   categoryHref,
   groupNotesByTopic,
   noteTopicHref,
+  ROOT_NOTE_TOPIC,
+  ROOT_NOTE_TOPIC_ROUTE,
   sortNotes,
   type NoteEntry,
   type NoteTopicGroup,
@@ -28,10 +30,15 @@ export async function getStaticPaths() {
 
     return topics.flatMap((topic) => {
       if (topic.path.length === 0) return [];
+      const topicIds = topic.path.map((segment) => segment.id);
+      const routeTopicIds = topicIds.length === 1 && topicIds[0] === ROOT_NOTE_TOPIC
+        ? [ROOT_NOTE_TOPIC_ROUTE]
+        : topicIds;
+
       return [{
         params: {
           category,
-          topicPath: topic.path.map((segment) => segment.id).join("/"),
+          topicPath: routeTopicIds.join("/"),
         },
         props: {
           entries: topic.allNotes,
