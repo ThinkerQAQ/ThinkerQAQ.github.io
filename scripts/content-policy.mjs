@@ -11,6 +11,7 @@ export const PUBLIC_NOTEBOOKS = [
   "Zookeeper",
   "Golang",
   "Computer_Network",
+  "Container",
 ];
 export const PROMOTED_ARTICLES = [];
 export const FEATURED_PATHS = new Set();
@@ -25,6 +26,7 @@ export const CATEGORY_LABELS = {
   Zookeeper: "ZooKeeper",
   Golang: "Go",
   Computer_Network: "计算机网络",
+  Container: "Docker / Kubernetes",
 };
 export const CATEGORY_SLUGS = {
   "System_Design/分布式系统": "distributed-systems",
@@ -36,6 +38,7 @@ export const CATEGORY_SLUGS = {
   Zookeeper: "zookeeper",
   Golang: "go",
   Computer_Network: "computer-network",
+  Container: "container",
 };
 export const ROOT_TOPIC_LABELS = {
   "System_Design/分布式系统": "基础与专题",
@@ -47,6 +50,7 @@ export const ROOT_TOPIC_LABELS = {
   Zookeeper: "基础与专题",
   Golang: "Language",
   Computer_Network: "基础",
+  Container: "基础",
 };
 
 const GO_NOTE_TOPICS = [
@@ -198,6 +202,10 @@ export const REVIEWED_NOTE_PATHS = {
   Computer_Network: new Set(
     computerNetworkTopicEntries.map(([note]) => `Computer_Network/${note}`),
   ),
+  Container: new Set([
+    "Container/Docker/Docker.md",
+    "Container/Kubernetes/Kubernetes.md",
+  ]),
 };
 
 // Optional public taxonomy overrides. They change only the blog topic grouping;
