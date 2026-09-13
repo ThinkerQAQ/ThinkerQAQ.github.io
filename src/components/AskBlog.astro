@@ -65,7 +65,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   </section>
 </div>
 
-<script is:inline>
+<script>
+  // @ts-nocheck
+  import { unified } from "unified";
+  import remarkParse from "remark-parse";
+
   (() => {
     const root = document.querySelector("[data-ask-blog]");
     if (!root) return;
@@ -84,6 +88,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
     const sourcesWrap = root.querySelector("[data-ask-sources-wrap]");
     const sourcesList = root.querySelector("[data-ask-sources]");
     const turnstileContainer = root.querySelector("[data-turnstile-container]");
+    const markdownParser = unified().use(remarkParse);
 
     let turnstileLoadPromise;
     let turnstileWidgetId = null;
@@ -107,125 +112,102 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       sourcesWrap.hidden = true;
     };
 
-    const appendInlineMarkdown = (parent, text) => {
-      const tokenPattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
-      let cursor = 0;
+    const renderMarkdownNode = (node, parent) => {
+      const appendChildren = (element = parent) => {
+        for (const child of node.children || []) renderMarkdownNode(child, element);
+      };
 
-      for (const match of text.matchAll(tokenPattern)) {
-        const index = match.index ?? 0;
-        if (index > cursor) parent.append(document.createTextNode(text.slice(cursor, index)));
-
-        const token = match[0];
-        if (token.startsWith("`")) {
-          const code = document.createElement("code");
-          code.textContent = token.slice(1, -1);
-          parent.append(code);
-        } else if (token.startsWith("**") || token.startsWith("__")) {
-          const strong = document.createElement("strong");
-          strong.textContent = token.slice(2, -2);
-          parent.append(strong);
-        } else {
-          const em = document.createElement("em");
-          em.textContent = token.slice(1, -1);
-          parent.append(em);
+      switch (node.type) {
+        case "root":
+          appendChildren();
+          return;
+        case "text":
+          parent.append(document.createTextNode(node.value || ""));
+          return;
+        case "paragraph": {
+          const paragraph = document.createElement("p");
+          appendChildren(paragraph);
+          parent.append(paragraph);
+          return;
         }
-        cursor = index + token.length;
+        case "strong": {
+          const strong = document.createElement("strong");
+          appendChildren(strong);
+          parent.append(strong);
+          return;
+        }
+        case "emphasis": {
+          const em = document.createElement("em");
+          appendChildren(em);
+          parent.append(em);
+          return;
+        }
+        case "inlineCode": {
+          const code = document.createElement("code");
+          code.textContent = node.value || "";
+          parent.append(code);
+          return;
+        }
+        case "code": {
+          const pre = document.createElement("pre");
+          const code = document.createElement("code");
+          if (node.lang) code.dataset.language = node.lang;
+          code.textContent = node.value || "";
+          pre.append(code);
+          parent.append(pre);
+          return;
+        }
+        case "heading": {
+          const heading = document.createElement(node.depth <= 2 ? "h3" : "h4");
+          appendChildren(heading);
+          parent.append(heading);
+          return;
+        }
+        case "list": {
+          const list = document.createElement(node.ordered ? "ol" : "ul");
+          if (node.ordered && Number(node.start) > 1) list.start = Number(node.start);
+          appendChildren(list);
+          parent.append(list);
+          return;
+        }
+        case "listItem": {
+          const item = document.createElement("li");
+          appendChildren(item);
+          parent.append(item);
+          return;
+        }
+        case "blockquote": {
+          const blockquote = document.createElement("blockquote");
+          appendChildren(blockquote);
+          parent.append(blockquote);
+          return;
+        }
+        case "break":
+          parent.append(document.createElement("br"));
+          return;
+        case "thematicBreak":
+          parent.append(document.createElement("hr"));
+          return;
+        case "link":
+        case "linkReference":
+          // Model-authored links are intentionally rendered as text. Canonical
+          // blog links are rendered separately from trusted source metadata.
+          appendChildren();
+          return;
+        case "html":
+          // Never interpret model-authored HTML. Show it literally instead.
+          parent.append(document.createTextNode(node.value || ""));
+          return;
+        default:
+          if (node.children) appendChildren();
+          else if (typeof node.value === "string") parent.append(document.createTextNode(node.value));
       }
-
-      if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)));
     };
 
     const renderMarkdown = (markdown) => {
       answer.replaceChildren();
-      const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
-      let index = 0;
-
-      while (index < lines.length) {
-        const line = lines[index];
-        if (!line.trim()) {
-          index += 1;
-          continue;
-        }
-
-        const fence = line.match(/^```\s*([^\s`]*)\s*$/);
-        if (fence) {
-          const codeLines = [];
-          index += 1;
-          while (index < lines.length && !/^```\s*$/.test(lines[index])) {
-            codeLines.push(lines[index]);
-            index += 1;
-          }
-          if (index < lines.length) index += 1;
-
-          const pre = document.createElement("pre");
-          const code = document.createElement("code");
-          if (fence[1]) code.dataset.language = fence[1];
-          code.textContent = codeLines.join("\n");
-          pre.append(code);
-          answer.append(pre);
-          continue;
-        }
-
-        const heading = line.match(/^(#{1,4})\s+(.+)$/);
-        if (heading) {
-          const element = document.createElement(heading[1].length <= 2 ? "h3" : "h4");
-          appendInlineMarkdown(element, heading[2].trim());
-          answer.append(element);
-          index += 1;
-          continue;
-        }
-
-        const unordered = line.match(/^[-*]\s+(.+)$/);
-        const ordered = line.match(/^\d+[.)]\s+(.+)$/);
-        if (unordered || ordered) {
-          const list = document.createElement(ordered ? "ol" : "ul");
-          while (index < lines.length) {
-            const match = ordered
-              ? lines[index].match(/^\d+[.)]\s+(.+)$/)
-              : lines[index].match(/^[-*]\s+(.+)$/);
-            if (!match) break;
-            const item = document.createElement("li");
-            appendInlineMarkdown(item, match[1].trim());
-            list.append(item);
-            index += 1;
-          }
-          answer.append(list);
-          continue;
-        }
-
-        const quote = line.match(/^>\s?(.*)$/);
-        if (quote) {
-          const blockquote = document.createElement("blockquote");
-          const quoteLines = [];
-          while (index < lines.length) {
-            const match = lines[index].match(/^>\s?(.*)$/);
-            if (!match) break;
-            quoteLines.push(match[1]);
-            index += 1;
-          }
-          appendInlineMarkdown(blockquote, quoteLines.join("\n"));
-          answer.append(blockquote);
-          continue;
-        }
-
-        const paragraphLines = [line.trim()];
-        index += 1;
-        while (index < lines.length) {
-          const next = lines[index];
-          if (!next.trim()
-            || /^```/.test(next)
-            || /^#{1,4}\s+/.test(next)
-            || /^[-*]\s+/.test(next)
-            || /^\d+[.)]\s+/.test(next)
-            || /^>\s?/.test(next)) break;
-          paragraphLines.push(next.trim());
-          index += 1;
-        }
-
-        const paragraph = document.createElement("p");
-        appendInlineMarkdown(paragraph, paragraphLines.join(" "));
-        answer.append(paragraph);
-      }
+      const tree = markdownParser.parse(String(markdown || ""));
+      renderMarkdownNode(tree, answer);
     };
 
     const renderSources = (sources) => {
@@ -571,7 +553,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   .ask-blog__answer :global(pre),
   .ask-blog__answer :global(blockquote),
   .ask-blog__answer :global(h3),
-  .ask-blog__answer :global(h4) {
+  .ask-blog__answer :global(h4),
+  .ask-blog__answer :global(hr) {
     margin: 0.6rem 0 0;
   }
 
@@ -585,6 +568,10 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   .ask-blog__answer :global(ul),
   .ask-blog__answer :global(ol) {
     padding-left: 1.25rem;
+  }
+
+  .ask-blog__answer :global(li > p) {
+    margin: 0;
   }
 
   .ask-blog__answer :global(h3) {
@@ -621,7 +608,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
     padding-left: 0.75rem;
     border-left: 3px solid var(--border);
     color: var(--muted);
-    white-space: pre-line;
+  }
+
+  .ask-blog__answer :global(hr) {
+    border: 0;
+    border-top: 1px solid var(--border);
   }
 
   .ask-blog__sources {
