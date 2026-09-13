@@ -13,14 +13,15 @@ export interface ArticleSeriesNavigation {
   next?: ArticleEntry;
 }
 
+export interface NoteTopicSegment {
+  id: string;
+  label: string;
+}
+
 export interface NoteCollectionNavigation {
   category: string;
   categoryLabel: string;
-  topics: Array<{
-    id?: string;
-    label: string;
-    notes: NoteEntry[];
-  }>;
+  topics: NoteTopicGroup[];
   currentId: string;
   currentIndex: number;
   previous?: NoteEntry;
@@ -30,7 +31,10 @@ export interface NoteCollectionNavigation {
 export interface NoteTopicGroup {
   id?: string;
   label: string;
+  path: NoteTopicSegment[];
+  depth: number;
   notes: NoteEntry[];
+  allNotes: NoteEntry[];
 }
 
 export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
@@ -52,9 +56,17 @@ export function categoryHref(category: string): string {
   return `/notes/category/${encodeURIComponent(category)}/`;
 }
 
-export function noteTopicHref(category: string, topic: string): string {
-  const routeTopic = topic === ROOT_NOTE_TOPIC ? ROOT_NOTE_TOPIC_ROUTE : topic;
-  return `${categoryHref(category)}topic/${encodeURIComponent(routeTopic)}/`;
+export function noteTopicHref(
+  category: string,
+  topic: string | string[] | NoteTopicSegment[],
+): string {
+  const topicIds = typeof topic === "string"
+    ? [topic]
+    : topic.map((segment) => typeof segment === "string" ? segment : segment.id);
+  const routeIds = topicIds.length === 1 && topicIds[0] === ROOT_NOTE_TOPIC
+    ? [ROOT_NOTE_TOPIC_ROUTE]
+    : topicIds;
+  return `${categoryHref(category)}topic/${routeIds.map(encodeURIComponent).join("/")}/`;
 }
 
 export function noteTagHref(tag: string): string {
@@ -105,18 +117,88 @@ export function getArticleSeriesNavigation(
   };
 }
 
+function fallbackTopicLabel(id: string): string {
+  return id.replaceAll("_", " ");
+}
+
+function sameTopicId(left: string, right: string): boolean {
+  return left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
+}
+
+export function getNoteTopicPath(note: NoteEntry): NoteTopicSegment[] {
+  if (note.data.topicPath?.length) {
+    return note.data.topicPath.map((segment) => ({
+      id: segment.id,
+      label: segment.label ?? fallbackTopicLabel(segment.id),
+    }));
+  }
+
+  if (!note.data.topic) return [];
+
+  const firstSegment: NoteTopicSegment = {
+    id: note.data.topic,
+    label: note.data.topicLabel ?? fallbackTopicLabel(note.data.topic),
+  };
+  const sourceDirectories = note.data.sourcePath
+    .replaceAll("\\", "/")
+    .split("/")
+    .filter(Boolean)
+    .slice(0, -1);
+  const topicIndex = sourceDirectories.findIndex((segment) => sameTopicId(segment, note.data.topic!));
+
+  if (topicIndex === -1) return [firstSegment];
+
+  return [
+    firstSegment,
+    ...sourceDirectories.slice(topicIndex + 1).map((id) => ({
+      id,
+      label: fallbackTopicLabel(id),
+    })),
+  ];
+}
+
+function topicPathKey(path: NoteTopicSegment[]): string {
+  return path.map((segment) => segment.id).join("\u001f");
+}
+
 export function groupNotesByTopic(notes: NoteEntry[]): NoteTopicGroup[] {
   const topics = new Map<string, NoteTopicGroup>();
+
   for (const entry of sortNotes(notes)) {
-    const key = entry.data.topic ?? "__ungrouped";
-    const topic = topics.get(key) ?? {
-      id: entry.data.topic,
-      label: entry.data.topicLabel ?? "其他",
-      notes: [],
-    };
-    topic.notes.push(entry);
-    topics.set(key, topic);
+    const path = getNoteTopicPath(entry);
+    if (path.length === 0) {
+      const key = "__ungrouped";
+      const topic = topics.get(key) ?? {
+        label: "其他",
+        path: [],
+        depth: 0,
+        notes: [],
+        allNotes: [],
+      };
+      topic.notes.push(entry);
+      topic.allNotes.push(entry);
+      topics.set(key, topic);
+      continue;
+    }
+
+    for (let index = 0; index < path.length; index += 1) {
+      const currentPath = path.slice(0, index + 1);
+      const segment = currentPath[currentPath.length - 1]!;
+      const key = topicPathKey(currentPath);
+      const topic = topics.get(key) ?? {
+        id: segment.id,
+        label: segment.label,
+        path: currentPath,
+        depth: index,
+        notes: [],
+        allNotes: [],
+      };
+      topic.allNotes.push(entry);
+      if (index === path.length - 1) topic.notes.push(entry);
+      topics.set(key, topic);
+    }
   }
+
   return [...topics.values()];
 }
 

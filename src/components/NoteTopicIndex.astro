@@ -9,26 +9,25 @@ interface Props {
   categoryLabel: string;
   topics: NoteTopicGroup[];
   total: number;
-  currentTopic?: string;
+  currentTopicPath?: string[];
 }
 
-const { category, categoryLabel, topics, total, currentTopic } = Astro.props;
-const navigableTopics = topics.filter(
-  (topic): topic is NoteTopicGroup & { id: string } => Boolean(topic.id),
-);
+const { category, categoryLabel, topics, total, currentTopicPath = [] } = Astro.props;
+const navigableTopics = topics.filter((topic) => topic.path.length > 0);
 const hasTopics = navigableTopics.length > 0;
+const currentPathKey = currentTopicPath.join("/");
 const groups = [
   {
     items: [{
       href: categoryHref(category),
       title: `全部 · ${total}`,
-      current: !currentTopic,
+      current: currentTopicPath.length === 0,
     }],
   },
   ...navigableTopics.map((topic) => ({
-    label: topic.label,
-    href: noteTopicHref(category, topic.id),
-    current: topic.id === currentTopic,
+    label: topic.depth > 0 ? `${"› ".repeat(topic.depth)}${topic.label}` : topic.label,
+    href: noteTopicHref(category, topic.path),
+    current: topic.path.map((segment) => segment.id).join("/") === currentPathKey,
     items: topic.notes.map((note) => ({
       href: noteHref(note),
       title: note.data.title,

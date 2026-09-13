@@ -7,6 +7,11 @@ const timestamp = z
   .pipe(z.iso.datetime({ offset: true }))
   .transform((value) => new Date(value));
 
+const noteTopicSegment = z.object({
+  id: z.string(),
+  label: z.string().optional(),
+});
+
 const notes = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -22,6 +27,7 @@ const notes = defineCollection({
     categoryLabel: z.string(),
     topic: z.string().optional(),
     topicLabel: z.string().optional(),
+    topicPath: z.array(noteTopicSegment).optional(),
     order: z.number().int().positive(),
     tags: z.array(z.string()).default([]),
     createdAt: z.coerce.date().optional(),

@@ -29,16 +29,23 @@ export async function getStaticPaths() {
     const categoryLabel = categoryEntries[0]?.data.categoryLabel ?? category;
 
     return topics.flatMap((topic) => {
-      if (!topic.id) return [];
-      const routeTopic = topic.id === ROOT_NOTE_TOPIC ? ROOT_NOTE_TOPIC_ROUTE : topic.id;
+      if (topic.path.length === 0) return [];
+      const topicIds = topic.path.map((segment) => segment.id);
+      const routeTopicIds = topicIds.length === 1 && topicIds[0] === ROOT_NOTE_TOPIC
+        ? [ROOT_NOTE_TOPIC_ROUTE]
+        : topicIds;
+
       return [{
-        params: { category, topic: routeTopic },
+        params: {
+          category,
+          topicPath: routeTopicIds.join("/"),
+        },
         props: {
-          entries: topic.notes,
+          entries: topic.allNotes,
           topics,
           total: categoryEntries.length,
           categoryLabel,
-          topicLabel: topic.label,
+          topic,
         },
       }];
     });
@@ -50,20 +57,20 @@ interface Props {
   topics: NoteTopicGroup[];
   total: number;
   categoryLabel: string;
-  topicLabel: string;
+  topic: NoteTopicGroup;
 }
 
-const { entries, topics, total, categoryLabel, topicLabel } = Astro.props;
+const { entries, topics, total, categoryLabel, topic } = Astro.props;
 const category = Astro.params.category!;
-const routeTopic = Astro.params.topic!;
-const topic = routeTopic === ROOT_NOTE_TOPIC_ROUTE ? ROOT_NOTE_TOPIC : routeTopic;
 const sortedEntries = sortNotes(entries);
+const currentTopicPath = topic.path.map((segment) => segment.id);
+const topicTitle = topic.path.map((segment) => segment.label).join(" · ");
 ---
 
 <BaseLayout
-  title={`${topicLabel} · ${categoryLabel}`}
-  description={`${categoryLabel}中的${topicLabel}学习笔记。`}
-  canonicalPath={noteTopicHref(category, topic)}
+  title={`${topicTitle} · ${categoryLabel}`}
+  description={`${categoryLabel}中的${topic.path.map((segment) => segment.label).join(" / ")}学习笔记。`}
+  canonicalPath={noteTopicHref(category, topic.path)}
   noindex={sortedEntries.length === 0}
 >
   <NoteTopicIndex
@@ -71,18 +78,26 @@ const sortedEntries = sortNotes(entries);
     categoryLabel={categoryLabel}
     topics={topics}
     total={total}
-    currentTopic={topic}
+    currentTopicPath={currentTopicPath}
   >
     <nav class="breadcrumb" aria-label="面包屑">
       <a href="/notes/">笔记</a>
       <span aria-hidden="true">/</span>
       <a href={categoryHref(category)}>{categoryLabel}</a>
-      <span aria-hidden="true">/</span>
-      <span>{topicLabel}</span>
+      {topic.path.map((segment, index) => (
+        <>
+          <span aria-hidden="true">/</span>
+          {index === topic.path.length - 1 ? (
+            <span>{segment.label}</span>
+          ) : (
+            <a href={noteTopicHref(category, topic.path.slice(0, index + 1))}>{segment.label}</a>
+          )}
+        </>
+      ))}
     </nav>
 
     <header class="page-header detail-page-header">
-      <h1>{topicLabel}</h1>
+      <h1>{topic.label}</h1>
       <p>{categoryLabel} · {sortedEntries.length} 篇笔记</p>
     </header>
 
