@@ -53,7 +53,14 @@ try {
     log("info", "started", { dist });
     await execFileAsync(
       process.execPath,
-      [pagefindRunner, "--site", dist, "--output-path", outputPath, "--force-language", "zh-cn", "--silent"],
+      [
+        pagefindRunner,
+        "--site", dist,
+        "--output-path", outputPath,
+        "--force-language", "zh-cn",
+        "--include-characters", "+.#_<>",
+        "--silent",
+      ],
       { cwd: repositoryRoot, timeout: 120_000, windowsHide: true },
     );
     const wasm = await writeCacheBustedWasmEntry();
