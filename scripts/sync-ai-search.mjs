@@ -283,49 +283,48 @@ async function getStats() {
   return payload?.result || payload || {};
 }
 
-async function waitForIndexReady(expectedDocuments) {
+function summarizeIndexStats(stats) {
+  return {
+    queued: Number(stats?.queued || 0),
+    running: Number(stats?.running || 0),
+    outdated: Number(stats?.outdated || 0),
+    completed: Number(stats?.completed || 0),
+    errors: Number(stats?.error || 0),
+    objectCount: Number(stats?.engine?.r2?.objectCount || 0),
+    vectorsCount: Number(stats?.engine?.vectorize?.vectorsCount || 0),
+  };
+}
+
+async function waitForIndexSearchable(expectedDocuments) {
   const deadline = Date.now() + readyTimeoutMs;
   let lastStats = {};
 
   while (Date.now() < deadline) {
     lastStats = await getStats();
-    const queued = Number(lastStats.queued || 0);
-    const running = Number(lastStats.running || 0);
-    const outdated = Number(lastStats.outdated || 0);
-    const errors = Number(lastStats.error || 0);
-    const objectCount = Number(lastStats?.engine?.r2?.objectCount || 0);
-    const vectorsCount = Number(lastStats?.engine?.vectorize?.vectorsCount || 0);
+    const stats = summarizeIndexStats(lastStats);
 
-    if (errors > 0) {
-      throw new Error(`AI Search indexing reported ${errors} error(s)`);
+    if (stats.errors > 0) {
+      throw new Error(`AI Search indexing reported ${stats.errors} error(s)`);
     }
 
-    const pending = queued + running + outdated;
-    const hasIndexedData = expectedDocuments === 0 || objectCount > 0 || vectorsCount > 0 || Number(lastStats.completed || 0) > 0;
-    if (pending === 0 && hasIndexedData) {
-      log("index-ready", {
-        queued,
-        running,
-        outdated,
-        completed: Number(lastStats.completed || 0),
-        objectCount,
-        vectorsCount,
+    const hasIndexedData = expectedDocuments === 0
+      || stats.completed > 0
+      || stats.objectCount > 0
+      || stats.vectorsCount > 0;
+
+    if (hasIndexedData) {
+      log("index-searchable", {
+        ...stats,
+        backgroundIndexing: stats.queued + stats.running + stats.outdated > 0,
       });
       return lastStats;
     }
 
-    log("index-waiting", {
-      queued,
-      running,
-      outdated,
-      completed: Number(lastStats.completed || 0),
-      objectCount,
-      vectorsCount,
-    });
+    log("index-waiting", stats);
     await sleep(readyPollMs);
   }
 
-  throw new Error(`Timed out after ${readyTimeoutMs}ms waiting for AI Search indexing to become ready: ${JSON.stringify(lastStats)}`);
+  throw new Error(`Timed out after ${readyTimeoutMs}ms waiting for AI Search to become searchable: ${JSON.stringify(lastStats)}`);
 }
 
 async function verifySearch(documents) {
@@ -404,8 +403,9 @@ try {
     }
   });
 
-  await waitForIndexReady(documents.size);
+  const indexStats = await waitForIndexSearchable(documents.size);
   await verifySearch(documents);
+  const stats = summarizeIndexStats(indexStats);
 
   log("completed", {
     instance: instanceName,
@@ -413,6 +413,11 @@ try {
     uploaded: uploads.length,
     deleted: staleItems.length,
     incremental: Boolean(changedPaths),
+    backgroundIndexing: stats.queued + stats.running + stats.outdated > 0,
+    queued: stats.queued,
+    running: stats.running,
+    completedIndexing: stats.completed,
+    vectorsCount: stats.vectorsCount,
   });
 } catch (error) {
   console.error(JSON.stringify({
