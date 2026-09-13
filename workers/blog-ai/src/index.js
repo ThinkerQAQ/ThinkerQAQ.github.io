@@ -9,6 +9,9 @@ const MAX_SOURCES = 5;
 const MAX_SOURCE_LENGTH = 5000;
 const MAX_TOTAL_CONTEXT = 20000;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
+const TECHNICAL_QUERY_STOPWORDS = new Set([
+  "a", "an", "and", "are", "can", "does", "for", "how", "in", "is", "of", "or", "the", "to", "what", "why", "with",
+]);
 
 function logRequest(level, message, context) {
   console[level](message, {
@@ -163,6 +166,48 @@ function normalizeAiSearchChunks(chunks, blogOrigin) {
   return [...documents.values()].filter((source) => source.content);
 }
 
+function technicalFallbackQuery(question) {
+  const tokens = String(question).match(/[A-Za-z][A-Za-z0-9_+#./-]*/g) || [];
+  const candidates = [];
+  const seen = new Set();
+
+  for (const token of tokens) {
+    const normalized = token.toLowerCase();
+    if (token.length < 2 || TECHNICAL_QUERY_STOPWORDS.has(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    const looksTechnical = /^[A-Z][A-Z0-9_+#.-]+$/.test(token)
+      || /[A-Z].*[A-Z]/.test(token)
+      || /[+#./_-]/.test(token);
+    if (looksTechnical) candidates.push(token);
+  }
+
+  return candidates.slice(0, 3).join(" ");
+}
+
+async function searchAiSearch(instance, query, rewriteQuery) {
+  return instance.search({
+    query,
+    ai_search_options: {
+      retrieval: {
+        retrieval_type: "hybrid",
+        fusion_method: "rrf",
+        keyword_match_mode: "or",
+        match_threshold: 0,
+        max_num_results: 10,
+        context_expansion: 1,
+        return_on_failure: true,
+      },
+      query_rewrite: { enabled: rewriteQuery },
+      reranking: {
+        enabled: true,
+        model: RERANKER_MODEL,
+        match_threshold: 0.1,
+      },
+    },
+  });
+}
+
 async function retrieveAiSearchSources(question, env, blogOrigin) {
   if (!env.AI_SEARCH) {
     throw new Error("AI_SEARCH binding is not configured");
@@ -174,27 +219,15 @@ async function retrieveAiSearchSources(question, env, blogOrigin) {
   }
 
   const instance = env.AI_SEARCH.get(instanceName);
-  const result = await instance.search({
-    messages: [{ role: "user", content: question }],
-    ai_search_options: {
-      retrieval: {
-        retrieval_type: "hybrid",
-        fusion_method: "rrf",
-        keyword_match_mode: "or",
-        max_num_results: 10,
-        context_expansion: 1,
-        return_on_failure: true,
-      },
-      query_rewrite: { enabled: true },
-      reranking: {
-        enabled: true,
-        model: RERANKER_MODEL,
-        match_threshold: 0.25,
-      },
-    },
-  });
+  const primary = await searchAiSearch(instance, question, true);
+  const primarySources = normalizeAiSearchChunks(primary?.chunks, blogOrigin);
+  if (primarySources.length) return primarySources;
 
-  return normalizeAiSearchChunks(result?.chunks, blogOrigin);
+  const fallback = technicalFallbackQuery(question);
+  if (!fallback || fallback.toLowerCase() === question.toLowerCase()) return [];
+
+  const fallbackResult = await searchAiSearch(instance, fallback, false);
+  return normalizeAiSearchChunks(fallbackResult?.chunks, blogOrigin);
 }
 
 function buildMessages(question, sources) {
