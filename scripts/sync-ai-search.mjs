@@ -360,57 +360,73 @@ async function waitForIndexSearchable(expectedDocuments) {
 async function verifySearch(documents) {
   if (!documents.size) return;
 
-  const refreshedItems = await listItems();
-  const completedItem = refreshedItems.find((item) =>
-    item?.status === "completed"
-    && Number(item?.chunks_count || 0) > 0
-    && String(item?.metadata?.title || "").trim()
-    && Number(item?.metadata?.schema_version) === indexSchemaVersion,
-  );
-  if (!completedItem) {
-    throw new Error("AI Search reports indexed data but no completed blog item with current metadata is available yet");
-  }
+  const deadline = Date.now() + readyTimeoutMs;
+  let lastReason = "no current-schema item is completed yet";
 
-  const probe = String(completedItem.metadata.title).trim();
-  const payload = await cloudflareRequest(
-    `${apiBase}/${encodeURIComponent(instanceName)}/search`,
-    {
-      method: "POST",
-      body: JSON.stringify({
+  while (Date.now() < deadline) {
+    const refreshedItems = await listItems();
+    const completedItem = refreshedItems.find((item) =>
+      item?.status === "completed"
+      && Number(item?.chunks_count || 0) > 0
+      && String(item?.metadata?.title || "").trim()
+      && Number(item?.metadata?.schema_version) === indexSchemaVersion,
+    );
+
+    if (!completedItem) {
+      log("search-verification-waiting", { reason: lastReason });
+      await sleep(readyPollMs);
+      continue;
+    }
+
+    const probe = String(completedItem.metadata.title).trim();
+    const payload = await cloudflareRequest(
+      `${apiBase}/${encodeURIComponent(instanceName)}/search`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          query: probe,
+          ai_search_options: {
+            retrieval: {
+              retrieval_type: "hybrid",
+              fusion_method: "rrf",
+              keyword_match_mode: "or",
+              boost_by: [{ field: "priority", direction: "desc" }],
+              max_num_results: 10,
+              return_on_failure: false,
+            },
+            query_rewrite: { enabled: false },
+            reranking: {
+              enabled: true,
+              model: "@cf/baai/bge-reranker-base",
+              match_threshold: 0,
+            },
+          },
+        }),
+      },
+      [200],
+    );
+
+    const result = payload?.result || payload || {};
+    const chunks = Array.isArray(result.chunks) ? result.chunks : [];
+    const blogChunks = chunks.filter((chunk) =>
+      String(chunk?.item?.key || "").startsWith("blog--")
+      && Number(chunk?.item?.metadata?.schema_version) === indexSchemaVersion,
+    );
+    if (blogChunks.length) {
+      log("search-verified", {
         query: probe,
-        ai_search_options: {
-          retrieval: {
-            retrieval_type: "hybrid",
-            fusion_method: "rrf",
-            keyword_match_mode: "or",
-            boost_by: [{ field: "priority", direction: "desc" }],
-            max_num_results: 10,
-            return_on_failure: false,
-          },
-          query_rewrite: { enabled: false },
-          reranking: {
-            enabled: true,
-            model: "@cf/baai/bge-reranker-base",
-            match_threshold: 0,
-          },
-        },
-      }),
-    },
-    [200],
-  );
+        completedItem: completedItem.key,
+        chunks: blogChunks.length,
+      });
+      return;
+    }
 
-  const result = payload?.result || payload || {};
-  const chunks = Array.isArray(result.chunks) ? result.chunks : [];
-  const blogChunks = chunks.filter((chunk) => String(chunk?.item?.key || "").startsWith("blog--"));
-  if (!blogChunks.length) {
-    throw new Error(`AI Search returned no blog chunks for completed item title: ${probe}`);
+    lastReason = `search returned no schema v${indexSchemaVersion} blog chunks for ${probe}`;
+    log("search-verification-waiting", { reason: lastReason });
+    await sleep(readyPollMs);
   }
 
-  log("search-verified", {
-    query: probe,
-    completedItem: completedItem.key,
-    chunks: blogChunks.length,
-  });
+  throw new Error(`Timed out after ${readyTimeoutMs}ms verifying AI Search: ${lastReason}`);
 }
 
 if (!accountId || !apiToken) {
