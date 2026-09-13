@@ -18,7 +18,7 @@ const hasContent = counts.some((entries) => entries.length > 0);
     <div class="search-page__content">
       <link href="/pagefind/pagefind-component-ui.css" rel="stylesheet" />
       <script is:inline src="/pagefind/pagefind-component-ui.js" type="module"></script>
-      <pagefind-config base-url="/"></pagefind-config>
+      <pagefind-config base-url="/" preload excerpt-length="40"></pagefind-config>
       <div class="search-page__brand" aria-hidden="true">
         <img src="/favicon.ico" alt="" width="64" height="64" />
         <span>ThinkerQAQ</span>
@@ -26,7 +26,7 @@ const hasContent = counts.some((entries) => entries.length > 0);
       <pagefind-input class="search-page__input" placeholder="搜索本站内容"></pagefind-input>
       <div class="search-page__results">
         <pagefind-summary></pagefind-summary>
-        <pagefind-results></pagefind-results>
+        <pagefind-results max-sub-results="4"></pagefind-results>
       </div>
       <noscript>搜索功能需要启用 JavaScript，但文章正文不需要。</noscript>
     </div>
