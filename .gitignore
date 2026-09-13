@@ -7,3 +7,6 @@ dist/
 public/diagrams/plantuml/
 .DS_Store
 npm-debug.log*
+.dev.vars
+.dev.vars.*
+.wrangler/
