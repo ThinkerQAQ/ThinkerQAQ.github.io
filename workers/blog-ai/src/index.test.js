@@ -41,6 +41,32 @@ test("accepts the compact question and token request", async () => {
   });
 });
 
+test("reports a missing AI Search binding as a service failure", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), "https://challenges.cloudflare.com/turnstile/v0/siteverify");
+    return Response.json({
+      success: true,
+      hostname: "thinkerqaq.github.io",
+      action: "ask_blog",
+    });
+  };
+
+  try {
+    const response = await worker.fetch(
+      createRequest({ question: "Go CAS 为什么无锁", turnstileToken: "valid-token" }),
+      createEnv({ TURNSTILE_SECRET_KEY: "test-secret" }),
+    );
+
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), {
+      error: "本站检索服务暂时不可用。",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("answers a compact request using only server-side AI Search context", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
