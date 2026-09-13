@@ -8,6 +8,7 @@ interface IndexItem {
 interface IndexGroup {
   label?: string;
   href?: string;
+  current?: boolean;
   items: IndexItem[];
 }
 
@@ -40,7 +41,11 @@ const hasGroups = groups.some((group) => group.label);
           <li class="series-index__group">
             {group.label && (
               group.href ? (
-                <a class="series-index__group-label series-index__group-link" href={group.href}>{group.label}</a>
+                <a
+                  class="series-index__group-label series-index__group-link"
+                  href={group.href}
+                  aria-current={group.current ? "page" : undefined}
+                >{group.label}</a>
               ) : (
                 <p class="series-index__group-label">{group.label}</p>
               )
@@ -113,17 +118,34 @@ const hasGroups = groups.some((group) => group.label);
   }
 
   if (seriesIndex && region && shell && hideButton && restoreButton) {
-    const setCollapsed = (collapsed: boolean) => {
+    const logPanelState = (collapsed: boolean, reason: "user" | "viewport") => {
+      console.debug("navigation-panel-state", {
+        timestamp: new Date().toISOString(),
+        severity: "debug",
+        node: "content-collection-index",
+        result: collapsed ? "collapsed" : "expanded",
+        reason,
+        viewportWidth: window.innerWidth,
+      });
+    };
+
+    const setCollapsed = (collapsed: boolean, reason: "user" | "viewport") => {
       shell.classList.toggle("series-index-collapsed", collapsed);
       region.classList.toggle("series-index-region--hidden", collapsed);
       seriesIndex.setAttribute("aria-hidden", String(collapsed));
       hideButton.setAttribute("aria-expanded", String(!collapsed));
+      hideButton.hidden = collapsed;
       restoreButton.setAttribute("aria-expanded", String(!collapsed));
       restoreButton.hidden = !collapsed;
+      logPanelState(collapsed, reason);
     };
 
-    hideButton.addEventListener("click", () => setCollapsed(true));
-    restoreButton.addEventListener("click", () => setCollapsed(false));
+    hideButton.addEventListener("click", () => setCollapsed(true, "user"));
+    restoreButton.addEventListener("click", () => setCollapsed(false, "user"));
+
+    const narrowViewport = window.matchMedia("(max-width: 1200px)");
+    if (narrowViewport.matches) setCollapsed(true, "viewport");
+    narrowViewport.addEventListener("change", (event) => setCollapsed(event.matches, "viewport"));
   }
 </script>
 
@@ -132,6 +154,7 @@ const hasGroups = groups.some((group) => group.label);
     position: sticky;
     top: 6rem;
     align-self: start;
+    height: calc(100vh - 8rem);
     max-height: calc(100vh - 8rem);
     transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
   }
@@ -245,7 +268,7 @@ const hasGroups = groups.some((group) => group.label);
     border-radius: 0.4rem;
     background: var(--surface);
     box-shadow: var(--shadow);
-    opacity: 0;
+    opacity: 0.45;
     transform: translateX(-0.25rem);
     transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease, transform 140ms ease;
   }
@@ -287,6 +310,10 @@ const hasGroups = groups.some((group) => group.label);
     display: none;
   }
 
+  .series-index__hide[hidden] {
+    display: none;
+  }
+
   .series-index__groups,
   .series-index__items {
     margin: 0;
@@ -308,6 +335,10 @@ const hasGroups = groups.some((group) => group.label);
 
   .series-index__group-link {
     text-decoration: none;
+  }
+
+  .series-index__group-link[aria-current="page"] {
+    color: var(--accent);
   }
 
   .series-index__items {
@@ -332,7 +363,61 @@ const hasGroups = groups.some((group) => group.label);
     font-weight: 650;
   }
 
-  @media (max-width: 1200px), print {
+  @media (max-width: 1200px) {
+    .series-index-region,
+    .series-index-region--hidden {
+      position: fixed;
+      z-index: 12;
+      top: var(--site-header-height, 4rem);
+      bottom: 0;
+      left: 0;
+      width: min(20rem, calc(100vw - 3rem));
+      height: auto;
+      max-height: none;
+      padding: 1.25rem 1.5rem 2rem;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .series-index-region--hidden {
+      visibility: hidden;
+      transform: translateX(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .series-index {
+      height: 100%;
+      max-height: 100%;
+    }
+
+    .series-index__context {
+      background: var(--surface);
+    }
+
+    .series-index__hide {
+      right: -2.5rem;
+    }
+
+    .series-index__restore {
+      top: var(--site-header-height, 4rem);
+      width: 3rem;
+    }
+
+    .series-index__restore-surface {
+      opacity: 1;
+      transform: translateX(-0.2rem);
+    }
+  }
+
+  @media (max-width: 900px) {
+    .series-index-region,
+    .series-index__restore {
+      display: none;
+    }
+  }
+
+  @media print {
     .series-index-region,
     .series-index__restore {
       display: none;

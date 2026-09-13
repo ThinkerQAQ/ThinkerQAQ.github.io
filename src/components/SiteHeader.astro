@@ -24,3 +24,16 @@ const isActive = (href: string) =>
     </nav>
   </div>
 </header>
+
+<script>
+  const header = document.querySelector<HTMLElement>(".site-header");
+
+  if (header) {
+    const syncHeaderHeight = () => {
+      document.documentElement.style.setProperty("--site-header-height", `${header.offsetHeight}px`);
+    };
+
+    syncHeaderHeight();
+    new ResizeObserver(syncHeaderHeight).observe(header);
+  }
+</script>

@@ -1,0 +1,499 @@
+---
+interface NavigationItem {
+  href: string;
+  title: string;
+  current: boolean;
+}
+
+interface NavigationGroup {
+  label?: string;
+  href?: string;
+  current?: boolean;
+  items: NavigationItem[];
+}
+
+interface CollectionNavigation {
+  label: string;
+  title: string;
+  href: string;
+  groups: NavigationGroup[];
+}
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  collection?: CollectionNavigation;
+  collectionTabLabel?: string;
+  headings?: Heading[];
+}
+
+const {
+  collection,
+  collectionTabLabel = "内容大纲",
+  headings = [],
+} = Astro.props;
+const visibleHeadings = headings.filter((heading) => heading.depth <= 4);
+const hasCollection = Boolean(collection);
+const hasTableOfContents = visibleHeadings.length > 2;
+const hasTabs = hasCollection && hasTableOfContents;
+const defaultPanel = hasCollection ? "collection" : "toc";
+const drawerId = "mobile-reading-navigation-drawer";
+const collectionPanelId = "mobile-reading-navigation-collection";
+const tocPanelId = "mobile-reading-navigation-toc";
+---
+
+{(hasCollection || hasTableOfContents) && (
+  <div class="mobile-reading-nav" data-mobile-reading-nav>
+    <button
+      class="mobile-reading-nav__trigger"
+      type="button"
+      aria-label="打开阅读导航"
+      title="阅读导航"
+      aria-controls={drawerId}
+      aria-expanded="false"
+      data-mobile-reading-nav-trigger
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 6h2M9 6h11M6 8v8M6 12h3M12 12h8M6 18h3M12 18h8"></path>
+      </svg>
+    </button>
+
+    <button
+      class="mobile-reading-nav__backdrop"
+      type="button"
+      aria-label="关闭阅读导航"
+      data-mobile-reading-nav-backdrop
+      hidden
+    ></button>
+
+    <aside
+      class="mobile-reading-nav__drawer"
+      id={drawerId}
+      aria-label="阅读导航"
+      aria-hidden="true"
+      data-mobile-reading-nav-drawer
+      inert
+    >
+      <header class="mobile-reading-nav__header">
+        <p>阅读导航</p>
+        <button
+          class="mobile-reading-nav__close"
+          type="button"
+          aria-label="关闭阅读导航"
+          title="关闭阅读导航"
+          data-mobile-reading-nav-close
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18"></path>
+          </svg>
+        </button>
+      </header>
+
+      {hasTabs && (
+        <div class="mobile-reading-nav__tabs" role="tablist" aria-label="阅读导航类型">
+          <button
+            type="button"
+            role="tab"
+            id="mobile-reading-navigation-collection-tab"
+            aria-controls={collectionPanelId}
+            aria-selected="true"
+            data-mobile-reading-nav-tab="collection"
+          >{collectionTabLabel}</button>
+          <button
+            type="button"
+            role="tab"
+            id="mobile-reading-navigation-toc-tab"
+            aria-controls={tocPanelId}
+            aria-selected="false"
+            tabindex="-1"
+            data-mobile-reading-nav-tab="toc"
+          >本页目录</button>
+        </div>
+      )}
+
+      <div class="mobile-reading-nav__content">
+        {collection && (
+          <section
+            class="mobile-reading-nav__panel"
+            id={collectionPanelId}
+            role={hasTabs ? "tabpanel" : undefined}
+            aria-labelledby={hasTabs ? "mobile-reading-navigation-collection-tab" : undefined}
+            data-mobile-reading-nav-panel="collection"
+          >
+            <div class="mobile-reading-nav__context">
+              <p>{collection.label}</p>
+              <a href={collection.href}>{collection.title}</a>
+            </div>
+            <ol class="mobile-reading-nav__groups">
+              {collection.groups.map((group) => (
+                <li class="mobile-reading-nav__group">
+                  {group.label && (
+                    group.href ? (
+                      <a
+                        class="mobile-reading-nav__group-label"
+                        href={group.href}
+                        aria-current={group.current ? "page" : undefined}
+                      >{group.label}</a>
+                    ) : (
+                      <p class="mobile-reading-nav__group-label">{group.label}</p>
+                    )
+                  )}
+                  <ol class="mobile-reading-nav__items">
+                    {group.items.map((item) => (
+                      <li>
+                        <a href={item.href} aria-current={item.current ? "page" : undefined}>{item.title}</a>
+                      </li>
+                    ))}
+                  </ol>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        {hasTableOfContents && (
+          <section
+            class="mobile-reading-nav__panel"
+            id={tocPanelId}
+            role={hasTabs ? "tabpanel" : undefined}
+            aria-labelledby={hasTabs ? "mobile-reading-navigation-toc-tab" : undefined}
+            data-mobile-reading-nav-panel="toc"
+            hidden={defaultPanel !== "toc"}
+          >
+            {!hasTabs && <p class="mobile-reading-nav__panel-title">本页目录</p>}
+            <ol class="mobile-reading-nav__toc">
+              {visibleHeadings.map((heading) => (
+                <li class={`mobile-reading-nav__toc-depth-${heading.depth}`}>
+                  <a href={`#${heading.slug}`}>{heading.text}</a>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+      </div>
+    </aside>
+  </div>
+)}
+
+<script>
+  const navigation = document.querySelector<HTMLElement>("[data-mobile-reading-nav]");
+
+  if (navigation) {
+    const trigger = navigation.querySelector<HTMLButtonElement>("[data-mobile-reading-nav-trigger]");
+    const backdrop = navigation.querySelector<HTMLButtonElement>("[data-mobile-reading-nav-backdrop]");
+    const drawer = navigation.querySelector<HTMLElement>("[data-mobile-reading-nav-drawer]");
+    const closeButton = navigation.querySelector<HTMLButtonElement>("[data-mobile-reading-nav-close]");
+    const tabs = [...navigation.querySelectorAll<HTMLButtonElement>("[data-mobile-reading-nav-tab]")];
+    const panels = [...navigation.querySelectorAll<HTMLElement>("[data-mobile-reading-nav-panel]")];
+
+    const logState = (operation: "open" | "close" | "switch-tab", result: string) => {
+      console.debug("navigation-panel-state", {
+        timestamp: new Date().toISOString(),
+        severity: "debug",
+        node: "mobile-reading-navigation",
+        operation,
+        result,
+        viewportWidth: window.innerWidth,
+      });
+    };
+
+    const setActivePanel = (panelName: string) => {
+      tabs.forEach((tab) => {
+        const active = tab.dataset.mobileReadingNavTab === panelName;
+        tab.setAttribute("aria-selected", String(active));
+        tab.tabIndex = active ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.mobileReadingNavPanel !== panelName;
+      });
+      logState("switch-tab", panelName);
+    };
+
+    const setOpen = (open: boolean) => {
+      if (!trigger || !backdrop || !drawer || !closeButton) return;
+      navigation.classList.toggle("mobile-reading-nav--open", open);
+      trigger.setAttribute("aria-expanded", String(open));
+      backdrop.hidden = !open;
+      drawer.setAttribute("aria-hidden", String(!open));
+      drawer.toggleAttribute("inert", !open);
+      document.body.classList.toggle("mobile-reading-nav-open", open);
+      logState(open ? "open" : "close", "completed");
+      if (open) {
+        closeButton.focus();
+        const currentLink = drawer.querySelector<HTMLElement>('[aria-current="page"]');
+        currentLink?.scrollIntoView({ block: "center" });
+      } else {
+        trigger.focus();
+      }
+    };
+
+    trigger?.addEventListener("click", () => setOpen(true));
+    closeButton?.addEventListener("click", () => setOpen(false));
+    backdrop?.addEventListener("click", () => setOpen(false));
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => setActivePanel(tab.dataset.mobileReadingNavTab ?? "collection"));
+    });
+    navigation.querySelectorAll<HTMLAnchorElement>('[data-mobile-reading-nav-panel="toc"] a').forEach((link) => {
+      link.addEventListener("click", () => setOpen(false));
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && navigation.classList.contains("mobile-reading-nav--open")) {
+        setOpen(false);
+      }
+    });
+  }
+</script>
+
+<style>
+  .mobile-reading-nav {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .mobile-reading-nav {
+      display: flex;
+      position: sticky;
+      z-index: 8;
+      top: calc(var(--site-header-height, 4rem) + 0.5rem);
+      grid-column: 1 / -1;
+      justify-content: flex-start;
+      align-self: start;
+    }
+
+    .mobile-reading-nav__trigger,
+    .mobile-reading-nav__close,
+    .mobile-reading-nav__tabs button {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .mobile-reading-nav__trigger {
+      display: grid;
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 0;
+      border-radius: 0.7rem;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      color: var(--muted);
+      place-items: center;
+    }
+
+    .mobile-reading-nav__trigger svg,
+    .mobile-reading-nav__close svg {
+      width: 1.1rem;
+      height: 1.1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+    }
+
+    .mobile-reading-nav__backdrop {
+      position: fixed;
+      z-index: 12;
+      inset: var(--site-header-height, 4rem) 0 0;
+      border: 0;
+      background: rgba(0, 0, 0, 0.48);
+      cursor: pointer;
+    }
+
+    .mobile-reading-nav__drawer {
+      position: fixed;
+      z-index: 13;
+      top: var(--site-header-height, 4rem);
+      bottom: 0;
+      left: 0;
+      display: flex;
+      width: min(85vw, 22rem);
+      flex-direction: column;
+      background: var(--surface);
+      box-shadow: 0 16px 50px rgba(0, 0, 0, 0.22);
+      color: var(--muted);
+      transform: translateX(-102%);
+      visibility: hidden;
+      transition: transform 180ms ease, visibility 180ms;
+    }
+
+    .mobile-reading-nav--open .mobile-reading-nav__drawer {
+      transform: translateX(0);
+      visibility: visible;
+    }
+
+    .mobile-reading-nav__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 3.5rem;
+      padding: 0.55rem 0.85rem 0.55rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mobile-reading-nav__header p {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .mobile-reading-nav__close {
+      display: grid;
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 0;
+      border-color: transparent;
+      border-radius: 50%;
+      place-items: center;
+    }
+
+    .mobile-reading-nav__trigger:hover,
+    .mobile-reading-nav__trigger:focus-visible,
+    .mobile-reading-nav__close:hover,
+    .mobile-reading-nav__close:focus-visible,
+    .mobile-reading-nav__tabs button:hover,
+    .mobile-reading-nav__tabs button:focus-visible {
+      border-color: var(--accent);
+      color: var(--accent);
+      outline: none;
+    }
+
+    .mobile-reading-nav__tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 0.75rem 1rem 0;
+    }
+
+    .mobile-reading-nav__tabs button {
+      min-height: 2.5rem;
+      padding: 0.4rem 0.65rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .mobile-reading-nav__tabs button:first-child {
+      border-radius: 0.4rem 0 0 0.4rem;
+    }
+
+    .mobile-reading-nav__tabs button:last-child {
+      margin-left: -1px;
+      border-radius: 0 0.4rem 0.4rem 0;
+    }
+
+    .mobile-reading-nav__tabs button[aria-selected="true"] {
+      position: relative;
+      z-index: 1;
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .mobile-reading-nav__content {
+      min-height: 0;
+      flex: 1;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 1rem 1rem 2rem;
+    }
+
+    .mobile-reading-nav__panel[hidden],
+    .mobile-reading-nav__backdrop[hidden] {
+      display: none;
+    }
+
+    .mobile-reading-nav__context {
+      position: sticky;
+      z-index: 1;
+      top: -1rem;
+      padding: 0 0 0.65rem;
+      background: var(--surface);
+    }
+
+    .mobile-reading-nav__context p,
+    .mobile-reading-nav__panel-title {
+      margin: 0 0 0.25rem;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .mobile-reading-nav__context a {
+      color: var(--accent);
+      font-size: 0.84rem;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    .mobile-reading-nav__groups,
+    .mobile-reading-nav__items,
+    .mobile-reading-nav__toc {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .mobile-reading-nav__group + .mobile-reading-nav__group {
+      margin-top: 0.7rem;
+    }
+
+    .mobile-reading-nav__group-label {
+      display: block;
+      margin: 0 0 0.25rem;
+      color: var(--text);
+      font-size: 0.8rem;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    .mobile-reading-nav__group-label[aria-current="page"] {
+      color: var(--accent);
+    }
+
+    .mobile-reading-nav__items,
+    .mobile-reading-nav__toc {
+      border-left: 1px solid var(--border);
+    }
+
+    .mobile-reading-nav__items a,
+    .mobile-reading-nav__toc a {
+      display: block;
+      padding: 0.38rem 0.6rem 0.38rem 0.85rem;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      text-decoration: none;
+    }
+
+    .mobile-reading-nav__items a[aria-current="page"] {
+      margin-left: -1px;
+      border-left: 2px solid var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .mobile-reading-nav__toc-depth-3 a {
+      padding-left: 1.55rem;
+    }
+
+    .mobile-reading-nav__toc-depth-4 a {
+      padding-left: 2.25rem;
+    }
+
+    :global(body.mobile-reading-nav-open) {
+      overflow: hidden;
+    }
+  }
+
+  @media print {
+    .mobile-reading-nav {
+      display: none;
+    }
+  }
+</style>

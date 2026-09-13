@@ -72,16 +72,33 @@ const tocId = "page-table-of-contents";
   const restoreButton = shell?.querySelector<HTMLButtonElement>("[data-toc-restore]");
 
   if (toc && region && shell && hideButton && restoreButton) {
-    const setCollapsed = (collapsed: boolean) => {
+    const logPanelState = (collapsed: boolean, reason: "user" | "viewport") => {
+      console.debug("navigation-panel-state", {
+        timestamp: new Date().toISOString(),
+        severity: "debug",
+        node: "table-of-contents",
+        result: collapsed ? "collapsed" : "expanded",
+        reason,
+        viewportWidth: window.innerWidth,
+      });
+    };
+
+    const setCollapsed = (collapsed: boolean, reason: "user" | "viewport") => {
       shell.classList.toggle("toc-collapsed", collapsed);
       region.classList.toggle("toc-region-hidden", collapsed);
       toc.setAttribute("aria-hidden", String(collapsed));
       hideButton.setAttribute("aria-expanded", String(!collapsed));
+      hideButton.hidden = collapsed;
       restoreButton.setAttribute("aria-expanded", String(!collapsed));
       restoreButton.hidden = !collapsed;
+      logPanelState(collapsed, reason);
     };
 
-    hideButton.addEventListener("click", () => setCollapsed(true));
-    restoreButton.addEventListener("click", () => setCollapsed(false));
+    hideButton.addEventListener("click", () => setCollapsed(true, "user"));
+    restoreButton.addEventListener("click", () => setCollapsed(false, "user"));
+
+    const narrowViewport = window.matchMedia("(max-width: 900px)");
+    if (narrowViewport.matches) setCollapsed(true, "viewport");
+    narrowViewport.addEventListener("change", (event) => setCollapsed(event.matches, "viewport"));
   }
 </script>

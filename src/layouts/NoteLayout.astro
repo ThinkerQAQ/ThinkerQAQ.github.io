@@ -2,9 +2,10 @@
 import type { CollectionEntry } from "astro:content";
 import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
 import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro";
+import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { categoryHref, formatDate, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
+import { categoryHref, formatDate, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -24,6 +25,20 @@ const { data } = note;
 const topicHref = data.topic
   ? noteTopicHref(data.category, data.topic)
   : undefined;
+const mobileCollection = {
+  label: "笔记集",
+  title: collectionNavigation.categoryLabel,
+  href: categoryHref(collectionNavigation.category),
+  groups: collectionNavigation.topics.map((topic) => ({
+    label: topic.label,
+    href: topic.id ? noteTopicHref(collectionNavigation.category, topic.id) : undefined,
+    items: topic.notes.map((entry) => ({
+      href: noteHref(entry),
+      title: entry.data.title,
+      current: entry.id === collectionNavigation.currentId,
+    })),
+  })),
+};
 const schema = {
   "@context": "https://schema.org",
   "@type": "TechArticle",
@@ -46,6 +61,7 @@ const schema = {
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   <div class="shell content-shell content-shell--with-series">
+    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel="笔记大纲" headings={headings} />
     <NoteCollectionIndex navigation={collectionNavigation} />
     <article class="note" data-pagefind-body>
       <nav class="breadcrumb" aria-label="面包屑">

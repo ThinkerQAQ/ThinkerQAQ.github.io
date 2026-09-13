@@ -1,7 +1,8 @@
 ---
 import type { NoteTopicGroup } from "../lib/content";
-import { categoryHref, noteTopicHref } from "../lib/content";
+import { categoryHref, noteHref, noteTopicHref } from "../lib/content";
 import ContentCollectionIndex from "./ContentCollectionIndex.astro";
+import MobileReadingNavigation from "./MobileReadingNavigation.astro";
 
 interface Props {
   category: string;
@@ -16,27 +17,40 @@ const navigableTopics = topics.filter(
   (topic): topic is NoteTopicGroup & { id: string } => Boolean(topic.id),
 );
 const hasTopics = navigableTopics.length > 0;
-const items = [
+const groups = [
   {
-    href: categoryHref(category),
-    title: `全部 · ${total}`,
-    current: !currentTopic,
+    items: [{
+      href: categoryHref(category),
+      title: `全部 · ${total}`,
+      current: !currentTopic,
+    }],
   },
   ...navigableTopics.map((topic) => ({
+    label: `${topic.label} · ${topic.notes.length}`,
     href: noteTopicHref(category, topic.id),
-    title: `${topic.label} · ${topic.notes.length}`,
     current: topic.id === currentTopic,
+    items: topic.notes.map((note) => ({
+      href: noteHref(note),
+      title: note.data.title,
+      current: false,
+    })),
   })),
 ];
 ---
 
 <div class:list={["shell", "content-shell", "note-topic-shell", { "note-topic-shell--without-topics": !hasTopics }]}>
   {hasTopics && (
+    <MobileReadingNavigation
+      collection={{ label: "笔记主题", title: categoryLabel, href: categoryHref(category), groups }}
+      collectionTabLabel="笔记大纲"
+    />
+  )}
+  {hasTopics && (
     <ContentCollectionIndex
       label="笔记主题"
       title={categoryLabel}
       href={categoryHref(category)}
-      groups={[{ items }]}
+      groups={groups}
       ariaLabel={`${categoryLabel}笔记主题`}
       hideLabel="隐藏笔记主题"
       restoreLabel="展开笔记主题"

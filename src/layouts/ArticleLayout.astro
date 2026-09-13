@@ -3,9 +3,10 @@ import type { CollectionEntry } from "astro:content";
 import ArticleComments from "../components/ArticleComments.astro";
 import ArticleSeriesIndex from "../components/ArticleSeriesIndex.astro";
 import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro";
+import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { articleTagHref, formatDate, type ArticleSeriesNavigation as SeriesNavigation } from "../lib/content";
+import { articleHref, articleTagHref, formatDate, seriesHref, type ArticleSeriesNavigation as SeriesNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -24,6 +25,18 @@ interface Props {
 const { article, headings, translation, seriesNavigation } = Astro.props;
 const { data } = article;
 const articlePath = `/articles/${article.id}/`;
+const mobileCollection = seriesNavigation ? {
+  label: "所属系列",
+  title: seriesNavigation.series.data.title,
+  href: seriesHref(seriesNavigation.series),
+  groups: [{
+    items: seriesNavigation.articles.map((entry, index) => ({
+      href: articleHref(entry),
+      title: entry.data.title,
+      current: index === seriesNavigation.currentIndex,
+    })),
+  }],
+} : undefined;
 const schema = {
   "@context": "https://schema.org",
   "@type": "TechArticle",
@@ -49,6 +62,7 @@ const schema = {
     />
   )}
   <div class:list={["shell", "content-shell", { "content-shell--with-series": seriesNavigation }]}>
+    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel="系列文章" headings={headings} />
     {seriesNavigation && <ArticleSeriesIndex navigation={seriesNavigation} />}
     <article class="note" data-pagefind-body>
       <header class="note-header">
