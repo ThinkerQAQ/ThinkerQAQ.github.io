@@ -79,6 +79,12 @@ const projects = defineCollection({
   }),
 });
 
+const relatedNoteScope = z.object({
+  category: z.string(),
+  topicPath: z.array(z.string()).min(1),
+  label: z.string().optional(),
+});
+
 const series = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -93,6 +99,7 @@ const series = defineCollection({
     featured: z.boolean().default(false),
     relatedArticles: z.array(z.string()).default([]),
     relatedNoteCategories: z.array(z.string()).default([]),
+    relatedNoteScopes: z.array(relatedNoteScope).default([]),
     relatedNotes: z.array(z.string()).default([]),
   }),
 });
