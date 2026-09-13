@@ -1,0 +1,226 @@
+name: Migrate reviewed Operating System notes
+
+on:
+  push:
+    branches:
+      - migrate/operating-system-notes
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Configure reviewed Operating System policy
+        shell: python
+        run: |
+          from pathlib import Path
+
+          policy_path = Path('scripts/content-policy.mjs')
+          policy = policy_path.read_text(encoding='utf-8')
+
+          def replace_once(old, new):
+              global policy
+              if old not in policy:
+                  raise SystemExit(f'policy marker not found: {old!r}')
+              policy = policy.replace(old, new, 1)
+
+          replace_once('  "Algorithm",\n];', '  "Algorithm",\n  "Operating_System",\n];')
+          replace_once('  Algorithm: "Data Structures & Algorithms",\n};', '  Algorithm: "Data Structures & Algorithms",\n  Operating_System: "Operating System / Linux",\n};')
+          replace_once('  Algorithm: "algorithm",\n};', '  Algorithm: "algorithm",\n  Operating_System: "operating-system",\n};')
+          replace_once('  Algorithm: "Overview",\n};', '  Algorithm: "Overview",\n  Operating_System: "Overview",\n};')
+
+          os_topics = r'''
+          const OPERATING_SYSTEM_NOTE_TOPICS = [
+            {
+              id: "overview",
+              label: "Overview",
+              number: 1,
+              notes: [
+                "操作系统.md",
+                "Linux/Linux.md",
+              ],
+            },
+            {
+              id: "processes-concurrency",
+              label: "Processes & Concurrency",
+              number: 2,
+              notes: [
+                "进程管理/进程管理.md",
+                "进程管理/程序、进程、线程.md",
+                "进程管理/IPC.md",
+                "进程管理/同步.md",
+                "进程管理/死锁.md",
+                "Linux/进程/进程.md",
+                "Linux/进程/线程.md",
+              ],
+            },
+            {
+              id: "memory",
+              label: "Memory",
+              number: 3,
+              notes: [
+                "存储管理/存储管理.md",
+                "存储管理/内存分配和回收.md",
+                "存储管理/段页式存储.md",
+                "存储管理/虚拟内存.md",
+                "存储管理/页面置换.md",
+                "存储管理/Linux的内存管理.md",
+                "Linux/内存/内存管理.md",
+              ],
+            },
+            {
+              id: "io-syscalls",
+              label: "I/O & Syscalls",
+              number: 4,
+              notes: [
+                "Linux/系统调用/系统调用.md",
+                "Linux/IO/IO.md",
+                "Linux/IO/IO模型.md",
+                "Linux/IO/select、poll、epoll.md",
+                "Linux/IO/零拷贝机制.md",
+              ],
+            },
+            {
+              id: "performance-diagnostics",
+              label: "Performance & Diagnostics",
+              number: 5,
+              notes: [
+                "Linux/性能调优/Linux性能调优.md",
+                "Linux/性能调优/CPU调优.md",
+                "Linux/性能调优/内存调优.md",
+                "Linux/性能调优/磁盘调优.md",
+                "Linux/性能调优/网络调优.md",
+                "Linux/性能调优/火焰图.md",
+                "Linux/命令/Linux常用命令.md",
+                "Linux/命令/top.md",
+                "Linux/命令/vmstat.md",
+                "Linux/命令/iostat.md",
+                "Linux/命令/pidstat.md",
+                "Linux/命令/sar.md",
+                "Linux/命令/strace.md",
+                "Linux/命令/tcpdump.md",
+                "Linux/命令/ulimit.md",
+              ],
+            },
+            {
+              id: "isolation-containers",
+              label: "Isolation & Containers",
+              number: 6,
+              notes: [
+                "Linux/虚拟化/Linux Namespace.md",
+                "Linux/虚拟化/Linux cgroup.md",
+                "Linux/命令/chroot.md",
+              ],
+            },
+          ];
+
+          const operatingSystemTopicEntries = OPERATING_SYSTEM_NOTE_TOPICS.flatMap((topic) =>
+            topic.notes.map((note) => [
+              note,
+              { id: topic.id, label: topic.label, number: topic.number },
+            ]),
+          );
+
+          '''
+          marker = '// Notebooks listed here use a strict per-note allowlist.'
+          if marker not in policy:
+              raise SystemExit('reviewed-note marker not found')
+          policy = policy.replace(marker, os_topics + marker, 1)
+          replace_once('  Algorithm: new Set(algorithmTopicEntries.map(([note]) => `Algorithm/${note}`)),\n};', '  Algorithm: new Set(algorithmTopicEntries.map(([note]) => `Algorithm/${note}`)),\n  Operating_System: new Set(\n    operatingSystemTopicEntries.map(([note]) => `Operating_System/${note}`),\n  ),\n};')
+          replace_once('  Algorithm: new Map(algorithmTopicEntries),\n};', '  Algorithm: new Map(algorithmTopicEntries),\n  Operating_System: new Map(operatingSystemTopicEntries),\n};')
+          policy_path.write_text(policy, encoding='utf-8')
+
+          package_path = Path('package.json')
+          package = package_path.read_text(encoding='utf-8')
+          old = 'scripts/container-policy.test.mjs scripts/algorithm-policy.test.mjs'
+          new = old + ' scripts/operating-system-policy.test.mjs'
+          if old not in package:
+              raise SystemExit('package test marker not found')
+          package_path.write_text(package.replace(old, new, 1), encoding='utf-8')
+
+          test = '''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport { NOTE_TOPIC_OVERRIDES, REVIEWED_NOTE_PATHS, sourceExclusionReason } from "./content-policy.mjs";\n\ntest("publishes exactly the reviewed Operating System notes", () => {\n  const reviewed = REVIEWED_NOTE_PATHS.Operating_System;\n  const topics = NOTE_TOPIC_OVERRIDES.Operating_System;\n  assert.equal(reviewed.size, 39);\n  assert.equal(topics.size, 39);\n\n  for (const path of [\n    "Operating_System/操作系统.md",\n    "Operating_System/进程管理/IPC.md",\n    "Operating_System/存储管理/虚拟内存.md",\n    "Operating_System/Linux/IO/select、poll、epoll.md",\n    "Operating_System/Linux/IO/零拷贝机制.md",\n    "Operating_System/Linux/性能调优/Linux性能调优.md",\n    "Operating_System/Linux/虚拟化/Linux cgroup.md",\n  ]) {\n    assert.equal(reviewed.has(path), true, path);\n  }\n\n  const config = { sourcePath: "Operating_System" };\n  assert.equal(sourceExclusionReason(config, "Linux/manjaro/manjaro.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/命令/perf.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/虚拟化/Linux AUFS.md"), "not-reviewed");\n  assert.equal(sourceExclusionReason(config, "Linux/命令/lsof.md"), "not-reviewed");\n});\n'''
+          Path('scripts/operating-system-policy.test.mjs').write_text(test, encoding='utf-8')
+
+      - name: Recover historical Operating System VNote source
+        run: |
+          rm -rf .migration
+          mkdir -p .migration/Operating_System
+          git archive 0e010570684010ef99d4055bb7c3d4611df44f4c:notes/Operating_System | tar -x -C .migration/Operating_System
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path('.migration/Operating_System')
+          internal = re.compile(r'https?://[^\s)\]>]*(?:woa\.com|oa\.com|bytedance\.feishu\.cn|bytedance\.larkoffice\.com)[^\s)\]>]*', re.I)
+          for p in root.rglob('*.md'):
+              text = p.read_text(encoding='utf-8', errors='replace')
+              text = internal.sub('#', text).replace('<INTERNAL_URL>', '#')
+              p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import reviewed Operating System notes
+        env:
+          VNOTE_SOURCE: ${{ github.workspace }}/.migration
+          VNOTE_IMPORT_IDS: operating-system
+        run: |
+          npm run sync:notes
+          node --test scripts/operating-system-policy.test.mjs
+          test "$(find src/content/notes/operating-system -type f -name '*.md' | wc -l)" -eq 39
+          ! grep -RniE 'woa\.com|(^|[^a-z])oa\.com|bytedance\.feishu\.cn|bytedance\.larkoffice\.com|INTERNAL_URL' src/content/notes/operating-system
+
+      - name: Add minimal historical annotations
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def add_after(path, needle, note):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if note in text:
+                  return
+              if needle not in text:
+                  raise SystemExit(f'annotation marker not found: {path}: {needle}')
+              text = text.replace(needle, needle + '\n\n' + note, 1)
+              p.write_text(text, encoding='utf-8')
+
+          add_after(
+              'src/content/notes/operating-system/Linux/IO/IO.md',
+              '### 5.2. 直接IO',
+              '> 2026 注：这里把系统调用与直接 I/O 混在了一起。普通 `read/write` 默认仍会经过页缓存；Linux 通常通过 `O_DIRECT` 请求绕过页缓存。',
+          )
+          add_after(
+              'src/content/notes/operating-system/Linux/虚拟化/Linux cgroup.md',
+              '## 1. 什么是cgroup',
+              '> 2026 注：本文记录的是较早期的 cgroup 使用方式；现代 Linux 发行版普遍以 cgroup v2 为主。',
+          )
+          add_after(
+              'src/content/notes/operating-system/存储管理/Linux的内存管理.md',
+              '### 2.1. 交换空间 vs 虚拟内存',
+              '> 2026 注：这里的对比是当时的简化理解。虚拟内存本质是地址空间与映射机制，并不等同于“存在于磁盘中”；swap 只是其中可能使用的后备存储。',
+          )
+
+      - name: Verify and commit generated notes
+        run: |
+          npm run test:vnotes
+          rm -rf .migration
+          git add scripts/content-policy.mjs scripts/operating-system-policy.test.mjs package.json src/content/notes/operating-system src/data/content-manifest.json
+          if [ -d public/media/vnote/operating-system ]; then git add public/media/vnote/operating-system; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'content: publish reviewed operating system notes [skip ci]'
+          git push
