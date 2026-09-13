@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -16,6 +17,7 @@ const apiBase = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai-s
 const collections = ["articles", "notes", "projects", "series"];
 const readyTimeoutMs = Number(process.env.AI_SEARCH_READY_TIMEOUT_MS || 180_000);
 const readyPollMs = Number(process.env.AI_SEARCH_READY_POLL_MS || 2_000);
+const maxItemKeyLength = 128;
 
 function log(status, details = {}) {
   console.log(JSON.stringify({
@@ -52,7 +54,14 @@ function isPublic(collection, data) {
 }
 
 function itemKey(collection, id) {
-  return `blog--${collection}--${encodeURIComponent(id)}.md`;
+  const reversible = `blog--${collection}--${encodeURIComponent(id)}.md`;
+  if (reversible.length <= maxItemKeyLength) return reversible;
+
+  const digest = createHash("sha256")
+    .update(`${collection}\0${id}`)
+    .digest("hex")
+    .slice(0, 32);
+  return `blog--${collection}--h-${digest}.md`;
 }
 
 function sourceUrl(collection, id) {
@@ -82,20 +91,23 @@ async function loadDocuments() {
       if (!isPublic(collection, data)) continue;
 
       const title = data.title || id.split("/").pop();
+      const url = sourceUrl(collection, id);
       const description = data.description ? `\n${data.description}\n` : "";
       const content = [
         `# ${title}`,
-        `Source URL: ${sourceUrl(collection, id)}`,
+        `Source URL: ${url}`,
         `Collection: ${collection}`,
         description,
         body.trim(),
       ].filter(Boolean).join("\n\n").trim() + "\n";
+      const key = itemKey(collection, id);
 
-      documents.set(itemKey(collection, id), {
-        key: itemKey(collection, id),
+      documents.set(key, {
+        key,
         collection,
         id,
         title,
+        url,
         sourcePath: `src/content/${collection}/${relative}`,
         content,
       });
@@ -146,6 +158,11 @@ async function ensureInstance() {
     fusion_method: "rrf",
     indexing_options: { keyword_tokenizer: "trigram" },
     retrieval_options: { keyword_match_mode: "or" },
+    custom_metadata: [
+      { field_name: "source_url", data_type: "text" },
+      { field_name: "title", data_type: "text" },
+      { field_name: "collection", data_type: "text" },
+    ],
     reranking: true,
     reranking_model: "@cf/baai/bge-reranker-base",
     rewrite_query: true,
@@ -164,11 +181,18 @@ async function ensureInstance() {
   }
 
   const info = existing.result || existing;
+  const metadataSchema = new Map(
+    (Array.isArray(info?.custom_metadata) ? info.custom_metadata : [])
+      .map((field) => [field?.field_name, field?.data_type]),
+  );
   const needsUpdate = info?.index_method?.keyword !== true
     || info?.index_method?.vector !== true
     || info?.fusion_method !== "rrf"
     || info?.indexing_options?.keyword_tokenizer !== "trigram"
     || info?.retrieval_options?.keyword_match_mode !== "or"
+    || metadataSchema.get("source_url") !== "text"
+    || metadataSchema.get("title") !== "text"
+    || metadataSchema.get("collection") !== "text"
     || info?.reranking !== true
     || info?.rewrite_query !== true;
 
@@ -223,6 +247,11 @@ async function deleteItem(item) {
 async function uploadDocument(document) {
   const form = new FormData();
   form.append("file", new Blob([document.content], { type: "text/markdown; charset=utf-8" }), document.key);
+  form.append("metadata", JSON.stringify({
+    source_url: document.url,
+    title: document.title,
+    collection: document.collection,
+  }));
   await cloudflareRequest(
     `${apiBase}/${encodeURIComponent(instanceName)}/items`,
     { method: "POST", body: form },
@@ -368,7 +397,11 @@ try {
 
   await runPool(uploads, 4, async ({ document, existing }) => {
     if (existing) await deleteItem(existing);
-    await uploadDocument(document);
+    try {
+      await uploadDocument(document);
+    } catch (error) {
+      throw new Error(`Failed to upload ${document.sourcePath} as ${document.key}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   });
 
   await waitForIndexReady(documents.size);
