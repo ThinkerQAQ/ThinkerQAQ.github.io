@@ -8,6 +8,48 @@ const MAX_QUESTION_LENGTH = 1000;
 const MAX_SOURCES = 5;
 const MAX_SOURCE_LENGTH = 5000;
 const MAX_TOTAL_CONTEXT = 20000;
+const MAX_REQUEST_BODY_BYTES = 16 * 1024;
+
+function logRequest(level, message, context) {
+  console[level](message, {
+    timestamp: new Date().toISOString(),
+    severity: level,
+    ...context,
+  });
+}
+
+async function readJsonBody(request) {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BODY_BYTES) {
+    return { tooLarge: true, byteLength: declaredLength };
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) return { body: null, byteLength: 0 };
+
+  const chunks = [];
+  let byteLength = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    byteLength += value.byteLength;
+    if (byteLength > MAX_REQUEST_BODY_BYTES) {
+      await reader.cancel().catch(() => {});
+      return { tooLarge: true, byteLength };
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return { body: JSON.parse(new TextDecoder().decode(bytes)), byteLength };
+}
 
 function json(body, status = 200, origin = "") {
   const headers = new Headers({
@@ -39,37 +81,6 @@ function corsHeaders(origin) {
     "access-control-max-age": "86400",
     vary: "Origin",
   };
-}
-
-function normalizeSources(rawSources, blogOrigin) {
-  if (rawSources == null) return [];
-  if (!Array.isArray(rawSources) || rawSources.length > MAX_SOURCES) {
-    throw new Error(`sources must contain at most ${MAX_SOURCES} items`);
-  }
-
-  let totalContext = 0;
-  return rawSources.map((source, index) => {
-    if (!source || typeof source !== "object") throw new Error(`source ${index + 1} is invalid`);
-
-    const title = String(source.title || "").trim().slice(0, 200);
-    const content = String(source.content || "").trim();
-    if (!title || !content || content.length > MAX_SOURCE_LENGTH) {
-      throw new Error(`source ${index + 1} is invalid or too large`);
-    }
-
-    let url;
-    try {
-      url = new URL(String(source.url || ""), blogOrigin);
-    } catch {
-      throw new Error(`source ${index + 1} has an invalid URL`);
-    }
-    if (url.origin !== blogOrigin) throw new Error(`source ${index + 1} must come from the blog`);
-
-    totalContext += content.length;
-    if (totalContext > MAX_TOTAL_CONTEXT) throw new Error("combined source context is too large");
-
-    return { title, url: url.href, content };
-  });
 }
 
 function decodeAiSearchKey(key) {
@@ -187,9 +198,21 @@ function getAnswer(aiResult) {
   return "";
 }
 
-async function verifyTurnstile(token, request, env, origin) {
+async function verifyTurnstile(token, request, env, origin, traceId) {
+  const startedAt = Date.now();
+  const logFailure = (message, status, error) => {
+    logRequest("warn", message, {
+      traceId,
+      node: "turnstile-siteverify",
+      operation: "verify-token",
+      status,
+      durationMs: Date.now() - startedAt,
+      ...(error ? { error } : {}),
+    });
+  };
+
   if (!env.TURNSTILE_SECRET_KEY) {
-    console.error("TURNSTILE_SECRET_KEY is not configured");
+    logFailure("TURNSTILE_SECRET_KEY is not configured", 503);
     return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
   }
 
@@ -206,12 +229,12 @@ async function verifyTurnstile(token, request, env, origin) {
       body: JSON.stringify({ secret: env.TURNSTILE_SECRET_KEY, response: token, remoteip }),
     });
   } catch (error) {
-    console.error("Turnstile Siteverify request failed", error);
+    logFailure("Turnstile Siteverify request failed", 503, error instanceof Error ? error.message : String(error));
     return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
   }
 
   if (!response.ok) {
-    console.error("Turnstile Siteverify returned HTTP", response.status);
+    logFailure("Turnstile Siteverify returned an unsuccessful HTTP status", 503, `HTTP ${response.status}`);
     return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
   }
 
@@ -219,36 +242,53 @@ async function verifyTurnstile(token, request, env, origin) {
   try {
     result = await response.json();
   } catch (error) {
-    console.error("Turnstile Siteverify returned invalid JSON", error);
+    logFailure("Turnstile Siteverify returned invalid JSON", 503, error instanceof Error ? error.message : String(error));
     return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
   }
 
   if (!result?.success) {
-    console.warn("Turnstile verification rejected", result?.["error-codes"] || []);
+    logFailure("Turnstile verification rejected", 403, String(result?.["error-codes"] || []));
     return { ok: false, status: 403, error: "Security verification failed. Please retry." };
   }
 
   const expectedHostname = new URL(origin).hostname;
   if (result.hostname !== expectedHostname) {
-    console.warn("Turnstile hostname mismatch", { expectedHostname, actualHostname: result.hostname });
+    logFailure("Turnstile hostname mismatch", 403, `expected ${expectedHostname}, received ${result.hostname || "missing"}`);
     return { ok: false, status: 403, error: "Security verification failed. Please retry." };
   }
 
   const expectedAction = env.TURNSTILE_ACTION || TURNSTILE_ACTION;
   if (result.action !== expectedAction) {
-    console.warn("Turnstile action mismatch", { expectedAction, actualAction: result.action });
+    logFailure("Turnstile action mismatch", 403, `expected ${expectedAction}, received ${result.action || "missing"}`);
     return { ok: false, status: 403, error: "Security verification failed. Please retry." };
   }
 
+  logRequest("info", "Turnstile verification completed", {
+    traceId,
+    node: "turnstile-siteverify",
+    operation: "verify-token",
+    status: 200,
+    durationMs: Date.now() - startedAt,
+  });
   return { ok: true };
 }
 
 export default {
   async fetch(request, env) {
+    const startedAt = Date.now();
+    const traceId = request.headers.get("cf-ray") || crypto.randomUUID();
     const url = new URL(request.url);
     const origin = request.headers.get("origin") || "";
     const origins = allowedOrigins(env);
     const originAllowed = origin && origins.has(origin);
+
+    logRequest("info", "Ask blog request started", {
+      traceId,
+      node: "worker-request",
+      operation: "chat",
+      method: request.method,
+      path: url.pathname,
+    });
 
     if (request.method === "OPTIONS") {
       if (!originAllowed) return new Response(null, { status: 403 });
@@ -259,15 +299,32 @@ export default {
     if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, originAllowed ? origin : "");
     if (!originAllowed) return json({ error: "Origin not allowed" }, 403);
 
-    const contentLength = Number(request.headers.get("content-length") || 0);
-    if (contentLength > 30000) return json({ error: "Request too large" }, 413, origin);
-
-    let body;
+    let parsedBody;
     try {
-      body = await request.json();
-    } catch {
+      parsedBody = await readJsonBody(request);
+    } catch (error) {
+      logRequest("warn", "Ask blog request body is invalid", {
+        traceId,
+        node: "request-body",
+        status: 400,
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return json({ error: "Invalid JSON" }, 400, origin);
     }
+
+    if (parsedBody.tooLarge) {
+      logRequest("warn", "Ask blog request body is too large", {
+        traceId,
+        node: "request-body",
+        status: 413,
+        byteLength: parsedBody.byteLength,
+        limitBytes: MAX_REQUEST_BODY_BYTES,
+        durationMs: Date.now() - startedAt,
+      });
+      return json({ error: "Request too large" }, 413, origin);
+    }
+    const body = parsedBody.body;
 
     const question = String(body?.question || "").trim();
     if (!question || question.length > MAX_QUESTION_LENGTH) {
@@ -280,38 +337,59 @@ export default {
     }
 
     let blogOrigin;
-    let fallbackSources;
     try {
       blogOrigin = new URL(env.BLOG_ORIGIN).origin;
-      fallbackSources = normalizeSources(body?.sources ?? [], blogOrigin);
     } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "Invalid sources" }, 400, origin);
+      logRequest("error", "BLOG_ORIGIN is invalid", {
+        traceId,
+        node: "worker-config",
+        status: 500,
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json({ error: "AI service is temporarily unavailable" }, 500, origin);
     }
 
     const limiterKey = request.headers.get("cf-connecting-ip") || "anonymous";
     const { success } = await env.AI_RATE_LIMITER.limit({ key: limiterKey });
     if (!success) return json({ error: "Too many questions. Please try again later." }, 429, origin);
 
-    const turnstile = await verifyTurnstile(turnstileToken, request, env, origin);
+    const turnstile = await verifyTurnstile(turnstileToken, request, env, origin, traceId);
     if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status, origin);
 
     let sources = [];
-    let retrieval = "pagefind-fallback";
+    const retrieval = "ai-search-hybrid";
+    const retrievalStartedAt = Date.now();
     try {
       sources = await retrieveAiSearchSources(question, env, blogOrigin);
-      if (sources.length) retrieval = "ai-search-hybrid";
     } catch (error) {
-      console.error("AI Search retrieval failed; using Pagefind fallback", error);
+      logRequest("error", "AI Search retrieval failed", {
+        traceId,
+        node: "ai-search",
+        operation: "hybrid-search",
+        status: 502,
+        durationMs: Date.now() - retrievalStartedAt,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json({ error: "本站检索服务暂时不可用。" }, 502, origin);
     }
 
-    if (!sources.length) sources = fallbackSources;
     if (!sources.length) {
       return json({ error: "本站暂未检索到相关内容。" }, 404, origin);
     }
 
-    console.info("Ask blog retrieval", { retrieval, sourceCount: sources.length });
+    logRequest("info", "Ask blog retrieval completed", {
+      traceId,
+      node: "retrieval",
+      operation: retrieval,
+      status: "ok",
+      sourceCount: sources.length,
+      requestBodyBytes: parsedBody.byteLength,
+      durationMs: Date.now() - retrievalStartedAt,
+    });
 
     try {
+      const aiStartedAt = Date.now();
       const aiResult = await env.AI.run(env.AI_MODEL || DEFAULT_MODEL, {
         messages: buildMessages(question, sources),
         temperature: 0.2,
@@ -319,6 +397,15 @@ export default {
       });
       const answer = getAnswer(aiResult);
       if (!answer) throw new Error("Workers AI returned an empty response");
+
+      logRequest("info", "Ask blog request completed", {
+        traceId,
+        node: "workers-ai",
+        operation: "generate-answer",
+        status: 200,
+        durationMs: Date.now() - aiStartedAt,
+        totalDurationMs: Date.now() - startedAt,
+      });
 
       return json(
         {
@@ -330,7 +417,14 @@ export default {
         origin,
       );
     } catch (error) {
-      console.error("Workers AI request failed", error);
+      logRequest("error", "Workers AI request failed", {
+        traceId,
+        node: "workers-ai",
+        operation: "generate-answer",
+        status: 502,
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return json({ error: "AI service is temporarily unavailable" }, 502, origin);
     }
   },

@@ -4,17 +4,15 @@ Cloudflare Worker backend for the blog's **Ask / 问博客** feature.
 
 ## Architecture
 
-The production path is now hybrid retrieval:
+The production path is:
 
-1. The browser prepares a small Pagefind candidate set as a compatibility fallback. Multiple Pagefind queries are fused with Reciprocal Rank Fusion (RRF).
-2. Before sending the question, the browser obtains a one-time Cloudflare Turnstile token.
-3. The browser sends the question, optional Pagefind fallback sources and Turnstile token to `POST /chat`.
-4. The Worker validates origin, input size, rate limit and Turnstile.
-5. The Worker queries Cloudflare AI Search with hybrid keyword + vector retrieval, RRF fusion, query rewriting and reranking.
-6. If AI Search is unavailable or has no indexed content yet, the Worker falls back to the Pagefind candidates.
-7. The Worker sends the retrieved blog context to Workers AI and returns the answer plus source links.
+1. Before sending the question, the browser obtains a one-time Cloudflare Turnstile token.
+2. The browser sends only the question and Turnstile token to `POST /chat`.
+3. The Worker validates origin, input size, rate limit and Turnstile.
+4. The Worker queries Cloudflare AI Search with hybrid keyword + vector retrieval, RRF fusion, query rewriting and reranking.
+5. The Worker sends the retrieved blog context to Workers AI and returns the answer plus source links.
 
-The browser no longer decides the primary AI context. Pagefind remains useful for normal site search and as a safe fallback.
+The browser never supplies AI context. Pagefind remains dedicated to the site's normal interactive search, while the Worker is the sole trust boundary for retrieval and answer generation.
 
 ## AI Search setup
 
@@ -101,10 +99,10 @@ Neither is a credential. The Turnstile **secret** stays in Cloudflare Worker Sec
 - Every `/chat` request must include a Turnstile token and the Worker validates it with Cloudflare Siteverify before calling retrieval or Workers AI.
 - The Worker validates the returned Turnstile hostname against the request origin and requires action `ask_blog`.
 - Turnstile tokens are short-lived and single-use.
-- Pagefind fallback source URLs must belong to `BLOG_ORIGIN`.
 - AI Search item keys are decoded only for known blog collections before being exposed as source URLs.
 - Question length: max 1,000 characters.
-- Sources: max 5 documents, max 5,000 characters each, max 20,000 characters total.
+- AI Search context: max 5 documents, max 5,000 characters each, max 20,000 characters total.
+- Request body: max 16 KiB, enforced on the bytes actually read so requests without `Content-Length` cannot bypass the limit.
 - Worker rate limit: 10 calls per 60 seconds per connecting IP.
 - Retrieved blog text is treated as untrusted reference material in the prompt and cannot override system instructions.
 
