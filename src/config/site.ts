@@ -1,7 +1,8 @@
 export const SITE = {
   title: "ThinkerQAQ",
+  homeTitle: "ThinkerQAQ | 后端工程、并发编程与分布式系统",
   description:
-    "ThinkerQAQ 的个人网站。",
+    "ThinkerQAQ 的个人技术博客，记录后端工程、Go、Java、并发编程、分布式系统、数据系统与软件工程实践。",
   author: "ThinkerQAQ",
   url: "https://thinkerqaq.github.io",
   repository: "https://github.com/ThinkerQAQ/ThinkerQAQ.github.io",

@@ -11,6 +11,9 @@ export const PUBLIC_NOTEBOOKS = [
   "Zookeeper",
   "Golang",
   "Computer_Network",
+  "Container",
+  "Algorithm",
+  "Operating_System",
 ];
 export const PROMOTED_ARTICLES = [];
 export const FEATURED_PATHS = new Set();
@@ -25,6 +28,9 @@ export const CATEGORY_LABELS = {
   Zookeeper: "ZooKeeper",
   Golang: "Go",
   Computer_Network: "计算机网络",
+  Container: "Docker / Kubernetes",
+  Algorithm: "Data Structures & Algorithms",
+  Operating_System: "Operating System / Linux",
 };
 export const CATEGORY_SLUGS = {
   Java: "java",
@@ -37,6 +43,9 @@ export const CATEGORY_SLUGS = {
   Zookeeper: "zookeeper",
   Golang: "go",
   Computer_Network: "computer-network",
+  Container: "container",
+  Algorithm: "algorithm",
+  Operating_System: "operating-system",
 };
 
 // Import IDs replaced by a broader public notebook. During a selective sync,
@@ -55,6 +64,9 @@ export const ROOT_TOPIC_LABELS = {
   Zookeeper: "基础与专题",
   Golang: "Language",
   Computer_Network: "基础",
+  Container: "基础",
+  Algorithm: "Overview",
+  Operating_System: "Overview",
 };
 
 const GO_NOTE_TOPICS = [
@@ -180,6 +192,161 @@ const computerNetworkTopicEntries = COMPUTER_NETWORK_NOTE_TOPICS.flatMap((topic)
   ]),
 );
 
+const ALGORITHM_NOTE_TOPICS = [
+  {
+    id: "overview",
+    label: "Overview",
+    number: 1,
+    notes: ["数据结构与算法.md"],
+  },
+  {
+    id: "data-structures",
+    label: "Data Structures",
+    number: 2,
+    notes: [
+      "数据结构/array.md",
+      "数据结构/hashmap.md",
+      "数据结构/linkedlist.md",
+      "数据结构/queue.md",
+      "数据结构/set.md",
+      "数据结构/stack.md",
+      "数据结构/tree.md",
+      "数据结构/红黑树.md",
+      "数据结构/跳表.md",
+      "数据结构/heap.md",
+      "数据结构/BitMap.md",
+      "数据结构/BloomFilter.md",
+      "数据结构/graph.md",
+      "数据结构/UnionFind.md",
+      "数据结构/LSM.md",
+      "数据结构/ziplist.md",
+      "数据结构/B Tree.md",
+      "数据结构/稀疏索引.md",
+      "数据结构/索引.md",
+      "数据结构/倒排索引.md",
+    ],
+  },
+  {
+    id: "algorithms",
+    label: "Algorithms",
+    number: 3,
+    notes: [
+      "算法/缓存替换策略.md",
+      "算法/动态规划.md",
+      "算法/贪心.md",
+      "算法/分治.md",
+      "算法/递归.md",
+      "算法/回溯.md",
+      "算法/DFS.md",
+      "算法/排序/排序.md",
+      "算法/排序/冒泡排序.md",
+      "算法/排序/堆排序.md",
+      "算法/排序/归并排序.md",
+      "算法/排序/插入排序.md",
+      "算法/排序/快速排序.md",
+      "算法/排序/选择排序.md",
+      "算法/查找/二分查找.md",
+      "算法/查找/线性查找.md",
+    ],
+  },
+];
+
+const algorithmTopicEntries = ALGORITHM_NOTE_TOPICS.flatMap((topic) =>
+  topic.notes.map((note) => [
+    note,
+    { id: topic.id, label: topic.label, number: topic.number },
+  ]),
+);
+
+
+const OPERATING_SYSTEM_NOTE_TOPICS = [
+  {
+    id: "overview",
+    label: "Overview",
+    number: 1,
+    notes: ["操作系统.md", "Linux/Linux.md"],
+  },
+  {
+    id: "processes-concurrency",
+    label: "Processes & Concurrency",
+    number: 2,
+    notes: [
+      "进程管理/进程管理.md",
+      "进程管理/程序、进程、线程.md",
+      "进程管理/IPC.md",
+      "进程管理/同步.md",
+      "进程管理/死锁.md",
+      "Linux/进程/进程.md",
+      "Linux/进程/线程.md",
+    ],
+  },
+  {
+    id: "memory",
+    label: "Memory",
+    number: 3,
+    notes: [
+      "存储管理/存储管理.md",
+      "存储管理/内存分配和回收.md",
+      "存储管理/段页式存储.md",
+      "存储管理/虚拟内存.md",
+      "存储管理/页面置换.md",
+      "存储管理/Linux的内存管理.md",
+      "Linux/内存/内存管理.md",
+    ],
+  },
+  {
+    id: "io-syscalls",
+    label: "I/O & Syscalls",
+    number: 4,
+    notes: [
+      "Linux/系统调用/系统调用.md",
+      "Linux/IO/IO.md",
+      "Linux/IO/IO模型.md",
+      "Linux/IO/select、poll、epoll.md",
+      "Linux/IO/零拷贝机制.md",
+    ],
+  },
+  {
+    id: "performance-diagnostics",
+    label: "Performance & Diagnostics",
+    number: 5,
+    notes: [
+      "Linux/性能调优/Linux性能调优.md",
+      "Linux/性能调优/CPU调优.md",
+      "Linux/性能调优/内存调优.md",
+      "Linux/性能调优/磁盘调优.md",
+      "Linux/性能调优/网络调优.md",
+      "Linux/性能调优/火焰图.md",
+      "Linux/命令/Linux常用命令.md",
+      "Linux/命令/top.md",
+      "Linux/命令/vmstat.md",
+      "Linux/命令/iostat.md",
+      "Linux/命令/pidstat.md",
+      "Linux/命令/sar.md",
+      "Linux/命令/strace.md",
+      "Linux/命令/tcpdump.md",
+      "Linux/命令/ulimit.md",
+    ],
+  },
+  {
+    id: "isolation-containers",
+    label: "Isolation & Containers",
+    number: 6,
+    notes: [
+      "Linux/虚拟化/Linux Namespace.md",
+      "Linux/虚拟化/Linux cgroup.md",
+      "Linux/命令/chroot.md",
+    ],
+  },
+];
+
+const operatingSystemTopicEntries = OPERATING_SYSTEM_NOTE_TOPICS.flatMap((topic) =>
+  topic.notes.map((note) => [
+    note,
+    { id: topic.id, label: topic.label, number: topic.number },
+  ]),
+);
+
 // Notebooks listed here use a strict per-note allowlist. New or previously rejected
 // source files stay private until they receive an explicit content review.
 export const REVIEWED_NOTE_PATHS = {
@@ -206,6 +373,14 @@ export const REVIEWED_NOTE_PATHS = {
   Computer_Network: new Set(
     computerNetworkTopicEntries.map(([note]) => `Computer_Network/${note}`),
   ),
+  Container: new Set([
+    "Container/Docker/Docker.md",
+    "Container/Kubernetes/Kubernetes.md",
+  ]),
+  Algorithm: new Set(algorithmTopicEntries.map(([note]) => `Algorithm/${note}`)),
+  Operating_System: new Set(
+    operatingSystemTopicEntries.map(([note]) => `Operating_System/${note}`),
+  ),
 };
 
 // Optional public taxonomy overrides. They change only the blog topic grouping;
@@ -213,6 +388,8 @@ export const REVIEWED_NOTE_PATHS = {
 export const NOTE_TOPIC_OVERRIDES = {
   Golang: new Map(goTopicEntries),
   Computer_Network: new Map(computerNetworkTopicEntries),
+  Algorithm: new Map(algorithmTopicEntries),
+  Operating_System: new Map(operatingSystemTopicEntries),
 };
 
 // These reviewed notes contain documentation-only credentials. Keep the source

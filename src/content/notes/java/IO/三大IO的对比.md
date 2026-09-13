@@ -24,7 +24,7 @@ indexable: true
 ![](https://raw.githubusercontent.com/TDoct/images/master/img/20200315093945.png)
 
 ### 1.1. 系统调用的IO类型
-IO模型.md（关联笔记尚未公开）
+[IO模型.md](/notes/operating-system/Linux/IO/IO%E6%A8%A1%E5%9E%8B/)
 
 
 ## 2. Java IO分类
