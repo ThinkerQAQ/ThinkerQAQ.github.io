@@ -1,4 +1,7 @@
 const DEFAULT_MODEL = "@cf/zai-org/glm-4.7-flash";
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const TURNSTILE_ACTION = "ask_blog";
+const MAX_TURNSTILE_TOKEN_LENGTH = 2048;
 const MAX_QUESTION_LENGTH = 1000;
 const MAX_SOURCES = 5;
 const MAX_SOURCE_LENGTH = 5000;
@@ -94,6 +97,66 @@ function getAnswer(aiResult) {
   return "";
 }
 
+async function verifyTurnstile(token, request, env, origin) {
+  if (!env.TURNSTILE_SECRET_KEY) {
+    console.error("TURNSTILE_SECRET_KEY is not configured");
+    return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
+  }
+
+  if (!token || typeof token !== "string" || token.length > MAX_TURNSTILE_TOKEN_LENGTH) {
+    return { ok: false, status: 400, error: "Security verification is required." };
+  }
+
+  const remoteip = request.headers.get("cf-connecting-ip") || undefined;
+  let response;
+  try {
+    response = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        secret: env.TURNSTILE_SECRET_KEY,
+        response: token,
+        remoteip,
+      }),
+    });
+  } catch (error) {
+    console.error("Turnstile Siteverify request failed", error);
+    return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
+  }
+
+  if (!response.ok) {
+    console.error("Turnstile Siteverify returned HTTP", response.status);
+    return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch (error) {
+    console.error("Turnstile Siteverify returned invalid JSON", error);
+    return { ok: false, status: 503, error: "Security verification is temporarily unavailable." };
+  }
+
+  if (!result?.success) {
+    console.warn("Turnstile verification rejected", result?.["error-codes"] || []);
+    return { ok: false, status: 403, error: "Security verification failed. Please retry." };
+  }
+
+  const expectedHostname = new URL(origin).hostname;
+  if (result.hostname !== expectedHostname) {
+    console.warn("Turnstile hostname mismatch", { expectedHostname, actualHostname: result.hostname });
+    return { ok: false, status: 403, error: "Security verification failed. Please retry." };
+  }
+
+  const expectedAction = env.TURNSTILE_ACTION || TURNSTILE_ACTION;
+  if (result.action !== expectedAction) {
+    console.warn("Turnstile action mismatch", { expectedAction, actualAction: result.action });
+    return { ok: false, status: 403, error: "Security verification failed. Please retry." };
+  }
+
+  return { ok: true };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -125,6 +188,11 @@ export default {
       return json({ error: `Question must be 1-${MAX_QUESTION_LENGTH} characters` }, 400, origin);
     }
 
+    const turnstileToken = String(body?.turnstileToken || "").trim();
+    if (!turnstileToken || turnstileToken.length > MAX_TURNSTILE_TOKEN_LENGTH) {
+      return json({ error: "Security verification is required." }, 400, origin);
+    }
+
     let sources;
     try {
       const blogOrigin = new URL(env.BLOG_ORIGIN).origin;
@@ -136,6 +204,9 @@ export default {
     const limiterKey = request.headers.get("cf-connecting-ip") || "anonymous";
     const { success } = await env.AI_RATE_LIMITER.limit({ key: limiterKey });
     if (!success) return json({ error: "Too many questions. Please try again later." }, 429, origin);
+
+    const turnstile = await verifyTurnstile(turnstileToken, request, env, origin);
+    if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status, origin);
 
     try {
       const aiResult = await env.AI.run(env.AI_MODEL || DEFAULT_MODEL, {
