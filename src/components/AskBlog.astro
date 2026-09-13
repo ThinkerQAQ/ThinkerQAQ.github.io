@@ -102,15 +102,142 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
 
     const clearResult = () => {
       result.hidden = true;
-      answer.textContent = "";
+      answer.replaceChildren();
       sourcesList.replaceChildren();
       sourcesWrap.hidden = true;
+    };
+
+    const appendInlineMarkdown = (parent, text) => {
+      const tokenPattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
+      let cursor = 0;
+
+      for (const match of text.matchAll(tokenPattern)) {
+        const index = match.index ?? 0;
+        if (index > cursor) parent.append(document.createTextNode(text.slice(cursor, index)));
+
+        const token = match[0];
+        if (token.startsWith("`")) {
+          const code = document.createElement("code");
+          code.textContent = token.slice(1, -1);
+          parent.append(code);
+        } else if (token.startsWith("**") || token.startsWith("__")) {
+          const strong = document.createElement("strong");
+          strong.textContent = token.slice(2, -2);
+          parent.append(strong);
+        } else {
+          const em = document.createElement("em");
+          em.textContent = token.slice(1, -1);
+          parent.append(em);
+        }
+        cursor = index + token.length;
+      }
+
+      if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)));
+    };
+
+    const renderMarkdown = (markdown) => {
+      answer.replaceChildren();
+      const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+      let index = 0;
+
+      while (index < lines.length) {
+        const line = lines[index];
+        if (!line.trim()) {
+          index += 1;
+          continue;
+        }
+
+        const fence = line.match(/^```\s*([^\s`]*)\s*$/);
+        if (fence) {
+          const codeLines = [];
+          index += 1;
+          while (index < lines.length && !/^```\s*$/.test(lines[index])) {
+            codeLines.push(lines[index]);
+            index += 1;
+          }
+          if (index < lines.length) index += 1;
+
+          const pre = document.createElement("pre");
+          const code = document.createElement("code");
+          if (fence[1]) code.dataset.language = fence[1];
+          code.textContent = codeLines.join("\n");
+          pre.append(code);
+          answer.append(pre);
+          continue;
+        }
+
+        const heading = line.match(/^(#{1,4})\s+(.+)$/);
+        if (heading) {
+          const element = document.createElement(heading[1].length <= 2 ? "h3" : "h4");
+          appendInlineMarkdown(element, heading[2].trim());
+          answer.append(element);
+          index += 1;
+          continue;
+        }
+
+        const unordered = line.match(/^[-*]\s+(.+)$/);
+        const ordered = line.match(/^\d+[.)]\s+(.+)$/);
+        if (unordered || ordered) {
+          const list = document.createElement(ordered ? "ol" : "ul");
+          while (index < lines.length) {
+            const match = ordered
+              ? lines[index].match(/^\d+[.)]\s+(.+)$/)
+              : lines[index].match(/^[-*]\s+(.+)$/);
+            if (!match) break;
+            const item = document.createElement("li");
+            appendInlineMarkdown(item, match[1].trim());
+            list.append(item);
+            index += 1;
+          }
+          answer.append(list);
+          continue;
+        }
+
+        const quote = line.match(/^>\s?(.*)$/);
+        if (quote) {
+          const blockquote = document.createElement("blockquote");
+          const quoteLines = [];
+          while (index < lines.length) {
+            const match = lines[index].match(/^>\s?(.*)$/);
+            if (!match) break;
+            quoteLines.push(match[1]);
+            index += 1;
+          }
+          appendInlineMarkdown(blockquote, quoteLines.join("\n"));
+          answer.append(blockquote);
+          continue;
+        }
+
+        const paragraphLines = [line.trim()];
+        index += 1;
+        while (index < lines.length) {
+          const next = lines[index];
+          if (!next.trim()
+            || /^```/.test(next)
+            || /^#{1,4}\s+/.test(next)
+            || /^[-*]\s+/.test(next)
+            || /^\d+[.)]\s+/.test(next)
+            || /^>\s?/.test(next)) break;
+          paragraphLines.push(next.trim());
+          index += 1;
+        }
+
+        const paragraph = document.createElement("p");
+        appendInlineMarkdown(paragraph, paragraphLines.join(" "));
+        answer.append(paragraph);
+      }
     };
 
     const renderSources = (sources) => {
       sourcesList.replaceChildren();
       for (const source of sources) {
         const item = document.createElement("li");
+        if (source.collection === "articles" || source.collection === "notes") {
+          const badge = document.createElement("span");
+          badge.className = "ask-blog__source-type";
+          badge.textContent = source.collection === "articles" ? "文章" : "笔记";
+          item.append(badge, document.createTextNode(" "));
+        }
         const link = document.createElement("a");
         link.href = source.url;
         link.textContent = source.title;
@@ -248,7 +375,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
           throw new Error(payload.error || `请求失败（${response.status}）`);
         }
 
-        answer.textContent = payload.answer || "AI 没有返回回答。";
+        renderMarkdown(payload.answer || "AI 没有返回回答。");
         renderSources(Array.isArray(payload.sources) ? payload.sources : []);
         result.hidden = false;
         setStatus("");
@@ -434,9 +561,67 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   .ask-blog__answer {
     padding-top: 0.9rem;
     border-top: 1px solid var(--border);
-    white-space: pre-wrap;
     font-size: 0.9rem;
     line-height: 1.7;
+  }
+
+  .ask-blog__answer :global(p),
+  .ask-blog__answer :global(ul),
+  .ask-blog__answer :global(ol),
+  .ask-blog__answer :global(pre),
+  .ask-blog__answer :global(blockquote),
+  .ask-blog__answer :global(h3),
+  .ask-blog__answer :global(h4) {
+    margin: 0.6rem 0 0;
+  }
+
+  .ask-blog__answer :global(p:first-child),
+  .ask-blog__answer :global(h3:first-child),
+  .ask-blog__answer :global(h4:first-child),
+  .ask-blog__answer :global(pre:first-child) {
+    margin-top: 0;
+  }
+
+  .ask-blog__answer :global(ul),
+  .ask-blog__answer :global(ol) {
+    padding-left: 1.25rem;
+  }
+
+  .ask-blog__answer :global(h3) {
+    font-size: 0.96rem;
+  }
+
+  .ask-blog__answer :global(h4) {
+    font-size: 0.9rem;
+  }
+
+  .ask-blog__answer :global(code) {
+    padding: 0.08rem 0.28rem;
+    border-radius: 0.3rem;
+    background: var(--background);
+    font-size: 0.86em;
+  }
+
+  .ask-blog__answer :global(pre) {
+    overflow-x: auto;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    background: var(--background);
+    line-height: 1.5;
+  }
+
+  .ask-blog__answer :global(pre code) {
+    padding: 0;
+    background: transparent;
+    white-space: pre;
+  }
+
+  .ask-blog__answer :global(blockquote) {
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+    white-space: pre-line;
   }
 
   .ask-blog__sources {
@@ -458,6 +643,16 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
 
   .ask-blog__sources li + li {
     margin-top: 0.28rem;
+  }
+
+  .ask-blog__source-type {
+    display: inline-block;
+    padding: 0.04rem 0.28rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    color: var(--muted);
+    font-size: 0.68rem;
+    line-height: 1.35;
   }
 
   @media (max-width: 640px) {
