@@ -247,8 +247,19 @@ async function main() {
     const svgFile = localTargetFile(diagram.url);
     validateSvg(await readFile(svgFile, "utf8"));
     for (const origin of diagram.origins) {
-      const html = await readFile(routeFile(origin.route), "utf8");
-      invariant(html.includes(`src="${diagram.url}"`), `PlantUML image missing: ${origin.file}:${origin.line}`);
+      const outputFile = routeFile(origin.route);
+      const html = await readFile(outputFile, "utf8");
+      const hasDiagram = html.includes(`src="${diagram.url}"`);
+      if (!hasDiagram) {
+        log("error", "verify-plantuml-reference", "missing", {
+          sourceFile: origin.file,
+          sourceLine: origin.line,
+          route: origin.route,
+          outputFile,
+          diagramUrl: diagram.url,
+        });
+      }
+      invariant(hasDiagram, `PlantUML image missing: ${origin.file}:${origin.line}`);
       diagramReferences += 1;
     }
   }

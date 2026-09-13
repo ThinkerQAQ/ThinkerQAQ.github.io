@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import test from "node:test";
 
 import { CATEGORY_LABELS, CATEGORY_SLUGS, REVIEWED_NOTE_PATHS } from "./content-policy.mjs";
@@ -14,4 +15,13 @@ test("Database is one category with MySQL and PostgreSQL topics", () => {
   assert.equal([...reviewed].every((path) => path.startsWith("Database/MySQL/") || path.startsWith("Database/PostgreSQL/")), true);
   assert.equal(sourceExclusionReason({ sourcePath: "Database" }, "数据库事务.md"), "not-reviewed");
   assert.equal(sourceExclusionReason({ sourcePath: "Database" }, "SQL Join查询.md"), "not-reviewed");
+});
+
+test("legacy MySQL import output is absent after the Database migration", () => {
+  const legacyNotes = new URL("../src/content/notes/mysql-database/", import.meta.url);
+  assert.equal(
+    existsSync(legacyNotes),
+    false,
+    "src/content/notes/mysql-database must not coexist with database/MySQL because both generate the legacy redirect routes",
+  );
 });
