@@ -5,7 +5,7 @@ import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { SITE } from "../config/site";
-import { categoryHref, formatDate, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
+import { categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -22,16 +22,14 @@ interface Props {
 
 const { note, headings, collectionNavigation } = Astro.props;
 const { data } = note;
-const topicHref = data.topic
-  ? noteTopicHref(data.category, data.topic)
-  : undefined;
+const topicPath = getNoteTopicPath(note);
 const mobileCollection = {
   label: "笔记集",
   title: collectionNavigation.categoryLabel,
   href: categoryHref(collectionNavigation.category),
   groups: collectionNavigation.topics.map((topic) => ({
-    label: topic.label,
-    href: topic.id ? noteTopicHref(collectionNavigation.category, topic.id) : undefined,
+    label: topic.depth > 0 ? `${"› ".repeat(topic.depth)}${topic.label}` : topic.label,
+    href: topic.path.length > 0 ? noteTopicHref(collectionNavigation.category, topic.path) : undefined,
     items: topic.notes.map((entry) => ({
       href: noteHref(entry),
       title: entry.data.title,
@@ -68,12 +66,12 @@ const schema = {
         <a href="/notes/">笔记</a>
         <span aria-hidden="true">/</span>
         <a href={categoryHref(data.category)}>{data.categoryLabel}</a>
-        {topicHref && (
+        {topicPath.map((segment, index) => (
           <>
             <span aria-hidden="true">/</span>
-            <a href={topicHref}>{data.topicLabel ?? data.topic}</a>
+            <a href={noteTopicHref(data.category, topicPath.slice(0, index + 1))}>{segment.label}</a>
           </>
-        )}
+        ))}
       </nav>
 
       <header class="note-header">
