@@ -1,0 +1,189 @@
+---
+import { getCollection } from "astro:content";
+import type { Locale } from "../config/i18n";
+import { articleHref } from "../lib/content";
+import AskBlogSession from "./AskBlogSession.astro";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const translatedArticlePaths: Record<string, string> = {};
+
+if (locale === "en") {
+  const articles = await getCollection("articles", ({ data }) =>
+    data.status === "published" && data.language === "en" && Boolean(data.translationOf));
+  for (const article of articles) {
+    translatedArticlePaths[`/articles/${article.data.translationOf}/`] = articleHref(article);
+  }
+}
+
+const englishStrings = {
+  "问博客": "Ask this blog",
+  "只根据本站文章与笔记回答，可连续追问。": "Answers only from this site's articles and notes. Follow-up questions are supported.",
+  "清空": "Clear",
+  "问题": "Question",
+  "提问": "Ask",
+  "来源": "Sources",
+  "文章": "Article",
+  "笔记": "Note",
+  "你": "You",
+  "检索本站内容 → 组织答案": "Search site content → compose answer",
+  "可以先问一个问题，再像聊天一样继续追问。例如“Go CAS 为什么可以无锁？”→“那 ARM 呢？”。": "Ask a question, then continue with follow-ups like a conversation. For example: “Why can Go CAS be lock-free?” → “What about ARM?”.",
+  "安全验证加载失败。": "Security verification failed to load.",
+  "Turnstile 尚未配置。请先设置 Site Key。": "Turnstile is not configured. Set the Site Key first.",
+  "安全验证失败，请重试。": "Security verification failed. Try again.",
+  "安全验证已过期，请重试。": "Security verification expired. Try again.",
+  "安全验证超时，请重试。": "Security verification timed out. Try again.",
+  "安全验证已重置。": "Security verification was reset.",
+  "AI 后端尚未配置。": "The AI backend is not configured.",
+  "处理中…": "Working…",
+  "正在检索文章与笔记…": "Searching articles and notes…",
+  "正在进行安全验证…": "Running security verification…",
+  "安全会话已过期，正在重新验证…": "The security session expired. Verifying again…",
+  "验证完成，正在检索文章与笔记…": "Verified. Searching articles and notes…",
+  "安全验证尚未配置。请设置 Site Key。": "Security verification is not configured. Set the Site Key.",
+  "AI 没有返回回答。": "The AI returned no answer.",
+  "问博客暂时不可用。": "Ask this blog is temporarily unavailable.",
+};
+
+const englishAttributes = {
+  "关闭问博客": "Close Ask this blog",
+  "输入问题，Enter 提问，Shift+Enter 换行": "Ask a question. Enter to send; Shift+Enter for a new line.",
+  "安全验证": "Security verification",
+};
+
+const localizationPayload = JSON.stringify({
+  strings: englishStrings,
+  attributes: englishAttributes,
+  translatedArticlePaths,
+}).replaceAll("<", "\\u003c");
+---
+
+<AskBlogSession />
+
+{locale === "en" && (
+  <script
+    is:inline
+    set:html={`(() => {
+      const config = ${localizationPayload};
+      const sourceMarker = "__thinkerqaq_i18n_source";
+
+      const translateText = (value) => {
+        const text = String(value || "");
+        const exact = config.strings[text];
+        if (exact) return exact;
+        const requestFailure = text.match(/^请求失败（(\\d+)）$/);
+        if (requestFailure) return \`Request failed (\${requestFailure[1]})\`;
+        return text;
+      };
+
+      const translateSourceHref = (anchor) => {
+        try {
+          const url = new URL(anchor.href, window.location.origin);
+          const localized = url.searchParams.get(sourceMarker);
+          if (!localized) return;
+          anchor.href = localized;
+        } catch {}
+      };
+
+      const translateNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const translated = translateText(node.nodeValue);
+          if (translated !== node.nodeValue) node.nodeValue = translated;
+          return;
+        }
+        if (!(node instanceof Element)) return;
+        for (const element of [node, ...node.querySelectorAll("*")]) {
+          for (const attribute of ["aria-label", "placeholder"]) {
+            const value = element.getAttribute(attribute);
+            if (value && config.attributes[value]) element.setAttribute(attribute, config.attributes[value]);
+          }
+          if (element instanceof HTMLAnchorElement) translateSourceHref(element);
+          for (const child of element.childNodes) {
+            if (child.nodeType !== Node.TEXT_NODE) continue;
+            const translated = translateText(child.nodeValue);
+            if (translated !== child.nodeValue) child.nodeValue = translated;
+          }
+        }
+      };
+
+      const localizeSource = (source) => {
+        if (!source?.url) return source;
+        try {
+          const original = new URL(source.url, window.location.origin);
+          let targetPath = original.pathname;
+          if (targetPath.startsWith("/en/articles/") || targetPath.startsWith("/en/notes/")) {
+            // Already localized by the backend.
+          } else if (config.translatedArticlePaths[targetPath]) {
+            targetPath = config.translatedArticlePaths[targetPath];
+          } else if (targetPath.startsWith("/notes/")) {
+            targetPath = \`/en\${targetPath}\`;
+          } else {
+            return source;
+          }
+
+          // AskBlogSession validates source URLs against the legacy unprefixed route shape.
+          // Feed it an accepted URL, then restore the localized target when the link is rendered.
+          const acceptedPath = targetPath.replace(/^\\/en(?=\\/(?:articles|notes)\\/)/, "") || targetPath;
+          const accepted = new URL(acceptedPath, window.location.origin);
+          accepted.searchParams.set(sourceMarker, targetPath + original.search + original.hash);
+          return { ...source, url: accepted.href };
+        } catch {
+          return source;
+        }
+      };
+
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        let nextInit = init;
+        try {
+          const root = document.querySelector("[data-ask-blog]");
+          const endpoint = root?.dataset?.endpoint?.trim();
+          const requestUrl = new URL(typeof input === "string" || input instanceof URL ? input : input.url, window.location.href);
+          const endpointUrl = endpoint ? new URL(endpoint, window.location.href) : null;
+          if (endpointUrl && requestUrl.href === endpointUrl.href && init?.body && typeof init.body === "string") {
+            const payload = JSON.parse(init.body);
+            nextInit = { ...init, body: JSON.stringify({ ...payload, locale: "en" }) };
+          }
+        } catch {}
+
+        const response = await nativeFetch(input, nextInit);
+        try {
+          const root = document.querySelector("[data-ask-blog]");
+          const endpoint = root?.dataset?.endpoint?.trim();
+          const requestUrl = new URL(typeof input === "string" || input instanceof URL ? input : input.url, window.location.href);
+          const endpointUrl = endpoint ? new URL(endpoint, window.location.href) : null;
+          if (!endpointUrl || requestUrl.href !== endpointUrl.href) return response;
+
+          const payload = await response.clone().json();
+          if (!Array.isArray(payload.sources)) return response;
+          payload.sources = payload.sources.map(localizeSource);
+          return new Response(JSON.stringify(payload), {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
+        } catch {
+          return response;
+        }
+      };
+
+      const start = () => {
+        const root = document.querySelector("[data-ask-blog]");
+        if (!root) return;
+        translateNode(root);
+        new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.type === "characterData") translateNode(mutation.target);
+            for (const node of mutation.addedNodes) translateNode(node);
+          }
+        }).observe(root, { childList: true, subtree: true, characterData: true });
+      };
+
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+      else start();
+    })();`}
+  ></script>
+)}
