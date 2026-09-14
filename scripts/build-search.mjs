@@ -32,20 +32,38 @@ async function hasSearchContent(directory) {
   return false;
 }
 
-async function writeCacheBustedWasmEntry() {
+async function writeCacheBustedWasmEntries() {
   const entryPath = path.join(outputPath, "pagefind-entry.json");
   const entry = JSON.parse(await readFile(entryPath, "utf8"));
-  const sourcePath = path.join(outputPath, "wasm.unknown.pagefind");
-  const wasm = await readFile(sourcePath);
-  if (wasm.length === 0) throw new Error("Pagefind generated an empty WebAssembly bundle");
+  const languages = Object.values(entry.languages ?? {});
+  const sourceWasmIds = [...new Set(languages.map((language) => language.wasm || "unknown"))];
+  if (sourceWasmIds.length === 0) throw new Error("Pagefind entry does not reference a WebAssembly bundle");
 
-  const wasmId = createHash("sha256").update(wasm).digest("hex").slice(0, 12);
-  const targetPath = path.join(outputPath, `wasm.${wasmId}.pagefind`);
-  await rm(targetPath, { force: true });
-  await rename(sourcePath, targetPath);
-  for (const language of Object.values(entry.languages ?? {})) language.wasm = wasmId;
+  const wasmFiles = [];
+  let wasmBytes = 0;
+  for (const sourceWasmId of sourceWasmIds) {
+    const sourcePath = path.join(outputPath, `wasm.${sourceWasmId}.pagefind`);
+    const wasm = await readFile(sourcePath);
+    if (wasm.length === 0) {
+      throw new Error(`Pagefind generated an empty WebAssembly bundle: ${path.basename(sourcePath)}`);
+    }
+
+    const hashedWasmId = createHash("sha256").update(wasm).digest("hex").slice(0, 12);
+    const targetPath = path.join(outputPath, `wasm.${hashedWasmId}.pagefind`);
+    if (sourcePath !== targetPath) {
+      await rm(targetPath, { force: true });
+      await rename(sourcePath, targetPath);
+    }
+
+    for (const language of languages) {
+      if ((language.wasm || "unknown") === sourceWasmId) language.wasm = hashedWasmId;
+    }
+    wasmFiles.push(path.basename(targetPath));
+    wasmBytes += wasm.length;
+  }
+
   await writeFile(entryPath, JSON.stringify(entry));
-  return { wasmFile: path.basename(targetPath), wasmBytes: wasm.length };
+  return { wasmFiles: [...new Set(wasmFiles)], wasmBytes };
 }
 
 try {
@@ -57,13 +75,12 @@ try {
         pagefindRunner,
         "--site", dist,
         "--output-path", outputPath,
-        "--force-language", "zh-cn",
         "--include-characters", "+.#_<>",
         "--silent",
       ],
       { cwd: repositoryRoot, timeout: 120_000, windowsHide: true },
     );
-    const wasm = await writeCacheBustedWasmEntry();
+    const wasm = await writeCacheBustedWasmEntries();
     log("info", "completed", { ...wasm, durationMs: Date.now() - startedAt });
   } else {
     log("info", "empty", { indexedPages: 0, durationMs: Date.now() - startedAt });
