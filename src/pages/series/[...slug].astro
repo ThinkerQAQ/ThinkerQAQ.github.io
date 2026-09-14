@@ -13,6 +13,7 @@ import {
   noteTopicHref,
   seriesStatus,
 } from "../../lib/content";
+import { seriesLanguageAlternatives } from "../../lib/series-i18n";
 
 export async function getStaticPaths() {
   return (await getCollection("series")).map((series) => ({ params: { slug: series.id }, props: { series } }));
@@ -69,7 +70,11 @@ const relatedNoteScopes = data.relatedNoteScopes.map((scope) => {
 
 const relatedNoteGroups = [...relatedNoteCategories, ...relatedNoteScopes];
 ---
-<BaseLayout title={data.title} description={data.description}>
+<BaseLayout
+  title={data.title}
+  description={data.description}
+  languageAlternatives={seriesLanguageAlternatives(series)}
+>
   <div class="shell page detail-page">
     <article data-pagefind-body>
       <header class="note-header detail-page-header"><h1 data-pagefind-meta="title">{data.title}</h1><p class="note-description">{data.description}</p><div class="note-meta"><span>{seriesStatus[data.status]}</span><span>更新于 {formatDate(data.updatedAt)}</span></div></header>
