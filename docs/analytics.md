@@ -12,7 +12,7 @@ The site uses Umami Cloud for private traffic analytics. No article view count i
    - Value: the Umami website ID
 
 4. Keep `PUBLIC_ASK_BLOG_WORKER_URL` configured. The analytics tracker reuses the origin of the existing blog Cloudflare Worker, so there is no second public proxy URL to maintain.
-5. Deploy the Cloudflare Worker from `workers/blog-ai`, then re-run the Pages deployment or push a new commit to `master`.
+5. The normal `master` deployment automatically deploys `workers/blog-ai` before GitHub Pages. No local `wrangler deploy` step is required.
 
 The tracker is injected once by `src/layouts/BaseLayout.astro`. If the Umami website ID or Worker URL is absent, no analytics script is emitted. The tracker is restricted with `data-domains="thinkerqaq.github.io"`, so local development visits do not pollute production analytics.
 
@@ -24,6 +24,14 @@ The browser does not contact `cloud.umami.is` or `gateway.umami.is` directly. In
 - The collection proxy only accepts requests whose `Origin` is `https://thinkerqaq.github.io`.
 
 The Umami website ID is public by design because it is embedded in the generated HTML. Do not store API tokens or account credentials in this variable.
+
+The GitHub Actions Worker deployment uses the existing `CLOUDFLARE_ACCOUNT_ID` variable and `CLOUDFLARE_AI_SEARCH_TOKEN` secret. That token needs these Cloudflare account permissions:
+
+```text
+AI Search:Edit
+AI Search:Run
+Workers Scripts:Edit
+```
 
 ## Attribution model
 

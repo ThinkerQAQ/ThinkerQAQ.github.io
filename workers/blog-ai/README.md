@@ -43,11 +43,12 @@ Variable: CLOUDFLARE_AI_SEARCH_INSTANCE=thinkerqaq-blog   # optional; this is th
 Secret:   CLOUDFLARE_AI_SEARCH_TOKEN
 ```
 
-Create `CLOUDFLARE_AI_SEARCH_TOKEN` as a Cloudflare custom API token with:
+The same `CLOUDFLARE_AI_SEARCH_TOKEN` is also used by GitHub Actions to deploy this Worker automatically. Create it as a Cloudflare custom API token with:
 
 ```text
 Account > AI Search:Edit
 Account > AI Search:Run
+Account > Workers Scripts:Edit
 ```
 
 The sync job is intentionally strict: missing credentials, Cloudflare API errors, indexing errors, indexing timeouts, or an empty readiness search all fail the job. A green `sync-ai-search` job therefore means the instance exists, indexing has settled, and a real hybrid search returned indexed content.
@@ -77,13 +78,15 @@ For local testing, Cloudflare provides dedicated test credentials. Use the alway
 
 ## Deploy the Worker
 
-The AI Search namespace binding is a Worker binding, so redeploy the Worker after changing `wrangler.jsonc` or Worker code:
+Worker deployment is part of `.github/workflows/deploy.yml`. Every successful `master` build automatically runs:
 
-```bash
-cd workers/blog-ai
-npx wrangler@latest login
-npx wrangler@latest deploy
+```text
+wrangler deploy --config workers/blog-ai/wrangler.jsonc
 ```
+
+GitHub Actions authenticates non-interactively with the existing `CLOUDFLARE_ACCOUNT_ID` variable and `CLOUDFLARE_AI_SEARCH_TOKEN` secret. The site is deployed to GitHub Pages only after the Worker deployment succeeds, so a frontend release cannot depend on Worker routes that have not been deployed yet.
+
+You do not need to run `wrangler login` or `wrangler deploy` locally for normal blog releases.
 
 After deployment, the existing `/chat` URL remains the frontend endpoint. For the GitHub Pages build, keep these public repository variables configured:
 
