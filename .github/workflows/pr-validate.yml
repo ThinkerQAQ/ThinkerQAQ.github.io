@@ -52,6 +52,7 @@ jobs:
         run: npm run build
       - name: Verify build output
         id: verify_build
+        continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
@@ -64,3 +65,6 @@ jobs:
           path: ${{ runner.temp }}/verify-build.log
           if-no-files-found: error
           retention-days: 1
+      - name: Fail when build verification fails
+        if: steps.verify_build.outcome == 'failure'
+        run: exit 1
