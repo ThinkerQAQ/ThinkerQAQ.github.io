@@ -46,6 +46,8 @@ jobs:
         run: npm run test:ai-search
       - name: Test Helpful reactions
         run: npm run test:reactions
+      - name: Test reading experience
+        run: npm run test:reading-experience
       - name: Astro check
         run: npm run check
       - name: Build static site
