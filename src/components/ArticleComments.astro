@@ -1,17 +1,18 @@
 ---
+import type { Locale } from "../config/i18n";
 import { COMMENTS, SITE } from "../config/site";
 
 interface Props {
-  language?: "zh" | "en";
+  language?: Locale;
   pathname: string;
 }
 
 const { language = "zh", pathname } = Astro.props;
-const isEnglish = language === "en";
-const heading = isEnglish ? "Discussion" : "讨论";
-const description = isEnglish
-  ? "Sign in with GitHub to comment. Discussions are stored as GitHub Issues."
-  : "使用 GitHub 账号参与讨论，评论会保存在 GitHub Issues 中。";
+const isChinese = language === "zh";
+const heading = isChinese ? "讨论" : "Discussion";
+const description = isChinese
+  ? "使用 GitHub 账号参与讨论，评论会保存在 GitHub Issues 中。"
+  : "Sign in with GitHub to comment. Discussions are stored as GitHub Issues.";
 const utterancesAttributes = {
   src: "https://utteranc.es/client.js",
   repo: COMMENTS.repository,
@@ -32,14 +33,14 @@ const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
     <h2 id="article-comments-title">{heading}</h2>
     <p>
       {description}
-      <a href={issuesUrl} rel="external">{isEnglish ? "View on GitHub" : "在 GitHub 查看"}</a>
+      <a href={issuesUrl} rel="external">{isChinese ? "在 GitHub 查看" : "View on GitHub"}</a>
     </p>
   </header>
   <script is:inline {...utterancesAttributes}></script>
   <noscript>
     <p>
-      {isEnglish ? "JavaScript is required to load comments." : "需要启用 JavaScript 才能加载评论。"}
-      <a href={issuesUrl} rel="external">GitHub Issues</a>
+      {isChinese ? "需要启用 JavaScript 才能加载评论。" : "JavaScript is required to load comments."}
+      <a href={issuesUrl} rel="external">{isChinese ? "在 GitHub 打开讨论" : "Open the discussion on GitHub"}</a>
     </p>
   </noscript>
 </section>

@@ -1,28 +1,21 @@
 ---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
 import type { ArticleEntry } from "../lib/content";
 import ArticleList from "./ArticleList.astro";
 import CollectionHeader from "./CollectionHeader.astro";
 
 interface Props {
   articles: ArticleEntry[];
+  locale?: Locale;
 }
 
-const { articles } = Astro.props;
-const chineseArticles = articles.filter((article) => article.data.language === "zh");
-const englishArticles = articles.filter((article) => article.data.language === "en");
+const { articles, locale = DEFAULT_LOCALE } = Astro.props;
+const localeInfo = LOCALES[locale];
+const localizedArticles = articles.filter((article) => article.data.language === locale);
 ---
 
 <CollectionHeader
-  title="文章"
-  description="正式发布并持续维护的内容，按最近更新时间倒序排列。"
+  title={localeInfo.ui.articlesTitle}
+  description={localeInfo.ui.articlesDescription}
 />
-<ArticleList entries={chineseArticles} emptyMessage="暂无文章。" />
-{englishArticles.length > 0 && (
-  <section class="home-section">
-    <div class="section-heading">
-      <h2>English</h2>
-      <a href="/english/">查看全部</a>
-    </div>
-    <ArticleList entries={englishArticles.slice(0, 5)} />
-  </section>
-)}
+<ArticleList entries={localizedArticles} emptyMessage={localeInfo.ui.articlesEmpty} />

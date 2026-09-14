@@ -1,43 +1,50 @@
 ---
 import { getCollection, render, type CollectionEntry } from "astro:content";
+import { DEFAULT_LOCALE } from "../../config/i18n";
 import ArticleLayout from "../../layouts/ArticleLayout.astro";
-import { articleIsIncluded, getArticleSeriesNavigation } from "../../lib/content";
+import {
+  articleIsIncluded,
+  getArticleSeriesNavigation,
+  getArticleTranslations,
+} from "../../lib/content";
 
 export async function getStaticPaths() {
   const articles = (await getCollection("articles")).filter(articleIsIncluded);
   const seriesEntries = await getCollection("series");
-  return articles.map((article) => {
+  const routeArticles = articles.filter(
+    (article) =>
+      article.data.language === DEFAULT_LOCALE ||
+      !article.id.startsWith(`${article.data.language}/`),
+  );
+
+  return routeArticles.map((article) => {
     if (article.data.updatedAt && article.data.updatedAt < article.data.publishedAt) {
       throw new Error(`Article ${article.id}: updatedAt precedes publishedAt`);
     }
-    const translation = article.data.translationOf
-      ? articles.find((candidate) => candidate.id === article.data.translationOf)
-      : articles.find((candidate) => candidate.data.translationOf === article.id);
-    if (article.data.translationOf && !translation) {
-      throw new Error(`Article ${article.id}: published translation not found`);
-    }
-    if (translation && (translation.id === article.id || translation.data.language === article.data.language)) {
-      throw new Error(`Article ${article.id}: translation must be a different-language article`);
-    }
-    const translations = articles.filter((candidate) => candidate.data.translationOf === article.id);
-    if (translations.length > 1 || (article.data.translationOf && translations.length > 0)) {
-      throw new Error(`Article ${article.id}: use one translationOf link per bilingual pair`);
-    }
+    const translations = getArticleTranslations(article, articles);
     const seriesNavigation = getArticleSeriesNavigation(article, articles, seriesEntries);
-    return { params: { slug: article.id }, props: { article, translation, seriesNavigation } };
+    return {
+      params: { slug: article.id },
+      props: { article, translations, seriesNavigation },
+    };
   });
 }
 
 interface Props {
   article: CollectionEntry<"articles">;
-  translation?: CollectionEntry<"articles">;
+  translations: CollectionEntry<"articles">[];
   seriesNavigation?: import("../../lib/content").ArticleSeriesNavigation;
 }
 
-const { article, translation, seriesNavigation } = Astro.props;
+const { article, translations, seriesNavigation } = Astro.props;
 const { Content, headings } = await render(article);
 ---
 
-<ArticleLayout article={article} headings={headings} translation={translation} seriesNavigation={seriesNavigation}>
+<ArticleLayout
+  article={article}
+  headings={headings}
+  translations={translations}
+  seriesNavigation={seriesNavigation}
+>
   <Content />
 </ArticleLayout>

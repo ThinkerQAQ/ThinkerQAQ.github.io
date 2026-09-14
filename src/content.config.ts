@@ -1,6 +1,7 @@
 import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
+import { SUPPORTED_LOCALES } from "./config/i18n";
 
 const timestamp = z
   .string()
@@ -33,7 +34,7 @@ const notes = defineCollection({
     createdAt: z.coerce.date().optional(),
     updatedAt: z.coerce.date(),
     status: z.enum(["active", "historical"]).default("active"),
-    language: z.enum(["zh", "en"]).default("zh"),
+    language: z.enum(SUPPORTED_LOCALES).default("zh"),
     featured: z.boolean().default(false),
     indexable: z.boolean().default(true),
     canonicalPath: z.string().optional(),
@@ -51,7 +52,7 @@ const articles = defineCollection({
     description: z.string(),
     publishedAt: timestamp,
     updatedAt: timestamp.optional(),
-    language: z.enum(["zh", "en"]).default("zh"),
+    language: z.enum(SUPPORTED_LOCALES).default("zh"),
     tags: z.array(z.string()).default([]),
     status: z.enum(["draft", "published"]).default("draft"),
     featured: z.boolean().default(false),
