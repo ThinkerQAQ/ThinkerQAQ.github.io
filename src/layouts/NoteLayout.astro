@@ -4,7 +4,9 @@ import ContentReaction from "../components/ContentReaction.astro";
 import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
 import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro";
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
+import ReadingExperience from "../components/ReadingExperience.astro";
 import TableOfContents from "../components/TableOfContents.astro";
+import { READING_EXPERIENCE_UI } from "../config/i18n-features";
 import { DEFAULT_LOCALE, LOCALES, localizePath, type Locale } from "../config/i18n";
 import { SITE } from "../config/site";
 import { categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
@@ -20,13 +22,15 @@ interface Props {
   note: CollectionEntry<"notes">;
   headings: Heading[];
   collectionNavigation: NoteCollectionNavigation;
+  readingMinutes: number;
   locale?: Locale;
 }
 
-const { note, headings, collectionNavigation } = Astro.props;
+const { note, headings, collectionNavigation, readingMinutes } = Astro.props;
 const locale: Locale = Astro.props.locale ?? DEFAULT_LOCALE;
 const { data } = note;
 const ui = LOCALES[locale].ui;
+const readingUi = READING_EXPERIENCE_UI[locale];
 const topicPath = getNoteTopicPath(note);
 const notePath = noteHref(note, locale);
 const canonicalPath = data.canonicalPath ?? (locale === DEFAULT_LOCALE ? notePath : noteHref(note, DEFAULT_LOCALE));
@@ -67,6 +71,7 @@ const schema = {
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   <div class="shell content-shell content-shell--with-series">
+    <ReadingExperience locale={locale} />
     <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={ui.noteOutline} headings={headings} locale={locale} />
     <NoteCollectionIndex navigation={collectionNavigation} locale={locale} />
     <article class="note" data-pagefind-body lang={LOCALES[data.language].htmlLang}>
@@ -90,6 +95,7 @@ const schema = {
           <span data-pagefind-filter="category">{data.categoryLabel}</span>
           {data.createdAt && <span>{ui.createdAt} <time datetime={data.createdAt.toISOString()}>{formatDate(data.createdAt, locale)}</time></span>}
           <span>{ui.updatedAt} <time datetime={data.updatedAt.toISOString()}>{formatDate(data.updatedAt, locale)}</time></span>
+          <span>{readingUi.readingTime(readingMinutes)}</span>
           {data.status === "historical" && <span class="historical-badge">historical</span>}
           {!data.indexable && !data.canonicalPath && <span>{locale === "en" ? "Organizing" : "整理中"}</span>}
         </div>
@@ -117,9 +123,11 @@ const schema = {
           )}
         </p>
       )}
-      <div class="prose">
+      <div id="reading-start" class="reading-anchor" aria-hidden="true"></div>
+      <div class="prose" data-reading-content>
         <slot />
       </div>
+      <div id="reading-end" class="reading-anchor" aria-hidden="true"></div>
       <ContentReaction contentType="note" contentId={note.id} language={locale} />
       {(collectionNavigation.previous || collectionNavigation.next) && (
         <NoteSequenceNavigation navigation={collectionNavigation} locale={locale} />

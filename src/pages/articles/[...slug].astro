@@ -37,12 +37,17 @@ interface Props {
 }
 
 const { article, translations, seriesNavigation } = Astro.props;
-const { Content, headings } = await render(article);
+const { Content, headings, remarkPluginFrontmatter } = await render(article);
+const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
+const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
+  ? Math.ceil(rawReadingMinutes)
+  : 1;
 ---
 
 <ArticleLayout
   article={article}
   headings={headings}
+  readingMinutes={readingMinutes}
   translations={translations}
   seriesNavigation={seriesNavigation}
 >

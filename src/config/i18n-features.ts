@@ -121,3 +121,25 @@ export const ASK_BLOG_UI: Record<Locale, AskBlogUiCopy> = {
     unavailable: "Ask this blog is temporarily unavailable.",
   },
 };
+
+export interface ReadingExperienceUiCopy {
+  readingTime: (minutes: number) => string;
+  progressLabel: string;
+  jumpToStart: string;
+  jumpToEnd: string;
+}
+
+export const READING_EXPERIENCE_UI: Record<Locale, ReadingExperienceUiCopy> = {
+  zh: {
+    readingTime: (minutes) => `约 ${minutes} 分钟读完`,
+    progressLabel: "阅读进度",
+    jumpToStart: "回到正文顶部",
+    jumpToEnd: "跳到正文底部",
+  },
+  en: {
+    readingTime: (minutes) => `${minutes} min read`,
+    progressLabel: "Reading progress",
+    jumpToStart: "Back to reading start",
+    jumpToEnd: "Jump to reading end",
+  },
+};
