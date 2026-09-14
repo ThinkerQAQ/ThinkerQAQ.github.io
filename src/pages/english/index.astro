@@ -9,10 +9,17 @@ const entries = sortArticles(
   ),
 );
 ---
-<BaseLayout title="English Articles" language="en" noindex={entries.length === 0}>
+<BaseLayout
+  title="English Articles"
+  language="en"
+  locale="en"
+  canonicalPath="/en/articles/"
+  languageAlternatives={[]}
+  noindex={true}
+>
   <div class="shell page">
     <header class="page-header"><h1>English Articles</h1></header>
-    <ArticleList entries={entries} emptyMessage="No English articles published yet." />
-    <p><a href="/articles/">查看全部文章 / All articles</a></p>
+    <ArticleList entries={entries} locale="en" emptyMessage="No English articles published yet." />
+    <p><a href="/en/articles/">Open the current English article index</a></p>
   </div>
 </BaseLayout>

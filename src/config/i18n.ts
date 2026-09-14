@@ -35,6 +35,7 @@ export interface LocaleConfig {
     notesDescription: string;
     notesEmpty: string;
     notesChineseNotice: string;
+    notesPagination: string;
     aboutTitle: string;
     aboutDescription: string;
     searchTitle: string;
@@ -99,6 +100,7 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
       notesDescription: "保留学习记录、资料整理、实验过程，以及暂时还不需要写成文章的想法。",
       notesEmpty: "暂无笔记。",
       notesChineseNotice: "笔记正文目前以中文维护。",
+      notesPagination: "笔记分页",
       aboutTitle: "关于本站",
       aboutDescription: "关于 ThinkerQAQ，以及本站文章、项目、系列与笔记的组织方式。",
       searchTitle: "搜索",
@@ -161,6 +163,7 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
       notesDescription: "Learning records, references, experiments, and ideas that do not need to become formal articles yet.",
       notesEmpty: "No notes yet.",
       notesChineseNotice: "Note content is currently maintained in Chinese. The English setting translates the site interface and navigation.",
+      notesPagination: "Notes pagination",
       aboutTitle: "About",
       aboutDescription: "About ThinkerQAQ and how articles, projects, series, and notes are organized on this site.",
       searchTitle: "Search",
