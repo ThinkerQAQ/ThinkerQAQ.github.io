@@ -124,7 +124,7 @@ jobs:
         with:
           node-version: 22
       - name: Sync public Markdown to Cloudflare AI Search
-        run: node scripts/sync-ai-search.mjs
+        run: node scripts/run-ai-search-sync.mjs
       - name: Evaluate AI Search retrieval
         run: node scripts/eval-ai-search.mjs
 
