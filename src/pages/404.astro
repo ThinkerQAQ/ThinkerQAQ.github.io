@@ -2,11 +2,37 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
-<BaseLayout title="页面不存在" noindex={true}>
-  <div class="shell page narrow not-found">
+<BaseLayout title="页面不存在" noindex={true} canonicalPath="/404/" languageAlternatives={[]}>
+  <div class="shell page narrow not-found" data-not-found>
     <p class="eyebrow">404</p>
-    <h1>这个页面不存在。</h1>
-    <p>它可能已被移除，或地址有误。</p>
-    <p><a href="/search/">搜索笔记</a> · <a href="/">返回首页</a></p>
+    <h1 data-not-found-title>这个页面不存在。</h1>
+    <p data-not-found-description>它可能已被移除，或地址有误。</p>
+    <p>
+      <a href="/search/" data-not-found-search>搜索本站</a>
+      <span aria-hidden="true"> · </span>
+      <a href="/" data-not-found-home>返回首页</a>
+    </p>
   </div>
 </BaseLayout>
+
+<script is:inline>
+  if (window.location.pathname === "/en" || window.location.pathname.startsWith("/en/")) {
+    document.documentElement.lang = "en";
+    document.title = "Page not found · ThinkerQAQ";
+    const root = document.querySelector("[data-not-found]");
+    const title = root?.querySelector("[data-not-found-title]");
+    const description = root?.querySelector("[data-not-found-description]");
+    const search = root?.querySelector("[data-not-found-search]");
+    const home = root?.querySelector("[data-not-found-home]");
+    if (title) title.textContent = "This page does not exist.";
+    if (description) description.textContent = "It may have been removed, or the URL may be incorrect.";
+    if (search) {
+      search.textContent = "Search this site";
+      search.setAttribute("href", "/en/search/");
+    }
+    if (home) {
+      home.textContent = "Back to home";
+      home.setAttribute("href", "/en/");
+    }
+  }
+</script>
