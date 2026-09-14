@@ -2,7 +2,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import CollectionHeader from "../../../components/CollectionHeader.astro";
 import NoteCategoryPreview from "../../../components/NoteCategoryPreview.astro";
-import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { groupByCategory } from "../../../lib/content";
 
@@ -23,7 +23,7 @@ const categories = groupByCategory(notes);
 <BaseLayout
   title={localeInfo.ui.notesTitle}
   description={localeInfo.ui.notesDescription}
-  canonicalPath="/notes/"
+  canonicalPath={localizePath(locale, "/notes/")}
   noindex={true}
   locale={locale}
 >
