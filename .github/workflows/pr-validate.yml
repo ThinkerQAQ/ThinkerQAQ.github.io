@@ -1,12 +1,16 @@
-name: Validate hierarchical note topics
+name: Validate pull requests
 
 on:
-  push:
-    branches:
-      - feat/hierarchical-note-topics
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: pr-validate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
