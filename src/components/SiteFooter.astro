@@ -1,12 +1,19 @@
 ---
+import { DEFAULT_LOCALE, rssPath, type Locale } from "../config/i18n";
 import { SITE } from "../config/site";
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = DEFAULT_LOCALE } = Astro.props;
 ---
 
 <footer class="site-footer">
   <div class="shell footer-inner">
     <span>© {new Date().getFullYear()} {SITE.author}</span>
     <span class="footer-links">
-      <a href="/rss.xml">RSS</a>
+      <a href={rssPath(locale)}>RSS</a>
       <a href={SITE.repository} rel="me">GitHub</a>
     </span>
   </div>
