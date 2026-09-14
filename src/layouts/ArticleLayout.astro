@@ -99,6 +99,7 @@ const schema = {
       </header>
 
       <div class="prose"><slot /></div>
+      <ContentReaction contentType="article" contentId={article.id} language={locale} />
       {seriesNavigation && (seriesNavigation.previous || seriesNavigation.next) && (
         <ArticleSeriesNavigation navigation={seriesNavigation} />
       )}
@@ -109,7 +110,6 @@ const schema = {
           <p class="source-note">This article was migrated from the <a href={data.sourceNote}>original learning notes</a> and is maintained independently.</p>
         )
       )}
-      <ContentReaction contentType="article" contentId={article.id} language={locale} />
       <ArticleComments language={locale} pathname={articlePath} />
     </article>
     <TableOfContents headings={headings} />
