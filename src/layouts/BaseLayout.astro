@@ -29,6 +29,8 @@ const pageTitle =
       ? title
       : `${title} · ${SITE.title}`;
 const canonical = new URL(canonicalPath, SITE.url);
+const umamiWebsiteId = import.meta.env.PUBLIC_UMAMI_WEBSITE_ID?.trim();
+const umamiDomain = new URL(SITE.url).hostname;
 ---
 
 <!doctype html>
@@ -49,6 +51,15 @@ const canonical = new URL(canonicalPath, SITE.url);
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.title} />
     <meta name="twitter:card" content="summary" />
+    {umamiWebsiteId && (
+      <script
+        is:inline
+        defer
+        src="https://cloud.umami.is/script.js"
+        data-website-id={umamiWebsiteId}
+        data-domains={umamiDomain}
+      ></script>
+    )}
     <slot name="head" />
   </head>
   <body>
