@@ -71,8 +71,8 @@ const languageSwitcherAlternatives = providedLanguageSwitcherAlternatives
   ?? providedLanguageAlternatives
   ?? inferredLanguageSwitcherAlternatives;
 const pageTitle =
-  title === SITE.title && Astro.url.pathname === "/"
-    ? SITE.homeTitle
+  title === SITE.title && normalizedLogicalPath === "/"
+    ? LOCALES[locale].homeTitle
     : title === SITE.title
       ? title
       : `${title} · ${SITE.title}`;
