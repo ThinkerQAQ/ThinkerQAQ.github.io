@@ -1,4 +1,4 @@
-import app from "./index.js";
+import app from "./chat.js";
 
 const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
 const UMAMI_COLLECT_URL = "https://gateway.umami.is/api/send";
