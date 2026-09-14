@@ -17,7 +17,7 @@ function analyticsCorsHeaders(origin) {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type,x-umami-cache",
     "access-control-max-age": "86400",
     vary: "Origin",
   };
@@ -49,11 +49,13 @@ async function proxyAnalyticsRequest(request, origin) {
   const userAgent = request.headers.get("user-agent");
   const acceptLanguage = request.headers.get("accept-language");
   const referer = request.headers.get("referer");
+  const umamiCache = request.headers.get("x-umami-cache");
 
   if (contentType) headers.set("content-type", contentType);
   if (userAgent) headers.set("user-agent", userAgent);
   if (acceptLanguage) headers.set("accept-language", acceptLanguage);
   if (referer) headers.set("referer", referer);
+  if (umamiCache) headers.set("x-umami-cache", umamiCache);
   headers.set("origin", origin);
 
   const upstream = await fetch(UMAMI_COLLECT_URL, {
