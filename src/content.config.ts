@@ -13,6 +13,11 @@ const noteTopicSegment = z.object({
   label: z.string().optional(),
 });
 
+const localizedSummary = z.object({
+  title: z.string(),
+  description: z.string(),
+});
+
 const notes = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -77,6 +82,7 @@ const projects = defineCollection({
     tags: z.array(z.string()).default([]),
     featured: z.boolean().default(false),
     repository: z.url().optional(),
+    translations: z.record(z.string(), localizedSummary).default({}),
   }),
 });
 
@@ -102,6 +108,7 @@ const series = defineCollection({
     relatedNoteCategories: z.array(z.string()).default([]),
     relatedNoteScopes: z.array(relatedNoteScope).default([]),
     relatedNotes: z.array(z.string()).default([]),
+    translations: z.record(z.string(), localizedSummary).default({}),
   }),
 });
 
