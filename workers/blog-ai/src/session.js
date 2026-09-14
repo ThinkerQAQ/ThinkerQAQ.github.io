@@ -20,9 +20,14 @@ function base64UrlToBytes(value) {
 async function signingKey(secret) {
   const value = String(secret || "").trim();
   if (!value) return null;
+
+  const material = await crypto.subtle.digest(
+    "SHA-256",
+    encoder.encode(`ask-blog-session:v${SESSION_VERSION}:${value}`),
+  );
   return crypto.subtle.importKey(
     "raw",
-    encoder.encode(value),
+    material,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"],
@@ -31,7 +36,7 @@ async function signingKey(secret) {
 
 export async function issueAskSession(secret, origin) {
   const key = await signingKey(secret);
-  if (!key) throw new Error("ASK_SESSION_SECRET is not configured");
+  if (!key) throw new Error("Ask session signing key is not configured");
 
   const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
   const payload = bytesToBase64Url(encoder.encode(JSON.stringify({
