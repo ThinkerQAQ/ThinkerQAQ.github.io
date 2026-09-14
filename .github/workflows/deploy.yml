@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ASTRO_TELEMETRY_DISABLED: 1
-      PUBLIC_ASK_BLOG_WORKER_URL: ${{ vars.PUBLIC_ASK_BLOG_WORKER_URL }}
+      PUBLIC_ASK_BLOG_WORKER_URL: ${{ vars.PUBLIC_ASK_BLOG_WORKER_URL || 'https://thinkerqaq-blog-ai.thinkerqaq.workers.dev/chat' }}
       PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY: ${{ vars.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY }}
       PUBLIC_REACTION_WORKER_URL: ${{ vars.PUBLIC_REACTION_WORKER_URL }}
       PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.PUBLIC_UMAMI_WEBSITE_ID }}
