@@ -7,7 +7,7 @@
     {
       "binding": "REACTIONS_DB",
       "database_name": "thinkerqaq-blog-reactions",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "7c79baec-b72b-4dc9-b510-125a8301b384",
       "migrations_dir": "migrations"
     }
   ],
