@@ -6,6 +6,7 @@ import {
   DEFAULT_LOCALE,
   LOCALES,
   languageAlternativesForPath,
+  unlocalizePath,
   type Locale,
   type LocaleAlternative,
 } from "../config/i18n";
@@ -33,7 +34,26 @@ const {
   language = LOCALES[locale].htmlLang,
   languageAlternatives: providedLanguageAlternatives,
 } = Astro.props;
-const languageAlternatives = providedLanguageAlternatives ?? languageAlternativesForPath(Astro.url.pathname);
+
+// Only infer locale counterparts for site-shell pages whose routes are guaranteed
+// to exist in every supported locale. Content routes are sparse by design and must
+// provide explicit alternatives based on real translation/content relationships.
+const localizedShellPaths = new Set([
+  "/",
+  "/articles/",
+  "/series/",
+  "/projects/",
+  "/notes/",
+  "/about/",
+  "/search/",
+]);
+const logicalPath = unlocalizePath(Astro.url.pathname);
+const normalizedLogicalPath =
+  logicalPath === "/" ? "/" : `${logicalPath.replace(/\/+$/, "")}/`;
+const inferredLanguageAlternatives = localizedShellPaths.has(normalizedLogicalPath)
+  ? languageAlternativesForPath(normalizedLogicalPath)
+  : [];
+const languageAlternatives = providedLanguageAlternatives ?? inferredLanguageAlternatives;
 const pageTitle =
   title === SITE.title && Astro.url.pathname === "/"
     ? SITE.homeTitle
