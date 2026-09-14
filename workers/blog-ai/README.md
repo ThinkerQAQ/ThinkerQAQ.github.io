@@ -77,15 +77,13 @@ Store the Turnstile Worker secret from `workers/blog-ai`:
 npx wrangler@latest secret put TURNSTILE_SECRET_KEY
 ```
 
-Also create a separate random signing value for short-lived Ask sessions and store it as another Worker secret:
+No additional secret is required for the 20-minute Ask session: the Worker derives a domain-separated signing key from the existing Turnstile secret. If you want independent key rotation, you may optionally configure a dedicated secret:
 
 ```bash
 npx wrangler@latest secret put ASK_SESSION_SECRET
 ```
 
-`ASK_SESSION_SECRET` should be a strong random value and must not be committed to Git or exposed to frontend JavaScript. It is used only to HMAC-sign 20-minute Ask session tokens. If it is not configured, Turnstile still protects requests, but the browser cannot reuse verification for follow-up questions.
-
-Do not put either secret in Astro environment variables, source files, `wrangler.jsonc`, or GitHub Pages JavaScript.
+When present, `ASK_SESSION_SECRET` is preferred. Neither secret may be committed to Git or exposed to frontend JavaScript.
 
 For local testing, Cloudflare provides dedicated test credentials. Use the always-pass test site key in the Astro build and put the always-pass test secret in `workers/blog-ai/.dev.vars`; never use those test credentials in production.
 
@@ -108,7 +106,7 @@ PUBLIC_ASK_BLOG_WORKER_URL
 PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY
 ```
 
-Neither is a credential. The Turnstile and Ask session secrets stay in Cloudflare Worker Secrets.
+Neither is a credential. Worker secrets stay only in Cloudflare.
 
 ## Multi-turn request contract
 
