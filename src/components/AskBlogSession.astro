@@ -1,6 +1,25 @@
 ---
+import { ASK_BLOG_UI } from "../config/i18n-features";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  SUPPORTED_LOCALES,
+  type Locale,
+} from "../config/i18n";
+
+interface Props {
+  locale?: Locale;
+}
+
+const locale: Locale = Astro.props.locale ?? DEFAULT_LOCALE;
+const copy = ASK_BLOG_UI[locale];
 const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
 const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "";
+const nonDefaultLocalePaths = SUPPORTED_LOCALES
+  .filter((candidate) => candidate !== DEFAULT_LOCALE)
+  .map((candidate) => LOCALES[candidate].path)
+  .filter(Boolean);
+const serializedCopy = JSON.stringify(copy).replaceAll("<", "\\u003c");
 ---
 
 <div
@@ -8,7 +27,10 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   data-ask-blog
   data-endpoint={workerEndpoint}
   data-turnstile-sitekey={turnstileSiteKey}
+  data-locale={locale}
+  data-non-default-locales={JSON.stringify(nonDefaultLocalePaths)}
 >
+  <script is:inline type="application/json" data-ask-copy set:html={serializedCopy}></script>
   <button class="ask-blog__trigger" type="button" aria-expanded="false" aria-controls="ask-blog-panel" data-ask-toggle>
     <span aria-hidden="true">✦</span><span>Ask</span>
   </button>
@@ -16,32 +38,32 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
   <section class="ask-blog__panel" id="ask-blog-panel" role="dialog" aria-labelledby="ask-blog-title" hidden data-ask-panel>
     <header class="ask-blog__header">
       <div>
-        <h2 id="ask-blog-title">问博客</h2>
-        <p>只根据本站文章与笔记回答，可连续追问。</p>
+        <h2 id="ask-blog-title">{copy.title}</h2>
+        <p>{copy.description}</p>
       </div>
       <div class="ask-blog__header-actions">
-        <button class="ask-blog__clear" type="button" hidden data-ask-clear>清空</button>
-        <button class="ask-blog__close" type="button" aria-label="关闭问博客" data-ask-close>×</button>
+        <button class="ask-blog__clear" type="button" hidden data-ask-clear>{copy.clear}</button>
+        <button class="ask-blog__close" type="button" aria-label={copy.closeLabel} data-ask-close>×</button>
       </div>
     </header>
 
     <div class="ask-blog__conversation" data-ask-conversation aria-live="polite"></div>
 
     <form class="ask-blog__form" data-ask-form>
-      <label for="ask-blog-question">问题</label>
+      <label for="ask-blog-question">{copy.questionLabel}</label>
       <textarea
         id="ask-blog-question"
         name="question"
         rows="2"
         maxlength="1000"
-        placeholder="输入问题，Enter 提问，Shift+Enter 换行"
+        placeholder={copy.placeholder}
         required
         data-ask-input
       ></textarea>
-      <div class="ask-blog__turnstile" data-turnstile-container aria-label="安全验证"></div>
+      <div class="ask-blog__turnstile" data-turnstile-container aria-label={copy.securityLabel}></div>
       <div class="ask-blog__actions">
         <p class="ask-blog__status" role="status" data-ask-status></p>
-        <button type="submit" data-ask-submit>提问</button>
+        <button type="submit" data-ask-submit>{copy.submit}</button>
       </div>
     </form>
   </section>
@@ -58,6 +80,10 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
 
     const endpoint = root.dataset.endpoint?.trim() || "";
     const turnstileSiteKey = root.dataset.turnstileSitekey?.trim() || "";
+    const locale = root.dataset.locale?.trim() || "zh";
+    const nonDefaultLocales = new Set(JSON.parse(root.dataset.nonDefaultLocales || "[]"));
+    const copyElement = root.querySelector("[data-ask-copy]");
+    const copy = JSON.parse(copyElement?.textContent || "{}");
     const toggle = root.querySelector("[data-ask-toggle]");
     const close = root.querySelector("[data-ask-close]");
     const clear = root.querySelector("[data-ask-clear]");
@@ -70,7 +96,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
     const turnstileContainer = root.querySelector("[data-turnstile-container]");
     const markdownParser = unified().use(remarkParse);
 
-    const CONVERSATION_KEY = "thinkerqaq:ask-blog:conversation:v1";
+    const CONVERSATION_KEY = `thinkerqaq:ask-blog:conversation:${locale}:v2`;
     const SECURITY_KEY = "thinkerqaq:ask-blog:security-session:v1";
     const MAX_STORED_MESSAGES = 12;
     const MAX_HISTORY_MESSAGES = 6;
@@ -94,15 +120,33 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       status.classList.toggle("is-error", isError);
     };
 
+    const normalizeSourceUrl = (rawUrl, collection) => {
+      const url = new URL(String(rawUrl || ""), window.location.origin);
+      if (url.origin !== window.location.origin) return null;
+
+      let segments = url.pathname.split("/").filter(Boolean);
+      if (
+        (segments[0] === "articles" || segments[0] === "notes")
+        && nonDefaultLocales.has(segments[1])
+      ) {
+        segments = [segments[1], segments[0], ...segments.slice(2)];
+        url.pathname = `/${segments.join("/")}/`;
+      }
+
+      const collectionIndex = nonDefaultLocales.has(segments[0]) ? 1 : 0;
+      if (segments[collectionIndex] !== collection || segments.length <= collectionIndex + 1) return null;
+      return url;
+    };
+
     const normalizeStoredSource = (source) => {
       try {
         const citationIndex = Number(source?.citationIndex);
         const collection = String(source?.collection || "");
         const title = String(source?.title || "").trim().slice(0, 200);
-        const url = new URL(String(source?.url || ""), window.location.origin);
         if (!Number.isInteger(citationIndex) || citationIndex < 1 || citationIndex > 20) return null;
         if (collection !== "articles" && collection !== "notes") return null;
-        if (!title || url.origin !== window.location.origin || !/^\/(articles|notes)\//.test(url.pathname)) return null;
+        const url = normalizeSourceUrl(source?.url, collection);
+        if (!title || !url) return null;
         return { citationIndex, collection, title, url: url.href };
       } catch {
         return null;
@@ -199,14 +243,14 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       const wrapper = document.createElement("div");
       wrapper.className = "ask-blog__sources";
       const heading = document.createElement("h3");
-      heading.textContent = "来源";
+      heading.textContent = copy.sources;
       const list = document.createElement("ol");
       for (const source of sources) {
         const item = document.createElement("li");
         item.value = source.citationIndex;
         const badge = document.createElement("span");
         badge.className = "ask-blog__source-type";
-        badge.textContent = source.collection === "articles" ? "文章" : "笔记";
+        badge.textContent = source.collection === "articles" ? copy.articleSource : copy.noteSource;
         const link = document.createElement("a");
         link.href = source.url;
         link.textContent = source.title;
@@ -222,7 +266,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       section.className = `ask-blog__message ask-blog__message--${message.role}`;
       const label = document.createElement("div");
       label.className = "ask-blog__message-label";
-      label.textContent = message.role === "user" ? "你" : "问博客";
+      label.textContent = message.role === "user" ? copy.userLabel : copy.assistantLabel;
       const body = document.createElement("div");
       body.className = "ask-blog__message-body";
       if (message.role === "assistant") renderMarkdownInto(body, message.content);
@@ -237,7 +281,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       section.className = "ask-blog__message ask-blog__message--assistant ask-blog__message--pending";
       const label = document.createElement("div");
       label.className = "ask-blog__message-label";
-      label.textContent = "问博客";
+      label.textContent = copy.assistantLabel;
       const loading = document.createElement("div");
       loading.className = "ask-blog__loading";
       const spinner = document.createElement("span");
@@ -248,7 +292,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       text.textContent = message;
       const detail = document.createElement("span");
       detail.className = "ask-blog__loading-detail";
-      detail.textContent = "检索本站内容 → 组织答案";
+      detail.textContent = copy.loadingDetail;
       loading.append(spinner, text);
       const progress = document.createElement("div");
       progress.className = "ask-blog__progress";
@@ -267,7 +311,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       if (!conversation.length) {
         const empty = document.createElement("p");
         empty.className = "ask-blog__empty";
-        empty.textContent = "可以先问一个问题，再像聊天一样继续追问。例如“Go CAS 为什么可以无锁？”→“那 ARM 呢？”。";
+        empty.textContent = copy.emptyConversation;
         conversationElement.append(empty);
       } else {
         for (const message of conversation) conversationElement.append(createMessageElement(message));
@@ -301,8 +345,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
         script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
         script.async = true;
         script.defer = true;
-        script.addEventListener("load", () => window.turnstile ? resolve(window.turnstile) : reject(new Error("安全验证加载失败。")));
-        script.addEventListener("error", () => reject(new Error("安全验证加载失败。")));
+        script.addEventListener("load", () => window.turnstile ? resolve(window.turnstile) : reject(new Error(copy.securityLoadFailed)));
+        script.addEventListener("error", () => reject(new Error(copy.securityLoadFailed)));
         document.head.append(script);
       });
       return turnstileLoadPromise;
@@ -318,7 +362,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
     };
 
     const ensureTurnstileWidget = async () => {
-      if (!turnstileSiteKey) throw new Error("Turnstile 尚未配置。请先设置 Site Key。");
+      if (!turnstileSiteKey) throw new Error(copy.securityNotConfigured);
       const turnstile = await loadTurnstile();
       if (turnstileWidgetId !== null) return turnstile;
       turnstileWidgetId = turnstile.render(turnstileContainer, {
@@ -329,9 +373,9 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
         appearance: "interaction-only",
         execution: "execute",
         callback: (token) => settleTurnstile(null, token),
-        "error-callback": () => { settleTurnstile(new Error("安全验证失败，请重试。")); return true; },
-        "expired-callback": () => settleTurnstile(new Error("安全验证已过期，请重试。")),
-        "timeout-callback": () => settleTurnstile(new Error("安全验证超时，请重试。")),
+        "error-callback": () => { settleTurnstile(new Error(copy.securityFailed)); return true; },
+        "expired-callback": () => settleTurnstile(new Error(copy.securityExpired)),
+        "timeout-callback": () => settleTurnstile(new Error(copy.securityTimeout)),
       });
       return turnstile;
     };
@@ -342,15 +386,15 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       let resolveAttempt;
       let rejectAttempt;
       const promise = new Promise((resolve, reject) => { resolveAttempt = resolve; rejectAttempt = reject; });
-      const timeoutId = window.setTimeout(() => settleTurnstile(new Error("安全验证超时，请重试。")), 90_000);
+      const timeoutId = window.setTimeout(() => settleTurnstile(new Error(copy.securityTimeout)), 90_000);
       turnstileAttempt = { promise, resolve: resolveAttempt, reject: rejectAttempt, timeoutId };
       try { turnstile.execute(turnstileWidgetId); }
-      catch (error) { settleTurnstile(error instanceof Error ? error : new Error("安全验证失败，请重试。")); }
+      catch (error) { settleTurnstile(error instanceof Error ? error : new Error(copy.securityFailed)); }
       return promise;
     };
 
     const resetTurnstile = () => {
-      if (turnstileAttempt) settleTurnstile(new Error("安全验证已重置。"));
+      if (turnstileAttempt) settleTurnstile(new Error(copy.securityReset));
       if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
     };
 
@@ -358,7 +402,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question, history, ...security }),
+        body: JSON.stringify({ question, history, locale, ...security }),
       });
       const payload = await response.json().catch(() => ({}));
       if (payload.sessionToken) saveSecuritySession(payload);
@@ -389,7 +433,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       event.preventDefault();
       const question = input.value.trim();
       if (!question || submit.disabled) return;
-      if (!endpoint) { setStatus("AI 后端尚未配置。", true); return; }
+      if (!endpoint) { setStatus(copy.backendNotConfigured, true); return; }
 
       const previousConversation = conversation.map((message) => ({ ...message, sources: [...(message.sources || [])] }));
       const history = buildRequestHistory();
@@ -399,11 +443,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
       input.value = "";
       setStatus("");
       submit.disabled = true;
-      submit.textContent = "处理中…";
+      submit.textContent = copy.processing;
       conversationElement.setAttribute("aria-busy", "true");
 
       const existingSession = loadSecuritySession();
-      const pending = createPendingMessage(existingSession ? "正在检索文章与笔记…" : "正在进行安全验证…");
+      const pending = createPendingMessage(existingSession ? copy.searching : copy.verifying);
       conversationElement.append(pending);
       scrollConversation();
 
@@ -415,24 +459,28 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
           ({ response, payload } = await requestChat(question, history, { sessionToken: existingSession.token }));
           if (response.status === 401 && payload.requiresTurnstile) {
             clearSecuritySession();
-            updatePendingText(pending, "安全会话已过期，正在重新验证…");
+            updatePendingText(pending, copy.sessionExpired);
             const turnstileToken = await getTurnstileToken();
-            updatePendingText(pending, "验证完成，正在检索文章与笔记…");
+            updatePendingText(pending, copy.verifiedSearching);
             ({ response, payload } = await requestChat(question, history, { turnstileToken, requestSession: true }));
           }
         } else {
-          if (!turnstileSiteKey) throw new Error("安全验证尚未配置。请设置 Site Key。");
+          if (!turnstileSiteKey) throw new Error(copy.securityNotConfigured);
           const turnstileToken = await getTurnstileToken();
-          updatePendingText(pending, "验证完成，正在检索文章与笔记…");
+          updatePendingText(pending, copy.verifiedSearching);
           ({ response, payload } = await requestChat(question, history, { turnstileToken, requestSession: true }));
         }
 
-        if (!response.ok) throw new Error(payload.error || `请求失败（${response.status}）`);
+        if (!response.ok) {
+          const fallbackError = String(copy.requestFailed || "Request failed ({status})")
+            .replace("{status}", String(response.status));
+          throw new Error(payload.error || fallbackError);
+        }
 
         const sources = Array.isArray(payload.sources)
           ? payload.sources.map(normalizeStoredSource).filter(Boolean)
           : [];
-        conversation.push({ role: "assistant", content: payload.answer || "AI 没有返回回答。", sources });
+        conversation.push({ role: "assistant", content: payload.answer || copy.emptyAnswer, sources });
         saveConversation();
         renderConversation();
         scrollConversation();
@@ -442,11 +490,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "
         saveConversation();
         renderConversation();
         input.value = question;
-        setStatus(error instanceof Error ? error.message : "问博客暂时不可用。", true);
+        setStatus(error instanceof Error ? error.message : copy.unavailable, true);
       } finally {
         resetTurnstile();
         submit.disabled = false;
-        submit.textContent = "提问";
+        submit.textContent = copy.submit;
         conversationElement.setAttribute("aria-busy", "false");
         input.focus();
       }

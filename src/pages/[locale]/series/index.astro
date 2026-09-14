@@ -2,6 +2,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import CollectionHeader from "../../../components/CollectionHeader.astro";
 import ShowcaseList from "../../../components/ShowcaseList.astro";
+import { SERIES_UI } from "../../../config/i18n-features";
 import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import {
@@ -11,6 +12,10 @@ import {
   seriesStatusLabel,
   sortSeries,
 } from "../../../lib/content";
+import {
+  seriesHasLocaleSummary,
+  translatedSeriesArticleCount,
+} from "../../../lib/series-i18n";
 
 export async function getStaticPaths() {
   const entries = sortSeries(await getCollection("series"));
@@ -29,35 +34,30 @@ interface Props {
 
 const { locale, entries, articles } = Astro.props;
 const localeInfo = LOCALES[locale];
-const translatedSeries = entries
-  .map((entry) => {
-    const translatedArticleCount = entry.data.relatedArticles.filter((rootId) =>
-      articles.some((article) => article.data.translationOf === rootId && article.data.language === locale),
-    ).length;
-    return { entry, translatedArticleCount };
-  })
-  .filter(({ translatedArticleCount }) => translatedArticleCount > 0);
+const seriesUi = SERIES_UI[locale];
+const localizedSeries = entries.filter((entry) => seriesHasLocaleSummary(entry, locale));
 ---
 
 <BaseLayout
   title={localeInfo.ui.seriesTitle}
   description={localeInfo.ui.seriesDescription}
-  noindex={translatedSeries.length === 0}
+  noindex={localizedSeries.length === 0}
   locale={locale}
   canonicalPath={localizePath(locale, "/series/")}
 >
   <div class="shell page collection-page">
     <CollectionHeader title={localeInfo.ui.seriesTitle} description={localeInfo.ui.seriesDescription} />
-    {translatedSeries.length === 0 ? (
+    {localizedSeries.length === 0 ? (
       <p class="empty-state">{localeInfo.ui.seriesEmpty}</p>
     ) : (
-      <ShowcaseList items={translatedSeries.map(({ entry, translatedArticleCount }) => {
+      <ShowcaseList items={localizedSeries.map((entry) => {
         const summary = localizedSeriesSummary(entry, locale);
+        const translatedArticleCount = translatedSeriesArticleCount(entry, articles, locale);
         return {
           href: seriesHref(entry, locale),
           title: summary.title,
           description: summary.description,
-          label: `${translatedArticleCount} ${translatedArticleCount === 1 ? "article" : "articles"}`,
+          label: seriesUi.articleProgress(translatedArticleCount, entry.data.relatedArticles.length),
           status: seriesStatusLabel(entry.data.status, locale),
         };
       })} />

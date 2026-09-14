@@ -4,6 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { contentLanguage, contentSourceUrl } from "./ai-search-content.mjs";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -16,7 +17,7 @@ const currentSha = String(process.env.GITHUB_SHA || "HEAD").trim();
 const apiBase = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai-search/instances`;
 const collections = ["articles", "notes"];
 const collectionPriority = { articles: 2, notes: 1 };
-const indexSchemaVersion = 2;
+const indexSchemaVersion = 3;
 const readyTimeoutMs = Number(process.env.AI_SEARCH_READY_TIMEOUT_MS || 180_000);
 const readyPollMs = Number(process.env.AI_SEARCH_READY_POLL_MS || 2_000);
 const maxItemKeyLength = 128;
@@ -41,6 +42,7 @@ function parseScalar(value) {
 function parseFrontmatter(markdown) {
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!match) return { data: {}, body: markdown };
+
   const data = {};
   for (const line of match[1].split(/\r?\n/)) {
     const field = line.match(/^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/);
@@ -66,11 +68,6 @@ function itemKey(collection, id) {
   return `blog--${collection}--h-${digest}.md`;
 }
 
-function sourceUrl(collection, id) {
-  const encoded = id.split("/").map(encodeURIComponent).join("/");
-  return `${blogOrigin}/${collection}/${encoded}/`;
-}
-
 async function walk(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -83,6 +80,7 @@ async function walk(directory) {
 
 async function loadDocuments() {
   const documents = new Map();
+
   for (const collection of collections) {
     const base = path.join(repositoryRoot, "src", "content", collection);
     for (const absolute of await walk(base)) {
@@ -92,14 +90,16 @@ async function loadDocuments() {
       const { data, body } = parseFrontmatter(markdown);
       if (!isPublic(collection, data)) continue;
 
+      const language = contentLanguage(collection, id, data);
       const title = data.title || id.split("/").pop();
-      const url = sourceUrl(collection, id);
+      const url = contentSourceUrl(blogOrigin, collection, id, language);
       const priority = collectionPriority[collection];
       const description = data.description ? `\n${data.description}\n` : "";
       const content = [
         `# ${title}`,
         `Source URL: ${url}`,
         `Collection: ${collection}`,
+        `Language: ${language}`,
         description,
         body.trim(),
       ].filter(Boolean).join("\n\n").trim() + "\n";
@@ -109,6 +109,7 @@ async function loadDocuments() {
         key,
         collection,
         id,
+        language,
         title,
         url,
         priority,
@@ -118,6 +119,7 @@ async function loadDocuments() {
       });
     }
   }
+
   return documents;
 }
 
@@ -154,16 +156,8 @@ function hasPriorityBoost(info) {
   return boosts.some((boost) => boost?.field === "priority" && boost?.direction === "desc");
 }
 
-async function ensureInstance() {
-  const instanceUrl = `${apiBase}/${encodeURIComponent(instanceName)}`;
-  let existing;
-  try {
-    existing = await cloudflareRequest(instanceUrl, {}, [200]);
-  } catch (error) {
-    if (error.status !== 404) throw error;
-  }
-
-  const desired = {
+function desiredInstanceConfiguration() {
+  return {
     index_method: { vector: true, keyword: true },
     fusion_method: "rrf",
     indexing_options: { keyword_tokenizer: "trigram" },
@@ -171,10 +165,13 @@ async function ensureInstance() {
       keyword_match_mode: "or",
       boost_by: [{ field: "priority", direction: "desc" }],
     },
+    // AI Search currently supports at most five custom metadata fields. Collection
+    // is derivable from the stable blog--articles/blog--notes item key, so use the
+    // fifth slot for language to support locale-aware retrieval.
     custom_metadata: [
       { field_name: "source_url", data_type: "text" },
       { field_name: "title", data_type: "text" },
-      { field_name: "collection", data_type: "text" },
+      { field_name: "language", data_type: "text" },
       { field_name: "priority", data_type: "number" },
       { field_name: "schema_version", data_type: "number" },
     ],
@@ -185,7 +182,18 @@ async function ensureInstance() {
     chunk_overlap: 15,
     max_num_results: 20,
   };
+}
 
+async function ensureInstance() {
+  const instanceUrl = `${apiBase}/${encodeURIComponent(instanceName)}`;
+  let existing;
+  try {
+    existing = await cloudflareRequest(instanceUrl, {}, [200]);
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
+
+  const desired = desiredInstanceConfiguration();
   if (!existing) {
     await cloudflareRequest(apiBase, {
       method: "POST",
@@ -198,7 +206,7 @@ async function ensureInstance() {
   const info = existing.result || existing;
   const metadataSchema = new Map(
     (Array.isArray(info?.custom_metadata) ? info.custom_metadata : [])
-      .map((field) => [field?.field_name, field?.data_type]),
+      .map((field) => [String(field?.field_name || "").toLowerCase(), field?.data_type]),
   );
   const needsUpdate = info?.index_method?.keyword !== true
     || info?.index_method?.vector !== true
@@ -206,9 +214,10 @@ async function ensureInstance() {
     || info?.indexing_options?.keyword_tokenizer !== "trigram"
     || info?.retrieval_options?.keyword_match_mode !== "or"
     || !hasPriorityBoost(info)
+    || metadataSchema.size !== desired.custom_metadata.length
     || metadataSchema.get("source_url") !== "text"
     || metadataSchema.get("title") !== "text"
-    || metadataSchema.get("collection") !== "text"
+    || metadataSchema.get("language") !== "text"
     || metadataSchema.get("priority") !== "number"
     || metadataSchema.get("schema_version") !== "number"
     || info?.reranking !== true
@@ -259,7 +268,7 @@ function itemMetadataNeedsRefresh(existing, document) {
   const metadata = existing?.metadata || {};
   return String(metadata.source_url || "") !== document.url
     || String(metadata.title || "") !== document.title
-    || String(metadata.collection || "") !== document.collection
+    || String(metadata.language || "") !== document.language
     || Number(metadata.priority) !== document.priority
     || Number(metadata.schema_version) !== document.schemaVersion;
 }
@@ -278,7 +287,7 @@ async function uploadDocument(document) {
   form.append("metadata", JSON.stringify({
     source_url: document.url,
     title: document.title,
-    collection: document.collection,
+    language: document.language,
     priority: String(document.priority),
     schema_version: String(document.schemaVersion),
   }));
@@ -369,6 +378,7 @@ async function verifySearch(documents) {
       item?.status === "completed"
       && Number(item?.chunks_count || 0) > 0
       && String(item?.metadata?.title || "").trim()
+      && ["zh", "en"].includes(String(item?.metadata?.language || ""))
       && Number(item?.metadata?.schema_version) === indexSchemaVersion,
     );
 
@@ -379,6 +389,7 @@ async function verifySearch(documents) {
     }
 
     const probe = String(completedItem.metadata.title).trim();
+    const language = String(completedItem.metadata.language);
     const payload = await cloudflareRequest(
       `${apiBase}/${encodeURIComponent(instanceName)}/search`,
       {
@@ -391,6 +402,7 @@ async function verifySearch(documents) {
               fusion_method: "rrf",
               keyword_match_mode: "or",
               boost_by: [{ field: "priority", direction: "desc" }],
+              filters: { language },
               max_num_results: 10,
               return_on_failure: false,
             },
@@ -410,18 +422,20 @@ async function verifySearch(documents) {
     const chunks = Array.isArray(result.chunks) ? result.chunks : [];
     const blogChunks = chunks.filter((chunk) =>
       String(chunk?.item?.key || "").startsWith("blog--")
+      && String(chunk?.item?.metadata?.language || "") === language
       && Number(chunk?.item?.metadata?.schema_version) === indexSchemaVersion,
     );
     if (blogChunks.length) {
       log("search-verified", {
         query: probe,
+        language,
         completedItem: completedItem.key,
         chunks: blogChunks.length,
       });
       return;
     }
 
-    lastReason = `search returned no schema v${indexSchemaVersion} blog chunks for ${probe}`;
+    lastReason = `language-filtered search returned no schema v${indexSchemaVersion} blog chunks for ${probe}`;
     log("search-verification-waiting", { reason: lastReason });
     await sleep(readyPollMs);
   }

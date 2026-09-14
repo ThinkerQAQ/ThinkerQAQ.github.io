@@ -7,6 +7,7 @@ const retryMs = Number(process.env.AI_SEARCH_EVAL_RETRY_MS || 10_000);
 
 const cases = [
   {
+    language: "zh",
     query: "Go CAS 为什么可以无锁？",
     expectedAny: [
       "/articles/concurrency-series-05-atomic-cas/",
@@ -14,24 +15,39 @@ const cases = [
     ],
   },
   {
+    language: "zh",
     query: "Go CAS 在 amd64 上如何实现？",
     expectedAny: ["/articles/concurrency-series-06-atomic-implementation/"],
   },
   {
+    language: "zh",
     query: "AtomicInteger 底层如何实现？",
     expectedAny: ["/articles/concurrency-series-06-atomic-implementation/"],
   },
   {
+    language: "zh",
     query: "Java synchronized 底层怎么实现？",
     expectedAny: ["/articles/concurrency-series-04-mutex-implementation/"],
   },
   {
+    language: "zh",
     query: "volatile 能保证原子性吗？",
     expectedAny: ["/articles/concurrency-series-07-volatile/"],
   },
   {
+    language: "zh",
     query: "Go Mutex 竞争失败以后发生什么？",
     expectedAny: ["/articles/concurrency-series-04-mutex-implementation/"],
+  },
+  {
+    language: "en",
+    query: "How is CAS implemented on amd64?",
+    expectedAny: ["/en/articles/concurrency-series-06-atomic-implementation/"],
+  },
+  {
+    language: "en",
+    query: "What does volatile guarantee?",
+    expectedAny: ["/en/articles/concurrency-series-07-volatile/"],
   },
 ];
 
@@ -43,7 +59,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function search(query) {
+async function search(query, language) {
   const response = await fetch(`${apiBase}/search`, {
     method: "POST",
     headers: {
@@ -58,6 +74,7 @@ async function search(query) {
           fusion_method: "rrf",
           keyword_match_mode: "or",
           boost_by: [{ field: "priority", direction: "desc" }],
+          filters: { language },
           match_threshold: 0,
           max_num_results: 20,
           context_expansion: 1,
@@ -83,6 +100,10 @@ async function search(query) {
   return payload?.result || payload || {};
 }
 
+function collectionFromKey(key) {
+  return String(key || "").match(/^blog--(articles|notes)--/)?.[1] || "";
+}
+
 function uniqueDocuments(chunks) {
   const seen = new Set();
   const documents = [];
@@ -96,8 +117,10 @@ function uniqueDocuments(chunks) {
     documents.push({
       key,
       title: String(metadata.title || ""),
-      collection: String(metadata.collection || ""),
+      collection: collectionFromKey(key),
+      language: String(metadata.language || ""),
       sourceUrl: String(metadata.source_url || ""),
+      schemaVersion: Number(metadata.schema_version || 0),
       score: chunk?.score ?? null,
       vectorScore: chunk?.scoring_details?.vector_score ?? null,
       keywordScore: chunk?.scoring_details?.keyword_score ?? null,
@@ -108,14 +131,16 @@ function uniqueDocuments(chunks) {
 }
 
 async function evaluateCase(testCase) {
-  const result = await search(testCase.query);
+  const result = await search(testCase.query, testCase.language);
   const documents = uniqueDocuments(result.chunks);
   const topFive = documents.slice(0, 5);
   const matchedRank = topFive.findIndex((document) =>
-    testCase.expectedAny.some((expected) => document.sourceUrl.includes(expected)),
+    document.language === testCase.language
+    && testCase.expectedAny.some((expected) => document.sourceUrl.includes(expected)),
   );
 
   return {
+    language: testCase.language,
     query: testCase.query,
     status: matchedRank >= 0 ? "pass" : "fail",
     expectedAny: testCase.expectedAny,
@@ -151,7 +176,7 @@ while (pending.length > 0) {
   console.log(JSON.stringify({
     operation: "eval-ai-search",
     status: "retrying",
-    failedCases: failedCases.map((entry) => entry.query),
+    failedCases: failedCases.map((entry) => `${entry.language}:${entry.query}`),
     retryInMs: retryMs,
   }));
   pending = failedCases;
