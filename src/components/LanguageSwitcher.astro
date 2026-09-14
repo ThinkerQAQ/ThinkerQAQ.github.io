@@ -59,3 +59,79 @@ const current = LOCALES[currentLocale];
     </details>
   )
 )}
+
+<style>
+  .language-switcher {
+    flex: none;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.2;
+  }
+
+  .language-switcher--inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    padding-left: 0.9rem;
+    border-left: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .language-switcher a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .language-switcher a:hover,
+  .language-switcher__current {
+    color: var(--text);
+  }
+
+  .language-switcher__current {
+    font-weight: 700;
+  }
+
+  .language-switcher__separator {
+    color: var(--faint);
+  }
+
+  .language-switcher--menu {
+    position: relative;
+  }
+
+  .language-switcher--menu summary {
+    cursor: pointer;
+    list-style: none;
+    color: var(--text);
+    font-weight: 650;
+  }
+
+  .language-switcher--menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .language-switcher--menu summary::after {
+    content: " ▾";
+    color: var(--faint);
+  }
+
+  .language-switcher__menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 0.65rem);
+    right: 0;
+    display: grid;
+    min-width: 8.5rem;
+    padding: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .language-switcher__menu :is(a, span) {
+    padding: 0.4rem 0.55rem;
+    border-radius: 0.4rem;
+    text-decoration: none;
+  }
+</style>
