@@ -1,13 +1,19 @@
 ---
+import { DEFAULT_LOCALE, type Locale } from "../config/i18n";
 import type { ArticleEntry } from "../lib/content";
 import { articleHref, formatDate } from "../lib/content";
 
 interface Props {
   entries: ArticleEntry[];
   emptyMessage?: string;
+  locale?: Locale;
 }
 
-const { entries, emptyMessage = "这里还没有已发布文章。" } = Astro.props;
+const {
+  entries,
+  locale = entries[0]?.data.language ?? DEFAULT_LOCALE,
+  emptyMessage = locale === "en" ? "There are no published articles here yet." : "这里还没有已发布文章。",
+} = Astro.props;
 ---
 
 {entries.length === 0 ? (
@@ -18,13 +24,13 @@ const { entries, emptyMessage = "这里还没有已发布文章。" } = Astro.pr
       <li>
         <div class="content-list-main">
           <a class="content-title" href={articleHref(entry)}>{entry.data.title}</a>
-          {entry.data.status === "draft" && <span class="draft-badge">草稿</span>}
+          {entry.data.status === "draft" && <span class="draft-badge">{locale === "en" ? "Draft" : "草稿"}</span>}
           <p>{entry.data.description}</p>
         </div>
         <div class="content-meta">
           <span>{entry.data.language === "en" ? "English" : entry.data.tags[0] ?? "技术文章"}</span>
           <time datetime={(entry.data.updatedAt ?? entry.data.publishedAt).toISOString()}>
-            {formatDate(entry.data.updatedAt ?? entry.data.publishedAt)}
+            {formatDate(entry.data.updatedAt ?? entry.data.publishedAt, locale)}
           </time>
         </div>
       </li>
