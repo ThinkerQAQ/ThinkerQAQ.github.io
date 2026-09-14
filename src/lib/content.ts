@@ -54,21 +54,45 @@ export const ROOT_NOTE_TOPIC_ROUTE = "overview";
 export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成" };
 export const seriesStatus = { planned: "规划中", active: "持续更新", complete: "已完结" };
 
+const projectStatusEn = { exploring: "Exploring", building: "Building", maintained: "Maintained", completed: "Completed" };
+const seriesStatusEn = { planned: "Planned", active: "Active", complete: "Complete" };
+
+export function projectStatusLabel(status: keyof typeof projectStatus, locale: Locale = DEFAULT_LOCALE): string {
+  return locale === "en" ? projectStatusEn[status] : projectStatus[status];
+}
+
+export function seriesStatusLabel(status: keyof typeof seriesStatus, locale: Locale = DEFAULT_LOCALE): string {
+  return locale === "en" ? seriesStatusEn[status] : seriesStatus[status];
+}
+
+export function localizedProjectSummary(project: ProjectEntry, locale: Locale) {
+  return locale === DEFAULT_LOCALE
+    ? { title: project.data.title, description: project.data.description }
+    : project.data.translations?.[locale] ?? { title: project.data.title, description: project.data.description };
+}
+
+export function localizedSeriesSummary(series: SeriesEntry, locale: Locale) {
+  return locale === DEFAULT_LOCALE
+    ? { title: series.data.title, description: series.data.description }
+    : series.data.translations?.[locale] ?? { title: series.data.title, description: series.data.description };
+}
+
 export function articleIsIncluded(article: ArticleEntry): boolean {
   return article.data.status === "published" || includeDraftArticles;
 }
 
-export function noteHref(note: NoteEntry): string {
-  return `/notes/${note.id}/`;
+export function noteHref(note: NoteEntry, locale: Locale = DEFAULT_LOCALE): string {
+  return localizePath(locale, `/notes/${note.id}/`);
 }
 
-export function categoryHref(category: string): string {
-  return `/notes/category/${encodeURIComponent(category)}/`;
+export function categoryHref(category: string, locale: Locale = DEFAULT_LOCALE): string {
+  return localizePath(locale, `/notes/category/${encodeURIComponent(category)}/`);
 }
 
 export function noteTopicHref(
   category: string,
   topic: string | string[] | NoteTopicSegment[],
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
   const topicIds = typeof topic === "string"
     ? [topic]
@@ -76,11 +100,11 @@ export function noteTopicHref(
   const routeIds = topicIds.length === 1 && topicIds[0] === ROOT_NOTE_TOPIC
     ? [ROOT_NOTE_TOPIC_ROUTE]
     : topicIds;
-  return `${categoryHref(category)}topic/${routeIds.map(encodeURIComponent).join("/")}/`;
+  return `${categoryHref(category, locale)}topic/${routeIds.map(encodeURIComponent).join("/")}/`;
 }
 
-export function noteTagHref(tag: string): string {
-  return `/notes/tags/${encodeURIComponent(tag)}/`;
+export function noteTagHref(tag: string, locale: Locale = DEFAULT_LOCALE): string {
+  return localizePath(locale, `/notes/tags/${encodeURIComponent(tag)}/`);
 }
 
 export function articleSlug(article: ArticleEntry): string {
@@ -157,13 +181,14 @@ export function getArticleTranslations(
   );
 }
 
-export function projectHref(project: ProjectEntry): string {
-  return `/projects/${project.id}/`;
+export function projectHref(project: ProjectEntry | string, locale: Locale = DEFAULT_LOCALE): string {
+  const id = typeof project === "string" ? project : project.id;
+  return localizePath(locale, `/projects/${id}/`);
 }
 
-export function seriesHref(series: SeriesEntry | string): string {
+export function seriesHref(series: SeriesEntry | string, locale: Locale = DEFAULT_LOCALE): string {
   const id = typeof series === "string" ? series : series.id;
-  return `/series/${id}/`;
+  return localizePath(locale, `/series/${id}/`);
 }
 
 export function getArticleSeriesNavigation(
