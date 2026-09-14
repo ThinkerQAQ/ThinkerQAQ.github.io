@@ -6,14 +6,16 @@ Cloudflare Worker backend for the blog's **Ask / 问博客** feature.
 
 The production path is:
 
-1. Before sending a question, the browser obtains a one-time Cloudflare Turnstile token.
-2. The browser sends the current question, a bounded recent conversation history, and the Turnstile token to `POST /chat`.
-3. The Worker validates origin, input size, history shape, rate limit and Turnstile.
-4. The Worker builds a contextual retrieval query from the current question plus the last one or two user questions, then queries Cloudflare AI Search with hybrid keyword + vector retrieval, RRF fusion, article-priority boosting and reranking.
-5. The Worker sends the retrieved blog context plus recent conversational context to Workers AI. Conversation history is context only; factual claims must still be grounded in the current retrieval results.
-6. The Worker returns the answer plus only the source links that the answer actually cites.
+1. The first question in a browser tab obtains a one-time Cloudflare Turnstile token.
+2. After Turnstile succeeds, the Worker issues an origin-bound, signed Ask session token valid for 20 minutes.
+3. Follow-up questions reuse that short-lived Ask session, so they do not run Turnstile again while the session is valid. Rate limiting still applies to every request.
+4. The browser sends the current question plus a bounded recent conversation history to `POST /chat`.
+5. The Worker validates origin, input size, history shape, rate limit and either the Ask session or Turnstile.
+6. The Worker builds a contextual retrieval query from the current question plus the last one or two user questions, then queries Cloudflare AI Search with hybrid keyword + vector retrieval, RRF fusion, article-priority boosting and reranking.
+7. The Worker sends the retrieved blog context plus recent conversational context to Workers AI. Conversation history is context only; factual claims must still be grounded in the current retrieval results.
+8. The Worker returns the answer plus only the source links that the answer actually cites.
 
-Conversation state is kept in browser `sessionStorage`; the Worker does not persist chat sessions. Pagefind remains dedicated to the site's normal interactive search, while the Worker is the sole trust boundary for retrieval and answer generation.
+Conversation state and the short-lived Ask session token are kept in browser `sessionStorage`; the Worker does not persist chat sessions. Clearing the conversation also clears the Ask session. Pagefind remains dedicated to the site's normal interactive search, while the Worker is the sole trust boundary for retrieval and answer generation.
 
 ## AI Search setup
 
@@ -56,7 +58,7 @@ Account > Workers Scripts:Edit
 
 The sync job fails on missing credentials, unrecoverable Cloudflare API errors, indexing errors, or failed readiness/search checks. Cloudflare indexing may continue asynchronously after the instance becomes searchable; the regression step verifies representative queries against the live index.
 
-## Turnstile setup
+## Turnstile and Ask session setup
 
 Create a Turnstile widget in the Cloudflare dashboard and allow the production hostname:
 
@@ -69,13 +71,21 @@ The widget gives you two values:
 - **Site Key**: public; it is embedded in the Astro page.
 - **Secret Key**: private; it is stored only as a Cloudflare Worker Secret.
 
-Store the Worker secret from `workers/blog-ai`:
+Store the Turnstile Worker secret from `workers/blog-ai`:
 
 ```bash
 npx wrangler@latest secret put TURNSTILE_SECRET_KEY
 ```
 
-Do not put the secret key in Astro environment variables, source files, `wrangler.jsonc`, or GitHub Pages JavaScript.
+Also create a separate random signing value for short-lived Ask sessions and store it as another Worker secret:
+
+```bash
+npx wrangler@latest secret put ASK_SESSION_SECRET
+```
+
+`ASK_SESSION_SECRET` should be a strong random value and must not be committed to Git or exposed to frontend JavaScript. It is used only to HMAC-sign 20-minute Ask session tokens. If it is not configured, Turnstile still protects requests, but the browser cannot reuse verification for follow-up questions.
+
+Do not put either secret in Astro environment variables, source files, `wrangler.jsonc`, or GitHub Pages JavaScript.
 
 For local testing, Cloudflare provides dedicated test credentials. Use the always-pass test site key in the Astro build and put the always-pass test secret in `workers/blog-ai/.dev.vars`; never use those test credentials in production.
 
@@ -98,39 +108,60 @@ PUBLIC_ASK_BLOG_WORKER_URL
 PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY
 ```
 
-Neither is a credential. The Turnstile **secret** stays in Cloudflare Worker Secrets.
+Neither is a credential. The Turnstile and Ask session secrets stay in Cloudflare Worker Secrets.
 
 ## Multi-turn request contract
 
-`POST /chat` accepts:
+The first request can ask the Worker to mint a reusable security session:
+
+```json
+{
+  "question": "Go CAS 为什么可以无锁？",
+  "history": [],
+  "turnstileToken": "...",
+  "requestSession": true
+}
+```
+
+A successful response may include:
+
+```json
+{
+  "sessionToken": "...",
+  "sessionExpiresAt": 1789350000000
+}
+```
+
+Follow-up requests reuse that token:
 
 ```json
 {
   "question": "那 ARM 呢？",
   "history": [
-    { "role": "user", "content": "CPU 层面有哪些指令提供原子性？" },
-    { "role": "assistant", "content": "x86 可以使用 LOCK CMPXCHG……[1]" }
+    { "role": "user", "content": "Go CAS 为什么可以无锁？" },
+    { "role": "assistant", "content": "……[1]" }
   ],
-  "turnstileToken": "..."
+  "sessionToken": "..."
 }
 ```
 
 History is bounded to six recent `user`/`assistant` messages and is used only to resolve follow-up context. Retrieval uses the current question plus up to the two most recent user questions; assistant answers are not inserted into the search query.
 
-The response contains only sources actually cited by the generated answer. Each source includes its original `citationIndex`, so an answer that cites `[1]` and `[4]` can render source numbers 1 and 4 without implying that sources 2 and 3 were used.
+If the Ask session has expired or is invalid, the Worker returns `401` with `requiresTurnstile: true`; the browser performs Turnstile again and retries the question once. The response contains only sources actually cited by the generated answer. Each source includes its original `citationIndex`, so an answer that cites `[1]` and `[4]` can render source numbers 1 and 4 without implying that sources 2 and 3 were used.
 
 ## Security boundaries
 
 - CORS only accepts origins in `ALLOWED_ORIGINS`. CORS is not treated as authentication.
-- Every `/chat` request must include a Turnstile token and the Worker validates it with Cloudflare Siteverify before calling retrieval or Workers AI.
+- The first question requires Turnstile. A successful verification can mint an origin-bound HMAC-signed Ask session valid for 20 minutes.
+- Follow-up requests may use the Ask session instead of a fresh Turnstile token. The session is stored only in browser `sessionStorage` and is cleared with the conversation or when the tab closes.
 - The Worker validates the returned Turnstile hostname against the request origin and requires action `ask_blog`.
 - Turnstile tokens are short-lived and single-use.
+- Worker rate limiting applies to every question, including valid Ask sessions: 10 calls per 60 seconds per connecting IP.
 - AI Search item keys are decoded only for known blog collections before being exposed as source URLs.
 - Question length: max 1,000 characters.
 - Conversation history: max 6 messages, max 3,000 characters per message, max 9,000 characters total.
 - AI Search context: max 5 documents, max 5,000 characters each, max 20,000 characters total.
 - Request body: max 24 KiB, enforced on the bytes actually read so requests without `Content-Length` cannot bypass the limit.
-- Worker rate limit: 10 calls per 60 seconds per connecting IP.
 - Conversation history and retrieved blog text are treated as untrusted context in the prompt and cannot override system instructions.
 - The prompt explicitly keeps primitive-level properties separate from algorithm-level guarantees; using a primitive such as CAS does not by itself prove a whole algorithm is lock-free.
 
