@@ -1,0 +1,64 @@
+---
+import { getCollection } from "astro:content";
+import ArticleIndex from "../../../components/ArticleIndex.astro";
+import Pagination from "../../../components/Pagination.astro";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  nonDefaultLocales,
+  type Locale,
+  type LocaleAlternative,
+} from "../../../config/i18n";
+import { ARTICLE_PAGE_SIZE } from "../../../config/site";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import {
+  articleIndexHref,
+  articleIsIncluded,
+  articlePageHref,
+  sortArticles,
+} from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const articles = sortArticles(
+    (await getCollection("articles")).filter(articleIsIncluded),
+  );
+
+  return nonDefaultLocales()
+    .filter((locale) => articles.some((article) => article.data.language === locale))
+    .map((locale) => ({
+      params: { locale: LOCALES[locale].path },
+      props: { locale, articles },
+    }));
+}
+
+interface Props {
+  locale: Locale;
+  articles: Awaited<ReturnType<typeof getCollection<"articles">>>;
+}
+
+const { locale, articles } = Astro.props;
+const localizedArticles = articles.filter((article) => article.data.language === locale);
+const pageCount = Math.ceil(localizedArticles.length / ARTICLE_PAGE_SIZE);
+const nextUrl = pageCount > 1 ? articlePageHref(2, locale) : undefined;
+const languageAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...nonDefaultLocales()]
+  .filter((candidate) => articles.some((article) => article.data.language === candidate))
+  .map((candidate) => ({ locale: candidate, href: articleIndexHref(candidate) }));
+const localeInfo = LOCALES[locale];
+---
+
+<BaseLayout
+  title={localeInfo.ui.articlesTitle}
+  noindex={localizedArticles.length === 0}
+  locale={locale}
+  languageAlternatives={languageAlternatives}
+  canonicalPath={articleIndexHref(locale)}
+>
+  {nextUrl && <link slot="head" rel="next" href={nextUrl} />}
+  <div class="shell page article-index-page">
+    <ArticleIndex
+      articles={localizedArticles.slice(0, ARTICLE_PAGE_SIZE)}
+      locale={locale}
+    />
+    <Pagination currentPage={1} lastPage={pageCount} nextUrl={nextUrl} />
+  </div>
+</BaseLayout>
