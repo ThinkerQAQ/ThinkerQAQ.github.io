@@ -31,6 +31,16 @@ const pageTitle =
 const canonical = new URL(canonicalPath, SITE.url);
 const umamiWebsiteId = import.meta.env.PUBLIC_UMAMI_WEBSITE_ID?.trim();
 const umamiDomain = new URL(SITE.url).hostname;
+const askBlogWorkerUrl = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL?.trim();
+let umamiProxyOrigin = "";
+if (askBlogWorkerUrl) {
+  try {
+    umamiProxyOrigin = new URL(askBlogWorkerUrl).origin;
+  } catch {
+    umamiProxyOrigin = "";
+  }
+}
+const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
 ---
 
 <!doctype html>
@@ -51,13 +61,14 @@ const umamiDomain = new URL(SITE.url).hostname;
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.title} />
     <meta name="twitter:card" content="summary" />
-    {umamiWebsiteId && (
+    {umamiWebsiteId && umamiProxyOrigin && (
       <script
         is:inline
         defer
-        src="https://cloud.umami.is/script.js"
+        src={umamiScriptUrl}
         data-website-id={umamiWebsiteId}
         data-domains={umamiDomain}
+        data-host-url={umamiProxyOrigin}
       ></script>
     )}
     <slot name="head" />
