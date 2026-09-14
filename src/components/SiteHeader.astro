@@ -1,6 +1,17 @@
 ---
+import { DEFAULT_LOCALE, type Locale, type LocaleAlternative } from "../config/i18n";
 import { NAV_ITEMS, SITE } from "../config/site";
+import LanguageSwitcher from "./LanguageSwitcher.astro";
 
+interface Props {
+  locale?: Locale;
+  languageAlternatives?: LocaleAlternative[];
+}
+
+const {
+  locale = DEFAULT_LOCALE,
+  languageAlternatives = [],
+} = Astro.props;
 const pathname = Astro.url.pathname;
 const isActive = (href: string) =>
   (href === "/articles/" && pathname === "/") || pathname.startsWith(href);
@@ -12,16 +23,19 @@ const isActive = (href: string) =>
       <img class="site-avatar" src="/favicon.ico" alt="" width="32" height="32" />
       <span>{SITE.title}</span>
     </a>
-    <nav class="main-nav" aria-label="主导航">
-      {NAV_ITEMS.map((item) => (
-        <a href={item.href} aria-current={isActive(item.href) ? "page" : undefined}>
-          {item.label}
+    <div class="header-actions">
+      <nav class="main-nav" aria-label="主导航">
+        {NAV_ITEMS.map((item) => (
+          <a href={item.href} aria-current={isActive(item.href) ? "page" : undefined}>
+            {item.label}
+          </a>
+        ))}
+        <a href="/search/" aria-current={isActive("/search/") ? "page" : undefined}>
+          搜索
         </a>
-      ))}
-      <a href="/search/" aria-current={isActive("/search/") ? "page" : undefined}>
-        搜索
-      </a>
-    </nav>
+      </nav>
+      <LanguageSwitcher currentLocale={locale} alternatives={languageAlternatives} />
+    </div>
   </div>
 </header>
 
