@@ -4,6 +4,11 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      before_sha:
+        description: Previous master SHA for incremental AI Search sync
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -108,7 +113,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
-      GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+      GITHUB_EVENT_BEFORE: ${{ github.event.before || inputs.before_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
