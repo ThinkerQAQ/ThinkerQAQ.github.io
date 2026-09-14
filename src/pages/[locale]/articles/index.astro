@@ -1,5 +1,5 @@
 ---
-import { getCollection } from "astro:content";
+import { getCollection, type CollectionEntry } from "astro:content";
 import ArticleIndex from "../../../components/ArticleIndex.astro";
 import Pagination from "../../../components/Pagination.astro";
 import {
@@ -33,7 +33,7 @@ export async function getStaticPaths() {
 
 interface Props {
   locale: Locale;
-  articles: Awaited<ReturnType<typeof getCollection<"articles">>>;
+  articles: CollectionEntry<"articles">[];
 }
 
 const { locale, articles } = Astro.props;
