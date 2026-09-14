@@ -98,7 +98,7 @@ const schema = {
         </div>
         {data.tags.length > 0 && (
           <div class="tag-list" aria-label={localeInfo.ui.tags}>
-            {data.tags.map((tag) => <a href={articleTagHref(tag)} rel="tag">{tag}</a>)}
+            {data.tags.map((tag) => <a href={pathForLocale(articleTagHref(tag), locale)} rel="tag">{tag}</a>)}
           </div>
         )}
       </header>
