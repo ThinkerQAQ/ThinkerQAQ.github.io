@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker from "./index.js";
+import worker from "./worker.js";
 
 const WORKER_URL = "https://example.workers.dev/chat";
 const BLOG_ORIGIN = "https://thinkerqaq.github.io";
@@ -201,4 +201,73 @@ test("rejects a streamed request body above the 16 KiB hard limit", async () => 
   assert.equal(response.status, 413);
   assert.deepEqual(await response.json(), { error: "Request too large" });
   assert.equal(limiterCalled, false);
+});
+
+test("proxies the Umami tracker script through the Worker", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(String(url), "https://cloud.umami.is/script.js");
+    assert.match(options.headers.accept, /javascript/);
+    return new Response("window.umami = { track() {} };", {
+      status: 200,
+      headers: { "content-type": "application/javascript" },
+    });
+  };
+
+  try {
+    const response = await worker.fetch(
+      new Request("https://example.workers.dev/u.js"),
+      createEnv(),
+    );
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /javascript/);
+    assert.match(response.headers.get("cache-control"), /max-age=300/);
+    assert.match(await response.text(), /window\.umami/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("proxies Umami collection only for the production blog origin", async () => {
+  const originalFetch = globalThis.fetch;
+  let forwardedBody = "";
+  globalThis.fetch = async (url, options) => {
+    assert.equal(String(url), "https://gateway.umami.is/api/send");
+    assert.equal(options.method, "POST");
+    assert.equal(options.headers.get("origin"), BLOG_ORIGIN);
+    forwardedBody = new TextDecoder().decode(options.body);
+    return Response.json({ ok: true });
+  };
+
+  try {
+    const payload = JSON.stringify({ type: "event", payload: { website: "test" } });
+    const response = await worker.fetch(
+      new Request("https://example.workers.dev/api/send", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: BLOG_ORIGIN,
+        },
+        body: payload,
+      }),
+      createEnv(),
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), BLOG_ORIGIN);
+    assert.equal(forwardedBody, payload);
+
+    const rejected = await worker.fetch(
+      new Request("https://example.workers.dev/api/send", {
+        method: "POST",
+        headers: { origin: "https://example.com" },
+        body: payload,
+      }),
+      createEnv(),
+    );
+    assert.equal(rejected.status, 403);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
