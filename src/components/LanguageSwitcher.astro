@@ -1,0 +1,61 @@
+---
+import {
+  LOCALES,
+  type Locale,
+  type LocaleAlternative,
+} from "../config/i18n";
+
+interface Props {
+  currentLocale: Locale;
+  alternatives?: LocaleAlternative[];
+}
+
+const { currentLocale, alternatives = [] } = Astro.props;
+const available = alternatives.filter(
+  (alternative, index, list) =>
+    list.findIndex((candidate) => candidate.locale === alternative.locale) === index,
+);
+const current = LOCALES[currentLocale];
+---
+
+{available.length > 1 && (
+  available.length <= 2 ? (
+    <nav class="language-switcher language-switcher--inline" aria-label={current.ui.language}>
+      {available.map((alternative, index) => {
+        const config = LOCALES[alternative.locale];
+        const isCurrent = alternative.locale === currentLocale;
+        return (
+          <>
+            {index > 0 && <span class="language-switcher__separator" aria-hidden="true">/</span>}
+            {isCurrent ? (
+              <span class="language-switcher__current" aria-current="page" lang={config.htmlLang}>
+                {config.shortLabel}
+              </span>
+            ) : (
+              <a href={alternative.href} lang={config.htmlLang} hreflang={config.htmlLang}>
+                {config.shortLabel}
+              </a>
+            )}
+          </>
+        );
+      })}
+    </nav>
+  ) : (
+    <details class="language-switcher language-switcher--menu">
+      <summary aria-label={current.ui.language}>{current.shortLabel}</summary>
+      <div class="language-switcher__menu" role="list">
+        {available.map((alternative) => {
+          const config = LOCALES[alternative.locale];
+          const isCurrent = alternative.locale === currentLocale;
+          return isCurrent ? (
+            <span role="listitem" aria-current="page" lang={config.htmlLang}>{config.label}</span>
+          ) : (
+            <a role="listitem" href={alternative.href} lang={config.htmlLang} hreflang={config.htmlLang}>
+              {config.label}
+            </a>
+          );
+        })}
+      </div>
+    </details>
+  )
+)}
