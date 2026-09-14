@@ -30,6 +30,12 @@ function seoHreflangLinks(html) {
     .filter((tag) => /\brel=["']alternate["']/i.test(tag) && /\bhreflang=/i.test(tag));
 }
 
+function documentTitle(html) {
+  return html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]
+    ?.replaceAll("&amp;", "&")
+    .trim();
+}
+
 function hasAskBlogTitle(html, title) {
   const match = html.match(/<h2\b[^>]*\bid=["']ask-blog-title["'][^>]*>([\s\S]*?)<\/h2>/i);
   return match?.[1]?.trim() === title;
@@ -53,6 +59,25 @@ const indexedLanguages = Object.keys(pagefindEntry.languages ?? {}).map((languag
 invariant(indexedLanguages.some((language) => language === "en" || language.startsWith("en-")), "Pagefind English index is missing");
 invariant(indexedLanguages.some((language) => language === "zh" || language.startsWith("zh-")), "Pagefind Chinese index is missing");
 invariant(indexedLanguages.length >= 2, `Expected multilingual Pagefind indexes, got: ${indexedLanguages.join(", ")}`);
+
+const robots = await readFile(path.join(distRoot, "robots.txt"), "utf8");
+invariant(/User-agent:\s*\*/i.test(robots), "robots.txt must allow general crawler rules");
+invariant(/Allow:\s*\//i.test(robots), "robots.txt must allow crawling the site");
+invariant(
+  robots.includes(`Sitemap: ${siteOrigin}/sitemap-index.xml`),
+  "robots.txt must advertise sitemap-index.xml",
+);
+
+const chineseHome = await readFile(routeFile("/"), "utf8");
+const englishHome = await readFile(routeFile("/en/"), "utf8");
+invariant(
+  documentTitle(chineseHome) === "ThinkerQAQ | 后端工程、并发编程与分布式系统",
+  `Chinese homepage SEO title regressed: ${documentTitle(chineseHome)}`,
+);
+invariant(
+  documentTitle(englishHome) === "ThinkerQAQ | Backend Engineering, Concurrency & Distributed Systems",
+  `English homepage SEO title is not localized: ${documentTitle(englishHome)}`,
+);
 
 const sitemap = await readFile(path.join(distRoot, "sitemap-0.xml"), "utf8");
 for (const forbidden of ["/en/search/", "/english/", "/en/notes/"]) {
