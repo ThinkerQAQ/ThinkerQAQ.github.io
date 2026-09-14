@@ -1,4 +1,5 @@
 ---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
 import type { NoteEntry } from "../lib/content";
 import { formatDate, getNoteTopicPath, noteHref } from "../lib/content";
 
@@ -7,13 +8,15 @@ interface Props {
   showCategory?: boolean;
   showTopic?: boolean;
   emptyMessage?: string;
+  locale?: Locale;
 }
 
 const {
   entries,
   showCategory = true,
   showTopic = false,
-  emptyMessage = "这里还没有公开内容。",
+  locale = DEFAULT_LOCALE,
+  emptyMessage = locale === "en" ? "There is no public content here yet." : "这里还没有公开内容。",
 } = Astro.props;
 ---
 
@@ -26,7 +29,7 @@ const {
       return (
         <li>
           <div class="content-list-main">
-            <a class="content-title" href={noteHref(entry)}>{entry.data.title}</a>
+            <a class="content-title" href={noteHref(entry, locale)}>{entry.data.title}</a>
             {entry.data.status === "historical" && <span class="historical-badge">historical</span>}
             {entry.data.description && <p>{entry.data.description}</p>}
           </div>
@@ -34,7 +37,7 @@ const {
             {showCategory && <span>{entry.data.categoryLabel}</span>}
             {showTopic && topicPath.length > 0 && <span>{topicPath.map((segment) => segment.label).join(" / ")}</span>}
             <time datetime={entry.data.updatedAt.toISOString()}>
-              {formatDate(entry.data.updatedAt)}
+              {formatDate(entry.data.updatedAt, locale)}
             </time>
           </div>
         </li>
