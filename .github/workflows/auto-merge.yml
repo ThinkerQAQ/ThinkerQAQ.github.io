@@ -72,6 +72,7 @@ jobs:
             --delete-branch \
             --match-head-commit "$VALIDATED_SHA"
 
+      # Explicitly run the production pipeline after the validated merge.
       - name: Dispatch production deployment
         if: steps.guard.outputs.eligible == 'true'
         run: gh workflow run deploy.yml --repo "$REPO" --ref master
