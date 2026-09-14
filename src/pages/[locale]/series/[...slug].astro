@@ -2,10 +2,10 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import ArticleList from "../../../components/ArticleList.astro";
 import NoteCategoryPreview from "../../../components/NoteCategoryPreview.astro";
+import { SERIES_UI } from "../../../config/i18n-features";
 import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import {
-  articleIsIncluded,
   categoryHref,
   formatDate,
   groupByCategory,
@@ -15,35 +15,38 @@ import {
   seriesHref,
   seriesStatusLabel,
 } from "../../../lib/content";
+import {
+  seriesArticlesForLocale,
+  seriesHasLocaleSummary,
+  seriesLanguageAlternatives,
+} from "../../../lib/series-i18n";
 
 export async function getStaticPaths() {
   const seriesEntries = await getCollection("series");
-  const articles = (await getCollection("articles")).filter(articleIsIncluded);
+  const articles = await getCollection("articles");
   const notes = await getCollection("notes");
 
-  return nonDefaultLocales().flatMap((locale) => seriesEntries.flatMap((series) => {
-    const translatedArticles = series.data.relatedArticles
-      .map((rootId) => articles.find(
-        (article) => article.data.translationOf === rootId && article.data.language === locale,
-      ))
-      .filter((entry): entry is CollectionEntry<"articles"> => entry !== undefined);
-    if (translatedArticles.length === 0) return [];
-    return [{
-      params: { locale: LOCALES[locale].path, slug: series.id },
-      props: { locale, series, translatedArticles, notes },
-    }];
-  }));
+  return nonDefaultLocales().flatMap((locale) =>
+    seriesEntries
+      .filter((series) => seriesHasLocaleSummary(series, locale))
+      .map((series) => ({
+        params: { locale: LOCALES[locale].path, slug: series.id },
+        props: { locale, series, articles, notes },
+      })),
+  );
 }
 
 interface Props {
   locale: Locale;
   series: CollectionEntry<"series">;
-  translatedArticles: CollectionEntry<"articles">[];
+  articles: CollectionEntry<"articles">[];
   notes: CollectionEntry<"notes">[];
 }
 
-const { locale, series, translatedArticles, notes } = Astro.props;
+const { locale, series, articles, notes } = Astro.props;
 const summary = localizedSeriesSummary(series, locale);
+const seriesUi = SERIES_UI[locale];
+const localizedArticles = seriesArticlesForLocale(series, articles, locale);
 const noteCategories = new Map(groupByCategory(notes).map((group) => [group.category, group]));
 const relatedNoteCategories = series.data.relatedNoteCategories.flatMap((category) => {
   const group = noteCategories.get(category);
@@ -72,6 +75,7 @@ const relatedNoteGroups = [...relatedNoteCategories, ...relatedNoteScopes];
   description={summary.description}
   canonicalPath={seriesHref(series, locale)}
   locale={locale}
+  languageAlternatives={seriesLanguageAlternatives(series)}
 >
   <div class="shell page detail-page">
     <article data-pagefind-body>
@@ -83,13 +87,17 @@ const relatedNoteGroups = [...relatedNoteCategories, ...relatedNoteScopes];
           <span>{LOCALES[locale].ui.updatedAt} {formatDate(series.data.updatedAt, locale)}</span>
         </div>
       </header>
-      <section aria-label="Series articles">
-        <ArticleList entries={translatedArticles} locale={locale} />
+      <section aria-label={seriesUi.articlesAriaLabel}>
+        <ArticleList
+          entries={localizedArticles}
+          locale={locale}
+          languageFallbackLabel={seriesUi.untranslatedArticle}
+        />
       </section>
     </article>
     {relatedNoteGroups.length > 0 && (
       <section class="related-content series-reference-notes" aria-labelledby="reference-notes-heading">
-        <h2 id="reference-notes-heading">Reference notes</h2>
+        <h2 id="reference-notes-heading">{seriesUi.referenceNotes}</h2>
         <p class="note-description">{LOCALES[locale].ui.notesChineseNotice}</p>
         <div class="category-index">
           {relatedNoteGroups.map((group) => <NoteCategoryPreview {...group} locale={locale} />)}
