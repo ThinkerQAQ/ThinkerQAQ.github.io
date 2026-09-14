@@ -26,8 +26,8 @@ const {
   total,
   currentPage,
   lastPage,
-  locale = DEFAULT_LOCALE,
 } = Astro.props;
+const locale: Locale = Astro.props.locale ?? DEFAULT_LOCALE;
 const ui = LOCALES[locale].ui;
 const firstPageUrl = categoryHref(category, locale);
 const pageUrlPrefix = `${firstPageUrl}page/`;
