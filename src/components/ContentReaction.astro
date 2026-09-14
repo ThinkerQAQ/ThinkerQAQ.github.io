@@ -1,17 +1,19 @@
 ---
+import type { Locale } from "../config/i18n";
+
 interface Props {
   contentType: "article" | "note";
   contentId: string;
-  language?: "zh" | "en";
+  language?: Locale;
 }
 
 const { contentType, contentId, language = "zh" } = Astro.props;
 const endpoint = String(import.meta.env.PUBLIC_REACTION_WORKER_URL ?? "").replace(/\/+$/, "");
 const enabled = Boolean(endpoint);
-const isEnglish = language === "en";
-const label = isEnglish ? "Helpful" : "有帮助";
-const loadingLabel = isEnglish ? "Loading helpful count" : "正在加载有帮助数量";
-const errorLabel = isEnglish ? "Unable to record this right now." : "暂时无法记录，请稍后再试。";
+const isChinese = language === "zh";
+const label = isChinese ? "有帮助" : "Helpful";
+const loadingLabel = isChinese ? "正在加载有帮助数量" : "Loading helpful count";
+const errorLabel = isChinese ? "暂时无法记录，请稍后再试。" : "Unable to record this right now.";
 ---
 
 {enabled && (
@@ -23,7 +25,7 @@ const errorLabel = isEnglish ? "Unable to record this right now." : "暂时无�
     data-content-type={contentType}
     data-content-id={contentId}
     data-error-label={errorLabel}
-    aria-label={isEnglish ? "Article feedback" : "内容反馈"}
+    aria-label={isChinese ? "内容反馈" : "Article feedback"}
   >
     <button
       class="content-reaction__button"
