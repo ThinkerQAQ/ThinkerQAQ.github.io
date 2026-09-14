@@ -12,6 +12,7 @@ import {
 import { ARTICLE_PAGE_SIZE } from "../../../../config/site";
 import BaseLayout from "../../../../layouts/BaseLayout.astro";
 import {
+  articleIndexHref,
   articleIsIncluded,
   articlePageHref,
   sortArticles,
@@ -78,7 +79,7 @@ const languageAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...nonDefault
 ---
 
 <BaseLayout
-  title={`${localeInfo.ui.articlesTitle} · Page ${currentPage}`}
+  title={`${localeInfo.ui.articlesTitle} · ${localeInfo.ui.pageLabel(currentPage)}`}
   canonicalPath={currentUrl}
   noindex={articles.length === 0}
   locale={locale}
@@ -91,8 +92,11 @@ const languageAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...nonDefault
     <Pagination
       currentPage={currentPage}
       lastPage={lastPage}
+      firstPageUrl={articleIndexHref(locale)}
+      pageUrlPrefix={`${articleIndexHref(locale)}page/`}
       nextUrl={nextUrl}
       prevUrl={prevUrl}
+      locale={locale}
     />
   </div>
 </BaseLayout>
