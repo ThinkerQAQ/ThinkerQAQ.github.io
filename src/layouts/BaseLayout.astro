@@ -135,7 +135,7 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     )}
     <slot name="head" />
   </head>
-  <body>
+  <body data-pagefind-ignore={noindex ? "all" : undefined}>
     <a class="skip-link" href="#main-content">{LOCALES[locale].ui.skipToContent}</a>
     <SiteHeader locale={locale} languageAlternatives={languageSwitcherAlternatives} />
     <main id="main-content">
