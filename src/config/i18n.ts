@@ -9,6 +9,7 @@ export interface LocaleConfig {
   shortLabel: string;
   htmlLang: string;
   path: string;
+  homeTitle: string;
   nav: {
     articles: string;
     projects: string;
@@ -74,6 +75,7 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
     shortLabel: "中文",
     htmlLang: "zh-CN",
     path: "",
+    homeTitle: "ThinkerQAQ | 后端工程、并发编程与分布式系统",
     nav: {
       articles: "文章",
       projects: "项目",
@@ -137,6 +139,7 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
     shortLabel: "EN",
     htmlLang: "en",
     path: "en",
+    homeTitle: "ThinkerQAQ | Backend Engineering, Concurrency & Distributed Systems",
     nav: {
       articles: "Articles",
       projects: "Projects",
