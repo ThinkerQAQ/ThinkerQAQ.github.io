@@ -4,11 +4,12 @@ import test from "node:test";
 import {
   retrieveAiSearchSources,
   sourceFromAiSearchKey,
+  sourceFromChunk,
 } from "./retrieval.js";
 
 const BLOG_ORIGIN = "https://thinkerqaq.github.io";
 
-function chunk({ key, url, title, language, text = "content" }) {
+function chunk({ key, url, title, language, text = "content", schemaVersion = 3 }) {
   return {
     text,
     item: {
@@ -16,9 +17,9 @@ function chunk({ key, url, title, language, text = "content" }) {
       metadata: {
         source_url: url,
         title,
-        language,
+        ...(language ? { language } : {}),
         priority: 2,
-        schema_version: 3,
+        schema_version: schemaVersion,
       },
     },
   };
@@ -38,10 +39,21 @@ test("reconstructs legacy English article keys with the public locale prefix", (
   );
 });
 
+test("normalizes legacy collection-first English metadata URLs at the Worker boundary", () => {
+  const legacy = chunk({
+    key: "blog--articles--en%2Fatomic.md",
+    url: `${BLOG_ORIGIN}/articles/en/atomic/`,
+    title: "Atomic",
+    text: "legacy",
+    schemaVersion: 2,
+  });
+  assert.equal(sourceFromChunk(legacy, BLOG_ORIGIN), `${BLOG_ORIGIN}/en/articles/atomic/`);
+});
+
 test("prefers the requested locale and fills remaining source capacity from the fallback locale", async () => {
   const languages = [];
   const env = createEnv(async (options) => {
-    const language = options.ai_search_options.retrieval.filters.language;
+    const language = options.ai_search_options.retrieval.filters?.language;
     languages.push(language);
     if (language === "en") {
       return {
@@ -71,6 +83,7 @@ test("prefers the requested locale and fills remaining source capacity from the 
   assert.equal(result.preferredLanguage, "en");
   assert.equal(result.fallbackLanguage, "zh");
   assert.equal(result.fallbackUsed, true);
+  assert.equal(result.legacyFallbackUsed, false);
   assert.deepEqual(result.sources.map((source) => source.language), ["en", "zh"]);
   assert.deepEqual(result.sources.map((source) => source.url), [
     `${BLOG_ORIGIN}/en/articles/atomic/`,
@@ -82,7 +95,7 @@ test("prefers the requested locale and fills remaining source capacity from the 
 test("does not query the fallback locale when five preferred-language sources are available", async () => {
   const languages = [];
   const env = createEnv(async (options) => {
-    const language = options.ai_search_options.retrieval.filters.language;
+    const language = options.ai_search_options.retrieval.filters?.language;
     languages.push(language);
     return {
       chunks: Array.from({ length: 5 }, (_, index) => chunk({
@@ -99,4 +112,56 @@ test("does not query the fallback locale when five preferred-language sources ar
   assert.deepEqual(languages, ["en"]);
   assert.equal(result.sources.length, 5);
   assert.equal(result.fallbackUsed, false);
+  assert.equal(result.legacyFallbackUsed, false);
+});
+
+test("falls back to the legacy unfiltered index while language metadata is still migrating", async () => {
+  const languages = [];
+  const env = createEnv(async (options) => {
+    const language = options.ai_search_options.retrieval.filters?.language;
+    languages.push(language);
+    if (language) return { chunks: [] };
+
+    return {
+      chunks: [chunk({
+        key: "blog--articles--en%2Fatomic.md",
+        url: `${BLOG_ORIGIN}/articles/en/atomic/`,
+        title: "Atomic",
+        text: "Legacy English source",
+        schemaVersion: 2,
+      })],
+    };
+  });
+
+  const result = await retrieveAiSearchSources("How does CAS work?", [], env, BLOG_ORIGIN, "en");
+
+  assert.deepEqual(languages, ["en", "zh", undefined]);
+  assert.equal(result.legacyFallbackUsed, true);
+  assert.equal(result.sources[0].language, "en");
+  assert.equal(result.sources[0].url, `${BLOG_ORIGIN}/en/articles/atomic/`);
+});
+
+test("uses the legacy unfiltered query if the new language filter is not accepted yet", async () => {
+  const languages = [];
+  const env = createEnv(async (options) => {
+    const language = options.ai_search_options.retrieval.filters?.language;
+    languages.push(language);
+    if (language) throw new Error("unknown metadata field: language");
+
+    return {
+      chunks: [chunk({
+        key: "blog--articles--atomic.md",
+        url: `${BLOG_ORIGIN}/articles/atomic/`,
+        title: "原子操作",
+        text: "Legacy source",
+        schemaVersion: 2,
+      })],
+    };
+  });
+
+  const result = await retrieveAiSearchSources("CAS", [], env, BLOG_ORIGIN, "zh");
+
+  assert.deepEqual(languages, ["zh", "en", undefined]);
+  assert.equal(result.legacyFallbackUsed, true);
+  assert.equal(result.sources[0].url, `${BLOG_ORIGIN}/articles/atomic/`);
 });
