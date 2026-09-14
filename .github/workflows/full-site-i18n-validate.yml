@@ -30,5 +30,13 @@ jobs:
           java-version: 17
       - name: Install diagram layout and Chinese fonts
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
-      - name: Run full test suite
-        run: npm test
+      - name: Astro check
+        run: npm run check
+      - name: Validate reading stats
+        run: npm run validate:reading-stats
+      - name: Validate static search
+        run: npm run validate:search-static
+      - name: Run unit tests
+        run: npm run test:unit
+      - name: Build site
+        run: npm run build
