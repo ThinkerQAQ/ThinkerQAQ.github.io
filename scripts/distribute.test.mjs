@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   buildPlatformMarkdown,
+  buildTrackedUrl,
   exportArticles,
   parseArguments,
   parseArticle,
@@ -40,16 +41,39 @@ test("parseArticle reads the supported Astro article frontmatter", () => {
   assert.match(article.body, /## 正文/u);
 });
 
-test("buildPlatformMarkdown adds canonical attribution and platform metadata", () => {
+test("buildTrackedUrl adds stable platform attribution", () => {
+  assert.equal(
+    buildTrackedUrl("https://thinkerqaq.github.io/articles/concurrency/test/", "csdn"),
+    "https://thinkerqaq.github.io/articles/concurrency/test/?utm_source=csdn&utm_medium=referral&utm_campaign=article_syndication",
+  );
+  assert.throws(
+    () => buildTrackedUrl("https://thinkerqaq.github.io/articles/concurrency/test/", "unknown"),
+    /Unsupported platform/u,
+  );
+});
+
+test("buildPlatformMarkdown keeps canonical clean and tracks the attribution footer", () => {
   const article = parseArticle(ARTICLE);
   const juejin = buildPlatformMarkdown(article, { platform: "juejin", slug: "concurrency/test" });
   const cnblogs = buildPlatformMarkdown(article, { platform: "cnblogs", slug: "concurrency/test" });
 
-  assert.match(juejin, /https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\//u);
+  assert.match(
+    juejin,
+    /canonicalUrl: "https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\/"/u,
+  );
+  assert.doesNotMatch(
+    juejin,
+    /canonicalUrl: .*utm_source/u,
+  );
+  assert.match(
+    juejin,
+    /https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\/\?utm_source=juejin&utm_medium=referral&utm_campaign=article_syndication/u,
+  );
   assert.match(juejin, /由作者本人同步发布/u);
   assert.match(juejin, /\[站内链接\]\(https:\/\/thinkerqaq\.github\.io\/articles\/another\/\)/u);
   assert.equal((juejin.match(/^  - /gmu) ?? []).length, 5);
   assert.match(cnblogs, /categories:\n  - "\[Markdown\]"/u);
+  assert.match(cnblogs, /utm_source=cnblogs/u);
   assert.equal((cnblogs.match(/^  - /gmu) ?? []).length, 7);
 });
 
@@ -70,7 +94,9 @@ test("exportArticles exports published articles and leaves drafts out", async ()
 
     assert.equal(result.exported.length, 2);
     assert.equal(result.exported.every((item) => item.slug === "published"), true);
-    assert.match(await readFile(path.join(outputRoot, "juejin", "published.md"), "utf8"), /本文首发于/u);
+    const juejinOutput = await readFile(path.join(outputRoot, "juejin", "published.md"), "utf8");
+    assert.match(juejinOutput, /本文首发于/u);
+    assert.match(juejinOutput, /utm_source=juejin/u);
     const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
     assert.equal(typeof manifest.articles.published.platforms.juejin.contentHash, "string");
     assert.equal(manifest.articles.draft, undefined);
