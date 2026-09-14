@@ -26,7 +26,11 @@ export default {
     if (!env?.AI) return worker.fetch(request, env, ctx);
 
     const wrappedEnv = Object.create(env);
-    wrappedEnv.AI = policyAwareAi(env.AI);
+    Object.defineProperty(wrappedEnv, "AI", {
+      value: policyAwareAi(env.AI),
+      enumerable: true,
+      configurable: true,
+    });
     return worker.fetch(request, wrappedEnv, ctx);
   },
 };
