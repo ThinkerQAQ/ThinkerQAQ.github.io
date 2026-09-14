@@ -1,0 +1,44 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import NoteCategoryIndex from "../../../../components/NoteCategoryIndex.astro";
+import { LOCALES, nonDefaultLocales, type Locale } from "../../../../config/i18n";
+import { NOTE_PAGE_SIZE } from "../../../../config/site";
+import { groupNotesByTopic, sortNotes } from "../../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  const groups = new Map<string, CollectionEntry<"notes">[]>();
+  for (const note of notes) {
+    const entries = groups.get(note.data.category) ?? [];
+    entries.push(note);
+    groups.set(note.data.category, entries);
+  }
+
+  return nonDefaultLocales().flatMap((locale) => [...groups.entries()].map(([category, entries]) => ({
+    params: { locale: LOCALES[locale].path, category },
+    props: { locale, entries, label: entries[0]?.data.categoryLabel ?? category },
+  })));
+}
+
+interface Props {
+  locale: Locale;
+  entries: CollectionEntry<"notes">[];
+  label: string;
+}
+
+const { locale, entries, label } = Astro.props;
+const sortedEntries = sortNotes(entries);
+const topics = groupNotesByTopic(sortedEntries);
+const lastPage = Math.ceil(sortedEntries.length / NOTE_PAGE_SIZE);
+---
+
+<NoteCategoryIndex
+  category={Astro.params.category!}
+  label={label}
+  entries={sortedEntries.slice(0, NOTE_PAGE_SIZE)}
+  topics={topics}
+  total={sortedEntries.length}
+  currentPage={1}
+  lastPage={lastPage}
+  locale={locale}
+/>
