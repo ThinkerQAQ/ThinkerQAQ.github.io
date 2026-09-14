@@ -1,0 +1,78 @@
+---
+import type { GetStaticPathsOptions, Page } from "astro";
+import { getCollection, type CollectionEntry } from "astro:content";
+import ArticleIndex from "../../../../components/ArticleIndex.astro";
+import Pagination from "../../../../components/Pagination.astro";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  nonDefaultLocales,
+  type Locale,
+  type LocaleAlternative,
+} from "../../../../config/i18n";
+import { ARTICLE_PAGE_SIZE } from "../../../../config/site";
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import {
+  articleIsIncluded,
+  articlePageHref,
+  sortArticles,
+} from "../../../../lib/content";
+
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  const articles = sortArticles(
+    (await getCollection("articles")).filter(articleIsIncluded),
+  );
+
+  return nonDefaultLocales().flatMap((locale) => {
+    const localizedArticles = articles.filter((article) => article.data.language === locale);
+    return paginate(localizedArticles, { pageSize: ARTICLE_PAGE_SIZE })
+      .filter(({ params }) => params.page !== "1")
+      .map((route) => ({
+        ...route,
+        params: { ...route.params, locale: LOCALES[locale].path },
+        props: { ...route.props, locale, allArticles: articles },
+      }));
+  });
+}
+
+interface Props {
+  page: Page<CollectionEntry<"articles">>;
+  locale: Locale;
+  allArticles: CollectionEntry<"articles">[];
+}
+
+const { page, locale, allArticles } = Astro.props;
+const localeInfo = LOCALES[locale];
+const currentUrl = articlePageHref(page.currentPage, locale);
+const prevUrl = articlePageHref(page.currentPage - 1, locale);
+const nextUrl = page.currentPage < page.lastPage
+  ? articlePageHref(page.currentPage + 1, locale)
+  : undefined;
+const firstItemIndex = (page.currentPage - 1) * ARTICLE_PAGE_SIZE;
+const languageAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...nonDefaultLocales()]
+  .filter(
+    (candidate) =>
+      allArticles.filter((article) => article.data.language === candidate).length > firstItemIndex,
+  )
+  .map((candidate) => ({ locale: candidate, href: articlePageHref(page.currentPage, candidate) }));
+---
+
+<BaseLayout
+  title={`${localeInfo.ui.articlesTitle} · Page ${page.currentPage}`}
+  canonicalPath={currentUrl}
+  noindex={page.data.length === 0}
+  locale={locale}
+  languageAlternatives={languageAlternatives}
+>
+  <link slot="head" rel="prev" href={prevUrl} />
+  {nextUrl && <link slot="head" rel="next" href={nextUrl} />}
+  <div class="shell page article-index-page">
+    <ArticleIndex articles={page.data} locale={locale} />
+    <Pagination
+      currentPage={page.currentPage}
+      lastPage={page.lastPage}
+      nextUrl={nextUrl}
+      prevUrl={prevUrl}
+    />
+  </div>
+</BaseLayout>
