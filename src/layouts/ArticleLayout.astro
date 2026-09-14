@@ -81,7 +81,7 @@ const schema = {
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   <div class:list={["shell", "content-shell", { "content-shell--with-series": seriesNavigation }]}>
-    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={localeInfo.ui.seriesLabel} headings={headings} />
+    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={localeInfo.ui.seriesLabel} headings={headings} locale={locale} />
     {seriesNavigation && <ArticleSeriesIndex navigation={seriesNavigation} />}
     <article class="note" data-pagefind-body>
       <header class="note-header">
