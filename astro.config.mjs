@@ -11,6 +11,14 @@ const manifestPath = fileURLToPath(
 );
 
 let noindexRoutes = new Set();
+const excludedRoutes = new Set([
+  "/search/",
+  "/en/search/",
+  "/agent/",
+  "/404/",
+  "/english/",
+]);
+const noindexPrefixes = ["/en/notes/"];
 const legacyRedirectPrefixes = ["/notes/java-juc/", "/notes/category/java-juc/"];
 
 try {
@@ -42,8 +50,9 @@ export default defineConfig({
     sitemap({
       filter: (page) => {
         const route = decodeURI(new URL(page).pathname);
-        return !["/search/", "/agent/", "/404/"].includes(route)
+        return !excludedRoutes.has(route)
           && !noindexRoutes.has(route)
+          && !noindexPrefixes.some((prefix) => route.startsWith(prefix))
           && !legacyRedirectPrefixes.some((prefix) => route.startsWith(prefix));
       },
     }),
