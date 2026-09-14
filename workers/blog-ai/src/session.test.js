@@ -23,7 +23,9 @@ test("Ask session cannot be reused for another origin", async () => {
 
 test("tampering invalidates the Ask session", async () => {
   const issued = await issueAskSession(signingValue, origin);
-  const tampered = `${issued.token.slice(0, -1)}${issued.token.endsWith("a") ? "b" : "a"}`;
+  const [payload, signature] = issued.token.split(".");
+  const changedFirstCharacter = signature.startsWith("A") ? "B" : "A";
+  const tampered = `${payload}.${changedFirstCharacter}${signature.slice(1)}`;
   const verified = await verifyAskSession(tampered, signingValue, origin);
   assert.equal(verified.ok, false);
 });
