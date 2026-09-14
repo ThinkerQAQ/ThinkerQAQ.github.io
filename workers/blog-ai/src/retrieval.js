@@ -8,8 +8,9 @@ const MAX_SOURCES = 5;
 const MAX_SOURCE_LENGTH = 5000;
 const MAX_TOTAL_CONTEXT = 20000;
 const ALLOWED_COLLECTIONS = new Set(["articles", "notes"]);
+const SUPPORTED_LANGUAGES = new Set(["zh", "en"]);
 
-function decodeAiSearchKey(key) {
+export function decodeAiSearchKey(key) {
   const match = String(key || "").match(/^blog--(articles|notes)--(.+)\.md$/i);
   if (!match) return null;
   try {
@@ -19,43 +20,79 @@ function decodeAiSearchKey(key) {
   }
 }
 
-function sourceFromAiSearchKey(key, blogOrigin) {
-  const decoded = decodeAiSearchKey(key);
-  if (!decoded || /^h-[a-f0-9]{32}$/i.test(decoded.id)) return null;
-  const path = `/${decoded.collection}/${decoded.id.split("/").map(encodeURIComponent).join("/")}/`;
-  return new URL(path, `${blogOrigin}/`).href;
+function normalizedLanguage(value, decoded) {
+  const metadataLanguage = String(value || "").trim().toLowerCase();
+  if (SUPPORTED_LANGUAGES.has(metadataLanguage)) return metadataLanguage;
+  if (decoded?.id?.startsWith("en/")) return "en";
+  return "zh";
 }
 
-function sourceFromChunk(chunk, blogOrigin) {
+function sourcePathFromDecoded(decoded) {
+  if (!decoded || /^h-[a-f0-9]{32}$/i.test(decoded.id)) return null;
+
+  let routeId = decoded.id;
+  let localePrefix = "";
+  if (routeId.startsWith("en/")) {
+    localePrefix = "/en";
+    routeId = routeId.slice(3);
+  }
+  if (!routeId) return null;
+
+  const encodedId = routeId.split("/").map(encodeURIComponent).join("/");
+  return `${localePrefix}/${decoded.collection}/${encodedId}/`;
+}
+
+export function sourceFromAiSearchKey(key, blogOrigin) {
+  const path = sourcePathFromDecoded(decodeAiSearchKey(key));
+  return path ? new URL(path, `${blogOrigin}/`).href : null;
+}
+
+function collectionFromPublicPath(pathname) {
+  return pathname.match(/^\/(?:en\/)?(articles|notes)\//)?.[1] ?? "";
+}
+
+export function sourceFromChunk(chunk, blogOrigin) {
+  const decoded = decodeAiSearchKey(chunk?.item?.key);
+  if (!decoded || !ALLOWED_COLLECTIONS.has(decoded.collection)) return null;
+
   const metadataUrl = String(chunk?.item?.metadata?.source_url || "").trim();
   if (metadataUrl) {
     try {
       const candidate = new URL(metadataUrl, `${blogOrigin}/`);
-      if (candidate.origin === blogOrigin && /^\/(articles|notes)\//.test(candidate.pathname)) {
+      if (
+        candidate.origin === blogOrigin
+        && collectionFromPublicPath(candidate.pathname) === decoded.collection
+      ) {
         return candidate.href;
       }
     } catch {
-      // Fall through to legacy key decoding.
+      // Fall through to stable key decoding for legacy metadata.
     }
   }
+
   return sourceFromAiSearchKey(chunk?.item?.key, blogOrigin);
 }
 
 function metadataFromChunk(chunk, blogOrigin) {
+  const key = String(chunk?.item?.key || "");
+  const decoded = decodeAiSearchKey(key);
   const metadata = chunk?.item?.metadata || {};
   const title = String(metadata.title || "").trim();
-  const collection = String(metadata.collection || "").trim().toLowerCase();
+  const collection = decoded?.collection || "";
+  const language = normalizedLanguage(metadata.language, decoded);
   const url = sourceFromChunk(chunk, blogOrigin);
+
   if (!title || !ALLOWED_COLLECTIONS.has(collection) || !url) return null;
   return {
     title: title.slice(0, 200),
     collection,
+    language,
     priority: Number(metadata.priority || 0),
     url,
   };
 }
 
-function normalizeAiSearchChunks(chunks, blogOrigin) {
+export function normalizeAiSearchChunks(chunks, blogOrigin) {
   const documents = new Map();
   let totalContext = 0;
 
@@ -87,7 +124,7 @@ function normalizeAiSearchChunks(chunks, blogOrigin) {
   return [...documents.values()].filter((source) => source.content);
 }
 
-async function searchAiSearch(instance, query) {
+async function searchAiSearch(instance, query, language) {
   return instance.search({
     query,
     ai_search_options: {
@@ -96,6 +133,7 @@ async function searchAiSearch(instance, query) {
         fusion_method: "rrf",
         keyword_match_mode: "or",
         boost_by: [{ field: "priority", direction: "desc" }],
+        filters: { language },
         match_threshold: 0,
         max_num_results: MAX_SEARCH_RESULTS,
         context_expansion: 1,
@@ -109,6 +147,26 @@ async function searchAiSearch(instance, query) {
       },
     },
   });
+}
+
+function mergeSources(primarySources, fallbackSources) {
+  const merged = [];
+  const seenUrls = new Set();
+  let totalContext = 0;
+
+  for (const source of [...primarySources, ...fallbackSources]) {
+    if (merged.length >= MAX_SOURCES || seenUrls.has(source.url)) continue;
+    const remaining = MAX_TOTAL_CONTEXT - totalContext;
+    if (remaining <= 0) break;
+
+    const content = String(source.content || "").slice(0, Math.min(MAX_SOURCE_LENGTH, remaining));
+    if (!content) continue;
+    merged.push({ ...source, content });
+    seenUrls.add(source.url);
+    totalContext += content.length;
+  }
+
+  return merged;
 }
 
 export function normalizeHistory(rawHistory) {
@@ -142,12 +200,31 @@ export function buildRetrievalQuery(question, history) {
   return [...priorUserQuestions, question].join("\n");
 }
 
-export async function retrieveAiSearchSources(question, history, env, blogOrigin) {
+export async function retrieveAiSearchSources(question, history, env, blogOrigin, locale = "zh") {
   if (!env.AI_SEARCH) throw new Error("AI_SEARCH binding is not configured");
   const instanceName = String(env.AI_SEARCH_INSTANCE || DEFAULT_AI_SEARCH_INSTANCE).trim();
   if (!instanceName) throw new Error("AI_SEARCH_INSTANCE is not configured");
 
+  const preferredLanguage = locale === "en" ? "en" : "zh";
+  const fallbackLanguage = preferredLanguage === "en" ? "zh" : "en";
   const query = buildRetrievalQuery(question, history);
-  const result = await searchAiSearch(env.AI_SEARCH.get(instanceName), query);
-  return { query, sources: normalizeAiSearchChunks(result?.chunks, blogOrigin) };
+  const instance = env.AI_SEARCH.get(instanceName);
+
+  const preferredResult = await searchAiSearch(instance, query, preferredLanguage);
+  const preferredSources = normalizeAiSearchChunks(preferredResult?.chunks, blogOrigin);
+
+  let fallbackSources = [];
+  if (preferredSources.length < MAX_SOURCES) {
+    const fallbackResult = await searchAiSearch(instance, query, fallbackLanguage);
+    fallbackSources = normalizeAiSearchChunks(fallbackResult?.chunks, blogOrigin);
+  }
+
+  const sources = mergeSources(preferredSources, fallbackSources);
+  return {
+    query,
+    sources,
+    preferredLanguage,
+    fallbackLanguage,
+    fallbackUsed: sources.some((source) => source.language === fallbackLanguage),
+  };
 }
