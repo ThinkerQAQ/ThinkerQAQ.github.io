@@ -1,4 +1,6 @@
 ---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
+
 interface Props {
   currentPage: number;
   lastPage: number;
@@ -7,6 +9,7 @@ interface Props {
   ariaLabel?: string;
   nextUrl?: string;
   prevUrl?: string;
+  locale?: Locale;
 }
 
 type PaginationItem =
@@ -18,10 +21,13 @@ const {
   lastPage,
   firstPageUrl = "/articles/",
   pageUrlPrefix = "/articles/page/",
-  ariaLabel = "文章分页",
+  ariaLabel,
   nextUrl,
   prevUrl,
+  locale = DEFAULT_LOCALE,
 } = Astro.props;
+const ui = LOCALES[locale].ui;
+const resolvedAriaLabel = ariaLabel ?? `${LOCALES[locale].nav.articles} pagination`;
 
 function pageUrl(page: number): string {
   return page === 1 ? firstPageUrl : `${pageUrlPrefix}${page}/`;
@@ -49,11 +55,11 @@ const items = paginationItems();
 ---
 
 {lastPage > 1 && (
-  <nav class="pagination" aria-label={ariaLabel}>
+  <nav class="pagination" aria-label={resolvedAriaLabel}>
     {prevUrl ? (
-      <a class="pagination-direction" href={prevUrl} rel="prev">← 上一页</a>
+      <a class="pagination-direction" href={prevUrl} rel="prev">← {ui.previousPage}</a>
     ) : (
-      <span class="pagination-direction is-disabled" aria-disabled="true">← 上一页</span>
+      <span class="pagination-direction is-disabled" aria-disabled="true">← {ui.previousPage}</span>
     )}
 
     <ol class="pagination-pages">
@@ -64,7 +70,7 @@ const items = paginationItems();
           ) : item.page === currentPage ? (
             <span class="pagination-page is-current" aria-current="page">{item.page}</span>
           ) : (
-            <a class="pagination-page" href={pageUrl(item.page)} aria-label={`第 ${item.page} 页`}>
+            <a class="pagination-page" href={pageUrl(item.page)} aria-label={ui.pageLabel(item.page)}>
               {item.page}
             </a>
           )}
@@ -73,9 +79,9 @@ const items = paginationItems();
     </ol>
 
     {nextUrl ? (
-      <a class="pagination-direction" href={nextUrl} rel="next">下一页 →</a>
+      <a class="pagination-direction" href={nextUrl} rel="next">{ui.nextPage} →</a>
     ) : (
-      <span class="pagination-direction is-disabled" aria-disabled="true">下一页 →</span>
+      <span class="pagination-direction is-disabled" aria-disabled="true">{ui.nextPage} →</span>
     )}
   </nav>
 )}
