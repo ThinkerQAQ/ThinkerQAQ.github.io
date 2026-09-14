@@ -22,6 +22,7 @@ interface Props {
   language?: string;
   locale?: Locale;
   languageAlternatives?: LocaleAlternative[];
+  languageSwitcherAlternatives?: LocaleAlternative[];
 }
 
 const {
@@ -33,12 +34,14 @@ const {
   locale = DEFAULT_LOCALE,
   language = LOCALES[locale].htmlLang,
   languageAlternatives: providedLanguageAlternatives,
+  languageSwitcherAlternatives: providedLanguageSwitcherAlternatives,
 } = Astro.props;
 
-// Only infer locale counterparts for site-shell pages whose routes are guaranteed
-// to exist in every supported locale. Content routes are sparse by design and must
-// provide explicit alternatives based on real translation/content relationships.
-const localizedShellPaths = new Set([
+// The language switcher answers "where can the reader browse this page in another
+// site language?". hreflang answers the stricter SEO question "where is the true
+// localized equivalent of this content?". Sparse translations mean those sets are
+// not always identical.
+const switchableShellPaths = new Set([
   "/",
   "/articles/",
   "/series/",
@@ -47,13 +50,26 @@ const localizedShellPaths = new Set([
   "/about/",
   "/search/",
 ]);
+const localizedSeoShellPaths = new Set([
+  "/",
+  "/articles/",
+  "/series/",
+  "/projects/",
+  "/about/",
+]);
 const logicalPath = unlocalizePath(Astro.url.pathname);
 const normalizedLogicalPath =
   logicalPath === "/" ? "/" : `${logicalPath.replace(/\/+$/, "")}/`;
-const inferredLanguageAlternatives = localizedShellPaths.has(normalizedLogicalPath)
+const inferredLanguageAlternatives = localizedSeoShellPaths.has(normalizedLogicalPath)
+  ? languageAlternativesForPath(normalizedLogicalPath)
+  : [];
+const inferredLanguageSwitcherAlternatives = switchableShellPaths.has(normalizedLogicalPath)
   ? languageAlternativesForPath(normalizedLogicalPath)
   : [];
 const languageAlternatives = providedLanguageAlternatives ?? inferredLanguageAlternatives;
+const languageSwitcherAlternatives = providedLanguageSwitcherAlternatives
+  ?? providedLanguageAlternatives
+  ?? inferredLanguageSwitcherAlternatives;
 const pageTitle =
   title === SITE.title && Astro.url.pathname === "/"
     ? SITE.homeTitle
@@ -121,11 +137,11 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
   </head>
   <body>
     <a class="skip-link" href="#main-content">{LOCALES[locale].ui.skipToContent}</a>
-    <SiteHeader locale={locale} languageAlternatives={languageAlternatives} />
+    <SiteHeader locale={locale} languageAlternatives={languageSwitcherAlternatives} />
     <main id="main-content">
       <slot />
     </main>
     <SiteFooter />
-    <AskBlog />
+    <AskBlog locale={locale} />
   </body>
 </html>
