@@ -1,10 +1,12 @@
 ---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
 import type { NoteCollectionNavigation, NoteTopicTreeNode } from "../lib/content";
 import { buildNoteTopicTree, categoryHref, noteHref, noteTopicHref } from "../lib/content";
 import ContentCollectionIndex from "./ContentCollectionIndex.astro";
 
 interface Props {
   navigation: NoteCollectionNavigation;
+  locale?: Locale;
 }
 
 interface TopicNavigationGroup {
@@ -14,12 +16,13 @@ interface TopicNavigationGroup {
   children: TopicNavigationGroup[];
 }
 
-const { navigation } = Astro.props;
+const { navigation, locale = DEFAULT_LOCALE } = Astro.props;
+const ui = LOCALES[locale].ui;
 const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
   label: topic.label,
-  href: topic.path.length > 0 ? noteTopicHref(navigation.category, topic.path) : undefined,
+  href: topic.path.length > 0 ? noteTopicHref(navigation.category, topic.path, locale) : undefined,
   items: topic.notes.map((note) => ({
-    href: noteHref(note),
+    href: noteHref(note, locale),
     title: note.data.title,
     current: note.id === navigation.currentId,
   })),
@@ -28,11 +31,11 @@ const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
 ---
 
 <ContentCollectionIndex
-  label="笔记集"
+  label={ui.noteCollection}
   title={navigation.categoryLabel}
-  href={categoryHref(navigation.category)}
+  href={categoryHref(navigation.category, locale)}
   groups={buildNoteTopicTree(navigation.topics).map(topicToGroup)}
-  ariaLabel={`${navigation.categoryLabel}笔记大纲`}
-  hideLabel="隐藏笔记大纲"
-  restoreLabel="展开笔记大纲"
+  ariaLabel={`${navigation.categoryLabel} ${ui.noteOutline}`}
+  hideLabel={locale === "en" ? "Hide note outline" : "隐藏笔记大纲"}
+  restoreLabel={locale === "en" ? "Show note outline" : "展开笔记大纲"}
 />
