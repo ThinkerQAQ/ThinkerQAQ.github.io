@@ -28,7 +28,7 @@
     "build:local": "node scripts/run-with-drafts.mjs run build",
     "local": "npm run build:local && astro preview --port 4321 --background --open",
     "stop:local": "astro preview stop",
-    "verify": "node scripts/verify-build.mjs",
+    "verify": "node scripts/verify-build.mjs && node scripts/verify-i18n.mjs",
     "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run test:vnotes && npm run test:ai-search && npm run test:reactions && npm run check && npm run build && npm run verify"
   },
   "dependencies": {
