@@ -55,13 +55,15 @@ The generated `canonicalUrl` remains clean and never contains UTM parameters. Th
 
 UTM parameters belong on the external landing URL only. Internal navigation does not copy them to article URLs. For example, a visitor may enter `/` with `?utm_source=...` and then navigate to a clean `/articles/.../` URL. That is expected: internal links stay canonical and shareable instead of accumulating campaign parameters.
 
+For a syndicated link that lands directly on an article, the article pageview itself carries the UTM parameters and can be analyzed with the UTM report. For a campaign that lands on the homepage and later reaches an article through clean internal navigation, use Umami's Attribution report with the article's Viewed page as the target and First-Click or Last-Click attribution; do not propagate UTM parameters through internal links.
+
 ## What to inspect in Umami
 
 For routine review, use:
 
 - Pages / URLs: views and visitors per article.
 - Referrers: organic referring domains such as Google, Bing, GitHub, CSDN, or CNBlogs.
-- UTM report: compare syndicated platforms by `utm_source`.
-- Combine URL and UTM filters to answer which platform sent traffic to which article.
+- UTM report: compare syndicated platforms by `utm_source` for landing pages carrying those parameters.
+- Attribution report: connect an earlier campaign/referrer touchpoint to a later article pageview when the reader navigates internally.
 
 Google Search Console remains the source of truth for Google search queries, impressions, clicks, CTR, and ranking position. Umami is used for on-site traffic and referral attribution.
