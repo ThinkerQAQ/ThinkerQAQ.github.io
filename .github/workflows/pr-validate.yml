@@ -51,4 +51,16 @@ jobs:
       - name: Build static site
         run: npm run build
       - name: Verify build output
-        run: npm run verify
+        id: verify_build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run verify 2>&1 | tee "$RUNNER_TEMP/verify-build.log"
+      - name: Upload verify diagnostics
+        if: steps.verify_build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-build-diagnostics
+          path: ${{ runner.temp }}/verify-build.log
+          if-no-files-found: error
+          retention-days: 1
