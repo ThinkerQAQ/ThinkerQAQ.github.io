@@ -2,6 +2,12 @@
 import AskBlog from "../components/AskBlogSession.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  type Locale,
+  type LocaleAlternative,
+} from "../config/i18n";
 import { SITE } from "../config/site";
 import "../styles/global.css";
 
@@ -12,6 +18,8 @@ interface Props {
   type?: "website" | "article";
   canonicalPath?: string;
   language?: string;
+  locale?: Locale;
+  languageAlternatives?: LocaleAlternative[];
 }
 
 const {
@@ -20,7 +28,9 @@ const {
   noindex = false,
   type = "website",
   canonicalPath = Astro.url.pathname,
-  language = SITE.locale,
+  locale = DEFAULT_LOCALE,
+  language = LOCALES[locale].htmlLang,
+  languageAlternatives = [],
 } = Astro.props;
 const pageTitle =
   title === SITE.title && Astro.url.pathname === "/"
@@ -29,6 +39,9 @@ const pageTitle =
       ? title
       : `${title} · ${SITE.title}`;
 const canonical = new URL(canonicalPath, SITE.url);
+const defaultAlternative = languageAlternatives.find(
+  (alternative) => alternative.locale === DEFAULT_LOCALE,
+);
 const umamiWebsiteId = import.meta.env.PUBLIC_UMAMI_WEBSITE_ID?.trim();
 const umamiDomain = new URL(SITE.url).hostname;
 const askBlogWorkerUrl = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL?.trim();
@@ -53,6 +66,16 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <meta name="description" content={description} />
     <meta name="robots" content={noindex ? "noindex,follow" : "index,follow"} />
     <link rel="canonical" href={canonical} />
+    {languageAlternatives.map((alternative) => (
+      <link
+        rel="alternate"
+        hreflang={LOCALES[alternative.locale].htmlLang}
+        href={new URL(alternative.href, SITE.url)}
+      />
+    ))}
+    {defaultAlternative && (
+      <link rel="alternate" hreflang="x-default" href={new URL(defaultAlternative.href, SITE.url)} />
+    )}
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="alternate" type="application/rss+xml" title={`${SITE.title} RSS`} href="/rss.xml" />
     <meta property="og:type" content={type} />
@@ -60,6 +83,7 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.title} />
+    <meta property="og:locale" content={language.replace("-", "_")} />
     <meta name="twitter:card" content="summary" />
     {umamiWebsiteId && umamiProxyOrigin && (
       <script
@@ -74,8 +98,8 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <slot name="head" />
   </head>
   <body>
-    <a class="skip-link" href="#main-content">跳到正文</a>
-    <SiteHeader />
+    <a class="skip-link" href="#main-content">{LOCALES[locale].ui.skipToContent}</a>
+    <SiteHeader locale={locale} languageAlternatives={languageAlternatives} />
     <main id="main-content">
       <slot />
     </main>
