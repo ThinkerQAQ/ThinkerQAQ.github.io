@@ -6,7 +6,7 @@ import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro
 import ContentReaction from "../components/ContentReaction.astro";
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
-import { LOCALES, type LocaleAlternative } from "../config/i18n";
+import { LOCALES, pathForLocale, type LocaleAlternative } from "../config/i18n";
 import { SITE } from "../config/site";
 import {
   articleHref,
@@ -55,6 +55,7 @@ const mobileCollection = seriesNavigation && seriesSummary ? {
     })),
   }],
 } : undefined;
+const sourceNoteHref = data.sourceNote ? pathForLocale(data.sourceNote, locale) : undefined;
 const schema = {
   "@context": "https://schema.org",
   "@type": "TechArticle",
@@ -106,16 +107,16 @@ const schema = {
       {seriesNavigation && (seriesNavigation.previous || seriesNavigation.next) && (
         <ArticleSeriesNavigation navigation={seriesNavigation} />
       )}
-      {data.sourceNote && (
+      {sourceNoteHref && (
         locale === "zh" ? (
-          <p class="source-note">本文迁移自<a href={data.sourceNote}>原始学习笔记</a>，文章版本独立维护。</p>
+          <p class="source-note">本文迁移自<a href={sourceNoteHref}>原始学习笔记</a>，文章版本独立维护。</p>
         ) : (
-          <p class="source-note">This article was migrated from the <a href={data.sourceNote}>original learning notes</a> and is maintained independently.</p>
+          <p class="source-note">This article was migrated from the <a href={sourceNoteHref}>original learning notes</a> and is maintained independently.</p>
         )
       )}
       <ContentReaction contentType="article" contentId={article.id} language={locale} />
       <ArticleComments language={locale} pathname={articlePath} />
     </article>
-    <TableOfContents headings={headings} />
+    <TableOfContents headings={headings} locale={locale} />
   </div>
 </BaseLayout>
