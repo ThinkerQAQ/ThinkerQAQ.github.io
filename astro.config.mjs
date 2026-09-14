@@ -40,9 +40,16 @@ export default defineConfig({
   },
   integrations: [
     sitemap({
+      i18n: {
+        defaultLocale: "zh",
+        locales: {
+          zh: "zh-CN",
+          en: "en",
+        },
+      },
       filter: (page) => {
         const route = decodeURI(new URL(page).pathname);
-        return !["/search/", "/agent/", "/404/"].includes(route)
+        return !["/search/", "/en/search/", "/agent/", "/404/"].includes(route)
           && !noindexRoutes.has(route)
           && !legacyRedirectPrefixes.some((prefix) => route.startsWith(prefix));
       },
