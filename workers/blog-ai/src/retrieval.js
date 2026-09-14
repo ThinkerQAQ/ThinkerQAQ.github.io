@@ -20,9 +20,19 @@ export function decodeAiSearchKey(key) {
   }
 }
 
-function normalizedLanguage(value, decoded) {
+function normalizedLanguage(value, decoded, metadataUrl, blogOrigin) {
   const metadataLanguage = String(value || "").trim().toLowerCase();
   if (SUPPORTED_LANGUAGES.has(metadataLanguage)) return metadataLanguage;
+
+  try {
+    const pathname = new URL(String(metadataUrl || ""), `${blogOrigin}/`).pathname;
+    if (/^\/en\/(?:articles|notes)\//.test(pathname) || /^\/(?:articles|notes)\/en\//.test(pathname)) {
+      return "en";
+    }
+  } catch {
+    // Fall through to the reversible item key when legacy metadata is malformed.
+  }
+
   if (decoded?.id?.startsWith("en/")) return "en";
   return "zh";
 }
@@ -54,7 +64,6 @@ function collectionFromPublicPath(pathname) {
 function normalizeLegacyMetadataUrl(candidate, decoded) {
   if (
     decoded.collection === "articles"
-    && decoded.id.startsWith("en/")
     && candidate.pathname.startsWith("/articles/en/")
   ) {
     candidate.pathname = `/en/articles/${candidate.pathname.slice("/articles/en/".length)}`;
@@ -93,7 +102,7 @@ function metadataFromChunk(chunk, blogOrigin) {
   const metadata = chunk?.item?.metadata || {};
   const title = String(metadata.title || "").trim();
   const collection = decoded?.collection || "";
-  const language = normalizedLanguage(metadata.language, decoded);
+  const language = normalizedLanguage(metadata.language, decoded, metadata.source_url, blogOrigin);
   const url = sourceFromChunk(chunk, blogOrigin);
 
   if (!title || !ALLOWED_COLLECTIONS.has(collection) || !url) return null;
@@ -130,7 +139,7 @@ export function normalizeAiSearchChunks(chunks, blogOrigin) {
     if (remaining <= 0) break;
 
     const addition = `${document.content ? "\n\n" : ""}${content}`.slice(0, remaining);
-    document.content += addition;
+    document.content += addition.length > 0 ? addition : "";
     totalContext += addition.length;
     if (totalContext >= MAX_TOTAL_CONTEXT) break;
   }
