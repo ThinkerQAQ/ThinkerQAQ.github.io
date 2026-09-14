@@ -190,10 +190,10 @@ https://thinkerqaq.github.io/sitemap-index.xml
 
 ### 3.7 分发到博客园、掘金、CSDN、思否、知乎、51CTO、开源中国和头条
 
-博客 Markdown 是唯一内容源。分发命令只读取 `src/content/articles/` 中 `status: published` 的文章，在 `.distribution/` 下生成平台稿，不会修改原文。每份平台稿都会自动追加来源声明：
+博客 Markdown 是唯一内容源。分发命令只读取 `src/content/articles/` 中 `status: published` 的文章，在 `.distribution/` 下生成平台稿，不会修改原文。每份平台稿都会自动追加来源声明，并通过 `utm_source` 标记目标平台（如 `juejin`、`segmentfault`、`zhihu`、`51cto`、`oschina`、`toutiao`）；稿件元数据中的 `canonicalUrl` 仍保持为不带 UTM 参数的原文地址：
 
 ```markdown
-> 本文首发于 [ThinkerQAQ 的个人博客](https://thinkerqaq.github.io/articles/文章-slug/)，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。
+> 本文首发于 [ThinkerQAQ 的个人博客](https://thinkerqaq.github.io/articles/文章-slug/?utm_source=juejin&utm_medium=referral&utm_campaign=article_syndication)，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。
 ```
 
 生成全部已发布文章的八个平台版本：
@@ -295,8 +295,9 @@ wechatsync platforms --auth
 - 命令不会读取、保存或输出平台 Cookie；登录态由本地 Chrome 和 Wechatsync 管理。
 - `WECHATSYNC_TOKEN` 只是 CLI 与浏览器扩展之间的桥接凭证，不是平台 Cookie；不要提交到 Git，也不要在日志或聊天中公开。
 - 当前集成只发送草稿，不会自动点击正式发布，也不会删除任何平台文章。
-- `manifest.json` 记录本地内容哈希和上次成功发送时间，用于 `--changed` 判断；它不包含账号凭证。
+- `manifest.json` 记录本地内容哈希、上次成功发送时间和平台返回的草稿链接，用于 `--changed` 判断与后续复核；已知的旧版开源中国草稿链接会自动转换为当前可访问路由。该文件不包含账号凭证。
 - Wechatsync 当前公开 CLI 不保证覆盖同一篇已发布文章。已经公开的文章需要在平台侧确认更新目标，避免把新草稿误发布成重复文章。
+- Wechatsync 2.0.9 的头条适配器会固定请求广告模式；若平台返回“无头条广告权限”，说明登录有效但当前账号不具备该模式权限。脚本会停止且不重试，避免重复请求；需要等待适配器修复，或在头条后台手动创建草稿。
 - 建议先完成博客部署并确认原文 URL 可访问，再发送平台草稿，确保“首发于个人博客”的描述准确。
 
 ## 4. 在文章中新增图表
@@ -335,7 +336,7 @@ Alice -> Bob: Hello
 | 网站框架 | [Astro](https://astro.build/) 生成静态 HTML，适合以内容为主的博客 |
 | 内容管理 | Astro Content Collections + Markdown；内容分为文章、系列、笔记和项目 |
 | 文章分页 | 中文文章按更新时间倒序排列，每页 10 篇；第一页为 `/articles/`，后续页面为 `/articles/page/2/` 等 |
-| 多平台分发 | 以博客 Markdown 为唯一内容源，通过本地命令生成掘金、CSDN、博客园平台稿，自动追加原文链接，并可借助 Wechatsync 发送到各平台草稿箱 |
+| 多平台分发 | 以博客 Markdown 为唯一内容源，通过本地命令生成博客园、掘金、CSDN、思否、知乎、51CTO、开源中国和头条平台稿，自动追加带平台 UTM 归因的原文链接，并可借助 Wechatsync 发送到各平台草稿箱 |
 | 全文搜索 | [Pagefind](https://pagefind.app/) 在构建后生成静态搜索索引，不需要单独的搜索服务 |
 | 文章评论 | [utterances](https://utteranc.es/)；读者使用 GitHub 登录，评论保存到本仓库的 Issues，并按文章路径关联 |
 | 私有访问统计 | [Umami Cloud](https://umami.is/) 统计 Visitors、Views、页面路径、Referrers 和 UTM 来源；统计结果仅作者可见，Tracker 与上报请求通过现有 Cloudflare Blog Worker 代理，不在文章中公开阅读量 |

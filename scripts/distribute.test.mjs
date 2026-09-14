@@ -7,7 +7,9 @@ import test from "node:test";
 import {
   buildPlatformMarkdown,
   buildTrackedUrl,
+  extractDraftUrl,
   exportArticles,
+  normalizeDraftUrl,
   parseArguments,
   parseArticle,
   SUPPORTED_PLATFORMS,
@@ -49,6 +51,20 @@ test("buildTrackedUrl adds stable platform attribution", () => {
   assert.throws(
     () => buildTrackedUrl("https://thinkerqaq.github.io/articles/concurrency/test/", "unknown"),
     /Unsupported platform/u,
+  );
+});
+
+test("normalizes the legacy OSChina draft URL returned by Wechatsync", () => {
+  const legacy = "https://my.oschina.net/u/2360403/blog/write/draft/3317703";
+  const current = "https://my.oschina.net/u/2360403/blog/ai-write/draft/3317703";
+  assert.equal(normalizeDraftUrl("oschina", legacy), current);
+  assert.equal(
+    extractDraftUrl(`同步结果:\n  ✓ oschina (草稿)\n    ${legacy}\n`, "oschina"),
+    current,
+  );
+  assert.equal(
+    normalizeDraftUrl("juejin", "https://juejin.cn/editor/drafts/123"),
+    "https://juejin.cn/editor/drafts/123",
   );
 });
 
@@ -197,6 +213,21 @@ test("syncExports retries CSDN rate limits and does not record platform failures
       /Failed to sync example to csdn/u,
     );
     assert.equal(failedManifest.articles.example.platforms.csdn.lastSyncedHash, undefined);
+
+    const toutiaoManifest = {
+      version: 1,
+      articles: { example: { platforms: { toutiao: { contentHash: "abc" } } } },
+    };
+    await assert.rejects(
+      syncExports({
+        exported: [{ ...exported[0], platform: "toutiao" }],
+        manifest: toutiaoManifest,
+        manifestPath,
+        run: async () => ({ output: "无头条广告权限\n同步完成: 0 成功, 1 失败" }),
+      }),
+      /advertising mode unavailable/u,
+    );
+    assert.equal(toutiaoManifest.articles.example.platforms.toutiao.lastSyncedHash, undefined);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -325,8 +325,29 @@ function wechatsyncFailure(output = "") {
   const normalized = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/gu, "");
   if (/文章频繁发布，请稍后再试/u.test(normalized)) return "rate-limited";
   if (/Invalid or missing token/u.test(normalized)) return "invalid-token";
+  if (/无头条广告权限/u.test(normalized)) return "toutiao-ad-permission";
   if (/同步完成:\s*0\s*成功,\s*[1-9]\d*\s*失败/u.test(normalized)) return "platform-failed";
   return null;
+}
+
+export function normalizeDraftUrl(platform, draftUrl) {
+  if (!draftUrl) return undefined;
+  if (platform === "oschina") {
+    return draftUrl.replace(
+      /^(https:\/\/my\.oschina\.net\/u\/\d+\/blog)\/write\/draft\/(\d+)(?:\/)?$/u,
+      "$1/ai-write/draft/$2",
+    );
+  }
+  return draftUrl;
+}
+
+export function extractDraftUrl(output = "", platform) {
+  const normalized = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/gu, "");
+  const urls = normalized.match(/https?:\/\/[^\s]+/gu) ?? [];
+  const platformUrl = platform === "oschina"
+    ? urls.find((url) => url.startsWith("https://my.oschina.net/"))
+    : urls.at(-1);
+  return normalizeDraftUrl(platform, platformUrl?.replace(/[),.;]+$/u, ""));
 }
 
 export async function syncExports({
@@ -363,15 +384,18 @@ export async function syncExports({
         failure = wechatsyncFailure(result?.output);
       }
       if (failure) throw new Error(`Wechatsync reported ${failure}`);
+      const draftUrl = extractDraftUrl(result?.output, item.platform);
       if (!dryRun) {
         const state = manifest.articles[item.slug].platforms[item.platform];
         state.lastSyncedHash = item.contentHash;
         state.lastSyncedAt = new Date().toISOString();
+        if (draftUrl) state.draftUrl = draftUrl;
         await writeManifest(manifestPath, manifest);
       }
       log("info", "distribution-sync", dryRun ? "dry-run-completed" : "completed", {
         slug: item.slug,
         platform: item.platform,
+        ...(draftUrl ? { draftUrl } : {}),
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
@@ -381,9 +405,11 @@ export async function syncExports({
         durationMs: Date.now() - startedAt,
         exception: { name: error.name, message: error.message },
       });
+      const advice = error.message.includes("toutiao-ad-permission")
+        ? "The Wechatsync Toutiao adapter requested an advertising mode unavailable to this account; do not retry automatically. Use a fixed adapter or create the draft in Toutiao manually."
+        : "Install @wechatsync/cli, enable its Chrome bridge, and log in to the platform.";
       throw new Error(
-        `Failed to sync ${item.slug} to ${item.platform}. `
-        + "Install @wechatsync/cli, enable its Chrome bridge, and log in to the platform.",
+        `Failed to sync ${item.slug} to ${item.platform}. ${advice}`,
         { cause: error },
       );
     }
