@@ -9,6 +9,13 @@ export interface LocaleConfig {
   shortLabel: string;
   htmlLang: string;
   path: string;
+  homeTitle: string;
+  siteDescription: string;
+  rss: {
+    title: string;
+    description: string;
+    language: string;
+  };
   nav: {
     articles: string;
     projects: string;
@@ -73,6 +80,14 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
     shortLabel: "中文",
     htmlLang: "zh-CN",
     path: "",
+    homeTitle: "ThinkerQAQ | 后端工程、并发编程与分布式系统",
+    siteDescription:
+      "ThinkerQAQ 的个人技术博客，记录后端工程、Go、Java、并发编程、分布式系统、数据系统与软件工程实践。",
+    rss: {
+      title: "ThinkerQAQ",
+      description: "ThinkerQAQ 的中文技术文章。",
+      language: "zh-cn",
+    },
     nav: {
       articles: "文章",
       projects: "项目",
@@ -135,6 +150,14 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
     shortLabel: "EN",
     htmlLang: "en",
     path: "en",
+    homeTitle: "ThinkerQAQ | Backend Engineering, Concurrency, and Distributed Systems",
+    siteDescription:
+      "ThinkerQAQ's technical blog on backend engineering, Go, Java, concurrency, distributed systems, data systems, and software engineering.",
+    rss: {
+      title: "ThinkerQAQ — English",
+      description: "English technical articles from ThinkerQAQ.",
+      language: "en",
+    },
     nav: {
       articles: "Articles",
       projects: "Projects",
@@ -241,4 +264,8 @@ export function localePathSegment(locale: Locale): string {
 
 export function nonDefaultLocales(): Locale[] {
   return SUPPORTED_LOCALES.filter((locale) => locale !== DEFAULT_LOCALE);
+}
+
+export function rssPath(locale: Locale = DEFAULT_LOCALE): string {
+  return localizePath(locale, "/rss.xml");
 }
