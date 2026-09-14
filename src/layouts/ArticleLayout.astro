@@ -6,8 +6,15 @@ import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro
 import ContentReaction from "../components/ContentReaction.astro";
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
+import { LOCALES, type LocaleAlternative } from "../config/i18n";
 import { SITE } from "../config/site";
-import { articleHref, articleTagHref, formatDate, seriesHref, type ArticleSeriesNavigation as SeriesNavigation } from "../lib/content";
+import {
+  articleHref,
+  articleTagHref,
+  formatDate,
+  seriesHref,
+  type ArticleSeriesNavigation as SeriesNavigation,
+} from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -19,15 +26,21 @@ interface Heading {
 interface Props {
   article: CollectionEntry<"articles">;
   headings: Heading[];
-  translation?: CollectionEntry<"articles">;
+  translations?: CollectionEntry<"articles">[];
   seriesNavigation?: SeriesNavigation;
 }
 
-const { article, headings, translation, seriesNavigation } = Astro.props;
+const { article, headings, translations = [article], seriesNavigation } = Astro.props;
 const { data } = article;
-const articlePath = `/articles/${article.id}/`;
+const locale = data.language;
+const localeInfo = LOCALES[locale];
+const articlePath = articleHref(article);
+const languageAlternatives: LocaleAlternative[] = translations.map((entry) => ({
+  locale: entry.data.language,
+  href: articleHref(entry),
+}));
 const mobileCollection = seriesNavigation ? {
-  label: "所属系列",
+  label: localeInfo.ui.seriesLabel,
   title: seriesNavigation.series.data.title,
   href: seriesHref(seriesNavigation.series),
   groups: [{
@@ -46,38 +59,40 @@ const schema = {
   datePublished: data.publishedAt.toISOString(),
   dateModified: (data.updatedAt ?? data.publishedAt).toISOString(),
   author: { "@type": "Person", name: SITE.author },
-  inLanguage: data.language === "en" ? "en" : "zh-CN",
+  inLanguage: localeInfo.htmlLang,
   mainEntityOfPage: new URL(articlePath, SITE.url).toString(),
 };
 ---
 
-<BaseLayout title={data.title} description={data.description} type="article" canonicalPath={articlePath} language={schema.inLanguage} noindex={data.status === "draft"}>
+<BaseLayout
+  title={data.title}
+  description={data.description}
+  type="article"
+  canonicalPath={articlePath}
+  language={localeInfo.htmlLang}
+  locale={locale}
+  languageAlternatives={languageAlternatives}
+  noindex={data.status === "draft"}
+>
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
-  {translation && <link slot="head" rel="alternate" hreflang={schema.inLanguage} href={new URL(articlePath, SITE.url)} />}
-  {translation && (
-    <link
-      slot="head"
-      rel="alternate"
-      hreflang={translation.data.language === "en" ? "en" : "zh-CN"}
-      href={new URL(`/articles/${translation.id}/`, SITE.url)}
-    />
-  )}
   <div class:list={["shell", "content-shell", { "content-shell--with-series": seriesNavigation }]}>
-    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel="系列文章" headings={headings} />
+    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={localeInfo.ui.seriesLabel} headings={headings} />
     {seriesNavigation && <ArticleSeriesIndex navigation={seriesNavigation} />}
     <article class="note" data-pagefind-body>
       <header class="note-header">
-        {data.status === "draft" && <p class="eyebrow">草稿预览</p>}
+        {data.status === "draft" && <p class="eyebrow">{localeInfo.ui.draftPreview}</p>}
         <h1 data-pagefind-meta="title">{data.title}</h1>
         <p class="note-description">{data.description}</p>
         <div class="note-meta">
-          <span data-pagefind-filter="language">{data.language === "en" ? "English" : "中文"}</span>
-          <span>{data.status === "draft" ? "草稿日期" : "发布于"} <time datetime={data.publishedAt.toISOString()}>{formatDate(data.publishedAt)}</time></span>
-          {data.updatedAt && <span>更新于 {formatDate(data.updatedAt)}</span>}
-          {translation && <a href={`/articles/${translation.id}/`}>{translation.data.language === "en" ? "Read in English" : "阅读中文版"}</a>}
+          <span data-pagefind-filter="language">{localeInfo.label}</span>
+          <span>
+            {data.status === "draft" ? localeInfo.ui.draftDate : localeInfo.ui.publishedAt}
+            {" "}<time datetime={data.publishedAt.toISOString()}>{formatDate(data.publishedAt, locale)}</time>
+          </span>
+          {data.updatedAt && <span>{localeInfo.ui.updatedAt} {formatDate(data.updatedAt, locale)}</span>}
         </div>
         {data.tags.length > 0 && (
-          <div class="tag-list" aria-label="标签">
+          <div class="tag-list" aria-label={localeInfo.ui.tags}>
             {data.tags.map((tag) => <a href={articleTagHref(tag)} rel="tag">{tag}</a>)}
           </div>
         )}
@@ -88,10 +103,14 @@ const schema = {
         <ArticleSeriesNavigation navigation={seriesNavigation} />
       )}
       {data.sourceNote && (
-        <p class="source-note">本文迁移自<a href={data.sourceNote}>原始学习笔记</a>，文章版本独立维护。</p>
+        locale === "zh" ? (
+          <p class="source-note">本文迁移自<a href={data.sourceNote}>原始学习笔记</a>，文章版本独立维护。</p>
+        ) : (
+          <p class="source-note">This article was migrated from the <a href={data.sourceNote}>original learning notes</a> and is maintained independently.</p>
+        )
       )}
-      <ContentReaction contentType="article" contentId={article.id} language={data.language} />
-      <ArticleComments language={data.language} pathname={articlePath} />
+      <ContentReaction contentType="article" contentId={article.id} language={locale} />
+      <ArticleComments language={locale} pathname={articlePath} />
     </article>
     <TableOfContents headings={headings} />
   </div>
