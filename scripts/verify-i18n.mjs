@@ -23,8 +23,11 @@ function routeFile(route) {
   return path.join(distRoot, decodeURI(route).replace(/^\/+/, ""), "index.html");
 }
 
-function hasSeoHreflang(html) {
-  return /<link\b[^>]*\bhreflang=/i.test(html);
+function seoHreflangLinks(html) {
+  const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] ?? "";
+  return [...head.matchAll(/<link\b[^>]*>/gi)]
+    .map((match) => match[0])
+    .filter((tag) => /\brel=["']alternate["']/i.test(tag) && /\bhreflang=/i.test(tag));
 }
 
 async function walk(directory) {
@@ -56,7 +59,11 @@ invariant(
   englishNotes.includes(`<link rel="canonical" href="${siteOrigin}/en/notes/">`),
   "English notes shell must self-canonicalize",
 );
-invariant(!hasSeoHreflang(englishNotes), "English notes shell must not advertise SEO hreflang equivalents");
+const englishNotesSeoAlternates = seoHreflangLinks(englishNotes);
+invariant(
+  englishNotesSeoAlternates.length === 0,
+  `English notes shell must not advertise SEO hreflang equivalents: ${englishNotesSeoAlternates.join(" | ")}`,
+);
 invariant(
   englishNotes.includes('data-pagefind-ignore="all"'),
   "Noindex English notes shell must be excluded from Pagefind",
@@ -67,7 +74,11 @@ invariant(
 );
 
 const chineseNotes = await readFile(routeFile("/notes/"), "utf8");
-invariant(!hasSeoHreflang(chineseNotes), "Chinese notes shell must not advertise a noindex English SEO hreflang target");
+const chineseNotesSeoAlternates = seoHreflangLinks(chineseNotes);
+invariant(
+  chineseNotesSeoAlternates.length === 0,
+  `Chinese notes shell must not advertise a noindex English SEO hreflang target: ${chineseNotesSeoAlternates.join(" | ")}`,
+);
 invariant(
   chineseNotes.includes('href="/en/notes/"'),
   "Chinese notes shell must keep a UI language switch to English",
