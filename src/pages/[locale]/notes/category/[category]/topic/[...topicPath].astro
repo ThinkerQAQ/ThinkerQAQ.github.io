@@ -1,0 +1,103 @@
+---
+import { getCollection } from "astro:content";
+import ContentList from "../../../../../../components/ContentList.astro";
+import NoteTopicIndex from "../../../../../../components/NoteTopicIndex.astro";
+import { DEFAULT_LOCALE, LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../../../../config/i18n";
+import BaseLayout from "../../../../../../layouts/BaseLayout.astro";
+import {
+  categoryHref,
+  groupNotesByTopic,
+  noteTopicHref,
+  ROOT_NOTE_TOPIC,
+  ROOT_NOTE_TOPIC_ROUTE,
+  sortNotes,
+  type NoteEntry,
+  type NoteTopicGroup,
+} from "../../../../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  const categories = new Map<string, NoteEntry[]>();
+
+  for (const note of notes) {
+    const entries = categories.get(note.data.category) ?? [];
+    entries.push(note);
+    categories.set(note.data.category, entries);
+  }
+
+  return nonDefaultLocales().flatMap((locale) => [...categories.entries()].flatMap(([category, categoryEntries]) => {
+    const topics = groupNotesByTopic(categoryEntries);
+    const categoryLabel = categoryEntries[0]?.data.categoryLabel ?? category;
+
+    return topics.flatMap((topic) => {
+      if (topic.path.length === 0) return [];
+      const topicIds = topic.path.map((segment) => segment.id);
+      const routeTopicIds = topicIds.length === 1 && topicIds[0] === ROOT_NOTE_TOPIC
+        ? [ROOT_NOTE_TOPIC_ROUTE]
+        : topicIds;
+
+      return [{
+        params: { locale: LOCALES[locale].path, category, topicPath: routeTopicIds.join("/") },
+        props: { locale, entries: topic.allNotes, topics, total: categoryEntries.length, categoryLabel, topic },
+      }];
+    });
+  }));
+}
+
+interface Props {
+  locale: Locale;
+  entries: NoteEntry[];
+  topics: NoteTopicGroup[];
+  total: number;
+  categoryLabel: string;
+  topic: NoteTopicGroup;
+}
+
+const { locale, entries, topics, total, categoryLabel, topic } = Astro.props;
+const category = Astro.params.category!;
+const sortedEntries = sortNotes(entries);
+const currentTopicPath = topic.path.map((segment) => segment.id);
+const topicTitle = topic.path.map((segment) => segment.label).join(" · ");
+const ui = LOCALES[locale].ui;
+---
+
+<BaseLayout
+  title={`${topicTitle} · ${categoryLabel}`}
+  description={`Learning notes for ${topic.path.map((segment) => segment.label).join(" / ")} in ${categoryLabel}.`}
+  canonicalPath={noteTopicHref(category, topic.path, DEFAULT_LOCALE)}
+  noindex={true}
+  locale={locale}
+>
+  <NoteTopicIndex
+    category={category}
+    categoryLabel={categoryLabel}
+    topics={topics}
+    total={total}
+    currentTopicPath={currentTopicPath}
+    locale={locale}
+  >
+    <nav class="breadcrumb" aria-label={ui.breadcrumb}>
+      <a href={localizePath(locale, "/notes/")}>{ui.notesTitle}</a>
+      <span aria-hidden="true">/</span>
+      <a href={categoryHref(category, locale)}>{categoryLabel}</a>
+      {topic.path.map((segment, index) => (
+        <>
+          <span aria-hidden="true">/</span>
+          {index === topic.path.length - 1 ? (
+            <span>{segment.label}</span>
+          ) : (
+            <a href={noteTopicHref(category, topic.path.slice(0, index + 1), locale)}>{segment.label}</a>
+          )}
+        </>
+      ))}
+    </nav>
+
+    <header class="page-header detail-page-header">
+      <h1>{topic.label}</h1>
+      <p>{categoryLabel} · {ui.notesCount(sortedEntries.length)}</p>
+      <p class="note-description">{ui.notesChineseNotice}</p>
+    </header>
+
+    <ContentList entries={sortedEntries} showCategory={false} showTopic={false} locale={locale} />
+  </NoteTopicIndex>
+</BaseLayout>
