@@ -1,0 +1,66 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import CollectionHeader from "../../../components/CollectionHeader.astro";
+import ShowcaseList from "../../../components/ShowcaseList.astro";
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import {
+  articleIsIncluded,
+  localizedSeriesSummary,
+  seriesHref,
+  seriesStatusLabel,
+  sortSeries,
+} from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const entries = sortSeries(await getCollection("series"));
+  const articles = (await getCollection("articles")).filter(articleIsIncluded);
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale, entries, articles },
+  }));
+}
+
+interface Props {
+  locale: Locale;
+  entries: CollectionEntry<"series">[];
+  articles: CollectionEntry<"articles">[];
+}
+
+const { locale, entries, articles } = Astro.props;
+const localeInfo = LOCALES[locale];
+const translatedSeries = entries
+  .map((entry) => {
+    const translatedArticleCount = entry.data.relatedArticles.filter((rootId) =>
+      articles.some((article) => article.data.translationOf === rootId && article.data.language === locale),
+    ).length;
+    return { entry, translatedArticleCount };
+  })
+  .filter(({ translatedArticleCount }) => translatedArticleCount > 0);
+---
+
+<BaseLayout
+  title={localeInfo.ui.seriesTitle}
+  description={localeInfo.ui.seriesDescription}
+  noindex={translatedSeries.length === 0}
+  locale={locale}
+  canonicalPath={localizePath(locale, "/series/")}
+>
+  <div class="shell page collection-page">
+    <CollectionHeader title={localeInfo.ui.seriesTitle} description={localeInfo.ui.seriesDescription} />
+    {translatedSeries.length === 0 ? (
+      <p class="empty-state">{localeInfo.ui.seriesEmpty}</p>
+    ) : (
+      <ShowcaseList items={translatedSeries.map(({ entry, translatedArticleCount }) => {
+        const summary = localizedSeriesSummary(entry, locale);
+        return {
+          href: seriesHref(entry, locale),
+          title: summary.title,
+          description: summary.description,
+          label: `${translatedArticleCount} ${translatedArticleCount === 1 ? "article" : "articles"}`,
+          status: seriesStatusLabel(entry.data.status, locale),
+        };
+      })} />
+    )}
+  </div>
+</BaseLayout>
