@@ -4,6 +4,10 @@ description: "从并发问题的基本边界出发，逐步理解硬件内存模
 status: active
 updatedAt: 2026-09-13
 featured: false
+translations:
+  en:
+    title: "Concurrency Programming"
+    description: "Starts from the boundaries of concurrency problems, then builds toward hardware memory models, language-level concurrency semantics, and the mechanisms behind common concurrency primitives."
 relatedArticles:
   - concurrency-series-00
   - concurrency-series-01-hardware
