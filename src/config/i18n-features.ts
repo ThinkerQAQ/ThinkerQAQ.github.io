@@ -50,7 +50,7 @@ export interface AskBlogUiCopy {
   verifying: string;
   sessionExpired: string;
   verifiedSearching: string;
-  requestFailed: (status: number) => string;
+  requestFailed: string;
   emptyAnswer: string;
   unavailable: string;
 }
@@ -84,7 +84,7 @@ export const ASK_BLOG_UI: Record<Locale, AskBlogUiCopy> = {
     verifying: "正在进行安全验证…",
     sessionExpired: "安全会话已过期，正在重新验证…",
     verifiedSearching: "验证完成，正在检索文章与笔记…",
-    requestFailed: (status) => `请求失败（${status}）`,
+    requestFailed: "请求失败（{status}）",
     emptyAnswer: "AI 没有返回回答。",
     unavailable: "问博客暂时不可用。",
   },
@@ -116,7 +116,7 @@ export const ASK_BLOG_UI: Record<Locale, AskBlogUiCopy> = {
     verifying: "Running security verification…",
     sessionExpired: "The security session expired. Verifying again…",
     verifiedSearching: "Verified. Searching articles and notes…",
-    requestFailed: (status) => `Request failed (${status})`,
+    requestFailed: "Request failed ({status})",
     emptyAnswer: "The AI returned no answer.",
     unavailable: "Ask this blog is temporarily unavailable.",
   },
