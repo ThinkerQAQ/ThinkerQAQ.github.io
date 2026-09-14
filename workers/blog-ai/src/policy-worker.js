@@ -23,9 +23,10 @@ function policyAwareAi(ai) {
 
 export default {
   fetch(request, env, ctx) {
-    const wrappedEnv = env?.AI
-      ? { ...env, AI: policyAwareAi(env.AI) }
-      : env;
+    if (!env?.AI) return worker.fetch(request, env, ctx);
+
+    const wrappedEnv = Object.create(env);
+    wrappedEnv.AI = policyAwareAi(env.AI);
     return worker.fetch(request, wrappedEnv, ctx);
   },
 };
