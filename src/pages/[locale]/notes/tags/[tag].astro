@@ -1,0 +1,56 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import ContentList from "../../../../components/ContentList.astro";
+import { DEFAULT_LOCALE, LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../../config/i18n";
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { noteTagHref, sortNotes } from "../../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  const notesByTag = new Map<string, CollectionEntry<"notes">[]>();
+  for (const note of notes) {
+    for (const tag of new Set(note.data.tags)) {
+      const entries = notesByTag.get(tag) ?? [];
+      entries.push(note);
+      notesByTag.set(tag, entries);
+    }
+  }
+
+  return nonDefaultLocales().flatMap((locale) => [...notesByTag.entries()].map(([tag, entries]) => ({
+    params: { locale: LOCALES[locale].path, tag },
+    props: { locale, tag, entries: sortNotes(entries) },
+  })));
+}
+
+interface Props {
+  locale: Locale;
+  tag: string;
+  entries: CollectionEntry<"notes">[];
+}
+
+const { locale, tag, entries } = Astro.props;
+const ui = LOCALES[locale].ui;
+---
+
+<BaseLayout
+  title={`Tag: ${tag}`}
+  description={`Learning notes tagged “${tag}”.`}
+  canonicalPath={noteTagHref(tag, DEFAULT_LOCALE)}
+  noindex={true}
+  locale={locale}
+>
+  <div class="shell page">
+    <nav class="breadcrumb" aria-label={ui.breadcrumb}>
+      <a href={localizePath(locale, "/notes/")}>{ui.notesTitle}</a>
+      <span aria-hidden="true">/</span>
+      <span>{ui.tags}</span>
+    </nav>
+    <header class="page-header compact">
+      <p class="eyebrow">TAG</p>
+      <h1>{tag}</h1>
+      <p>{ui.notesCount(entries.length)}</p>
+      <p class="note-description">{ui.notesChineseNotice}</p>
+    </header>
+    <ContentList entries={entries} locale={locale} />
+  </div>
+</BaseLayout>
