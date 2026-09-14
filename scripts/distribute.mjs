@@ -17,12 +17,25 @@ export const SUPPORTED_PLATFORMS = [
 ];
 export const DEFAULT_OUTPUT_ROOT = ".distribution";
 export const MANIFEST_FILE = "manifest.json";
+export const UTM_MEDIUM = "referral";
+export const UTM_CAMPAIGN = "article_syndication";
 
-const FOOTER_TEMPLATE = (canonicalUrl) => [
+const FOOTER_TEMPLATE = (trackedUrl) => [
   "---",
   "",
-  `> 本文首发于 [ThinkerQAQ 的个人博客](${canonicalUrl})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。`,
+  `> 本文首发于 [ThinkerQAQ 的个人博客](${trackedUrl})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。`,
 ].join("\n");
+
+export function buildTrackedUrl(canonicalUrl, platform) {
+  if (!SUPPORTED_PLATFORMS.includes(platform)) {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+  const url = new URL(canonicalUrl);
+  url.searchParams.set("utm_source", platform);
+  url.searchParams.set("utm_medium", UTM_MEDIUM);
+  url.searchParams.set("utm_campaign", UTM_CAMPAIGN);
+  return url.toString();
+}
 
 function log(severity, operation, status, details = {}) {
   console.log(JSON.stringify({
@@ -124,6 +137,7 @@ export function buildPlatformMarkdown(article, { platform, slug }) {
     throw new Error(`Unsupported platform: ${platform}`);
   }
   const canonicalUrl = new URL(`/articles/${slug}/`, SITE_ORIGIN).toString();
+  const trackedUrl = buildTrackedUrl(canonicalUrl, platform);
   const tagLimit = platform === "cnblogs" ? article.tags.length : 5;
   const tags = article.tags.slice(0, tagLimit);
   const descriptionLimit = platform === "juejin" ? 100 : 256;
@@ -139,7 +153,7 @@ export function buildPlatformMarkdown(article, { platform, slug }) {
     "---",
   ].join("\n");
   const body = makeExternalLinksAbsolute(article.body);
-  return `${frontmatter}\n\n${body}\n\n${FOOTER_TEMPLATE(canonicalUrl)}\n`;
+  return `${frontmatter}\n\n${body}\n\n${FOOTER_TEMPLATE(trackedUrl)}\n`;
 }
 
 function sha256(value) {
