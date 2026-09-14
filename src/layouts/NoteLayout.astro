@@ -23,7 +23,8 @@ interface Props {
   locale?: Locale;
 }
 
-const { note, headings, collectionNavigation, locale = DEFAULT_LOCALE } = Astro.props;
+const { note, headings, collectionNavigation } = Astro.props;
+const locale: Locale = Astro.props.locale ?? DEFAULT_LOCALE;
 const { data } = note;
 const ui = LOCALES[locale].ui;
 const topicPath = getNoteTopicPath(note);
