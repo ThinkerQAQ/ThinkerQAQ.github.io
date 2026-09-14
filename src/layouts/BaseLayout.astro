@@ -1,11 +1,13 @@
 ---
-import AskBlog from "../components/AskBlogSession.astro";
+import LocalizedAskBlog from "../components/LocalizedAskBlog.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import {
   DEFAULT_LOCALE,
   LOCALES,
   languageAlternativesForPath,
+  localizePath,
+  rssPath,
   type Locale,
   type LocaleAlternative,
 } from "../config/i18n";
@@ -24,19 +26,24 @@ interface Props {
 }
 
 const {
-  title = SITE.title,
-  description = SITE.description,
+  title: providedTitle,
+  description: providedDescription,
   noindex = false,
   type = "website",
   canonicalPath = Astro.url.pathname,
   locale = DEFAULT_LOCALE,
-  language = LOCALES[locale].htmlLang,
+  language: providedLanguage,
   languageAlternatives: providedLanguageAlternatives,
 } = Astro.props;
+const localeInfo = LOCALES[locale];
+const title = providedTitle ?? SITE.title;
+const description = providedDescription ?? localeInfo.siteDescription;
+const language = providedLanguage ?? localeInfo.htmlLang;
 const languageAlternatives = providedLanguageAlternatives ?? languageAlternativesForPath(Astro.url.pathname);
+const homePath = localizePath(locale, "/");
 const pageTitle =
-  title === SITE.title && Astro.url.pathname === "/"
-    ? SITE.homeTitle
+  title === SITE.title && Astro.url.pathname === homePath
+    ? localeInfo.homeTitle
     : title === SITE.title
       ? title
       : `${title} · ${SITE.title}`;
@@ -44,6 +51,7 @@ const canonical = new URL(canonicalPath, SITE.url);
 const defaultAlternative = languageAlternatives.find(
   (alternative) => alternative.locale === DEFAULT_LOCALE,
 );
+const feedPath = rssPath(locale);
 const umamiWebsiteId = import.meta.env.PUBLIC_UMAMI_WEBSITE_ID?.trim();
 const umamiDomain = new URL(SITE.url).hostname;
 const askBlogWorkerUrl = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL?.trim();
@@ -79,13 +87,21 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
       <link rel="alternate" hreflang="x-default" href={new URL(defaultAlternative.href, SITE.url)} />
     )}
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="alternate" type="application/rss+xml" title={`${SITE.title} RSS`} href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title={localeInfo.rss.title} href={feedPath} />
     <meta property="og:type" content={type} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.title} />
     <meta property="og:locale" content={language.replace("-", "_")} />
+    {languageAlternatives
+      .filter((alternative) => alternative.locale !== locale)
+      .map((alternative) => (
+        <meta
+          property="og:locale:alternate"
+          content={LOCALES[alternative.locale].htmlLang.replace("-", "_")}
+        />
+      ))}
     <meta name="twitter:card" content="summary" />
     {umamiWebsiteId && umamiProxyOrigin && (
       <script
@@ -100,12 +116,12 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <slot name="head" />
   </head>
   <body>
-    <a class="skip-link" href="#main-content">{LOCALES[locale].ui.skipToContent}</a>
+    <a class="skip-link" href="#main-content">{localeInfo.ui.skipToContent}</a>
     <SiteHeader locale={locale} languageAlternatives={languageAlternatives} />
     <main id="main-content">
       <slot />
     </main>
-    <SiteFooter />
-    <AskBlog />
+    <SiteFooter locale={locale} />
+    <LocalizedAskBlog locale={locale} />
   </body>
 </html>
