@@ -136,7 +136,7 @@ const copy = READING_EXPERIENCE_UI[locale];
     position: fixed;
     z-index: 20;
     right: clamp(1rem, 3vw, 2rem);
-    bottom: clamp(1rem, 3vw, 2rem);
+    bottom: calc(clamp(1rem, 3vw, 2rem) + 3.75rem);
     display: grid;
     width: 2.75rem;
     height: 2.75rem;
@@ -163,10 +163,6 @@ const copy = READING_EXPERIENCE_UI[locale];
 
   .reading-jump[hidden] {
     display: none;
-  }
-
-  :global(.ask-blog[data-ask-blog]) {
-    bottom: calc(clamp(1rem, 3vw, 2rem) + 3.4rem);
   }
 
   :global(.reading-anchor) {
