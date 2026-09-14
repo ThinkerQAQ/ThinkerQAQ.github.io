@@ -1,0 +1,38 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import CollectionHeader from "../../../components/CollectionHeader.astro";
+import NoteCategoryPreview from "../../../components/NoteCategoryPreview.astro";
+import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { groupByCategory } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale, notes },
+  }));
+}
+
+interface Props { locale: Locale; notes: CollectionEntry<"notes">[] }
+const { locale, notes } = Astro.props;
+const localeInfo = LOCALES[locale];
+const categories = groupByCategory(notes);
+---
+
+<BaseLayout
+  title={localeInfo.ui.notesTitle}
+  description={localeInfo.ui.notesDescription}
+  canonicalPath="/notes/"
+  noindex={true}
+  locale={locale}
+>
+  <div class="shell page collection-page">
+    <CollectionHeader title={localeInfo.ui.notesTitle} description={localeInfo.ui.notesDescription} />
+    <p class="source-note">{localeInfo.ui.notesChineseNotice}</p>
+    {notes.length === 0 && <p class="empty-state">{localeInfo.ui.notesEmpty}</p>}
+    <div class="category-index">
+      {categories.map((group) => <NoteCategoryPreview {...group} locale={locale} />)}
+    </div>
+  </div>
+</BaseLayout>

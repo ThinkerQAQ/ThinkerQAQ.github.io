@@ -48,6 +48,7 @@ const localeInfo = LOCALES[locale];
 
 <BaseLayout
   title={localeInfo.ui.articlesTitle}
+  description={localeInfo.ui.articlesDescription}
   noindex={localizedArticles.length === 0}
   locale={locale}
   languageAlternatives={languageAlternatives}
@@ -59,6 +60,13 @@ const localeInfo = LOCALES[locale];
       articles={localizedArticles.slice(0, ARTICLE_PAGE_SIZE)}
       locale={locale}
     />
-    <Pagination currentPage={1} lastPage={pageCount} nextUrl={nextUrl} />
+    <Pagination
+      currentPage={1}
+      lastPage={pageCount}
+      firstPageUrl={articleIndexHref(locale)}
+      pageUrlPrefix={`${articleIndexHref(locale)}page/`}
+      nextUrl={nextUrl}
+      locale={locale}
+    />
   </div>
 </BaseLayout>

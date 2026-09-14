@@ -1,4 +1,5 @@
 ---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
 import type { NoteTopicGroup, NoteTopicTreeNode } from "../lib/content";
 import { buildNoteTopicTree, categoryHref, noteHref, noteTopicHref } from "../lib/content";
 import ContentCollectionIndex from "./ContentCollectionIndex.astro";
@@ -10,6 +11,7 @@ interface Props {
   topics: NoteTopicGroup[];
   total: number;
   currentTopicPath?: string[];
+  locale?: Locale;
 }
 
 interface TopicNavigationGroup {
@@ -20,16 +22,24 @@ interface TopicNavigationGroup {
   children: TopicNavigationGroup[];
 }
 
-const { category, categoryLabel, topics, total, currentTopicPath = [] } = Astro.props;
+const {
+  category,
+  categoryLabel,
+  topics,
+  total,
+  currentTopicPath = [],
+  locale = DEFAULT_LOCALE,
+} = Astro.props;
+const ui = LOCALES[locale].ui;
 const navigableTopics = topics.filter((topic) => topic.path.length > 0);
 const hasTopics = navigableTopics.length > 0;
 const currentPathKey = currentTopicPath.join("/");
 const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
   label: topic.label,
-  href: noteTopicHref(category, topic.path),
+  href: noteTopicHref(category, topic.path, locale),
   current: topic.path.map((segment) => segment.id).join("/") === currentPathKey,
   items: topic.notes.map((note) => ({
-    href: noteHref(note),
+    href: noteHref(note, locale),
     title: note.data.title,
     current: false,
   })),
@@ -38,8 +48,8 @@ const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
 const groups = [
   {
     items: [{
-      href: categoryHref(category),
-      title: `全部 · ${total}`,
+      href: categoryHref(category, locale),
+      title: `${ui.all} · ${total}`,
       current: currentTopicPath.length === 0,
     }],
   },
@@ -50,19 +60,19 @@ const groups = [
 <div class:list={["shell", "content-shell", "note-topic-shell", { "note-topic-shell--without-topics": !hasTopics }]}>
   {hasTopics && (
     <MobileReadingNavigation
-      collection={{ label: "笔记主题", title: categoryLabel, href: categoryHref(category), groups }}
-      collectionTabLabel="笔记大纲"
+      collection={{ label: ui.noteTopics, title: categoryLabel, href: categoryHref(category, locale), groups }}
+      collectionTabLabel={ui.noteOutline}
     />
   )}
   {hasTopics && (
     <ContentCollectionIndex
-      label="笔记主题"
+      label={ui.noteTopics}
       title={categoryLabel}
-      href={categoryHref(category)}
+      href={categoryHref(category, locale)}
       groups={groups}
-      ariaLabel={`${categoryLabel}笔记主题`}
-      hideLabel="隐藏笔记主题"
-      restoreLabel="展开笔记主题"
+      ariaLabel={`${categoryLabel} ${ui.noteTopics}`}
+      hideLabel={ui.hideNoteTopics}
+      restoreLabel={ui.restoreNoteTopics}
     />
   )}
   <div class="shell page detail-page">

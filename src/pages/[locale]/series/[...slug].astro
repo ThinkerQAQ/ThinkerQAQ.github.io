@@ -1,0 +1,100 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import ArticleList from "../../../components/ArticleList.astro";
+import NoteCategoryPreview from "../../../components/NoteCategoryPreview.astro";
+import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import {
+  articleIsIncluded,
+  categoryHref,
+  formatDate,
+  groupByCategory,
+  groupNotesByTopic,
+  localizedSeriesSummary,
+  noteTopicHref,
+  seriesHref,
+  seriesStatusLabel,
+} from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const seriesEntries = await getCollection("series");
+  const articles = (await getCollection("articles")).filter(articleIsIncluded);
+  const notes = await getCollection("notes");
+
+  return nonDefaultLocales().flatMap((locale) => seriesEntries.flatMap((series) => {
+    const translatedArticles = series.data.relatedArticles
+      .map((rootId) => articles.find(
+        (article) => article.data.translationOf === rootId && article.data.language === locale,
+      ))
+      .filter((entry): entry is CollectionEntry<"articles"> => entry !== undefined);
+    if (translatedArticles.length === 0) return [];
+    return [{
+      params: { locale: LOCALES[locale].path, slug: series.id },
+      props: { locale, series, translatedArticles, notes },
+    }];
+  }));
+}
+
+interface Props {
+  locale: Locale;
+  series: CollectionEntry<"series">;
+  translatedArticles: CollectionEntry<"articles">[];
+  notes: CollectionEntry<"notes">[];
+}
+
+const { locale, series, translatedArticles, notes } = Astro.props;
+const summary = localizedSeriesSummary(series, locale);
+const noteCategories = new Map(groupByCategory(notes).map((group) => [group.category, group]));
+const relatedNoteCategories = series.data.relatedNoteCategories.flatMap((category) => {
+  const group = noteCategories.get(category);
+  return group ? [{ ...group, href: categoryHref(group.category, locale) }] : [];
+});
+const relatedNoteScopes = series.data.relatedNoteScopes.flatMap((scope) => {
+  const categoryGroup = noteCategories.get(scope.category);
+  if (!categoryGroup) return [];
+  const topic = groupNotesByTopic(categoryGroup.entries).find((group) =>
+    group.path.length === scope.topicPath.length
+    && group.path.every((segment, index) => segment.id === scope.topicPath[index])
+  );
+  if (!topic) return [];
+  return [{
+    category: scope.category,
+    label: scope.label ?? `${categoryGroup.label} · ${topic.label}`,
+    entries: topic.allNotes,
+    href: noteTopicHref(scope.category, scope.topicPath, locale),
+  }];
+});
+const relatedNoteGroups = [...relatedNoteCategories, ...relatedNoteScopes];
+---
+
+<BaseLayout
+  title={summary.title}
+  description={summary.description}
+  canonicalPath={seriesHref(series, locale)}
+  locale={locale}
+>
+  <div class="shell page detail-page">
+    <article data-pagefind-body>
+      <header class="note-header detail-page-header">
+        <h1 data-pagefind-meta="title">{summary.title}</h1>
+        <p class="note-description">{summary.description}</p>
+        <div class="note-meta">
+          <span>{seriesStatusLabel(series.data.status, locale)}</span>
+          <span>{LOCALES[locale].ui.updatedAt} {formatDate(series.data.updatedAt, locale)}</span>
+        </div>
+      </header>
+      <section aria-label="Series articles">
+        <ArticleList entries={translatedArticles} locale={locale} />
+      </section>
+    </article>
+    {relatedNoteGroups.length > 0 && (
+      <section class="related-content series-reference-notes" aria-labelledby="reference-notes-heading">
+        <h2 id="reference-notes-heading">Reference notes</h2>
+        <p class="note-description">{LOCALES[locale].ui.notesChineseNotice}</p>
+        <div class="category-index">
+          {relatedNoteGroups.map((group) => <NoteCategoryPreview {...group} locale={locale} />)}
+        </div>
+      </section>
+    )}
+  </div>
+</BaseLayout>

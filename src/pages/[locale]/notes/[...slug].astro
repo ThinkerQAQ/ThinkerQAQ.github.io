@@ -1,0 +1,27 @@
+---
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
+import NoteLayout from "../../../layouts/NoteLayout.astro";
+import { getNoteCollectionNavigation, type NoteCollectionNavigation } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  return nonDefaultLocales().flatMap((locale) => notes.map((note) => ({
+    params: { locale: LOCALES[locale].path, slug: note.id },
+    props: { locale, note, collectionNavigation: getNoteCollectionNavigation(note, notes) },
+  })));
+}
+
+interface Props {
+  locale: Locale;
+  note: CollectionEntry<"notes">;
+  collectionNavigation: NoteCollectionNavigation;
+}
+
+const { locale, note, collectionNavigation } = Astro.props;
+const { Content, headings } = await render(note);
+---
+
+<NoteLayout note={note} headings={headings} collectionNavigation={collectionNavigation} locale={locale}>
+  <Content />
+</NoteLayout>

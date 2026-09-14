@@ -5,6 +5,7 @@ import SiteHeader from "../components/SiteHeader.astro";
 import {
   DEFAULT_LOCALE,
   LOCALES,
+  languageAlternativesForPath,
   type Locale,
   type LocaleAlternative,
 } from "../config/i18n";
@@ -30,8 +31,9 @@ const {
   canonicalPath = Astro.url.pathname,
   locale = DEFAULT_LOCALE,
   language = LOCALES[locale].htmlLang,
-  languageAlternatives = [],
+  languageAlternatives: providedLanguageAlternatives,
 } = Astro.props;
+const languageAlternatives = providedLanguageAlternatives ?? languageAlternativesForPath(Astro.url.pathname);
 const pageTitle =
   title === SITE.title && Astro.url.pathname === "/"
     ? SITE.homeTitle

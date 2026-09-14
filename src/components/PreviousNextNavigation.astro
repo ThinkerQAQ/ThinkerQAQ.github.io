@@ -9,21 +9,30 @@ interface Props {
   next?: NavigationItem;
   ariaLabel: string;
   itemLabel: string;
+  previousLabel?: string;
+  nextLabel?: string;
 }
 
-const { previous, next, ariaLabel, itemLabel } = Astro.props;
+const {
+  previous,
+  next,
+  ariaLabel,
+  itemLabel,
+  previousLabel = "上一篇",
+  nextLabel = "下一篇",
+} = Astro.props;
 ---
 
 <nav class="series-navigation" aria-label={ariaLabel}>
   {previous && (
     <a class="series-navigation__item" href={previous.href} rel="prev">
-      <span>上一篇{itemLabel}</span>
+      <span>{previousLabel}{itemLabel}</span>
       <strong>{previous.title}</strong>
     </a>
   )}
   {next && (
     <a class="series-navigation__item series-navigation__item--next" href={next.href} rel="next">
-      <span>下一篇{itemLabel}</span>
+      <span>{nextLabel}{itemLabel}</span>
       <strong>{next.title}</strong>
     </a>
   )}

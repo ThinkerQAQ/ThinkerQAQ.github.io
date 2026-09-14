@@ -1,4 +1,5 @@
 ---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
 import type { NoteEntry } from "../lib/content";
 import { categoryHref, noteHref } from "../lib/content";
 
@@ -7,11 +8,19 @@ interface Props {
   label: string;
   entries: NoteEntry[];
   href?: string;
+  locale?: Locale;
 }
 
-const { category, label, entries, href = categoryHref(category) } = Astro.props;
+const {
+  category,
+  label,
+  entries,
+  locale = DEFAULT_LOCALE,
+  href = categoryHref(category, locale),
+} = Astro.props;
+const ui = LOCALES[locale].ui;
 const hasMore = entries.length > 5;
-const previewLabel = hasMore ? "最近更新" : "全部笔记";
+const previewLabel = hasMore ? ui.recentUpdates : ui.allNotes;
 const [baseLabel, ...scopeSegments] = label.split(" · ");
 const scopeLabel = scopeSegments.join(" · ");
 ---
@@ -21,14 +30,16 @@ const scopeLabel = scopeSegments.join(" · ");
     <h2><a href={href}>{label}</a></h2>
   </div>
   <p class="category-preview-label">{previewLabel}</p>
-  <ul aria-label={`${label}${previewLabel}`}>
+  <ul aria-label={`${label} ${previewLabel}`}>
     {entries.slice(0, 5).map((note) => (
-      <li><a href={noteHref(note)}>{note.data.title}</a></li>
+      <li><a href={noteHref(note, locale)}>{note.data.title}</a></li>
     ))}
   </ul>
   {hasMore && (
     <a class="more-link category-more-link" href={href}>
-      查看 {baseLabel} 的全部 {entries.length} 篇笔记{scopeLabel && `（${scopeLabel}）`} →
+      {locale === "en"
+        ? `View all ${entries.length} notes in ${baseLabel}${scopeLabel ? ` (${scopeLabel})` : ""} →`
+        : `查看 ${baseLabel} 的全部 ${entries.length} 篇笔记${scopeLabel && `（${scopeLabel}）`} →`}
     </a>
   )}
 </section>

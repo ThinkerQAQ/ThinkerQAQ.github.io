@@ -1,4 +1,5 @@
 ---
+import { DEFAULT_LOCALE, type Locale } from "../config/i18n";
 import MobileReadingNavigationGroup from "./MobileReadingNavigationGroup.astro";
 
 interface NavigationItem {
@@ -32,13 +33,32 @@ interface Props {
   collection?: CollectionNavigation;
   collectionTabLabel?: string;
   headings?: Heading[];
+  locale?: Locale;
 }
 
 const {
   collection,
-  collectionTabLabel = "内容大纲",
+  collectionTabLabel,
   headings = [],
+  locale = DEFAULT_LOCALE,
 } = Astro.props;
+const labels = locale === "en"
+  ? {
+      collectionTab: collectionTabLabel ?? "Outline",
+      readingNavigation: "Reading navigation",
+      open: "Open reading navigation",
+      close: "Close reading navigation",
+      navigationType: "Reading navigation type",
+      toc: "On this page",
+    }
+  : {
+      collectionTab: collectionTabLabel ?? "内容大纲",
+      readingNavigation: "阅读导航",
+      open: "打开阅读导航",
+      close: "关闭阅读导航",
+      navigationType: "阅读导航类型",
+      toc: "本页目录",
+    };
 const visibleHeadings = headings.filter((heading) => heading.depth <= 4);
 const hasCollection = Boolean(collection);
 const hasTableOfContents = visibleHeadings.length > 2;
@@ -54,8 +74,8 @@ const tocPanelId = "mobile-reading-navigation-toc";
     <button
       class="mobile-reading-nav__trigger"
       type="button"
-      aria-label="打开阅读导航"
-      title="阅读导航"
+      aria-label={labels.open}
+      title={labels.readingNavigation}
       aria-controls={drawerId}
       aria-expanded="false"
       data-mobile-reading-nav-trigger
@@ -68,7 +88,7 @@ const tocPanelId = "mobile-reading-navigation-toc";
     <button
       class="mobile-reading-nav__backdrop"
       type="button"
-      aria-label="关闭阅读导航"
+      aria-label={labels.close}
       data-mobile-reading-nav-backdrop
       hidden
     ></button>
@@ -76,18 +96,18 @@ const tocPanelId = "mobile-reading-navigation-toc";
     <aside
       class="mobile-reading-nav__drawer"
       id={drawerId}
-      aria-label="阅读导航"
+      aria-label={labels.readingNavigation}
       aria-hidden="true"
       data-mobile-reading-nav-drawer
       inert
     >
       <header class="mobile-reading-nav__header">
-        <p>阅读导航</p>
+        <p>{labels.readingNavigation}</p>
         <button
           class="mobile-reading-nav__close"
           type="button"
-          aria-label="关闭阅读导航"
-          title="关闭阅读导航"
+          aria-label={labels.close}
+          title={labels.close}
           data-mobile-reading-nav-close
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -97,7 +117,7 @@ const tocPanelId = "mobile-reading-navigation-toc";
       </header>
 
       {hasTabs && (
-        <div class="mobile-reading-nav__tabs" role="tablist" aria-label="阅读导航类型">
+        <div class="mobile-reading-nav__tabs" role="tablist" aria-label={labels.navigationType}>
           <button
             type="button"
             role="tab"
@@ -105,7 +125,7 @@ const tocPanelId = "mobile-reading-navigation-toc";
             aria-controls={collectionPanelId}
             aria-selected="true"
             data-mobile-reading-nav-tab="collection"
-          >{collectionTabLabel}</button>
+          >{labels.collectionTab}</button>
           <button
             type="button"
             role="tab"
@@ -114,7 +134,7 @@ const tocPanelId = "mobile-reading-navigation-toc";
             aria-selected="false"
             tabindex="-1"
             data-mobile-reading-nav-tab="toc"
-          >本页目录</button>
+          >{labels.toc}</button>
         </div>
       )}
 
@@ -146,7 +166,7 @@ const tocPanelId = "mobile-reading-navigation-toc";
             data-mobile-reading-nav-panel="toc"
             hidden={defaultPanel !== "toc"}
           >
-            {!hasTabs && <p class="mobile-reading-nav__panel-title">本页目录</p>}
+            {!hasTabs && <p class="mobile-reading-nav__panel-title">{labels.toc}</p>}
             <ol class="mobile-reading-nav__toc">
               {visibleHeadings.map((heading) => (
                 <li class={`mobile-reading-nav__toc-depth-${heading.depth}`}>
