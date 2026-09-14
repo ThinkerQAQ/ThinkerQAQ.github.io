@@ -1,4 +1,6 @@
 ---
+import { DEFAULT_LOCALE, type Locale } from "../config/i18n";
+
 interface Heading {
   depth: number;
   slug: string;
@@ -7,18 +9,22 @@ interface Heading {
 
 interface Props {
   headings: Heading[];
+  locale?: Locale;
 }
 
-const { headings } = Astro.props;
+const { headings, locale = DEFAULT_LOCALE } = Astro.props;
 const visibleHeadings = headings.filter((heading) => heading.depth <= 4);
 const tocId = "page-table-of-contents";
+const labels = locale === "en"
+  ? { title: "On this page", hide: "Hide table of contents", restore: "Show table of contents" }
+  : { title: "本页目录", hide: "隐藏目录", restore: "展开目录" };
 ---
 
 {visibleHeadings.length > 2 && (
   <div class="toc-region" data-toc-region>
-    <aside class="toc" id={tocId} aria-label="本页目录" data-toc>
+    <aside class="toc" id={tocId} aria-label={labels.title} data-toc>
       <div class="toc-header">
-        <p class="toc-title">本页目录</p>
+        <p class="toc-title">{labels.title}</p>
       </div>
       <ol>
         {visibleHeadings.map((heading) => (
@@ -33,8 +39,8 @@ const tocId = "page-table-of-contents";
       type="button"
       aria-controls={tocId}
       aria-expanded="true"
-      aria-label="隐藏目录"
-      title="隐藏目录"
+      aria-label={labels.hide}
+      title={labels.hide}
       data-toc-hide
     >
       <svg class="toc-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -49,8 +55,8 @@ const tocId = "page-table-of-contents";
     type="button"
     aria-controls={tocId}
     aria-expanded="false"
-    aria-label="展开目录"
-    title="展开目录"
+    aria-label={labels.restore}
+    title={labels.restore}
     data-toc-restore
     hidden
   >
