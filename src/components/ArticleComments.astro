@@ -1,8 +1,9 @@
 ---
+import type { Locale } from "../config/i18n";
 import { COMMENTS, SITE } from "../config/site";
 
 interface Props {
-  language?: "zh" | "en";
+  language?: Locale;
   pathname: string;
 }
 
@@ -39,7 +40,7 @@ const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
   <noscript>
     <p>
       {isEnglish ? "JavaScript is required to load comments." : "需要启用 JavaScript 才能加载评论。"}
-      <a href={issuesUrl} rel="external">GitHub Issues</a>
+      <a href={issuesUrl} rel="external">{isEnglish ? "Open the discussion on GitHub" : "在 GitHub 打开讨论"}</a>
     </p>
   </noscript>
 </section>
