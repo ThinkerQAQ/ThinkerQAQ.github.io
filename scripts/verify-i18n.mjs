@@ -30,6 +30,11 @@ function seoHreflangLinks(html) {
     .filter((tag) => /\brel=["']alternate["']/i.test(tag) && /\bhreflang=/i.test(tag));
 }
 
+function hasAskBlogTitle(html, title) {
+  const match = html.match(/<h2\b[^>]*\bid=["']ask-blog-title["'][^>]*>([\s\S]*?)<\/h2>/i);
+  return match?.[1]?.trim() === title;
+}
+
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
@@ -105,7 +110,7 @@ invariant(
   "English series x-default must point to Chinese",
 );
 invariant(
-  englishSeries.includes('<h2 id="ask-blog-title">Ask this blog</h2>'),
+  hasAskBlogTitle(englishSeries, "Ask this blog"),
   "English Ask Blog title is not localized",
 );
 invariant(
@@ -113,7 +118,7 @@ invariant(
   "English Ask Blog form is not localized",
 );
 invariant(
-  chineseSeries.includes('<h2 id="ask-blog-title">问博客</h2>'),
+  hasAskBlogTitle(chineseSeries, "问博客"),
   "Chinese Ask Blog title regressed",
 );
 
