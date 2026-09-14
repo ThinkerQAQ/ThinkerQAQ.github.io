@@ -1,4 +1,5 @@
 ---
+import { LOCALES } from "../config/i18n";
 import type { ArticleSeriesNavigation } from "../lib/content";
 import { articleHref } from "../lib/content";
 import PreviousNextNavigation from "./PreviousNextNavigation.astro";
@@ -8,6 +9,9 @@ interface Props {
 }
 
 const { navigation } = Astro.props;
+const current = navigation.articles[navigation.currentIndex];
+const locale = current?.data.language ?? "zh";
+const ui = LOCALES[locale].ui;
 ---
 
 <PreviousNextNavigation
@@ -19,6 +23,8 @@ const { navigation } = Astro.props;
     href: articleHref(navigation.next),
     title: navigation.next.data.title,
   }}
-  ariaLabel="系列文章导航"
+  ariaLabel={ui.seriesNavigation}
   itemLabel=""
+  previousLabel={ui.previousArticle}
+  nextLabel={ui.nextArticle}
 />
