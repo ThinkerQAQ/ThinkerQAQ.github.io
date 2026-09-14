@@ -66,7 +66,7 @@ const schema = {
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   <div class="shell content-shell content-shell--with-series">
-    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={ui.noteOutline} headings={headings} />
+    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={ui.noteOutline} headings={headings} locale={locale} />
     <NoteCollectionIndex navigation={collectionNavigation} locale={locale} />
     <article class="note" data-pagefind-body lang={LOCALES[data.language].htmlLang}>
       <nav class="breadcrumb" aria-label={ui.breadcrumb}>
