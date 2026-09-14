@@ -1,4 +1,10 @@
 import type { CollectionEntry } from "astro:content";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  localizePath,
+  type Locale,
+} from "../config/i18n";
 
 export type NoteEntry = CollectionEntry<"notes">;
 export type ArticleEntry = CollectionEntry<"articles">;
@@ -77,12 +83,78 @@ export function noteTagHref(tag: string): string {
   return `/notes/tags/${encodeURIComponent(tag)}/`;
 }
 
+export function articleSlug(article: ArticleEntry): string {
+  const localeDirectory = `${article.data.language}/`;
+  return article.id.startsWith(localeDirectory)
+    ? article.id.slice(localeDirectory.length)
+    : article.id;
+}
+
 export function articleHref(article: ArticleEntry): string {
-  return `/articles/${article.id}/`;
+  return localizePath(article.data.language, `/articles/${articleSlug(article)}/`);
+}
+
+export function articleIndexHref(locale: Locale = DEFAULT_LOCALE): string {
+  return localizePath(locale, "/articles/");
+}
+
+export function articlePageHref(page: number, locale: Locale = DEFAULT_LOCALE): string {
+  return page <= 1
+    ? articleIndexHref(locale)
+    : localizePath(locale, `/articles/page/${page}/`);
 }
 
 export function articleTagHref(tag: string): string {
   return `/articles/tags/${encodeURIComponent(tag)}/`;
+}
+
+export function articleTranslationRootId(article: ArticleEntry): string {
+  return article.data.translationOf ?? article.id;
+}
+
+export function getArticleTranslations(
+  article: ArticleEntry,
+  articles: ArticleEntry[],
+): ArticleEntry[] {
+  const rootId = articleTranslationRootId(article);
+  const root = articles.find((candidate) => candidate.id === rootId);
+
+  if (!root) {
+    throw new Error(`Article ${article.id}: translation root ${rootId} not found`);
+  }
+  if (root.data.translationOf) {
+    throw new Error(`Article ${article.id}: translation root cannot itself be a translation`);
+  }
+  if (root.data.language !== DEFAULT_LOCALE) {
+    throw new Error(`Article ${article.id}: translation root must use the default locale`);
+  }
+
+  const translations = articles.filter(
+    (candidate) => candidate.id === rootId || candidate.data.translationOf === rootId,
+  );
+  const seenLocales = new Set<Locale>();
+
+  for (const candidate of translations) {
+    if (candidate.id === rootId && candidate.data.language !== DEFAULT_LOCALE) {
+      throw new Error(`Article ${candidate.id}: translation root must use the default locale`);
+    }
+    if (candidate.id !== rootId && candidate.data.language === DEFAULT_LOCALE) {
+      throw new Error(`Article ${candidate.id}: translated article cannot use the default locale`);
+    }
+    if (candidate.id !== rootId && candidate.data.translationOf !== rootId) {
+      throw new Error(`Article ${candidate.id}: invalid translation root`);
+    }
+    if (seenLocales.has(candidate.data.language)) {
+      throw new Error(`Article ${rootId}: multiple translations for locale ${candidate.data.language}`);
+    }
+    seenLocales.add(candidate.data.language);
+  }
+
+  return translations.sort(
+    (left, right) =>
+      Object.keys(LOCALES).indexOf(left.data.language) -
+      Object.keys(LOCALES).indexOf(right.data.language),
+  );
 }
 
 export function projectHref(project: ProjectEntry): string {
@@ -104,9 +176,18 @@ export function getArticleSeriesNavigation(
   const series = seriesEntries.find((entry) => entry.id === article.data.series);
   if (!series) return undefined;
 
-  const articlesById = new Map(articles.map((entry) => [entry.id, entry]));
+  const language = article.data.language;
   const orderedArticles = series.data.relatedArticles
-    .map((id) => articlesById.get(id))
+    .map((rootId) => {
+      if (language === DEFAULT_LOCALE) {
+        return articles.find(
+          (entry) => entry.id === rootId && entry.data.language === DEFAULT_LOCALE,
+        );
+      }
+      return articles.find(
+        (entry) => entry.data.translationOf === rootId && entry.data.language === language,
+      );
+    })
     .filter((entry): entry is ArticleEntry => entry !== undefined);
   const currentIndex = orderedArticles.findIndex((entry) => entry.id === article.id);
 
@@ -291,8 +372,8 @@ export function groupByCategory(notes: NoteEntry[]) {
     .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
 }
 
-export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("zh-CN", {
+export function formatDate(date: Date, locale: Locale = DEFAULT_LOCALE): string {
+  return new Intl.DateTimeFormat(LOCALES[locale].htmlLang, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
