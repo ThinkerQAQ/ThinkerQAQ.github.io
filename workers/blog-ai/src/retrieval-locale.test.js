@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  normalizeAiSearchChunks,
   retrieveAiSearchSources,
   sourceFromAiSearchKey,
   sourceFromChunk,
@@ -48,6 +49,20 @@ test("normalizes legacy collection-first English metadata URLs at the Worker bou
     schemaVersion: 2,
   });
   assert.equal(sourceFromChunk(legacy, BLOG_ORIGIN), `${BLOG_ORIGIN}/en/articles/atomic/`);
+});
+
+test("infers English from legacy metadata even when the item key was hashed", () => {
+  const legacy = chunk({
+    key: "blog--articles--h-0123456789abcdef0123456789abcdef.md",
+    url: `${BLOG_ORIGIN}/articles/en/a-very-long-translated-article/`,
+    title: "Long translated article",
+    text: "legacy",
+    schemaVersion: 2,
+  });
+  const sources = normalizeAiSearchChunks([legacy], BLOG_ORIGIN);
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].language, "en");
+  assert.equal(sources[0].url, `${BLOG_ORIGIN}/en/articles/a-very-long-translated-article/`);
 });
 
 test("prefers the requested locale and fills remaining source capacity from the fallback locale", async () => {
