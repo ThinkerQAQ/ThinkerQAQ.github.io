@@ -4,6 +4,12 @@ const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
 const UMAMI_COLLECT_URL = "https://gateway.umami.is/api/send";
 const UMAMI_SCRIPT_PATH = "/u.js";
 const UMAMI_COLLECT_PATH = "/api/send";
+const UMAMI_REQUEST_HEADERS = [
+  "content-type",
+  "x-umami-website-id",
+  "x-umami-hostname",
+  "x-umami-cache",
+];
 
 function analyticsOrigin(env) {
   try {
@@ -17,7 +23,7 @@ function analyticsCorsHeaders(origin) {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type,x-umami-cache",
+    "access-control-allow-headers": UMAMI_REQUEST_HEADERS.join(","),
     "access-control-max-age": "86400",
     vary: "Origin",
   };
@@ -45,17 +51,20 @@ async function proxyTrackerScript() {
 
 async function proxyAnalyticsRequest(request, origin) {
   const headers = new Headers();
-  const contentType = request.headers.get("content-type");
-  const userAgent = request.headers.get("user-agent");
-  const acceptLanguage = request.headers.get("accept-language");
-  const referer = request.headers.get("referer");
-  const umamiCache = request.headers.get("x-umami-cache");
+  const forwardedHeaders = [
+    "content-type",
+    "user-agent",
+    "accept-language",
+    "referer",
+    "x-umami-website-id",
+    "x-umami-hostname",
+    "x-umami-cache",
+  ];
 
-  if (contentType) headers.set("content-type", contentType);
-  if (userAgent) headers.set("user-agent", userAgent);
-  if (acceptLanguage) headers.set("accept-language", acceptLanguage);
-  if (referer) headers.set("referer", referer);
-  if (umamiCache) headers.set("x-umami-cache", umamiCache);
+  for (const name of forwardedHeaders) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
   headers.set("origin", origin);
 
   const upstream = await fetch(UMAMI_COLLECT_URL, {
