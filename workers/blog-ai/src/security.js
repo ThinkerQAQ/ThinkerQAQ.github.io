@@ -12,6 +12,10 @@ function logRequest(level, message, context) {
   });
 }
 
+function askSessionSigningSecret(env) {
+  return String(env.ASK_SESSION_SECRET || env.TURNSTILE_SECRET_KEY || "").trim();
+}
+
 async function verifyTurnstile(token, request, env, origin, traceId) {
   const startedAt = Date.now();
   const logFailure = (message, status, error) => {
@@ -82,9 +86,10 @@ async function verifyTurnstile(token, request, env, origin, traceId) {
 }
 
 export async function authorizeAskRequest(body, request, env, origin, traceId) {
+  const signingSecret = askSessionSigningSecret(env);
   const currentSession = String(body?.sessionToken || "").trim();
-  if (currentSession) {
-    const verified = await verifyAskSession(currentSession, env.ASK_SESSION_SECRET, origin);
+  if (currentSession && signingSecret) {
+    const verified = await verifyAskSession(currentSession, signingSecret, origin);
     if (verified.ok) return { ok: true, method: "session" };
   }
 
@@ -102,9 +107,9 @@ export async function authorizeAskRequest(body, request, env, origin, traceId) {
   if (!verified.ok) return verified;
 
   let session = null;
-  if (body?.requestSession === true && env.ASK_SESSION_SECRET) {
+  if (body?.requestSession === true && signingSecret) {
     try {
-      session = await issueAskSession(env.ASK_SESSION_SECRET, origin);
+      session = await issueAskSession(signingSecret, origin);
     } catch (error) {
       logRequest("warn", "Ask session issuance failed", {
         traceId,
