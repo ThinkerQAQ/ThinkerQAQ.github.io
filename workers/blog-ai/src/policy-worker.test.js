@@ -8,15 +8,12 @@ const BLOG_ORIGIN = "https://thinkerqaq.github.io";
 function request(body) {
   return new Request("https://example.workers.dev/chat", {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: BLOG_ORIGIN,
-    },
+    headers: { "content-type": "application/json", origin: BLOG_ORIGIN },
     body: JSON.stringify(body),
   });
 }
 
-test("adds a domain-neutral abstraction and scope schema to generated answers", async () => {
+test("injects the general abstraction, evidence, and scope policy", async () => {
   const originalFetch = globalThis.fetch;
   let systemMessage = "";
 
@@ -39,21 +36,19 @@ test("adds a domain-neutral abstraction and scope schema to generated answers", 
         AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
         AI_SEARCH: {
           get: () => ({
-            search: async () => ({
-              chunks: [{
-                text: "事务隔离级别描述语义边界；InnoDB 使用 MVCC 与锁实现其中一部分行为。",
-                item: {
-                  key: "blog--articles--database-isolation.md",
-                  metadata: {
-                    source_url: `${BLOG_ORIGIN}/articles/database-isolation/`,
-                    title: "事务隔离与 InnoDB 实现",
-                    collection: "articles",
-                    priority: 2,
-                    schema_version: 2,
-                  },
+            search: async () => ({ chunks: [{
+              text: "事务隔离级别描述语义边界；InnoDB 使用 MVCC 与锁实现其中一部分行为。",
+              item: {
+                key: "blog--articles--database-isolation.md",
+                metadata: {
+                  source_url: `${BLOG_ORIGIN}/articles/database-isolation/`,
+                  title: "事务隔离与 InnoDB 实现",
+                  collection: "articles",
+                  priority: 2,
+                  schema_version: 2,
                 },
-              }],
-            }),
+              },
+            }] }),
           }),
         },
         AI: {
@@ -66,13 +61,14 @@ test("adds a domain-neutral abstraction and scope schema to generated answers", 
     );
 
     assert.equal(response.status, 200);
-    assert.match(systemMessage, /TECHNICAL_CONTEXT_SCHEMA/);
-    assert.match(systemMessage, /levels=concept > specification > api > runtime > operating-system > hardware/);
-    assert.match(systemMessage, /answer_depth=requested-level/);
-    assert.match(systemMessage, /claim_classes=guarantee \| implementation \| example/);
-    assert.match(systemMessage, /scope_dimensions=architecture \| version \| runtime \| storage-engine \| protocol \| operating-system/);
-    assert.match(systemMessage, /component_to_system_inference=disallowed/);
-    assert.match(systemMessage, /internals_path=semantics > implementation > lower-level-mechanism/);
+    assert.ok(systemMessage.includes("TECHNICAL_CONTEXT_SCHEMA"));
+    assert.ok(systemMessage.includes("levels=concept > specification > api > runtime > operating-system > hardware"));
+    assert.ok(systemMessage.includes("claim_classes=guarantee | implementation | example"));
+    assert.ok(systemMessage.includes("scope_dimensions=architecture | version | runtime | storage-engine | protocol | operating-system"));
+    assert.ok(systemMessage.includes("Identify the abstraction level requested by the current question"));
+    assert.ok(systemMessage.includes("Do not treat one concrete implementation as a universal guarantee"));
+    assert.ok(systemMessage.includes("Use only the current retrieved sources as factual evidence"));
+    assert.ok(!systemMessage.includes("using CAS does not by itself prove"));
 
     const payload = await response.json();
     assert.equal(payload.sources[0].title, "事务隔离与 InnoDB 实现");
