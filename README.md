@@ -338,6 +338,7 @@ Alice -> Bob: Hello
 | 多平台分发 | 以博客 Markdown 为唯一内容源，通过本地命令生成掘金、CSDN、博客园平台稿，自动追加原文链接，并可借助 Wechatsync 发送到各平台草稿箱 |
 | 全文搜索 | [Pagefind](https://pagefind.app/) 在构建后生成静态搜索索引，不需要单独的搜索服务 |
 | 文章评论 | [utterances](https://utteranc.es/)；读者使用 GitHub 登录，评论保存到本仓库的 Issues，并按文章路径关联 |
+| 私有访问统计 | [Umami Cloud](https://umami.is/) 统计 Visitors、Views、页面路径、Referrers 和 UTM 来源；统计结果仅作者可见，Tracker 与上报请求通过现有 Cloudflare Blog Worker 代理，不在文章中公开阅读量 |
 | 图表 | PlantUML 代码块和 draw.io 源文件在本地构建为 SVG |
 | 代码高亮 | Astro 内置的 Shiki，使用 GitHub Dark 主题 |
 | SEO 元数据 | 输出 canonical URL、Open Graph、首页 `WebSite` JSON-LD，以及文章和笔记的 `TechArticle` JSON-LD |
