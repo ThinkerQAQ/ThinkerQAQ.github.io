@@ -12,6 +12,7 @@ import {
   articleHref,
   articleTagHref,
   formatDate,
+  localizedSeriesSummary,
   seriesHref,
   type ArticleSeriesNavigation as SeriesNavigation,
 } from "../lib/content";
@@ -39,10 +40,13 @@ const languageAlternatives: LocaleAlternative[] = translations.map((entry) => ({
   locale: entry.data.language,
   href: articleHref(entry),
 }));
-const mobileCollection = seriesNavigation ? {
+const seriesSummary = seriesNavigation
+  ? localizedSeriesSummary(seriesNavigation.series, locale)
+  : undefined;
+const mobileCollection = seriesNavigation && seriesSummary ? {
   label: localeInfo.ui.seriesLabel,
-  title: seriesNavigation.series.data.title,
-  href: seriesHref(seriesNavigation.series),
+  title: seriesSummary.title,
+  href: seriesHref(seriesNavigation.series, locale),
   groups: [{
     items: seriesNavigation.articles.map((entry, index) => ({
       href: articleHref(entry),
