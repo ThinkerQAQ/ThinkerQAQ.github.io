@@ -5,6 +5,7 @@ import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
 import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro";
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import TableOfContents from "../components/TableOfContents.astro";
+import { DEFAULT_LOCALE, LOCALES, localizePath, type Locale } from "../config/i18n";
 import { SITE } from "../config/site";
 import { categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
@@ -19,20 +20,24 @@ interface Props {
   note: CollectionEntry<"notes">;
   headings: Heading[];
   collectionNavigation: NoteCollectionNavigation;
+  locale?: Locale;
 }
 
-const { note, headings, collectionNavigation } = Astro.props;
+const { note, headings, collectionNavigation, locale = DEFAULT_LOCALE } = Astro.props;
 const { data } = note;
+const ui = LOCALES[locale].ui;
 const topicPath = getNoteTopicPath(note);
+const notePath = noteHref(note, locale);
+const canonicalPath = data.canonicalPath ?? (locale === DEFAULT_LOCALE ? notePath : noteHref(note, DEFAULT_LOCALE));
 const mobileCollection = {
-  label: "笔记集",
+  label: ui.noteCollection,
   title: collectionNavigation.categoryLabel,
-  href: categoryHref(collectionNavigation.category),
+  href: categoryHref(collectionNavigation.category, locale),
   groups: collectionNavigation.topics.map((topic) => ({
     label: topic.depth > 0 ? `${"› ".repeat(topic.depth)}${topic.label}` : topic.label,
-    href: topic.path.length > 0 ? noteTopicHref(collectionNavigation.category, topic.path) : undefined,
+    href: topic.path.length > 0 ? noteTopicHref(collectionNavigation.category, topic.path, locale) : undefined,
     items: topic.notes.map((entry) => ({
-      href: noteHref(entry),
+      href: noteHref(entry, locale),
       title: entry.data.title,
       current: entry.id === collectionNavigation.currentId,
     })),
@@ -47,30 +52,31 @@ const schema = {
   dateModified: data.updatedAt.toISOString(),
   author: { "@type": "Person", name: SITE.author },
   inLanguage: data.language === "en" ? "en" : "zh-CN",
-  mainEntityOfPage: new URL(data.canonicalPath ?? Astro.url.pathname, SITE.url).toString(),
+  mainEntityOfPage: new URL(canonicalPath, SITE.url).toString(),
 };
 ---
 
 <BaseLayout
   title={data.title}
   description={data.description}
-  noindex={!data.indexable}
+  noindex={!data.indexable || locale !== DEFAULT_LOCALE}
   type="article"
-  canonicalPath={data.canonicalPath}
+  canonicalPath={canonicalPath}
+  locale={locale}
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   <div class="shell content-shell content-shell--with-series">
-    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel="笔记大纲" headings={headings} />
-    <NoteCollectionIndex navigation={collectionNavigation} />
-    <article class="note" data-pagefind-body>
-      <nav class="breadcrumb" aria-label="面包屑">
-        <a href="/notes/">笔记</a>
+    <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={ui.noteOutline} headings={headings} />
+    <NoteCollectionIndex navigation={collectionNavigation} locale={locale} />
+    <article class="note" data-pagefind-body lang={LOCALES[data.language].htmlLang}>
+      <nav class="breadcrumb" aria-label={ui.breadcrumb}>
+        <a href={localizePath(locale, "/notes/")}>{ui.notesTitle}</a>
         <span aria-hidden="true">/</span>
-        <a href={categoryHref(data.category)}>{data.categoryLabel}</a>
+        <a href={categoryHref(data.category, locale)}>{data.categoryLabel}</a>
         {topicPath.map((segment, index) => (
           <>
             <span aria-hidden="true">/</span>
-            <a href={noteTopicHref(data.category, topicPath.slice(0, index + 1))}>{segment.label}</a>
+            <a href={noteTopicHref(data.category, topicPath.slice(0, index + 1), locale)}>{segment.label}</a>
           </>
         ))}
       </nav>
@@ -81,30 +87,43 @@ const schema = {
         {data.description && <p class="note-description">{data.description}</p>}
         <div class="note-meta">
           <span data-pagefind-filter="category">{data.categoryLabel}</span>
-          {data.createdAt && <span>创建于 <time datetime={data.createdAt.toISOString()}>{formatDate(data.createdAt)}</time></span>}
-          <span>更新于 <time datetime={data.updatedAt.toISOString()}>{formatDate(data.updatedAt)}</time></span>
+          {data.createdAt && <span>{ui.createdAt} <time datetime={data.createdAt.toISOString()}>{formatDate(data.createdAt, locale)}</time></span>}
+          <span>{ui.updatedAt} <time datetime={data.updatedAt.toISOString()}>{formatDate(data.updatedAt, locale)}</time></span>
           {data.status === "historical" && <span class="historical-badge">historical</span>}
-          {!data.indexable && !data.canonicalPath && <span>整理中</span>}
+          {!data.indexable && !data.canonicalPath && <span>{locale === "en" ? "Organizing" : "整理中"}</span>}
         </div>
         {data.tags.length > 0 && (
-          <div class="tag-list" aria-label="标签">
-            {data.tags.map((tag) => <a href={noteTagHref(tag)} rel="tag">{tag}</a>)}
+          <div class="tag-list" aria-label={ui.tags}>
+            {data.tags.map((tag) => <a href={noteTagHref(tag, locale)} rel="tag">{tag}</a>)}
           </div>
         )}
       </header>
 
+      {locale === "en" && <p class="source-note">{ui.notesChineseNotice}</p>}
       {data.status === "historical" && (
-        <p class="historical-note">这是历史学习笔记，可能存在过时或不完整的理解。</p>
+        <p class="historical-note">
+          {locale === "en"
+            ? "This is a historical learning note and may contain outdated or incomplete understanding."
+            : "这是历史学习笔记，可能存在过时或不完整的理解。"}
+        </p>
       )}
-      {data.canonicalPath && <p class="source-note">这份笔记已有独立维护的<a href={data.canonicalPath}>文章版</a>。这里保留原始学习记录。</p>}
+      {data.canonicalPath && (
+        <p class="source-note">
+          {locale === "en" ? (
+            <>This note now has a separately maintained <a href={data.canonicalPath}>article version</a>. The original learning record is kept here.</>
+          ) : (
+            <>这份笔记已有独立维护的<a href={data.canonicalPath}>文章版</a>。这里保留原始学习记录。</>
+          )}
+        </p>
+      )}
       <div class="prose">
         <slot />
       </div>
-      <ContentReaction contentType="note" contentId={note.id} language={data.language} />
+      <ContentReaction contentType="note" contentId={note.id} language={locale} />
       {(collectionNavigation.previous || collectionNavigation.next) && (
-        <NoteSequenceNavigation navigation={collectionNavigation} />
+        <NoteSequenceNavigation navigation={collectionNavigation} locale={locale} />
       )}
     </article>
-    <TableOfContents headings={headings} />
+    <TableOfContents headings={headings} locale={locale} />
   </div>
 </BaseLayout>
