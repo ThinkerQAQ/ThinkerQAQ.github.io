@@ -14,6 +14,21 @@ function logRequest(level, message, context) {
   });
 }
 
+function requestLocale(value) {
+  return String(value || "").trim().toLowerCase() === "en" ? "en" : "zh";
+}
+
+function localizedRetrievalError(locale, kind) {
+  if (locale === "en") {
+    return kind === "empty"
+      ? "No relevant content was found on this site."
+      : "Site search is temporarily unavailable.";
+  }
+  return kind === "empty"
+    ? "本站暂未检索到相关内容。"
+    : "本站检索服务暂时不可用。";
+}
+
 async function readJsonBody(request) {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BODY_BYTES) {
@@ -118,6 +133,7 @@ export default {
 
     if (parsedBody.tooLarge) return json({ error: "Request too large" }, 413, origin);
     const body = parsedBody.body;
+    const locale = requestLocale(body?.locale);
 
     const question = String(body?.question || "").trim();
     if (!question || question.length > MAX_QUESTION_LENGTH) {
@@ -156,29 +172,43 @@ export default {
 
     let sources = [];
     let retrievalQuery = question;
+    let fallbackUsed = false;
+    let preferredLanguage = locale;
+    let fallbackLanguage = locale === "en" ? "zh" : "en";
     const retrievalStartedAt = Date.now();
     try {
-      const retrieved = await retrieveAiSearchSources(question, history, env, blogOrigin);
+      const retrieved = await retrieveAiSearchSources(question, history, env, blogOrigin, locale);
       sources = retrieved.sources;
       retrievalQuery = retrieved.query;
+      fallbackUsed = retrieved.fallbackUsed;
+      preferredLanguage = retrieved.preferredLanguage;
+      fallbackLanguage = retrieved.fallbackLanguage;
     } catch (error) {
       logRequest("error", "AI Search retrieval failed", {
         traceId,
         node: "ai-search",
         operation: "hybrid-search",
         status: 502,
+        locale,
         error: error instanceof Error ? error.message : String(error),
       });
-      return json({ error: "本站检索服务暂时不可用。", ...securitySession }, 502, origin);
+      return json({ error: localizedRetrievalError(locale, "failed"), ...securitySession }, 502, origin);
     }
 
-    if (!sources.length) return json({ error: "本站暂未检索到相关内容。", ...securitySession }, 404, origin);
+    if (!sources.length) {
+      return json({ error: localizedRetrievalError(locale, "empty"), ...securitySession }, 404, origin);
+    }
 
     logRequest("info", "Ask blog retrieval completed", {
       traceId,
       node: "retrieval",
       operation: "ai-search-hybrid",
       status: "ok",
+      locale,
+      preferredLanguage,
+      fallbackLanguage,
+      fallbackUsed,
+      sourceLanguages: [...new Set(sources.map((source) => source.language))],
       sourceCount: sources.length,
       historyMessages: history.length,
       retrievalQueryLength: retrievalQuery.length,
@@ -205,6 +235,7 @@ export default {
         node: "workers-ai",
         operation: "generate-answer",
         status: 200,
+        locale,
         securityMethod: auth.method,
         citedSourceCount: selectedSources.length,
         durationMs: Date.now() - aiStartedAt,
@@ -223,6 +254,7 @@ export default {
         node: "workers-ai",
         operation: "generate-answer",
         status: 502,
+        locale,
         error: error instanceof Error ? error.message : String(error),
       });
       return json({ error: "AI service is temporarily unavailable", ...securitySession }, 502, origin);
