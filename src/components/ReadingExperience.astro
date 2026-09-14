@@ -1,0 +1,186 @@
+---
+import { READING_EXPERIENCE_UI } from "../config/i18n-features";
+import type { Locale } from "../config/i18n";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const copy = READING_EXPERIENCE_UI[locale];
+---
+
+<div
+  class="reading-progress"
+  role="progressbar"
+  aria-label={copy.progressLabel}
+  aria-valuemin="0"
+  aria-valuemax="100"
+  aria-valuenow="0"
+  data-reading-progress
+>
+  <span data-reading-progress-bar></span>
+</div>
+
+<a
+  class="reading-jump"
+  href="#reading-end"
+  aria-label={copy.jumpToEnd}
+  title={copy.jumpToEnd}
+  data-reading-jump
+  data-jump-start-label={copy.jumpToStart}
+  data-jump-end-label={copy.jumpToEnd}
+>
+  <span aria-hidden="true" data-reading-jump-icon>↓</span>
+</a>
+
+<script>
+  const start = document.getElementById("reading-start");
+  const end = document.getElementById("reading-end");
+  const content = document.querySelector<HTMLElement>("[data-reading-content]");
+  const progressRoot = document.querySelector<HTMLElement>("[data-reading-progress]");
+  const progressBar = document.querySelector<HTMLElement>("[data-reading-progress-bar]");
+  const jump = document.querySelector<HTMLAnchorElement>("[data-reading-jump]");
+
+  if (start && end && content && progressRoot && progressBar && jump) {
+    const icon = jump.querySelector<HTMLElement>("[data-reading-jump-icon]");
+    const startLabel = jump.dataset.jumpStartLabel || "Back to reading start";
+    const endLabel = jump.dataset.jumpEndLabel || "Jump to reading end";
+    const askToggle = document.querySelector<HTMLElement>("[data-ask-toggle]");
+    let animationFrame = 0;
+
+    const clamp = (value: number, minimum: number, maximum: number) =>
+      Math.min(maximum, Math.max(minimum, value));
+
+    const syncVisibility = () => {
+      const askOpen = askToggle?.getAttribute("aria-expanded") === "true";
+      const mobileNavigationOpen = document.body.classList.contains("mobile-reading-nav-open");
+      jump.hidden = Boolean(askOpen || mobileNavigationOpen);
+    };
+
+    const sync = () => {
+      animationFrame = 0;
+      const scrollY = window.scrollY;
+      const headerHeight = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--site-header-height"),
+      ) || 64;
+      const startY = start.getBoundingClientRect().top + scrollY - headerHeight - 16;
+      const endY = end.getBoundingClientRect().top + scrollY;
+      const endScroll = Math.max(
+        startY + 1,
+        endY - window.innerHeight + Math.min(window.innerHeight * 0.2, 120),
+      );
+      const progress = clamp((scrollY - startY) / (endScroll - startY), 0, 1);
+      const percentage = Math.round(progress * 100);
+      const goToStart = progress >= 0.5;
+      const label = goToStart ? startLabel : endLabel;
+
+      progressBar.style.transform = `scaleX(${progress})`;
+      progressRoot.setAttribute("aria-valuenow", String(percentage));
+      jump.href = goToStart ? "#reading-start" : "#reading-end";
+      jump.setAttribute("aria-label", label);
+      jump.title = label;
+      if (icon) icon.textContent = goToStart ? "↑" : "↓";
+    };
+
+    const scheduleSync = () => {
+      if (!animationFrame) animationFrame = window.requestAnimationFrame(sync);
+    };
+
+    window.addEventListener("scroll", scheduleSync, { passive: true });
+    window.addEventListener("resize", scheduleSync);
+
+    if ("ResizeObserver" in window) {
+      new ResizeObserver(scheduleSync).observe(content);
+    }
+
+    if (askToggle) {
+      new MutationObserver(syncVisibility).observe(askToggle, {
+        attributes: true,
+        attributeFilter: ["aria-expanded"],
+      });
+    }
+    new MutationObserver(syncVisibility).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    syncVisibility();
+    scheduleSync();
+  }
+</script>
+
+<style>
+  .reading-progress {
+    position: fixed;
+    z-index: 9;
+    top: var(--site-header-height, 4rem);
+    right: 0;
+    left: 0;
+    height: 2px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .reading-progress span {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left center;
+    will-change: transform;
+  }
+
+  .reading-jump {
+    position: fixed;
+    z-index: 20;
+    right: clamp(1rem, 3vw, 2rem);
+    bottom: clamp(1rem, 3vw, 2rem);
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--muted);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1;
+    place-items: center;
+    text-decoration: none;
+    transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+  }
+
+  .reading-jump:hover,
+  .reading-jump:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: none;
+    transform: translateY(-1px);
+  }
+
+  .reading-jump[hidden] {
+    display: none;
+  }
+
+  :global(.ask-blog[data-ask-blog]) {
+    bottom: calc(clamp(1rem, 3vw, 2rem) + 3.4rem);
+  }
+
+  :global(.reading-anchor) {
+    height: 0;
+    scroll-margin-top: calc(var(--site-header-height, 4rem) + 1rem);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(html) {
+      scroll-behavior: auto;
+    }
+
+    .reading-jump {
+      transition: none;
+    }
+  }
+</style>

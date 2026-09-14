@@ -19,9 +19,19 @@ interface Props {
 }
 
 const { locale, note, collectionNavigation } = Astro.props;
-const { Content, headings } = await render(note);
+const { Content, headings, remarkPluginFrontmatter } = await render(note);
+const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
+const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
+  ? Math.ceil(rawReadingMinutes)
+  : 1;
 ---
 
-<NoteLayout note={note} headings={headings} collectionNavigation={collectionNavigation} locale={locale}>
+<NoteLayout
+  note={note}
+  headings={headings}
+  collectionNavigation={collectionNavigation}
+  readingMinutes={readingMinutes}
+  locale={locale}
+>
   <Content />
 </NoteLayout>

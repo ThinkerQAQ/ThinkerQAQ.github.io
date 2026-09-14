@@ -5,7 +5,9 @@ import ArticleSeriesIndex from "../components/ArticleSeriesIndex.astro";
 import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro";
 import ContentReaction from "../components/ContentReaction.astro";
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
+import ReadingExperience from "../components/ReadingExperience.astro";
 import TableOfContents from "../components/TableOfContents.astro";
+import { READING_EXPERIENCE_UI } from "../config/i18n-features";
 import { LOCALES, pathForLocale, type LocaleAlternative } from "../config/i18n";
 import { SITE } from "../config/site";
 import {
@@ -27,14 +29,16 @@ interface Heading {
 interface Props {
   article: CollectionEntry<"articles">;
   headings: Heading[];
+  readingMinutes: number;
   translations?: CollectionEntry<"articles">[];
   seriesNavigation?: SeriesNavigation;
 }
 
-const { article, headings, translations = [article], seriesNavigation } = Astro.props;
+const { article, headings, readingMinutes, translations = [article], seriesNavigation } = Astro.props;
 const { data } = article;
 const locale = data.language;
 const localeInfo = LOCALES[locale];
+const readingUi = READING_EXPERIENCE_UI[locale];
 const articlePath = articleHref(article);
 const languageAlternatives: LocaleAlternative[] = translations.map((entry) => ({
   locale: entry.data.language,
@@ -81,6 +85,7 @@ const schema = {
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   <div class:list={["shell", "content-shell", { "content-shell--with-series": seriesNavigation }]}>
+    <ReadingExperience locale={locale} />
     <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={localeInfo.ui.seriesLabel} headings={headings} locale={locale} />
     {seriesNavigation && <ArticleSeriesIndex navigation={seriesNavigation} />}
     <article class="note" data-pagefind-body>
@@ -95,6 +100,7 @@ const schema = {
             {" "}<time datetime={data.publishedAt.toISOString()}>{formatDate(data.publishedAt, locale)}</time>
           </span>
           {data.updatedAt && <span>{localeInfo.ui.updatedAt} {formatDate(data.updatedAt, locale)}</span>}
+          <span>{readingUi.readingTime(readingMinutes)}</span>
         </div>
         {data.tags.length > 0 && (
           <div class="tag-list" aria-label={localeInfo.ui.tags}>
@@ -103,7 +109,9 @@ const schema = {
         )}
       </header>
 
-      <div class="prose"><slot /></div>
+      <div id="reading-start" class="reading-anchor" aria-hidden="true"></div>
+      <div class="prose" data-reading-content><slot /></div>
+      <div id="reading-end" class="reading-anchor" aria-hidden="true"></div>
       <ContentReaction contentType="article" contentId={article.id} language={locale} />
       {seriesNavigation && (seriesNavigation.previous || seriesNavigation.next) && (
         <ArticleSeriesNavigation navigation={seriesNavigation} />
