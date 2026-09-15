@@ -27,6 +27,19 @@ test("Chinese and English homepages use the shared locale-aware knowledge hub", 
   );
 });
 
+test("homepage hero stays compact and avoids duplicate navigation", async () => {
+  const hub = await source("src/components/HomeKnowledgeHub.astro");
+
+  assert.match(hub, /<h1>\{copy\.topics\}<\/h1>/u);
+  assert.ok(!hub.includes("<h1>ThinkerQAQ</h1>"), "site name must not be repeated as a giant homepage heading");
+  assert.ok(!hub.includes("class=\"home-actions\""), "hero must not duplicate the global article and note navigation");
+  assert.ok(!hub.includes("articlesAction:"), "removed hero navigation copy must stay removed");
+  assert.ok(!hub.includes("notesAction:"), "removed hero navigation copy must stay removed");
+  assert.match(hub, /记录后端工程、并发编程、分布式系统与数据系统中的实践与思考。/u);
+  assert.match(hub, /const showAllSeries = localizedSeries\.length > startSeries\.length;/u);
+  assert.match(hub, /\{showAllSeries && <a href=\{localizePath\(locale, "\/series\/"\)\}>\{copy\.allSeries\} →<\/a>\}/u);
+});
+
 test("homepage keeps locale-specific latest articles and curated knowledge areas", async () => {
   const hub = await source("src/components/HomeKnowledgeHub.astro");
 
