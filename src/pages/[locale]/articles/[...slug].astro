@@ -12,11 +12,13 @@ import {
   buildArticleNoteRelationIndex,
   getRelatedNotesForArticle,
 } from "../../../lib/content-relations";
+import { localizeNotes } from "../../../lib/note-i18n";
 
 export async function getStaticPaths() {
   const allArticles = await getCollection("articles");
   const articles = allArticles.filter(articleIsIncluded);
   const notes = await getCollection("notes");
+  const noteTranslations = await getCollection("noteTranslations");
   const relationIndex = buildArticleNoteRelationIndex(allArticles, notes);
   const seriesEntries = await getCollection("series");
 
@@ -28,7 +30,11 @@ export async function getStaticPaths() {
       }
       const translations = getArticleTranslations(article, articles);
       const seriesNavigation = getArticleSeriesNavigation(article, articles, seriesEntries);
-      const relatedNotes = getRelatedNotesForArticle(article, relationIndex);
+      const relatedNotes = localizeNotes(
+        getRelatedNotesForArticle(article, relationIndex),
+        noteTranslations,
+        article.data.language,
+      );
       return {
         params: {
           locale: localePathSegment(article.data.language),
