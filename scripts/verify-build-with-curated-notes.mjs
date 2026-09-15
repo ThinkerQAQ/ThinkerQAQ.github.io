@@ -169,7 +169,7 @@ async function verifyCuratedRoutesAndTail() {
   );
 
   const sitemap = await readFile(path.join(distRoot, "sitemap-0.xml"), "utf8");
-  for (const route of requiredRoutes.filter((route) => route.includes("algorithm-concurrent"))) {
+  for (const route of requiredRoutes.filter((route) => route.startsWith("/notes/algorithm-concurrent/"))) {
     invariant(
       sitemap.includes(`https://thinkerqaq.github.io${route}`),
       `Curated Concurrent route absent from sitemap: ${route}`,
