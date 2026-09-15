@@ -34,10 +34,7 @@ const copy = locale === "en"
   ? {
       topics: "Backend Engineering · Concurrency · Distributed Systems",
       description:
-        "Writing about backend engineering, concurrency, distributed systems, data systems, and software engineering.",
-      startFallback: "Start Here",
-      articlesAction: "All Articles",
-      notesAction: "Explore Notes",
+        "Notes on backend engineering, concurrency, distributed systems, data systems, and software engineering practice.",
       startTitle: "Start Here",
       allSeries: "All Series",
       latestTitle: "Latest Articles",
@@ -50,14 +47,10 @@ const copy = locale === "en"
       notesCount: (count: number) => `${count} ${count === 1 ? "note" : "notes"}`,
       articlesCount: (count: number) => `${count} ${count === 1 ? "article" : "articles"}`,
       relatedScope: (count: number) => `${count} related note ${count === 1 ? "area" : "areas"}`,
-      startWith: (title: string) => `Start with ${title}`,
     }
   : {
       topics: "后端工程 · 并发编程 · 分布式系统",
-      description: "记录后端工程、并发编程、分布式系统、数据系统，以及真实的软件工程实践。",
-      startFallback: "从这里开始",
-      articlesAction: "全部文章",
-      notesAction: "浏览笔记",
+      description: "记录后端工程、并发编程、分布式系统与数据系统中的实践与思考。",
       startTitle: "从这里开始",
       allSeries: "全部系列",
       latestTitle: "最新文章",
@@ -70,7 +63,6 @@ const copy = locale === "en"
       notesCount: (count: number) => `${count} 篇笔记`,
       articlesCount: (count: number) => `${count} 篇文章`,
       relatedScope: (count: number) => `${count} 个关联笔记主题`,
-      startWith: (title: string) => `从${title}开始`,
     };
 
 const engineeringDefinitions: KnowledgeDefinition[] = [
@@ -112,6 +104,7 @@ const startSeriesSource = featuredSeries.length > 0
     ? activeSeries
     : localizedSeries;
 const startSeries = startSeriesSource.slice(0, 3);
+const showAllSeries = localizedSeries.length > startSeries.length;
 
 function seriesArticleCount(series: (typeof allSeries)[number]): number {
   if (locale === "zh") {
@@ -181,34 +174,19 @@ const projectItems = projects.map((project) => {
     status: projectStatusLabel(project.data.status, locale),
   };
 });
-
-const firstSeries = startSeries[0];
-const firstSeriesHref = firstSeries
-  ? seriesHref(firstSeries, locale)
-  : localizePath(locale, "/articles/");
-const firstSeriesTitle = firstSeries
-  ? localizedSeriesSummary(firstSeries, locale).title
-  : undefined;
-const startAction = firstSeriesTitle ? copy.startWith(firstSeriesTitle) : copy.startFallback;
 ---
 
 <div class="shell home">
   <header class="home-hero">
-    <h1>ThinkerQAQ</h1>
-    <p class="home-hero__topics">{copy.topics}</p>
+    <h1>{copy.topics}</h1>
     <p class="home-hero__description">{copy.description}</p>
-    <nav class="home-actions" aria-label={locale === "en" ? "Start exploring" : "开始浏览"}>
-      <a class="home-action home-action--primary" href={firstSeriesHref}>{startAction} <span aria-hidden="true">→</span></a>
-      <a class="home-action" href={localizePath(locale, "/articles/")}>{copy.articlesAction}</a>
-      <a class="home-action" href={localizePath(locale, "/notes/")}>{copy.notesAction}</a>
-    </nav>
   </header>
 
   {seriesItems.length > 0 && (
     <section class="home-section" aria-labelledby="home-start-title">
       <div class="section-heading">
         <h2 id="home-start-title">{copy.startTitle}</h2>
-        <a href={localizePath(locale, "/series/")}>{copy.allSeries} →</a>
+        {showAllSeries && <a href={localizePath(locale, "/series/")}>{copy.allSeries} →</a>}
       </div>
       <ShowcaseList items={seriesItems} />
     </section>
@@ -275,59 +253,30 @@ const startAction = firstSeriesTitle ? copy.startWith(firstSeriesTitle) : copy.s
 
 <style>
   .home {
-    padding-block: clamp(3.75rem, 7vw, 6.5rem) 7rem;
+    padding-block: clamp(2.5rem, 5vw, 4rem) 7rem;
   }
 
   .home-hero {
-    max-width: 52rem;
-    padding-block: clamp(1rem, 3vw, 2.5rem) 1rem;
+    max-width: 48rem;
   }
 
   .home-hero h1 {
     margin: 0;
-    font-size: clamp(3rem, 8vw, 5.5rem);
-    font-weight: 780;
-    line-height: 0.98;
-    letter-spacing: -0.065em;
-  }
-
-  .home-hero__topics {
-    margin: 1.7rem 0 0;
-    color: var(--text);
-    font-size: clamp(1.05rem, 2vw, 1.3rem);
-    font-weight: 680;
-    letter-spacing: -0.02em;
+    font-size: clamp(1.65rem, 3vw, 2.15rem);
+    font-weight: 720;
+    line-height: 1.2;
+    letter-spacing: -0.035em;
   }
 
   .home-hero__description {
-    max-width: 44rem;
+    max-width: 42rem;
     margin: 1rem 0 0;
     color: var(--muted);
-    font-size: 1.05rem;
+    font-size: 1rem;
   }
 
-  .home-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.65rem 1.35rem;
-    margin-top: 2rem;
-  }
-
-  .home-action {
-    color: var(--muted);
-    font-size: 0.92rem;
-    font-weight: 620;
-    text-decoration: none;
-  }
-
-  .home-action:hover,
-  .home-action:focus-visible,
-  .home-action--primary {
-    color: var(--accent);
-  }
-
-  .home-action--primary {
-    font-weight: 720;
+  .home-hero + .home-section {
+    margin-top: 3.25rem;
   }
 
   .home-knowledge-grid {
@@ -372,17 +321,15 @@ const startAction = firstSeriesTitle ? copy.startWith(firstSeriesTitle) : copy.s
 
   @media (max-width: 680px) {
     .home {
-      padding-block: 3rem 4.5rem;
+      padding-block: 2.25rem 4.5rem;
     }
 
     .home-hero h1 {
-      font-size: clamp(2.8rem, 16vw, 4.2rem);
+      font-size: clamp(1.5rem, 7vw, 1.9rem);
     }
 
-    .home-actions {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 0.55rem;
+    .home-hero + .home-section {
+      margin-top: 2.75rem;
     }
 
     .home-knowledge-grid {
