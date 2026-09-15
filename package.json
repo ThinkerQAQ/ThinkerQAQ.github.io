@@ -16,6 +16,7 @@
     "test:indexnow": "node --test scripts/indexnow.test.mjs",
     "test:distribute": "node --test scripts/distribute.test.mjs",
     "test:syndicate": "node --test scripts/syndicate.test.mjs",
+    "test:medium-export": "node --test scripts/medium-export.test.mjs",
     "test:vnotes": "node --test scripts/import-vnotes.test.mjs scripts/windows-vnote-links.test.mjs scripts/apply-note-topics.test.mjs scripts/container-policy.test.mjs scripts/algorithm-policy.test.mjs scripts/operating-system-policy.test.mjs scripts/virtual-machine-policy.test.mjs scripts/software-engineering-policy.test.mjs scripts/computer-architecture-publication.test.mjs scripts/database-policy.test.mjs scripts/message-queue-policy.test.mjs scripts/security-note-translations.test.mjs scripts/observability-note-translations.test.mjs scripts/web-server-nginx-note-translations.test.mjs scripts/testing-performance-note-translations.test.mjs scripts/developer-tools-note-translations.test.mjs scripts/economics-note-translations.test.mjs scripts/investing-note-translations.test.mjs scripts/photography-note-translations.test.mjs scripts/note-translation-coverage.test.mjs scripts/note-privacy-policy.test.mjs",
     "test:ai-search": "node --check workers/blog-ai/src/worker.js && node --check workers/blog-ai/src/index.js && node --check scripts/sync-ai-search.mjs && node --check scripts/run-ai-search-sync.mjs && node --check scripts/eval-ai-search.mjs && node --test scripts/ai-search-content.test.mjs scripts/run-ai-search-sync.test.mjs workers/blog-ai/src/*.test.js",
     "test:reactions": "node --check workers/blog-reactions/src/index.js && node --test workers/blog-reactions/src/index.test.js",
@@ -27,14 +28,15 @@
     "indexnow:submit": "node scripts/indexnow.mjs submit",
     "distribute": "node scripts/distribute.mjs",
     "syndicate": "node scripts/syndicate.mjs",
-    "build": "node scripts/clean-dist.mjs && npm run diagrams && astro build && node scripts/build-search.mjs",
+    "medium:export": "node scripts/medium-export.mjs",
+    "build": "node scripts/clean-dist.mjs && npm run diagrams && npm run medium:export && astro build && node scripts/build-search.mjs",
     "check": "astro check",
     "preview": "astro preview --port 4321",
     "build:local": "node scripts/run-with-drafts.mjs run build",
     "local": "npm run build:local && astro preview --port 4321 --background --open",
     "stop:local": "astro preview stop",
     "verify": "node scripts/verify-build-with-curated-notes.mjs && node scripts/verify-i18n.mjs && node scripts/verify-article-note-relations.mjs",
-    "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run test:syndicate && npm run test:vnotes && npm run test:ai-search && npm run test:reactions && npm run test:reading-experience && npm run test:article-relations && npm run test:homepage && npm run check && npm run build && npm run verify"
+    "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run test:syndicate && npm run test:medium-export && npm run test:vnotes && npm run test:ai-search && npm run test:reactions && npm run test:reading-experience && npm run test:article-relations && npm run test:homepage && npm run check && npm run build && npm run verify"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
