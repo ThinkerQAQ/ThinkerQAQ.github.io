@@ -23,6 +23,10 @@ function routeFile(route) {
   return path.join(distRoot, decodeURI(route).replace(/^\/+/, ""), "index.html");
 }
 
+function absoluteUrl(route) {
+  return new URL(route, `${siteOrigin}/`).toString();
+}
+
 function seoHreflangLinks(html) {
   const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] ?? "";
   return [...head.matchAll(/<link\b[^>]*>/gi)]
@@ -149,7 +153,7 @@ invariant(
   "Translated English note must be eligible for Pagefind",
 );
 invariant(
-  translatedEnglishNote.includes(`<link rel="canonical" href="${siteOrigin}${translatedEnglishNoteRoute}">`),
+  translatedEnglishNote.includes(`<link rel="canonical" href="${absoluteUrl(translatedEnglishNoteRoute)}">`),
   "Translated English note must self-canonicalize",
 );
 invariant(
@@ -163,12 +167,12 @@ for (const [page, route, locale] of [
   [translatedChineseNote, translatedChineseNoteRoute, "zh-CN"],
 ]) {
   invariant(
-    page.includes(`hreflang="${locale}" href="${siteOrigin}${route}"`),
+    page.includes(`hreflang="${locale}" href="${absoluteUrl(route)}"`),
     `Translated note hreflang missing: ${locale} -> ${route}`,
   );
 }
 invariant(
-  translatedEnglishNote.includes(`hreflang="x-default" href="${siteOrigin}${translatedChineseNoteRoute}"`),
+  translatedEnglishNote.includes(`hreflang="x-default" href="${absoluteUrl(translatedChineseNoteRoute)}"`),
   "Translated note x-default must point to Chinese",
 );
 
