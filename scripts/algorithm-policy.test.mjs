@@ -88,7 +88,7 @@ test("reviewed concurrent notes reject unsafe legacy explanations", async () => 
   ])).join("\n");
 
   for (const rejected of [
-    "双向链表",
+    "死循环+[CAS](CAS.md)+[双向链表]",
     "delete cur_node;",
     "__sync_bool_compare_and_swap",
     "悲观锁 vs  乐观锁",
@@ -96,6 +96,8 @@ test("reviewed concurrent notes reject unsafe legacy explanations", async () => 
     assert.ok(!markdown.includes(rejected), `legacy Concurrent pattern leaked: ${rejected}`);
   }
 
+  assert.ok(markdown.includes("单向链表"));
+  assert.ok(markdown.includes("dummy"));
   assert.ok(markdown.includes("wait-free"));
   assert.ok(markdown.includes("hazard pointers"));
   assert.ok(markdown.includes("内存序"));
