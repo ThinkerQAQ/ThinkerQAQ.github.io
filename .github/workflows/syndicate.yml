@@ -1,15 +1,11 @@
 name: Syndicate international content
 
 on:
-  workflow_run:
-    workflows:
-      - Deploy Astro site to GitHub Pages
-    types: [completed]
   workflow_dispatch:
     inputs:
       article:
-        description: English article slug to sync; leave empty to sync all published English articles
-        required: false
+        description: English article slug to sync
+        required: true
         type: string
       dry_run:
         description: Validate payloads without calling DEV.to
@@ -17,7 +13,7 @@ on:
         default: false
         type: boolean
       draft:
-        description: Create or update DEV.to articles as drafts instead of publishing them
+        description: Create or update the DEV.to article as a draft instead of publishing it
         required: false
         default: false
         type: boolean
@@ -31,18 +27,10 @@ concurrency:
 
 jobs:
   devto:
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        (github.event.workflow_run.conclusion == 'success' &&
-         github.event.workflow_run.head_branch == 'master')
-      }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout deployed revision
+      - name: Checkout selected revision
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -52,7 +40,7 @@ jobs:
       - name: Test syndication logic
         run: npm run test:syndicate
 
-      - name: Syndicate English articles to DEV.to
+      - name: Syndicate explicitly selected English article to DEV.to
         env:
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
           ARTICLE: ${{ inputs.article }}
@@ -60,11 +48,13 @@ jobs:
           DRAFT: ${{ inputs.draft }}
         run: |
           set -euo pipefail
-          args=(--platforms devto)
 
-          if [[ -n "${ARTICLE:-}" ]]; then
-            args+=(--article "$ARTICLE")
+          if [[ -z "${ARTICLE:-}" ]]; then
+            echo "::error::An explicit article slug is required. Automatic or implicit all-article syndication is disabled."
+            exit 1
           fi
+
+          args=(--platforms devto --article "$ARTICLE")
           if [[ "${DRY_RUN:-false}" == "true" ]]; then
             args+=(--dry-run)
           fi
