@@ -1,41 +1,48 @@
 ---
-title: "4.2 CSRF"
-description: "How CSRF works and how tokens, SameSite cookies, Origin/Referer validation, and safe HTTP semantics provide layered defenses."
+title: "1.8 CSRF"
+description: "CSRF, same-origin policy, and common defenses."
 translationOf: "security/csrf"
+category: "security"
+categoryLabel: "Security"
+topic: "security"
+topicLabel: "1.Security"
+order: 8
+tags: ["Security", "CSRF"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T02:00:00Z"
+featured: false
+indexable: true
 ---
-## 1. What CSRF Is
 
-CSRF (Cross-Site Request Forgery) abuses the fact that browsers may **automatically attach credentials for a target site**.
+## 1. What Is a CSRF Attack
+CSRF is a web attack that causes a victim's browser to submit an unwanted request to a site where the victim is already authenticated.
 
-For example:
+For example, a user signs in to a site and the browser stores the session cookie. The user later visits a malicious page that causes the browser to submit a state-changing request to the target site. If the server relies only on automatically attached cookies and has no CSRF defense, the request may execute with the user's identity.
 
-1. A user is already signed in to a site and has an authentication cookie.
-2. The user later visits a page controlled by an attacker.
-3. That page causes the browser to send a state-changing request to the target site.
-4. If the target site trusts the cookie alone and does not verify the request's intent, the action may execute with the user's privileges.
+State-changing operations should not use GET requests.
 
-Do not use GET requests for state-changing operations such as transfers or password changes.
+## 2. Why CSRF Can Happen Despite Cross-Origin Restrictions
+1. The same-origin policy restricts what cross-origin scripts can read and manipulate, but browsers can still send cross-origin requests and automatically attach eligible cookies.
+2. HTML forms can submit cross-origin requests under ordinary browser rules.
 
-## 2. Why the Same-Origin Policy Does Not Fully Prevent CSRF
+## 3. How to Prevent CSRF
+A common defense is a CSRF token:
 
-The same-origin policy primarily restricts a cross-origin script from **reading** another origin's data or response. Browsers still allow some cross-origin requests, including ordinary HTML form submissions.
+1. The browser requests a page or session from the server.
+2. The server generates an unpredictable token and associates it with the session.
+3. The page or client code submits that token in a form field or custom request header.
+4. The server verifies both the authenticated session and the CSRF token.
 
-Whether cookies are attached also depends on attributes such as `SameSite`, Domain, Path, and Secure.
+Cookie-based authentication can also be strengthened with `SameSite` cookies and Origin/Referer validation where appropriate.
 
-## 3. Defenses
+## 4. Example
+### 4.1. Token Validation Example
+1. The server generates an unpredictable token associated with the user's session.
+2. The frontend sends it in a form field or custom request header.
+3. The server compares it with the expected token.
 
-Use the framework's built-in CSRF protection when available. Common layers include:
+Avoid putting CSRF tokens in URLs where they can leak through logs, browser history, or Referer headers.
 
-1. Add and validate a CSRF token on state-changing requests.
-2. Configure authentication cookies with an appropriate `SameSite` policy.
-3. Validate `Origin` where appropriate, and use `Referer` as an additional signal when needed.
-4. Do not perform state changes through GET.
-5. Require re-authentication or explicit confirmation for high-risk operations.
-
-XSS can bypass many CSRF mitigations, so XSS and CSRF must be addressed together.
-
-## 4. Reference
-
-- [OWASP Cross-Site Request Forgery Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
+## 5. References
+- [Cross-Site Request Forgery Prevention Cheat Sheet - OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
