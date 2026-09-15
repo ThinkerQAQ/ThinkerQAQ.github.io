@@ -1,0 +1,80 @@
+name: Syndicate international content
+
+on:
+  workflow_run:
+    workflows:
+      - Deploy Astro site to GitHub Pages
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      article:
+        description: English article slug to sync; leave empty to sync all published English articles
+        required: false
+        type: string
+      dry_run:
+        description: Validate payloads without calling DEV.to
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: Create or update DEV.to articles as drafts instead of publishing them
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: international-syndication
+  cancel-in-progress: false
+
+jobs:
+  devto:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.head_branch == 'master')
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout deployed revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Test syndication logic
+        run: npm run test:syndicate
+
+      - name: Syndicate English articles to DEV.to
+        env:
+          DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
+          ARTICLE: ${{ inputs.article }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          set -euo pipefail
+          args=(--platforms devto)
+
+          if [[ -n "${ARTICLE:-}" ]]; then
+            args+=(--article "$ARTICLE")
+          fi
+          if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          if [[ "${DRAFT:-false}" == "true" ]]; then
+            args+=(--draft)
+          fi
+
+          if [[ -z "${DEVTO_API_KEY:-}" && "${DRY_RUN:-false}" != "true" ]]; then
+            echo "::notice::DEVTO_API_KEY is not configured; international syndication is skipped."
+            exit 0
+          fi
+
+          npm run syndicate -- "${args[@]}"
