@@ -6,6 +6,7 @@ import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { groupByCategory } from "../../../lib/content";
 import { localizeNotes } from "../../../lib/note-i18n";
+import { orderNoteCategoriesAtEnd } from "../../../lib/note-category-order";
 
 export async function getStaticPaths() {
   const [notes, translations] = await Promise.all([
@@ -21,7 +22,7 @@ export async function getStaticPaths() {
 interface Props { locale: Locale; notes: CollectionEntry<"notes">[] }
 const { locale, notes } = Astro.props;
 const localeInfo = LOCALES[locale];
-const categories = groupByCategory(notes);
+const categories = orderNoteCategoriesAtEnd(groupByCategory(notes));
 ---
 
 <BaseLayout
