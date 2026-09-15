@@ -1,18 +1,7 @@
 ---
-import { getCollection } from "astro:content";
-import ArticleIndex from "../components/ArticleIndex.astro";
-import Pagination from "../components/Pagination.astro";
-import { ARTICLE_PAGE_SIZE, SITE } from "../config/site";
+import HomeKnowledgeHub from "../components/HomeKnowledgeHub.astro";
+import { SITE } from "../config/site";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { articleIsIncluded, sortArticles } from "../lib/content";
-
-const articles = sortArticles(
-  (await getCollection("articles")).filter(articleIsIncluded),
-);
-const chineseArticles = articles.filter((article) => article.data.language === "zh");
-const englishArticles = articles.filter((article) => article.data.language === "en");
-const pageCount = Math.ceil(chineseArticles.length / ARTICLE_PAGE_SIZE);
-const nextUrl = pageCount > 1 ? "/articles/page/2/" : undefined;
 
 const websiteSchema = {
   "@context": "https://schema.org",
@@ -22,21 +11,13 @@ const websiteSchema = {
   url: new URL("/", SITE.url).toString(),
 };
 ---
-<BaseLayout noindex={articles.length === 0}>
-  {nextUrl && <link slot="head" rel="next" href={nextUrl} />}
+
+<BaseLayout>
   <script
     is:inline
     slot="head"
     type="application/ld+json"
     set:html={JSON.stringify(websiteSchema).replaceAll("<", "\\u003c")}
   />
-  <div class="shell page article-index-page">
-    <ArticleIndex articles={[...chineseArticles.slice(0, ARTICLE_PAGE_SIZE), ...englishArticles]} />
-    <Pagination
-      currentPage={1}
-      firstPageUrl="/"
-      lastPage={pageCount}
-      nextUrl={nextUrl}
-    />
-  </div>
+  <HomeKnowledgeHub locale="zh" />
 </BaseLayout>

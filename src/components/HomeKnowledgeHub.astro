@@ -1,0 +1,393 @@
+---
+import { getCollection } from "astro:content";
+import { localizePath, type Locale } from "../config/i18n";
+import {
+  articleIsIncluded,
+  categoryHref,
+  groupByCategory,
+  localizedProjectSummary,
+  localizedSeriesSummary,
+  projectHref,
+  projectStatusLabel,
+  seriesHref,
+  seriesStatusLabel,
+  sortArticles,
+  sortProjects,
+  sortSeries,
+} from "../lib/content";
+import ArticleList from "./ArticleList.astro";
+import ShowcaseList from "./ShowcaseList.astro";
+
+interface Props {
+  locale: Locale;
+}
+
+interface KnowledgeDefinition {
+  category: string;
+  zh: string;
+  en: string;
+}
+
+const { locale } = Astro.props;
+
+const copy = locale === "en"
+  ? {
+      topics: "Backend Engineering · Concurrency · Distributed Systems",
+      description:
+        "Writing about backend engineering, concurrency, distributed systems, data systems, and software engineering.",
+      startFallback: "Start Here",
+      articlesAction: "All Articles",
+      notesAction: "Explore Notes",
+      startTitle: "Start Here",
+      allSeries: "All Series",
+      latestTitle: "Latest Articles",
+      allArticles: "All Articles",
+      engineeringTitle: "Engineering Knowledge",
+      allNotes: "All Notes",
+      beyondTitle: "Beyond Engineering",
+      projectsTitle: "Projects",
+      allProjects: "All Projects",
+      notesCount: (count: number) => `${count} ${count === 1 ? "note" : "notes"}`,
+      articlesCount: (count: number) => `${count} ${count === 1 ? "article" : "articles"}`,
+      relatedScope: (count: number) => `${count} related note ${count === 1 ? "area" : "areas"}`,
+      startWith: (title: string) => `Start with ${title}`,
+    }
+  : {
+      topics: "后端工程 · 并发编程 · 分布式系统",
+      description: "记录后端工程、并发编程、分布式系统、数据系统，以及真实的软件工程实践。",
+      startFallback: "从这里开始",
+      articlesAction: "全部文章",
+      notesAction: "浏览笔记",
+      startTitle: "从这里开始",
+      allSeries: "全部系列",
+      latestTitle: "最新文章",
+      allArticles: "全部文章",
+      engineeringTitle: "技术知识",
+      allNotes: "全部笔记",
+      beyondTitle: "工程之外",
+      projectsTitle: "项目",
+      allProjects: "全部项目",
+      notesCount: (count: number) => `${count} 篇笔记`,
+      articlesCount: (count: number) => `${count} 篇文章`,
+      relatedScope: (count: number) => `${count} 个关联笔记主题`,
+      startWith: (title: string) => `从${title}开始`,
+    };
+
+const engineeringDefinitions: KnowledgeDefinition[] = [
+  { category: "distributed-systems", zh: "分布式系统", en: "Distributed Systems" },
+  { category: "computer-architecture-assembly", zh: "计算机体系结构与汇编", en: "Computer Architecture & Assembly" },
+  { category: "java", zh: "Java / JVM", en: "Java / JVM" },
+  { category: "database", zh: "数据库", en: "Databases" },
+  { category: "message-queue", zh: "消息队列", en: "Message Queues" },
+  { category: "operating-system", zh: "操作系统", en: "Operating Systems" },
+];
+
+const beyondDefinitions: KnowledgeDefinition[] = [
+  { category: "photography", zh: "摄影", en: "Photography" },
+  { category: "investing", zh: "投资", en: "Investing" },
+  { category: "economics", zh: "经济学", en: "Economics" },
+  { category: "fitness", zh: "健身", en: "Fitness" },
+];
+
+const [allArticles, allSeries, allNotes, allProjects] = await Promise.all([
+  getCollection("articles"),
+  getCollection("series"),
+  getCollection("notes"),
+  getCollection("projects"),
+]);
+
+const publishedArticles = sortArticles(allArticles.filter(articleIsIncluded));
+const latestArticles = publishedArticles
+  .filter((article) => article.data.language === locale)
+  .slice(0, 5);
+
+const localizedSeries = sortSeries(allSeries).filter((series) =>
+  locale === "en" ? Boolean(series.data.translations?.en) : true,
+);
+const featuredSeries = localizedSeries.filter((series) => series.data.featured);
+const activeSeries = localizedSeries.filter((series) => series.data.status === "active");
+const startSeriesSource = featuredSeries.length > 0
+  ? featuredSeries
+  : activeSeries.length > 0
+    ? activeSeries
+    : localizedSeries;
+const startSeries = startSeriesSource.slice(0, 3);
+
+function seriesArticleCount(series: (typeof allSeries)[number]): number {
+  if (locale === "zh") {
+    return series.data.relatedArticles.filter((rootId) =>
+      publishedArticles.some(
+        (article) => article.id === rootId && article.data.language === "zh",
+      ),
+    ).length;
+  }
+
+  return series.data.relatedArticles.filter((rootId) =>
+    publishedArticles.some(
+      (article) => article.data.translationOf === rootId && article.data.language === locale,
+    ),
+  ).length;
+}
+
+const seriesItems = startSeries.map((series) => {
+  const summary = localizedSeriesSummary(series, locale);
+  const articleCount = seriesArticleCount(series);
+  const relatedScopeCount = series.data.relatedNoteCategories.length + series.data.relatedNoteScopes.length;
+  const firstScopeLabel = series.data.relatedNoteScopes[0]?.label;
+  const labelParts = [copy.articlesCount(articleCount)];
+  if (firstScopeLabel && relatedScopeCount === 1) labelParts.push(firstScopeLabel);
+  else if (relatedScopeCount > 0) labelParts.push(copy.relatedScope(relatedScopeCount));
+
+  return {
+    href: seriesHref(series, locale),
+    title: summary.title,
+    description: summary.description,
+    label: labelParts.join(" · "),
+    status: seriesStatusLabel(series.data.status, locale),
+  };
+});
+
+const publicNoteGroups = new Map(
+  groupByCategory(allNotes.filter((note) => note.data.indexable))
+    .map((group) => [group.category, group] as const),
+);
+
+function resolveKnowledge(definitions: KnowledgeDefinition[], minimumNotes = 1) {
+  return definitions.flatMap((definition) => {
+    const group = publicNoteGroups.get(definition.category);
+    if (!group || group.entries.length < minimumNotes) return [];
+    return [{
+      category: definition.category,
+      label: locale === "en" ? definition.en : definition.zh,
+      count: group.entries.length,
+    }];
+  });
+}
+
+const engineeringAreas = resolveKnowledge(engineeringDefinitions);
+const beyondEngineeringAreas = resolveKnowledge(beyondDefinitions, 5);
+
+const localizedProjects = locale === "en"
+  ? allProjects.filter((project) => Boolean(project.data.translations?.en))
+  : allProjects;
+const projects = sortProjects(localizedProjects).slice(0, 3);
+const projectItems = projects.map((project) => {
+  const summary = localizedProjectSummary(project, locale);
+  return {
+    href: projectHref(project, locale),
+    title: summary.title,
+    description: summary.description,
+    label: project.data.tags.join(" · "),
+    status: projectStatusLabel(project.data.status, locale),
+  };
+});
+
+const firstSeries = startSeries[0];
+const firstSeriesHref = firstSeries
+  ? seriesHref(firstSeries, locale)
+  : localizePath(locale, "/articles/");
+const firstSeriesTitle = firstSeries
+  ? localizedSeriesSummary(firstSeries, locale).title
+  : undefined;
+const startAction = firstSeriesTitle ? copy.startWith(firstSeriesTitle) : copy.startFallback;
+---
+
+<div class="shell home">
+  <header class="home-hero">
+    <h1>ThinkerQAQ</h1>
+    <p class="home-hero__topics">{copy.topics}</p>
+    <p class="home-hero__description">{copy.description}</p>
+    <nav class="home-actions" aria-label={locale === "en" ? "Start exploring" : "开始浏览"}>
+      <a class="home-action home-action--primary" href={firstSeriesHref}>{startAction} <span aria-hidden="true">→</span></a>
+      <a class="home-action" href={localizePath(locale, "/articles/")}>{copy.articlesAction}</a>
+      <a class="home-action" href={localizePath(locale, "/notes/")}>{copy.notesAction}</a>
+    </nav>
+  </header>
+
+  {seriesItems.length > 0 && (
+    <section class="home-section" aria-labelledby="home-start-title">
+      <div class="section-heading">
+        <h2 id="home-start-title">{copy.startTitle}</h2>
+        <a href={localizePath(locale, "/series/")}>{copy.allSeries} →</a>
+      </div>
+      <ShowcaseList items={seriesItems} />
+    </section>
+  )}
+
+  {latestArticles.length > 0 && (
+    <section class="home-section" aria-labelledby="home-latest-title">
+      <div class="section-heading">
+        <h2 id="home-latest-title">{copy.latestTitle}</h2>
+        <a href={localizePath(locale, "/articles/")}>{copy.allArticles} →</a>
+      </div>
+      <ArticleList entries={latestArticles} locale={locale} />
+    </section>
+  )}
+
+  {engineeringAreas.length > 0 && (
+    <section class="home-section" aria-labelledby="home-engineering-title">
+      <div class="section-heading">
+        <h2 id="home-engineering-title">{copy.engineeringTitle}</h2>
+        <a href={localizePath(locale, "/notes/")}>{copy.allNotes} →</a>
+      </div>
+      <ul class="home-knowledge-grid">
+        {engineeringAreas.map((area) => (
+          <li>
+            <a href={categoryHref(area.category, locale)}>
+              <span>{area.label}</span>
+              <small>{copy.notesCount(area.count)}</small>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {projectItems.length > 0 && (
+    <section class="home-section" aria-labelledby="home-projects-title">
+      <div class="section-heading">
+        <h2 id="home-projects-title">{copy.projectsTitle}</h2>
+        <a href={localizePath(locale, "/projects/")}>{copy.allProjects} →</a>
+      </div>
+      <ShowcaseList items={projectItems} />
+    </section>
+  )}
+
+  {beyondEngineeringAreas.length > 0 && (
+    <section class="home-section home-section--beyond" aria-labelledby="home-beyond-title">
+      <div class="section-heading">
+        <h2 id="home-beyond-title">{copy.beyondTitle}</h2>
+        <a href={localizePath(locale, "/notes/")}>{copy.allNotes} →</a>
+      </div>
+      <ul class="home-knowledge-grid">
+        {beyondEngineeringAreas.map((area) => (
+          <li>
+            <a href={categoryHref(area.category, locale)}>
+              <span>{area.label}</span>
+              <small>{copy.notesCount(area.count)}</small>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+</div>
+
+<style>
+  .home {
+    padding-block: clamp(3.75rem, 7vw, 6.5rem) 7rem;
+  }
+
+  .home-hero {
+    max-width: 52rem;
+    padding-block: clamp(1rem, 3vw, 2.5rem) 1rem;
+  }
+
+  .home-hero h1 {
+    margin: 0;
+    font-size: clamp(3rem, 8vw, 5.5rem);
+    font-weight: 780;
+    line-height: 0.98;
+    letter-spacing: -0.065em;
+  }
+
+  .home-hero__topics {
+    margin: 1.7rem 0 0;
+    color: var(--text);
+    font-size: clamp(1.05rem, 2vw, 1.3rem);
+    font-weight: 680;
+    letter-spacing: -0.02em;
+  }
+
+  .home-hero__description {
+    max-width: 44rem;
+    margin: 1rem 0 0;
+    color: var(--muted);
+    font-size: 1.05rem;
+  }
+
+  .home-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1.35rem;
+    margin-top: 2rem;
+  }
+
+  .home-action {
+    color: var(--muted);
+    font-size: 0.92rem;
+    font-weight: 620;
+    text-decoration: none;
+  }
+
+  .home-action:hover,
+  .home-action:focus-visible,
+  .home-action--primary {
+    color: var(--accent);
+  }
+
+  .home-action--primary {
+    font-weight: 720;
+  }
+
+  .home-knowledge-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 4rem;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .home-knowledge-grid li {
+    min-width: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .home-knowledge-grid a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.05rem 0;
+    text-decoration: none;
+  }
+
+  .home-knowledge-grid a > span {
+    min-width: 0;
+    font-weight: 650;
+  }
+
+  .home-knowledge-grid small {
+    flex: none;
+    color: var(--faint);
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .home-section--beyond {
+    padding-top: 0.5rem;
+  }
+
+  @media (max-width: 680px) {
+    .home {
+      padding-block: 3rem 4.5rem;
+    }
+
+    .home-hero h1 {
+      font-size: clamp(2.8rem, 16vw, 4.2rem);
+    }
+
+    .home-actions {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .home-knowledge-grid {
+      grid-template-columns: 1fr;
+      column-gap: 0;
+    }
+  }
+</style>
