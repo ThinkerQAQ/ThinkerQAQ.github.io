@@ -102,6 +102,34 @@ invariant(
   englishNotes.includes('href="/notes/"'),
   "English notes shell must keep a UI language switch back to Chinese",
 );
+for (const [sourceLabel, englishLabel] of [
+  ["分布式系统", "Distributed Systems"],
+  ["计算机网络", "Computer Networks"],
+  ["系统设计", "System Design"],
+]) {
+  invariant(
+    englishNotes.includes(englishLabel),
+    `English Notes taxonomy is missing localized category label: ${englishLabel}`,
+  );
+  invariant(
+    !englishNotes.includes(`>${sourceLabel}<`),
+    `Chinese category label leaked into English Notes shell: ${sourceLabel}`,
+  );
+}
+
+const englishNetworkNotes = await readFile(routeFile("/en/notes/category/computer-network/"), "utf8");
+invariant(
+  englishNetworkNotes.includes("Computer Networks"),
+  "English computer-network category label is not localized",
+);
+invariant(
+  englishNetworkNotes.includes("Transport Layer"),
+  "English computer-network topic label is not localized",
+);
+invariant(
+  !englishNetworkNotes.includes("传输层"),
+  "Chinese computer-network topic label leaked into the English category page",
+);
 
 const chineseNotes = await readFile(routeFile("/notes/"), "utf8");
 const chineseNotesSeoAlternates = seoHreflangLinks(chineseNotes);
