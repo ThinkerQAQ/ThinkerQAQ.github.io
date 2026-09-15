@@ -9,7 +9,7 @@ const APPENDED_NOTE_CATEGORY_ORDER = [
 
 export function orderNoteCategoriesAtEnd<T extends { category: string }>(groups: T[]): T[] {
   const appendedOrder = new Map<string, number>(
-    APPENDED_NOTE_CATEGORY_ORDER.map((category, index) => [category, index]),
+    APPENDED_NOTE_CATEGORY_ORDER.map((category, index) => [category, index] as const),
   );
 
   return [...groups].sort((left, right) => {
