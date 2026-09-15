@@ -9,68 +9,84 @@ const zhRoot = path.join(root, "src", "content", "notes", "investing");
 const enRoot = path.join(root, "src", "content", "note-translations", "en", "investing");
 
 const expected = [
-  "overview",
-  "asset-allocation",
-  "bonds",
-  "funds",
-  "index-investing",
-  "fund-reports",
-  "valuation",
-  "relative-valuation",
-  "discounted-cash-flow",
-  "prospectus",
+  "investing.md",
+  "investment-strategy.md",
+  "personal-finance.md",
+  "real-investment/real-estate/cities.md",
+  "real-investment/real-estate/home-renovation.md",
+  "real-investment/real-estate/real-estate.md",
+  "real-investment/real-investment.md",
+  "securities/bonds/bonds.md",
+  "securities/bonds/convertible-bonds.md",
+  "securities/funds/active-fund-managers.md",
+  "securities/funds/fund-classification.md",
+  "securities/funds/fund-reports.md",
+  "securities/funds/fund-screening.md",
+  "securities/funds/funds.md",
+  "securities/funds/how-to-invest-in-funds.md",
+  "securities/securities-investing.md",
+  "securities/stocks/absolute-valuation.md",
+  "securities/stocks/how-to-invest-in-stocks.md",
+  "securities/stocks/indexes.md",
+  "securities/stocks/ipo-subscription.md",
+  "securities/stocks/prospectus.md",
+  "securities/stocks/relative-valuation.md",
+  "securities/stocks/stocks.md",
+  "securities/stocks/valuation.md"
 ];
 
-async function markdownNames(directory) {
-  return (await readdir(directory))
-    .filter((name) => name.endsWith(".md"))
-    .map((name) => name.replace(/\.md$/, ""))
-    .sort();
+async function collectMarkdown(rootDir, current = rootDir) {
+  const entries = await readdir(current, { withFileTypes: true });
+  const out = [];
+  for (const entry of entries) {
+    const absolute = path.join(current, entry.name);
+    if (entry.isDirectory()) out.push(...await collectMarkdown(rootDir, absolute));
+    else if (entry.isFile() && entry.name.endsWith(".md")) {
+      out.push(path.relative(rootDir, absolute).split(path.sep).join("/"));
+    }
+  }
+  return out.sort();
 }
 
 function frontmatterValue(markdown, key) {
   return markdown.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?\\s*$`, "m"))?.[1];
 }
 
-test("investing notes have complete English translation coverage", async () => {
-  assert.deepEqual(await markdownNames(zhRoot), [...expected].sort());
-  assert.deepEqual(await markdownNames(enRoot), [...expected].sort());
+test("investing preserves the original VNote file structure and has complete English coverage", async () => {
+  assert.deepEqual(await collectMarkdown(zhRoot), [...expected].sort());
+  assert.deepEqual(await collectMarkdown(enRoot), [...expected].sort());
 
-  for (const slug of expected) {
+  for (const rel of expected) {
     const [zh, en] = await Promise.all([
-      readFile(path.join(zhRoot, `${slug}.md`), "utf8"),
-      readFile(path.join(enRoot, `${slug}.md`), "utf8"),
+      readFile(path.join(zhRoot, rel), "utf8"),
+      readFile(path.join(enRoot, rel), "utf8"),
     ]);
-
     assert.equal(frontmatterValue(zh, "category"), "investing");
     assert.equal(frontmatterValue(zh, "language"), "zh");
     assert.equal(frontmatterValue(zh, "status"), "historical");
-    assert.equal(frontmatterValue(en, "translationOf"), `investing/${slug}`);
+    assert.ok(frontmatterValue(zh, "sourcePath")?.startsWith("Others/经济/投资学/"));
+    assert.equal(frontmatterValue(en, "translationOf"), `investing/${rel.slice(0, -3)}`);
     assert.equal(frontmatterValue(en, "language"), "en");
   }
 });
 
-test("reviewed investing notes reject brittle legacy rules and stale product claims", async () => {
+test("investing keeps historical material while correcting only clear errors", async () => {
   const markdown = (await Promise.all(
-    expected.map((slug) => readFile(path.join(zhRoot, `${slug}.md`), "utf8")),
+    expected.map((rel) => readFile(path.join(zhRoot, rel), "utf8")),
   )).join("\n");
 
   for (const rejected of [
-    "风险系数=（100-当前年龄）%",
-    "年化收益率>10% 赎回本金",
-    "年化收益率>20% 赎回全部",
-    "流动性风险不是风险",
     "A股打新 必赚",
-    "风险：无",
-    "PE越低，估值越低，越具有投资价值",
-    "PB越低意味着风险越低",
-    "市销率越低，说明该公司股票的投资价值越大",
-    "一般高于70%表示高估，低于30%表示低估",
-    "都是被动性指数基金",
+    "流动性风险不是风险",
+    "100/10=100股",
     "- 短债比长债风险大",
   ]) {
-    assert.ok(!markdown.includes(rejected), `legacy investing pattern leaked: ${rejected}`);
+    assert.ok(!markdown.includes(rejected), `corrected investing claim reappeared: ${rejected}`);
   }
+
+  assert.ok(markdown.includes("标准普尔家庭资产象限图"));
+  assert.ok(markdown.includes("主动基金经理"));
+  assert.ok(markdown.includes("北向资金策略"));
 });
 
 test("investing is appended after economics in Notes category order", async () => {
