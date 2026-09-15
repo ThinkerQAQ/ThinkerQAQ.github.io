@@ -74,9 +74,10 @@ function truncate(value, maxLength) {
 export function buildDevtoArticle(article, { slug, published = true } = {}) {
   const canonicalUrl = buildCanonicalUrl(slug);
   const body = makeExternalLinksAbsolute(article.body).trim();
+  const footer = `> This article was first published on [ThinkerQAQ's personal blog](${canonicalUrl}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.`;
   return {
     title: article.title,
-    body_markdown: `${body}\n\n---\n\nOriginally published at [ThinkerQAQ](${canonicalUrl}).\n`,
+    body_markdown: `${body}\n\n---\n\n${footer}\n`,
     published,
     canonical_url: canonicalUrl,
     description: truncate(article.description, MAX_DEVTO_DESCRIPTION),
