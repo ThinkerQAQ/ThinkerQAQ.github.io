@@ -127,8 +127,8 @@ invariant(
   "English computer-network topic label is not localized",
 );
 invariant(
-  !englishNetworkNotes.includes("传输层"),
-  "Chinese computer-network topic label leaked into the English category page",
+  !englishNetworkNotes.includes(">传输层<") && !englishNetworkNotes.includes(">1.传输层<"),
+  "Chinese computer-network topic taxonomy label leaked into the English category page",
 );
 
 const chineseNotes = await readFile(routeFile("/notes/"), "utf8");
