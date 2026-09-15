@@ -39,7 +39,9 @@ interface Props {
 
 const { locale, entries, label } = Astro.props;
 const sortedEntries = sortNotes(entries);
-const topics = groupNotesByTopic(sortedEntries);
+const topics = groupNotesByTopic(sortedEntries).map((topic) =>
+  topic.path.length === 0 && locale === "en" ? { ...topic, label: "Other" } : topic,
+);
 const lastPage = Math.ceil(sortedEntries.length / NOTE_PAGE_SIZE);
 ---
 

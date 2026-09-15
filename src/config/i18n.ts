@@ -165,7 +165,7 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
       notesTitle: "Notes",
       notesDescription: "Learning records, references, experiments, and ideas that do not need to become formal articles yet.",
       notesEmpty: "No notes yet.",
-      notesChineseNotice: "Note content is currently maintained in Chinese. The English setting translates the site interface and navigation.",
+      notesChineseNotice: "Some notes are currently available only in Chinese. English translations are shown when available.",
       notesPagination: "Notes pagination",
       aboutTitle: "About",
       aboutDescription: "About ThinkerQAQ and how articles, projects, series, and notes are organized on this site.",

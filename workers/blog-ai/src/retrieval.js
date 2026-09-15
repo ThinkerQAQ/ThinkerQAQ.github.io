@@ -42,7 +42,7 @@ function sourcePathFromDecoded(decoded) {
 
   let routeId = decoded.id;
   let localePrefix = "";
-  if (decoded.collection === "articles" && routeId.startsWith("en/")) {
+  if ((decoded.collection === "articles" || decoded.collection === "notes") && routeId.startsWith("en/")) {
     localePrefix = "/en";
     routeId = routeId.slice(3);
   }
@@ -63,10 +63,10 @@ function collectionFromPublicPath(pathname) {
 
 function normalizeLegacyMetadataUrl(candidate, decoded) {
   if (
-    decoded.collection === "articles"
-    && candidate.pathname.startsWith("/articles/en/")
+    (decoded.collection === "articles" || decoded.collection === "notes")
+    && candidate.pathname.startsWith(`/${decoded.collection}/en/`)
   ) {
-    candidate.pathname = `/en/articles/${candidate.pathname.slice("/articles/en/".length)}`;
+    candidate.pathname = `/en/${decoded.collection}/${candidate.pathname.slice(`/${decoded.collection}/en/`.length)}`;
   }
   return candidate;
 }

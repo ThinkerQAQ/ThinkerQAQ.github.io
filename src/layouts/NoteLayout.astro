@@ -8,9 +8,16 @@ import ReadingExperience from "../components/ReadingExperience.astro";
 import RelatedContent from "../components/RelatedContent.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { READING_EXPERIENCE_UI, RELATED_CONTENT_UI } from "../config/i18n-features";
-import { DEFAULT_LOCALE, LOCALES, localizePath, type Locale } from "../config/i18n";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  localizePath,
+  type Locale,
+  type LocaleAlternative,
+} from "../config/i18n";
 import { SITE } from "../config/site";
 import { articleHref, categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
+import { localizeNoteTagLabel } from "../lib/note-taxonomy-i18n";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -26,6 +33,8 @@ interface Props {
   readingMinutes: number;
   locale?: Locale;
   relatedArticles?: CollectionEntry<"articles">[];
+  languageAlternatives?: LocaleAlternative[];
+  languageSwitcherAlternatives?: LocaleAlternative[];
 }
 
 const {
@@ -34,6 +43,8 @@ const {
   collectionNavigation,
   readingMinutes,
   relatedArticles = [],
+  languageAlternatives = [],
+  languageSwitcherAlternatives = languageAlternatives,
 } = Astro.props;
 const locale: Locale = Astro.props.locale ?? DEFAULT_LOCALE;
 const { data } = note;
@@ -42,7 +53,12 @@ const readingUi = READING_EXPERIENCE_UI[locale];
 const relatedUi = RELATED_CONTENT_UI[locale];
 const topicPath = getNoteTopicPath(note);
 const notePath = noteHref(note, locale);
-const canonicalPath = data.canonicalPath ?? (locale === DEFAULT_LOCALE ? notePath : noteHref(note, DEFAULT_LOCALE));
+const hasLocalizedBody = locale === DEFAULT_LOCALE || data.language === locale;
+const canonicalPath = data.canonicalPath ?? (hasLocalizedBody ? notePath : noteHref(note, DEFAULT_LOCALE));
+const localizedTags = data.tags.flatMap((tag) => {
+  const label = localizeNoteTagLabel(tag, locale);
+  return label ? [{ tag, label }] : [];
+});
 const mobileCollection = {
   label: ui.noteCollection,
   title: collectionNavigation.categoryLabel,
@@ -73,10 +89,12 @@ const schema = {
 <BaseLayout
   title={data.title}
   description={data.description}
-  noindex={!data.indexable || locale !== DEFAULT_LOCALE}
+  noindex={!data.indexable || !hasLocalizedBody}
   type="article"
   canonicalPath={canonicalPath}
   locale={locale}
+  languageAlternatives={languageAlternatives}
+  languageSwitcherAlternatives={languageSwitcherAlternatives}
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
   <div class="shell content-shell content-shell--with-series">
@@ -108,9 +126,9 @@ const schema = {
           {data.status === "historical" && <span class="historical-badge">historical</span>}
           {!data.indexable && !data.canonicalPath && <span>{locale === "en" ? "Organizing" : "整理中"}</span>}
         </div>
-        {data.tags.length > 0 && (
+        {localizedTags.length > 0 && (
           <div class="tag-list" aria-label={ui.tags}>
-            {data.tags.map((tag) => <a href={noteTagHref(tag, locale)} rel="tag">{tag}</a>)}
+            {localizedTags.map(({ tag, label }) => <a href={noteTagHref(tag, locale)} rel="tag">{label}</a>)}
           </div>
         )}
       </header>

@@ -152,6 +152,29 @@ const SOURCE_LABELS_EN: Record<string, string> = {
   "异常": "Exceptions",
 };
 
+const TAG_LABELS_EN: Record<string, string> = {
+  "分布式系统": "Distributed Systems",
+  "计算机网络": "Computer Networks",
+  "系统设计": "System Design",
+  "计算机组成": "Computer Architecture",
+  "操作系统": "Operating Systems",
+  "数据结构": "Data Structures",
+  "算法": "Algorithms",
+  "并发": "Concurrency",
+  "数据库": "Databases",
+  "缓存": "Cache",
+  "消息队列": "Message Queues",
+  "安全": "Security",
+  "可观测性": "Observability",
+  "测试": "Testing",
+  "性能": "Performance",
+  "摄影": "Photography",
+  "投资": "Investing",
+  "经济学": "Economics",
+};
+
+const HAN_CHARACTER = /[\u3400-\u9fff]/;
+
 function splitNumericPrefix(label: string): { prefix: string; value: string } {
   const match = label.match(/^((?:\d+\.)+\s*)(.+)$/);
   return match ? { prefix: match[1]!, value: match[2]!.trim() } : { prefix: "", value: label.trim() };
@@ -185,4 +208,10 @@ export function localizeNoteTopicLabel(
     : TOPIC_LABELS_EN[id] ?? SOURCE_LABELS_EN[value];
 
   return `${prefix}${translated ?? fallbackTopicLabel(id, value)}`;
+}
+
+export function localizeNoteTagLabel(tag: string, locale: Locale): string | undefined {
+  if (locale !== "en") return tag;
+  if (!HAN_CHARACTER.test(tag)) return tag;
+  return TAG_LABELS_EN[tag] ?? SOURCE_LABELS_EN[tag];
 }
