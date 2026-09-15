@@ -86,7 +86,7 @@ export const SEMANTIC_PRIVACY_PATTERNS = Object.freeze([
   },
   {
     reason: "personal-compensation-record",
-    pattern: /(?:offer|薪资|薪酬)[^\n]{0,100}(?:\b\d{2,3}K\b|公积金|试用期|年终)/i,
+    pattern: /(?:offer|薪资|薪酬)[\s\S]{0,160}?(?:\b\d{2,3}K\b|公积金|试用期|年终)/i,
   },
 ]);
 
