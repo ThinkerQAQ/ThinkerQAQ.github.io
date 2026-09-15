@@ -1,113 +1,56 @@
 ---
-title: "4.1 SSH and Key-Based Authentication"
-description: "Understand SSH clients and servers, host authentication, user keys, ssh-agent, config files, and security boundaries in remote development."
+title: "1.5 SSH"
+description: "SSH keys, proxies, and Windows/MSYS2 configuration."
 translationOf: "developer-tools/ssh"
 language: "en"
-updatedAt: "2026-09-15T06:20:00Z"
+updatedAt: "2026-09-15T11:40:00Z"
 ---
+## 1. Install a Network Proxy Tool
 
-## 1. SSH Solves Two Identity Problems
+This section is needed only when the network actually requires SSH to pass through a proxy.
 
-SSH is more than encrypted remote login. A connection involves at least two separate identity checks:
+### 1.1. Linux
 
-1. **the client verifies the server** using the host key;
-2. **the server verifies the user** using a password, public key, or another configured method.
+#### 1.1.1. ArchLinux
 
-These checks are not interchangeable.
+The original note used `connect` as a `ProxyCommand` helper. Whether to install `connect`, `nc`, or another helper depends on the distribution and proxy type; prefer maintained tools and built-in OpenSSH features.
 
-A user can authenticate successfully and still be connected to the wrong server if host-key verification is ignored.
+### 1.2. Windows
+#### 1.2.1. MinGW
 
-## 2. Common OpenSSH Components
+The old note installed `connect` through MinGW. If Windows OpenSSH, Git for Windows, or MSYS2 is already available, an old standalone MinGW installation is normally unnecessary just for SSH.
 
-Modern Windows and Unix-like systems commonly use OpenSSH. Its tools include:
+#### 1.2.2. MSYS2
+[msys2.md](/en/notes/developer-tools/msys2/)
 
-- `ssh`: client;
-- `sshd`: server;
-- `ssh-keygen`: key generation and management;
-- `ssh-agent`: keeps unlocked private-key identities available to a session;
-- `ssh-add`: adds identities to the agent;
-- `sftp`: file transfer over SSH;
-- `scp`: file-copy utility.
+## 2. Configure SSH
 
-OpenSSH is available as a Windows feature on modern Windows 10/11 systems, so a separate legacy MinGW tool is not needed just to obtain SSH.
-
-## 3. User Keys
-
-Where supported, Ed25519 is a good modern default for personal SSH keys:
+### 2.1. Generate a Key
 
 ```sh
-ssh-keygen -t ed25519 -C "device-or-purpose"
+ssh-keygen -t ed25519 -C "<EMAIL>"
 ```
 
-For a key pair:
+Use RSA only when compatibility requirements require it.
 
-- keep the private key on the client and protect it;
-- install the public key on the server or service;
-- protect the private key with a passphrase where practical;
-- use `ssh-agent` to avoid repeatedly typing that passphrase.
+### 2.2. Configure an SSH Proxy
 
-Never publish private keys, tokens, or real private-network addresses.
-
-## 4. Host Keys
-
-On the first connection, SSH records the server's host key.
-
-If that host key later changes unexpectedly, do not mechanically delete the `known_hosts` entry and reconnect. First determine whether:
-
-- the server was legitimately rebuilt or replaced;
-- DNS or the IP now points somewhere else;
-- there may be a man-in-the-middle problem.
-
-`known_hosts` is part of the trust model, not meaningless cache data.
-
-## 5. `~/.ssh/config`
-
-Stable aliases can be defined in the SSH config:
-
-```sshconfig
-Host build-box
-    HostName build.example.com
-    User dev
+```config
+Host github.com
+    HostName github.com
+    User git
     IdentityFile ~/.ssh/id_ed25519
-    IdentitiesOnly yes
-    ServerAliveInterval 60
+
+Host *
+    ServerAliveInterval 180
 ```
 
-Then connect with:
+GitHub's SSH user is `git`, not the personal GitHub username.
+
+If a proxy is required, add `ProxyCommand` or `ProxyJump` for the actual network environment. Proxy addresses, ports, and internal hosts are machine-specific and should not be hard-coded in a public note.
 
 ```sh
-ssh build-box
+ln -s /c/Users/<USER>/.ssh "$HOME/.ssh"
 ```
 
-Git SSH services can require a fixed SSH username. GitHub, for example, uses `git`; the repository account is inferred from the public key rather than by putting the GitHub username into `User`.
-
-## 6. Bastions and ProxyJump
-
-When an internal machine is reachable through an SSH bastion, modern OpenSSH can use:
-
-```sshconfig
-Host internal
-    HostName 10.0.0.20
-    User dev
-    ProxyJump bastion
-```
-
-For a normal SSH bastion, this is cleaner than the historical note's custom `connect`/`corkscrew` `ProxyCommand` setup.
-
-SOCKS/HTTP proxies are a different networking problem and may still require explicit proxy tooling. They should not be conflated with an SSH jump host.
-
-## 7. Port Forwarding
-
-SSH can also create forwarding channels:
-
-- `-L`: local forwarding;
-- `-R`: remote forwarding;
-- `-D`: dynamic SOCKS forwarding.
-
-A tunnel creates a new network path. It still needs to respect the target network's access-control and security boundaries.
-
-## 8. Remote Development
-
-JetBrains Remote Development, VS Code Remote SSH, and Git over SSH all build on SSH or related remote-communication primitives.
-
-Verify command-line SSH host authentication and user authentication first. Only then debug IDE integration.
+Do not overwrite an existing `$HOME/.ssh`.
