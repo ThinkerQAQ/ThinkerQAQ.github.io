@@ -44,6 +44,6 @@
     "pagefind": "1.5.2",
     "remark-parse": "11.0.0",
     "typescript": "6.0.3",
-    "unified": "11.5.0"
+    "unified": "11.0.5"
   }
 }
