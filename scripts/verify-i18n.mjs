@@ -80,9 +80,14 @@ invariant(
 );
 
 const sitemap = await readFile(path.join(distRoot, "sitemap-0.xml"), "utf8");
-for (const forbidden of ["/en/search/", "/english/", "/en/notes/"]) {
-  invariant(!sitemap.includes(`${siteOrigin}${forbidden}`), `Noindex route leaked into sitemap: ${forbidden}`);
+const decodedSitemap = decodeURI(sitemap);
+for (const forbidden of ["/en/search/", "/english/"]) {
+  invariant(!decodedSitemap.includes(`${siteOrigin}${forbidden}`), `Noindex route leaked into sitemap: ${forbidden}`);
 }
+invariant(
+  !decodedSitemap.includes(`<loc>${siteOrigin}/en/notes/</loc>`),
+  "Noindex English Notes shell leaked into sitemap",
+);
 
 const englishNotes = await readFile(routeFile("/en/notes/"), "utf8");
 invariant(
@@ -129,6 +134,42 @@ invariant(
 invariant(
   !englishNetworkNotes.includes(">传输层<") && !englishNetworkNotes.includes(">1.传输层<"),
   "Chinese computer-network topic taxonomy label leaked into the English category page",
+);
+
+const translatedEnglishNoteRoute = "/en/notes/computer-network/传输层/TCP/TCP三次握手/";
+const translatedChineseNoteRoute = "/notes/computer-network/传输层/TCP/TCP三次握手/";
+const translatedEnglishNote = await readFile(routeFile(translatedEnglishNoteRoute), "utf8");
+const translatedChineseNote = await readFile(routeFile(translatedChineseNoteRoute), "utf8");
+invariant(
+  decodedSitemap.includes(`${siteOrigin}${translatedEnglishNoteRoute}`),
+  "Translated English note must be present in the sitemap",
+);
+invariant(
+  !translatedEnglishNote.includes('data-pagefind-ignore="all"'),
+  "Translated English note must be eligible for Pagefind",
+);
+invariant(
+  translatedEnglishNote.includes(`<link rel="canonical" href="${siteOrigin}${translatedEnglishNoteRoute}">`),
+  "Translated English note must self-canonicalize",
+);
+invariant(
+  documentTitle(translatedEnglishNote)?.startsWith("1.1 TCP Three-Way Handshake"),
+  "Translated English note did not render its localized title",
+);
+for (const [page, route, locale] of [
+  [translatedEnglishNote, translatedEnglishNoteRoute, "en"],
+  [translatedEnglishNote, translatedChineseNoteRoute, "zh-CN"],
+  [translatedChineseNote, translatedEnglishNoteRoute, "en"],
+  [translatedChineseNote, translatedChineseNoteRoute, "zh-CN"],
+]) {
+  invariant(
+    page.includes(`hreflang="${locale}" href="${siteOrigin}${route}"`),
+    `Translated note hreflang missing: ${locale} -> ${route}`,
+  );
+}
+invariant(
+  translatedEnglishNote.includes(`hreflang="x-default" href="${siteOrigin}${translatedChineseNoteRoute}"`),
+  "Translated note x-default must point to Chinese",
 );
 
 const chineseNotes = await readFile(routeFile("/notes/"), "utf8");
