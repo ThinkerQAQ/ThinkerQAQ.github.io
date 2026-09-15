@@ -72,5 +72,5 @@ test("builds a copy/paste HTML fallback without TOC and with copy button", () =>
   assert.match(output, /Copy for Medium/u);
   assert.doesNotMatch(output, /Table of Contents/u);
   assert.match(output, /<pre><code>Thread A                    Thread B/u);
-  assert.match(output, /ThinkerQAQ&#39;s personal blog/u);
+  assert.match(output, /ThinkerQAQ's personal blog/u);
 });
