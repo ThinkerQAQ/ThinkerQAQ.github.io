@@ -22,7 +22,9 @@ export async function getStaticPaths() {
 interface Props { locale: Locale; notes: CollectionEntry<"notes">[] }
 const { locale, notes } = Astro.props;
 const localeInfo = LOCALES[locale];
-const categories = orderNoteCategoriesAtEnd(groupByCategory(notes));
+const categories = orderNoteCategoriesAtEnd(
+  groupByCategory(notes).sort((left, right) => left.label.localeCompare(right.label, localeInfo.htmlLang)),
+);
 ---
 
 <BaseLayout
