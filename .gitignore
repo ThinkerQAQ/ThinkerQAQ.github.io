@@ -5,6 +5,7 @@ dist/
 .indexnow/
 .distribution/
 public/diagrams/plantuml/
+public/medium-import/
 .DS_Store
 npm-debug.log*
 .dev.vars

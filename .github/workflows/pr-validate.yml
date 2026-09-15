@@ -42,6 +42,8 @@ jobs:
         run: npm run test:distribute
       - name: Test international syndication
         run: npm run test:syndicate
+      - name: Test Medium export
+        run: npm run test:medium-export
       - name: Test VNote import and policies
         run: npm run test:vnotes
       - name: Check AI search scripts
