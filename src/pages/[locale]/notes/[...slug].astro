@@ -30,6 +30,7 @@ export async function getStaticPaths() {
   return nonDefaultLocales().flatMap((locale) => {
     const localizedNotes = localizeNotes(notes, translations, locale);
     return notes.map((note, index) => {
+      const localizedNote = localizedNotes[index]!;
       const translation = noteTranslationFor(note, translations, locale);
       const translatedLocales = translations
         .filter((candidate) => candidate.data.translationOf === note.id)
@@ -38,14 +39,23 @@ export async function getStaticPaths() {
         .map((candidate) => ({ locale: candidate, href: noteHref(note, candidate) }));
       const languageSwitcherAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...nonDefaultLocales()]
         .map((candidate) => ({ locale: candidate, href: noteHref(note, candidate) }));
+      const rawNavigation = getNoteCollectionNavigation(localizedNote, localizedNotes);
+      const collectionNavigation = locale === "en"
+        ? {
+            ...rawNavigation,
+            topics: rawNavigation.topics.map((topic) =>
+              topic.path.length === 0 ? { ...topic, label: "Other" } : topic,
+            ),
+          }
+        : rawNavigation;
 
       return {
         params: { locale: LOCALES[locale].path, slug: note.id },
         props: {
           locale,
-          note: localizedNotes[index]!,
+          note: localizedNote,
           translation,
-          collectionNavigation: getNoteCollectionNavigation(localizedNotes[index]!, localizedNotes),
+          collectionNavigation,
           relatedArticles: getRelatedArticlesForNote(note, locale, articles, relationIndex),
           languageAlternatives,
           languageSwitcherAlternatives,
