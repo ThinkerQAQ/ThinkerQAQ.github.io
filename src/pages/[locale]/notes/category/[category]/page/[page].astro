@@ -4,9 +4,13 @@ import NoteCategoryIndex from "../../../../../../components/NoteCategoryIndex.as
 import { LOCALES, nonDefaultLocales, type Locale } from "../../../../../../config/i18n";
 import { NOTE_PAGE_SIZE } from "../../../../../../config/site";
 import { groupNotesByTopic, sortNotes, type NoteEntry, type NoteTopicGroup } from "../../../../../../lib/content";
+import { localizeNotes } from "../../../../../../lib/note-i18n";
 
 export async function getStaticPaths() {
-  const notes = await getCollection("notes");
+  const [notes, translations] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+  ]);
   const groups = new Map<string, NoteEntry[]>();
   for (const note of notes) {
     const entries = groups.get(note.data.category) ?? [];
@@ -15,10 +19,11 @@ export async function getStaticPaths() {
   }
 
   return nonDefaultLocales().flatMap((locale) => [...groups.entries()].flatMap(([category, entries]) => {
-    const sorted = sortNotes(entries);
+    const localizedEntries = localizeNotes(entries, translations, locale);
+    const sorted = sortNotes(localizedEntries);
     const lastPage = Math.ceil(sorted.length / NOTE_PAGE_SIZE);
-    const topics = groupNotesByTopic(entries);
-    const label = entries[0]?.data.categoryLabel ?? category;
+    const topics = groupNotesByTopic(localizedEntries);
+    const label = localizedEntries[0]?.data.categoryLabel ?? category;
 
     return Array.from({ length: Math.max(0, lastPage - 1) }, (_, index) => {
       const currentPage = index + 2;
