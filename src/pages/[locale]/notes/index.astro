@@ -5,12 +5,16 @@ import NoteCategoryPreview from "../../../components/NoteCategoryPreview.astro";
 import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { groupByCategory } from "../../../lib/content";
+import { localizeNotes } from "../../../lib/note-i18n";
 
 export async function getStaticPaths() {
-  const notes = await getCollection("notes");
+  const [notes, translations] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+  ]);
   return nonDefaultLocales().map((locale) => ({
     params: { locale: LOCALES[locale].path },
-    props: { locale, notes },
+    props: { locale, notes: localizeNotes(notes, translations, locale) },
   }));
 }
 
@@ -29,7 +33,6 @@ const categories = groupByCategory(notes);
 >
   <div class="shell page collection-page">
     <CollectionHeader title={localeInfo.ui.notesTitle} description={localeInfo.ui.notesDescription} />
-    <p class="source-note">{localeInfo.ui.notesChineseNotice}</p>
     {notes.length === 0 && <p class="empty-state">{localeInfo.ui.notesEmpty}</p>}
     <div class="category-index">
       {categories.map((group) => <NoteCategoryPreview {...group} locale={locale} />)}
