@@ -6,6 +6,7 @@
 const APPENDED_NOTE_CATEGORY_ORDER = [
   "security",
   "observability",
+  "web-server-nginx",
 ] as const;
 
 export function orderNoteCategoriesAtEnd<T extends { category: string }>(groups: T[]): T[] {
