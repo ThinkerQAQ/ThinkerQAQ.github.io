@@ -50,6 +50,8 @@ jobs:
         run: npm run test:reading-experience
       - name: Test Article relation policy
         run: npm run test:article-relations
+      - name: Test homepage policy
+        run: npm run test:homepage
       - name: Astro check
         run: npm run check
       - name: Build static site
