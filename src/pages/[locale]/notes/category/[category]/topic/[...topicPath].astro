@@ -31,7 +31,9 @@ export async function getStaticPaths() {
 
   return nonDefaultLocales().flatMap((locale) => [...categories.entries()].flatMap(([category, categoryEntries]) => {
     const localizedEntries = localizeNotes(categoryEntries, translations, locale);
-    const topics = groupNotesByTopic(localizedEntries);
+    const topics = groupNotesByTopic(localizedEntries).map((topic) =>
+      topic.path.length === 0 && locale === "en" ? { ...topic, label: "Other" } : topic,
+    );
     const categoryLabel = localizedEntries[0]?.data.categoryLabel ?? category;
 
     return topics.flatMap((topic) => {
