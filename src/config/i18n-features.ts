@@ -22,6 +22,22 @@ export const SERIES_UI: Record<Locale, SeriesUiCopy> = {
   },
 };
 
+export interface RelatedContentUiCopy {
+  relatedNotes: string;
+  relatedArticles: string;
+}
+
+export const RELATED_CONTENT_UI: Record<Locale, RelatedContentUiCopy> = {
+  zh: {
+    relatedNotes: "相关笔记",
+    relatedArticles: "相关文章",
+  },
+  en: {
+    relatedNotes: "Related notes",
+    relatedArticles: "Related articles",
+  },
+};
+
 export interface AskBlogUiCopy {
   title: string;
   description: string;
