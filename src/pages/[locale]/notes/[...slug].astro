@@ -3,12 +3,23 @@ import { getCollection, render, type CollectionEntry } from "astro:content";
 import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import NoteLayout from "../../../layouts/NoteLayout.astro";
 import { getNoteCollectionNavigation, type NoteCollectionNavigation } from "../../../lib/content";
+import {
+  buildArticleNoteRelationIndex,
+  getRelatedArticlesForNote,
+} from "../../../lib/content-relations";
 
 export async function getStaticPaths() {
   const notes = await getCollection("notes");
+  const articles = await getCollection("articles");
+  const relationIndex = buildArticleNoteRelationIndex(articles, notes);
   return nonDefaultLocales().flatMap((locale) => notes.map((note) => ({
     params: { locale: LOCALES[locale].path, slug: note.id },
-    props: { locale, note, collectionNavigation: getNoteCollectionNavigation(note, notes) },
+    props: {
+      locale,
+      note,
+      collectionNavigation: getNoteCollectionNavigation(note, notes),
+      relatedArticles: getRelatedArticlesForNote(note, locale, articles, relationIndex),
+    },
   })));
 }
 
@@ -16,9 +27,10 @@ interface Props {
   locale: Locale;
   note: CollectionEntry<"notes">;
   collectionNavigation: NoteCollectionNavigation;
+  relatedArticles: CollectionEntry<"articles">[];
 }
 
-const { locale, note, collectionNavigation } = Astro.props;
+const { locale, note, collectionNavigation, relatedArticles } = Astro.props;
 const { Content, headings, remarkPluginFrontmatter } = await render(note);
 const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
 const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
@@ -32,6 +44,7 @@ const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes >
   collectionNavigation={collectionNavigation}
   readingMinutes={readingMinutes}
   locale={locale}
+  relatedArticles={relatedArticles}
 >
   <Content />
 </NoteLayout>
