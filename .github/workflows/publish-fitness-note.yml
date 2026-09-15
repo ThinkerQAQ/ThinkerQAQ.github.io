@@ -1,0 +1,53 @@
+name: Publish fitness note payload
+
+on:
+  push:
+    branches:
+      - content/add-fitness-note
+    paths:
+      - '.github/workflows/publish-fitness-note.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decode exact note files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, hashlib, lzma
+
+          payload = ''.join(Path(f'.tmp/fitness_payload_{i}.txt').read_text() for i in range(4))
+          raw = lzma.decompress(base64.b64decode(payload))
+          n = int.from_bytes(raw[:8], 'big')
+          zh, en = raw[8:8+n], raw[8+n:]
+
+          expected = {
+              'zh': 'cddf53fe4c902dc461bca4bcac9f6b910d22ac9e31391f51d82da8aba5bcf6d5',
+              'en': 'c121f81212239b7c2cbde915451d43aa851ab05c1f8a9b6c74e33c9efb689b28',
+          }
+          assert hashlib.sha256(zh).hexdigest() == expected['zh']
+          assert hashlib.sha256(en).hexdigest() == expected['en']
+
+          zh_path = Path('src/content/notes/fitness/fitness.md')
+          en_path = Path('src/content/note-translations/en/fitness/fitness.md')
+          zh_path.parent.mkdir(parents=True, exist_ok=True)
+          en_path.parent.mkdir(parents=True, exist_ok=True)
+          zh_path.write_bytes(zh)
+          en_path.write_bytes(en)
+          PY
+      - name: Commit generated note files
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/content/notes/fitness/fitness.md src/content/note-translations/en/fitness/fitness.md
+          git commit -m 'content: add fitness note and English translation'
+          git push origin HEAD:${GITHUB_REF_NAME}
