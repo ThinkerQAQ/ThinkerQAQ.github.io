@@ -7,31 +7,46 @@ import {
   buildArticleNoteRelationIndex,
   getRelatedArticlesForNote,
 } from "../../../lib/content-relations";
+import {
+  localizeNotes,
+  noteTranslationFor,
+  type NoteTranslationEntry,
+} from "../../../lib/note-i18n";
 
 export async function getStaticPaths() {
-  const notes = await getCollection("notes");
-  const articles = await getCollection("articles");
+  const [notes, translations, articles] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+    getCollection("articles"),
+  ]);
   const relationIndex = buildArticleNoteRelationIndex(articles, notes);
-  return nonDefaultLocales().flatMap((locale) => notes.map((note) => ({
-    params: { locale: LOCALES[locale].path, slug: note.id },
-    props: {
-      locale,
-      note,
-      collectionNavigation: getNoteCollectionNavigation(note, notes),
-      relatedArticles: getRelatedArticlesForNote(note, locale, articles, relationIndex),
-    },
-  })));
+
+  return nonDefaultLocales().flatMap((locale) => {
+    const localizedNotes = localizeNotes(notes, translations, locale);
+    return notes.map((note, index) => ({
+      params: { locale: LOCALES[locale].path, slug: note.id },
+      props: {
+        locale,
+        note: localizedNotes[index]!,
+        translation: noteTranslationFor(note, translations, locale),
+        collectionNavigation: getNoteCollectionNavigation(localizedNotes[index]!, localizedNotes),
+        relatedArticles: getRelatedArticlesForNote(note, locale, articles, relationIndex),
+      },
+    }));
+  });
 }
 
 interface Props {
   locale: Locale;
   note: CollectionEntry<"notes">;
+  translation?: NoteTranslationEntry;
   collectionNavigation: NoteCollectionNavigation;
   relatedArticles: CollectionEntry<"articles">[];
 }
 
-const { locale, note, collectionNavigation, relatedArticles } = Astro.props;
-const { Content, headings, remarkPluginFrontmatter } = await render(note);
+const { locale, note, translation, collectionNavigation, relatedArticles } = Astro.props;
+const rendered = translation ? await render(translation) : await render(note);
+const { Content, headings, remarkPluginFrontmatter } = rendered;
 const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
 const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
   ? Math.ceil(rawReadingMinutes)
