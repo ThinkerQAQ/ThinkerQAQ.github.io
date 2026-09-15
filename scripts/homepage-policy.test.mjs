@@ -36,8 +36,20 @@ test("homepage hero stays compact and avoids duplicate navigation", async () => 
   assert.ok(!hub.includes("articlesAction:"), "removed hero navigation copy must stay removed");
   assert.ok(!hub.includes("notesAction:"), "removed hero navigation copy must stay removed");
   assert.match(hub, /记录后端工程、并发编程、分布式系统与数据系统中的实践与思考。/u);
-  assert.match(hub, /const showAllSeries = localizedSeries\.length > startSeries\.length;/u);
-  assert.match(hub, /\{showAllSeries && <a href=\{localizePath\(locale, "\/series\/"\)\}>\{copy\.allSeries\} →<\/a>\}/u);
+});
+
+test("start-here section stays visually aligned with the latest-articles section", async () => {
+  const [hub, showcase] = await Promise.all([
+    source("src/components/HomeKnowledgeHub.astro"),
+    source("src/components/ShowcaseList.astro"),
+  ]);
+
+  assert.ok(!hub.includes("showAllSeries"), "All Series must not disappear just because only one series is published");
+  assert.match(
+    hub,
+    /<a href=\{localizePath\(locale, "\/series\/"\)\}>\{copy\.allSeries\} →<\/a>/u,
+  );
+  assert.match(showcase, /border-top:\s*1px solid var\(--border\);/u);
 });
 
 test("homepage keeps locale-specific latest articles and curated knowledge areas", async () => {
