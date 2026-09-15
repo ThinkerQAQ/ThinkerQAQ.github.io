@@ -3,23 +3,42 @@ import { getCollection, render, type CollectionEntry } from "astro:content";
 import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import NoteLayout from "../../../layouts/NoteLayout.astro";
 import { getNoteCollectionNavigation, type NoteCollectionNavigation } from "../../../lib/content";
+import {
+  localizeNotes,
+  noteTranslationFor,
+  type NoteTranslationEntry,
+} from "../../../lib/note-i18n";
 
 export async function getStaticPaths() {
-  const notes = await getCollection("notes");
-  return nonDefaultLocales().flatMap((locale) => notes.map((note) => ({
-    params: { locale: LOCALES[locale].path, slug: note.id },
-    props: { locale, note, collectionNavigation: getNoteCollectionNavigation(note, notes) },
-  })));
+  const [notes, translations] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+  ]);
+
+  return nonDefaultLocales().flatMap((locale) => {
+    const localizedNotes = localizeNotes(notes, translations, locale);
+    return notes.map((note, index) => ({
+      params: { locale: LOCALES[locale].path, slug: note.id },
+      props: {
+        locale,
+        note: localizedNotes[index]!,
+        translation: noteTranslationFor(note, translations, locale),
+        collectionNavigation: getNoteCollectionNavigation(localizedNotes[index]!, localizedNotes),
+      },
+    }));
+  });
 }
 
 interface Props {
   locale: Locale;
   note: CollectionEntry<"notes">;
+  translation?: NoteTranslationEntry;
   collectionNavigation: NoteCollectionNavigation;
 }
 
-const { locale, note, collectionNavigation } = Astro.props;
-const { Content, headings, remarkPluginFrontmatter } = await render(note);
+const { locale, note, translation, collectionNavigation } = Astro.props;
+const rendered = translation ? await render(translation) : await render(note);
+const { Content, headings, remarkPluginFrontmatter } = rendered;
 const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
 const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
   ? Math.ceil(rawReadingMinutes)
