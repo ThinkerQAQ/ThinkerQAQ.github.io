@@ -20,6 +20,7 @@
     "test:reactions": "node --check workers/blog-reactions/src/index.js && node --test workers/blog-reactions/src/index.test.js",
     "test:reading-experience": "node --test scripts/reading-time.test.mjs",
     "test:article-relations": "node --test scripts/article-relation-policy.test.mjs",
+    "test:homepage": "node --test scripts/homepage-policy.test.mjs",
     "eval:ai-search": "node scripts/eval-ai-search.mjs",
     "indexnow:prepare": "node scripts/indexnow.mjs prepare",
     "indexnow:submit": "node scripts/indexnow.mjs submit",
@@ -31,7 +32,7 @@
     "local": "npm run build:local && astro preview --port 4321 --background --open",
     "stop:local": "astro preview stop",
     "verify": "node scripts/verify-build-with-curated-notes.mjs && node scripts/verify-i18n.mjs && node scripts/verify-article-note-relations.mjs",
-    "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run test:vnotes && npm run test:ai-search && npm run test:reactions && npm run test:reading-experience && npm run test:article-relations && npm run check && npm run build && npm run verify"
+    "test": "npm run test:diagrams && npm run test:indexnow && npm run test:distribute && npm run test:vnotes && npm run test:ai-search && npm run test:reactions && npm run test:reading-experience && npm run test:article-relations && npm run test:homepage && npm run check && npm run build && npm run verify"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
