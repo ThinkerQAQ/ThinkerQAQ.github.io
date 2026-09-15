@@ -40,6 +40,13 @@ test("reconstructs legacy English article keys with the public locale prefix", (
   );
 });
 
+test("reconstructs English note keys with the public locale prefix", () => {
+  assert.equal(
+    sourceFromAiSearchKey("blog--notes--en%2Fcomputer-network%2FTCP.md", BLOG_ORIGIN),
+    `${BLOG_ORIGIN}/en/notes/computer-network/TCP/`,
+  );
+});
+
 test("normalizes legacy collection-first English metadata URLs at the Worker boundary", () => {
   const legacy = chunk({
     key: "blog--articles--en%2Fatomic.md",
@@ -49,6 +56,18 @@ test("normalizes legacy collection-first English metadata URLs at the Worker bou
     schemaVersion: 2,
   });
   assert.equal(sourceFromChunk(legacy, BLOG_ORIGIN), `${BLOG_ORIGIN}/en/articles/atomic/`);
+});
+
+test("normalizes collection-first English note metadata URLs at the Worker boundary", () => {
+  const legacy = chunk({
+    key: "blog--notes--en%2Fcomputer-network%2FTCP.md",
+    url: `${BLOG_ORIGIN}/notes/en/computer-network/TCP/`,
+    title: "TCP",
+    language: "en",
+    text: "legacy",
+    schemaVersion: 3,
+  });
+  assert.equal(sourceFromChunk(legacy, BLOG_ORIGIN), `${BLOG_ORIGIN}/en/notes/computer-network/TCP/`);
 });
 
 test("infers English from legacy metadata even when the item key was hashed", () => {
