@@ -1,95 +1,74 @@
 ---
-title: "2.1 MSYS2 and Unix-like Development on Windows"
-description: "Understand MSYS2 environments, UCRT64, pacman, PATH isolation, and integration with Windows Terminal and IDEs."
+title: "1.4 MSYS2"
+description: "MSYS2 installation, environment configuration, common tools, and IDE integration."
 translationOf: "developer-tools/msys2"
 language: "en"
-updatedAt: "2026-09-15T06:20:00Z"
+updatedAt: "2026-09-15T11:40:00Z"
 ---
+## 1. Installation
+[MSYS2 Installation](https://www.msys2.org/)
 
-## 1. What MSYS2 Solves
+## 2. Configuration
+### 2.1. Windows Environment Variables
 
-MSYS2 provides Unix-like shells and command-line tools on Windows, the `pacman` package manager, and MinGW-w64/Clang toolchains capable of producing native Windows programs.
+The old note added `usr\bin`, `mingw64\bin`, and `mingw32\bin` to the Windows `PATH` at the same time. MSYS2 environments use different CRTs, toolchains, and prefixes, so their `bin` directories should not all be mixed globally.
 
-It is not a Linux virtual machine and it is not WSL. Its main purpose is to make development tools and build workflows more Unix-like while still targeting Windows.
-
-## 2. Separate MSYS from Native Toolchain Environments
-
-MSYS2 provides several environments. The most important distinction is between:
-
-- **MSYS**: Unix-like helper tools using the MSYS2/Cygwin compatibility runtime;
-- **UCRT64**: GCC + UCRT for native 64-bit Windows programs;
-- **CLANG64**: LLVM/Clang + UCRT + libc++;
-- legacy **MINGW64**: GCC + MSVCRT.
-
-As of 2026, MSYS2 recommends **UCRT64** when users are unsure which environment to choose, while MINGW64 has entered deprecation.
-
-Do not permanently inject `mingw64/bin`, `mingw32/bin`, and `usr/bin` together into the global Windows `PATH`. Mixing environments can cause tools or binaries to load the wrong runtime, DLL, or companion executable.
-
-## 3. PATH Is Part of the Environment
-
-MSYS2 launchers construct an appropriate `PATH` for the selected environment.
-
-For example, UCRT64 prioritizes paths conceptually like:
+If unsure which environment to use, choose **UCRT64**. Let the launcher set the shell environment; a UCRT64 shell places `/ucrt64/bin:/usr/bin` first.
 
 ```text
-/ucrt64/bin:/usr/bin:...
+MSYS2_PATH_TYPE=inherit
 ```
 
-This provides UCRT64-native tools together with MSYS helper commands while preserving the intended runtime boundary.
+### 2.2. Modify MSYS2 Configuration Files
 
-A safer rule is:
+Normally there is no need to hard-code `MSYSTEM` in multiple files. Prefer selecting the environment through its launcher.
 
-- launch the target environment explicitly;
-- let the environment establish `PATH`;
-- mix toolchain directories manually only when the consequences are understood.
+```cmd
+<MSYS2_ROOT>\msys2_shell.cmd -defterm -here -no-start -ucrt64
+```
 
-## 4. pacman
+The original `winsymlinks`, `nsswitch.conf`, and mirror settings were machine-specific. Change them only when required and do not publish personal absolute paths.
 
-MSYS2 uses `pacman` for package management.
+## 3. Common Software
 
-Common operations include:
+### 3.1. Installation
 
 ```sh
 pacman -Syu
-pacman -S <package>
-pacman -R <package>
-pacman -Ss <keyword>
-pacman -Q
 ```
-
-UCRT64-native packages typically use the `mingw-w64-ucrt-x86_64-` prefix, for example:
 
 ```sh
-pacman -S mingw-w64-ucrt-x86_64-gcc
-pacman -S mingw-w64-ucrt-x86_64-gdb
+pacman -S --needed \
+  mingw-w64-ucrt-x86_64-toolchain \
+  mingw-w64-ucrt-x86_64-gdb \
+  mingw-w64-ucrt-x86_64-ffmpeg \
+  mingw-w64-ucrt-x86_64-graphviz \
+  git rsync vim zsh fish
 ```
 
-Do not copy old MINGW32/MINGW64 package names without checking the active environment.
+### 3.2. Configuration
 
-## 5. Windows Terminal and IDE Integration
+#### 3.2.1. SSH
+[ssh.md](/en/notes/developer-tools/ssh/)
 
-Windows Terminal, VS Code, and JetBrains IDEs can launch an MSYS2 environment as a terminal profile.
+#### 3.2.2. Git
+[git.md](/en/notes/developer-tools/git/)
 
-The durable concept is to launch the intended environment, such as UCRT64:
+#### 3.2.3. GCC
+[gcc.md](/en/notes/developer-tools/gcc/)
 
-```text
-C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64
+## 4. IDE Integration
+
+### 4.1. VSCode
+
+```cmd
+<MSYS2_ROOT>\msys2_shell.cmd -defterm -here -no-start -ucrt64
 ```
 
-An IDE terminal merely hosts that shell. It does not automatically change the IDE's configured compiler or SDK.
+### 4.2. GoLand
 
-## 6. Choosing Between MSYS2, WSL, and Native Windows
+```cmd
+"<MSYS2_ROOT>\msys2_shell.cmd" -defterm -here -no-start -ucrt64
+```
 
-Choose according to the target:
-
-- native Windows C/C++ plus GNU/Unix tooling: MSYS2;
-- a real Linux user space and Linux ABI: WSL;
-- PowerShell/.NET/MSVC-first projects: native Windows tooling is often simpler.
-
-A shell that looks like Linux does not make MSYS2 a Linux runtime.
-
-## 7. Historical Configuration That Is No Longer Preserved
-
-The original note globally enabled `MSYS2_PATH_TYPE=inherit`, injected several toolchain `bin` directories, edited mirrors manually, and mixed 32-bit and 64-bit packages.
-
-Those choices were tightly coupled to one machine. The public note preserves environment boundaries and package-management principles instead.
+A normal Go project does not need MSYS2 merely because it is opened in an IDE; configure it when Unix tools or a local C/C++ toolchain are actually required.

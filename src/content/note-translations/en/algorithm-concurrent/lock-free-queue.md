@@ -1,115 +1,78 @@
 ---
 title: "4.2 Lock-Free Queue"
-description: "Lock-free queue progress guarantees, a CAS-based linked-queue algorithm, ABA, and safe memory reclamation."
+description: "A historical CAS-based lock-free queue implementation note and its safe-memory-reclamation boundary."
 translationOf: "algorithm-concurrent/lock-free-queue"
 language: "en"
-updatedAt: "2026-09-15T03:30:00Z"
+updatedAt: "2026-09-15T11:40:00Z"
 ---
+## 1. What LockFreeQueue Is
+A Lock-Free Queue is a thread-safe queue implemented with lock-free techniques, usually coordinating concurrent updates with CAS and other atomic operations.
 
-## 1. What a Lock-Free Queue Is
+“Lock-free” describes a system-wide progress guarantee. It does not mean there are no retries, and it does not mean the implementation is faster than a mutex under every workload.
 
-A lock-free queue is a concurrent queue that does not protect the entire queue critical section with a mutex. Typical implementations use atomic variables and [CAS](/en/notes/algorithm-concurrent/cas/) to update linked-list pointers.
+## 2. Why LockFreeQueue Is Needed
+The original note framed the problem as pessimistic locking versus optimistic concurrency: when lock contention and thread blocking become measurable bottlenecks, atomic operations and retries can avoid one mutex protecting the entire queue.
 
-**Lock-free** is a progress guarantee: even if one thread pauses, the system as a whole can continue completing operations. It is not the same as wait-free; an individual thread may still lose races and retry indefinitely.
+## 3. How to Implement LockFreeQueue
+The original note recorded this core idea:
 
-## 2. Why Use One
+retry loop + [CAS](/en/notes/algorithm-concurrent/cas/) + **singly linked list**
 
-A mutex-protected queue is easier to implement correctly and is often fast enough. A lock-free queue becomes worth considering when:
+The enqueue/dequeue code shape is preserved below as a historical learning example. It does not fully model modern C/C++ atomic types, memory ordering, or safe memory reclamation, so it **must not be used directly as a production MPMC queue**.
 
-- lock contention is a measured bottleneck under concurrency;
-- pausing a lock holder must not block all other participants;
-- tail latency or system-wide progress guarantees matter.
+1. Enqueue
 
-Lock-free implementations introduce additional complexity around ABA, reclamation, and memory ordering, so “no mutex” does not automatically mean “faster.”
-
-## 3. Classic Linked Structure
-
-The classic Michael-Scott MPMC queue uses a **singly linked list** with a dummy node, not a doubly linked list:
-
-```text
-head ──► dummy ──► node1 ──► node2 ──► null
-                                  ▲
-                                  tail
-```
-
-`head`, `tail`, and each node's `next` link must be coordinated through atomic operations.
-
-## 4. Enqueue
-
-A simplified enqueue loop looks like this:
-
-```text
-loop {
-    t = load(tail)
-    next = load(t.next)
-
-    if t != load(tail) {
-        continue
-    }
-
-    if next == null {
-        if CAS(t.next, null, newNode) succeeds {
-            CAS(tail, t, newNode)   // help tail advance; failure does not undo enqueue
-            return
+```cpp
+bool LockFreeQueue::enqueue(int val)
+{
+    QueueNode* cur_node;
+    QueueNode* add_node = new QueueNode(val);
+    while (1) {
+        cur_node = tail;
+        if (__sync_bool_compare_and_swap(&(cur_node->next), NULL, add_node)) {
+            break;
         }
-    } else {
-        CAS(tail, t, next)          // help advance a lagging tail
+        else {
+            __sync_bool_compare_and_swap(&tail, cur_node, cur_node->next);
+        }
     }
+    __sync_bool_compare_and_swap(&tail, cur_node, add_node);
+    return 1;
 }
 ```
 
-The key operation is atomically linking the new node after the current tail, not acquiring ownership of a mutex.
+2. Dequeue
 
-## 5. Dequeue
-
-```text
-loop {
-    h = load(head)
-    t = load(tail)
-    next = load(h.next)
-
-    if h != load(head) {
-        continue
-    }
-
-    if h == t {
-        if next == null {
-            return EMPTY
+```cpp
+int LockFreeQueue::dequeue()
+{
+    QueueNode* cur_node;
+    int        val;
+    while (1) {
+        cur_node = head;
+        if (cur_node->next == NULL) {
+            return -1;
         }
-        CAS(tail, t, next)
-        continue
-    }
 
-    value = next.value
-    if CAS(head, h, next) succeeds {
-        retire(h)                   // reclaim the old dummy only when it is safe
-        return value
+        if (__sync_bool_compare_and_swap(&head, cur_node, cur_node->next)) {
+            break;
+        }
     }
+    val = cur_node->next->val;
+
+    // The historical example immediately reclaimed the old head here.
+    // Another thread may still hold a reference to that node, so a
+    // hazard-pointer, epoch, or other safe-reclamation scheme is required.
+    return val;
 }
 ```
 
-## 6. Why You Cannot Immediately `delete oldHead`
+Two boundaries of this historical code are important:
 
-The historical example immediately freed the old head after advancing `head`. In a real multi-producer, multi-consumer lock-free queue this is generally unsafe because another thread may still hold that pointer, creating a use-after-free bug.
+- GCC `__sync_*` builtins are older atomics; modern C/C++ code normally uses standard atomics or newer `__atomic_*` builtins.
+- Nodes cannot be reclaimed like a normal single-threaded list immediately after dequeue; reclamation must wait until no concurrent reader can still access the old node.
 
-Production implementations need a safe reclamation strategy, such as:
-
-- hazard pointers;
-- epoch-based reclamation or RCU-style schemes;
-- garbage collection when the language runtime manages node lifetimes.
-
-Memory reclamation is part of the algorithm's correctness story, not an optional cleanup detail.
-
-## 7. ABA and Memory Ordering
-
-Linked lock-free structures must also account for:
-
-1. **ABA**, where a pointer representation goes A → B → A and a value-only CAS misses the intermediate change;
-2. **memory ordering**, so a newly published node is fully initialized before another thread observes it through `next`.
-
-Real implementations should therefore use standard atomic types and well-reviewed algorithms rather than copying legacy `__sync_bool_compare_and_swap` examples.
-
-## 8. Reference
-
-- Maged M. Michael, Michael L. Scott, *Simple, Fast, and Practical Non-Blocking and Blocking Concurrent Queue Algorithms*, 1996.
-- [1024cores - Lock-Free Algorithms](https://www.1024cores.net/home/lock-free-algorithms)
+## 4. References
+- [Lock-free queue explanation - bilibili](https://www.bilibili.com/video/BV1q54y1Y71W?vd_source=79c9f80f56384444d88bfb3e4cf579df)
+- [Lock-Free Queue - CoolShell](https://coolshell.cn/articles/8239.html)
+- [Implementing-LockFree-Queues](https://github.com/zxwsbg/Implementing-LockFree-Queues)
