@@ -48,6 +48,8 @@ jobs:
         run: npm run test:reactions
       - name: Test reading experience
         run: npm run test:reading-experience
+      - name: Test Article relation policy
+        run: npm run test:article-relations
       - name: Astro check
         run: npm run check
       - name: Build static site
