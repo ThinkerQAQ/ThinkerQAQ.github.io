@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,6 +77,108 @@ function collectDefinitions(root) {
   return definitions;
 }
 
+function isPlainTextFence(node) {
+  if (node.type !== "code") return false;
+  const language = String(node.lang ?? "").trim().toLowerCase();
+  return language === "" || ["text", "txt", "plain", "plaintext"].includes(language);
+}
+
+export function isDiagrammaticTextBlock(value) {
+  const source = String(value ?? "").replaceAll("\r", "");
+  const lines = source.split("\n");
+  if (lines.length < 2) return false;
+
+  const hasBoxDrawing = /[─│┌┐└┘├┤┬┴┼╭╮╰╯┏┓┗┛┣┫┳┻╋→↓↑←]/u.test(source);
+  const hasColumnAlignment = lines.some((line) => /\S {4,}\S/u.test(line));
+  const hasDeepIndentation = lines.length >= 3 && lines.some((line) => /^ {4,}\S/u.test(line));
+  return hasBoxDrawing || hasColumnAlignment || hasDeepIndentation;
+}
+
+function walkNodes(node, visit) {
+  visit(node);
+  for (const child of node.children ?? []) walkNodes(child, visit);
+}
+
+export function collectDiagrammaticTextBlocks(root) {
+  const blocks = [];
+  const seen = new Set();
+  walkNodes(root, (node) => {
+    if (!isPlainTextFence(node) || !isDiagrammaticTextBlock(node.value)) return;
+    if (seen.has(node.value)) return;
+    seen.add(node.value);
+    blocks.push(node.value);
+  });
+  return blocks;
+}
+
+function escapeGraphvizHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+export function buildTextDiagramDot(value) {
+  const lines = String(value ?? "")
+    .replaceAll("\r", "")
+    .split("\n")
+    .map((line) => line.replaceAll("\t", "    "));
+  const label = lines
+    .map((line) => {
+      if (!line) return "&#160;";
+      return escapeGraphvizHtml(line).replaceAll(" ", "&#160;");
+    })
+    .join('<BR ALIGN="LEFT"/>');
+
+  return `digraph MediumTextDiagram {
+  graph [bgcolor="white", margin=0, pad=0.02, dpi=180];
+  node [shape=plain];
+  diagram [label=<<TABLE BORDER="1" COLOR="#E5E7EB" CELLBORDER="0" CELLSPACING="0" CELLPADDING="16" BGCOLOR="#FFFFFF"><TR><TD ALIGN="LEFT"><FONT FACE="DejaVu Sans Mono" COLOR="#202124" POINT-SIZE="11">${label}</FONT></TD></TR></TABLE>>];
+}
+`;
+}
+
+async function renderTextDiagramPng(value, outputFile) {
+  await mkdir(path.dirname(outputFile), { recursive: true });
+  const result = spawnSync("dot", ["-Tpng", "-o", outputFile], {
+    input: buildTextDiagramDot(value),
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+  });
+
+  if (result.error) {
+    throw new Error(
+      `Unable to render Medium text diagram with Graphviz: ${result.error.message}. Install Graphviz and ensure 'dot' is on PATH.`,
+    );
+  }
+  if (result.status !== 0) {
+    throw new Error(`Graphviz failed while rendering Medium text diagram: ${result.stderr || "unknown error"}`);
+  }
+}
+
+function preserveCodeSpaces(line) {
+  const escaped = escapeHtml(line);
+  return escaped
+    .replace(/^ +/u, (spaces) => "&#160;".repeat(spaces.length))
+    .replace(/ {2,}/gu, (spaces) => "&#160;".repeat(spaces.length));
+}
+
+function renderPlainTextFence(value) {
+  const lines = String(value ?? "").replaceAll("\r", "").split("\n");
+  const rendered = lines
+    .map((line) => `<code>${line ? preserveCodeSpaces(line) : "&#8203;"}</code>`)
+    .join("<br>");
+  return `<p>${rendered}</p>\n`;
+}
+
+function textDiagramAlt(value) {
+  const compact = String(value ?? "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
+}
+
 function renderChildren(node, context) {
   return (node.children ?? []).map((child) => renderNode(child, context)).join("");
 }
@@ -98,8 +201,16 @@ function renderNode(node, context) {
       return `<em>${renderChildren(node, context)}</em>`;
     case "inlineCode":
       return `<code>${escapeHtml(node.value)}</code>`;
-    case "code":
+    case "code": {
+      if (isPlainTextFence(node)) {
+        const diagramUrl = context.diagramUrls.get(node.value);
+        if (diagramUrl) {
+          return `<figure><img src="${escapeHtml(diagramUrl)}" alt="${escapeHtml(textDiagramAlt(node.value))}"></figure>\n`;
+        }
+        return renderPlainTextFence(node.value);
+      }
       return `<pre><code>${escapeHtml(node.value)}</code></pre>\n`;
+    }
     case "blockquote":
       return `<blockquote>\n${renderChildren(node, context)}</blockquote>\n`;
     case "list": {
@@ -157,16 +268,47 @@ export function buildMediumImportUrl(slug) {
   return new URL(`/medium-import/en/${encodedSlug}/`, SITE_ORIGIN).toString();
 }
 
-export function buildMediumImportHtml(article, { slug } = {}) {
+export function buildMediumDiagramUrl(slug, index) {
+  const encodedSlug = slug.split("/").map(encodeURIComponent).join("/");
+  const filename = `text-diagram-${String(index).padStart(2, "0")}.png`;
+  return new URL(`/medium-import/en/${encodedSlug}/assets/${filename}`, SITE_ORIGIN).toString();
+}
+
+export function buildMediumImportHtml(article, { slug, root, diagramUrls = new Map() } = {}) {
   if (!slug) throw new Error("slug is required");
   const canonicalUrl = buildCanonicalUrl(slug);
-  const parsed = unified().use(remarkParse).parse(article.body);
-  const root = stripTableOfContents(parsed);
-  const context = { canonicalUrl, definitions: collectDefinitions(root) };
-  const renderedBody = renderNode(root, context);
+  const parsedRoot = root ?? stripTableOfContents(unified().use(remarkParse).parse(article.body));
+  const context = {
+    canonicalUrl,
+    definitions: collectDefinitions(parsedRoot),
+    diagramUrls,
+  };
+  const renderedBody = renderNode(parsedRoot, context);
   const footer = `This article was first published on <a href="${escapeHtml(canonicalUrl)}">ThinkerQAQ&#39;s personal blog</a> and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.`;
 
-  return `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="robots" content="noindex,nofollow">\n<link rel="canonical" href="${escapeHtml(canonicalUrl)}">\n<title>${escapeHtml(article.title)}</title>\n<meta name="description" content="${escapeHtml(article.description)}">\n<style>\nbody{font-family:Georgia,serif;max-width:760px;margin:40px auto;padding:0 24px;line-height:1.65;color:#222}pre{overflow-x:auto;padding:16px;background:#f6f6f6;border-radius:6px}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}pre code{white-space:pre}img{max-width:100%;height:auto}blockquote{margin-left:0;padding-left:16px;border-left:3px solid #ddd;color:#555}\n</style>\n</head>\n<body>\n<article>\n<h1>${escapeHtml(article.title)}</h1>\n${renderedBody}\n<hr>\n<blockquote><p>${footer}</p></blockquote>\n</article>\n</body>\n</html>\n`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="canonical" href="${escapeHtml(canonicalUrl)}">
+<title>${escapeHtml(article.title)}</title>
+<meta name="description" content="${escapeHtml(article.description)}">
+<style>
+body{font-family:Georgia,serif;max-width:760px;margin:40px auto;padding:0 24px;line-height:1.65;color:#222}pre{overflow-x:auto;padding:16px;background:#f6f6f6;border-radius:6px}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}pre code{white-space:pre}figure{margin:28px 0}img{display:block;max-width:100%;height:auto}blockquote{margin-left:0;padding-left:16px;border-left:3px solid #ddd;color:#555}
+</style>
+</head>
+<body>
+<article>
+<h1>${escapeHtml(article.title)}</h1>
+${renderedBody}
+<hr>
+<blockquote><p>${footer}</p></blockquote>
+</article>
+</body>
+</html>
+`;
 }
 
 async function walkMarkdown(directory) {
@@ -202,14 +344,31 @@ export async function exportMediumImportPages({ articleRoot, outputRoot, request
 
     const targetDir = path.join(output, ...slug.split("/"));
     const targetFile = path.join(targetDir, "index.html");
+    const parsedRoot = stripTableOfContents(unified().use(remarkParse).parse(article.body));
+    const diagramBlocks = collectDiagrammaticTextBlocks(parsedRoot);
+    const diagramUrls = new Map();
+
+    for (const [index, value] of diagramBlocks.entries()) {
+      const number = index + 1;
+      const filename = `text-diagram-${String(number).padStart(2, "0")}.png`;
+      const outputFile = path.join(targetDir, "assets", filename);
+      await renderTextDiagramPng(value, outputFile);
+      diagramUrls.set(value, buildMediumDiagramUrl(slug, number));
+    }
+
     await mkdir(targetDir, { recursive: true });
-    await writeFile(targetFile, buildMediumImportHtml(article, { slug }), "utf8");
+    await writeFile(
+      targetFile,
+      buildMediumImportHtml(article, { slug, root: parsedRoot, diagramUrls }),
+      "utf8",
+    );
     exported.push({
       slug,
       source: path.relative(process.cwd(), sourceFile).split(path.sep).join("/"),
       output: path.relative(process.cwd(), targetFile).split(path.sep).join("/"),
       canonicalUrl: buildCanonicalUrl(slug),
       importUrl: buildMediumImportUrl(slug),
+      textDiagrams: diagramBlocks.length,
     });
   }
 
@@ -263,6 +422,7 @@ async function main() {
       slug: item.slug,
       importUrl: item.importUrl,
       canonicalUrl: item.canonicalUrl,
+      textDiagrams: item.textDiagrams,
     }));
   }
   console.log(JSON.stringify({ operation: "medium-export", status: "completed", total: exported.length }));
