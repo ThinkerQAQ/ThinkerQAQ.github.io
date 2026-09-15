@@ -67,7 +67,7 @@ test("reviewed investing notes reject brittle legacy rules and stale product cla
     "市销率越低，说明该公司股票的投资价值越大",
     "一般高于70%表示高估，低于30%表示低估",
     "都是被动性指数基金",
-    "短债比长债风险大",
+    "- 短债比长债风险大",
   ]) {
     assert.ok(!markdown.includes(rejected), `legacy investing pattern leaked: ${rejected}`);
   }
