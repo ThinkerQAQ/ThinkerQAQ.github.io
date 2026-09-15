@@ -1,65 +1,57 @@
 ---
-title: "3.2 使用 Nginx 提供文件目录"
-description: "使用 autoindex 快速提供文件目录浏览，并说明目录暴露、权限和日志方面的安全注意事项。"
+title: "1.3 文件服务器"
+description: "使用 Nginx autoindex 搭建简单文件服务器。"
 sourcePath: "Web_Server/Nginx/文件服务器.md"
 category: "web-server-nginx"
 categoryLabel: "Web Server / Nginx"
-topic: "serving-content"
-topicLabel: "3.Serving Content"
-order: 8
-tags: ["Nginx", "File Server"]
-updatedAt: "2026-09-15T03:10:00Z"
+topic: "nginx"
+topicLabel: "1.Nginx"
+order: 3
+tags: ["Nginx"]
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
 
-## 1. 配置文件目录
+## 1. 配置
 
-主配置可以包含单独的站点配置：
+- `/etc/nginx/nginx.conf`
 
-```nginx
+```conf
 http {
+    # ...
     include /etc/nginx/conf.d/*.conf;
+    # ...
 }
 ```
 
-例如 `/etc/nginx/conf.d/files.conf`：
+- `/etc/nginx/conf.d/cdn.conf`
 
 ```nginx
+autoindex on;             # 开启索引功能
+autoindex_exact_size off; # 只显示大概大小
+autoindex_localtime on;   # 显示本机时间而非 GMT 时间
+charset utf-8;
+
 server {
     listen 9999;
-    server_name _;
-
-    root /srv/share;
-    charset utf-8;
+    root $HOME/share;
+    error_log $HOME/share/log/error.log;
 
     location / {
-        autoindex on;
-        autoindex_exact_size off;
-        autoindex_localtime on;
+    }
+
+    error_page 404 /404.html;
+    location = /40x.html {
+    }
+
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
     }
 }
 ```
 
-- `autoindex on`：没有索引文件时列出目录内容；
-- `autoindex_exact_size off`：使用更易读的文件大小；
-- `autoindex_localtime on`：显示本地时间。
-
-## 2. 安全注意事项
-
-`autoindex` 会主动暴露目录中的文件名和层级，所以不要直接把包含私密文件、备份、密钥或日志的目录作为 root。
-
-如果文件只给内部用户使用，应结合网络访问控制、Basic Auth、签名 URL 或应用层授权。
-
-还应保证 Nginx worker 只拥有读取目标目录所需的最小权限。
-
-## 3. 验证
-
-修改配置后先执行：
-
-```bash
-nginx -t
-nginx -s reload
-```
+## 2. 参考
+- [Nginx搭建简单文件服务器 /- 掘金](https://juejin.cn/post/7010651653648941070)
