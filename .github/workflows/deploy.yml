@@ -113,6 +113,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
+      AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
       GITHUB_EVENT_BEFORE: ${{ github.event.before || inputs.before_sha }}
     steps:
       - name: Checkout
