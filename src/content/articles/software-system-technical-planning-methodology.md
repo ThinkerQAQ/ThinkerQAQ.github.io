@@ -9,6 +9,8 @@ tags:
   - 架构设计
 status: published
 featured: false
+relatedNotes:
+  - system-design/软件系统技术规划方法论
 ---
 
 ## 1. 前言

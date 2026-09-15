@@ -13,6 +13,11 @@ tags:
 status: published
 featured: false
 series: concurrency-programming
+relatedNotes:
+  - java/JUC/4.CAS/4.CAS
+  - java/JUC/4.CAS/Atomic/Atomic
+  - java/JUC/Unsafe/Unsafe
+  - go/atomic
 ---
 
 ## 目录

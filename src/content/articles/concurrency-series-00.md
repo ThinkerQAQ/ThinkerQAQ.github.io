@@ -12,6 +12,9 @@ tags:
 status: published
 featured: false
 series: concurrency-programming
+relatedNotes:
+  - go/channel
+  - operating-system/进程管理/同步
 ---
 
 ## 目录

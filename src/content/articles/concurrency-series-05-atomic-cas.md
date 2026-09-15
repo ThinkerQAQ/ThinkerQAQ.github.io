@@ -16,6 +16,7 @@ series: concurrency-programming
 relatedNotes:
   - java/JUC/4.CAS/4.CAS
   - java/JUC/4.CAS/Atomic/Atomic
+  - go/atomic
 ---
 
 ## 目录

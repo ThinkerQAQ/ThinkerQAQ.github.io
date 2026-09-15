@@ -12,6 +12,11 @@ tags:
 status: published
 featured: false
 series: concurrency-programming
+relatedNotes:
+  - java/JUC/2.Synchronized/2.Synchronized
+  - java/JUC/2.Synchronized/锁的优化
+  - java/JUC/4.CAS/4.CAS
+  - go/sync.Mutex
 ---
 
 ## 目录

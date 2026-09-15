@@ -13,6 +13,9 @@ tags:
 status: published
 featured: false
 series: concurrency-programming
+relatedNotes:
+  - java/JUC/2.Synchronized/2.Synchronized
+  - go/sync.Mutex
 ---
 
 ## 目录
