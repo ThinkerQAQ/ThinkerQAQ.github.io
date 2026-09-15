@@ -104,7 +104,6 @@ const startSeriesSource = featuredSeries.length > 0
     ? activeSeries
     : localizedSeries;
 const startSeries = startSeriesSource.slice(0, 3);
-const showAllSeries = localizedSeries.length > startSeries.length;
 
 function seriesArticleCount(series: (typeof allSeries)[number]): number {
   if (locale === "zh") {
@@ -186,7 +185,7 @@ const projectItems = projects.map((project) => {
     <section class="home-section" aria-labelledby="home-start-title">
       <div class="section-heading">
         <h2 id="home-start-title">{copy.startTitle}</h2>
-        {showAllSeries && <a href={localizePath(locale, "/series/")}>{copy.allSeries} →</a>}
+        <a href={localizePath(locale, "/series/")}>{copy.allSeries} →</a>
       </div>
       <ShowcaseList items={seriesItems} />
     </section>
