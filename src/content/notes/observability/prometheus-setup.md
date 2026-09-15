@@ -1,92 +1,57 @@
 ---
-title: "2.2 Prometheus 安装与 Node Exporter"
-description: "本地启动 Prometheus 和 Node Exporter，并配置一个最小可用的 scrape target。"
+title: "2.2 Prometheus安装"
+description: "Prometheus 与 Node Exporter 的安装和基础配置。"
 sourcePath: "Monitor/prometheus/prometheus安装.md"
 category: "observability"
 categoryLabel: "Observability"
-topic: "metrics"
-topicLabel: "2.Metrics"
-order: 4
-tags: ["Observability", "Prometheus"]
-updatedAt: "2026-09-15T03:10:00Z"
+topic: "prometheus"
+topicLabel: "2.Prometheus"
+order: 3
+tags: ["Prometheus", "Node Exporter"]
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
 
-## 1. 启动 Prometheus
-
-从官方下载页选择当前平台的版本并解压：
-
+## 1. 下载Prometheus
+- [Download \| Prometheus](https://prometheus.io/download/)
+## 2. 解压启动Prometheus
 ```bash
 tar xvfz prometheus-*.tar.gz
 cd prometheus-*
-./prometheus --config.file=./prometheus.yml
+./prometheus
 ```
 
-默认监听 `localhost:9090`。
-
-当前版本可以通过 Prometheus Web UI 的查询页面进行 PromQL 查询：
-
-```text
-http://localhost:9090/query
-```
-
-不同版本的 UI 路径可能调整，应以当前官方文档为准。
-
-## 2. 启动 Node Exporter
-
-Node Exporter 用于暴露 Linux / Unix 主机的硬件和内核指标。
-
+## 3. 浏览器访问
+- http://localhost:9090/
+- ![](https://raw.githubusercontent.com/TDoct/images/master/1624711860_20210626204440546_16939.png)
+## 4. 安装Node Exporter
+### 4.1. 下载Node Exporter
+- [Download \| Prometheus](https://prometheus.io/download/)
+### 4.2. 解压启动Node Exporter
 ```bash
 tar -xvf node_exporter-*.tar.gz
 cd node_exporter-*
 ./node_exporter
 ```
+### 4.3. 配置Prometheus
+- vim prometheus.yml
 
-默认监听 `localhost:9100`。可以先直接检查 Metrics endpoint：
-
-```bash
-curl http://localhost:9100/metrics
-```
-
-## 3. 配置 Prometheus 抓取 Node Exporter
-
-编辑 `prometheus.yml`：
-
-```yaml
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: node
-    static_configs:
-      - targets: ["localhost:9100"]
-```
-
-重新加载或重启 Prometheus 后，可以在 Targets 页面检查抓取状态：
-
-```text
-http://localhost:9090/targets
-```
-
-然后查询以 `node_` 开头的指标，例如：
-
-```promql
-node_filesystem_avail_bytes
-```
-
-## 4. 生产环境注意点
-
-上面的命令适合学习和本地实验。生产环境通常还需要：
-
-- 使用 systemd、容器或编排系统管理进程。
-- 明确数据保留和磁盘容量。
-- 配置服务发现、告警规则和访问控制。
-- 对配置变更使用受控的 reload / rollout 流程。
+    ```yml
+    scrape_configs:
+      # ...
+      - job_name: 'node'
+        static_configs:
+        - targets: ['localhost:9100']
+    ```
+### 4.4. 重启Prometheus查看
+- ![](https://raw.githubusercontent.com/TDoct/images/master/1624711861_20210626204905946_20285.png)
+- ![](https://raw.githubusercontent.com/TDoct/images/master/1624711862_20210626204930815_1142.png)
+- ![](https://raw.githubusercontent.com/TDoct/images/master/1624711863_20210626205049566_10441.png)
 
 ## 5. 参考
-
-- [First steps with Prometheus](https://prometheus.io/docs/introduction/first_steps/)
-- [Monitoring Linux host metrics with Node Exporter](https://prometheus.io/docs/guides/node-exporter/)
+- [Getting started \| Prometheus](https://prometheus.io/docs/prometheus/latest/getting_started/)
+- [First steps \| Prometheus](https://prometheus.io/docs/introduction/first_steps/)
+- [（纯干货）3小时搞定Prometheus普罗米修斯监控系统\_哔哩哔哩\_bilibili](https://www.bilibili.com/video/BV16J411z7SQ)
