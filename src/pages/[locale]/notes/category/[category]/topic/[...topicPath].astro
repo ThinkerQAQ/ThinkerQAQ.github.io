@@ -14,9 +14,13 @@ import {
   type NoteEntry,
   type NoteTopicGroup,
 } from "../../../../../../lib/content";
+import { localizeNotes } from "../../../../../../lib/note-i18n";
 
 export async function getStaticPaths() {
-  const notes = await getCollection("notes");
+  const [notes, translations] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+  ]);
   const categories = new Map<string, NoteEntry[]>();
 
   for (const note of notes) {
@@ -26,8 +30,9 @@ export async function getStaticPaths() {
   }
 
   return nonDefaultLocales().flatMap((locale) => [...categories.entries()].flatMap(([category, categoryEntries]) => {
-    const topics = groupNotesByTopic(categoryEntries);
-    const categoryLabel = categoryEntries[0]?.data.categoryLabel ?? category;
+    const localizedEntries = localizeNotes(categoryEntries, translations, locale);
+    const topics = groupNotesByTopic(localizedEntries);
+    const categoryLabel = localizedEntries[0]?.data.categoryLabel ?? category;
 
     return topics.flatMap((topic) => {
       if (topic.path.length === 0) return [];
@@ -38,7 +43,7 @@ export async function getStaticPaths() {
 
       return [{
         params: { locale: LOCALES[locale].path, category, topicPath: routeTopicIds.join("/") },
-        props: { locale, entries: topic.allNotes, topics, total: categoryEntries.length, categoryLabel, topic },
+        props: { locale, entries: topic.allNotes, topics, total: localizedEntries.length, categoryLabel, topic },
       }];
     });
   }));
@@ -95,7 +100,6 @@ const ui = LOCALES[locale].ui;
     <header class="page-header detail-page-header">
       <h1>{topic.label}</h1>
       <p>{categoryLabel} · {ui.notesCount(sortedEntries.length)}</p>
-      <p class="note-description">{ui.notesChineseNotice}</p>
     </header>
 
     <ContentList entries={sortedEntries} showCategory={false} showTopic={false} locale={locale} />
