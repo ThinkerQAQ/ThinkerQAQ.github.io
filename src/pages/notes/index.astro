@@ -4,9 +4,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import CollectionHeader from "../../components/CollectionHeader.astro";
 import NoteCategoryPreview from "../../components/NoteCategoryPreview.astro";
 import { groupByCategory } from "../../lib/content";
+import { orderNoteCategoriesAtEnd } from "../../lib/note-category-order";
 
 const notes = await getCollection("notes");
-const categories = groupByCategory(notes);
+const categories = orderNoteCategoriesAtEnd(groupByCategory(notes));
 ---
 
 <BaseLayout title="笔记" noindex={notes.length === 0}>
