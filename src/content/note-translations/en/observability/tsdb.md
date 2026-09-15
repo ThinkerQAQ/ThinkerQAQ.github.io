@@ -1,67 +1,64 @@
 ---
-title: "1.2 Time-Series Databases"
-description: "TSDB fundamentals: time-range queries, dimensions and labels, cardinality, storage, and scaling."
+title: "1.1 Time-Series Database"
+description: "Time-series databases, time-series data, data models, and storage implementation."
 translationOf: "observability/tsdb"
+category: "observability"
+categoryLabel: "Observability"
+topic: "tsdb"
+topicLabel: "1.TSDB"
+order: 1
+tags: ["TSDB"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T03:10:00Z"
+featured: false
+indexable: true
 ---
 
-## 1. What Is Time-Series Data?
+## 1. What Is a Time-Series Database
+A time-series database is a database optimized for timestamped or time-series data.
 
-Time-series data is a sequence of data points associated with timestamps, such as CPU usage, API QPS, temperature, or device state.
+Time-series databases are optimized for continuous timestamped writes, compression, aggregation, and time-range queries. Relational databases can also store historical data; the difference is mainly the data model and the optimizations made for time-series workloads.
 
-Typical queries select a time range and then perform aggregation, grouping, downsampling, or rate calculations.
+## 2. What Is Time-Series Data
+Time-series data is a sequence of observations associated with time.
 
-## 2. What Is a Time-Series Database?
+## 3. Why Use a Time-Series Database
+### 3.1. Recording with a Relational Model
+- If time-series data is stored in an ordinary table:
+  - ![](https://raw.githubusercontent.com/TDoct/images/master/1621524706_20210520233139320_6919.png)
+  - Common challenges at large scale include:
+    - high write volume;
+    - expensive time-based aggregation;
+    - storage cost.
 
-A time-series database (TSDB) is a database or storage engine optimized for workloads such as continuous time-series writes, time-range queries, aggregation, compression, and retention policies.
+### 3.2. Time-Series Model
+The exact terminology varies by product. In an InfluxDB-style model:
 
-Relational databases can also store historical data, so it is inaccurate to say that they only store the current value. The main value of a TSDB is a data model and storage/query path optimized specifically for time-series workloads.
+- metric: the metric name. It can be loosely compared with a table in a relational database.
+- data point: one observation, loosely comparable with a row.
+- timestamp: when the data point was produced.
+- field: a value that commonly changes over time, such as wind direction or speed.
+- tag: indexed metadata that commonly identifies a series, such as sensor or city.
 
-## 3. Data Models
+In the example:
+- the metric is `Wind`, and every data point has a timestamp;
+- fields are `direction` and `speed`;
+- tags are `sensor` and `city`.
 
-There is no single universal TSDB data model. A product-specific `metric / field / tag` model should not be treated as a standard shared by all systems.
+## 4. Time-Series Database Implementation
+### 4.1. LSM Tree
+LSM trees are commonly used in write-heavy storage systems.
 
-In Prometheus, a sample can be thought of as:
+### 4.2. Distributed Storage
+When time-series volume exceeds the capacity or throughput of one machine, data can be distributed across multiple nodes. Small deployments do not inherently require distributed storage.
 
-```text
-metric name + label set + timestamp + value
-```
+#### 4.2.1. Distribution Algorithm
+A distributed TSDB needs a partitioning strategy that determines where series are stored.
 
-For example:
+#### 4.2.2. Shard Key
+A common idea is to partition by a combination such as metric + tags so that points from the same logical series can remain colocated for time-range access. Actual designs vary by database.
 
-```text
-http_requests_total{service="api",method="GET"} 1024
-```
-
-The metric name identifies the measurement, labels provide dimensions, and the timestamp/value form the sample.
-
-Other TSDBs, including InfluxDB-style systems, may distinguish fields from tags. Always follow the data model of the specific product.
-
-## 4. Why TSDBs Fit Monitoring Data
-
-Monitoring workloads commonly have these characteristics:
-
-- continuous append-oriented writes
-- queries over recent time windows
-- windowed aggregation, rates, and percentile analysis
-- large historical volumes that benefit from compression, retention, and downsampling
-
-TSDBs are optimized for these access patterns.
-
-## 5. High Cardinality
-
-Label combinations determine the number of time series. Putting nearly unbounded values such as `user_id` or request IDs into labels can create huge numbers of series and significantly increase memory, disk, and query cost.
-
-Metric labels should therefore be designed with cardinality in mind.
-
-## 6. Storage and Scaling
-
-TSDB implementations vary and should not all be reduced to an LSM-tree design. Implementations may combine WALs, compressed time blocks, indexes, and specialized encodings.
-
-A single-node TSDB is perfectly reasonable for small workloads. Sharding, replication, or distributed storage becomes necessary only when data volume, retention, availability, or query pressure outgrows one node.
-
-## 7. References
-
-- [Prometheus storage](https://prometheus.io/docs/prometheus/latest/storage/)
-- [Prometheus data model](https://prometheus.io/docs/concepts/data_model/)
+## 5. References
+- [时间序列数据库(TSDB)初识与选择](https://segmentfault.com/a/1190000021678576)
+- [十分钟看懂时序数据库](https://juejin.cn/post/6844903477856960526#comment)

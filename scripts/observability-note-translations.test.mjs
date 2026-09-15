@@ -7,60 +7,28 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const zhRoot = path.join(root, "src", "content", "notes", "observability");
 const enRoot = path.join(root, "src", "content", "note-translations", "en", "observability");
+const expected = ["tsdb", "prometheus", "prometheus-setup", "grafana", "zipkin"];
+async function names(dir) { return (await readdir(dir)).filter((n) => n.endsWith(".md")).map((n) => n.replace(/\.md$/, "")).sort(); }
+function value(md, key) { return md.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?\\s*$`, "m"))?.[1]; }
 
-const expected = [
-  "overview",
-  "tsdb",
-  "prometheus",
-  "prometheus-setup",
-  "grafana",
-  "zipkin",
-];
-
-async function markdownNames(directory) {
-  return (await readdir(directory))
-    .filter((name) => name.endsWith(".md"))
-    .map((name) => name.replace(/\.md$/, ""))
-    .sort();
-}
-
-function frontmatterValue(markdown, key) {
-  return markdown.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?\\s*$`, "m"))?.[1];
-}
-
-test("observability notes have complete English translation coverage", async () => {
-  assert.deepEqual(await markdownNames(zhRoot), [...expected].sort());
-  assert.deepEqual(await markdownNames(enRoot), [...expected].sort());
-
+test("observability preserves the five original Monitor notes and English coverage", async () => {
+  assert.deepEqual(await names(zhRoot), [...expected].sort());
+  assert.deepEqual(await names(enRoot), [...expected].sort());
   for (const slug of expected) {
-    const [zh, en] = await Promise.all([
-      readFile(path.join(zhRoot, `${slug}.md`), "utf8"),
-      readFile(path.join(enRoot, `${slug}.md`), "utf8"),
-    ]);
-    assert.equal(frontmatterValue(zh, "category"), "observability");
-    assert.equal(frontmatterValue(zh, "language"), "zh");
-    assert.equal(frontmatterValue(en, "translationOf"), `observability/${slug}`);
-    assert.equal(frontmatterValue(en, "language"), "en");
+    const [zh, en] = await Promise.all([readFile(path.join(zhRoot, `${slug}.md`), "utf8"), readFile(path.join(enRoot, `${slug}.md`), "utf8")]);
+    assert.equal(value(zh, "category"), "observability");
+    assert.equal(value(en, "translationOf"), `observability/${slug}`);
   }
 });
 
-test("reviewed observability notes do not publish rejected legacy claims", async () => {
-  const markdown = (await Promise.all(
-    expected.map((slug) => readFile(path.join(zhRoot, `${slug}.md`), "utf8")),
-  )).join("\n");
-
-  for (const rejected of [
-    "传统数据库仅仅记录了数据的当前值",
-    "如果目标服务无法直接和Prometheus Server通信",
-    "localhost:9090/classic/graph",
-    "node exporer",
-  ]) {
-    assert.ok(!markdown.includes(rejected), `legacy observability pattern leaked: ${rejected}`);
-  }
+test("observability preserves original per-file heading structure", async () => {
+  const tsdb = await readFile(path.join(zhRoot, "tsdb.md"), "utf8");
+  for (const h of ["## 1. 什么是时序数据库", "## 2. 什么是时序数据", "## 3. 为什么需要时序数据库", "## 4. 时序数据库实现", "## 5. 参考"]) assert.ok(tsdb.includes(h), h);
+  const prometheus = await readFile(path.join(zhRoot, "prometheus.md"), "utf8");
+  for (const h of ["## 1. prometheus是什么", "## 2. prometheus架构", "## 3. Prometheus安装", "## 4. 参考"]) assert.ok(prometheus.includes(h), h);
 });
 
-test("observability is appended after security in the Notes category order", async () => {
-  const source = await readFile(path.join(root, "src", "lib", "note-category-order.ts"), "utf8");
-  assert.ok(source.indexOf('"security"') >= 0);
-  assert.ok(source.indexOf('"observability"') > source.indexOf('"security"'));
+test("observability only patches rejected legacy claims", async () => {
+  const md = (await Promise.all(expected.map((slug) => readFile(path.join(zhRoot, `${slug}.md`), "utf8")))).join("\n");
+  for (const rejected of ["传统数据库仅仅记录了数据的当前值", "如果目标服务无法直接和Prometheus Server通信", "localhost:9090/classic/graph", "node exporer"]) assert.ok(!md.includes(rejected), rejected);
 });

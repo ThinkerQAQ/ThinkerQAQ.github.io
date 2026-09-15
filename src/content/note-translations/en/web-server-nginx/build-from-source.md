@@ -1,65 +1,89 @@
 ---
-title: "8.1 Building Nginx from Source"
-description: "A modern source-build note: when source compilation is justified, common dependencies, configure options, validation, and the boundary with OpenResty."
+title: "1.4 Build from Source"
+description: "Nginx source build, startup, build parameters, and directory layout."
 translationOf: "web-server-nginx/build-from-source"
+category: "web-server-nginx"
+categoryLabel: "Web Server / Nginx"
+topic: "nginx"
+topicLabel: "1.Nginx"
+order: 4
+tags: ["Nginx"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T03:10:00Z"
+featured: false
+indexable: true
 ---
 
-## 1. Do You Need a Source Build?
+## 1. Build Steps
+### 1.1. Download
+- Nginx: [nginx download](https://nginx.org/en/download.html)
 
-For ordinary servers, prefer distribution packages or official Nginx binary packages because security updates are easier to maintain. Source builds mainly make sense when you need:
+Nginx now distinguishes **mainline** and **stable** branches. Do not use the old “even version = stable, odd version = development” rule; follow the current release information on nginx.org.
 
-- specific compile-time options;
-- static or dynamic third-party modules;
-- debug builds;
-- explicit control over dependencies or install paths.
-
-The historical “even versions are stable, odd versions are unstable” rule is not a good modern selection rule. Nginx explicitly maintains **stable** and **mainline** branches; use the official download page and changelogs.
-
-## 2. Dependencies
-
-Common features may require:
-
-- PCRE/PCRE2 for regular expressions;
-- zlib for gzip;
-- OpenSSL for HTTPS/TLS;
-- development libraries required by optional modules.
-
-Do not pin the very old PCRE, zlib, and OpenSSL ranges from the historical note. Select supported versions based on current Nginx documentation and the operating system's security support.
-
-## 3. Minimal Source-Build Example
+- Other source dependencies
 
 ```bash
-tar -xzf nginx-VERSION.tar.gz
-cd nginx-VERSION
+mkdir src
+cd src
 
-./configure \
-  --prefix=/opt/nginx \
-  --with-http_ssl_module \
-  --with-http_v2_module \
-  --with-http_stub_status_module \
-  --with-threads
+# Dependency versions change over time. Use currently supported releases
+# from their official projects. Common dependencies include PCRE2, zlib,
+# and OpenSSL.
+#
+# If Lua support is the goal, OpenResty is usually easier to maintain than
+# manually combining old LuaJIT/lua-nginx-module releases.
+```
+
+### 1.2. Install the Development Environment
+On a current Debian/Ubuntu-like system, a minimal example is:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential libpcre2-dev zlib1g-dev libssl-dev
+```
+
+Install additional development libraries only for modules you actually enable.
+
+### 1.3. Configure, Build, and Install
+A representative source build:
+
+```bash
+./configure --prefix="$HOME/software/nginx" \
+            --with-threads \
+            --with-file-aio \
+            --with-http_ssl_module \
+            --with-http_v2_module \
+            --with-http_realip_module \
+            --with-http_gzip_static_module \
+            --with-http_auth_request_module \
+            --with-http_secure_link_module \
+            --with-http_stub_status_module \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-debug
 
 make -j"$(nproc)"
-sudo make install
+make install
 ```
 
-Enable additional modules only when they are actually needed, using options such as `--add-module=PATH` or `--add-dynamic-module=PATH`.
+The original note enabled many optional/dynamic modules. Keep only the modules required by the actual deployment so the build is easier to maintain.
 
-## 4. Building Dependency Sources
-
-Nginx configure can point to dependency source trees with `--with-pcre=PATH`, `--with-zlib=PATH`, and `--with-openssl=PATH`. Use this only when dependency control is necessary; system or official packages are normally easier to maintain.
-
-## 5. Validate
-
+### 1.4. Start
 ```bash
-/opt/nginx/sbin/nginx -V
-/opt/nginx/sbin/nginx -t
+$HOME/software/nginx/sbin/nginx -c $HOME/software/nginx/conf/nginx.conf
 ```
 
-`nginx -V` shows build options and dependency information. `nginx -t` validates the configuration.
+## 2. View the Parameters Used for the Build
+```bash
+nginx -V
+```
 
-## 6. Lua and OpenResty
+## 3. Directory Layout
+![](https://raw.githubusercontent.com/TDoct/images/master/1598181188_20200416171211741_28044.png)
 
-If deep Lua integration is the goal, prefer OpenResty. It maintains LuaJIT, lua-nginx-module, and related components as a compatible distribution instead of requiring manual assembly of old module releases.
+The exact layout depends on the `./configure` paths selected during the build.
+
+## 4. References
+- [Building nginx from Sources](https://nginx.org/en/docs/configure.html)
+- [OpenResty Installation](https://openresty.org/en/installation.html)

@@ -1,53 +1,36 @@
 ---
-title: "4.3 XSS"
-description: "XSS 的根因与上下文相关输出编码、HTML Sanitization、CSP 等防护方法。"
+title: "1.9 XSS"
+description: "XSS 的原理、成因与输出编码等防御方式。"
 sourcePath: "Safe/xss.md"
 category: "security"
 categoryLabel: "Security"
-topic: "web-security"
-topicLabel: "4.Web Security"
+topic: "security"
+topicLabel: "1.Security"
 order: 9
 tags: ["Security"]
-updatedAt: "2026-09-15T02:00:00Z"
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
-## 1. XSS 是什么
 
-XSS（Cross-Site Scripting）发生在不可信数据进入浏览器中的可执行上下文，并被当作 HTML / JavaScript 等代码解释执行。
+## 1. XSS攻击是什么
+一种Web攻击
+比如用户A输入`<script>alert(1)</script>`，如果输出到 HTML 时没有按上下文进行正确编码的话，用户B打开就会一直弹窗
 
-例如，把用户输入直接插入 HTML：
+## 2. 为什么会发生XSS攻击
+构成XSS的首要条件是：响应`Content-Type`类型为`text/html`，然后把用户的非法输入当作代码执行。
+## 3. 如何防范XSS攻击
 
-```html
-<div>USER_INPUT</div>
-```
+1. 方案1：在输出位置按照 HTML、属性、URL、JavaScript 等上下文进行正确编码；优先使用默认自动转义的模板系统。
+2. 方案2：如果接口本来就不是 HTML，返回正确的 `Content-Type`，并可配合 `X-Content-Type-Options: nosniff`。这不能替代 HTML 场景中的输出编码。
 
-如果没有正确处理，输入中的标签或脚本可能改变页面结构甚至执行代码。
-
-## 2. 防护核心：按输出上下文处理
-
-最重要的原则是**在输出位置进行上下文相关编码**：
-
-- HTML 文本上下文：HTML entity encoding；
-- HTML 属性：属性编码并正确加引号；
-- URL 参数：URL encoding；
-- JavaScript / CSS 上下文：使用对应的安全编码，尽量避免把不可信数据直接插入这些上下文。
-
-优先使用默认自动 escaping 的现代模板/前端框架。
-
-## 3. 需要允许 HTML 时
-
-如果业务允许用户提交富文本，不能简单地把所有字符转义掉，需要使用成熟 HTML sanitizer，只保留允许的标签和属性。
-
-## 4. 其他防线
-
-- CSP 可作为 defense in depth，但不应替代正确的输出编码。
-- JSON API 应返回正确的 `Content-Type`，例如 `application/json`。
-- `X-Content-Type-Options: nosniff` 有助于阻止 MIME sniffing，但**它本身不是通用 XSS 防护方案**。
-- 避免 `innerHTML`、`eval` 等危险 sink，优先使用文本 API 和框架安全 API。
-
+## 4. 实例
+### 4.1. 非 HTML 接口
+1. Content-Type排除text/html，这样浏览器就不会以text/html方式来解析response，但是由于部分浏览器有Content-Sniff特性，仍会将该类接口作为HTML页面解析，所以得在http响应时加上header`X-Content-Type-Options: nosniff`
 ## 5. 参考
-
-- [OWASP Cross Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+- [Cross-Site Request Forgery(CSRF) - Tutorialspoint](https://www.tutorialspoint.com/security_testing/cross_site_request_forgery.htm)
+- [浅谈CSRF攻击方式](https://www.cnblogs.com/hyddd/archive/2009/04/09/1432744.html)
+- [XSS攻击及防御](https://blog.csdn.net/ghsau/article/details/17027893)
+- [sunwu51/WebSecurity](https://github.com/sunwu51/WebSecurity)

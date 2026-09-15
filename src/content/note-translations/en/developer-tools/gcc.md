@@ -1,101 +1,71 @@
 ---
-title: "3.1 GCC and Native Compilation Toolchains"
-description: "Understand preprocessing, compilation, assembly, linking, object files, libraries, ABI boundaries, and debug builds through GCC."
+title: "1.2 GCC"
+description: "Install GCC on Windows/MSYS2 and record common GDB debugging commands."
 translationOf: "developer-tools/gcc"
 language: "en"
-updatedAt: "2026-09-15T06:20:00Z"
+updatedAt: "2026-09-15T11:40:00Z"
 ---
+## 1. Installation
+### 1.1. Install MSYS2
+[msys2.md](/en/notes/developer-tools/msys2/)
 
-## 1. The `gcc` Command Is More Than a Compiler
+### 1.2. Install GCC
 
-In everyday use, `gcc` behaves like a **compiler driver**. It coordinates the preprocessor, compiler, assembler, and linker according to the requested build.
-
-A useful mental model is:
-
-`source → preprocessed source → assembly → object file → executable/shared library`
-
-Before fixing a build failure, identify which stage failed.
-
-## 2. Common Stages
+For the current MSYS2 UCRT64 environment, install the matching toolchain:
 
 ```sh
-gcc -E main.c -o main.i
-gcc -S main.c -o main.s
-gcc -c main.c -o main.o
-gcc main.o -o app
+pacman -Syu
+pacman -S --needed mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-gdb
 ```
 
-These mean:
+The old `pacman -S base-devel gcc gdb` command targets the MSYS environment itself. For native Windows programs, use the toolchain packages for the selected environment.
 
-- `-E`: preprocess only;
-- `-S`: compile to assembly;
-- `-c`: produce an object file without linking;
-- final command: link the executable.
+## 2. GDB
 
-This model is more useful than memorizing only `gcc main.c -o app`.
+### 2.1. Running
+- `run` / `r`: run the program and stop at breakpoints.
+- `continue` / `c`: continue until the next breakpoint or program exit.
+- `next` / `n`: step without normally entering a called function.
+- `step` / `s`: step into a debuggable called function.
+- `until`: continue to a later source location; commonly useful for getting past loops. Exact behavior depends on the current location and arguments.
+- `until LINE`: run to a specified source location.
+- `finish`: run until the current function returns.
+- `call function(args)`: call a visible function in the debugging context.
+- `quit` / `q`: exit GDB.
 
-## 3. Headers, Libraries, and Linking
+### 2.2. Breakpoints
+- `break n` / `b n`: break at line n.
+- `break file.cpp:578`: break at a file and line.
+- `break fn1 if a > b`: conditional breakpoint.
+- `break func`: break at a function entry.
+- `delete n`, `disable n`, `enable n`: manage a breakpoint.
+- `clear n`: clear a source-line breakpoint.
+- `info breakpoints` / `info b`: list breakpoints.
+- `delete breakpoints`: remove all breakpoints.
 
-Headers and libraries solve different problems.
+### 2.3. Viewing Source
+- `list` / `l`: list source.
+- `list LINE`: show source around a line.
+- `list FUNCTION`: show source around a function.
+- Repeating `list` continues with later source lines.
 
-- headers primarily provide declarations and compile-time interfaces;
-- static libraries contribute code at link time;
-- dynamic libraries must also be found and remain ABI-compatible at runtime.
+### 2.4. Printing Expressions
+- `print EXPR` / `p EXPR`: evaluate and print an expression.
+- `print ++a`: evaluate and print while also changing program state.
+- `display EXPR`: display an expression whenever execution stops.
+- `watch EXPR`: set a watchpoint; availability depends on the platform.
+- `whatis`: query a type.
+- `info functions`: list functions.
+- `info locals`: show locals.
 
-Therefore, finding a header does not prove linking will succeed, and successful linking does not guarantee the deployed machine will find the correct DLL or shared library.
+### 2.5. Runtime Information
+- `where` / `bt` / `backtrace`: show the call stack.
+- `up` / `down`: move between stack frames.
+- `set args`: set program arguments.
+- `show args`: show arguments.
+- `info program`: show execution state and stop reason.
 
-## 4. ABI Is Below Source-Level Syntax
-
-Binary compatibility can depend on:
-
-- CPU architecture;
-- calling conventions;
-- object-file format;
-- C/C++ runtime;
-- name mangling;
-- data layout;
-- compiler and linker options.
-
-On Windows/MSYS2, object files and static libraries targeting different C runtimes should not be mixed casually. UCRT64 and legacy MINGW64/MSVCRT should be treated as different toolchain targets.
-
-## 5. Debug Builds
-
-To make source-level debugging practical, a simple build might use:
-
-```sh
-gcc -g -O0 main.c -o app
-```
-
-`-g` emits debug information, while `-O0` keeps the relationship between source and generated code easier to inspect.
-
-However, some defects appear only in optimized builds. In those cases, keep debug information while using the production optimization level and account for inlining, reordered code, and optimized-out variables.
-
-## 6. Warnings and Errors
-
-Successful compilation does not mean the program is free of problems.
-
-A common warning baseline is:
-
-```sh
-gcc -Wall -Wextra -Wpedantic ...
-```
-
-More warnings are not automatically better. The important part is choosing rules appropriate for the project and enforcing them consistently in CI.
-
-## 7. GCC on Windows
-
-When targeting modern 64-bit native Windows through MSYS2, use the GCC package that matches the active environment. For UCRT64, use its UCRT64 GCC package.
-
-Old standalone MinGW installers and abandoned offline toolchains should not be the default recommendation for a new setup.
-
-## 8. Reproducible Builds
-
-Development, CI, and release environments should record at least:
-
-- compiler version;
-- target triple;
-- build flags;
-- dependency versions;
-- runtime requirements.
-
-Reproducibility depends on these details, not on the statement “it compiles with GCC on my machine.”
+## 3. References
+- [MSYS2](https://www.msys2.org/)
+- [GDB Documentation](https://sourceware.org/gdb/documentation/)
+- [GCC Online Documentation](https://gcc.gnu.org/onlinedocs/)

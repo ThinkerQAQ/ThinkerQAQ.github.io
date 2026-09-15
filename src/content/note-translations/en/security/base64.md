@@ -1,36 +1,35 @@
 ---
-title: "2.1 Base64"
-description: "How Base64 encoding works, where it is useful, and how it differs from encryption and URL encoding."
+title: "1.2 Base64"
+description: "Base64 encoding, process, use cases, and comparison with URL encoding."
 translationOf: "security/base64"
+category: "security"
+categoryLabel: "Security"
+topic: "security"
+topicLabel: "1.Security"
+order: 2
+tags: ["Security", "Base64"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T02:00:00Z"
+featured: false
+indexable: true
 ---
-## 1. What Base64 Is
 
-Base64 is a **binary-to-text encoding** that represents an arbitrary byte sequence using a restricted set of ASCII characters.
+## 1. What Is Base64
+Base64 is an encoding scheme that represents binary data using a set of 64 printable characters. It is encoding, not encryption.
 
-> Base64 is not encryption and provides no confidentiality. Anyone can decode it.
+## 2. Base64 Process
+Base64 groups input bytes into 24-bit blocks, splits each block into four 6-bit values, and maps those values to Base64 characters. Padding with `=` may be used when the input length is not a multiple of three bytes.
 
-## 2. Encoding Process
+## 3. Base64 Use Cases
+- Represent binary content in text-only contexts.
+- Embed small binary values in formats such as MIME or data URLs.
+- Transport values through systems that are safer with printable characters.
 
-1. Split input into groups of 3 bytes, or 24 bits.
-2. Split those 24 bits into four 6-bit groups.
-3. Use each 6-bit value as an index into the Base64 alphabet.
-4. If the input length is not a multiple of 3, standard Base64 commonly uses `=` padding.
+## 4. Base64 vs URL Encoding
+- Base64 converts bytes into a printable character representation.
+- URL encoding percent-encodes characters that have special meaning in URLs.
+- Ordinary Base64 contains `+`, `/`, and `=`, while Base64URL uses a URL-safe alphabet.
 
-## 3. Common Uses
-
-- Carrying binary data through protocols or formats that safely transport text.
-- MIME email attachments.
-- Data URLs and other text representations.
-
-Base64 increases the encoded size by roughly one third, so it is not a good default representation for large binary objects.
-
-## 4. Base64 vs. URL Encoding
-
-They solve different problems:
-
-- Base64 converts arbitrary bytes into text.
-- URL percent-encoding represents bytes that have special meaning or cannot safely appear directly in a URL as `%HH`.
-
-URL-safe Base64 replaces `+` and `/` with `-` and `_`, but it is still only an encoding.
+## 5. References
+- [Base64 - Wikipedia](https://en.wikipedia.org/wiki/Base64)

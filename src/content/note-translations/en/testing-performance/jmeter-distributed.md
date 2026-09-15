@@ -1,56 +1,50 @@
 ---
-title: "4.1 Distributed Load Testing with JMeter"
-description: "JMeter controller/worker architecture, CLI execution, RMI networking, version consistency, and result-collection constraints."
+title: "3.1 Distributed Load Testing with JMeter"
+description: "JMeter distributed load-test node configuration and execution."
 translationOf: "testing-performance/jmeter-distributed"
+category: "testing-performance"
+categoryLabel: "Testing & Performance"
+topic: "jmeter"
+topicLabel: "2.JMeter"
+order: 5
+tags: ["JMeter"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T03:15:00Z"
+featured: false
+indexable: true
 ---
 
-## 1. When Distributed JMeter Helps
+## 1. What Is Distributed Load Testing
+![](https://raw.githubusercontent.com/TDoct/images/master/img/20200103232617.png)
 
-When one load generator is limited by CPU, memory, or network capacity, one JMeter controller can coordinate multiple remote workers.
+When one load-generator machine cannot produce enough traffic, a JMeter controller can coordinate multiple remote JMeter servers. Each remote server runs the test plan, so the total generated load scales with the number of workers.
 
-Each worker runs the **entire test plan**. A plan with 1,000 threads executed on six workers produces roughly 6,000 threads; JMeter does not automatically split the 1,000 threads across workers.
+## 2. Build a JMeter Load-Test Setup
+### 2.1. Environment Variables
+Ensure the controller and workers use compatible JMeter/Java versions and have the same required plugins and data files.
 
-## 2. Keep Nodes Consistent
+### 2.2. Load-Test Nodes
+#### 2.2.1. Master Node
+Configure the remote hosts and RMI settings according to the current JMeter documentation. Keep RMI SSL enabled and configured for production or cross-machine use; only disable it on a trusted isolated network after explicitly accepting the risk.
 
-Controller and workers should use:
-
-- exactly the same JMeter version;
-- preferably the same Java version;
-- the same plugins and custom JARs;
-- network access to the target;
-- matching external data files on every worker, because the test plan is transferred but external data files are not automatically distributed.
-
-Remote testing uses RMI. Configure ports and RMI SSL correctly; disabling SSL should be limited to explicitly trusted isolated networks where the risk is understood.
-
-## 3. Start Workers
-
-Run on each worker:
+#### 2.2.2. Slave Node 1
+Start a remote worker with:
 
 ```bash
-jmeter-server
+./jmeter-server
 ```
 
-When firewalls are present, define explicit rules for the RMI registry, server engine, and result-return connections. Properties such as `server.rmi.localport` and `client.rmi.localport` can make port usage predictable.
+#### 2.2.3. Slave Node 2
+Start the second worker in the same way and ensure its network/RMI ports are reachable from the controller.
 
-## 4. Run from the Controller
-
-Use CLI mode for real load tests; use the GUI to build and debug plans.
+### 2.3. Start the Load Test
+- GUI mode: suitable for creating and debugging a test plan, not for running a formal high-load test.
+- CLI mode:
 
 ```bash
-jmeter -n \
-  -t test-plan.jmx \
-  -R load-1.example.net,load-2.example.net \
-  -l results.jtl \
-  -e \
-  -o report
+./jmeter -n -t ./test-plan.jmx -r -l ./result.jtl -e -o ./report
 ```
 
-`-r` can use workers from `remote_hosts`; `-R` specifies workers for a particular run. `-e -o` generates the HTML dashboard after the test, and `-X` can request remote servers to exit after completion.
-
-## 5. Watch the Load Generators
-
-The controller can become a bottleneck while collecting worker results. Reduce unnecessary listeners and sample fields, monitor controller/worker CPU, memory, and network, and verify that the load generators are not saturating before the system under test.
-
-Capacity conclusions are trustworthy only when the load-generation side is itself stable.
+## 3. References
+- [JMeter Remote Testing](https://jmeter.apache.org/usermanual/remote-test.html)

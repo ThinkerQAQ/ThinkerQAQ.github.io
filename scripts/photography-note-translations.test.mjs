@@ -13,7 +13,6 @@ const expected = [
   "photography-pre-production",
   "photography-post-production",
   "mobile-photography",
-  "lin-haiyin-photography",
   "nikon-z5",
 ];
 
@@ -22,7 +21,6 @@ const sourcePaths = new Map([
   ["photography-pre-production", "Others/摄影/摄影前期.md"],
   ["photography-post-production", "Others/摄影/摄影后期.md"],
   ["mobile-photography", "Others/摄影/手机摄影.md"],
-  ["lin-haiyin-photography", "Others/摄影/林海音摄影.md"],
   ["nikon-z5", "Others/摄影/尼康Z5.md"],
 ]);
 
@@ -37,7 +35,7 @@ function frontmatterValue(markdown, key) {
   return markdown.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?\\s*$`, "m"))?.[1];
 }
 
-test("Photography mirrors the six original VNote files instead of a synthetic taxonomy", async () => {
+test("Photography preserves the five selected original VNote files instead of a synthetic taxonomy", async () => {
   assert.deepEqual(await markdownNames(zhRoot), [...expected].sort());
   assert.deepEqual(await markdownNames(enRoot), [...expected].sort());
 

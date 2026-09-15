@@ -1,82 +1,85 @@
 ---
-title: "4.1 JMeter 分布式压测"
-description: "JMeter controller/worker 分布式负载测试、CLI 执行、RMI 网络要求、版本一致性和结果收集注意事项。"
+title: "3.1 JMeter分布式压测"
+description: "JMeter 分布式压测的节点配置与启动方式。"
 sourcePath: "Test/Jmeter/Jmeter分布式压测.md"
 category: "testing-performance"
 categoryLabel: "Testing & Performance"
-topic: "tooling"
-topicLabel: "4.Tooling"
+topic: "jmeter"
+topicLabel: "2.JMeter"
 order: 5
-tags: ["JMeter", "Distributed Testing", "Load Testing"]
-updatedAt: "2026-09-15T03:15:00Z"
+tags: ["JMeter"]
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
 
-## 1. 什么时候需要分布式压测
+## 1. 什么是分布式压测
 
-当单台负载生成机受 CPU、内存或网络能力限制，无法产生目标流量时，可以用一个 JMeter controller 控制多个 worker。
+![](https://raw.githubusercontent.com/TDoct/images/master/img/20200103232617.png)
 
-要注意：JMeter remote testing 会让**每个 worker 执行完整测试计划**。例如测试计划定义 1,000 个线程，6 个 worker 会产生约 6,000 个线程，而不是自动把 1,000 个线程平均分配。
+## 2. 搭建Jmeter压测
 
-## 2. 节点要求
+### 2.1. 环境变量
+![](https://raw.githubusercontent.com/TDoct/images/master/1585881382_20200403102747194_21606.png)
 
-controller 和 worker 应保持：
+### 2.2. 压测节点
+#### 2.2.1. master节点
+- jmeter.properties
+```properties
+#slave机器的ip和端口
+remote_hosts=localhost:2019,localhost:2020
+#本服务占用的端口
+server_port=1099
+# 生产或跨机器环境建议保留并正确配置 RMI SSL；仅在可信隔离网络中明确评估风险后再关闭。
+```
+#### 2.2.2. slave节点1
+- jmeter2019.properties
 
-- 完全相同的 JMeter 版本；
-- 尽量相同的 Java 版本；
-- 相同的插件和自定义 JAR；
-- worker 可访问被测系统；
-- CSV 等外部数据文件已正确放到各 worker，因为测试计划会下发，但数据文件不会自动随测试计划分发。
-
-JMeter remote testing 基于 RMI。应正确配置网络端口和 RMI SSL；只有在可信隔离网络并明确接受风险时才考虑关闭 SSL。
-
-## 3. 启动 worker
-
-每个 worker 上启动：
-
-```bash
-jmeter-server
+```properties
+#slave机器的ip和端口
+remote_hosts=localhost:2019,localhost:2020
+#本服务占用的端口
+server_port=2019
+# 生产或跨机器环境建议保留并正确配置 RMI SSL；仅在可信隔离网络中明确评估风险后再关闭。
 ```
 
-如果防火墙存在，需要为 RMI registry、server engine 和返回结果所需端口建立明确规则。可以通过 `server.rmi.localport`、`client.rmi.localport` 等属性把动态端口范围收敛到可管理范围。
-
-## 4. 从 controller 执行
-
-负载测试应使用 CLI 模式，GUI 主要用于创建和调试测试计划。
-
-指定 worker：
+- 启动server
 
 ```bash
-jmeter -n \
-  -t test-plan.jmx \
-  -R load-1.example.net,load-2.example.net \
-  -l results.jtl \
-  -e \
-  -o report
+./jmeter-server -Djava.rmi.server.hostname=localhost -p jmeter2019.properties
 ```
 
-也可以在 `remote_hosts` 中配置 worker，然后使用 `-r`。
 
-常用参数：
+#### 2.2.3. slave节点2
+- jmeter2020.properties
 
-- `-n`：CLI mode；
-- `-t`：测试计划；
-- `-l`：结果文件；
-- `-R`：本次使用的远程 worker；
-- `-e -o`：测试结束后生成 HTML report；
-- `-X`：测试结束后请求远程 server 退出。
+```properties
+#slave机器的ip和端口
+remote_hosts=localhost:2019,localhost:2020
+#本服务占用的端口
+server_port=2020
+# 生产或跨机器环境建议保留并正确配置 RMI SSL；仅在可信隔离网络中明确评估风险后再关闭。
+```
 
-## 5. 分布式压测的额外瓶颈
+- 启动server
 
-controller 需要接收各 worker 的结果，本身也可能成为瓶颈。大规模压测时应：
+```bash
+./jmeter-server -Djava.rmi.server.hostname=localhost -p jmeter2020.properties
+```
 
-- 减少不必要的 listener 和样本字段；
-- 避免在 GUI 下执行正式压测；
-- 监控 controller 与 worker 的 CPU、内存和网络；
-- 确认负载生成器没有先于被测系统饱和；
-- 在报告中记录负载生成器规模和配置。
+### 2.3. 启动压测
 
-只有先证明发压端稳定，测试结果才可以用于判断被测系统的容量。
+- GUI方式（适合创建和调试测试计划，不建议用于正式大负载压测）
+
+![](https://raw.githubusercontent.com/TDoct/images/master/1585881384_20200403103617531_22516.png)
+
+- 非GUI方式
+
+```bash
+./jmeter -n -t ./test-plan.jmx -r -l ./result.jtl -e -o ./report
+```
+
+## 3. 参考
+- [Jmeter分布式压测 \- 小白2510 \- 博客园](https://www.cnblogs.com/loveapple/p/10064134.html)

@@ -1,57 +1,43 @@
 ---
-title: "4.1 SQL 注入"
-description: "SQL 注入的成因与防护：参数化查询、动态标识符白名单和最小权限。"
+title: "1.7 SQL注入攻击"
+description: "SQL 注入的原因、防御方式与参数化查询。"
 sourcePath: "Safe/SQL注入攻击.md"
 category: "security"
 categoryLabel: "Security"
-topic: "web-security"
-topicLabel: "4.Web Security"
+topic: "security"
+topicLabel: "1.Security"
 order: 7
 tags: ["Security"]
-updatedAt: "2026-09-15T02:00:00Z"
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
-## 1. SQL 注入是什么
 
-SQL Injection 的本质是：**不可信输入进入 SQL 代码结构，使攻击者能够改变原本查询的语义**。
+## 1. SQL注入攻击是什么
+一种Web攻击
+SQL注入是一种将SQL代码添加到输入参数中，传递到服务器解析并执行的一种攻击手法。
 
-典型错误是直接拼接用户输入：
+## 2. 为什么会发生SQL注入攻击
 
-```text
-SELECT * FROM users WHERE name = ' + userInput + '
-```
+把不可信用户输入直接拼接进 SQL 语句，使输入能够改变原有 SQL 结构。
 
-## 2. 为什么会发生
+## 3. 如何解决SQL注入攻击
+### 3.1. 使用参数化查询（Prepared Statement）
+1. 写 SQL 时使用参数占位符（例如 `?`）。
+2. 通过数据库驱动提供的参数化 API 绑定参数，不要自己拼接转义。
 
-问题不在于输入里出现了某几个“非法字符”，而在于程序没有正确区分**SQL 代码**和**数据**。
+关键点不是“提前缓存执行计划”，而是让 SQL 结构和参数数据分离：参数会作为数据传入，而不是继续参与 SQL 语法解析。
 
-## 3. 如何防护
+## 4. 实例
 
-### 3.1 参数化查询 / Prepared Statement
+### 4.1. Golang
 
-优先使用参数绑定：
+sql.md
 
-```sql
-SELECT * FROM users WHERE name = ?
-```
-
-参数值通过驱动提供的绑定 API 传入，而不是手工拼接。这样数据库能够把 SQL 结构和参数数据分开处理。
-
-> 不应把防 SQL 注入简单理解成“打开数据库预编译开关”。核心是应用使用参数化 API，而不是把输入拼成 SQL 字符串。
-
-### 3.2 无法参数化的位置
-
-表名、列名、排序方向等 SQL 标识符通常不能直接使用普通参数占位符。需要动态选择时，应在代码中使用固定映射或 allow-list。
-
-### 3.3 其他防线
-
-- 数据库账号使用最小权限；
-- 对输入做业务层校验，但不要把“过滤特殊字符”当作主要防线；
-- 避免把数据库错误细节直接返回给客户端。
-
-## 4. 参考
-
-- [OWASP SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
+## 5. 参考
+- [SQL注入攻击常见方式及测试方法_Lambda_Y的博客-CSDN博客](https://blog.csdn.net/github_36032947/article/details/78442189)
+- [sunwu51/WebSecurity](https://github.com/sunwu51/WebSecurity)
+- [数据库预编译为什么能防止SQL注入呢？](https://blog.csdn.net/weixin_45179130/article/details/90761966)
+- [Mysql读写分离+防止sql注入攻击「GO源码剖析」](https://zhuanlan.zhihu.com/p/111682902)

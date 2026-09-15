@@ -1,24 +1,47 @@
 ---
-title: "3.3 Message Authentication Code"
-description: "What MACs and HMAC provide, their shared-key limitations, and why replay protection also needs nonces, timestamps, or sequence numbers."
+title: "1.5 Message Authentication Code"
+description: "Purpose, process, limitations, and HMAC."
 translationOf: "security/mac"
+category: "security"
+categoryLabel: "Security"
+topic: "security"
+topicLabel: "1.Security"
+order: 5
+tags: ["Security", "MAC"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T02:00:00Z"
+featured: false
+indexable: true
 ---
-## 1. What a MAC Is
 
-A MAC (Message Authentication Code) verifies that a message was not modified and that it was produced by a party that knows the shared secret key.
+## 1. What Is a Message Authentication Code
+A MAC is a technique for checking message integrity and authenticating a message using a shared secret.
 
-A MAC does not provide confidentiality, so encryption is still needed when the message must remain secret.
+## 2. MAC Properties
+Integrity + authentication.
 
-## 2. HMAC
+## 3. Purpose of a MAC
+- Detect whether data was modified, commonly using a hash or block-cipher-based construction.
+- Authenticate the sender among parties that share the secret key.
 
-HMAC is a standardized way to construct a MAC from a cryptographic hash function. Both parties share a secret key; the sender computes an HMAC and the receiver recomputes it with the same key.
+## 4. MAC Process
+![](https://raw.githubusercontent.com/TDoct/images/master/1593952497_20200705203443043_5660.png)
 
-## 3. Limitations
+## 5. Limitations of a MAC
+- The secret key still has to be distributed securely.
+- It cannot provide public third-party verification.
+- Because both sides know the same secret, it cannot provide non-repudiation between them.
 
-Because both parties know the same secret, either party can generate a valid MAC. A MAC therefore cannot prove to a third party which party created the message and does not provide strong non-repudiation.
+### 5.1. Solution
+Digital signatures solve a different trust problem by using asymmetric keys.
 
-## 4. Replay Protection
+## 6. How to Implement a MAC
+### 6.1. HMAC
+HMAC constructs a MAC from a cryptographic hash function and a secret key.
+![](https://raw.githubusercontent.com/TDoct/images/master/1593953692_20200705205446827_2087.png)
+![](https://raw.githubusercontent.com/TDoct/images/master/1593953600_20200705205308234_3317.png)
 
-`HMAC(message)` alone does not stop replay of a previously valid request. Common designs authenticate additional fields such as a nonce, timestamp, sequence number, request method, path, and body hash. The receiver must also verify freshness and reject reused values.
+## 7. Advanced MAC Usage
+![](https://raw.githubusercontent.com/TDoct/images/master/1645449828_20220221211743786_32275.png)
+A nonce, timestamp, sequence number, or request identifier can be included in authenticated data to help prevent replay attacks.

@@ -1,44 +1,33 @@
 ---
-title: "4.3 XSS"
-description: "The root cause of XSS and the role of context-aware output encoding, HTML sanitization, CSP, and safe browser APIs."
+title: "1.9 XSS"
+description: "XSS causes and defenses such as contextual output encoding."
 translationOf: "security/xss"
+category: "security"
+categoryLabel: "Security"
+topic: "security"
+topicLabel: "1.Security"
+order: 9
+tags: ["Security", "XSS"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T02:00:00Z"
+featured: false
+indexable: true
 ---
-## 1. What XSS Is
 
-Cross-Site Scripting (XSS) occurs when untrusted data reaches an executable browser context and is interpreted as HTML, JavaScript, or other active content.
+## 1. What Is an XSS Attack
+XSS is a web attack in which untrusted data is interpreted by the browser as executable content. For example, if a user submits `<script>alert(1)</script>` and the value is later inserted into HTML without the correct contextual escaping, another user's browser may execute it.
 
-For example, directly inserting user input into HTML:
+## 2. Why XSS Happens
+A common condition is that untrusted data is inserted into HTML, an attribute, a URL, CSS, or JavaScript context without the correct encoding or sanitization.
 
-```html
-<div>USER_INPUT</div>
-```
+## 3. How to Defend Against XSS
+1. Encode output according to its context; prefer templating systems that escape by default.
+2. If an endpoint is not HTML, return the correct `Content-Type` and use `X-Content-Type-Options: nosniff` where appropriate. This does not replace output encoding for HTML.
 
-without the appropriate protection may allow the input to change the page structure or execute code.
+## 4. Example
+### 4.1. Non-HTML Endpoint
+For an API response, use the intended content type such as JSON and prevent MIME sniffing. Do not rely on this mechanism for HTML pages that contain untrusted data.
 
-## 2. Core Defense: Encode for the Output Context
-
-The most important rule is to apply **context-aware encoding at the output sink**:
-
-- HTML text: HTML entity encoding.
-- HTML attributes: attribute encoding with correctly quoted attributes.
-- URL parameters: URL encoding.
-- JavaScript or CSS contexts: use the corresponding safe encoding, and avoid placing untrusted data there whenever possible.
-
-Prefer modern frameworks and template systems that automatically escape output by default.
-
-## 3. When HTML Is Intentionally Allowed
-
-If the product intentionally accepts rich text, use a mature HTML sanitizer and explicitly allow only the required tags and attributes.
-
-## 4. Additional Layers
-
-- CSP is useful as defense in depth, but it is not a replacement for correct output encoding.
-- JSON APIs should return the correct `Content-Type`, such as `application/json`.
-- `X-Content-Type-Options: nosniff` helps prevent MIME sniffing, but **is not a general XSS defense by itself**.
-- Avoid dangerous sinks such as `innerHTML` and `eval`; prefer text APIs and framework-safe APIs.
-
-## 5. Reference
-
-- [OWASP Cross Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+## 5. References
+- [Cross Site Scripting Prevention Cheat Sheet - OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
