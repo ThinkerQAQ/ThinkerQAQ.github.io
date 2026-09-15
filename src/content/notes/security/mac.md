@@ -1,51 +1,45 @@
 ---
-title: "3.3 消息认证码"
-description: "MAC 与 HMAC 的作用、共享密钥模型，以及为什么防重放还需要 nonce、时间戳或序列号。"
+title: "1.5 消息认证码"
+description: "消息认证码的作用、流程、局限与 HMAC。"
 sourcePath: "Safe/消息认证码.md"
 category: "security"
 categoryLabel: "Security"
-topic: "cryptography"
-topicLabel: "3.Cryptography"
+topic: "security"
+topicLabel: "1.Security"
 order: 5
 tags: ["Security"]
-updatedAt: "2026-09-15T02:00:00Z"
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
-## 1. MAC 是什么
 
-MAC（Message Authentication Code）用于验证：
+## 1. 消息认证码是什么
+MAC，校验消息完整性并进行认证的技术
 
-- 消息是否被篡改；
-- 消息是否来自持有共享密钥的一方。
+## 2. 消息认证码特性
+完整性+认证
 
-MAC 不提供机密性，因此需要保密时仍要使用加密。
+## 3. 消息认证码作用
+- 保证数据未被篡改--使用到了Hash函数
+- 对发送者进行身份认证--只有我们两人有密钥
+## 4. 消息认证码流程
 
-## 2. HMAC
+![](https://raw.githubusercontent.com/TDoct/images/master/1593952497_20200705203443043_5660.png)
 
-HMAC 是基于密码学 Hash 构造 MAC 的标准方法。
+## 5. 消息认证码问题
+- 无法有效的配送密钥
+- 无法进行第三方证明
+- 无法防止发送方否认
+### 5.1. 解决
+数字签名
+## 6. 如何实现消息认证码
+### 6.1. HMAC
+一种使用Hash函数构造消息认证码的方法
+![](https://raw.githubusercontent.com/TDoct/images/master/1593953692_20200705205446827_2087.png)
+![](https://raw.githubusercontent.com/TDoct/images/master/1593953600_20200705205308234_3317.png)
 
-通信双方共享秘密密钥，并对消息计算 HMAC；接收方使用相同密钥重新计算并比较结果。
-
-## 3. 局限
-
-由于双方都持有同一个密钥：
-
-- 任意一方都能生成合法 MAC；
-- 因此 MAC 不能像数字签名那样向第三方证明“究竟是谁生成了这条消息”；
-- 也不提供严格意义上的不可否认性。
-
-## 4. 防重放
-
-只有 `HMAC(message)` 并不能阻止攻击者把一条合法请求原样重放。
-
-常见做法是把以下信息纳入被认证的数据：
-
-- nonce；
-- 时间戳；
-- 单调递增序列号；
-- 请求方法、路径、body hash 等上下文。
-
-服务端还需要检查这些值是否过期或已使用。
+## 7. 进阶消息认证码
+消息认证码本身不能自动防止重放攻击；通常还需要 nonce、时间戳、序列号等参与认证的数据。
+如何设计开放API接口.md
