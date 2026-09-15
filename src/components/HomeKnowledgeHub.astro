@@ -1,6 +1,6 @@
 ---
 import { getCollection } from "astro:content";
-import { LOCALES, localizePath, type Locale } from "../config/i18n";
+import { localizePath, type Locale } from "../config/i18n";
 import {
   articleIsIncluded,
   categoryHref,
@@ -35,7 +35,7 @@ const copy = locale === "en"
       topics: "Backend Engineering · Concurrency · Distributed Systems",
       description:
         "Writing about backend engineering, concurrency, distributed systems, data systems, and software engineering.",
-      startAction: "Start with Concurrency",
+      startFallback: "Start Here",
       articlesAction: "All Articles",
       notesAction: "Explore Notes",
       startTitle: "Start Here",
@@ -50,11 +50,12 @@ const copy = locale === "en"
       notesCount: (count: number) => `${count} ${count === 1 ? "note" : "notes"}`,
       articlesCount: (count: number) => `${count} ${count === 1 ? "article" : "articles"}`,
       relatedScope: (count: number) => `${count} related note ${count === 1 ? "area" : "areas"}`,
+      startWith: (title: string) => `Start with ${title}`,
     }
   : {
       topics: "后端工程 · 并发编程 · 分布式系统",
       description: "记录后端工程、并发编程、分布式系统、数据系统，以及真实的软件工程实践。",
-      startAction: "从并发编程开始",
+      startFallback: "从这里开始",
       articlesAction: "全部文章",
       notesAction: "浏览笔记",
       startTitle: "从这里开始",
@@ -69,6 +70,7 @@ const copy = locale === "en"
       notesCount: (count: number) => `${count} 篇笔记`,
       articlesCount: (count: number) => `${count} 篇文章`,
       relatedScope: (count: number) => `${count} 个关联笔记主题`,
+      startWith: (title: string) => `从${title}开始`,
     };
 
 const engineeringDefinitions: KnowledgeDefinition[] = [
@@ -104,7 +106,12 @@ const localizedSeries = sortSeries(allSeries).filter((series) =>
 );
 const featuredSeries = localizedSeries.filter((series) => series.data.featured);
 const activeSeries = localizedSeries.filter((series) => series.data.status === "active");
-const startSeries = (featuredSeries.length > 0 ? featuredSeries : activeSeries).slice(0, 3);
+const startSeriesSource = featuredSeries.length > 0
+  ? featuredSeries
+  : activeSeries.length > 0
+    ? activeSeries
+    : localizedSeries;
+const startSeries = startSeriesSource.slice(0, 3);
 
 function seriesArticleCount(series: (typeof allSeries)[number]): number {
   if (locale === "zh") {
@@ -160,7 +167,10 @@ function resolveKnowledge(definitions: KnowledgeDefinition[], minimumNotes = 1) 
 const engineeringAreas = resolveKnowledge(engineeringDefinitions);
 const beyondEngineeringAreas = resolveKnowledge(beyondDefinitions, 5);
 
-const projects = sortProjects(allProjects).slice(0, 3);
+const localizedProjects = locale === "en"
+  ? allProjects.filter((project) => Boolean(project.data.translations?.en))
+  : allProjects;
+const projects = sortProjects(localizedProjects).slice(0, 3);
 const projectItems = projects.map((project) => {
   const summary = localizedProjectSummary(project, locale);
   return {
@@ -172,7 +182,14 @@ const projectItems = projects.map((project) => {
   };
 });
 
-const firstSeriesHref = startSeries[0] ? seriesHref(startSeries[0], locale) : localizePath(locale, "/articles/");
+const firstSeries = startSeries[0];
+const firstSeriesHref = firstSeries
+  ? seriesHref(firstSeries, locale)
+  : localizePath(locale, "/articles/");
+const firstSeriesTitle = firstSeries
+  ? localizedSeriesSummary(firstSeries, locale).title
+  : undefined;
+const startAction = firstSeriesTitle ? copy.startWith(firstSeriesTitle) : copy.startFallback;
 ---
 
 <div class="shell home">
@@ -181,7 +198,7 @@ const firstSeriesHref = startSeries[0] ? seriesHref(startSeries[0], locale) : lo
     <p class="home-hero__topics">{copy.topics}</p>
     <p class="home-hero__description">{copy.description}</p>
     <nav class="home-actions" aria-label={locale === "en" ? "Start exploring" : "开始浏览"}>
-      <a class="home-action home-action--primary" href={firstSeriesHref}>{copy.startAction} <span aria-hidden="true">→</span></a>
+      <a class="home-action home-action--primary" href={firstSeriesHref}>{startAction} <span aria-hidden="true">→</span></a>
       <a class="home-action" href={localizePath(locale, "/articles/")}>{copy.articlesAction}</a>
       <a class="home-action" href={localizePath(locale, "/notes/")}>{copy.notesAction}</a>
     </nav>
