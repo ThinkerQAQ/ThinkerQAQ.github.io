@@ -8,9 +8,18 @@ import {
   getArticleSeriesNavigation,
   getArticleTranslations,
 } from "../../../lib/content";
+import {
+  buildArticleNoteRelationIndex,
+  getRelatedNotesForArticle,
+} from "../../../lib/content-relations";
+import { localizeNotes } from "../../../lib/note-i18n";
 
 export async function getStaticPaths() {
-  const articles = (await getCollection("articles")).filter(articleIsIncluded);
+  const allArticles = await getCollection("articles");
+  const articles = allArticles.filter(articleIsIncluded);
+  const notes = await getCollection("notes");
+  const noteTranslations = await getCollection("noteTranslations");
+  const relationIndex = buildArticleNoteRelationIndex(allArticles, notes);
   const seriesEntries = await getCollection("series");
 
   return articles
@@ -21,12 +30,17 @@ export async function getStaticPaths() {
       }
       const translations = getArticleTranslations(article, articles);
       const seriesNavigation = getArticleSeriesNavigation(article, articles, seriesEntries);
+      const relatedNotes = localizeNotes(
+        getRelatedNotesForArticle(article, relationIndex),
+        noteTranslations,
+        article.data.language,
+      );
       return {
         params: {
           locale: localePathSegment(article.data.language),
           slug: articleSlug(article),
         },
-        props: { article, translations, seriesNavigation },
+        props: { article, translations, seriesNavigation, relatedNotes },
       };
     });
 }
@@ -35,9 +49,10 @@ interface Props {
   article: CollectionEntry<"articles">;
   translations: CollectionEntry<"articles">[];
   seriesNavigation?: import("../../../lib/content").ArticleSeriesNavigation;
+  relatedNotes: CollectionEntry<"notes">[];
 }
 
-const { article, translations, seriesNavigation } = Astro.props;
+const { article, translations, seriesNavigation, relatedNotes } = Astro.props;
 const { Content, headings, remarkPluginFrontmatter } = await render(article);
 const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
 const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
@@ -51,6 +66,7 @@ const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes >
   readingMinutes={readingMinutes}
   translations={translations}
   seriesNavigation={seriesNavigation}
+  relatedNotes={relatedNotes}
 >
   <Content />
 </ArticleLayout>

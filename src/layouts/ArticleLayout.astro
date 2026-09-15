@@ -6,8 +6,9 @@ import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro
 import ContentReaction from "../components/ContentReaction.astro";
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import ReadingExperience from "../components/ReadingExperience.astro";
+import RelatedContent from "../components/RelatedContent.astro";
 import TableOfContents from "../components/TableOfContents.astro";
-import { READING_EXPERIENCE_UI } from "../config/i18n-features";
+import { READING_EXPERIENCE_UI, RELATED_CONTENT_UI } from "../config/i18n-features";
 import { LOCALES, pathForLocale, type LocaleAlternative } from "../config/i18n";
 import { SITE } from "../config/site";
 import {
@@ -15,6 +16,7 @@ import {
   articleTagHref,
   formatDate,
   localizedSeriesSummary,
+  noteHref,
   seriesHref,
   type ArticleSeriesNavigation as SeriesNavigation,
 } from "../lib/content";
@@ -32,13 +34,22 @@ interface Props {
   readingMinutes: number;
   translations?: CollectionEntry<"articles">[];
   seriesNavigation?: SeriesNavigation;
+  relatedNotes?: CollectionEntry<"notes">[];
 }
 
-const { article, headings, readingMinutes, translations = [article], seriesNavigation } = Astro.props;
+const {
+  article,
+  headings,
+  readingMinutes,
+  translations = [article],
+  seriesNavigation,
+  relatedNotes = [],
+} = Astro.props;
 const { data } = article;
 const locale = data.language;
 const localeInfo = LOCALES[locale];
 const readingUi = READING_EXPERIENCE_UI[locale];
+const relatedUi = RELATED_CONTENT_UI[locale];
 const articlePath = articleHref(article);
 const languageAlternatives: LocaleAlternative[] = translations.map((entry) => ({
   locale: entry.data.language,
@@ -113,6 +124,15 @@ const schema = {
       <div class="prose" data-reading-content><slot /></div>
       <div id="reading-end" class="reading-anchor" aria-hidden="true"></div>
       <ContentReaction contentType="article" contentId={article.id} language={locale} />
+      <RelatedContent
+        headingId="related-notes-heading"
+        title={relatedUi.relatedNotes}
+        items={relatedNotes.map((note) => ({
+          href: noteHref(note, locale),
+          title: note.data.title,
+          description: note.data.description,
+        }))}
+      />
       {seriesNavigation && (seriesNavigation.previous || seriesNavigation.next) && (
         <ArticleSeriesNavigation navigation={seriesNavigation} />
       )}
