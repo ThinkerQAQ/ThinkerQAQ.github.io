@@ -80,6 +80,7 @@ async function walk(directory) {
 
 async function loadDocuments() {
   const documents = new Map();
+  const publicNoteIds = new Set();
 
   for (const collection of collections) {
     const base = path.join(repositoryRoot, "src", "content", collection);
@@ -89,6 +90,7 @@ async function loadDocuments() {
       const markdown = await readFile(absolute, "utf8");
       const { data, body } = parseFrontmatter(markdown);
       if (!isPublic(collection, data)) continue;
+      if (collection === "notes") publicNoteIds.add(id);
 
       const language = contentLanguage(collection, id, data);
       const title = data.title || id.split("/").pop();
@@ -118,6 +120,44 @@ async function loadDocuments() {
         content,
       });
     }
+  }
+
+  const translationBase = path.join(repositoryRoot, "src", "content", "note-translations");
+  for (const absolute of await walk(translationBase)) {
+    const relative = path.relative(translationBase, absolute).replaceAll("\\", "/");
+    const markdown = await readFile(absolute, "utf8");
+    const { data, body } = parseFrontmatter(markdown);
+    const id = String(data.translationOf || "").trim();
+    const language = String(data.language || "").trim().toLowerCase();
+    if (!id || !language || language === "zh" || !publicNoteIds.has(id)) continue;
+
+    const collection = "notes";
+    const title = data.title || id.split("/").pop();
+    const url = contentSourceUrl(blogOrigin, collection, id, language);
+    const priority = collectionPriority[collection];
+    const description = data.description ? `\n${data.description}\n` : "";
+    const content = [
+      `# ${title}`,
+      `Source URL: ${url}`,
+      `Collection: ${collection}`,
+      `Language: ${language}`,
+      description,
+      body.trim(),
+    ].filter(Boolean).join("\n\n").trim() + "\n";
+    const key = itemKey(collection, `${language}/${id}`);
+
+    documents.set(key, {
+      key,
+      collection,
+      id,
+      language,
+      title,
+      url,
+      priority,
+      schemaVersion: indexSchemaVersion,
+      sourcePath: `src/content/note-translations/${relative}`,
+      content,
+    });
   }
 
   return documents;
