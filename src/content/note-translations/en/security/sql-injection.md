@@ -1,48 +1,36 @@
 ---
-title: "4.1 SQL Injection"
-description: "Why SQL injection happens and how parameterized queries, allow-lists for dynamic identifiers, and least privilege prevent it."
+title: "1.7 SQL Injection"
+description: "Cause of SQL injection and defense with parameterized queries."
 translationOf: "security/sql-injection"
+category: "security"
+categoryLabel: "Security"
+topic: "security"
+topicLabel: "1.Security"
+order: 7
+tags: ["Security", "SQL Injection"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T02:00:00Z"
+featured: false
+indexable: true
 ---
-## 1. What SQL Injection Is
 
-SQL Injection occurs when **untrusted input enters SQL code structure and changes the intended meaning of the query**.
+## 1. What Is SQL Injection
+SQL injection is a web attack in which untrusted input changes the structure or meaning of a SQL statement executed by the server.
 
-A typical mistake is concatenating user input directly into SQL:
+## 2. Why SQL Injection Happens
+It commonly occurs when application code concatenates untrusted input directly into SQL text.
 
-```text
-SELECT * FROM users WHERE name = ' + userInput + '
-```
+## 3. How to Prevent SQL Injection
+### 3.1. Use Parameterized Queries (Prepared Statements)
+1. Write SQL with parameter placeholders such as `?`.
+2. Bind parameter values with the database driver's parameterized API instead of constructing SQL by string concatenation.
 
-## 2. Why It Happens
+The key point is separation between SQL structure and data. Bound values are treated as data rather than being parsed as additional SQL syntax.
 
-The core problem is not merely the presence of illegal characters. The program failed to keep **SQL code** separate from **data**.
+## 4. Example
+### 4.1. Golang
+Use `database/sql` or a library built on it with parameter placeholders and bound arguments.
 
-## 3. Prevention
-
-### 3.1 Parameterized Queries / Prepared Statements
-
-Prefer bound parameters:
-
-```sql
-SELECT * FROM users WHERE name = ?
-```
-
-Pass parameter values through the database driver's binding API instead of concatenating them into the SQL string.
-
-Do not reduce SQL-injection prevention to turning on database precompilation. The essential control is using a parameterized API rather than constructing SQL from untrusted strings.
-
-### 3.2 Values That Cannot Be Parameterized
-
-Table names, column names, and sort directions usually cannot be represented by ordinary value placeholders. If they must be dynamic, map user choices to a fixed allow-list in application code.
-
-### 3.3 Additional Defenses
-
-- Use least-privileged database accounts.
-- Perform business-level input validation, but do not rely on filtering special characters as the primary defense.
-- Avoid returning detailed database errors to clients.
-
-## 4. Reference
-
-- [OWASP SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
+## 5. References
+- [SQL Injection Prevention Cheat Sheet - OWASP](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)

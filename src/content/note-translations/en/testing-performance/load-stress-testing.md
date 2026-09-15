@@ -1,47 +1,61 @@
 ---
-title: "2.2 Load, Stress, and Capacity Testing"
-description: "Workload modeling, staged ramp-up, steady-state measurement, capacity boundaries, and bottleneck identification."
+title: "2.2 Stress Testing"
+description: "Stress-test goals, QPS estimation, practice, capacity evaluation, and optimization."
 translationOf: "testing-performance/load-stress-testing"
+category: "testing-performance"
+categoryLabel: "Testing & Performance"
+topic: "testing"
+topicLabel: "1.Testing"
+order: 3
+tags: ["Stress Testing"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T03:15:00Z"
+featured: false
+indexable: true
 ---
 
-## 1. Define the Goal First
+## 1. What Is Stress Testing
+- Test the maximum load a subsystem or endpoint can sustain while performance remains acceptable.
 
-Performance-related tests commonly target different questions:
+## 2. Why Stress Test
+- Find bottlenecks so they can be optimized or capacity can be expanded.
+- Verify whether the subsystem or endpoint can support expected demand.
 
-- **load test**: can the system meet its SLO at expected load?
-- **stress test**: how does it degrade and fail beyond expected load?
-- **capacity test**: what sustained workload can it support with defined resources and targets?
+## 3. How to Design a Stress Test and Estimate QPS
+### 3.1. Estimation
+- Concurrency, response time, and throughput can provide a rough estimate, but CPU cores and thread counts do not directly determine application QPS.
+  - Compute-heavy services are commonly limited by CPU saturation.
+  - I/O-heavy services are additionally affected by connection pools, thread/coroutine models, network, storage, and downstream services.
+- Final capacity should be established with staged load testing while also observing latency, error rate, and resource saturation.
 
-A “maximum QPS” is meaningful only together with latency, error, resource, and duration constraints.
+### 3.2. Practice
+#### 3.2.1. Create a Load-Test Instance
+Prepare an isolated or controlled load generator and a representative test plan.
 
-## 2. Model the Workload
+#### 3.2.2. Slowly Increase Concurrency
+For example, increase the number of workers/users in stages rather than jumping directly to the largest value.
 
-A representative workload includes request mix, read/write ratio, data and hotspot distribution, payload size, pacing or think time, cache state, and dependency behavior.
+If the load generator still has headroom, gradually raise concurrency or arrival rate while observing whether the target system reaches saturation.
 
-A single endpoint over tiny synthetic data may produce a high but misleading number.
+#### 3.2.3. Observe QPS
+- Observe p90, p95, and p99 latency together with error rate and resource utilization to decide whether the current QPS is sustainable.
 
-## 3. Ramp Up in Stages
+## 4. How to Evaluate Real QPS More Accurately
+Synthetic data may not reflect production behavior. The closer the data distribution and access pattern are to the real workload, the more reliable the capacity result.
 
-A useful sequence is:
+1. Capacity test: route controlled representative traffic to the target instance, define hard safety thresholds, and stop automatically when CPU, system load, QPS, latency, errors, or other critical metrics exceed limits.
+2. Capacity planning: combine per-instance capacity with hardware differences and expected traffic to estimate the number of production instances required.
 
-1. warm up at low load;
-2. raise load in stages;
-3. hold each stage long enough to approach steady state;
-4. continue until a stop condition is reached;
-5. ramp down and verify recovery.
+## 5. How to Improve QPS
+Optimization normally focuses on increasing sustainable concurrency, reducing service time, and removing bottlenecks.
 
-Measure throughput, latency percentiles, errors, and resource/dependency metrics at every stage.
+1. Improve concurrency only while the system still has CPU, scheduler, connection, and dependency headroom.
+2. Reduce response time by profiling CPU, memory, disk, network, and downstream dependencies and optimizing the actual bottleneck.
 
-## 4. Find Saturation
+## 6. Example
+### 6.1. Frequency-Control System Load Test
+Use the same staged-load and SLO-based method for a frequency-control service.
 
-Typical saturation signals include flattened throughput, sharply rising p95/p99 latency, growing errors, or persistent saturation in CPU, I/O, network, connection pools, thread pools, or queues.
-
-Capacity must be measured; it should not be calculated directly from CPU count and one request's response time.
-
-## 5. Capacity Evaluation
-
-Use representative data, production-like configuration, explicit SLOs, long enough steady-state periods, and repeated runs.
-
-Production capacity experiments additionally need traffic isolation, bounded scope, automatic stop conditions, monitoring, and rollback.
+## 7. References
+- [压力测试和性能测试有什么区别？](https://www.zhihu.com/question/356652638)

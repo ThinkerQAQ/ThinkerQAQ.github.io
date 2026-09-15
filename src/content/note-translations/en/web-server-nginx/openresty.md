@@ -1,58 +1,70 @@
 ---
-title: "7.1 OpenResty and Lua"
-description: "OpenResty fundamentals: Nginx + LuaJIT, installation, and common APIs for request arguments, headers, and bodies."
+title: "1.2 OpenResty"
+description: "OpenResty installation, Lua basics, and ngx HTTP APIs."
 translationOf: "web-server-nginx/openresty"
+category: "web-server-nginx"
+categoryLabel: "Web Server / Nginx"
+topic: "nginx"
+topicLabel: "1.Nginx"
+order: 2
+tags: ["Nginx"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T03:10:00Z"
+featured: false
+indexable: true
 ---
 
-## 1. What OpenResty Is
-
-OpenResty combines Nginx, OpenResty's LuaJIT branch, `lua-nginx-module`, and many `lua-resty-*` libraries into a platform for web and gateway workloads.
-
-Lua code runs inside Nginx's event model and can use nonblocking cosocket APIs to access HTTP, Redis, MySQL, and other services.
+## 1. What It Is
+OpenResty bundles Nginx with LuaJIT and a set of Nginx/Lua modules, allowing request processing logic to access services such as HTTP, Redis, and databases through Lua libraries.
 
 ## 2. Installation
+- [OpenResty - Installation](https://openresty.org/en/installation.html)
 
-On modern Linux systems, prefer official OpenResty binary packages. Build from source only when build-time control is required.
+### 2.1. Common Lua Components
+- [OpenResty Components](https://openresty.org/en/components.html)
 
-For Lua integration, avoid manually combining very old LuaJIT, NginxDevelKit, and lua-nginx-module releases with stock Nginx. OpenResty maintains a compatible bundle.
+## 3. Lua Basics
+Review Lua syntax and data structures before using the Nginx Lua API.
 
-## 3. GET Arguments
+## 4. OpenResty Packages
+### 4.1. HTTP
+- Query/form parameters
 
 ```lua
 local args = ngx.req.get_uri_args()
 for k, v in pairs(args) do
-    ngx.say(k, ": ", v)
+    ngx.say("[GET] key:", k, " value:", v)
 end
-```
 
-## 4. POST Form Arguments
-
-```lua
 ngx.req.read_body()
-local args = ngx.req.get_post_args()
-for k, v in pairs(args) do
-    ngx.say(k, ": ", v)
+local post_args = ngx.req.get_post_args()
+for k, v in pairs(post_args) do
+    ngx.say("[POST] key:", k, " value:", v)
 end
 ```
 
-## 5. Request Headers
+- Request headers
 
 ```lua
 local headers = ngx.req.get_headers()
-ngx.say(headers["user-agent"] or "")
+for k, v in pairs(headers) do
+    ngx.say("[header] name:", k, " value:", v)
+end
 ```
 
-## 6. Request Body
+- Request body
 
 ```lua
 ngx.req.read_body()
 local data = ngx.req.get_body_data()
+if data then
+    ngx.say(data)
+else
+    local file = ngx.req.get_body_file()
+    -- Large request bodies may be stored in a temporary file.
+end
 ```
 
-`ngx.req.get_body_data()` may return `nil` when the body is empty or when a larger body has been written to a temporary file. Code handling large bodies should also consider `ngx.req.get_body_file()`.
-
-## 7. Design Principle
-
-OpenResty is well suited to lightweight, nonblocking logic at the traffic edge. Blocking I/O, long CPU-bound work, and complex business workflows should live in backend services instead of occupying Nginx workers.
+## 5. References
+- [OpenResty Documentation](https://openresty.org/en/)

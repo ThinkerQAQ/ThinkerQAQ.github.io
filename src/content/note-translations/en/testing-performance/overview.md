@@ -1,49 +1,33 @@
 ---
-title: "1.1 Software Testing Overview"
-description: "Testing scope, layers, and performance-testing terminology used by the rest of the Testing & Performance notes."
+title: "1.1 Testing"
+description: "Testing scope: unit, API, stress, performance, and tooling."
 translationOf: "testing-performance/overview"
+category: "testing-performance"
+categoryLabel: "Testing & Performance"
+topic: "testing"
+topicLabel: "1.Testing"
+order: 1
+tags: ["Testing"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T03:15:00Z"
+featured: false
+indexable: true
 ---
 
-## 1. What Testing Covers
+## Software Testing Scope
+## 1. Unit Testing
+Tests small units such as functions, classes, or modules.
 
-Software testing is not limited to checking whether a feature works. Common quality dimensions include:
+## 2. API Testing
+Tests service interfaces, request/response contracts, error handling, and integration behavior.
 
-- functional correctness;
-- performance and capacity;
-- security;
-- compatibility;
-- usability;
-- reliability and recovery.
+## 3. Stress Testing
+Tests the maximum load a subsystem or endpoint can sustain while still meeting its acceptance criteria.
 
-Different dimensions require different methods. A load test cannot replace broader software-quality validation.
+## 4. Performance Testing
+Observes system behavior under different loads, including throughput, response time, concurrency, resource utilization, and error rate.
 
-## 2. Common Testing Layers
-
-### Unit testing
-
-Checks small units such as functions, classes, or modules, with an emphasis on fast and repeatable feedback.
-
-### API and integration testing
-
-Checks protocols, data contracts, error handling, and interactions between components.
-
-### Performance testing
-
-Observes throughput, latency, errors, and resource behavior under controlled workloads and helps identify saturation points and bottlenecks.
-
-### Load, stress, capacity, and full-link testing
-
-Terminology varies between teams, so define the goal explicitly:
-
-- **load testing** validates expected business load;
-- **stress testing** pushes beyond expected load to observe degradation and failure;
-- **capacity testing** estimates sustainable scale under defined SLOs and resources;
-- **full-link load testing** sends test traffic through a near-real end-to-end call path to validate system-wide capacity and isolation.
-
-## 3. Reproducibility
-
-A useful performance test records the tested version, hardware, deployment size, data scale, workload model, warm-up/ramp/steady-state phases, success criteria, stop conditions, and observability metrics.
-
-Only reproducible conditions make results meaningfully comparable.
+## 5. Testing Tools
+### 5.1. JMeter
+JMeter can generate load and execute performance-test plans.

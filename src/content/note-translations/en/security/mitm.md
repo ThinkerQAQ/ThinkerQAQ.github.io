@@ -1,34 +1,29 @@
 ---
-title: "5.2 Man-in-the-Middle Attack"
-description: "The MITM threat model and why certificate validation, HTTPS, and HSTS stop most ordinary interception attempts."
+title: "1.11 Man-in-the-Middle Attack"
+description: "Definition and mechanics of man-in-the-middle attacks and certificate validation."
 translationOf: "security/mitm"
+category: "security"
+categoryLabel: "Security"
+topic: "security"
+topicLabel: "1.Security"
+order: 11
+tags: ["Security", "MITM"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T02:00:00Z"
+featured: false
+indexable: true
 ---
-## 1. What a Man-in-the-Middle Attack Is
 
-In a man-in-the-middle (MITM) attack, an attacker positions themselves between two communicating parties and attempts to observe traffic, modify data in transit, or create separate connections to each side while both sides believe they are communicating directly.
+## 1. What Is a Man-in-the-Middle Attack
+A man-in-the-middle attack places an attacker between two communicating parties. The attacker may relay, inspect, or modify traffic while each endpoint believes it is communicating directly with the other.
 
-## 2. HTTPS Case
+## 2. How It Works
+- Local traffic may first be redirected or intercepted, for example through DNS or network manipulation.
+- The attacker attempts to present its own certificate or otherwise impersonate the target to the client.
+- The attacker establishes one protected connection with the client and another with the legitimate server.
+- It can then decrypt data on one side, inspect or alter it, and encrypt it again for the other side.
 
-Simply hijacking DNS or network traffic is **not enough to silently break a correctly validated HTTPS connection**.
+This succeeds against HTTPS only when certificate authentication is bypassed, misconfigured, or the attacker controls a certificate trusted by the client. A correctly configured HTTPS client validates the certificate chain and hostname, preventing an ordinary attacker from silently substituting its own certificate.
 
-If an attacker presents their own certificate and that certificate is not trusted or does not match the hostname, a correct client should reject the connection.
-
-Bypassing TLS validation usually requires an additional condition, for example:
-
-- the client incorrectly disables certificate verification;
-- the user ignores a certificate warning;
-- the device trusts a root certificate controlled by the attacker;
-- a CA, private key, or other trust foundation is compromised;
-- the application is downgraded from HTTPS to insecure HTTP and protections such as HSTS are absent.
-
-## 3. Defenses
-
-- Correctly validate server certificates and hostnames.
-- Never disable TLS certificate verification in production clients.
-- Use HTTPS and consider HSTS for web applications.
-- Protect endpoints and system trust stores.
-- Use additional trust mechanisms where the security model requires them.
-
-TLS security depends not only on encryption, but also on **correct authentication and certificate validation**.
+![](https://pic2.zhimg.com/80/v2-771e5ec837fab93b73e53cb48ab3f61d_hd.jpg)
