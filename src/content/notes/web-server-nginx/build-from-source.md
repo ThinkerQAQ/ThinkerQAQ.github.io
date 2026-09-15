@@ -1,74 +1,82 @@
 ---
-title: "8.1 从源码构建 Nginx"
-description: "现代化的 Nginx 源码构建笔记：何时需要源码编译、常见依赖、configure 选项、构建验证，以及与 OpenResty 的边界。"
+title: "1.4 编译安装"
+description: "Nginx 源码编译安装、启动、参数与目录。"
 sourcePath: "Web_Server/Nginx/编译安装.md"
 category: "web-server-nginx"
 categoryLabel: "Web Server / Nginx"
-topic: "installation"
-topicLabel: "8.Installation"
-order: 9
-tags: ["Nginx", "Build", "Installation"]
-updatedAt: "2026-09-15T03:10:00Z"
+topic: "nginx"
+topicLabel: "1.Nginx"
+order: 4
+tags: ["Nginx"]
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
 
-## 1. 是否需要源码构建
+## 1. 搭建步骤
 
-普通服务器优先使用发行版或 Nginx 官方二进制包，它们更容易获得安全更新。源码构建主要适用于：
+### 1.1. 下载
+- Nginx
+[nginx: download](http://nginx.org/en/download.html)
+Nginx 官方区分 mainline 与 stable 分支，不再使用“偶数稳定、奇数开发”作为判断规则；下载时以官网当前发布说明为准。
 
-- 需要特定编译选项；
-- 需要静态或动态第三方模块；
-- 需要调试构建；
-- 需要控制依赖版本或安装路径。
-
-历史笔记中“偶数版本稳定、奇数版本不稳定”的说法不适合作为今天的选择规则。Nginx 官方直接维护 **stable** 和 **mainline** 分支，应以官方 download 页面和变更记录判断。
-
-## 2. 依赖
-
-常见功能可能需要：
-
-- PCRE/PCRE2：正则表达式；
-- zlib：gzip；
-- OpenSSL：HTTPS/TLS；
-- 其他模块各自需要的开发库。
-
-不要继续固定使用多年前的 PCRE、zlib、OpenSSL 版本范围。应从当前 Nginx 文档和操作系统安全支持版本选择依赖。
-
-## 3. 一个最小源码构建示例
+- 其他依赖的源码
 
 ```bash
-tar -xzf nginx-VERSION.tar.gz
-cd nginx-VERSION
+mkdir src
+cd src
 
-./configure \
-  --prefix=/opt/nginx \
-  --with-http_ssl_module \
-  --with-http_v2_module \
-  --with-http_stub_status_module \
-  --with-threads
+# 依赖版本变化较快，请从各项目官网获取当前受支持版本。
+# 常见依赖包括 PCRE2、zlib、OpenSSL。
+# 如果目标是使用 Lua，通常更推荐直接使用 OpenResty，避免手工组合过旧的 LuaJIT/模块版本。
+```
+
+### 1.2. 安装开发环境
+
+```bash
+sudo apt update
+sudo apt install -y build-essential libpcre2-dev zlib1g-dev libssl-dev
+```
+
+### 1.3. 编译安装
+
+```bash
+./configure --prefix="$HOME/software/nginx" \
+            --with-threads \
+            --with-file-aio \
+            --with-http_ssl_module \
+            --with-http_v2_module \
+            --with-http_realip_module \
+            --with-http_gzip_static_module \
+            --with-http_auth_request_module \
+            --with-http_secure_link_module \
+            --with-http_stub_status_module \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-debug
 
 make -j"$(nproc)"
-sudo make install
+make install
 ```
 
-需要额外模块时，再使用 `--add-module=PATH` 或 `--add-dynamic-module=PATH`。不要一开始就启用大量自己不使用的模块。
-
-## 4. 使用依赖源码
-
-Nginx 的 configure 支持通过 `--with-pcre=PATH`、`--with-zlib=PATH`、`--with-openssl=PATH` 指定依赖源码。只有在确实需要自行控制依赖时才这样做；一般使用系统或官方包更容易维护。
-
-## 5. 验证
+### 1.4. 启动
 
 ```bash
-/opt/nginx/sbin/nginx -V
-/opt/nginx/sbin/nginx -t
+$HOME/software/nginx/sbin/nginx -c $HOME/software/nginx/conf/nginx.conf
 ```
 
-`nginx -V` 可以查看编译参数和依赖信息，`nginx -t` 用于校验配置。
+## 2. 查看安装时所选用的参数
 
-## 6. Lua / OpenResty
+```bash
+nginx -V
+```
 
-如果目标是把 Lua 深度集成到 Nginx，优先使用 OpenResty。OpenResty 已经组合并维护 LuaJIT、lua-nginx-module 和相关组件，通常比手工拼接旧版本模块更可靠。
+## 3. 目录介绍
+![](https://raw.githubusercontent.com/TDoct/images/master/1598181188_20200416171211741_28044.png)
+
+## 4. 参考
+- [How to Compile Nginx From Source on Ubuntu 16\.04 \- Vultr\.com](https://www.vultr.com/docs/how-to-compile-nginx-from-source-on-ubuntu-16-04)
+- [Nginx安装lua\-nginx\-module模块\_运维\_拼搏的小船长\-CSDN博客](https://blog.csdn.net/qq_25551295/article/details/51744815)
+- [Nginx编译安装Lua模块\_慕课手记](https://www.imooc.com/article/19597)
