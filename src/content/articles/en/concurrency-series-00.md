@@ -2,7 +2,7 @@
 title: "Concurrency Programming (0): The Problem Space and Scope"
 description: "Defines the scope as concurrency within a single process on a single machine, then connects shared variables, shared memory, message passing, language concurrency semantics, and hardware implementation."
 publishedAt: "2026-09-06T17:58:00+08:00"
-updatedAt: "2026-09-10T10:16:34+08:00"
+updatedAt: "2026-09-15T10:12:00+08:00"
 language: en
 tags:
   - Concurrency
@@ -71,7 +71,7 @@ count = 2
 
 No.
 
-`count++` usually contains several steps:
+`count++` can be logically broken down into three steps:
 
 ```text
 read count
@@ -87,7 +87,9 @@ initial: count = 0
 Thread A                    Thread B
 
 read count -> 0
+compute count + 1 -> 1
                             read count -> 0
+                            compute count + 1 -> 1
 write count -> 1
                             write count -> 1
 ```
@@ -97,6 +99,8 @@ The final value becomes:
 ```text
 count = 1
 ```
+
+Both threads complete a `+1`, but because they read the same old value `0`, both compute the result as `1`, and one update is overwritten.
 
 The key problem is that two threads modify the same `count` state concurrently:
 
@@ -255,7 +259,13 @@ But there is a more fundamental question:
 
 > **Why does this code work correctly?**
 
-Return to `count++`:
+To answer this question, we need to discuss concurrency from three fundamental perspectives:
+
+- **Atomicity**
+- **Visibility**
+- **Ordering**
+
+Return to the original `count++` example:
 
 - **Atomicity — which operations are atomic?** `count++` includes a read, an increment, and a write. After A acquires the lock, why must B wait until A changes `count` from `0` to `1` and releases the lock before entering the same critical section?
 - **Visibility — when does a write become visible?** After A writes `count = 1` and releases the lock, why must B read `1` after acquiring the same lock instead of continuing to see the old value `0`? With a channel, why can the Counter Owner receive the `+1` sent by a producer?
