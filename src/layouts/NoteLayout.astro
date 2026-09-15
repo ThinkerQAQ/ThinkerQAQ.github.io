@@ -17,6 +17,7 @@ import {
 } from "../config/i18n";
 import { SITE } from "../config/site";
 import { articleHref, categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
+import { localizeNoteTagLabel } from "../lib/note-taxonomy-i18n";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -54,6 +55,10 @@ const topicPath = getNoteTopicPath(note);
 const notePath = noteHref(note, locale);
 const hasLocalizedBody = locale === DEFAULT_LOCALE || data.language === locale;
 const canonicalPath = data.canonicalPath ?? (hasLocalizedBody ? notePath : noteHref(note, DEFAULT_LOCALE));
+const localizedTags = data.tags.flatMap((tag) => {
+  const label = localizeNoteTagLabel(tag, locale);
+  return label ? [{ tag, label }] : [];
+});
 const mobileCollection = {
   label: ui.noteCollection,
   title: collectionNavigation.categoryLabel,
@@ -121,9 +126,9 @@ const schema = {
           {data.status === "historical" && <span class="historical-badge">historical</span>}
           {!data.indexable && !data.canonicalPath && <span>{locale === "en" ? "Organizing" : "整理中"}</span>}
         </div>
-        {data.tags.length > 0 && (
+        {localizedTags.length > 0 && (
           <div class="tag-list" aria-label={ui.tags}>
-            {data.tags.map((tag) => <a href={noteTagHref(tag, locale)} rel="tag">{tag}</a>)}
+            {localizedTags.map(({ tag, label }) => <a href={noteTagHref(tag, locale)} rel="tag">{label}</a>)}
           </div>
         )}
       </header>
