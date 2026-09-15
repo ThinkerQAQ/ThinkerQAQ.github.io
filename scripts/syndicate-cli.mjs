@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+const SUPPORTED_PLATFORMS = new Set(["devto", "medium"]);
+
 export function normalizeExplicitSyndicationArgs(argv) {
   if (argv.includes("--help") || argv.includes("-h")) return [...argv];
 
@@ -19,10 +21,45 @@ export function normalizeExplicitSyndicationArgs(argv) {
   return argv.filter((argument) => argument !== "--all");
 }
 
+export function extractRequestedPlatforms(argv) {
+  const index = argv.indexOf("--platforms");
+  if (index === -1) return ["devto"];
+  const raw = argv[index + 1];
+  if (!raw || raw.startsWith("--")) throw new Error("--platforms requires a value");
+  const platforms = raw.split(",").map((value) => value.trim()).filter(Boolean);
+  if (platforms.length === 0) throw new Error("--platforms requires at least one platform");
+  const unsupported = platforms.filter((platform) => !SUPPORTED_PLATFORMS.has(platform));
+  if (unsupported.length > 0) throw new Error(`Unsupported platform: ${unsupported.join(", ")}`);
+  return [...new Set(platforms)];
+}
+
+function removePlatformsArg(argv) {
+  const output = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === "--platforms") {
+      index += 1;
+      continue;
+    }
+    output.push(argv[index]);
+  }
+  return output;
+}
+
+function runChild(script, args) {
+  const result = spawnSync(process.execPath, [script, ...args], {
+    stdio: "inherit",
+    env: process.env,
+  });
+  if (result.error) throw result.error;
+  return result.status ?? 1;
+}
+
 function main() {
   let args;
+  let platforms;
   try {
     args = normalizeExplicitSyndicationArgs(process.argv.slice(2));
+    platforms = extractRequestedPlatforms(args);
   } catch (error) {
     console.error(error.message);
     process.exitCode = 2;
@@ -30,17 +67,29 @@ function main() {
   }
 
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const result = spawnSync(process.execPath, [path.join(scriptDir, "syndicate.mjs"), ...args], {
-    stdio: "inherit",
-    env: process.env,
-  });
+  const baseArgs = removePlatformsArg(args);
 
-  if (result.error) {
-    console.error(result.error);
-    process.exitCode = 1;
-    return;
+  for (const platform of platforms) {
+    const script = platform === "medium"
+      ? path.join(scriptDir, "syndicate-medium-cli.mjs")
+      : path.join(scriptDir, "syndicate.mjs");
+    const platformArgs = platform === "devto"
+      ? [...baseArgs, "--platforms", "devto"]
+      : baseArgs;
+    try {
+      const status = runChild(script, platformArgs);
+      if (status !== 0) {
+        process.exitCode = status;
+        return;
+      }
+    } catch (error) {
+      console.error(error);
+      process.exitCode = 1;
+      return;
+    }
   }
-  process.exitCode = result.status ?? 1;
+
+  process.exitCode = 0;
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
