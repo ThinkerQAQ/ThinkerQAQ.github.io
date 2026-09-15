@@ -37,6 +37,7 @@ const localeInfo = LOCALES[locale];
         <link href="/pagefind/pagefind-component-ui.css" rel="stylesheet" />
         <script is:inline src="/pagefind/pagefind-component-ui.js" type="module"></script>
         <pagefind-config base-url="/" preload excerpt-length="40"></pagefind-config>
+        <div class="search-page__brand" hidden aria-hidden="true"><span>ThinkerQAQ</span></div>
         <pagefind-input class="search-page__input" placeholder={localeInfo.ui.searchPlaceholder}></pagefind-input>
         <div class="search-page__results">
           <pagefind-summary></pagefind-summary>
