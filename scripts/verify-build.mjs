@@ -150,7 +150,12 @@ async function main() {
     );
     invariant(html.includes(`<p>${description}</p>`), `Collection introduction missing: ${route}`);
   }
-  invariant(home.includes('class="page-header collection-header"'), "Home article collection header missing");
+  invariant(
+    home.includes('class="home-hero"') &&
+      home.includes('id="home-latest-title"') &&
+      home.includes('id="home-engineering-title"'),
+    "Home knowledge hub structure missing",
+  );
   const searchPage = await readFile(routeFile("/search/"), "utf8");
   invariant(searchPage.includes('class="visually-hidden">搜索</h1>'), "Search title must be visually hidden");
   invariant(searchPage.includes("data-search-page"), "Search page state container missing");
