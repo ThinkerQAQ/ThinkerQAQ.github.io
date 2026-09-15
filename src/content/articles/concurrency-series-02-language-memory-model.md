@@ -13,6 +13,9 @@ tags:
 status: published
 featured: false
 series: concurrency-programming
+relatedNotes:
+  - java/JUC/1.JMM模型/再谈JMM
+  - go/concurrent
 ---
 
 ## 目录

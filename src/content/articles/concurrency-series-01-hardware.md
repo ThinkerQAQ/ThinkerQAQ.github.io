@@ -14,6 +14,9 @@ tags:
 status: published
 featured: false
 series: concurrency-programming
+relatedNotes:
+  - java/JUC/1.JMM模型/先谈硬件
+  - computer-architecture-assembly/缓存
 ---
 
 ## 目录

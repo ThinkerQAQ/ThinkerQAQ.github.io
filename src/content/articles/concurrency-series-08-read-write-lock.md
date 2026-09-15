@@ -13,6 +13,9 @@ tags:
 status: published
 featured: false
 series: concurrency-programming
+relatedNotes:
+  - java/JUC/ReadWriteLock/ReentrantReadWriteLock
+  - go/sync.RWMutex
 ---
 
 ## 目录
