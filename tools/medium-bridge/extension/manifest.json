@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "ThinkerQAQ Medium Bridge",
+  "version": "0.1.0",
+  "description": "Sends the current Medium login session to the local ThinkerQAQ syndication CLI. Cookies stay in memory and are never persisted by the bridge.",
+  "permissions": [
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://medium.com/*",
+    "http://127.0.0.1:32145/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Sync Medium login to ThinkerQAQ CLI"
+  }
+}
