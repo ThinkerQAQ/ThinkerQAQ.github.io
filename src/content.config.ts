@@ -1,4 +1,4 @@
-import { defineCollection } from "astro:content";
+import { defineCollection, reference } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
 import { SUPPORTED_LOCALES } from "./config/i18n";
@@ -64,6 +64,7 @@ const articles = defineCollection({
     series: z.string().optional(),
     translationOf: z.string().optional(),
     sourceNote: z.string().optional(),
+    relatedNotes: z.array(reference("notes")).default([]),
   }),
 });
 
