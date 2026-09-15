@@ -1,50 +1,53 @@
 ---
-title: "4.2 CSRF"
-description: "CSRF 的工作机制以及 token、SameSite、Origin/Referer 校验和禁止状态变更 GET 等分层防护。"
+title: "1.8 CSRF"
+description: "CSRF 的原理、同源策略关系与防御。"
 sourcePath: "Safe/csrf.md"
 category: "security"
 categoryLabel: "Security"
-topic: "web-security"
-topicLabel: "4.Web Security"
+topic: "security"
+topicLabel: "1.Security"
 order: 8
 tags: ["Security"]
-updatedAt: "2026-09-15T02:00:00Z"
+updatedAt: "2026-09-15T10:29:00Z"
 status: "historical"
 language: "zh"
 featured: false
 indexable: true
 ---
-## 1. CSRF 是什么
 
-CSRF（Cross-Site Request Forgery）利用的是浏览器可能会**自动携带目标站点的身份凭证**。
+## 1. CSRF攻击是什么
+一种Web攻击
+例如用户已经登录某网站，浏览器保存了登录 Cookie。随后用户访问恶意页面，恶意页面诱导浏览器向目标网站发起一个会改变状态的请求；如果服务端只依赖 Cookie 判断身份且没有额外的 CSRF 防护，浏览器可能自动携带 Cookie，导致用户在不知情的情况下执行操作。
 
-例如：
+会改变状态的操作不应该使用 GET 请求。
+## 2. 为什么有跨域限制还会发生CSRF
+浏览器同源策略以及跨域.md
+1. 同源策略对cookie的限制只是针对js，不能读写非同源的cookie。但是无论是否同源，浏览器都会带上相应的cookie访问服务器。
+2. 同源策略允许跨域提交表单
+## 3. 如何防止CSRF攻击
+token校验。步骤如下：
 
-1. 用户已经登录某个网站，浏览器保存了登录 Cookie。
-2. 用户随后访问攻击者控制的页面。
-3. 攻击页面诱导浏览器向目标网站发起一个会改变状态的请求。
-4. 如果目标网站只根据 Cookie 判断身份、又没有额外验证请求意图，请求可能以用户身份执行。
+1. 前端请求后端
+2. 后端生成唯一的token保存起来，并返回给前端，有两种方式
+    - 把token渲染到html中。
+    - 把token写到cookie中。
+3. 前端取出token拼接到请求参数中访问后端，有两种方式
+    - js DOM操作取出html中的token（同源策略会限制脚本 API 操作）
+    - js读取cookie中的token（同源策略限制 cookie 操作）
+4. 后端从请求参数中取出token，检验token一致性
 
-不要使用 GET 执行转账、改密码等状态变更操作。
+## 4. 实例
+### 4.1. Token 校验示例
+1. 服务端生成不可预测的 CSRF Token，并把它与用户会话关联。
+2. 页面或前端代码把 Token 放入表单字段或自定义请求头。
+3. 服务端同时校验会话身份和 CSRF Token。
 
-## 2. 为什么同源策略不能直接阻止 CSRF
-
-同源策略主要限制跨源脚本**读取**其他源的响应或数据，但浏览器仍允许一些跨源请求，例如 HTML 表单提交。
-
-Cookie 是否会被携带还受到 `SameSite`、Domain、Path、Secure 等属性影响，因此现代 CSRF 防护需要结合 Cookie 策略理解。
-
-## 3. 防护
-
-优先使用框架内置的 CSRF 防护。常见分层措施：
-
-1. 对所有状态变更请求使用并验证 CSRF token。
-2. 对认证 Cookie 配置合适的 `SameSite` 属性。
-3. 在适合的场景验证 `Origin`，必要时结合 `Referer`。
-4. 不使用 GET 执行状态变更。
-5. 对高风险操作增加重新认证或二次确认。
-
-XSS 可能绕过很多 CSRF 防线，因此 XSS 和 CSRF 需要同时治理。
-
-## 4. 参考
-
-- [OWASP Cross-Site Request Forgery Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
+Token 不应放在容易通过 URL、Referer 等途径泄露的位置。对于 Cookie 身份认证，还可以结合 `SameSite` Cookie、Origin/Referer 校验等机制。
+## 5. 参考
+- [Cross-Site Request Forgery(CSRF) - Tutorialspoint](https://www.tutorialspoint.com/security_testing/cross_site_request_forgery.htm)
+- [浅谈CSRF攻击方式](https://www.cnblogs.com/hyddd/archive/2009/04/09/1432744.html)
+- [XSS攻击及防御](https://blog.csdn.net/ghsau/article/details/17027893)
+- [关于跨域与 csrf 的那些小事](https://juejin.cn/post/6844903934310498312)
+- 浏览器同源策略以及跨域.md
+- [CSRF protection with custom headers](https://security.stackexchange.com/questions/23371/csrf-protection-with-custom-headers-and-without-validating-token)
+- [Should I use CSRF protection on Rest API endpoints?](https://security.stackexchange.com/questions/166724/should-i-use-csrf-protection-on-rest-api-endpoints)
