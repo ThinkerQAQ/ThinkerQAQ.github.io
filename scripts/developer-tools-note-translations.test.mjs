@@ -42,7 +42,7 @@ test("Developer Tools preserves the original per-file heading trees", async () =
 
 test("Developer Tools only applies necessary stale-config and privacy fixes", async () => {
   const markdown = (await Promise.all(expected.map((slug) => readFile(path.join(zhRoot, `${slug}.md`), "utf8")))).join("\n");
-  for (const rejected of ['sourcePath: "Others/软件/"', "User ThinkerQAQ", "C:\\software\\msys64\\home\\zsk", "<PRIVATE_IP>", "ssh-keygen -t rsa -c", 'url."<EMAIL>:", "ssh -T <EMAIL>", "mingw-w64-i686-connect"]) assert.ok(!markdown.includes(rejected), rejected);
+  for (const rejected of ['sourcePath: "Others/软件/"', "User ThinkerQAQ", "C:\\software\\msys64\\home\\zsk", "<PRIVATE_IP>", "ssh-keygen -t rsa -c", 'url."<EMAIL>:"', "ssh -T <EMAIL>", "mingw-w64-i686-connect"]) assert.ok(!markdown.includes(rejected), rejected);
   assert.ok(markdown.includes("User git"));
   assert.ok(markdown.includes("UCRT64"));
 });
