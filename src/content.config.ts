@@ -46,6 +46,22 @@ const notes = defineCollection({
   }),
 });
 
+const noteTranslations = defineCollection({
+  loader: glob({
+    pattern: "**/*.md",
+    base: "./src/content/note-translations",
+    deferRender: true,
+    generateId: ({ entry }) => entry.replace(/\.md$/i, "").replaceAll("\\", "/"),
+  }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    translationOf: z.string(),
+    language: z.enum(SUPPORTED_LOCALES),
+    updatedAt: z.coerce.date(),
+  }),
+});
+
 const articles = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -112,4 +128,4 @@ const series = defineCollection({
   }),
 });
 
-export const collections = { notes, articles, projects, series };
+export const collections = { notes, noteTranslations, articles, projects, series };
