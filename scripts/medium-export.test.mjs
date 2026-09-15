@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildCanonicalUrl,
+  buildMediumDiagramUrl,
   buildMediumImportHtml,
   buildMediumImportUrl,
+  buildTextDiagramDot,
+  isDiagrammaticTextBlock,
   parseArguments,
 } from "./medium-export.mjs";
 
@@ -20,7 +23,19 @@ const article = {
 
 ## Section
 
-See [notes](/notes/foo/) and \`count\`.
+Suppose a process contains this variable:
+
+\`\`\`text
+count = 0
+\`\`\`
+
+Now there are two execution units:
+
+\`\`\`text
+Thread A                    Thread B
+
+count++                     count++
+\`\`\`
 
 \`\`\`text
 Goroutine A ── +1 ──┐
@@ -36,7 +51,7 @@ for delta := range increments {
 `,
 };
 
-test("builds canonical and Medium import URLs", () => {
+test("builds canonical, importer, and text-diagram URLs", () => {
   assert.equal(
     buildCanonicalUrl("concurrency-series-00"),
     "https://thinkerqaq.github.io/en/articles/concurrency-series-00/",
@@ -45,6 +60,31 @@ test("builds canonical and Medium import URLs", () => {
     buildMediumImportUrl("concurrency-series-00"),
     "https://thinkerqaq.github.io/medium-import/en/concurrency-series-00/",
   );
+  assert.equal(
+    buildMediumDiagramUrl("concurrency-series-00", 2),
+    "https://thinkerqaq.github.io/medium-import/en/concurrency-series-00/assets/text-diagram-02.png",
+  );
+});
+
+test("detects alignment-heavy text fences as diagrams but leaves simple text alone", () => {
+  assert.equal(isDiagrammaticTextBlock("count = 0"), false);
+  assert.equal(
+    isDiagrammaticTextBlock("Thread A                    Thread B\n\ncount++                     count++"),
+    true,
+  );
+  assert.equal(
+    isDiagrammaticTextBlock(
+      "Goroutine A ── +1 ──┐\n                     ├──> Channel\nGoroutine B ── +1 ──┘",
+    ),
+    true,
+  );
+});
+
+test("builds Graphviz source that preserves spaces and line breaks", () => {
+  const dot = buildTextDiagramDot("Thread A    Thread B\n\ncount++     count++");
+  assert.match(dot, /DejaVu Sans Mono/u);
+  assert.match(dot, /Thread&#160;A&#160;&#160;&#160;&#160;Thread&#160;B/u);
+  assert.match(dot, /<BR ALIGN="LEFT"\/>?&#160;<BR ALIGN="LEFT"\/>/u);
 });
 
 test("builds noindex Medium page with original article canonical", () => {
@@ -54,21 +94,38 @@ test("builds noindex Medium page with original article canonical", () => {
   assert.doesNotMatch(html, /Table of Contents/u);
 });
 
-test("renders fenced code blocks as minimal pre/code markup", () => {
-  const html = buildMediumImportHtml(article, { slug: "concurrency-series-00" });
-  const blocks = html.match(/<pre><code>[\s\S]*?<\/code><\/pre>/gu) ?? [];
-  assert.equal(blocks.length, 2);
-  assert.match(blocks[0], /Goroutine A ── \+1 ──┐/u);
-  assert.match(blocks[0], /Counter Owner Goroutine/u);
-  assert.match(blocks[1], /for delta := range increments/u);
-  assert.doesNotMatch(blocks.join("\n"), /<span|class=|data-language|shiki/u);
+test("renders text diagrams as PNG images and simple text without pre blocks", () => {
+  const threadBlock = "Thread A                    Thread B\n\ncount++                     count++";
+  const channelBlock =
+    "Goroutine A ── +1 ──┐\n                     ├──> Channel ──> Counter Owner Goroutine ──> count++\nGoroutine B ── +1 ──┘";
+  const diagramUrls = new Map([
+    [threadBlock, buildMediumDiagramUrl("concurrency-series-00", 1)],
+    [channelBlock, buildMediumDiagramUrl("concurrency-series-00", 2)],
+  ]);
+  const html = buildMediumImportHtml(article, {
+    slug: "concurrency-series-00",
+    diagramUrls,
+  });
+
+  assert.match(
+    html,
+    /<img src="https:\/\/thinkerqaq\.github\.io\/medium-import\/en\/concurrency-series-00\/assets\/text-diagram-01\.png"/u,
+  );
+  assert.match(
+    html,
+    /<img src="https:\/\/thinkerqaq\.github\.io\/medium-import\/en\/concurrency-series-00\/assets\/text-diagram-02\.png"/u,
+  );
+  assert.match(html, /<p><code>count = 0<\/code><\/p>/u);
+  assert.doesNotMatch(html, /<pre><code>Thread A/u);
+  assert.doesNotMatch(html, /<pre><code>Goroutine A/u);
 });
 
-test("makes root-relative links absolute and appends syndication notice", () => {
+test("keeps real programming-language fences as code blocks", () => {
   const html = buildMediumImportHtml(article, { slug: "concurrency-series-00" });
-  assert.match(html, /href="https:\/\/thinkerqaq\.github\.io\/notes\/foo\/"/u);
-  assert.match(html, /syndicated here by the author/u);
-  assert.match(html, /may be revised over time/u);
+  const blocks = html.match(/<pre><code>[\s\S]*?<\/code><\/pre>/gu) ?? [];
+  assert.equal(blocks.length, 1);
+  assert.match(blocks[0], /for delta := range increments/u);
+  assert.doesNotMatch(blocks[0], /<span|class=|data-language|shiki/u);
 });
 
 test("parses repeated article arguments", () => {
