@@ -40,6 +40,8 @@ jobs:
         run: npm run test:indexnow
       - name: Test distribution
         run: npm run test:distribute
+      - name: Test international syndication
+        run: npm run test:syndicate
       - name: Test VNote import and policies
         run: npm run test:vnotes
       - name: Check AI search scripts
