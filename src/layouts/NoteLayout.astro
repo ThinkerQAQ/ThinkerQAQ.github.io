@@ -115,7 +115,7 @@ const schema = {
         )}
       </header>
 
-      {locale === "en" && <p class="source-note">{ui.notesChineseNotice}</p>}
+      {locale === "en" && data.language !== "en" && <p class="source-note">{ui.notesChineseNotice}</p>}
       {data.status === "historical" && (
         <p class="historical-note">
           {locale === "en"
