@@ -86,8 +86,9 @@ export default defineConfig({
       filter: (page) => {
         const route = decodeURI(new URL(page).pathname);
         const localizedNotesPrefix = localizedNotesPrefixes.find((prefix) => route.startsWith(prefix));
+        const defaultLanguageRoute = localizedNotesPrefix ? route.replace(/^\/en(?=\/notes\/)/, "") : route;
         return !excludedRoutes.has(route)
-          && !noindexRoutes.has(route)
+          && !noindexRoutes.has(defaultLanguageRoute)
           && (!localizedNotesPrefix || translatedNoteRoutes.has(route))
           && !legacyRedirectPrefixes.some((prefix) => route.startsWith(prefix));
       },
