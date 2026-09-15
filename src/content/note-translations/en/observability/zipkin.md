@@ -1,67 +1,45 @@
 ---
 title: "4.1 Zipkin"
-description: "Zipkin distributed tracing fundamentals: traces, spans, collector, storage, query service, and the web UI."
+description: "Zipkin architecture, installation, and client usage."
 translationOf: "observability/zipkin"
+category: "observability"
+categoryLabel: "Observability"
+topic: "zipkin"
+topicLabel: "4.Zipkin"
+order: 5
+tags: ["Zipkin"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T03:10:00Z"
+featured: false
+indexable: true
 ---
 
-## 1. What Is Zipkin?
+## 1. What Is Zipkin
+- Zipkin is an open-source distributed tracing system originally created at Twitter.
 
-Zipkin is a distributed tracing system originally open sourced by Twitter. It collects and queries trace data produced as one request propagates through multiple services.
+## 2. Zipkin Architecture
+- ![](https://raw.githubusercontent.com/TDoct/images/master/1624783397_20210627163506663_6694.png)
+- **Collector**: receives trace data and converts it into Zipkin's internal span representation.
+- **Storage**: stores received trace information. Storage backends vary by deployment and Zipkin version.
+- **Web UI**: presents traces and dependency information.
+- **API**: provides query and ingestion interfaces used by the UI and clients.
 
-## 2. Traces and Spans
-
-- **Trace**: the complete end-to-end path of a request.
-- **Span**: one operation inside a trace, such as an RPC call, HTTP request, or database access.
-
-Services propagate trace context so that spans belonging to the same request can be correlated into one call path.
-
-## 3. Zipkin Architecture
-
-The core architecture can be understood as follows.
-
-### 3.1. Collector
-
-Receives spans from instrumented services, validates them, and passes them to storage.
-
-### 3.2. Storage
-
-Stores and indexes trace data. Zipkin uses a pluggable storage layer; its architecture documentation has described backends such as Cassandra, Elasticsearch, and MySQL. Check the current release documentation for supported backends.
-
-### 3.3. Query Service
-
-Provides APIs for finding and retrieving traces.
-
-### 3.4. Web UI
-
-Searches for and displays traces and call relationships by service, time, and other conditions.
-
-## 4. Local Quickstart
-
-The official Quickstart provides an executable JAR workflow:
+## 3. Using Zipkin
+### 3.1. Install zipkin-server
+#### 3.1.1. In-Memory Version
+One quick-start form is:
 
 ```bash
 curl -sSL https://zipkin.io/quickstart.sh | bash -s
 java -jar zipkin.jar
 ```
 
-Default UI:
+Then open http://127.0.0.1:9411/ .
 
-```text
-http://127.0.0.1:9411/
-```
+### 3.2. zipkin-client
+- [openzipkin/zipkin-go](https://github.com/openzipkin/zipkin-go)
 
-This is suitable for a local experiment. Production deployments also need persistent storage, capacity planning, access control, and deployment management.
-
-## 5. Relationship to OpenTelemetry
-
-Modern applications do not have to bind directly to one Zipkin client library. OpenTelemetry SDKs / Collectors can generate and collect traces and export them to a compatible tracing backend.
-
-This decouples instrumentation from the selected backend and makes it easier to change or fan out to multiple observability platforms.
-
-## 6. References
-
-- [Zipkin Architecture](https://zipkin.io/pages/architecture.html)
-- [Zipkin Quickstart](https://zipkin.io/pages/quickstart.html)
-- [OpenTelemetry Traces](https://opentelemetry.io/docs/concepts/signals/traces/)
+## 4. References
+- [Architecture · OpenZipkin](https://zipkin.io/pages/architecture.html)
+- [Quickstart · OpenZipkin](https://zipkin.io/pages/quickstart.html)
