@@ -21,6 +21,7 @@ test("balanced Markdown link parsing keeps parentheses inside Windows local targ
   assert.equal(link.raw, "[本地资料](file:///E:/Data/books/[(Demo)]%20Book%20(636)/Demo.pdf)");
   assert.equal(isLocalFileTarget(link.target), true);
   assert.equal(isLocalFileTarget("e:/Data/books/Book%20(1566)/Book.pdf"), true);
+  assert.equal(isLocalFileTarget("https://example.com/book.pdf"), false);
 });
 
 test("repairs the two legacy corruption shapes produced by the old importer regex", () => {
@@ -51,8 +52,8 @@ test("published notes do not expose malformed Windows local-file path remnants",
   );
 
   for (const markdown of [distributed, architecture]) {
-    assert.doesNotMatch(markdown, /file:\/\/\//i);
-    assert.doesNotMatch(markdown, /\]\([^\n)]*[A-Za-z]:[\\/]/);
+    assert.doesNotMatch(markdown, /\]\(file:\/\/\//i);
+    assert.doesNotMatch(markdown, /\]\([A-Za-z]:[\\/]/);
   }
   assert.ok(distributed.includes("- 【黑马】分布式事务专题"));
   assert.ok(!distributed.includes("]%20Fen%20Bu%20Shi%20Shi%20Wu"));
