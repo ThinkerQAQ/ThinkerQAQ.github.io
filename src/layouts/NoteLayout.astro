@@ -5,11 +5,12 @@ import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
 import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro";
 import MobileReadingNavigation from "../components/MobileReadingNavigation.astro";
 import ReadingExperience from "../components/ReadingExperience.astro";
+import RelatedContent from "../components/RelatedContent.astro";
 import TableOfContents from "../components/TableOfContents.astro";
-import { READING_EXPERIENCE_UI } from "../config/i18n-features";
+import { READING_EXPERIENCE_UI, RELATED_CONTENT_UI } from "../config/i18n-features";
 import { DEFAULT_LOCALE, LOCALES, localizePath, type Locale } from "../config/i18n";
 import { SITE } from "../config/site";
-import { categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
+import { articleHref, categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -24,13 +25,21 @@ interface Props {
   collectionNavigation: NoteCollectionNavigation;
   readingMinutes: number;
   locale?: Locale;
+  relatedArticles?: CollectionEntry<"articles">[];
 }
 
-const { note, headings, collectionNavigation, readingMinutes } = Astro.props;
+const {
+  note,
+  headings,
+  collectionNavigation,
+  readingMinutes,
+  relatedArticles = [],
+} = Astro.props;
 const locale: Locale = Astro.props.locale ?? DEFAULT_LOCALE;
 const { data } = note;
 const ui = LOCALES[locale].ui;
 const readingUi = READING_EXPERIENCE_UI[locale];
+const relatedUi = RELATED_CONTENT_UI[locale];
 const topicPath = getNoteTopicPath(note);
 const notePath = noteHref(note, locale);
 const canonicalPath = data.canonicalPath ?? (locale === DEFAULT_LOCALE ? notePath : noteHref(note, DEFAULT_LOCALE));
@@ -129,6 +138,15 @@ const schema = {
       </div>
       <div id="reading-end" class="reading-anchor" aria-hidden="true"></div>
       <ContentReaction contentType="note" contentId={note.id} language={locale} />
+      <RelatedContent
+        headingId="related-articles-heading"
+        title={relatedUi.relatedArticles}
+        items={relatedArticles.map((article) => ({
+          href: articleHref(article),
+          title: article.data.title,
+          description: article.data.description,
+        }))}
+      />
       {(collectionNavigation.previous || collectionNavigation.next) && (
         <NoteSequenceNavigation navigation={collectionNavigation} locale={locale} />
       )}
