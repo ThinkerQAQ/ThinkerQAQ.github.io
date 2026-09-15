@@ -1,36 +1,49 @@
 ---
-title: "3.4 Digital Signature & Certificate"
-description: "Digital signatures, certificates, and CA trust chains, including how certificate validation actually works in HTTPS."
+title: "1.6 Digital Signature"
+description: "Digital signatures, certificates, and CA trust chains."
 translationOf: "security/digital-signature"
+category: "security"
+categoryLabel: "Security"
+topic: "security"
+topicLabel: "1.Security"
+order: 6
+tags: ["Security", "Digital Signature"]
+updatedAt: "2026-09-15T10:29:00Z"
+status: "historical"
 language: "en"
-updatedAt: "2026-09-15T02:00:00Z"
+featured: false
+indexable: true
 ---
+
 ## 1. Digital Signatures
+### 1.1. What Is a Digital Signature
+A digital signature lets a holder of a private key sign data so that others can verify the signature with the corresponding public key.
 
-A typical digital-signature process is:
+### 1.2. Digital Signature Properties
+Integrity + authentication + non-repudiation in an appropriate trust model.
 
-1. Hash the message.
-2. Use the private key to create a signature over the standardized signing input.
-3. Use the public key to verify the signature.
-
-Digital signatures primarily provide integrity and source authenticity and, when identity binding and key management are strong enough, evidence that can support non-repudiation.
-
-Real applications should use standardized signature schemes rather than constructing their own hash plus private-key design.
+### 1.3. Digital Signature Process
+![](https://raw.githubusercontent.com/TDoct/images/master/1593173247_20200626200531474_18973.png)
 
 ## 2. Digital Certificates
+### 2.1. What Is a Digital Certificate
+- A certificate binds an identity or hostname to a public key and is signed by a certificate authority (CA).
+- A CA can be compared to an authority that issues identity credentials.
 
-A digital certificate binds an **identity or domain name to a public key**, and a CA signs the certificate data.
+### 2.2. Why Certificates Are Needed
+- They help clients authenticate the public key they receive and prevent an attacker from simply substituting another public key.
+- ![](https://raw.githubusercontent.com/TDoct/images/master/1593173204_20200626184356895_29846.png)
 
-In HTTPS, the server sends its certificate chain to the client. The client normally verifies signatures and the trust chain, checks the hostname, checks validity periods and key-usage constraints, and handles revocation information according to implementation and policy.
-
-The client does not normally contact the issuing CA for every connection. Root CAs or other trust anchors are usually installed in the operating system or browser trust store.
+### 2.3. How Certificates Work
+1. A server creates a key pair and a certificate signing request.
+2. A CA validates the request according to its policy and signs a certificate.
+3. The server presents the certificate during the TLS handshake.
+4. The client validates the certificate chain, validity, hostname, and other constraints.
 
 ## 3. CA Trust Chains
+### 3.1. What Is a CA Trust Chain
+- A root CA can sign an intermediate CA, which can sign another intermediate or an end-entity certificate.
+- Root CA certificates are preinstalled in or configured by the operating system/application trust store.
 
-A common structure is:
-
-`Root CA -> Intermediate CA -> Server Certificate`
-
-The root certificate is a trust anchor. Intermediate CAs reduce the need for the root private key to participate directly in day-to-day certificate issuance.
-
-Correct certificate validation is a key part of how HTTPS resists man-in-the-middle attacks.
+### 3.2. Why Trust Chains Are Needed
+- They create a scalable hierarchy of trust and reduce direct use of root private keys.
