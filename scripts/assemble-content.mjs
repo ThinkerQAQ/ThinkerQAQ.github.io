@@ -4,7 +4,7 @@ import process from "node:process";
 
 const root = process.cwd();
 const sourceRoot = path.resolve(process.argv[2] || process.env.BLOG_CONTENT_ROOT || "fixtures");
-const sourceContent = path.join(sourceRoot, "content");
+const sourceContent = path.join(sourceRoot, "src", "content");
 const targetContent = path.join(root, "src", "content");
 
 async function exists(target) {
@@ -24,7 +24,7 @@ await rm(targetContent, { recursive: true, force: true });
 await mkdir(path.dirname(targetContent), { recursive: true });
 await cp(sourceContent, targetContent, { recursive: true });
 
-const sourceMedia = path.join(sourceRoot, "media");
+const sourceMedia = path.join(sourceRoot, "public", "media");
 if (await exists(sourceMedia)) {
   const targetMedia = path.join(root, "public", "media");
   await rm(targetMedia, { recursive: true, force: true });
