@@ -30,7 +30,7 @@ jobs:
       PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY: ${{ vars.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY }}
       PUBLIC_REACTION_WORKER_URL: ${{ vars.PUBLIC_REACTION_WORKER_URL }}
       PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.PUBLIC_UMAMI_WEBSITE_ID }}
-      CONTENT_REPOSITORY: ${{ vars.CONTENT_REPOSITORY }}
+      CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
@@ -40,12 +40,12 @@ jobs:
 
       - name: Validate content repository configuration
         run: |
-          test -n "$CONTENT_REPOSITORY" || (echo "CONTENT_REPOSITORY repository variable is required" >&2; exit 1)
+          test -n "$CONTENT_REPOSITORY" || (echo "CONTENT_REPOSITORY repository variable is required before repository cutover" >&2; exit 1)
 
       - name: Checkout private content
         uses: actions/checkout@v6
         with:
-          repository: ${{ vars.CONTENT_REPOSITORY }}
+          repository: ${{ env.CONTENT_REPOSITORY }}
           ref: ${{ inputs.content_sha || '' }}
           ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
           path: content-source
@@ -173,7 +173,7 @@ jobs:
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
-      CONTENT_REPOSITORY: ${{ vars.CONTENT_REPOSITORY }}
+      CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
@@ -183,7 +183,7 @@ jobs:
       - name: Checkout private content
         uses: actions/checkout@v6
         with:
-          repository: ${{ vars.CONTENT_REPOSITORY }}
+          repository: ${{ env.CONTENT_REPOSITORY }}
           ref: ${{ inputs.content_sha || '' }}
           ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
           path: content-source
