@@ -7,8 +7,6 @@ tags:
   - fixture
 status: published
 translationOf: sample-article
-relatedNotes:
-  - sample-note
 ---
 
 This English article is synthetic fixture content used only by public CI.
