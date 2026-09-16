@@ -12,8 +12,7 @@ npm-debug.log*
 
 # Private content is injected only at build time.
 /src/content/
-/public/media/articles/
-/public/media/vnote/
+/public/media/
 /src/data/content-manifest.json
 
 # Generated diagram output.
