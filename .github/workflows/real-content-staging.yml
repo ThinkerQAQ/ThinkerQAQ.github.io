@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ThinkerQAQ/ThinkerQAQ.github.io
-          ref: 39c66aba8dad7fc2b3ed35b528a03637b1af4a8a
+          ref: c81fe0e145882f0d43ea9a5effdb5ee88f2fe8bb
           path: content-source
 
       - name: Setup Node
