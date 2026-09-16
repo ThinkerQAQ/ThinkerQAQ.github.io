@@ -6,7 +6,6 @@ updatedAt: 2026-01-01
 featured: true
 relatedArticles:
   - sample-article
-  - sample-article-en
 relatedNoteCategories:
   - engineering
 relatedNotes:
