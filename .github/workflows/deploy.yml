@@ -30,6 +30,7 @@ jobs:
       - name: Checkout public engine
         uses: actions/checkout@v6
         with:
+          path: engine
           fetch-depth: 2
 
       - name: Validate content repository configuration
@@ -50,10 +51,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            package-lock.json
+            engine/package-lock.json
             content-source/package-lock.json
 
       - name: Install engine dependencies
+        working-directory: engine
         run: npm ci
 
       - name: Install content validation dependencies
@@ -82,25 +84,29 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Assemble private content into public engine
-        run: node scripts/assemble-content.mjs content-source
+        working-directory: engine
+        run: node scripts/assemble-content.mjs ../content-source
 
       - name: Test public engine
+        working-directory: engine
         run: npm run test:engine
 
       - name: Astro check
+        working-directory: engine
         run: npm run check
 
       - name: Build static site
+        working-directory: engine
         run: npm run build
 
       - name: Hand built site and build metadata to private verification scripts
         run: |
           rm -rf content-source/dist
-          cp -a dist content-source/dist
+          cp -a engine/dist content-source/dist
           mkdir -p content-source/.astro/plantuml
-          cp .astro/plantuml/manifest.json content-source/.astro/plantuml/manifest.json
-          if [ -f src/data/drawio-manifest.json ]; then
-            cp src/data/drawio-manifest.json content-source/src/data/drawio-manifest.json
+          cp engine/.astro/plantuml/manifest.json content-source/.astro/plantuml/manifest.json
+          if [ -f engine/src/data/drawio-manifest.json ]; then
+            cp engine/src/data/drawio-manifest.json content-source/src/data/drawio-manifest.json
           fi
 
       - name: Verify curated notes output
@@ -124,6 +130,7 @@ jobs:
         run: node scripts/verify-article-note-relations.mjs
 
       - name: Prepare IndexNow payload
+        working-directory: engine
         run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
 
       - name: Upload IndexNow payload
@@ -137,7 +144,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: dist
+          path: engine/dist
 
   deploy:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
@@ -164,6 +171,8 @@ jobs:
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
+        with:
+          path: engine
 
       - name: Checkout private content
         uses: actions/checkout@v6
@@ -177,14 +186,23 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+
+      - name: Install engine dependencies
+        working-directory: engine
+        run: npm ci
 
       - name: Assemble private content for AI Search
-        run: node scripts/assemble-content.mjs content-source
+        working-directory: engine
+        run: node scripts/assemble-content.mjs ../content-source
 
       - name: Sync public Markdown to Cloudflare AI Search
+        working-directory: engine
         run: node scripts/run-ai-search-sync.mjs
 
       - name: Evaluate AI Search retrieval
+        working-directory: engine
         run: node scripts/eval-ai-search.mjs
 
   notify-indexnow:
@@ -194,6 +212,8 @@ jobs:
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
+        with:
+          path: engine
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -207,4 +227,5 @@ jobs:
           path: ${{ runner.temp }}/indexnow
 
       - name: Notify IndexNow after deployment
+        working-directory: engine
         run: node scripts/indexnow.mjs submit --input "$RUNNER_TEMP/indexnow/indexnow-payload.json"
