@@ -1,0 +1,44 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import CollectionHeader from "../../../components/CollectionHeader.astro";
+import NoteCategoryPreview from "../../../components/NoteCategoryPreview.astro";
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { groupByCategory } from "../../../lib/content";
+import { localizeNotes } from "../../../lib/note-i18n";
+import { orderNoteCategoriesAtEnd } from "../../../lib/note-category-order";
+
+export async function getStaticPaths() {
+  const [notes, translations] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+  ]);
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale, notes: localizeNotes(notes, translations, locale) },
+  }));
+}
+
+interface Props { locale: Locale; notes: CollectionEntry<"notes">[] }
+const { locale, notes } = Astro.props;
+const localeInfo = LOCALES[locale];
+const categories = orderNoteCategoriesAtEnd(
+  groupByCategory(notes).sort((left, right) => left.label.localeCompare(right.label, localeInfo.htmlLang)),
+);
+---
+
+<BaseLayout
+  title={localeInfo.ui.notesTitle}
+  description={localeInfo.ui.notesDescription}
+  canonicalPath={localizePath(locale, "/notes/")}
+  noindex={true}
+  locale={locale}
+>
+  <div class="shell page collection-page">
+    <CollectionHeader title={localeInfo.ui.notesTitle} description={localeInfo.ui.notesDescription} />
+    {notes.length === 0 && <p class="empty-state">{localeInfo.ui.notesEmpty}</p>}
+    <div class="category-index">
+      {categories.map((group) => <NoteCategoryPreview {...group} locale={locale} />)}
+    </div>
+  </div>
+</BaseLayout>

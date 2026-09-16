@@ -1,0 +1,35 @@
+---
+import { getCollection } from "astro:content";
+import LegacyRedirect from "../../../../components/LegacyRedirect.astro";
+import { NOTE_PAGE_SIZE } from "../../../../config/site";
+
+export async function getStaticPaths() {
+  const target = "/notes/category/java/topic/JUC/";
+  const notes = (await getCollection("notes"))
+    .filter((note) => note.data.category === "java" && note.id.startsWith("java/JUC/"));
+  const legacyTopics = new Set(
+    notes
+      .map((note) => note.id.slice("java/JUC/".length).split("/")[0])
+      .filter(Boolean),
+  );
+  const lastPage = Math.ceil(notes.length / NOTE_PAGE_SIZE);
+  return [
+    ...[...legacyTopics].map((topic) => ({
+      params: { legacy: `topic/${topic}` },
+      props: { target },
+    })),
+    ...Array.from({ length: Math.max(0, lastPage - 1) }, (_, index) => ({
+      params: { legacy: `page/${index + 2}` },
+      props: { target },
+    })),
+  ];
+}
+
+interface Props {
+  target: string;
+}
+
+const { target } = Astro.props;
+---
+
+<LegacyRedirect target={target} />

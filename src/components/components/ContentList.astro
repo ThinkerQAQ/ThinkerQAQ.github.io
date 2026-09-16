@@ -1,0 +1,82 @@
+---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
+import type { NoteEntry } from "../lib/content";
+import { formatDate, getNoteTopicPath, noteHref } from "../lib/content";
+
+interface Props {
+  entries: NoteEntry[];
+  showCategory?: boolean;
+  showTopic?: boolean;
+  emptyMessage?: string;
+  locale?: Locale;
+}
+
+const {
+  entries,
+  showCategory = true,
+  showTopic = false,
+  locale = DEFAULT_LOCALE,
+  emptyMessage = locale === "en" ? "There is no public content here yet." : "这里还没有公开内容。",
+} = Astro.props;
+
+const preservationNotice = /^\s*>\s*(?:\*\*)?说明(?:\*\*)?[：:][^\n]*(?:\n>\s*[^\n]*)*\n*/u;
+
+function plainText(markdown: string): string {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^\s*\[toc\]\s*$/gim, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[>*_`~|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function previewFor(entry: NoteEntry): string {
+  if (!entry.body) return entry.data.description;
+
+  const text = plainText(entry.body.replace(preservationNotice, ""));
+  const title = entry.data.title.replace(/^\d+(?:\.\d+)*\s+/, "");
+  const withoutRepeatedTitle = text.startsWith(title) ? text.slice(title.length).trim() : text;
+  return (withoutRepeatedTitle || entry.data.description).slice(0, 150);
+}
+
+function sourceDateFor(entry: NoteEntry): Date | undefined {
+  // Historical notes imported from VNote have both original created/modified times.
+  // A historical note without createdAt was restored manually, so its updatedAt may
+  // only be the publication/import time. Do not present that as the source-note date.
+  if (entry.data.status === "historical" && !entry.data.createdAt) return undefined;
+  return entry.data.updatedAt;
+}
+---
+
+{entries.length === 0 ? (
+  <p class="empty-state">{emptyMessage}</p>
+) : (
+  <ol class="content-list">
+    {entries.map((entry) => {
+      const topicPath = getNoteTopicPath(entry);
+      const preview = previewFor(entry);
+      const sourceDate = sourceDateFor(entry);
+      return (
+        <li>
+          <div class="content-list-main">
+            <a class="content-title" href={noteHref(entry, locale)}>{entry.data.title}</a>
+            {entry.data.status === "historical" && <span class="historical-badge">historical</span>}
+            {preview && <p>{preview}</p>}
+          </div>
+          <div class="content-meta">
+            {showCategory && <span>{entry.data.categoryLabel}</span>}
+            {showTopic && topicPath.length > 0 && <span>{topicPath.map((segment) => segment.label).join(" / ")}</span>}
+            {sourceDate && (
+              <time datetime={sourceDate.toISOString()}>
+                {formatDate(sourceDate, locale)}
+              </time>
+            )}
+          </div>
+        </li>
+      );
+    })}
+  </ol>
+)}

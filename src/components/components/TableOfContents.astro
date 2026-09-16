@@ -1,0 +1,110 @@
+---
+import { DEFAULT_LOCALE, type Locale } from "../config/i18n";
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+  locale?: Locale;
+}
+
+const { headings, locale = DEFAULT_LOCALE } = Astro.props;
+const visibleHeadings = headings.filter((heading) => heading.depth <= 4);
+const tocId = "page-table-of-contents";
+const labels = locale === "en"
+  ? { title: "On this page", hide: "Hide table of contents", restore: "Show table of contents" }
+  : { title: "本页目录", hide: "隐藏目录", restore: "展开目录" };
+---
+
+{visibleHeadings.length > 2 && (
+  <div class="toc-region" data-toc-region>
+    <aside class="toc" id={tocId} aria-label={labels.title} data-toc>
+      <div class="toc-header">
+        <p class="toc-title">{labels.title}</p>
+      </div>
+      <ol>
+        {visibleHeadings.map((heading) => (
+          <li class={`toc-depth-${heading.depth}`}>
+            <a href={`#${heading.slug}`}>{heading.text}</a>
+          </li>
+        ))}
+      </ol>
+    </aside>
+    <button
+      class="toc-hide"
+      type="button"
+      aria-controls={tocId}
+      aria-expanded="true"
+      aria-label={labels.hide}
+      title={labels.hide}
+      data-toc-hide
+    >
+      <svg class="toc-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+        <path d="M15 3v18"></path>
+        <path d="m8 9 3 3-3 3"></path>
+      </svg>
+    </button>
+  </div>
+  <button
+    class="toc-restore"
+    type="button"
+    aria-controls={tocId}
+    aria-expanded="false"
+    aria-label={labels.restore}
+    title={labels.restore}
+    data-toc-restore
+    hidden
+  >
+    <span class="toc-restore-surface" aria-hidden="true">
+      <svg class="toc-toggle-icon" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+        <path d="M15 3v18"></path>
+        <path d="m10 15-3-3 3-3"></path>
+      </svg>
+    </span>
+  </button>
+)}
+
+<script>
+  const toc = document.querySelector<HTMLElement>("[data-toc]");
+  const region = toc?.closest<HTMLElement>("[data-toc-region]");
+  const shell = toc?.closest<HTMLElement>(".content-shell");
+  const hideButton = region?.querySelector<HTMLButtonElement>("[data-toc-hide]");
+  const restoreButton = shell?.querySelector<HTMLButtonElement>("[data-toc-restore]");
+
+  if (toc && region && shell && hideButton && restoreButton) {
+    const logPanelState = (collapsed: boolean, reason: "user" | "viewport") => {
+      console.debug("navigation-panel-state", {
+        timestamp: new Date().toISOString(),
+        severity: "debug",
+        node: "table-of-contents",
+        result: collapsed ? "collapsed" : "expanded",
+        reason,
+        viewportWidth: window.innerWidth,
+      });
+    };
+
+    const setCollapsed = (collapsed: boolean, reason: "user" | "viewport") => {
+      shell.classList.toggle("toc-collapsed", collapsed);
+      region.classList.toggle("toc-region-hidden", collapsed);
+      toc.setAttribute("aria-hidden", String(collapsed));
+      hideButton.setAttribute("aria-expanded", String(!collapsed));
+      hideButton.hidden = collapsed;
+      restoreButton.setAttribute("aria-expanded", String(!collapsed));
+      restoreButton.hidden = !collapsed;
+      logPanelState(collapsed, reason);
+    };
+
+    hideButton.addEventListener("click", () => setCollapsed(true, "user"));
+    restoreButton.addEventListener("click", () => setCollapsed(false, "user"));
+
+    const narrowViewport = window.matchMedia("(max-width: 900px)");
+    if (narrowViewport.matches) setCollapsed(true, "viewport");
+    narrowViewport.addEventListener("change", (event) => setCollapsed(event.matches, "viewport"));
+  }
+</script>

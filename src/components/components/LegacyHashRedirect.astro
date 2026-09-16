@@ -1,0 +1,17 @@
+<script is:inline>
+  (() => {
+    const legacy = window.location.hash;
+    if (!legacy.startsWith("#!")) return;
+
+    let target = decodeURIComponent(legacy.slice(2));
+    target = target.replace(/^notes\//, "").replace(/\.md(?=#|$)/, "");
+    const [path, anchor] = target.split("#", 2);
+    if (!path) return;
+
+    const encoded = path
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    window.location.replace(`/notes/${encoded}/${anchor ? `#${anchor}` : ""}`);
+  })();
+</script>

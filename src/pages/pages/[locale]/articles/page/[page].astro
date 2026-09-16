@@ -1,0 +1,102 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import ArticleIndex from "../../../../components/ArticleIndex.astro";
+import Pagination from "../../../../components/Pagination.astro";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  nonDefaultLocales,
+  type Locale,
+  type LocaleAlternative,
+} from "../../../../config/i18n";
+import { ARTICLE_PAGE_SIZE } from "../../../../config/site";
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import {
+  articleIndexHref,
+  articleIsIncluded,
+  articlePageHref,
+  sortArticles,
+} from "../../../../lib/content";
+
+export async function getStaticPaths() {
+  const articles = sortArticles(
+    (await getCollection("articles")).filter(articleIsIncluded),
+  );
+
+  return nonDefaultLocales().flatMap((locale) => {
+    const localizedArticles = articles.filter((article) => article.data.language === locale);
+    const pageCount = Math.ceil(localizedArticles.length / ARTICLE_PAGE_SIZE);
+
+    return Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => {
+      const currentPage = index + 2;
+      const start = (currentPage - 1) * ARTICLE_PAGE_SIZE;
+
+      return {
+        params: {
+          locale: LOCALES[locale].path,
+          page: String(currentPage),
+        },
+        props: {
+          locale,
+          articles: localizedArticles.slice(start, start + ARTICLE_PAGE_SIZE),
+          currentPage,
+          lastPage: pageCount,
+          allArticles: articles,
+        },
+      };
+    });
+  });
+}
+
+interface Props {
+  locale: Locale;
+  articles: CollectionEntry<"articles">[];
+  currentPage: number;
+  lastPage: number;
+  allArticles: CollectionEntry<"articles">[];
+}
+
+const {
+  locale,
+  articles,
+  currentPage,
+  lastPage,
+  allArticles,
+} = Astro.props;
+const localeInfo = LOCALES[locale];
+const currentUrl = articlePageHref(currentPage, locale);
+const prevUrl = articlePageHref(currentPage - 1, locale);
+const nextUrl = currentPage < lastPage
+  ? articlePageHref(currentPage + 1, locale)
+  : undefined;
+const firstItemIndex = (currentPage - 1) * ARTICLE_PAGE_SIZE;
+const languageAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...nonDefaultLocales()]
+  .filter(
+    (candidate) =>
+      allArticles.filter((article) => article.data.language === candidate).length > firstItemIndex,
+  )
+  .map((candidate) => ({ locale: candidate, href: articlePageHref(currentPage, candidate) }));
+---
+
+<BaseLayout
+  title={`${localeInfo.ui.articlesTitle} · ${localeInfo.ui.pageLabel(currentPage)}`}
+  canonicalPath={currentUrl}
+  noindex={articles.length === 0}
+  locale={locale}
+  languageAlternatives={languageAlternatives}
+>
+  <link slot="head" rel="prev" href={prevUrl} />
+  {nextUrl && <link slot="head" rel="next" href={nextUrl} />}
+  <div class="shell page article-index-page">
+    <ArticleIndex articles={articles} locale={locale} />
+    <Pagination
+      currentPage={currentPage}
+      lastPage={lastPage}
+      firstPageUrl={articleIndexHref(locale)}
+      pageUrlPrefix={`${articleIndexHref(locale)}page/`}
+      nextUrl={nextUrl}
+      prevUrl={prevUrl}
+      locale={locale}
+    />
+  </div>
+</BaseLayout>

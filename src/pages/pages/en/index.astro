@@ -1,0 +1,16 @@
+---
+import HomeKnowledgeHub from "../../components/HomeKnowledgeHub.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const locale = "en" as const;
+const description =
+  "ThinkerQAQ's technical knowledge garden for backend engineering, concurrency, distributed systems, data systems, and software engineering.";
+---
+
+<BaseLayout
+  description={description}
+  locale={locale}
+  canonicalPath="/en/"
+>
+  <HomeKnowledgeHub locale={locale} />
+</BaseLayout>

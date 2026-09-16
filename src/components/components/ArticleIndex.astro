@@ -1,0 +1,21 @@
+---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
+import type { ArticleEntry } from "../lib/content";
+import ArticleList from "./ArticleList.astro";
+import CollectionHeader from "./CollectionHeader.astro";
+
+interface Props {
+  articles: ArticleEntry[];
+  locale?: Locale;
+}
+
+const { articles, locale = DEFAULT_LOCALE } = Astro.props;
+const localeInfo = LOCALES[locale];
+const localizedArticles = articles.filter((article) => article.data.language === locale);
+---
+
+<CollectionHeader
+  title={localeInfo.ui.articlesTitle}
+  description={localeInfo.ui.articlesDescription}
+/>
+<ArticleList entries={localizedArticles} emptyMessage={localeInfo.ui.articlesEmpty} />

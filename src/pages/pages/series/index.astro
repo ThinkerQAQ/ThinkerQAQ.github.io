@@ -1,0 +1,26 @@
+---
+import { getCollection } from "astro:content";
+import ShowcaseList from "../../components/ShowcaseList.astro";
+import CollectionHeader from "../../components/CollectionHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { articleIsIncluded, seriesHref, seriesStatus, sortSeries } from "../../lib/content";
+const entries = sortSeries(await getCollection("series"));
+const includedArticleIds = new Set(
+  (await getCollection("articles")).filter(articleIsIncluded).map((article) => article.id),
+);
+---
+<BaseLayout title="系列" noindex={entries.length === 0}>
+  <div class="shell page collection-page">
+    <CollectionHeader
+      title="系列"
+      description="把主题相关的文章和笔记组织在一起，提供更连贯的阅读路径。"
+    />
+    <ShowcaseList items={entries.map((entry) => ({
+      href: seriesHref(entry),
+      title: entry.data.title,
+      description: entry.data.description,
+      label: `${entry.data.relatedArticles.filter((id) => includedArticleIds.has(id)).length} 篇文章 · ${entry.data.relatedNoteCategories.length + entry.data.relatedNoteScopes.length} 个笔记分类`,
+      status: seriesStatus[entry.data.status],
+    }))} />
+  </div>
+</BaseLayout>

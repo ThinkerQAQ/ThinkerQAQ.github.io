@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BlogCTL Extension</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div>
+        <h1>BlogCTL Extension <span id="version"></span></h1>
+        <p>平台登录状态与本地 BlogCTL Bridge</p>
+      </div>
+      <button id="refresh" class="secondary" type="button">刷新</button>
+    </header>
+
+    <section class="status-card" aria-live="polite">
+      <div class="status-row">
+        <span>BlogCTL Bridge</span>
+        <strong id="bridgeStatus" class="status checking">检测中</strong>
+      </div>
+    </section>
+
+    <section class="status-card" aria-live="polite">
+      <div class="section-title">平台登录状态</div>
+      <div id="platformStatuses" class="platform-statuses">
+        <div class="platform-loading">正在检测平台登录状态…</div>
+      </div>
+    </section>
+
+    <section class="status-card session-card" aria-live="polite">
+      <div class="status-row">
+        <span>Medium Session</span>
+        <strong id="mediumSessionStatus" class="status checking">检测中</strong>
+      </div>
+    </section>
+
+    <section class="action-card">
+      <button id="sync" class="primary" type="button" disabled>同步 Medium Session</button>
+      <p id="hint">平台登录状态独立检测；只有 Medium 当前需要把浏览器 Session 同步给本地 Bridge。</p>
+      <p id="message" class="message" role="status"></p>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
