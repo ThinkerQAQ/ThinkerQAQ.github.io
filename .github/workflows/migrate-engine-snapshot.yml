@@ -1,0 +1,174 @@
+name: Migrate engine snapshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout clean infrastructure repository
+        uses: actions/checkout@v4
+        with:
+          ref: migration/engine-split
+
+      - name: Checkout frozen legacy snapshot
+        uses: actions/checkout@v4
+        with:
+          repository: ThinkerQAQ/ThinkerQAQ.github.io
+          ref: 9527ef47b7d751d86902c3ee6e46a550a5a4f163
+          path: _legacy
+          persist-credentials: false
+
+      - name: Copy public infrastructure allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          copy_path() {
+            local path="$1"
+            if [[ ! -e "_legacy/$path" ]]; then
+              echo "Missing allowlisted path: $path" >&2
+              exit 1
+            fi
+            mkdir -p "$(dirname "$path")"
+            cp -a "_legacy/$path" "$path"
+          }
+
+          # Root build/config files. README and LICENSE are intentionally not copied.
+          for path in \
+            .nojekyll \
+            astro.config.mjs \
+            go.work \
+            package.json \
+            package-lock.json \
+            tsconfig.json; do
+            copy_path "$path"
+          done
+
+          # Astro engine. Private content and generated data are deliberately excluded.
+          for path in \
+            src/components \
+            src/config \
+            src/content.config.ts \
+            src/env.d.ts \
+            src/layouts \
+            src/lib \
+            src/pages \
+            src/styles \
+            src/diagrams/drawio/README.md; do
+            copy_path "$path"
+          done
+
+          # Generic build/search/distribution tooling only.
+          for path in \
+            scripts/ai-search-content.mjs \
+            scripts/ai-search-content.test.mjs \
+            scripts/build-search.mjs \
+            scripts/clean-dist.mjs \
+            scripts/distribute.mjs \
+            scripts/distribute.test.mjs \
+            scripts/drawio \
+            scripts/eval-ai-search.mjs \
+            scripts/indexnow.mjs \
+            scripts/indexnow.test.mjs \
+            scripts/medium.mjs \
+            scripts/medium.test.mjs \
+            scripts/plantuml \
+            scripts/reading-time.test.mjs \
+            scripts/render-diagrams.mjs \
+            scripts/render-drawio.mjs \
+            scripts/render-plantuml.mjs \
+            scripts/run-ai-search-sync.mjs \
+            scripts/run-ai-search-sync.test.mjs \
+            scripts/run-with-drafts.mjs \
+            scripts/syndicate-cli.mjs \
+            scripts/syndicate-cli.test.mjs \
+            scripts/syndicate.mjs \
+            scripts/syndicate.test.mjs \
+            scripts/sync-ai-search.mjs \
+            scripts/verify-i18n.mjs; do
+            copy_path "$path"
+          done
+
+          # Public reusable tools and workers.
+          copy_path tools/blogctl
+          copy_path workers
+
+          # Public site/static verification assets. public/media is intentionally excluded.
+          for path in \
+            public/BingSiteAuth.xml \
+            public/avatar.svg \
+            public/brand-mark.svg \
+            public/favicon.ico \
+            public/fb26fca3ba9449c6816b6d79b0a41cec.txt \
+            public/google2299482692df6358.html \
+            public/robots.txt; do
+            copy_path "$path"
+          done
+
+          # Generic infrastructure documentation only.
+          for path in \
+            docs/analytics.md \
+            docs/diagrams.md \
+            docs/international-syndication.md; do
+            copy_path "$path"
+          done
+
+          rm -rf _legacy
+
+      - name: Enforce repository boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden=(
+            src/content
+            src/data/content-manifest.json
+            public/media
+            scripts/data
+            scripts/import-vnotes.mjs
+            scripts/backfill-vnote-metadata.mjs
+            scripts/apply-note-topics.mjs
+            scripts/assert-note-privacy.mjs
+            scripts/seed-articles.mjs
+            scripts/verify-article-note-relations.mjs
+            scripts/verify-build-with-curated-notes.mjs
+            scripts/verify-computer-network-hierarchy.mjs
+          )
+
+          for path in "${forbidden[@]}"; do
+            if [[ -e "$path" ]]; then
+              echo "Forbidden private/content path present: $path" >&2
+              exit 1
+            fi
+          done
+
+          if find . -path './.git' -prune -o -path './src/content/*' -print -quit | grep -q .; then
+            echo "Private content detected under src/content" >&2
+            exit 1
+          fi
+
+          if find . -path './.git' -prune -o -path './public/media/*' -print -quit | grep -q .; then
+            echo "Private content media detected under public/media" >&2
+            exit 1
+          fi
+
+      - name: Commit migrated infrastructure to review branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: migrate public engine snapshot"
+          git push origin HEAD:migration/engine-split
