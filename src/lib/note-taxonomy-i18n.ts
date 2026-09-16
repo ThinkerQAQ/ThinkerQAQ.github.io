@@ -76,6 +76,7 @@ const TOPIC_LABELS_EN: Record<string, string> = {
   "分布式系统分区": "Partitioning",
   "分布式系统复制": "Replication",
   "分布式一致性算法": "Consensus Algorithms",
+  "业务系统": "Business Systems",
   "技术组件": "Technical Components",
   "内存管理": "Memory Management",
   "使用": "Usage",
