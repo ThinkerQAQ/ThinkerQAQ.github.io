@@ -37,7 +37,7 @@ jobs:
 
       - name: Build BlogCTL
         working-directory: tools/blogctl
-        run: go build ./cmd
+        run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
 
       - name: Setup Node
         uses: actions/setup-node@v6
