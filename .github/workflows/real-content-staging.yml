@@ -1,0 +1,54 @@
+name: Validate real content staging
+
+on:
+  push:
+    branches: [migration/engine-split]
+    paths:
+      - .github/workflows/real-content-staging.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Checkout public engine
+        uses: actions/checkout@v6
+
+      - name: Checkout current content snapshot
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/ThinkerQAQ.github.io
+          ref: 39c66aba8dad7fc2b3ed35b528a03637b1af4a8a
+          path: _content-source
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Java for PlantUML
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install diagram layout and Chinese fonts
+        run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
+
+      - name: Assemble real content without committing it
+        run: node scripts/assemble-content.mjs _content-source
+
+      - name: Astro check with real content
+        run: npm run check
+
+      - name: Build real static site without publishing
+        run: npm run build
