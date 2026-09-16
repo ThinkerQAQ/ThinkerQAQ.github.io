@@ -2,11 +2,11 @@ name: Migrate engine snapshot
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
       - main
     paths:
-      - .github/workflows/migrate-engine-snapshot.yml
+      - .migration-trigger
 
 permissions:
   contents: write
