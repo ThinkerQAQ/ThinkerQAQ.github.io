@@ -1,0 +1,32 @@
+---
+import { LOCALES } from "../config/i18n";
+import type { ArticleSeriesNavigation } from "../lib/content";
+import { articleHref, localizedSeriesSummary, seriesHref } from "../lib/content";
+import ContentCollectionIndex from "./ContentCollectionIndex.astro";
+
+interface Props {
+  navigation: ArticleSeriesNavigation;
+}
+
+const { navigation } = Astro.props;
+const current = navigation.articles[navigation.currentIndex];
+const locale = current?.data.language ?? "zh";
+const localeInfo = LOCALES[locale];
+const seriesSummary = localizedSeriesSummary(navigation.series, locale);
+---
+
+<ContentCollectionIndex
+  label={localeInfo.ui.seriesLabel}
+  title={seriesSummary.title}
+  href={seriesHref(navigation.series, locale)}
+  groups={[{
+    items: navigation.articles.map((article, index) => ({
+      href: articleHref(article),
+      title: article.data.title,
+      current: index === navigation.currentIndex,
+    })),
+  }]}
+  ariaLabel={localeInfo.ui.seriesLabel}
+  hideLabel={locale === "en" ? "Hide series articles" : "隐藏系列文章"}
+  restoreLabel={locale === "en" ? "Show series articles" : "展开系列文章"}
+/>

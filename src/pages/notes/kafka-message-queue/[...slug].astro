@@ -1,0 +1,28 @@
+---
+import { getCollection } from "astro:content";
+import LegacyRedirect from "../../../components/LegacyRedirect.astro";
+import { noteHref } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes");
+  return notes
+    .filter(
+      (note) =>
+        note.data.category === "message-queue" &&
+        note.data.topic === "Kafka" &&
+        note.id.startsWith("message-queue/Kafka/"),
+    )
+    .map((note) => ({
+      params: { slug: note.id.slice("message-queue/Kafka/".length) },
+      props: { target: noteHref(note) },
+    }));
+}
+
+interface Props {
+  target: string;
+}
+
+const { target } = Astro.props;
+---
+
+<LegacyRedirect target={target} />

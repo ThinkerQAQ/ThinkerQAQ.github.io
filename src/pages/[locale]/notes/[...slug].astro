@@ -1,0 +1,106 @@
+---
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  nonDefaultLocales,
+  type Locale,
+  type LocaleAlternative,
+} from "../../../config/i18n";
+import NoteLayout from "../../../layouts/NoteLayout.astro";
+import { getNoteCollectionNavigation, noteHref, type NoteCollectionNavigation } from "../../../lib/content";
+import {
+  buildArticleNoteRelationIndex,
+  getRelatedArticlesForNote,
+} from "../../../lib/content-relations";
+import {
+  localizeNotes,
+  noteTranslationFor,
+  type NoteTranslationEntry,
+} from "../../../lib/note-i18n";
+
+export async function getStaticPaths() {
+  const [notes, translations, articles] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+    getCollection("articles"),
+  ]);
+  const relationIndex = buildArticleNoteRelationIndex(articles, notes);
+
+  return nonDefaultLocales().flatMap((locale) => {
+    const localizedNotes = localizeNotes(notes, translations, locale);
+    return notes.map((note, index) => {
+      const localizedNote = localizedNotes[index]!;
+      const translation = noteTranslationFor(note, translations, locale);
+      const translatedLocales = translations
+        .filter((candidate) => candidate.data.translationOf === note.id)
+        .map((candidate) => candidate.data.language);
+      const languageAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...translatedLocales]
+        .map((candidate) => ({ locale: candidate, href: noteHref(note, candidate) }));
+      const languageSwitcherAlternatives: LocaleAlternative[] = [DEFAULT_LOCALE, ...nonDefaultLocales()]
+        .map((candidate) => ({ locale: candidate, href: noteHref(note, candidate) }));
+      const rawNavigation = getNoteCollectionNavigation(localizedNote, localizedNotes);
+      const collectionNavigation = locale === "en"
+        ? {
+            ...rawNavigation,
+            topics: rawNavigation.topics.map((topic) =>
+              topic.path.length === 0 ? { ...topic, label: "Other" } : topic,
+            ),
+          }
+        : rawNavigation;
+
+      return {
+        params: { locale: LOCALES[locale].path, slug: note.id },
+        props: {
+          locale,
+          note: localizedNote,
+          translation,
+          collectionNavigation,
+          relatedArticles: getRelatedArticlesForNote(note, locale, articles, relationIndex),
+          languageAlternatives,
+          languageSwitcherAlternatives,
+        },
+      };
+    });
+  });
+}
+
+interface Props {
+  locale: Locale;
+  note: CollectionEntry<"notes">;
+  translation?: NoteTranslationEntry;
+  collectionNavigation: NoteCollectionNavigation;
+  relatedArticles: CollectionEntry<"articles">[];
+  languageAlternatives: LocaleAlternative[];
+  languageSwitcherAlternatives: LocaleAlternative[];
+}
+
+const {
+  locale,
+  note,
+  translation,
+  collectionNavigation,
+  relatedArticles,
+  languageAlternatives,
+  languageSwitcherAlternatives,
+} = Astro.props;
+const rendered = translation ? await render(translation) : await render(note);
+const { Content, headings, remarkPluginFrontmatter } = rendered;
+const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
+const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
+  ? Math.ceil(rawReadingMinutes)
+  : 1;
+---
+
+<NoteLayout
+  note={note}
+  headings={headings}
+  collectionNavigation={collectionNavigation}
+  readingMinutes={readingMinutes}
+  locale={locale}
+  relatedArticles={relatedArticles}
+  languageAlternatives={languageAlternatives}
+  languageSwitcherAlternatives={languageSwitcherAlternatives}
+>
+  <Content />
+</NoteLayout>

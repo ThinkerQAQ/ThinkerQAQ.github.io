@@ -1,0 +1,53 @@
+---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
+import type { ArticleEntry } from "../lib/content";
+import { articleHref, formatDate } from "../lib/content";
+
+interface Props {
+  entries: ArticleEntry[];
+  emptyMessage?: string;
+  locale?: Locale;
+  languageFallbackLabel?: string;
+}
+
+const {
+  entries,
+  locale = entries[0]?.data.language ?? DEFAULT_LOCALE,
+  emptyMessage = locale === "en" ? "There are no published articles here yet." : "这里还没有已发布文章。",
+  languageFallbackLabel,
+} = Astro.props;
+---
+
+{entries.length === 0 ? (
+  <p class="empty-state">{emptyMessage}</p>
+) : (
+  <ol class="content-list">
+    {entries.map((entry) => (
+      <li>
+        <div class="content-list-main">
+          <a
+            class="content-title"
+            href={articleHref(entry)}
+            lang={LOCALES[entry.data.language].htmlLang}
+          >
+            {entry.data.title}
+          </a>
+          {entry.data.status === "draft" && <span class="draft-badge">{locale === "en" ? "Draft" : "草稿"}</span>}
+          <p lang={LOCALES[entry.data.language].htmlLang}>{entry.data.description}</p>
+        </div>
+        <div class="content-meta">
+          <span>
+            {entry.data.language !== locale && languageFallbackLabel
+              ? languageFallbackLabel
+              : entry.data.language === "en"
+                ? "English"
+                : entry.data.tags[0] ?? "技术文章"}
+          </span>
+          <time datetime={(entry.data.updatedAt ?? entry.data.publishedAt).toISOString()}>
+            {formatDate(entry.data.updatedAt ?? entry.data.publishedAt, locale)}
+          </time>
+        </div>
+      </li>
+    ))}
+  </ol>
+)}

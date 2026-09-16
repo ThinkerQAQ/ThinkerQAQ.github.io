@@ -1,0 +1,66 @@
+---
+import { getCollection } from "astro:content";
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../config/i18n";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { articleIsIncluded } from "../../lib/content";
+
+export async function getStaticPaths() {
+  const counts = await Promise.all([
+    getCollection("notes"),
+    getCollection("articles").then((articles) => articles.filter(articleIsIncluded)),
+    getCollection("projects"),
+    getCollection("series"),
+  ]);
+  const hasContent = counts.some((entries) => entries.length > 0);
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale, hasContent },
+  }));
+}
+
+interface Props { locale: Locale; hasContent: boolean }
+const { locale, hasContent } = Astro.props;
+const localeInfo = LOCALES[locale];
+---
+
+<BaseLayout
+  title={localeInfo.ui.searchTitle}
+  description={localeInfo.ui.searchDescription}
+  canonicalPath={localizePath(locale, "/search/")}
+  locale={locale}
+  noindex={true}
+>
+  <div class="shell page search-page" data-search-page>
+    <h1 class="visually-hidden">{localeInfo.ui.searchTitle}</h1>
+    {hasContent ? <>
+      <div class="search-page__content">
+        <link href="/pagefind/pagefind-component-ui.css" rel="stylesheet" />
+        <script is:inline src="/pagefind/pagefind-component-ui.js" type="module"></script>
+        <pagefind-config base-url="/" preload excerpt-length="40"></pagefind-config>
+        <div class="search-page__brand" hidden aria-hidden="true"><span>ThinkerQAQ</span></div>
+        <pagefind-input class="search-page__input" placeholder={localeInfo.ui.searchPlaceholder}></pagefind-input>
+        <div class="search-page__results">
+          <pagefind-summary></pagefind-summary>
+          <pagefind-results max-sub-results="4"></pagefind-results>
+        </div>
+        <noscript>{localeInfo.ui.searchNoScript}</noscript>
+      </div>
+    </> : <p class="empty-state">{localeInfo.ui.searchEmpty}</p>}
+  </div>
+</BaseLayout>
+
+<script is:inline>
+  const searchPage = document.querySelector("[data-search-page]");
+  const pagefindInput = searchPage?.querySelector("pagefind-input");
+
+  const updateSearchLayout = () => {
+    requestAnimationFrame(() => {
+      const input = pagefindInput?.querySelector("input");
+      searchPage?.classList.toggle("search-page--active", Boolean(input?.value.trim()));
+    });
+  };
+
+  pagefindInput?.addEventListener("input", updateSearchLayout);
+  pagefindInput?.addEventListener("click", updateSearchLayout);
+  pagefindInput?.addEventListener("keydown", updateSearchLayout);
+</script>

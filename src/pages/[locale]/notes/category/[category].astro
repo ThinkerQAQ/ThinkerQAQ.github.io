@@ -1,0 +1,57 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import NoteCategoryIndex from "../../../../components/NoteCategoryIndex.astro";
+import { LOCALES, nonDefaultLocales, type Locale } from "../../../../config/i18n";
+import { NOTE_PAGE_SIZE } from "../../../../config/site";
+import { groupNotesByTopic, sortNotes } from "../../../../lib/content";
+import { localizeNotes } from "../../../../lib/note-i18n";
+
+export async function getStaticPaths() {
+  const [notes, translations] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+  ]);
+  const groups = new Map<string, CollectionEntry<"notes">[]>();
+  for (const note of notes) {
+    const entries = groups.get(note.data.category) ?? [];
+    entries.push(note);
+    groups.set(note.data.category, entries);
+  }
+
+  return nonDefaultLocales().flatMap((locale) => [...groups.entries()].map(([category, entries]) => {
+    const localizedEntries = localizeNotes(entries, translations, locale);
+    return {
+      params: { locale: LOCALES[locale].path, category },
+      props: {
+        locale,
+        entries: localizedEntries,
+        label: localizedEntries[0]?.data.categoryLabel ?? category,
+      },
+    };
+  }));
+}
+
+interface Props {
+  locale: Locale;
+  entries: CollectionEntry<"notes">[];
+  label: string;
+}
+
+const { locale, entries, label } = Astro.props;
+const sortedEntries = sortNotes(entries);
+const topics = groupNotesByTopic(sortedEntries).map((topic) =>
+  topic.path.length === 0 && locale === "en" ? { ...topic, label: "Other" } : topic,
+);
+const lastPage = Math.ceil(sortedEntries.length / NOTE_PAGE_SIZE);
+---
+
+<NoteCategoryIndex
+  category={Astro.params.category!}
+  label={label}
+  entries={sortedEntries.slice(0, NOTE_PAGE_SIZE)}
+  topics={topics}
+  total={sortedEntries.length}
+  currentPage={1}
+  lastPage={lastPage}
+  locale={locale}
+/>
