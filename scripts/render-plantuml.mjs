@@ -20,14 +20,24 @@ async function markdownFiles(directory) {
   return files.sort();
 }
 
+function sourceRoute(collection, id, frontmatter) {
+  if (collection === "note-translations") {
+    const language = frontmatter.language || "en";
+    const rootId = frontmatter.translationOf || id.replace(new RegExp(`^${language}/`), "");
+    return `/${language}/notes/${rootId}/`;
+  }
+  return `/${collection}/${id}/`;
+}
+
 export async function collectDiagrams() {
   const diagrams = new Map();
-  for (const collection of ["notes", "articles", "projects", "series"]) {
-    for (const file of await markdownFiles(path.join(ROOT, "src", "content", collection))) {
+  for (const collection of ["notes", "note-translations", "articles", "projects", "series"]) {
+    const collectionRoot = path.join(ROOT, "src", "content", collection);
+    for (const file of await markdownFiles(collectionRoot)) {
       const { content, frontmatter } = parseFrontmatter(await readFile(file, "utf8"), { frontmatter: "empty-with-lines" });
       const published = collection !== "articles" || frontmatter.status === "published" || includeDrafts;
-      const id = path.relative(path.join(ROOT, "src", "content", collection), file).replaceAll(path.sep, "/").replace(/\.md$/, "");
-      const route = `/${collection}/${id}/`;
+      const id = path.relative(collectionRoot, file).replaceAll(path.sep, "/").replace(/\.md$/, "");
+      const route = sourceRoute(collection, id, frontmatter);
       visitCode(parser.parse(content), (node) => {
         const origin = { file: path.relative(ROOT, file).replaceAll(path.sep, "/"), line: node.position.start.line, route, published };
         let key;
