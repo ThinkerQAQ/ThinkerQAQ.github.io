@@ -56,6 +56,23 @@ Medium live mode starts the Go bridge on `127.0.0.1:32145` inside the same `blog
 
 The extension does not hand cookies to the bridge automatically. While a live Medium sync is waiting, open BlogCTL Extension, verify that Medium is logged in and the Bridge is running, then click **Sync Medium Session**. Only adapter-approved Medium browser session fields are sent; the bridge keeps them in memory and shuts down when the command exits. Other platform login probes do not send their cookies to BlogCTL.
 
+### Network proxy
+
+BlogCTL follows the same proxy model as DownKit: proxy configuration belongs to the local Bridge rather than to an individual `sync` invocation. The Extension exposes a persistent **Network Proxy** card with an explicit enable switch plus proxy host and port fields.
+
+The configuration is stored under the operating system user-config directory in `BlogCTL/config.json`. When a new Bridge starts, it loads that file automatically. Changing the proxy while a Bridge is running rebuilds the Bridge HTTP client immediately, so the same waiting Medium sync can continue without restarting the command.
+
+- Enabled: Bridge-originated external HTTP/HTTPS traffic uses the configured HTTP proxy; HTTPS destinations use CONNECT through it.
+- Disabled: the configured host and port are retained, while Bridge external traffic uses explicit direct mode.
+- Loopback communication between the CLI, Extension, and Bridge never uses the configured external proxy.
+- `HTTP_PROXY`, `HTTPS_PROXY`, and a per-command `--proxy` flag are not required for normal BlogCTL operation.
+
+This keeps the command stable:
+
+```bash
+blogctl sync --article concurrency-series-01-hardware --platforms medium
+```
+
 Current routing is intentionally incremental:
 
 - DEV.to keeps the official API implementation.

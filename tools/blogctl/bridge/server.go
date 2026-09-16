@@ -39,6 +39,7 @@ type Server struct {
 	token      string
 	now        func() time.Time
 	httpClient *http.Client
+	config     bridgeConfig
 
 	mu       sync.Mutex
 	sessions map[string]platformSession
@@ -48,10 +49,16 @@ func New(token string) (*Server, error) {
 	if token == "" {
 		return nil, errors.New("bridge token is required")
 	}
+	config := loadBridgeConfig()
+	client, err := httpClientForConfig(config)
+	if err != nil {
+		return nil, err
+	}
 	return &Server{
 		token:      token,
 		now:        time.Now,
-		httpClient: http.DefaultClient,
+		httpClient: client,
+		config:     config,
 		sessions:   make(map[string]platformSession),
 	}, nil
 }
@@ -95,6 +102,20 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 		writeJSON(response, http.StatusOK, map[string]any{"ok": true})
 		return
+	}
+
+	if path == "v1/config" {
+		switch request.Method {
+		case http.MethodGet:
+			if !allowReadOnlyBridgeStatus(response, request) {
+				return
+			}
+			s.handleConfigGet(response)
+			return
+		case http.MethodPut:
+			s.handleConfigPut(response, request)
+			return
+		}
 	}
 
 	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "sessions" && parts[3] == "status" && request.Method == http.MethodGet {
@@ -142,9 +163,53 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 		return
 	}
 	response.Header().Set("access-control-allow-origin", origin)
-	response.Header().Set("access-control-allow-methods", "GET, POST, OPTIONS")
+	response.Header().Set("access-control-allow-methods", "GET, POST, PUT, OPTIONS")
 	response.Header().Set("access-control-allow-headers", "content-type")
 	response.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleConfigGet(response http.ResponseWriter) {
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	writeJSON(response, http.StatusOK, map[string]any{
+		"ok": true, "config": config, "networkMode": proxySummary(config),
+	})
+}
+
+func (s *Server) handleConfigPut(response http.ResponseWriter, request *http.Request) {
+	origin := request.Header.Get("origin")
+	if !validBrowserExtensionOrigin(origin) {
+		writeJSON(response, http.StatusForbidden, map[string]any{"error": "forbidden origin"})
+		return
+	}
+	var config bridgeConfig
+	if err := readJSON(request, 64*1024, &config); err != nil {
+		writeError(response, err)
+		return
+	}
+	normalized, err := normalizeBridgeConfig(config)
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	client, err := httpClientForConfig(normalized)
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if err := saveBridgeConfig(normalized); err != nil {
+		writeJSON(response, http.StatusInternalServerError, map[string]any{"error": "无法保存 BlogCTL 配置"})
+		return
+	}
+	s.mu.Lock()
+	s.config = normalized
+	s.httpClient = client
+	s.mu.Unlock()
+	response.Header().Set("access-control-allow-origin", origin)
+	writeJSON(response, http.StatusOK, map[string]any{
+		"ok": true, "config": normalized, "networkMode": proxySummary(normalized),
+	})
 }
 
 func (s *Server) handleSession(response http.ResponseWriter, request *http.Request, platform string) {
@@ -215,6 +280,7 @@ func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request
 		delete(s.sessions, platform)
 		ok = false
 	}
+	httpClient := s.httpClient
 	s.mu.Unlock()
 	if !ok {
 		writeJSON(response, http.StatusPreconditionRequired, map[string]any{"error": "medium_session_required"})
@@ -225,7 +291,7 @@ func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request
 		writeError(response, err)
 		return
 	}
-	client := mediumClient{httpClient: s.httpClient}
+	client := mediumClient{httpClient: httpClient}
 	result, err := client.createDraft(request.Context(), session, draft)
 	if err != nil {
 		writeJSON(response, http.StatusBadGateway, map[string]any{"error": err.Error()})
@@ -277,9 +343,12 @@ func writeJSON(response http.ResponseWriter, status int, payload any) {
 }
 
 func (s *Server) SetHTTPClient(client *http.Client) {
-	if client != nil {
-		s.httpClient = client
+	if client == nil {
+		return
 	}
+	s.mu.Lock()
+	s.httpClient = client
+	s.mu.Unlock()
 }
 
 func (s *Server) SetNow(now func() time.Time) {

@@ -123,9 +123,30 @@ async function bridgeStatus() {
   try {
     const health = await fetchJSON("/v1/health");
     if (!health?.ok) throw new Error("Bridge health check failed.");
-    return { running: true };
+
+    try {
+      const result = await fetchJSON("/v1/config");
+      return {
+        running: true,
+        configKnown: true,
+        config: result?.config ?? {},
+        networkMode: result?.networkMode || "",
+      };
+    } catch (error) {
+      return {
+        running: true,
+        configKnown: false,
+        config: {},
+        configError: errorMessage(error),
+      };
+    }
   } catch (error) {
-    return { running: false, error: errorMessage(error) };
+    return {
+      running: false,
+      configKnown: false,
+      config: {},
+      error: errorMessage(error),
+    };
   }
 }
 
@@ -168,6 +189,19 @@ async function getStatus() {
   };
 }
 
+async function saveBridgeConfig(config) {
+  const payload = {
+    proxyEnabled: Boolean(config?.proxyEnabled),
+    proxyHost: String(config?.proxyHost || "").trim(),
+    proxyPort: Number(config?.proxyPort || 0),
+  };
+  return fetchJSON("/v1/config", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function syncPlatformSession(platform) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
@@ -205,6 +239,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "blogctl.status") {
     getStatus().then((status) => sendResponse({ ok: true, status })).catch((error) => {
       sendResponse({ ok: false, error: errorMessage(error) });
+    });
+    return true;
+  }
+  if (message.type === "blogctl.config.save") {
+    saveBridgeConfig(message.config).then(async () => {
+      sendResponse({ ok: true, status: await getStatus() });
+    }).catch(async (error) => {
+      sendResponse({ ok: false, error: errorMessage(error), status: await getStatus() });
     });
     return true;
   }
