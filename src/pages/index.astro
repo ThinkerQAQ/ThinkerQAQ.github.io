@@ -1,0 +1,23 @@
+---
+import HomeKnowledgeHub from "../components/HomeKnowledgeHub.astro";
+import { SITE } from "../config/site";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: SITE.title,
+  alternateName: ["thinkerqaq.github.io"],
+  url: new URL("/", SITE.url).toString(),
+};
+---
+
+<BaseLayout>
+  <script
+    is:inline
+    slot="head"
+    type="application/ld+json"
+    set:html={JSON.stringify(websiteSchema).replaceAll("<", "\\u003c")}
+  />
+  <HomeKnowledgeHub locale="zh" />
+</BaseLayout>

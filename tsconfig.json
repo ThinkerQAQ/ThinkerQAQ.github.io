@@ -1,0 +1,14 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": [
+    ".content-backups",
+    "dist",
+    "node_modules",
+    "js",
+    "css",
+    "notes",
+    "public",
+    "src/content/notes"
+  ]
+}

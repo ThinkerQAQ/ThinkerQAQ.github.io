@@ -1,0 +1,69 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import NoteCategoryIndex from "../../../../../../components/NoteCategoryIndex.astro";
+import { LOCALES, nonDefaultLocales, type Locale } from "../../../../../../config/i18n";
+import { NOTE_PAGE_SIZE } from "../../../../../../config/site";
+import { groupNotesByTopic, sortNotes, type NoteEntry, type NoteTopicGroup } from "../../../../../../lib/content";
+import { localizeNotes } from "../../../../../../lib/note-i18n";
+
+export async function getStaticPaths() {
+  const [notes, translations] = await Promise.all([
+    getCollection("notes"),
+    getCollection("noteTranslations"),
+  ]);
+  const groups = new Map<string, NoteEntry[]>();
+  for (const note of notes) {
+    const entries = groups.get(note.data.category) ?? [];
+    entries.push(note);
+    groups.set(note.data.category, entries);
+  }
+
+  return nonDefaultLocales().flatMap((locale) => [...groups.entries()].flatMap(([category, entries]) => {
+    const localizedEntries = localizeNotes(entries, translations, locale);
+    const sorted = sortNotes(localizedEntries);
+    const lastPage = Math.ceil(sorted.length / NOTE_PAGE_SIZE);
+    const topics = groupNotesByTopic(localizedEntries);
+    const label = localizedEntries[0]?.data.categoryLabel ?? category;
+
+    return Array.from({ length: Math.max(0, lastPage - 1) }, (_, index) => {
+      const currentPage = index + 2;
+      const start = (currentPage - 1) * NOTE_PAGE_SIZE;
+      return {
+        params: { locale: LOCALES[locale].path, category, page: String(currentPage) },
+        props: {
+          locale,
+          entries: sorted.slice(start, start + NOTE_PAGE_SIZE),
+          label,
+          topics,
+          total: sorted.length,
+          currentPage,
+          lastPage,
+        },
+      };
+    });
+  }));
+}
+
+interface Props {
+  locale: Locale;
+  entries: CollectionEntry<"notes">[];
+  label: string;
+  topics: NoteTopicGroup[];
+  total: number;
+  currentPage: number;
+  lastPage: number;
+}
+
+const { locale, entries, label, topics, total, currentPage, lastPage } = Astro.props;
+---
+
+<NoteCategoryIndex
+  category={Astro.params.category!}
+  label={label}
+  entries={entries}
+  topics={topics}
+  total={total}
+  currentPage={currentPage}
+  lastPage={lastPage}
+  locale={locale}
+/>

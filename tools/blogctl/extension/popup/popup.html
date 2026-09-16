@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BlogCTL Extension</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div>
+        <h1>BlogCTL Extension <span id="version"></span></h1>
+        <p>平台登录状态与本地 BlogCTL Bridge</p>
+      </div>
+      <button id="refresh" class="secondary" type="button">刷新</button>
+    </header>
+
+    <section class="status-card" aria-live="polite">
+      <div class="status-row">
+        <span>BlogCTL Bridge</span>
+        <strong id="bridgeStatus" class="status checking">检测中</strong>
+      </div>
+    </section>
+
+    <section class="status-card proxy-card" aria-live="polite">
+      <div class="status-row">
+        <span class="section-title proxy-title">网络代理</span>
+        <strong id="proxyStatus" class="status checking">检测中</strong>
+      </div>
+      <label class="switch-row" for="proxyEnabled">
+        <span>
+          <strong>启用代理</strong>
+          <small>只影响 Bridge 发起的外网请求；本机控制通信保持直连。</small>
+        </span>
+        <input id="proxyEnabled" type="checkbox" disabled>
+      </label>
+      <div class="proxy-fields">
+        <label>
+          <span>代理主机</span>
+          <input id="proxyHost" type="text" placeholder="127.0.0.1" autocomplete="off" disabled>
+        </label>
+        <label>
+          <span>代理端口</span>
+          <input id="proxyPort" type="number" min="1" max="65535" placeholder="7890" autocomplete="off" disabled>
+        </label>
+      </div>
+      <button id="saveProxy" class="secondary full-width" type="button" disabled>保存代理设置</button>
+      <p id="proxyHint" class="card-hint">配置保存到本机 BlogCTL，不需要在每次 sync 时传代理参数。</p>
+    </section>
+
+    <section class="status-card" aria-live="polite">
+      <div class="section-title">平台登录状态</div>
+      <div id="platformStatuses" class="platform-statuses">
+        <div class="platform-loading">正在检测平台登录状态…</div>
+      </div>
+    </section>
+
+    <section class="status-card session-card" aria-live="polite">
+      <div class="status-row">
+        <span>Medium Session</span>
+        <strong id="mediumSessionStatus" class="status checking">检测中</strong>
+      </div>
+    </section>
+
+    <section class="action-card">
+      <button id="sync" class="primary" type="button" disabled>同步 Medium Session</button>
+      <p id="hint">平台登录状态独立检测；只有 Medium 当前需要把浏览器 Session 同步给本地 Bridge。</p>
+      <p id="message" class="message" role="status"></p>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

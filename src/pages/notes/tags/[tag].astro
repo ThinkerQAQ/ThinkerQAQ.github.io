@@ -1,0 +1,58 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import ContentList from "../../../components/ContentList.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { sortNotes } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const startedAt = Date.now();
+  const notes = await getCollection("notes");
+  const notesByTag = new Map<string, CollectionEntry<"notes">[]>();
+
+  for (const note of notes) {
+    for (const tag of new Set(note.data.tags)) {
+      const entries = notesByTag.get(tag) ?? [];
+      entries.push(note);
+      notesByTag.set(tag, entries);
+    }
+  }
+
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    severity: "info",
+    operation: "build-note-tags",
+    status: "completed",
+    noteCount: notes.length,
+    tagCount: notesByTag.size,
+    durationMs: Date.now() - startedAt,
+  }));
+
+  return [...notesByTag.entries()].map(([tag, entries]) => ({
+    params: { tag },
+    props: { tag, entries: sortNotes(entries) },
+  }));
+}
+
+interface Props {
+  tag: string;
+  entries: CollectionEntry<"notes">[];
+}
+
+const { tag, entries } = Astro.props;
+---
+
+<BaseLayout title={`标签：${tag}`} description={`收录使用「${tag}」标签的技术笔记。`}>
+  <div class="shell page">
+    <nav class="breadcrumb" aria-label="面包屑">
+      <a href="/notes/">笔记</a>
+      <span aria-hidden="true">/</span>
+      <span>标签</span>
+    </nav>
+    <header class="page-header compact">
+      <p class="eyebrow">TAG</p>
+      <h1>{tag}</h1>
+      <p>{entries.length} 篇笔记</p>
+    </header>
+    <ContentList entries={entries} />
+  </div>
+</BaseLayout>

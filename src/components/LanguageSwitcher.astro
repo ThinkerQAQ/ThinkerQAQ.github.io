@@ -1,0 +1,137 @@
+---
+import {
+  LOCALES,
+  type Locale,
+  type LocaleAlternative,
+} from "../config/i18n";
+
+interface Props {
+  currentLocale: Locale;
+  alternatives?: LocaleAlternative[];
+}
+
+const { currentLocale, alternatives = [] } = Astro.props;
+const available = alternatives.filter(
+  (alternative, index, list) =>
+    list.findIndex((candidate) => candidate.locale === alternative.locale) === index,
+);
+const current = LOCALES[currentLocale];
+---
+
+{available.length > 1 && (
+  available.length <= 2 ? (
+    <nav class="language-switcher language-switcher--inline" aria-label={current.ui.language}>
+      {available.map((alternative, index) => {
+        const config = LOCALES[alternative.locale];
+        const isCurrent = alternative.locale === currentLocale;
+        return (
+          <>
+            {index > 0 && <span class="language-switcher__separator" aria-hidden="true">/</span>}
+            {isCurrent ? (
+              <span class="language-switcher__current" aria-current="page" lang={config.htmlLang}>
+                {config.shortLabel}
+              </span>
+            ) : (
+              <a href={alternative.href} lang={config.htmlLang} hreflang={config.htmlLang}>
+                {config.shortLabel}
+              </a>
+            )}
+          </>
+        );
+      })}
+    </nav>
+  ) : (
+    <details class="language-switcher language-switcher--menu">
+      <summary aria-label={current.ui.language}>{current.shortLabel}</summary>
+      <div class="language-switcher__menu" role="list">
+        {available.map((alternative) => {
+          const config = LOCALES[alternative.locale];
+          const isCurrent = alternative.locale === currentLocale;
+          return isCurrent ? (
+            <span role="listitem" aria-current="page" lang={config.htmlLang}>{config.label}</span>
+          ) : (
+            <a role="listitem" href={alternative.href} lang={config.htmlLang} hreflang={config.htmlLang}>
+              {config.label}
+            </a>
+          );
+        })}
+      </div>
+    </details>
+  )
+)}
+
+<style>
+  .language-switcher {
+    flex: none;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.2;
+  }
+
+  .language-switcher--inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    padding-left: 0.9rem;
+    border-left: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .language-switcher a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .language-switcher a:hover,
+  .language-switcher__current {
+    color: var(--text);
+  }
+
+  .language-switcher__current {
+    font-weight: 700;
+  }
+
+  .language-switcher__separator {
+    color: var(--faint);
+  }
+
+  .language-switcher--menu {
+    position: relative;
+  }
+
+  .language-switcher--menu summary {
+    cursor: pointer;
+    list-style: none;
+    color: var(--text);
+    font-weight: 650;
+  }
+
+  .language-switcher--menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .language-switcher--menu summary::after {
+    content: " ▾";
+    color: var(--faint);
+  }
+
+  .language-switcher__menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 0.65rem);
+    right: 0;
+    display: grid;
+    min-width: 8.5rem;
+    padding: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .language-switcher__menu :is(a, span) {
+    padding: 0.4rem 0.55rem;
+    border-radius: 0.4rem;
+    text-decoration: none;
+  }
+</style>

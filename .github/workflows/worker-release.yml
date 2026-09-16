@@ -1,0 +1,37 @@
+name: Release blog AI Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/blog-ai/**"
+      - ".github/workflows/worker-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blog-ai-worker-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Test blog AI Worker
+        run: node --test workers/blog-ai/src/*.test.js
+
+      - name: Deploy blog AI Worker
+        run: npx --yes wrangler@latest deploy --config workers/blog-ai/wrangler.jsonc

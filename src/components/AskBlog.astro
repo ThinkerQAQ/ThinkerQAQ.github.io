@@ -1,0 +1,949 @@
+---
+const workerEndpoint = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL ?? "";
+const turnstileSiteKey = import.meta.env.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY ?? "";
+---
+
+<div
+  class="ask-blog"
+  data-ask-blog
+  data-endpoint={workerEndpoint}
+  data-turnstile-sitekey={turnstileSiteKey}
+>
+  <button
+    class="ask-blog__trigger"
+    type="button"
+    aria-expanded="false"
+    aria-controls="ask-blog-panel"
+    data-ask-toggle
+  >
+    <span aria-hidden="true">✦</span>
+    <span>Ask</span>
+  </button>
+
+  <section
+    class="ask-blog__panel"
+    id="ask-blog-panel"
+    role="dialog"
+    aria-labelledby="ask-blog-title"
+    hidden
+    data-ask-panel
+  >
+    <header class="ask-blog__header">
+      <div>
+        <h2 id="ask-blog-title">问博客</h2>
+        <p>只根据本站文章与笔记回答，可连续追问。</p>
+      </div>
+      <div class="ask-blog__header-actions">
+        <button class="ask-blog__clear" type="button" hidden data-ask-clear>清空</button>
+        <button class="ask-blog__close" type="button" aria-label="关闭问博客" data-ask-close>×</button>
+      </div>
+    </header>
+
+    <div class="ask-blog__conversation" data-ask-conversation aria-live="polite">
+      <p class="ask-blog__empty" data-ask-empty>
+        可以先问一个问题，再像聊天一样继续追问。例如“Go CAS 为什么可以无锁？”→“那 ARM 呢？”。
+      </p>
+    </div>
+
+    <form class="ask-blog__form" data-ask-form>
+      <label for="ask-blog-question">问题</label>
+      <textarea
+        id="ask-blog-question"
+        name="question"
+        rows="2"
+        maxlength="1000"
+        placeholder="输入问题，Enter 提问，Shift+Enter 换行"
+        required
+        data-ask-input
+      ></textarea>
+      <div class="ask-blog__turnstile" data-turnstile-container aria-label="安全验证"></div>
+      <div class="ask-blog__actions">
+        <p class="ask-blog__status" role="status" data-ask-status></p>
+        <button type="submit" data-ask-submit>提问</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<script>
+  // @ts-nocheck
+  import { unified } from "unified";
+  import remarkParse from "remark-parse";
+
+  (() => {
+    const root = document.querySelector("[data-ask-blog]");
+    if (!root) return;
+
+    const endpoint = root.dataset.endpoint?.trim() || "";
+    const turnstileSiteKey = root.dataset.turnstileSitekey?.trim() || "";
+    const toggle = root.querySelector("[data-ask-toggle]");
+    const close = root.querySelector("[data-ask-close]");
+    const clear = root.querySelector("[data-ask-clear]");
+    const panel = root.querySelector("[data-ask-panel]");
+    const form = root.querySelector("[data-ask-form]");
+    const input = root.querySelector("[data-ask-input]");
+    const submit = root.querySelector("[data-ask-submit]");
+    const status = root.querySelector("[data-ask-status]");
+    const conversationElement = root.querySelector("[data-ask-conversation]");
+    const turnstileContainer = root.querySelector("[data-turnstile-container]");
+    const markdownParser = unified().use(remarkParse);
+
+    const STORAGE_KEY = "thinkerqaq:ask-blog:conversation:v1";
+    const MAX_STORED_MESSAGES = 12;
+    const MAX_REQUEST_HISTORY_MESSAGES = 6;
+    const MAX_REQUEST_HISTORY_CHARS = 9000;
+    const MAX_REQUEST_HISTORY_MESSAGE_CHARS = 3000;
+
+    let conversation = [];
+    let turnstileLoadPromise;
+    let turnstileWidgetId = null;
+    let turnstileAttempt = null;
+
+    const setOpen = (open) => {
+      panel.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+      if (open) window.setTimeout(() => input.focus(), 0);
+    };
+
+    const setStatus = (message, isError = false) => {
+      status.textContent = message;
+      status.classList.toggle("is-error", isError);
+    };
+
+    const normalizeStoredSource = (source) => {
+      try {
+        const citationIndex = Number(source?.citationIndex);
+        const collection = String(source?.collection || "");
+        const title = String(source?.title || "").trim().slice(0, 200);
+        const url = new URL(String(source?.url || ""), window.location.origin);
+        if (!Number.isInteger(citationIndex) || citationIndex < 1 || citationIndex > 20) return null;
+        if (collection !== "articles" && collection !== "notes") return null;
+        if (!title || url.origin !== window.location.origin || !/^\/(articles|notes)\//.test(url.pathname)) return null;
+        return { citationIndex, collection, title, url: url.href };
+      } catch {
+        return null;
+      }
+    };
+
+    const loadConversation = () => {
+      try {
+        const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]");
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .slice(-MAX_STORED_MESSAGES)
+          .map((message) => {
+            const role = message?.role === "assistant" ? "assistant" : message?.role === "user" ? "user" : "";
+            const content = String(message?.content || "").trim();
+            if (!role || !content) return null;
+            const sources = role === "assistant" && Array.isArray(message?.sources)
+              ? message.sources.map(normalizeStoredSource).filter(Boolean)
+              : [];
+            return { role, content, sources };
+          })
+          .filter(Boolean);
+      } catch {
+        return [];
+      }
+    };
+
+    const saveConversation = () => {
+      conversation = conversation.slice(-MAX_STORED_MESSAGES);
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
+      } catch {
+        // The chat still works if sessionStorage is unavailable.
+      }
+    };
+
+    const renderMarkdownNode = (node, parent) => {
+      const appendChildren = (element = parent) => {
+        for (const child of node.children || []) renderMarkdownNode(child, element);
+      };
+
+      switch (node.type) {
+        case "root":
+          appendChildren();
+          return;
+        case "text":
+          parent.append(document.createTextNode(node.value || ""));
+          return;
+        case "paragraph": {
+          const paragraph = document.createElement("p");
+          appendChildren(paragraph);
+          parent.append(paragraph);
+          return;
+        }
+        case "strong": {
+          const strong = document.createElement("strong");
+          appendChildren(strong);
+          parent.append(strong);
+          return;
+        }
+        case "emphasis": {
+          const em = document.createElement("em");
+          appendChildren(em);
+          parent.append(em);
+          return;
+        }
+        case "inlineCode": {
+          const code = document.createElement("code");
+          code.textContent = node.value || "";
+          parent.append(code);
+          return;
+        }
+        case "code": {
+          const pre = document.createElement("pre");
+          const code = document.createElement("code");
+          if (node.lang) code.dataset.language = node.lang;
+          code.textContent = node.value || "";
+          pre.append(code);
+          parent.append(pre);
+          return;
+        }
+        case "heading": {
+          const heading = document.createElement(node.depth <= 2 ? "h3" : "h4");
+          appendChildren(heading);
+          parent.append(heading);
+          return;
+        }
+        case "list": {
+          const list = document.createElement(node.ordered ? "ol" : "ul");
+          if (node.ordered && Number(node.start) > 1) list.start = Number(node.start);
+          appendChildren(list);
+          parent.append(list);
+          return;
+        }
+        case "listItem": {
+          const item = document.createElement("li");
+          appendChildren(item);
+          parent.append(item);
+          return;
+        }
+        case "blockquote": {
+          const blockquote = document.createElement("blockquote");
+          appendChildren(blockquote);
+          parent.append(blockquote);
+          return;
+        }
+        case "break":
+          parent.append(document.createElement("br"));
+          return;
+        case "thematicBreak":
+          parent.append(document.createElement("hr"));
+          return;
+        case "link":
+        case "linkReference":
+          appendChildren();
+          return;
+        case "html":
+          parent.append(document.createTextNode(node.value || ""));
+          return;
+        default:
+          if (node.children) appendChildren();
+          else if (typeof node.value === "string") parent.append(document.createTextNode(node.value));
+      }
+    };
+
+    const renderMarkdownInto = (container, markdown) => {
+      const tree = markdownParser.parse(String(markdown || ""));
+      renderMarkdownNode(tree, container);
+    };
+
+    const renderSourcesInto = (container, sources) => {
+      if (!sources.length) return;
+      const wrapper = document.createElement("div");
+      wrapper.className = "ask-blog__sources";
+      const heading = document.createElement("h3");
+      heading.textContent = "来源";
+      const list = document.createElement("ol");
+
+      for (const source of sources) {
+        const item = document.createElement("li");
+        item.value = source.citationIndex;
+        const badge = document.createElement("span");
+        badge.className = "ask-blog__source-type";
+        badge.textContent = source.collection === "articles" ? "文章" : "笔记";
+        const link = document.createElement("a");
+        link.href = source.url;
+        link.textContent = source.title;
+        item.append(badge, document.createTextNode(" "), link);
+        list.append(item);
+      }
+
+      wrapper.append(heading, list);
+      container.append(wrapper);
+    };
+
+    const createMessageElement = (message) => {
+      const section = document.createElement("section");
+      section.className = `ask-blog__message ask-blog__message--${message.role}`;
+
+      const label = document.createElement("div");
+      label.className = "ask-blog__message-label";
+      label.textContent = message.role === "user" ? "你" : "问博客";
+
+      const body = document.createElement("div");
+      body.className = "ask-blog__message-body";
+      if (message.role === "assistant") renderMarkdownInto(body, message.content);
+      else body.textContent = message.content;
+
+      section.append(label, body);
+      if (message.role === "assistant") renderSourcesInto(section, message.sources || []);
+      return section;
+    };
+
+    const createPendingMessage = () => {
+      const section = document.createElement("section");
+      section.className = "ask-blog__message ask-blog__message--assistant ask-blog__message--pending";
+      section.dataset.askPending = "";
+
+      const label = document.createElement("div");
+      label.className = "ask-blog__message-label";
+      label.textContent = "问博客";
+
+      const loading = document.createElement("div");
+      loading.className = "ask-blog__loading";
+      const spinner = document.createElement("span");
+      spinner.className = "ask-blog__spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      const loadingText = document.createElement("span");
+      loadingText.dataset.askPendingText = "";
+      loadingText.textContent = "正在进行安全验证…";
+      loading.append(spinner, loadingText);
+
+      const skeleton = document.createElement("div");
+      skeleton.className = "ask-blog__skeleton";
+      for (const width of ["92%", "78%", "64%"]) {
+        const line = document.createElement("span");
+        line.style.width = width;
+        skeleton.append(line);
+      }
+
+      section.append(label, loading, skeleton);
+      return section;
+    };
+
+    const updatePendingText = (pending, text) => {
+      const label = pending?.querySelector("[data-ask-pending-text]");
+      if (label) label.textContent = text;
+    };
+
+    const renderConversation = () => {
+      conversationElement.replaceChildren();
+      if (!conversation.length) {
+        const empty = document.createElement("p");
+        empty.className = "ask-blog__empty";
+        empty.textContent = "可以先问一个问题，再像聊天一样继续追问。例如“Go CAS 为什么可以无锁？”→“那 ARM 呢？”。";
+        conversationElement.append(empty);
+      } else {
+        for (const message of conversation) conversationElement.append(createMessageElement(message));
+      }
+      clear.hidden = conversation.length === 0;
+    };
+
+    const scrollConversation = () => {
+      window.requestAnimationFrame(() => {
+        conversationElement.scrollTo({ top: conversationElement.scrollHeight, behavior: "smooth" });
+      });
+    };
+
+    const buildRequestHistory = () => {
+      const selected = [];
+      let totalChars = 0;
+      for (let index = conversation.length - 1; index >= 0 && selected.length < MAX_REQUEST_HISTORY_MESSAGES; index -= 1) {
+        const message = conversation[index];
+        const content = String(message.content || "").slice(0, MAX_REQUEST_HISTORY_MESSAGE_CHARS);
+        if (!content) continue;
+        if (totalChars + content.length > MAX_REQUEST_HISTORY_CHARS) break;
+        totalChars += content.length;
+        selected.push({ role: message.role, content });
+      }
+      return selected.reverse();
+    };
+
+    const loadTurnstile = () => {
+      if (window.turnstile) return Promise.resolve(window.turnstile);
+      if (turnstileLoadPromise) return turnstileLoadPromise;
+
+      turnstileLoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.dataset.askTurnstile = "";
+        script.addEventListener("load", () => {
+          if (window.turnstile) resolve(window.turnstile);
+          else reject(new Error("安全验证加载失败。"));
+        });
+        script.addEventListener("error", () => reject(new Error("安全验证加载失败。")));
+        document.head.append(script);
+      });
+
+      return turnstileLoadPromise;
+    };
+
+    const settleTurnstile = (error, token = "") => {
+      if (!turnstileAttempt) return;
+      const pending = turnstileAttempt;
+      turnstileAttempt = null;
+      window.clearTimeout(pending.timeoutId);
+      if (error) pending.reject(error);
+      else pending.resolve(token);
+    };
+
+    const ensureTurnstileWidget = async () => {
+      if (!turnstileSiteKey) throw new Error("Turnstile 尚未配置。请先设置公开的 Site Key。");
+      const turnstile = await loadTurnstile();
+      if (turnstileWidgetId !== null) return turnstile;
+
+      turnstileWidgetId = turnstile.render(turnstileContainer, {
+        sitekey: turnstileSiteKey,
+        action: "ask_blog",
+        theme: "auto",
+        size: "flexible",
+        appearance: "interaction-only",
+        execution: "execute",
+        callback: (token) => settleTurnstile(null, token),
+        "error-callback": () => {
+          settleTurnstile(new Error("安全验证失败，请重试。"));
+          return true;
+        },
+        "expired-callback": () => settleTurnstile(new Error("安全验证已过期，请重试。")),
+        "timeout-callback": () => settleTurnstile(new Error("安全验证超时，请重试。")),
+      });
+
+      return turnstile;
+    };
+
+    const getTurnstileToken = async () => {
+      const turnstile = await ensureTurnstileWidget();
+      if (turnstileAttempt) return turnstileAttempt.promise;
+
+      let resolveAttempt;
+      let rejectAttempt;
+      const promise = new Promise((resolve, reject) => {
+        resolveAttempt = resolve;
+        rejectAttempt = reject;
+      });
+      const timeoutId = window.setTimeout(
+        () => settleTurnstile(new Error("安全验证超时，请重试。")),
+        90000,
+      );
+      turnstileAttempt = { promise, resolve: resolveAttempt, reject: rejectAttempt, timeoutId };
+
+      try {
+        turnstile.execute(turnstileWidgetId);
+      } catch (error) {
+        settleTurnstile(error instanceof Error ? error : new Error("安全验证失败，请重试。"));
+      }
+
+      return promise;
+    };
+
+    const resetTurnstile = () => {
+      if (turnstileAttempt) settleTurnstile(new Error("安全验证已重置。"));
+      if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
+    };
+
+    toggle.addEventListener("click", () => setOpen(panel.hidden));
+    close.addEventListener("click", () => setOpen(false));
+    clear.addEventListener("click", () => {
+      conversation = [];
+      try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+      renderConversation();
+      setStatus("");
+      input.focus();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !panel.hidden) setOpen(false);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const question = input.value.trim();
+      if (!question || submit.disabled) return;
+
+      if (!endpoint) {
+        setStatus("AI 后端尚未配置。部署 Cloudflare Worker 后设置 PUBLIC_ASK_BLOG_WORKER_URL。", true);
+        return;
+      }
+      if (!turnstileSiteKey) {
+        setStatus("安全验证尚未配置。请设置 PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY。", true);
+        return;
+      }
+
+      const previousConversation = conversation.map((message) => ({ ...message, sources: [...(message.sources || [])] }));
+      const history = buildRequestHistory();
+      conversation.push({ role: "user", content: question, sources: [] });
+      saveConversation();
+      renderConversation();
+      input.value = "";
+      setStatus("");
+      submit.disabled = true;
+
+      const pending = createPendingMessage();
+      conversationElement.append(pending);
+      scrollConversation();
+
+      try {
+        const turnstileToken = await getTurnstileToken();
+        updatePendingText(pending, "正在检索文章与笔记并生成回答…");
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ question, history, turnstileToken }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || `请求失败（${response.status}）`);
+
+        const sources = Array.isArray(payload.sources)
+          ? payload.sources.map(normalizeStoredSource).filter(Boolean)
+          : [];
+        conversation.push({
+          role: "assistant",
+          content: payload.answer || "AI 没有返回回答。",
+          sources,
+        });
+        saveConversation();
+        renderConversation();
+        scrollConversation();
+      } catch (error) {
+        console.error("Ask this blog failed", error);
+        conversation = previousConversation;
+        saveConversation();
+        renderConversation();
+        input.value = question;
+        setStatus(error instanceof Error ? error.message : "问博客暂时不可用。", true);
+      } finally {
+        resetTurnstile();
+        submit.disabled = false;
+        input.focus();
+      }
+    });
+
+    conversation = loadConversation();
+    renderConversation();
+  })();
+</script>
+
+<style>
+  .ask-blog {
+    position: fixed;
+    right: clamp(1rem, 3vw, 2rem);
+    bottom: clamp(1rem, 3vw, 2rem);
+    z-index: 30;
+  }
+
+  .ask-blog button,
+  .ask-blog textarea {
+    font: inherit;
+  }
+
+  .ask-blog__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.68rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__trigger:hover,
+  .ask-blog__trigger:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .ask-blog__panel {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.75rem);
+    display: flex;
+    flex-direction: column;
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: min(46rem, calc(100vh - 6rem));
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background: var(--surface);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.14);
+  }
+
+  .ask-blog__panel[hidden] {
+    display: none;
+  }
+
+  .ask-blog__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ask-blog__header h2,
+  .ask-blog__header p,
+  .ask-blog__sources h3,
+  .ask-blog__status {
+    margin: 0;
+  }
+
+  .ask-blog__header h2 {
+    font-size: 1rem;
+  }
+
+  .ask-blog__header p {
+    margin-top: 0.2rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .ask-blog__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .ask-blog__clear,
+  .ask-blog__close {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .ask-blog__clear {
+    padding: 0.35rem 0.45rem;
+    border-radius: 0.4rem;
+    font-size: 0.72rem;
+  }
+
+  .ask-blog__clear:hover,
+  .ask-blog__clear:focus-visible {
+    background: var(--background);
+    color: var(--text);
+  }
+
+  .ask-blog__close {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    font-size: 1.35rem;
+    line-height: 1;
+  }
+
+  .ask-blog__conversation {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.9rem;
+    min-height: 8rem;
+    max-height: 30rem;
+    overflow-y: auto;
+    padding: 1rem;
+    scroll-behavior: smooth;
+  }
+
+  .ask-blog__empty {
+    margin: auto 0;
+    padding: 1rem;
+    border: 1px dashed var(--border);
+    border-radius: 0.7rem;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.65;
+  }
+
+  .ask-blog__message {
+    max-width: 92%;
+  }
+
+  .ask-blog__message--user {
+    align-self: flex-end;
+  }
+
+  .ask-blog__message--assistant {
+    align-self: flex-start;
+    width: 100%;
+  }
+
+  .ask-blog__message-label {
+    margin-bottom: 0.3rem;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__message--user .ask-blog__message-label {
+    text-align: right;
+  }
+
+  .ask-blog__message-body {
+    padding: 0.72rem 0.82rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--background);
+    color: var(--text);
+    font-size: 0.88rem;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+
+  .ask-blog__message--user .ask-blog__message-body {
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    white-space: pre-wrap;
+  }
+
+  .ask-blog__message-body :global(p),
+  .ask-blog__message-body :global(ul),
+  .ask-blog__message-body :global(ol),
+  .ask-blog__message-body :global(pre),
+  .ask-blog__message-body :global(blockquote),
+  .ask-blog__message-body :global(h3),
+  .ask-blog__message-body :global(h4) {
+    margin: 0.55rem 0 0;
+  }
+
+  .ask-blog__message-body :global(p:first-child),
+  .ask-blog__message-body :global(h3:first-child),
+  .ask-blog__message-body :global(h4:first-child),
+  .ask-blog__message-body :global(pre:first-child) {
+    margin-top: 0;
+  }
+
+  .ask-blog__message-body :global(ul),
+  .ask-blog__message-body :global(ol) {
+    padding-left: 1.25rem;
+  }
+
+  .ask-blog__message-body :global(h3) {
+    font-size: 0.96rem;
+  }
+
+  .ask-blog__message-body :global(h4) {
+    font-size: 0.9rem;
+  }
+
+  .ask-blog__message-body :global(code) {
+    padding: 0.08rem 0.28rem;
+    border-radius: 0.3rem;
+    background: var(--surface);
+    font-size: 0.86em;
+  }
+
+  .ask-blog__message-body :global(pre) {
+    overflow-x: auto;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    background: var(--surface);
+    line-height: 1.5;
+  }
+
+  .ask-blog__message-body :global(pre code) {
+    padding: 0;
+    background: transparent;
+    white-space: pre;
+  }
+
+  .ask-blog__message-body :global(blockquote) {
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+  }
+
+  .ask-blog__loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text);
+    font-size: 0.84rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__spinner {
+    width: 0.9rem;
+    height: 0.9rem;
+    flex: none;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: ask-blog-spin 0.8s linear infinite;
+  }
+
+  .ask-blog__skeleton {
+    display: grid;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+  }
+
+  .ask-blog__skeleton span {
+    display: block;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--background), color-mix(in srgb, var(--border) 70%, var(--surface)), var(--background));
+    background-size: 200% 100%;
+    animation: ask-blog-shimmer 1.4s ease-in-out infinite;
+  }
+
+  .ask-blog__message--pending {
+    padding: 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--background);
+  }
+
+  .ask-blog__sources {
+    margin-top: 0.55rem;
+    padding-left: 0.1rem;
+  }
+
+  .ask-blog__sources h3 {
+    color: var(--muted);
+    font-size: 0.72rem;
+  }
+
+  .ask-blog__sources ol {
+    margin: 0.4rem 0 0;
+    padding-left: 1.35rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+
+  .ask-blog__sources li + li {
+    margin-top: 0.28rem;
+  }
+
+  .ask-blog__sources a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .ask-blog__source-type {
+    display: inline-block;
+    padding: 0.04rem 0.28rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    color: var(--muted);
+    font-size: 0.66rem;
+    line-height: 1.35;
+  }
+
+  .ask-blog__form {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.85rem 1rem 1rem;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .ask-blog__form label {
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__form textarea {
+    width: 100%;
+    min-height: 4.2rem;
+    max-height: 10rem;
+    resize: vertical;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    outline: none;
+    background: var(--background);
+    color: var(--text);
+    line-height: 1.55;
+  }
+
+  .ask-blog__form textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .ask-blog__turnstile:empty {
+    display: none;
+  }
+
+  .ask-blog__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .ask-blog__status {
+    min-height: 1em;
+    color: var(--muted);
+    font-size: 0.74rem;
+  }
+
+  .ask-blog__status.is-error {
+    color: #b42318;
+  }
+
+  .ask-blog__form button {
+    flex: none;
+    padding: 0.48rem 0.8rem;
+    border: 1px solid var(--accent);
+    border-radius: 0.55rem;
+    background: var(--accent);
+    color: var(--background);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .ask-blog__form button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+
+  @keyframes ask-blog-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes ask-blog-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ask-blog__spinner,
+    .ask-blog__skeleton span {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ask-blog {
+      right: 0.8rem;
+      bottom: 0.8rem;
+    }
+
+    .ask-blog__panel {
+      width: calc(100vw - 1.6rem);
+      max-height: calc(100vh - 5rem);
+    }
+
+    .ask-blog__conversation {
+      max-height: none;
+    }
+  }
+</style>

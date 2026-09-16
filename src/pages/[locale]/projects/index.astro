@@ -1,0 +1,46 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import CollectionHeader from "../../../components/CollectionHeader.astro";
+import ShowcaseList from "../../../components/ShowcaseList.astro";
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { localizedProjectSummary, projectHref, projectStatusLabel, sortProjects } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const entries = sortProjects(await getCollection("projects"));
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale, entries },
+  }));
+}
+
+interface Props { locale: Locale; entries: CollectionEntry<"projects">[] }
+const { locale, entries } = Astro.props;
+const localeInfo = LOCALES[locale];
+---
+
+<BaseLayout
+  title={localeInfo.ui.projectsTitle}
+  description={localeInfo.ui.projectsDescription}
+  noindex={entries.length === 0}
+  locale={locale}
+  canonicalPath={localizePath(locale, "/projects/")}
+>
+  <div class="shell page collection-page">
+    <CollectionHeader title={localeInfo.ui.projectsTitle} description={localeInfo.ui.projectsDescription} />
+    {entries.length === 0 ? (
+      <p class="empty-state">{localeInfo.ui.projectsEmpty}</p>
+    ) : (
+      <ShowcaseList items={entries.map((entry) => {
+        const summary = localizedProjectSummary(entry, locale);
+        return {
+          href: projectHref(entry, locale),
+          title: summary.title,
+          description: summary.description,
+          label: entry.data.tags.join(" · "),
+          status: projectStatusLabel(entry.data.status, locale),
+        };
+      })} />
+    )}
+  </div>
+</BaseLayout>

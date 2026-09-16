@@ -1,0 +1,63 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import ArticleList from "../../../../components/ArticleList.astro";
+import { LOCALES, nonDefaultLocales, type Locale } from "../../../../config/i18n";
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { articleIsIncluded, articleTagHref, sortArticles } from "../../../../lib/content";
+
+export async function getStaticPaths() {
+  const articles = (await getCollection("articles")).filter(articleIsIncluded);
+  const paths = [];
+
+  for (const locale of nonDefaultLocales()) {
+    const articlesByTag = new Map<string, CollectionEntry<"articles">[]>();
+    for (const article of articles.filter((entry) => entry.data.language === locale)) {
+      for (const tag of new Set(article.data.tags)) {
+        const entries = articlesByTag.get(tag) ?? [];
+        entries.push(article);
+        articlesByTag.set(tag, entries);
+      }
+    }
+
+    for (const [tag, entries] of articlesByTag) {
+      paths.push({
+        params: { locale: LOCALES[locale].path, tag },
+        props: { locale, tag, entries: sortArticles(entries) },
+      });
+    }
+  }
+
+  return paths;
+}
+
+interface Props {
+  locale: Locale;
+  tag: string;
+  entries: CollectionEntry<"articles">[];
+}
+
+const { locale, tag, entries } = Astro.props;
+const localeInfo = LOCALES[locale];
+---
+
+<BaseLayout
+  title={`Tag: ${tag}`}
+  description={`Published articles tagged “${tag}”.`}
+  canonicalPath={`/${LOCALES[locale].path}${articleTagHref(tag)}`}
+  locale={locale}
+  noindex={entries.length === 0}
+>
+  <div class="shell page">
+    <nav class="breadcrumb" aria-label={localeInfo.ui.breadcrumb}>
+      <a href={`/${LOCALES[locale].path}/articles/`}>{localeInfo.ui.articlesTitle}</a>
+      <span aria-hidden="true">/</span>
+      <span>{localeInfo.ui.tags}</span>
+    </nav>
+    <header class="page-header compact">
+      <p class="eyebrow">TAG</p>
+      <h1>{tag}</h1>
+      <p>{entries.length} {entries.length === 1 ? "article" : "articles"}</p>
+    </header>
+    <ArticleList entries={entries} locale={locale} />
+  </div>
+</BaseLayout>

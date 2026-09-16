@@ -1,0 +1,41 @@
+---
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
+import type { NoteCollectionNavigation, NoteTopicTreeNode } from "../lib/content";
+import { buildNoteTopicTree, categoryHref, noteHref, noteTopicHref } from "../lib/content";
+import ContentCollectionIndex from "./ContentCollectionIndex.astro";
+
+interface Props {
+  navigation: NoteCollectionNavigation;
+  locale?: Locale;
+}
+
+interface TopicNavigationGroup {
+  label: string;
+  href?: string;
+  items: Array<{ href: string; title: string; current: boolean }>;
+  children: TopicNavigationGroup[];
+}
+
+const { navigation, locale = DEFAULT_LOCALE } = Astro.props;
+const ui = LOCALES[locale].ui;
+const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
+  label: topic.label,
+  href: topic.path.length > 0 ? noteTopicHref(navigation.category, topic.path, locale) : undefined,
+  items: topic.notes.map((note) => ({
+    href: noteHref(note, locale),
+    title: note.data.title,
+    current: note.id === navigation.currentId,
+  })),
+  children: topic.children.map(topicToGroup),
+});
+---
+
+<ContentCollectionIndex
+  label={ui.noteCollection}
+  title={navigation.categoryLabel}
+  href={categoryHref(navigation.category, locale)}
+  groups={buildNoteTopicTree(navigation.topics).map(topicToGroup)}
+  ariaLabel={`${navigation.categoryLabel} ${ui.noteOutline}`}
+  hideLabel={locale === "en" ? "Hide note outline" : "隐藏笔记大纲"}
+  restoreLabel={locale === "en" ? "Show note outline" : "展开笔记大纲"}
+/>

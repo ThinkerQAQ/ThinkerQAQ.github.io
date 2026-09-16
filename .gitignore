@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.astro/
+.content-backups/
+.indexnow/
+.distribution/
+.wrangler/
+.dev.vars
+.dev.vars.*
+.DS_Store
+npm-debug.log*
+
+# Private content is injected only at build time.
+/src/content/
+/public/media/
+/src/data/content-manifest.json
+
+# Generated diagram output.
+/public/diagrams/plantuml/
