@@ -5,6 +5,8 @@ on:
     branches: [migration/engine-split]
     paths:
       - .github/workflows/real-content-staging.yml
+      - scripts/assemble-content.mjs
+      - scripts/render-plantuml.mjs
   workflow_dispatch:
 
 permissions:
