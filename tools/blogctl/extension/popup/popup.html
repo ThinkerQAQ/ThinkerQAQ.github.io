@@ -55,10 +55,21 @@
     <section class="panel" role="tabpanel" data-panel="publishing">
       <section class="status-card">
         <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
-        <label class="switch-row" for="footerEnabled"><span><strong>Footer</strong><small>同步时追加到平台文章末尾。</small></span><input id="footerEnabled" type="checkbox"></label>
+
+        <div class="section-title">Footer</div>
+        <label class="switch-row" for="footerEnabled"><span><strong>启用 Footer</strong><small>同步时追加到平台文章末尾。</small></span><input id="footerEnabled" type="checkbox"></label>
         <label class="field"><span>Footer 模板</span><textarea id="footerTemplate" placeholder="支持 {site} {title} {url}"></textarea></label>
         <p class="card-hint">可用变量：<code>{site}</code> <code>{title}</code> <code>{url}</code></p>
-        <label class="field"><span>Tracking Query</span><input id="trackingQuery" type="text" placeholder="utm_source=...&utm_medium=referral"></label>
+
+        <div class="section-title">Canonical</div>
+        <label class="field"><span>策略</span><select id="canonicalMode"><option value="native">Native canonical</option><option value="footer">Footer backlink</option><option value="none">Disabled</option></select></label>
+
+        <div class="section-title">Tracking</div>
+        <label class="switch-row" for="trackingEnabled"><span><strong>启用 Tracking</strong><small>为 Footer 中的原文链接追加 UTM 参数。</small></span><input id="trackingEnabled" type="checkbox"></label>
+        <label class="field"><span>Source</span><input id="trackingSource" type="text" placeholder="cnblogs"></label>
+        <label class="field"><span>Medium</span><input id="trackingMedium" type="text" placeholder="referral"></label>
+        <label class="field"><span>Campaign</span><input id="trackingCampaign" type="text" placeholder="article_syndication"></label>
+
         <div class="preview-box"><div class="section-title">预览</div><pre id="publishingPreview"></pre></div>
         <div class="button-row"><button id="resetPublishing" class="secondary" type="button">恢复默认</button><button id="savePublishing" class="primary inline-primary" type="button">保存</button></div>
         <p id="publishingMessage" class="message" role="status"></p>
