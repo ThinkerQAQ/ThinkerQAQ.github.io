@@ -9,6 +9,10 @@ on:
         description: Optional private content commit to deploy
         required: false
         type: string
+      content_before_sha:
+        description: Optional previous private content commit for incremental AI Search sync
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -100,6 +104,26 @@ jobs:
         working-directory: engine
         run: node scripts/prepare-ai-search-input.mjs "$RUNNER_TEMP/ai-search-input"
 
+      - name: Prepare incremental AI Search change manifest
+        continue-on-error: true
+        env:
+          CONTENT_SHA: ${{ inputs.content_sha || '' }}
+          CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
+        run: |
+          manifest="$RUNNER_TEMP/ai-search-input/ai-search-changed-paths.txt"
+          if [ -z "$CONTENT_SHA" ]; then
+            : > "$manifest"
+            echo "Engine-only deployment: content is unchanged, so AI Search will not re-upload existing documents."
+          elif [ -z "$CONTENT_BEFORE_SHA" ] || [[ "$CONTENT_BEFORE_SHA" =~ ^0+$ ]]; then
+            rm -f "$manifest"
+            echo "No reliable previous content SHA; AI Search will use a full-sync fallback."
+          else
+            git -C content-source fetch --no-tags --depth=1 origin "$CONTENT_BEFORE_SHA"
+            git -C content-source diff --name-only "$CONTENT_BEFORE_SHA" "$CONTENT_SHA" -- \
+              src/content/articles src/content/notes src/content/note-translations > "$manifest"
+            echo "AI Search changed content paths: $(wc -l < "$manifest")"
+          fi
+
       - name: Upload public AI Search input
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -150,6 +174,7 @@ jobs:
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
+      AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/engine/src/content/ai-search-changed-paths.txt
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
@@ -167,13 +192,9 @@ jobs:
           name: ai-search-input
           path: engine/src/content
 
-      - name: Sync public Markdown to Cloudflare AI Search
+      - name: Submit public Markdown to Cloudflare AI Search
         working-directory: engine
         run: node scripts/run-ai-search-sync.mjs
-
-      - name: Evaluate AI Search retrieval
-        working-directory: engine
-        run: node scripts/eval-ai-search.mjs
 
   notify-indexnow:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
