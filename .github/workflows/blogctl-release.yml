@@ -79,10 +79,21 @@ jobs:
             zip -qr ../../../dist/blogctl-release/blogctl-extension.zip .
           )
 
+      - name: Package native host installers
+        if: steps.version.outputs.exists != 'true'
+        run: |
+          set -euo pipefail
+          cp tools/blogctl/Install-Windows.ps1 dist/blogctl-release/
+          cp tools/blogctl/Uninstall-Windows.ps1 dist/blogctl-release/
+          cp tools/blogctl/Install-Linux.sh dist/blogctl-release/
+          cp tools/blogctl/Uninstall-Linux.sh dist/blogctl-release/
+          cp tools/blogctl/Install-macOS.command dist/blogctl-release/
+          cp tools/blogctl/Uninstall-macOS.command dist/blogctl-release/
+
       - name: Generate checksums
         if: steps.version.outputs.exists != 'true'
         working-directory: dist/blogctl-release
-        run: sha256sum blogctl-* > SHA256SUMS
+        run: sha256sum * > SHA256SUMS
 
       - name: Publish GitHub Release
         if: steps.version.outputs.exists != 'true'
@@ -94,4 +105,4 @@ jobs:
           gh release create "$TAG" dist/blogctl-release/* \
             --target "$GITHUB_SHA" \
             --title "blogctl v${VERSION}" \
-            --notes "Cross-platform ThinkerQAQ blog developer tool. Includes Windows, macOS, and Linux binaries plus the matching browser extension."
+            --notes "Cross-platform ThinkerQAQ blog developer tool. Includes Windows, macOS, and Linux binaries, Native Messaging installers, and the matching browser extension."
