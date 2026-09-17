@@ -395,17 +395,13 @@ func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Req
 
 func (s *Server) handleSyncJobGet(response http.ResponseWriter, id string) {
 	s.mu.Lock()
-	job := s.jobs[id]
-	var copy syncJob
-	if job != nil {
-		copy = *job
-	}
+	job := cloneSyncJob(s.jobs[id])
 	s.mu.Unlock()
 	if job == nil {
 		writeJSON(response, http.StatusNotFound, map[string]any{"error": "sync job not found"})
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"job": copy})
+	writeJSON(response, http.StatusOK, map[string]any{"job": job})
 }
 
 func (s *Server) handleSession(response http.ResponseWriter, request *http.Request, platform string) {

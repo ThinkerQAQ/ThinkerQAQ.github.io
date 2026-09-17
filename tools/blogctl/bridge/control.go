@@ -43,16 +43,35 @@ type syncRequest struct {
 	Draft     bool     `json:"draft"`
 }
 
+type syncPlatformResult struct {
+	State   string `json:"state"`
+	Result  string `json:"result,omitempty"`
+	URL     string `json:"url,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+type syncJobEvent struct {
+	At       string `json:"at"`
+	Platform string `json:"platform"`
+	State    string `json:"state"`
+	Result   string `json:"result,omitempty"`
+	URL      string `json:"url,omitempty"`
+	Message  string `json:"message,omitempty"`
+}
+
 type syncJob struct {
-	ID         string   `json:"id"`
-	Article    string   `json:"article"`
-	Platforms  []string `json:"platforms"`
-	State      string   `json:"state"`
-	StartedAt  string   `json:"startedAt"`
-	FinishedAt string   `json:"finishedAt,omitempty"`
-	Output     string   `json:"output,omitempty"`
-	Error      string   `json:"error,omitempty"`
-	DryRun     bool     `json:"dryRun"`
+	ID         string                        `json:"id"`
+	Article    string                        `json:"article"`
+	Platforms  []string                      `json:"platforms"`
+	Results    map[string]syncPlatformResult `json:"results"`
+	Events     []syncJobEvent                `json:"events,omitempty"`
+	State      string                        `json:"state"`
+	StartedAt  string                        `json:"startedAt"`
+	FinishedAt string                        `json:"finishedAt,omitempty"`
+	Output     string                        `json:"output,omitempty"`
+	Error      string                        `json:"error,omitempty"`
+	DryRun     bool                          `json:"dryRun"`
 }
 
 type toolField struct {
@@ -398,7 +417,7 @@ func newJobID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
-func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest) (string, error) {
+func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
 	applicationConfig := blogapp.SyncConfig{
 		EngineRoot:   config.EngineRoot,
 		ContentRoot:  config.ContentRoot,
@@ -410,6 +429,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		applicationConfig.ConfigPath = configPath
 	}
 	service := blogapp.NewSyncService()
+	service.OnEvent = onEvent
 	return service.Run(ctx, applicationConfig, blogapp.SyncRequest{
 		Articles:  []string{request.Article},
 		Platforms: append([]string{}, request.Platforms...),
@@ -419,10 +439,50 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	})
 }
 
+func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
+	if job == nil || event.Platform == "" {
+		return
+	}
+	if job.Results == nil {
+		job.Results = map[string]syncPlatformResult{}
+	}
+	result := job.Results[event.Platform]
+	result.State = event.State
+	result.Result = event.Result
+	result.URL = event.URL
+	result.Message = event.Message
+	if event.State == "failed" {
+		result.Error = event.Message
+	} else {
+		result.Error = ""
+	}
+	job.Results[event.Platform] = result
+	job.Events = append(job.Events, syncJobEvent{
+		At: at.UTC().Format(time.RFC3339), Platform: event.Platform, State: event.State,
+		Result: event.Result, URL: event.URL, Message: event.Message,
+	})
+}
+
+func (s *Server) recordSyncEvent(jobID string, event blogapp.SyncEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	applySyncEventToJob(s.jobs[jobID], event, s.now())
+}
+
 func (s *Server) startSyncJob(request syncRequest) *syncJob {
+	startedAt := s.now().UTC()
+	results := make(map[string]syncPlatformResult, len(request.Platforms))
+	events := make([]syncJobEvent, 0, len(request.Platforms))
+	for _, platform := range request.Platforms {
+		results[platform] = syncPlatformResult{State: "queued"}
+		events = append(events, syncJobEvent{
+			At: startedAt.Format(time.RFC3339), Platform: platform, State: "queued",
+		})
+	}
 	job := &syncJob{
 		ID: newJobID(), Article: request.Article, Platforms: append([]string{}, request.Platforms...),
-		State: "running", StartedAt: s.now().UTC().Format(time.RFC3339), DryRun: request.DryRun,
+		Results: results, Events: events, State: "running",
+		StartedAt: startedAt.Format(time.RFC3339), DryRun: request.DryRun,
 	}
 	s.mu.Lock()
 	if s.jobs == nil {
@@ -440,7 +500,9 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	s.mu.Unlock()
 
 	go func() {
-		output, err := s.runSyncApplication(context.Background(), config, request)
+		output, err := s.runSyncApplication(context.Background(), config, request, func(event blogapp.SyncEvent) {
+			s.recordSyncEvent(job.ID, event)
+		})
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		stored := s.jobs[job.ID]
@@ -452,11 +514,34 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 		if err != nil {
 			stored.State = "failed"
 			stored.Error = err.Error()
+			for _, platform := range stored.Platforms {
+				result := stored.Results[platform]
+				if result.State == "completed" || result.State == "failed" {
+					continue
+				}
+				applySyncEventToJob(stored, blogapp.SyncEvent{
+					Platform: platform, State: "failed", Message: err.Error(),
+				}, s.now())
+			}
 			return
 		}
 		stored.State = "completed"
 	}()
-	return job
+	return cloneSyncJob(job)
+}
+
+func cloneSyncJob(job *syncJob) *syncJob {
+	if job == nil {
+		return nil
+	}
+	clone := *job
+	clone.Platforms = append([]string{}, job.Platforms...)
+	clone.Events = append([]syncJobEvent{}, job.Events...)
+	clone.Results = make(map[string]syncPlatformResult, len(job.Results))
+	for platform, result := range job.Results {
+		clone.Results[platform] = result
+	}
+	return &clone
 }
 
 func (s *Server) syncJobs() []syncJob {
@@ -464,7 +549,7 @@ func (s *Server) syncJobs() []syncJob {
 	defer s.mu.Unlock()
 	result := make([]syncJob, 0, len(s.jobOrder))
 	for _, id := range s.jobOrder {
-		if job := s.jobs[id]; job != nil {
+		if job := cloneSyncJob(s.jobs[id]); job != nil {
 			result = append(result, *job)
 		}
 	}
