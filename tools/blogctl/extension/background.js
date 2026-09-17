@@ -19,22 +19,14 @@ function errorMessage(error) {
 }
 
 function readPath(value, path) {
-  return String(path || "")
-    .split(".")
-    .filter(Boolean)
-    .reduce((current, key) => current?.[key], value);
+  return String(path || "").split(".").filter(Boolean).reduce((current, key) => current?.[key], value);
 }
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
   try {
-    return await fetch(url, {
-      credentials: "include",
-      redirect: "follow",
-      ...options,
-      signal: controller.signal,
-    });
+    return await fetch(url, { credentials: "include", redirect: "follow", ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -58,9 +50,7 @@ function requestNativeBridge() {
 }
 
 async function ensureBridge(force = false) {
-  if (!force && bridgeSession && Date.now() - bridgeSession.checkedAt < BRIDGE_CACHE_MS) {
-    return bridgeSession;
-  }
+  if (!force && bridgeSession && Date.now() - bridgeSession.checkedAt < BRIDGE_CACHE_MS) return bridgeSession;
   const response = await requestNativeBridge();
   bridgeSession = { ...response, checkedAt: Date.now() };
   return bridgeSession;
@@ -78,17 +68,14 @@ async function probeJSON(probe) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const payload = await response.json();
   const value = readPath(payload, probe.path);
-  return Object.prototype.hasOwnProperty.call(probe, "equals")
-    ? value === probe.equals
-    : Boolean(value);
+  return Object.prototype.hasOwnProperty.call(probe, "equals") ? value === probe.equals : Boolean(value);
 }
 
 async function probeHTML(probe) {
   const response = await fetchWithTimeout(probe.url, { headers: probe.headers ?? {} });
   if (response.status === 401 || response.status === 403) return false;
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const html = await response.text();
-  return new RegExp(probe.match, "i").test(html);
+  return new RegExp(probe.match, "i").test(await response.text());
 }
 
 async function probeFinalURL(probe) {
@@ -104,35 +91,15 @@ async function platformLoginStatus(definition) {
   try {
     let loggedIn;
     switch (probe.kind) {
-      case "cookies":
-        loggedIn = await probeCookies(probe);
-        break;
-      case "json":
-        loggedIn = await probeJSON(probe);
-        break;
-      case "html":
-        loggedIn = await probeHTML(probe);
-        break;
-      case "final-url":
-        loggedIn = await probeFinalURL(probe);
-        break;
-      default:
-        throw new Error(`Unsupported auth probe: ${probe.kind || "missing"}`);
+      case "cookies": loggedIn = await probeCookies(probe); break;
+      case "json": loggedIn = await probeJSON(probe); break;
+      case "html": loggedIn = await probeHTML(probe); break;
+      case "final-url": loggedIn = await probeFinalURL(probe); break;
+      default: throw new Error(`Unsupported auth probe: ${probe.kind || "missing"}`);
     }
-    return {
-      id: definition.id,
-      label: definition.label,
-      known: true,
-      loggedIn: Boolean(loggedIn),
-    };
+    return { id: definition.id, label: definition.label, known: true, loggedIn: Boolean(loggedIn) };
   } catch (error) {
-    return {
-      id: definition.id,
-      label: definition.label,
-      known: false,
-      loggedIn: false,
-      error: errorMessage(error),
-    };
+    return { id: definition.id, label: definition.label, known: false, loggedIn: false, error: errorMessage(error) };
   }
 }
 
@@ -157,152 +124,132 @@ async function fetchJSON(pathname, options = {}, retry = true) {
   }
 }
 
+function jsonOptions(method, body) {
+  return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+}
+
 async function bridgeStatus() {
   try {
     const bridge = await ensureBridge(false);
     const health = await fetchJSON("/v1/health");
     if (!health?.ok) throw new Error("Bridge health check failed.");
-
     try {
       const result = await fetchJSON("/v1/config");
-      return {
-        running: true,
-        pid: bridge.pid || 0,
-        configKnown: true,
-        config: result?.config ?? {},
-        networkMode: result?.networkMode || "",
-      };
+      return { running: true, pid: bridge.pid || 0, configKnown: true, config: result?.config ?? {}, networkMode: result?.networkMode || "" };
     } catch (error) {
-      return {
-        running: true,
-        pid: bridge.pid || 0,
-        configKnown: false,
-        config: {},
-        configError: errorMessage(error),
-      };
+      return { running: true, pid: bridge.pid || 0, configKnown: false, config: {}, configError: errorMessage(error) };
     }
   } catch (error) {
     bridgeSession = null;
-    return {
-      running: false,
-      configKnown: false,
-      config: {},
-      error: errorMessage(error),
-    };
+    return { running: false, configKnown: false, config: {}, error: errorMessage(error) };
   }
 }
 
 async function platformSessionStatus(platform, bridge) {
-  if (!bridge.running) {
-    return {
-      known: false,
-      synced: false,
-      unavailable: true,
-      expiresInSeconds: 0,
-      error: bridge.error || "BlogCTL Bridge 未运行",
-    };
-  }
-
+  if (!bridge.running) return { known: false, synced: false, unavailable: true, expiresInSeconds: 0, error: bridge.error || "BlogCTL Bridge 未运行" };
   try {
     const session = await fetchJSON(`/v1/sessions/${encodeURIComponent(platform)}/status`);
-    return {
-      known: true,
-      synced: Boolean(session?.authenticated),
-      expiresInSeconds: Number(session?.expiresInSeconds || 0),
-    };
+    return { known: true, synced: Boolean(session?.authenticated), expiresInSeconds: Number(session?.expiresInSeconds || 0) };
   } catch (error) {
-    return {
-      known: false,
-      synced: false,
-      unavailable: false,
-      expiresInSeconds: 0,
-      error: errorMessage(error),
-    };
+    return { known: false, synced: false, unavailable: false, expiresInSeconds: 0, error: errorMessage(error) };
   }
 }
 
 async function getStatus() {
   const [bridge, platforms] = await Promise.all([bridgeStatus(), allPlatformLoginStatuses()]);
   const mediumSession = await platformSessionStatus("medium", bridge);
-  return {
-    bridge,
-    platforms,
-    sessions: { medium: mediumSession },
-  };
+  return { bridge, platforms, sessions: { medium: mediumSession } };
 }
 
 async function saveBridgeConfig(config) {
-  const payload = {
+  return fetchJSON("/v1/config", jsonOptions("PUT", {
     proxyEnabled: Boolean(config?.proxyEnabled),
     proxyHost: String(config?.proxyHost || "").trim(),
     proxyPort: Number(config?.proxyPort || 0),
-  };
-  return fetchJSON("/v1/config", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  }));
 }
 
 async function syncPlatformSession(platform) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
-
   const cookies = await chrome.cookies.getAll({ url: definition.cookieUrl });
   const allowed = new Set(definition.cookieNames);
-  const selected = cookies
-    .filter((cookie) => allowed.has(cookie.name))
-    .map((cookie) => ({ name: cookie.name, value: cookie.value }));
-
+  const selected = cookies.filter((cookie) => allowed.has(cookie.name)).map((cookie) => ({ name: cookie.name, value: cookie.value }));
   for (const required of definition.requiredCookieNames ?? []) {
-    if (!selected.some((cookie) => cookie.name === required && cookie.value)) {
-      throw new Error(`${platform}: required cookie ${required} not found. Sign in first.`);
-    }
+    if (!selected.some((cookie) => cookie.name === required && cookie.value)) throw new Error(`${platform}: required cookie ${required} not found. Sign in first.`);
   }
-
-  return fetchJSON(`/v1/sessions/${encodeURIComponent(platform)}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ cookies: selected, userAgent: navigator.userAgent }),
-  });
+  return fetchJSON(`/v1/sessions/${encodeURIComponent(platform)}`, jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent }));
 }
 
 async function syncBrowserSession(platform) {
   await setBadge("…", "#666666");
   const result = await syncPlatformSession(platform);
-  console.info("BlogCTL browser session synced", platform);
   await setBadge("✓", "#1a8917");
   clearBadgeLater();
   return result;
 }
 
+async function handleMessage(message) {
+  switch (message.type) {
+    case "blogctl.status": return { ok: true, status: await getStatus() };
+    case "blogctl.config.save": await saveBridgeConfig(message.config); return { ok: true, status: await getStatus() };
+    case "blogctl.sync":
+    case "blogctl.session.sync": {
+      const platform = message.platform || "medium";
+      await syncBrowserSession(platform);
+      return { ok: true, status: await getStatus() };
+    }
+    case "blogctl.articles": {
+      const result = await fetchJSON("/v1/articles");
+      return { ok: true, articles: result?.articles ?? [] };
+    }
+    case "blogctl.tools": {
+      const result = await fetchJSON("/v1/tools");
+      return { ok: true, tools: result?.tools ?? [] };
+    }
+    case "blogctl.tool.save": {
+      const name = String(message.name || "").trim();
+      if (!name) throw new Error("tool name is required");
+      const result = await fetchJSON(`/v1/tools/${encodeURIComponent(name)}`, jsonOptions("PUT", { config: message.config ?? {} }));
+      return { ok: true, tools: result?.tools ?? [] };
+    }
+    case "blogctl.publishing": {
+      const result = await fetchJSON("/v1/publishing");
+      return { ok: true, platforms: result?.platforms ?? [] };
+    }
+    case "blogctl.publishing.save": {
+      const result = await fetchJSON("/v1/publishing", jsonOptions("PUT", { platforms: message.platforms ?? [] }));
+      return { ok: true, platforms: result?.platforms ?? [] };
+    }
+    case "blogctl.jobs": {
+      const result = await fetchJSON("/v1/sync/jobs");
+      return { ok: true, jobs: result?.jobs ?? [] };
+    }
+    case "blogctl.job.start": {
+      const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", message.request ?? {}));
+      return { ok: true, job: result?.job };
+    }
+    case "blogctl.job.get": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      return { ok: true, job: result?.job };
+    }
+    default: return null;
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
-  if (message.type === "blogctl.status") {
-    getStatus().then((status) => sendResponse({ ok: true, status })).catch((error) => {
-      sendResponse({ ok: false, error: errorMessage(error) });
-    });
-    return true;
-  }
-  if (message.type === "blogctl.config.save") {
-    saveBridgeConfig(message.config).then(async () => {
-      sendResponse({ ok: true, status: await getStatus() });
-    }).catch(async (error) => {
-      sendResponse({ ok: false, error: errorMessage(error), status: await getStatus() });
-    });
-    return true;
-  }
-  if (message.type === "blogctl.sync") {
-    const platform = message.platform || "medium";
-    syncBrowserSession(platform).then(async () => {
-      sendResponse({ ok: true, status: await getStatus() });
-    }).catch(async (error) => {
-      console.error("BlogCTL session sync failed:", errorMessage(error));
+  const task = handleMessage(message);
+  if (!task) return false;
+  task.then(sendResponse).catch(async (error) => {
+    console.error("BlogCTL extension request failed:", message.type, errorMessage(error));
+    if (message.type === "blogctl.sync" || message.type === "blogctl.session.sync") {
       await setBadge("!", "#b42318");
       clearBadgeLater();
-      sendResponse({ ok: false, error: errorMessage(error), status: await getStatus() });
-    });
-    return true;
-  }
-  return false;
+    }
+    sendResponse({ ok: false, error: errorMessage(error) });
+  });
+  return true;
 });
