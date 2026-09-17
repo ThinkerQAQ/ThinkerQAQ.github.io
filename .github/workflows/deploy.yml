@@ -13,6 +13,11 @@ on:
         description: Optional previous private content commit for incremental AI Search sync
         required: false
         type: string
+      force_full_ai_search_sync:
+        description: Explicitly allow a full AI Search reconcile when no incremental base is available
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -39,6 +44,7 @@ jobs:
       - name: Checkout public engine
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
           path: engine
           fetch-depth: 2
 
@@ -105,18 +111,21 @@ jobs:
         run: node scripts/prepare-ai-search-input.mjs "$RUNNER_TEMP/ai-search-input"
 
       - name: Prepare incremental AI Search change manifest
-        continue-on-error: true
         env:
           CONTENT_SHA: ${{ inputs.content_sha || '' }}
           CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
+          FORCE_FULL_AI_SEARCH_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
         run: |
           manifest="$RUNNER_TEMP/ai-search-input/ai-search-changed-paths.txt"
-          if [ -z "$CONTENT_SHA" ]; then
+          if [ "$FORCE_FULL_AI_SEARCH_SYNC" = "1" ]; then
+            rm -f "$manifest"
+            echo "Explicit full AI Search reconcile requested."
+          elif [ -z "$CONTENT_SHA" ]; then
             : > "$manifest"
             echo "Engine-only deployment: content is unchanged, so AI Search will not re-upload existing documents."
           elif [ -z "$CONTENT_BEFORE_SHA" ] || [[ "$CONTENT_BEFORE_SHA" =~ ^0+$ ]]; then
-            rm -f "$manifest"
-            echo "No reliable previous content SHA; AI Search will use a full-sync fallback."
+            echo "Missing reliable content_before_sha for content deployment. Refusing silent full AI Search fallback; rerun with force_full_ai_search_sync=true only when a full reconcile is intended." >&2
+            exit 1
           else
             git -C content-source fetch --no-tags --depth=1 origin "$CONTENT_BEFORE_SHA"
             git -C content-source diff --no-renames --name-only "$CONTENT_BEFORE_SHA" "$CONTENT_SHA" -- \
@@ -175,10 +184,12 @@ jobs:
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
       AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/engine/src/content/ai-search-changed-paths.txt
+      AI_SEARCH_FORCE_FULL_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
           path: engine
 
       - name: Setup Node
@@ -205,6 +216,7 @@ jobs:
       - name: Checkout public engine
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
           path: engine
 
       - name: Setup Node

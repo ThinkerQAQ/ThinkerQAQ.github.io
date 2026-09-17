@@ -80,3 +80,33 @@ test("retries transient GET network failures", async () => {
   assert.equal(response.status, 200);
   assert.equal(calls, 2);
 });
+
+test("logs endpoint and timeout context for a failed mutating request", async () => {
+  const failures = [];
+  const fetchImpl = async () => {
+    throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+  };
+
+  const fetchWithRetry = createRetryingFetch(fetchImpl, {
+    maxRetries: 2,
+    retryBaseMs: 0,
+    retryMaxMs: 0,
+    requestTimeoutMs: 1234,
+    logRetry: () => {},
+    logFailure: (details) => failures.push(details),
+  });
+
+  await assert.rejects(
+    fetchWithRetry(
+      "https://api.cloudflare.com/client/v4/accounts/secret-account/ai-search/instances/blog/items",
+      { method: "POST", body: "x" },
+    ),
+    /timeout/,
+  );
+
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].method, "POST");
+  assert.equal(failures[0].endpoint, "/client/v4/accounts/:account/ai-search/instances/blog/items");
+  assert.equal(failures[0].timeoutMs, 1234);
+  assert.equal(failures[0].attempt, 1);
+});
