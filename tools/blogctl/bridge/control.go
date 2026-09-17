@@ -104,11 +104,11 @@ type toolConfigRequest struct {
 }
 
 type publishingPlatformView struct {
-	ID             string `json:"id"`
-	Label          string `json:"label"`
-	FooterEnabled  bool   `json:"footerEnabled"`
-	FooterTemplate string `json:"footerTemplate"`
-	TrackingQuery  string `json:"trackingQuery"`
+	ID        string                    `json:"id"`
+	Label     string                    `json:"label"`
+	Footer    publishingFooterConfig    `json:"footer"`
+	Canonical publishingCanonicalConfig `json:"canonical"`
+	Tracking  publishingTrackingConfig  `json:"tracking"`
 }
 
 func readFrontmatterScalar(path, name string) string {
@@ -348,28 +348,27 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 }
 
 func publishingViews(config bridgeConfig) []publishingPlatformView {
-	order := []string{"cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium"}
-	views := make([]publishingPlatformView, 0, len(order))
-	for _, id := range order {
-		value := config.Publishing[id]
+	views := make([]publishingPlatformView, 0, len(publishingPlatformOrder))
+	for _, id := range publishingPlatformOrder {
+		value := config.Publishing.Platforms[id]
 		views = append(views, publishingPlatformView{
-			ID: id, Label: platformLabels[id], FooterEnabled: value.FooterEnabled,
-			FooterTemplate: value.FooterTemplate, TrackingQuery: value.TrackingQuery,
+			ID: id, Label: platformLabels[id], Footer: value.Footer,
+			Canonical: value.Canonical, Tracking: value.Tracking,
 		})
 	}
 	return views
 }
 
 func updatePublishing(config bridgeConfig, views []publishingPlatformView) (bridgeConfig, error) {
-	if config.Publishing == nil {
+	if config.Publishing.Platforms == nil {
 		config.Publishing = defaultPublishingConfig()
 	}
 	for _, view := range views {
 		if _, ok := supportedSyncPlatforms[view.ID]; !ok {
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
-		config.Publishing[view.ID] = publishingPlatformConfig{
-			FooterEnabled: view.FooterEnabled, FooterTemplate: view.FooterTemplate, TrackingQuery: view.TrackingQuery,
+		config.Publishing.Platforms[view.ID] = publishingPlatformConfig{
+			Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
 		}
 	}
 	return normalizeBridgeConfig(config)
