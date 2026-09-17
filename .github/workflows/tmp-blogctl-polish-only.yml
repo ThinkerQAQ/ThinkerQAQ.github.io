@@ -1,0 +1,127 @@
+name: Temporary BlogCTL polish only
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-content-workspace
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/blogctl-content-workspace
+
+      - name: Polish syndication sources
+        shell: python
+        run: |
+          from pathlib import Path
+
+          for filename in ["scripts/syndicate.mjs", "scripts/medium.mjs"]:
+              path = Path(filename)
+              path.write_text(path.read_text().replace("\t", "  "))
+
+          path = Path("scripts/syndicate-medium.mjs")
+          text = path.read_text()
+          old = """    const fallbackPath = await writeMediumCopyHtml(item.article, {
+            slug: item.slug,
+            outputRoot,
+            publishingConfig,
+          });"""
+          if old not in text:
+              raise SystemExit("Medium fallback block not found")
+          path.write_text(text.replace(old, old, 1))
+
+          path = Path("scripts/syndicate.mjs")
+          text = path.read_text()
+          start = text.find("  const existing = remoteArticles.find(", text.find("export async function upsertDevtoArticle("))
+          end = text.find("  if (!existing) {", start)
+          if start < 0 or end < 0:
+              raise SystemExit("DEV.to lookup block not found")
+          lookup = """  const existing = remoteArticles.find((article) => (
+            desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
+          )) ?? (!desired.canonical_url
+            ? remoteArticles.find((article) => (
+                !String(article.canonical_url || \"\").trim()
+                && article.title === desired.title
+              ))
+            : undefined);
+          """
+          path.write_text(text[:start] + lookup + text[end:])
+
+      - name: Add DEV.to fallback regression test
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("scripts/syndicate.test.mjs")
+          text = path.read_text().replace("\n\ntest(\"DEV.to publishing profile", "\ntest(\"DEV.to publishing profile", 1)
+          if "same-title article with another canonical" not in text:
+              marker = "test(\"canonical comparison ignores query, hash and trailing slash\", () => {"
+              if marker not in text:
+                  raise SystemExit("test insertion marker not found")
+              test_case = '''test("DEV.to no-canonical fallback does not hijack a same-title article with another canonical", async () => {
+            const desired = buildDevtoArticle({
+              title: "Test", description: "Description", tags: ["Go"], body: "Body", status: "published",
+            }, {
+              slug: "test",
+              publishingConfig: {
+                footer: { enabled: false, template: "" },
+                canonical: { mode: "none" },
+                tracking: { enabled: false, source: "devto", medium: "referral", campaign: "article_syndication" },
+              },
+            });
+            const calls = [];
+            const result = await upsertDevtoArticle(desired, {
+              apiKey: "key",
+              remoteArticles: [{ id: 9, title: "Test", canonical_url: "https://example.com/different/" }],
+              fetchImpl: async (url, init) => {
+                calls.push({ url, init });
+                return new Response(JSON.stringify({ id: 10, url: "https://dev.to/user/test", ...desired }), { status: 201 });
+              },
+            });
+            assert.equal(result.action, "created");
+            assert.deepEqual(calls.map((call) => call.init.method), ["POST"]);
+          });
+
+          '''.replace("          ", "")
+              text = text.replace(marker, test_case + marker, 1)
+          path.write_text(text)
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+
+      - name: Test BlogCTL
+        working-directory: tools/blogctl
+        run: go test ./...
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Test syndication
+        run: |
+          npm ci
+          npm run test:syndicate
+          npm run test:distribute
+
+      - name: Commit polish
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/syndicate.mjs scripts/syndicate.test.mjs scripts/medium.mjs scripts/syndicate-medium.mjs
+          git commit -m "refactor: polish publishing profile syndication"
+          git push origin HEAD:refactor/blogctl-content-workspace
