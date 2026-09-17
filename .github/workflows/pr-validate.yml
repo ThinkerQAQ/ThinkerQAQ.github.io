@@ -34,6 +34,7 @@ jobs:
           if [ -n "$files" ]; then
             echo "The following BlogCTL files need gofmt:"
             printf '%s\n' "$files"
+            gofmt -d $files
             exit 1
           fi
 
