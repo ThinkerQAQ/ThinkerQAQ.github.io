@@ -9,6 +9,10 @@ on:
         description: Optional private content commit to deploy
         required: false
         type: string
+      content_before_sha:
+        description: Optional previous private content commit for incremental AI Search sync
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -95,11 +99,47 @@ jobs:
         working-directory: engine
         run: npm run build
 
+      - name: Prepare public AI Search input
+        continue-on-error: true
+        working-directory: engine
+        run: node scripts/prepare-ai-search-input.mjs "$RUNNER_TEMP/ai-search-input"
+
+      - name: Prepare incremental AI Search change manifest
+        continue-on-error: true
+        env:
+          CONTENT_SHA: ${{ inputs.content_sha || '' }}
+          CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
+        run: |
+          manifest="$RUNNER_TEMP/ai-search-input/ai-search-changed-paths.txt"
+          if [ -z "$CONTENT_SHA" ]; then
+            : > "$manifest"
+            echo "Engine-only deployment: content is unchanged, so AI Search will not re-upload existing documents."
+          elif [ -z "$CONTENT_BEFORE_SHA" ] || [[ "$CONTENT_BEFORE_SHA" =~ ^0+$ ]]; then
+            rm -f "$manifest"
+            echo "No reliable previous content SHA; AI Search will use a full-sync fallback."
+          else
+            git -C content-source fetch --no-tags --depth=1 origin "$CONTENT_BEFORE_SHA"
+            git -C content-source diff --no-renames --name-only "$CONTENT_BEFORE_SHA" "$CONTENT_SHA" -- \
+              src/content/articles src/content/notes src/content/note-translations > "$manifest"
+            echo "AI Search changed content paths: $(wc -l < "$manifest")"
+          fi
+
+      - name: Upload public AI Search input
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-search-input
+          path: ${{ runner.temp }}/ai-search-input
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Prepare IndexNow payload
+        continue-on-error: true
         working-directory: engine
         run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
 
       - name: Upload IndexNow payload
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: indexnow-payload
@@ -128,58 +168,39 @@ jobs:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
     runs-on: ubuntu-latest
     needs: deploy
+    continue-on-error: true
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
-      CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
+      AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/engine/src/content/ai-search-changed-paths.txt
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
         with:
           path: engine
 
-      - name: Checkout private content
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.CONTENT_REPOSITORY }}
-          ref: ${{ inputs.content_sha || '' }}
-          ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
-          path: content-source
-          persist-credentials: false
-
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: engine/package-lock.json
 
-      - name: Install engine dependencies
-        working-directory: engine
-        run: npm ci
+      - name: Download public AI Search input
+        uses: actions/download-artifact@v5
+        with:
+          name: ai-search-input
+          path: engine/src/content
 
-      - name: Validate private content source contract
-        working-directory: engine
-        run: node scripts/validate-content-source.mjs ../content-source
-
-      - name: Assemble private content for AI Search
-        working-directory: engine
-        run: node scripts/assemble-content.mjs ../content-source
-
-      - name: Sync public Markdown to Cloudflare AI Search
+      - name: Submit public Markdown to Cloudflare AI Search
         working-directory: engine
         run: node scripts/run-ai-search-sync.mjs
-
-      - name: Evaluate AI Search retrieval
-        working-directory: engine
-        run: node scripts/eval-ai-search.mjs
 
   notify-indexnow:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
     runs-on: ubuntu-latest
     needs: deploy
+    continue-on-error: true
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6

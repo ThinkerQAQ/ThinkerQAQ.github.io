@@ -6,6 +6,7 @@ import {
   DEFAULT_LOCALE,
   LOCALES,
   languageAlternativesForPath,
+  localizePath,
   unlocalizePath,
   type Locale,
   type LocaleAlternative,
@@ -39,20 +40,11 @@ const {
   analytics = true,
 } = Astro.props;
 
-// The language switcher answers "where can the reader browse this page in another
-// site language?". hreflang answers the stricter SEO question "where is the true
-// localized equivalent of this content?". Sparse translations mean those sets are
-// not always identical.
-const switchableShellPaths = new Set([
-  "/",
-  "/articles/",
-  "/series/",
-  "/projects/",
-  "/notes/",
-  "/about/",
-  "/search/",
-  "/disable-analytics/",
-]);
+// The language switcher belongs to the global navigation, so it must remain
+// available on every page. hreflang answers the stricter SEO question "where
+// is the true localized equivalent of this content?" and may therefore be
+// sparse. When an exact localized content route does not exist, the switcher
+// falls back to the corresponding localized section instead of disappearing.
 const localizedSeoShellPaths = new Set([
   "/",
   "/articles/",
@@ -66,12 +58,29 @@ const normalizedLogicalPath =
 const inferredLanguageAlternatives = localizedSeoShellPaths.has(normalizedLogicalPath)
   ? languageAlternativesForPath(normalizedLogicalPath)
   : [];
-const inferredLanguageSwitcherAlternatives = switchableShellPaths.has(normalizedLogicalPath)
-  ? languageAlternativesForPath(normalizedLogicalPath)
-  : [];
+const exactSwitcherAlternatives = languageAlternativesForPath(normalizedLogicalPath);
+const inferredLanguageSwitcherAlternatives = exactSwitcherAlternatives.map((alternative) => {
+  if (alternative.locale === locale) return alternative;
+
+  const exactProvidedAlternative = providedLanguageAlternatives?.find(
+    (candidate) => candidate.locale === alternative.locale,
+  );
+  if (exactProvidedAlternative) return exactProvidedAlternative;
+
+  if (normalizedLogicalPath.startsWith("/articles/") && normalizedLogicalPath !== "/articles/") {
+    return { locale: alternative.locale, href: localizePath(alternative.locale, "/articles/") };
+  }
+  if (normalizedLogicalPath.startsWith("/series/") && normalizedLogicalPath !== "/series/") {
+    return { locale: alternative.locale, href: localizePath(alternative.locale, "/series/") };
+  }
+  if (normalizedLogicalPath.startsWith("/notes/tags/")) {
+    return { locale: alternative.locale, href: localizePath(alternative.locale, "/notes/") };
+  }
+
+  return alternative;
+});
 const languageAlternatives = providedLanguageAlternatives ?? inferredLanguageAlternatives;
 const languageSwitcherAlternatives = providedLanguageSwitcherAlternatives
-  ?? providedLanguageAlternatives
   ?? inferredLanguageSwitcherAlternatives;
 const pageTitle =
   title === SITE.title && normalizedLogicalPath === "/"
