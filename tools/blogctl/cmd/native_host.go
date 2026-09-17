@@ -95,11 +95,10 @@ func randomToken() (string, error) {
 }
 
 func pingBridge(state bridgeState) error {
-	request, err := http.NewRequest(http.MethodGet, state.BaseURL+"/v1/ping", nil)
+	request, err := http.NewRequest(http.MethodGet, state.BaseURL+"/v1/health", nil)
 	if err != nil {
 		return err
 	}
-	request.Header.Set("x-thinkerqaq-token", state.Token)
 	client := &http.Client{Timeout: time.Second}
 	response, err := client.Do(request)
 	if err != nil {
