@@ -1,25 +1,22 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { contentLanguage, contentSourceUrl } from "./ai-search-content.mjs";
 
-const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const accountId = String(process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
 const apiToken = String(process.env.CLOUDFLARE_AI_SEARCH_TOKEN || "").trim();
 const instanceName = String(process.env.CLOUDFLARE_AI_SEARCH_INSTANCE || "thinkerqaq-blog").trim();
 const blogOrigin = String(process.env.BLOG_ORIGIN || "https://thinkerqaq.github.io").replace(/\/$/, "");
-const beforeSha = String(process.env.GITHUB_EVENT_BEFORE || "").trim();
-const currentSha = String(process.env.GITHUB_SHA || "HEAD").trim();
+const changeManifestPath = String(
+  process.env.AI_SEARCH_CHANGE_MANIFEST
+    || path.join(repositoryRoot, "src", "content", "ai-search-changed-paths.txt"),
+).trim();
 const apiBase = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai-search/instances`;
 const collections = ["articles", "notes"];
 const collectionPriority = { articles: 2, notes: 1 };
 const indexSchemaVersion = 3;
-const readyTimeoutMs = Number(process.env.AI_SEARCH_READY_TIMEOUT_MS || 180_000);
-const readyPollMs = Number(process.env.AI_SEARCH_READY_POLL_MS || 2_000);
 const maxItemKeyLength = 128;
 
 function log(status, details = {}) {
@@ -205,9 +202,6 @@ function desiredInstanceConfiguration() {
       keyword_match_mode: "or",
       boost_by: [{ field: "priority", direction: "desc" }],
     },
-    // AI Search currently supports at most five custom metadata fields. Collection
-    // is derivable from the stable blog--articles/blog--notes item key, so use the
-    // fifth slot for language to support locale-aware retrieval.
     custom_metadata: [
       { field_name: "source_url", data_type: "text" },
       { field_name: "title", data_type: "text" },
@@ -290,17 +284,24 @@ async function listItems() {
 }
 
 async function changedContentPaths() {
-  if (!beforeSha || /^0+$/.test(beforeSha)) return null;
   try {
-    const { stdout } = await execFileAsync(
-      "git",
-      ["diff", "--name-only", beforeSha, currentSha, "--", "src/content"],
-      { cwd: repositoryRoot, timeout: 30_000 },
+    const text = await readFile(changeManifestPath, "utf8");
+    const paths = new Set(
+      text.split(/\r?\n/)
+        .map((line) => line.trim().replaceAll("\\", "/"))
+        .filter(Boolean),
     );
-    return new Set(stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
+    log("change-manifest-loaded", { path: changeManifestPath, changedPaths: paths.size });
+    return paths;
   } catch (error) {
-    log("diff-unavailable", { error: error instanceof Error ? error.message : String(error) });
-    return null;
+    if (error?.code === "ENOENT") {
+      log("change-manifest-unavailable", {
+        path: changeManifestPath,
+        mode: "full-sync-fallback",
+      });
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -349,140 +350,6 @@ async function runPool(items, concurrency, handler) {
   await Promise.all(workers);
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function getStats() {
-  const payload = await cloudflareRequest(
-    `${apiBase}/${encodeURIComponent(instanceName)}/stats`,
-    {},
-    [200],
-  );
-  return payload?.result || payload || {};
-}
-
-function summarizeIndexStats(stats) {
-  return {
-    queued: Number(stats?.queued || 0),
-    running: Number(stats?.running || 0),
-    outdated: Number(stats?.outdated || 0),
-    completed: Number(stats?.completed || 0),
-    errors: Number(stats?.error || 0),
-    objectCount: Number(stats?.engine?.r2?.objectCount || 0),
-    vectorsCount: Number(stats?.engine?.vectorize?.vectorsCount || 0),
-  };
-}
-
-async function waitForIndexSearchable(expectedDocuments) {
-  const deadline = Date.now() + readyTimeoutMs;
-  let lastStats = {};
-
-  while (Date.now() < deadline) {
-    lastStats = await getStats();
-    const stats = summarizeIndexStats(lastStats);
-
-    if (stats.errors > 0) {
-      throw new Error(`AI Search indexing reported ${stats.errors} error(s)`);
-    }
-
-    const hasIndexedData = expectedDocuments === 0
-      || stats.completed > 0
-      || stats.objectCount > 0
-      || stats.vectorsCount > 0;
-
-    if (hasIndexedData) {
-      log("index-searchable", {
-        ...stats,
-        backgroundIndexing: stats.queued + stats.running + stats.outdated > 0,
-      });
-      return lastStats;
-    }
-
-    log("index-waiting", stats);
-    await sleep(readyPollMs);
-  }
-
-  throw new Error(`Timed out after ${readyTimeoutMs}ms waiting for AI Search to become searchable: ${JSON.stringify(lastStats)}`);
-}
-
-async function verifySearch(documents) {
-  if (!documents.size) return;
-
-  const deadline = Date.now() + readyTimeoutMs;
-  let lastReason = "no current-schema item is completed yet";
-
-  while (Date.now() < deadline) {
-    const refreshedItems = await listItems();
-    const completedItem = refreshedItems.find((item) =>
-      item?.status === "completed"
-      && Number(item?.chunks_count || 0) > 0
-      && String(item?.metadata?.title || "").trim()
-      && ["zh", "en"].includes(String(item?.metadata?.language || ""))
-      && Number(item?.metadata?.schema_version) === indexSchemaVersion,
-    );
-
-    if (!completedItem) {
-      log("search-verification-waiting", { reason: lastReason });
-      await sleep(readyPollMs);
-      continue;
-    }
-
-    const probe = String(completedItem.metadata.title).trim();
-    const language = String(completedItem.metadata.language);
-    const payload = await cloudflareRequest(
-      `${apiBase}/${encodeURIComponent(instanceName)}/search`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          query: probe,
-          ai_search_options: {
-            retrieval: {
-              retrieval_type: "hybrid",
-              fusion_method: "rrf",
-              keyword_match_mode: "or",
-              boost_by: [{ field: "priority", direction: "desc" }],
-              filters: { language },
-              max_num_results: 10,
-              return_on_failure: false,
-            },
-            query_rewrite: { enabled: false },
-            reranking: {
-              enabled: true,
-              model: "@cf/baai/bge-reranker-base",
-              match_threshold: 0,
-            },
-          },
-        }),
-      },
-      [200],
-    );
-
-    const result = payload?.result || payload || {};
-    const chunks = Array.isArray(result.chunks) ? result.chunks : [];
-    const blogChunks = chunks.filter((chunk) =>
-      String(chunk?.item?.key || "").startsWith("blog--")
-      && String(chunk?.item?.metadata?.language || "") === language
-      && Number(chunk?.item?.metadata?.schema_version) === indexSchemaVersion,
-    );
-    if (blogChunks.length) {
-      log("search-verified", {
-        query: probe,
-        language,
-        completedItem: completedItem.key,
-        chunks: blogChunks.length,
-      });
-      return;
-    }
-
-    lastReason = `language-filtered search returned no schema v${indexSchemaVersion} blog chunks for ${probe}`;
-    log("search-verification-waiting", { reason: lastReason });
-    await sleep(readyPollMs);
-  }
-
-  throw new Error(`Timed out after ${readyTimeoutMs}ms verifying AI Search: ${lastReason}`);
-}
-
 if (!accountId || !apiToken) {
   const missing = [
     !accountId ? "CLOUDFLARE_ACCOUNT_ID" : null,
@@ -510,7 +377,7 @@ try {
   const uploads = [];
   for (const document of documents.values()) {
     const existing = existingByKey.get(document.key);
-    const contentChanged = !changedPaths || changedPaths.has(document.sourcePath);
+    const contentChanged = changedPaths === null || changedPaths.has(document.sourcePath);
     const metadataChanged = existing ? itemMetadataNeedsRefresh(existing, document) : true;
     if (!existing || contentChanged || metadataChanged) {
       uploads.push({ document, existing, metadataChanged });
@@ -526,23 +393,16 @@ try {
     }
   });
 
-  const indexStats = await waitForIndexSearchable(documents.size);
-  await verifySearch(documents);
-  const stats = summarizeIndexStats(indexStats);
-
-  log("completed", {
+  log("submitted", {
     instance: instanceName,
     publicDocuments: documents.size,
     uploaded: uploads.length,
     metadataRefreshes: uploads.filter((entry) => entry.metadataChanged).length,
     deleted: staleItems.length,
-    incremental: Boolean(changedPaths),
+    incremental: changedPaths !== null,
+    changedPaths: changedPaths?.size ?? null,
     schemaVersion: indexSchemaVersion,
-    backgroundIndexing: stats.queued + stats.running + stats.outdated > 0,
-    queued: stats.queued,
-    running: stats.running,
-    completedIndexing: stats.completed,
-    vectorsCount: stats.vectorsCount,
+    indexing: "cloudflare-background",
   });
 } catch (error) {
   console.error(JSON.stringify({
