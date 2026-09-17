@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 )
 
 var supportedSyncPlatforms = map[string]struct{}{
@@ -374,27 +376,18 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 }
 
 func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
-	request.Article = strings.TrimSpace(request.Article)
-	if request.Article == "" {
-		return request, errors.New("article is required")
+	normalized, err := blogapp.NormalizeSyncRequest(blogapp.SyncRequest{
+		Articles:  []string{request.Article},
+		Platforms: request.Platforms,
+		DryRun:    request.DryRun,
+		Changed:   request.Changed,
+		Draft:     request.Draft,
+	})
+	if err != nil {
+		return request, err
 	}
-	seen := map[string]struct{}{}
-	platforms := make([]string, 0, len(request.Platforms))
-	for _, platform := range request.Platforms {
-		platform = strings.TrimSpace(strings.ToLower(platform))
-		if _, ok := supportedSyncPlatforms[platform]; !ok {
-			return request, fmt.Errorf("unsupported platform: %s", platform)
-		}
-		if _, exists := seen[platform]; exists {
-			continue
-		}
-		seen[platform] = struct{}{}
-		platforms = append(platforms, platform)
-	}
-	if len(platforms) == 0 {
-		return request, errors.New("at least one platform is required")
-	}
-	request.Platforms = platforms
+	request.Article = normalized.Articles[0]
+	request.Platforms = normalized.Platforms
 	return request, nil
 }
 
@@ -406,83 +399,25 @@ func newJobID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
-func prependToolDirectories(env []string, config bridgeConfig) []string {
-	directories := []string{}
-	seen := map[string]struct{}{}
-	for _, name := range []string{"node", "npm", "git", "wechatsync"} {
-		path := strings.TrimSpace(config.ToolPaths[name])
-		if path == "" {
-			continue
-		}
-		directory := filepath.Dir(path)
-		if _, ok := seen[directory]; ok {
-			continue
-		}
-		seen[directory] = struct{}{}
-		directories = append(directories, directory)
+func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest) (string, error) {
+	applicationConfig := blogapp.SyncConfig{
+		EngineRoot:   config.EngineRoot,
+		ContentRoot:  config.ContentRoot,
+		BridgeOrigin: "http://" + DefaultAddress,
+		BridgeToken:  s.token,
+		ToolPaths:    config.ToolPaths,
 	}
-	if len(directories) == 0 {
-		return env
-	}
-	pathValue := os.Getenv("PATH")
-	for index, item := range env {
-		if strings.HasPrefix(strings.ToUpper(item), "PATH=") {
-			pathValue = item[5:]
-			env = append(env[:index], env[index+1:]...)
-			break
-		}
-	}
-	return append(env, "PATH="+strings.Join(append(directories, pathValue), string(os.PathListSeparator)))
-}
-
-func syncCommandEnvironment(config bridgeConfig) []string {
-	env := os.Environ()
-	env = setEnvironment(env, "BLOG_CONTENT_ROOT", config.ContentRoot)
-	env = setEnvironment(env, "BLOGCTL_ENGINE_ROOT", config.EngineRoot)
 	if configPath, err := ConfigPath(); err == nil {
-		env = setEnvironment(env, "BLOGCTL_CONFIG_FILE", configPath)
+		applicationConfig.ConfigPath = configPath
 	}
-	return prependToolDirectories(env, config)
-}
-
-func setEnvironment(env []string, key, value string) []string {
-	prefix := strings.ToUpper(key) + "="
-	filtered := env[:0]
-	for _, item := range env {
-		if strings.HasPrefix(strings.ToUpper(item), prefix) {
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-	return append(filtered, key+"="+value)
-}
-
-func runSyncCommand(ctx context.Context, config bridgeConfig, request syncRequest) (string, error) {
-	if !isContentWorkspace(config.ContentRoot) {
-		return "", errors.New("Content Repository is not configured or invalid")
-	}
-	if !isEngineWorkspace(config.EngineRoot) {
-		return "", errors.New("Public Engine is not configured or invalid")
-	}
-	executable, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	args := []string{"sync", "--article", request.Article, "--platforms", strings.Join(request.Platforms, ",")}
-	if request.DryRun {
-		args = append(args, "--dry-run")
-	}
-	if request.Changed {
-		args = append(args, "--changed")
-	}
-	if request.Draft {
-		args = append(args, "--draft")
-	}
-	command := exec.CommandContext(ctx, executable, args...)
-	command.Dir = config.ContentRoot
-	command.Env = syncCommandEnvironment(config)
-	output, err := command.CombinedOutput()
-	return string(output), err
+	service := blogapp.NewSyncService()
+	return service.Run(ctx, applicationConfig, blogapp.SyncRequest{
+		Articles:  []string{request.Article},
+		Platforms: append([]string{}, request.Platforms...),
+		DryRun:    request.DryRun,
+		Changed:   request.Changed,
+		Draft:     request.Draft,
+	})
 }
 
 func (s *Server) startSyncJob(request syncRequest) *syncJob {
@@ -506,7 +441,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	s.mu.Unlock()
 
 	go func() {
-		output, err := runSyncCommand(context.Background(), config, request)
+		output, err := s.runSyncApplication(context.Background(), config, request)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		stored := s.jobs[job.ID]
