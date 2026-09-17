@@ -18,13 +18,6 @@ const localizedSummary = z.object({
   description: z.string(),
 });
 
-const projectComponent = z.object({
-  id: z.string(),
-  name: z.string(),
-  category: z.string().optional(),
-  website: z.url().optional(),
-});
-
 const notes = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -86,7 +79,6 @@ const articles = defineCollection({
     featured: z.boolean().default(false),
     series: z.string().optional(),
     project: z.string().optional(),
-    components: z.array(z.string()).default([]),
     translationOf: z.string().optional(),
     sourceNote: z.string().optional(),
     relatedNotes: z.array(reference("notes")).default([]),
@@ -108,7 +100,6 @@ const projects = defineCollection({
     tags: z.array(z.string()).default([]),
     featured: z.boolean().default(false),
     repository: z.url().optional(),
-    components: z.array(projectComponent).default([]),
     translations: z.record(z.string(), localizedSummary).default({}),
   }),
 });
@@ -132,7 +123,6 @@ const series = defineCollection({
     updatedAt: z.coerce.date(),
     featured: z.boolean().default(false),
     project: z.string().optional(),
-    components: z.array(z.string()).default([]),
     relatedArticles: z.array(z.string()).default([]),
     relatedNoteCategories: z.array(z.string()).default([]),
     relatedNoteScopes: z.array(relatedNoteScope).default([]),
