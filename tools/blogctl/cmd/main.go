@@ -17,6 +17,21 @@ type app struct {
 }
 
 func main() {
+	if isNativeMessagingInvocation(os.Args[1:]) {
+		if err := runNativeHost(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "--bridge" {
+		if err := runBridgeProcess(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	root, contentRoot, err := rootsForCommand(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
