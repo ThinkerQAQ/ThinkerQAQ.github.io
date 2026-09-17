@@ -14,7 +14,7 @@
     "test:diagrams": "npm run diagrams && node --test scripts/plantuml/plantuml.test.mjs scripts/drawio/drawio.test.mjs",
     "test:indexnow": "node --test scripts/indexnow.test.mjs",
     "test:distribute": "node --test scripts/distribute.test.mjs",
-    "test:syndicate": "node --test scripts/syndicate.test.mjs scripts/syndicate-cli.test.mjs scripts/medium.test.mjs scripts/blogctl-sync.test.mjs",
+    "test:syndicate": "node --test scripts/syndicate.test.mjs scripts/syndicate-cli.test.mjs scripts/medium.test.mjs scripts/blogctl-sync.test.mjs scripts/publishing-config.test.mjs",
     "test:ai-search": "node --check workers/blog-ai/src/worker.js && node --check workers/blog-ai/src/index.js && node --check scripts/sync-ai-search.mjs && node --check scripts/run-ai-search-sync.mjs && node --check scripts/eval-ai-search.mjs && node --test scripts/ai-search-content.test.mjs scripts/run-ai-search-sync.test.mjs workers/blog-ai/src/*.test.js",
     "test:reactions": "node --check workers/blog-reactions/src/index.js && node --test workers/blog-reactions/src/index.test.js",
     "test:reading-experience": "node --test scripts/reading-time.test.mjs",
