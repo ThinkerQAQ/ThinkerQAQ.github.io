@@ -7,8 +7,11 @@ tags:
   - fixture
 status: published
 featured: true
+project: sample-project
+components:
+  - sample-component
 relatedNotes:
   - sample-note
 ---
 
-This article exists only to exercise article routes and article-to-note relations in public CI.
+This article exists only to exercise article routes, article-to-note relations, and project relations in public CI.
