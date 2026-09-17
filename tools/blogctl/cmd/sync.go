@@ -1,18 +1,12 @@
 package main
 
 import (
-	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
-
-	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
 )
 
 var chinaPlatforms = map[string]struct{}{
@@ -146,27 +140,13 @@ func (a app) runSync(args []string) error {
 
 	env := withEnvironment(os.Environ(), contentRootEnvironment, a.contentRoot)
 	if slices.Contains(options.platforms, "medium") && !options.dryRun {
-		token, err := randomToken()
-		if err != nil {
-			return err
-		}
-		server, err := bridge.New(token)
-		if err != nil {
-			return err
-		}
-		listener, httpServer, err := server.Listen(bridge.DefaultAddress)
+		state, err := ensureBridgeProcess()
 		if err != nil {
 			return fmt.Errorf("start syndication bridge: %w", err)
 		}
-		origin := bridge.Origin(listener)
-		fmt.Fprintf(a.out, "[bridge] listening on %s\n", origin)
-		env = withEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN", origin)
-		env = withEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", token)
-		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			_ = bridge.Shutdown(ctx, httpServer)
-		}()
+		fmt.Fprintf(a.out, "[bridge] ready on %s\n", state.BaseURL)
+		env = withEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN", state.BaseURL)
+		env = withEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", state.Token)
 	}
 
 	for _, entry := range buildSyncPlan(options) {
@@ -176,12 +156,4 @@ func (a app) runSync(args []string) error {
 		}
 	}
 	return nil
-}
-
-func randomToken() (string, error) {
-	value := make([]byte, 32)
-	if _, err := rand.Read(value); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(value), nil
 }
