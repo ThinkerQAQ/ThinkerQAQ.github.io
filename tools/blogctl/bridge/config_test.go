@@ -3,6 +3,7 @@ package bridge
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -10,12 +11,15 @@ func TestBridgeConfigPersistsProxy(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
 
-	want := bridgeConfig{ProxyEnabled: true, ProxyHost: "127.0.0.1", ProxyPort: 7890}
+	want, err := normalizeBridgeConfig(bridgeConfig{ProxyEnabled: true, ProxyHost: "127.0.0.1", ProxyPort: 7890})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := saveBridgeConfig(want); err != nil {
 		t.Fatal(err)
 	}
 	got := loadBridgeConfig()
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("config = %#v, want %#v", got, want)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
