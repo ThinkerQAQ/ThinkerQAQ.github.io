@@ -1,22 +1,38 @@
 ---
-import BaseLayout from "../layouts/BaseLayout.astro";
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../config/i18n";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export function getStaticPaths() {
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale },
+  }));
+}
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
 ---
 
 <BaseLayout
-  title="Umami 统计控制"
-  description="控制当前浏览器是否计入 Umami 访问统计。"
+  title="Analytics control"
+  description="Control whether this browser is counted by Umami analytics."
+  canonicalPath={localizePath(locale, "/disable-analytics/")}
+  locale={locale}
   noindex={true}
   analytics={false}
 >
   <div class="shell page narrow analytics-control">
     <p class="eyebrow">UMAMI</p>
-    <h1 id="status">正在检查统计设置…</h1>
+    <h1 id="status">Checking analytics setting…</h1>
     <p id="detail" class="detail"></p>
     <p id="hint" class="hint"></p>
 
-    <div class="actions" aria-label="Umami 统计控制">
-      <a class="control-button" href="?disabled=1">禁止统计</a>
-      <a class="control-button" href="?disabled=0">恢复统计</a>
+    <div class="actions" aria-label="Umami analytics controls">
+      <a class="control-button" href="?disabled=1">Disable tracking</a>
+      <a class="control-button" href="?disabled=0">Enable tracking</a>
     </div>
   </div>
 
@@ -37,24 +53,24 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       const disabled = localStorage.getItem("umami.disabled") === "1";
 
       if (disabled) {
-        status.textContent = "当前浏览器已禁用 Umami 统计。";
-        detail.innerHTML = '已为 <code>thinkerqaq.github.io</code> 保存 <code>umami.disabled = "1"</code>。';
+        status.textContent = "Umami tracking is disabled on this browser.";
+        detail.innerHTML = 'Stored as <code>umami.disabled = "1"</code> for <code>thinkerqaq.github.io</code>.';
       } else {
-        status.textContent = "当前浏览器已启用 Umami 统计。";
-        detail.innerHTML = '<code>thinkerqaq.github.io</code> 当前没有设置 <code>umami.disabled</code>。';
+        status.textContent = "Umami tracking is enabled on this browser.";
+        detail.innerHTML = 'The <code>umami.disabled</code> flag is not set for <code>thinkerqaq.github.io</code>.';
       }
 
       if (requested === "1") {
-        hint.textContent = "已禁止统计。现在可以关闭此页面。";
+        hint.textContent = "Tracking has been disabled. You can close this page.";
       } else if (requested === "0") {
-        hint.textContent = "已恢复统计。之后打开的普通博客页面可以再次被 Umami 统计。";
+        hint.textContent = "Tracking has been restored. The next normal blog page you open can be counted by Umami.";
       } else {
-        hint.textContent = "使用下方按钮控制当前浏览器是否计入 Umami 统计。";
+        hint.textContent = "Use the controls below to change whether this browser is counted by Umami.";
       }
     } catch (_) {
-      status.textContent = "无法更新 Umami 统计设置。";
-      detail.textContent = "当前浏览器阻止了对 localStorage 的访问。";
-      hint.textContent = "统计设置没有发生变化。";
+      status.textContent = "Could not update the analytics setting.";
+      detail.textContent = "This browser blocked access to localStorage.";
+      hint.textContent = "No analytics preference was changed.";
     }
   </script>
 </BaseLayout>
