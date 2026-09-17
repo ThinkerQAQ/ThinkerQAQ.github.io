@@ -112,7 +112,7 @@ func buildSyncPlan(options syncOptions) []syncPlan {
 		if options.dryRun {
 			args = append(args, "--dry-run")
 		}
-		plan = append(plan, syncPlan{group: "china", script: "scripts/distribute.mjs", args: args})
+		plan = append(plan, syncPlan{group: "china", script: "scripts/blogctl-distribute.mjs", args: args})
 	}
 	if len(international) > 0 {
 		args := append([]string{}, articleArgs...)
@@ -126,7 +126,7 @@ func buildSyncPlan(options syncOptions) []syncPlan {
 		if options.draft {
 			args = append(args, "--draft")
 		}
-		plan = append(plan, syncPlan{group: "international", script: "scripts/syndicate-cli.mjs", args: args})
+		plan = append(plan, syncPlan{group: "international", script: "scripts/blogctl-syndicate.mjs", args: args})
 	}
 	return plan
 }
@@ -136,12 +136,15 @@ func (a app) runSync(args []string) error {
 	if err != nil {
 		return err
 	}
+	if a.contentRoot == "" {
+		return errors.New("content repository root is required for sync")
+	}
 	node, _, err := a.prepareNode(true)
 	if err != nil {
 		return err
 	}
 
-	env := os.Environ()
+	env := withEnvironment(os.Environ(), contentRootEnvironment, a.contentRoot)
 	if slices.Contains(options.platforms, "medium") && !options.dryRun {
 		token, err := randomToken()
 		if err != nil {
@@ -157,10 +160,8 @@ func (a app) runSync(args []string) error {
 		}
 		origin := bridge.Origin(listener)
 		fmt.Fprintf(a.out, "[bridge] listening on %s\n", origin)
-		env = append(env,
-			"THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN="+origin,
-			"THINKERQAQ_SYNDICATION_BRIDGE_TOKEN="+token,
-		)
+		env = withEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN", origin)
+		env = withEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", token)
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
