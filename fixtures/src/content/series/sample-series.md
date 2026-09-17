@@ -4,6 +4,9 @@ description: Synthetic series fixture for public engine validation.
 status: active
 updatedAt: 2026-01-01
 featured: true
+project: sample-project
+components:
+  - sample-component
 relatedArticles:
   - sample-article
 relatedNoteCategories:
