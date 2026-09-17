@@ -5,14 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow,noarchive" />
     <meta name="referrer" content="no-referrer" />
-    <title>Disable analytics · ThinkerQAQ</title>
-    <script is:inline>
-      try {
-        localStorage.setItem("umami.disabled", "1");
-      } catch (_) {
-        // The status below will report the failure.
-      }
-    </script>
+    <title>Analytics control · ThinkerQAQ</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -34,7 +27,7 @@
       }
 
       main {
-        width: min(560px, 100%);
+        width: min(620px, 100%);
       }
 
       h1 {
@@ -49,31 +42,71 @@
       code {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .actions a {
+        display: inline-block;
+        padding: 10px 14px;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1 id="status">Checking analytics setting…</h1>
       <p id="detail"></p>
-      <p>You can close this page after the setting is confirmed.</p>
+      <p id="hint"></p>
+
+      <div class="actions">
+        <a href="?disabled=1">Disable tracking</a>
+        <a href="?disabled=0">Enable tracking</a>
+      </div>
     </main>
 
     <script is:inline>
       const status = document.getElementById("status");
       const detail = document.getElementById("detail");
+      const hint = document.getElementById("hint");
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get("disabled");
 
       try {
+        if (requested === "1") {
+          localStorage.setItem("umami.disabled", "1");
+        } else if (requested === "0") {
+          localStorage.removeItem("umami.disabled");
+        }
+
         const disabled = localStorage.getItem("umami.disabled") === "1";
+
         if (disabled) {
           status.textContent = "Umami tracking is disabled on this browser.";
           detail.innerHTML = 'Stored as <code>umami.disabled = "1"</code> for <code>thinkerqaq.github.io</code>.';
         } else {
-          status.textContent = "Could not disable Umami tracking.";
-          detail.textContent = "This browser did not persist the localStorage setting.";
+          status.textContent = "Umami tracking is enabled on this browser.";
+          detail.innerHTML = 'The <code>umami.disabled</code> flag is not set for <code>thinkerqaq.github.io</code>.';
+        }
+
+        if (requested === "1") {
+          hint.textContent = "Tracking has been disabled. You can close this page.";
+        } else if (requested === "0") {
+          hint.textContent = "Tracking has been restored. The next normal blog page you open can be counted by Umami.";
+        } else {
+          hint.textContent = "Use ?disabled=1 to disable tracking or ?disabled=0 to restore tracking.";
         }
       } catch (_) {
-        status.textContent = "Could not disable Umami tracking.";
+        status.textContent = "Could not update the analytics setting.";
         detail.textContent = "This browser blocked access to localStorage.";
+        hint.textContent = "No analytics preference was changed.";
       }
     </script>
   </body>
