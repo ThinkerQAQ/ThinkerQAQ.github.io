@@ -24,6 +24,10 @@ export function resolveBlogContentRoot(env = process.env) {
   return path.resolve(configured);
 }
 
+export function resolveDistributionOutputRoot(contentRoot, outputRoot) {
+  return path.resolve(contentRoot, outputRoot);
+}
+
 export async function runBlogctlDistribution(argv, env = process.env) {
   const startedAt = Date.now();
   const options = parseArguments(argv);
@@ -32,11 +36,9 @@ export async function runBlogctlDistribution(argv, env = process.env) {
   }
 
   const contentRoot = resolveBlogContentRoot(env);
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const engineRoot = path.resolve(scriptDir, "..");
   const result = await exportArticles({
     articleRoot: path.join(contentRoot, "src", "content", "articles"),
-    outputRoot: path.resolve(engineRoot, options.outputRoot),
+    outputRoot: resolveDistributionOutputRoot(contentRoot, options.outputRoot),
     platforms: options.platforms,
     requestedSlugs: options.requestedSlugs,
   });
