@@ -31,6 +31,10 @@ export function resolveBlogContentRoot(env = process.env) {
   return path.resolve(configured);
 }
 
+export function resolveMediumOutputRoot(contentRoot) {
+  return path.join(contentRoot, ".distribution", "medium");
+}
+
 function logMediumEvent(event) {
   console.log(JSON.stringify({
     timestamp: new Date().toISOString(),
@@ -48,8 +52,6 @@ export async function runBlogctlSyndication(argv, env = process.env) {
 
   const contentRoot = resolveBlogContentRoot(env);
   const articleRoot = path.join(contentRoot, "src", "content", "articles", "en");
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const engineRoot = path.resolve(scriptDir, "..");
   const summaries = {};
 
   for (const platform of platforms) {
@@ -69,7 +71,7 @@ export async function runBlogctlSyndication(argv, env = process.env) {
     });
     summaries.medium = await runMediumSyndication(loaded, {
       dryRun: options.dryRun,
-      outputRoot: path.join(engineRoot, ".distribution", "medium"),
+      outputRoot: resolveMediumOutputRoot(contentRoot),
       onEvent: logMediumEvent,
     });
   }
