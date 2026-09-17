@@ -19,9 +19,9 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
-	ContentRoot string            `json:"contentRoot"`
-	EngineRoot  string            `json:"engineRoot"`
-	ToolPaths   map[string]string `json:"toolPaths"`
+	ContentRoot string                              `json:"contentRoot"`
+	EngineRoot  string                              `json:"engineRoot"`
+	ToolPaths   map[string]string                   `json:"toolPaths"`
 	Publishing  map[string]publishingPlatformConfig `json:"publishing"`
 }
 
