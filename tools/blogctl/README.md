@@ -1,6 +1,6 @@
 # blogctl
 
-`blogctl` is the cross-platform developer tool for the ThinkerQAQ blog. It keeps the repository architecture deliberately small:
+`blogctl` is the cross-platform developer tool for the ThinkerQAQ blog. Its implementation remains in the public engine repository:
 
 ```text
 tools/blogctl/
@@ -9,7 +9,27 @@ tools/blogctl/
 └── extension/  # BlogCTL Extension
 ```
 
-The root `scripts/` directory stays where it is. Those scripts are repository-level Astro/Node implementation details; `blogctl` is the user-facing control plane and calls them when needed.
+The root `scripts/` directory also stays in the public engine. Those scripts are Astro/Node implementation details; `blogctl` is the user-facing control plane and calls them when needed.
+
+## Repository model
+
+The blog is split into two repositories:
+
+```text
+ThinkerQAQ.github.io      Public engine and BlogCTL implementation
+blog-content              Private canonical Articles / Notes / Series / Projects
+```
+
+Engine operations such as preview, build, check, diagrams, and tests still run from `ThinkerQAQ.github.io`.
+
+Content syndication is different: run `blogctl sync` from `blog-content`. BlogCTL reads article source directly from that repository and uses the public engine checkout only for the syndication implementation and Node dependencies.
+
+When the repositories are sibling directories named `ThinkerQAQ.github.io` and `blog-content`, BlogCTL discovers both automatically. Arbitrary layouts are also supported:
+
+- `BLOG_CONTENT_ROOT` points to the canonical `blog-content` checkout.
+- `BLOGCTL_ENGINE_ROOT` points to the `ThinkerQAQ.github.io` checkout.
+
+The sibling layout is therefore a convenience, not a requirement.
 
 ## Install
 
@@ -17,10 +37,12 @@ Tagged releases are built by GitHub Actions from `tools/blogctl/VERSION`. Each r
 
 Validated owner PRs that change `tools/blogctl/**` explicitly dispatch the BlogCTL release workflow after auto-merge. Release creation is idempotent for an existing version tag, so ordinary follow-up runs do not replace an already published release.
 
-After downloading the binary for the current platform, put it on `PATH` and run it from anywhere inside this repository:
+After downloading the binary for the current platform, put it on `PATH`.
+
+Engine commands:
 
 ```bash
-blogctl help
+cd ThinkerQAQ.github.io
 blogctl preview
 blogctl build
 blogctl check
@@ -29,14 +51,22 @@ blogctl diagrams
 blogctl doctor
 ```
 
+Syndication commands:
+
+```bash
+cd blog-content
+blogctl sync --article concurrency-series-00 --platforms devto,medium --dry-run
+```
+
 Building from source remains available for development:
 
 ```bash
+cd ThinkerQAQ.github.io
 go run ./tools/blogctl/cmd help
 go build -o blogctl ./tools/blogctl/cmd
 ```
 
-The released binary removes the need to install Go for normal use. Astro/site operations still require the repository's Node.js dependencies, and PlantUML rendering still requires Java when a new diagram must be rendered.
+The released binary removes the need to install Go for normal use. Astro/site and syndication operations still require the public engine repository's Node.js dependencies, and PlantUML rendering still requires Java when a new diagram must be rendered.
 
 ## Syndication
 
@@ -45,6 +75,8 @@ Article and platform scopes are always explicit:
 ```bash
 blogctl sync --article concurrency-series-00 --platforms devto,medium --dry-run
 ```
+
+The source article is loaded from `BLOG_CONTENT_ROOT/src/content/articles/**`; English syndication reads `BLOG_CONTENT_ROOT/src/content/articles/en/**`. Generated distribution artifacts remain engine-local and are not written back into the private content repository.
 
 BlogCTL Extension independently reports browser login status for the publishing platforms it knows how to inspect: 博客园, 掘金, CSDN, 思否, 知乎, 51CTO, 开源中国, 今日头条, DEV.to, and Medium. A failed probe is isolated to that platform and does not make the other platform or Bridge states unknown.
 
