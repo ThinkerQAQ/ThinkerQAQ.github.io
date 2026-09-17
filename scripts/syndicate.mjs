@@ -293,6 +293,7 @@ export async function runSyndication({
   requestedSlugs = [],
   dryRun = false,
   draft = false,
+  publishingConfig = defaultPlatformPublishingConfig("devto"),
   apiKey = process.env.DEVTO_API_KEY,
   apiOrigin = process.env.DEVTO_API_ORIGIN || DEVTO_API_ORIGIN,
   fetchImpl = fetch,
