@@ -38,7 +38,6 @@ test("builds DEV.to payload with canonical and absolute root links", () => {
   assert.equal(payload.published, true);
 });
 
-
 test("DEV.to publishing profile controls footer tracking and native canonical", () => {
   const article = {
     title: "Test",
@@ -88,6 +87,30 @@ test("DEV.to matching supports profiles without native canonical", async () => {
     fetchImpl: async () => new Response(JSON.stringify({ id: 1, title: "Test", tag_list: ["go"], ...desired }), { status: 200 }),
   });
   assert.equal(result.action, "skipped");
+});
+
+test("DEV.to no-canonical fallback does not hijack a same-title article with another canonical", async () => {
+  const desired = buildDevtoArticle({
+    title: "Test", description: "Description", tags: ["Go"], body: "Body", status: "published",
+  }, {
+    slug: "test",
+    publishingConfig: {
+      footer: { enabled: false, template: "" },
+      canonical: { mode: "none" },
+      tracking: { enabled: false, source: "devto", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  const calls = [];
+  const result = await upsertDevtoArticle(desired, {
+    apiKey: "key",
+    remoteArticles: [{ id: 9, title: "Test", canonical_url: "https://example.com/different/" }],
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ id: 10, url: "https://dev.to/user/test", ...desired }), { status: 201 });
+    },
+  });
+  assert.equal(result.action, "created");
+  assert.deepEqual(calls.map((call) => call.init.method), ["POST"]);
 });
 
 test("canonical comparison ignores query, hash and trailing slash", () => {

@@ -277,45 +277,45 @@ export function parseMediumBlocks(markdown) {
 }
 
 function footerData(article, canonicalUrl, publishingConfig) {
-	const markdown = renderPublishingFooter(publishingConfig, {
-		canonicalUrl,
-		title: article.title,
-		site: "ThinkerQAQ's personal blog",
-	}).replace(/^>\s?/u, "").trim();
-	if (!markdown) return null;
-	return parseInline(markdown, []);
+  const markdown = renderPublishingFooter(publishingConfig, {
+    canonicalUrl,
+    title: article.title,
+    site: "ThinkerQAQ's personal blog",
+  }).replace(/^>\s?/u, "").trim();
+  if (!markdown) return null;
+  return parseInline(markdown, []);
 }
 
 export function buildMediumDraft(article, {
-	slug,
-	publishingConfig = defaultPlatformPublishingConfig("medium"),
+  slug,
+  publishingConfig = defaultPlatformPublishingConfig("medium"),
 }) {
-	const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
-	const { blocks, warnings } = parseMediumBlocks(article.body);
-	const deltas = blocks.map((block, index) => ({
-		type: 1,
-		index,
-		paragraph: {
-			type: block.paragraphType,
-			text: block.text,
-			markups: block.markups,
-		},
-	}));
-	const footer = footerData(article, canonicalUrl, publishingConfig);
-	if (footer) {
-		deltas.push({
-			type: 1,
-			index: deltas.length,
-			paragraph: { type: BLOCKQUOTE, text: footer.text, markups: footer.markups },
-		});
-	}
-	return {
-		title: article.title,
-		canonicalUrl: nativeCanonicalUrl(canonicalUrl, publishingConfig),
-		tags: article.tags.slice(0, MEDIUM_MAX_TAGS),
-		deltas,
-		warnings,
-	};
+  const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+  const { blocks, warnings } = parseMediumBlocks(article.body);
+  const deltas = blocks.map((block, index) => ({
+    type: 1,
+    index,
+    paragraph: {
+      type: block.paragraphType,
+      text: block.text,
+      markups: block.markups,
+    },
+  }));
+  const footer = footerData(article, canonicalUrl, publishingConfig);
+  if (footer) {
+    deltas.push({
+      type: 1,
+      index: deltas.length,
+      paragraph: { type: BLOCKQUOTE, text: footer.text, markups: footer.markups },
+    });
+  }
+  return {
+    title: article.title,
+    canonicalUrl: nativeCanonicalUrl(canonicalUrl, publishingConfig),
+    tags: article.tags.slice(0, MEDIUM_MAX_TAGS),
+    deltas,
+    warnings,
+  };
 }
 
 function renderBlocks(blocks) {
@@ -354,15 +354,15 @@ function renderBlocks(blocks) {
 }
 
 export function buildMediumCopyHtml(article, {
-	slug,
-	publishingConfig = defaultPlatformPublishingConfig("medium"),
+  slug,
+  publishingConfig = defaultPlatformPublishingConfig("medium"),
 }) {
-	const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
-	const { blocks } = parseMediumBlocks(article.body);
-	const footer = footerData(article, canonicalUrl, publishingConfig);
-	const body = renderBlocks(blocks);
-	const footerHtml = footer ? `\n<hr>\n<blockquote><p>${footer.html}</p></blockquote>` : "";
-	return `<!doctype html>
+  const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+  const { blocks } = parseMediumBlocks(article.body);
+  const footer = footerData(article, canonicalUrl, publishingConfig);
+  const body = renderBlocks(blocks);
+  const footerHtml = footer ? `\n<hr>\n<blockquote><p>${footer.html}</p></blockquote>` : "";
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -406,9 +406,9 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 }
 
 export async function writeMediumCopyHtml(article, {
-	slug,
-	outputRoot = ".distribution/medium",
-	publishingConfig = defaultPlatformPublishingConfig("medium"),
+  slug,
+  outputRoot = ".distribution/medium",
+  publishingConfig = defaultPlatformPublishingConfig("medium"),
 } = {}) {
   const outputFile = path.resolve(outputRoot, `${slug}.html`);
   await mkdir(path.dirname(outputFile), { recursive: true });

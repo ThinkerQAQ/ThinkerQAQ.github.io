@@ -77,26 +77,26 @@ function truncate(value, maxLength) {
 }
 
 export function buildDevtoArticle(article, {
-	slug,
-	published = true,
-	publishingConfig = defaultPlatformPublishingConfig("devto"),
+  slug,
+  published = true,
+  publishingConfig = defaultPlatformPublishingConfig("devto"),
 } = {}) {
-	const canonicalUrl = buildCanonicalUrl(slug);
-	const body = makeExternalLinksAbsolute(article.body).trim();
-	const footer = renderPublishingFooter(publishingConfig, {
-		canonicalUrl,
-		title: article.title,
-		site: "ThinkerQAQ's personal blog",
-	});
-	const footerSection = footer ? `\n\n---\n\n${footer}` : "";
-	return {
-		title: article.title,
-		body_markdown: `${body}${footerSection}\n`,
-		published,
-		canonical_url: nativeCanonicalUrl(canonicalUrl, publishingConfig),
-		description: truncate(article.description, MAX_DEVTO_DESCRIPTION),
-		tags: normalizeDevtoTags(article.tags).join(","),
-	};
+  const canonicalUrl = buildCanonicalUrl(slug);
+  const body = makeExternalLinksAbsolute(article.body).trim();
+  const footer = renderPublishingFooter(publishingConfig, {
+    canonicalUrl,
+    title: article.title,
+    site: "ThinkerQAQ's personal blog",
+  });
+  const footerSection = footer ? `\n\n---\n\n${footer}` : "";
+  return {
+    title: article.title,
+    body_markdown: `${body}${footerSection}\n`,
+    published,
+    canonical_url: nativeCanonicalUrl(canonicalUrl, publishingConfig),
+    description: truncate(article.description, MAX_DEVTO_DESCRIPTION),
+    tags: normalizeDevtoTags(article.tags).join(","),
+  };
 }
 
 function normalizeBody(value = "") {
@@ -110,19 +110,19 @@ function remoteTags(article) {
 }
 
 export function devtoArticleMatches(remote, desired) {
-	if (!remote) return false;
-	const remotePublished = typeof remote.published === "boolean"
-		? remote.published
-		: Boolean(remote.published_at || remote.published_timestamp);
-	const canonicalMatches = desired.canonical_url
-		? canonicalUrlsEqual(remote.canonical_url, desired.canonical_url)
-		: !String(remote.canonical_url || "").trim();
-	return remote.title === desired.title
-		&& remote.description === desired.description
-		&& canonicalMatches
-		&& normalizeBody(remote.body_markdown) === normalizeBody(desired.body_markdown)
-		&& remoteTags(remote).join(",") === normalizeDevtoTags(desired.tags.split(",")).join(",")
-		&& remotePublished === Boolean(desired.published);
+  if (!remote) return false;
+  const remotePublished = typeof remote.published === "boolean"
+    ? remote.published
+    : Boolean(remote.published_at || remote.published_timestamp);
+  const canonicalMatches = desired.canonical_url
+    ? canonicalUrlsEqual(remote.canonical_url, desired.canonical_url)
+    : !String(remote.canonical_url || "").trim();
+  return remote.title === desired.title
+    && remote.description === desired.description
+    && canonicalMatches
+    && normalizeBody(remote.body_markdown) === normalizeBody(desired.body_markdown)
+    && remoteTags(remote).join(",") === normalizeDevtoTags(desired.tags.split(",")).join(",")
+    && remotePublished === Boolean(desired.published);
 }
 
 function articleEndpoint(apiOrigin, suffix) {
@@ -181,7 +181,10 @@ export async function upsertDevtoArticle(desired, {
   const existing = remoteArticles.find((article) => (
   desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
 )) ?? (!desired.canonical_url
-  ? remoteArticles.find((article) => article.title === desired.title)
+  ? remoteArticles.find((article) => (
+      !String(article.canonical_url || "").trim()
+      && article.title === desired.title
+    ))
   : undefined);
   if (!existing) {
     const created = await devtoRequest(
