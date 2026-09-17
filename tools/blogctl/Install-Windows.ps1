@@ -6,6 +6,8 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
+# Keep this script ASCII-only so Windows PowerShell 5.1 can parse it reliably
+# even when Git checks it out as UTF-8 without a BOM.
 $hostName = 'com.thinkerqaq.blogctl'
 $extensionId = 'kbenbblolndleojbmcjcfmkkgfhljmbe'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -22,7 +24,7 @@ if ($Executable) {
 }
 
 if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {
-    throw '找不到 BlogCTL 可执行文件。请把安装脚本与 blogctl-windows-*.exe 放在同一目录，或使用 -Executable 指定完整路径。'
+    throw 'BlogCTL executable not found. Put this installer next to blogctl-windows-*.exe or pass the full path with -Executable.'
 }
 
 $exe = [System.IO.Path]::GetFullPath($exe)
@@ -52,9 +54,9 @@ foreach ($browser in @('Google\Chrome', 'Microsoft\Edge')) {
     $registeredBrowsers += $browser
 }
 
-Write-Host 'BlogCTL Native Messaging Host 已注册。' -ForegroundColor Green
+Write-Host 'BlogCTL Native Messaging Host registered.' -ForegroundColor Green
 Write-Host "Executable: $exe"
 Write-Host "Manifest:   $nativeManifest"
 Write-Host "Extension:  $extensionId"
 Write-Host ('Browsers:   ' + ($registeredBrowsers -join ', '))
-Write-Host '重新加载 BlogCTL Extension 后，打开扩展即可按需自动启动 Bridge。'
+Write-Host 'Reload BlogCTL Extension. Opening the extension will start the Bridge on demand.'
