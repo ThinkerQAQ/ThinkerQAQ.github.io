@@ -1,0 +1,79 @@
+name: Temporary BlogCTL format fix
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-content-workspace
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/blogctl-content-workspace
+
+      - name: Fix JavaScript indentation
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("scripts/syndicate.mjs")
+          text = path.read_text()
+          start = text.find("  const existing = remoteArticles.find(", text.find("export async function upsertDevtoArticle("))
+          end = text.find("  if (!existing) {", start)
+          if start < 0 or end < 0:
+              raise SystemExit("DEV.to lookup boundaries not found")
+          lines = [
+              "  const existing = remoteArticles.find((article) => (",
+              "    desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)",
+              "  )) ?? (!desired.canonical_url",
+              "    ? remoteArticles.find((article) => (",
+              "        !String(article.canonical_url || \"\").trim()",
+              "        && article.title === desired.title",
+              "      ))",
+              "    : undefined);",
+              "",
+          ]
+          path.write_text(text[:start] + "\n".join(lines) + text[end:])
+
+          path = Path("scripts/syndicate-medium.mjs")
+          text = path.read_text()
+          start = text.find("    const fallbackPath = await writeMediumCopyHtml(item.article, {")
+          end = text.find("    prepared.push({ ...item, draft, fallbackPath });", start)
+          if start < 0 or end < 0:
+              raise SystemExit("Medium fallback boundaries not found")
+          lines = [
+              "    const fallbackPath = await writeMediumCopyHtml(item.article, {",
+              "      slug: item.slug,",
+              "      outputRoot,",
+              "      publishingConfig,",
+              "    });",
+              "",
+          ]
+          path.write_text(text[:start] + "\n".join(lines) + text[end:])
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Test syndication
+        run: |
+          npm ci
+          npm run test:syndicate
+          npm run test:distribute
+
+      - name: Commit format fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/syndicate.mjs scripts/syndicate-medium.mjs
+          git commit -m "style: clean syndication adapter formatting"
+          git push origin HEAD:refactor/blogctl-content-workspace
