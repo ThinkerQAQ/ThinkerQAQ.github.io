@@ -1,7 +1,9 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 
-const BRIDGE_ORIGIN = "http://127.0.0.1:32145";
+const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
+const BRIDGE_CACHE_MS = 30000;
+let bridgeSession = null;
 
 async function setBadge(text, color) {
   await chrome.action.setBadgeText({ text });
@@ -36,6 +38,32 @@ async function fetchWithTimeout(url, options = {}) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function requestNativeBridge() {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendNativeMessage(NATIVE_HOST, { command: "ensure_bridge" }, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(`无法连接 BlogCTL Native Host：${error.message}`));
+        return;
+      }
+      if (!response?.ok || !response.baseUrl || !response.token) {
+        reject(new Error(response?.error || "BlogCTL Native Host 返回无效结果"));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
+async function ensureBridge(force = false) {
+  if (!force && bridgeSession && Date.now() - bridgeSession.checkedAt < BRIDGE_CACHE_MS) {
+    return bridgeSession;
+  }
+  const response = await requestNativeBridge();
+  bridgeSession = { ...response, checkedAt: Date.now() };
+  return bridgeSession;
 }
 
 async function probeCookies(probe) {
@@ -112,15 +140,26 @@ async function allPlatformLoginStatuses() {
   return Promise.all(PLATFORM_AUTH.map((definition) => platformLoginStatus(definition)));
 }
 
-async function fetchJSON(pathname, options = {}) {
-  const response = await fetch(`${BRIDGE_ORIGIN}${pathname}`, options);
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `bridge HTTP ${response.status}`);
-  return payload;
+async function fetchJSON(pathname, options = {}, retry = true) {
+  const bridge = await ensureBridge(false);
+  try {
+    const response = await fetch(`${bridge.baseUrl}${pathname}`, options);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `bridge HTTP ${response.status}`);
+    return payload;
+  } catch (error) {
+    if (retry) {
+      bridgeSession = null;
+      await ensureBridge(true);
+      return fetchJSON(pathname, options, false);
+    }
+    throw error;
+  }
 }
 
 async function bridgeStatus() {
   try {
+    const bridge = await ensureBridge(false);
     const health = await fetchJSON("/v1/health");
     if (!health?.ok) throw new Error("Bridge health check failed.");
 
@@ -128,6 +167,7 @@ async function bridgeStatus() {
       const result = await fetchJSON("/v1/config");
       return {
         running: true,
+        pid: bridge.pid || 0,
         configKnown: true,
         config: result?.config ?? {},
         networkMode: result?.networkMode || "",
@@ -135,12 +175,14 @@ async function bridgeStatus() {
     } catch (error) {
       return {
         running: true,
+        pid: bridge.pid || 0,
         configKnown: false,
         config: {},
         configError: errorMessage(error),
       };
     }
   } catch (error) {
+    bridgeSession = null;
     return {
       running: false,
       configKnown: false,
