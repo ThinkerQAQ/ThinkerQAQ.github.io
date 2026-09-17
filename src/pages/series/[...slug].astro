@@ -95,15 +95,6 @@ const relatedNoteGroups = [...relatedNoteCategories, ...relatedNoteScopes];
             <a href={projectHref(projectRelation.project)}>项目 · {projectSummary.title}</a>
           )}
         </div>
-        {projectRelation && projectRelation.components.length > 0 && (
-          <div class="tag-list" aria-label="项目组件">
-            {projectRelation.components.map((component) => (
-              <a href={`${projectHref(projectRelation.project)}#component-${component.id}`}>
-                {component.name}
-              </a>
-            ))}
-          </div>
-        )}
       </header>
       <section aria-label="系列文章"><ArticleList entries={relatedArticles} emptyMessage="正式文章还在整理中，可以先阅读下方参考笔记。" /></section>
     </article>
