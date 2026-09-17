@@ -15,11 +15,14 @@ import {
   articleHref,
   articleTagHref,
   formatDate,
+  localizedProjectSummary,
   localizedSeriesSummary,
   noteHref,
+  projectHref,
   seriesHref,
   type ArticleSeriesNavigation as SeriesNavigation,
 } from "../lib/content";
+import type { ProjectRelation } from "../lib/project-relations";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -35,6 +38,7 @@ interface Props {
   translations?: CollectionEntry<"articles">[];
   seriesNavigation?: SeriesNavigation;
   relatedNotes?: CollectionEntry<"notes">[];
+  projectRelation?: ProjectRelation;
 }
 
 const {
@@ -44,6 +48,7 @@ const {
   translations = [article],
   seriesNavigation,
   relatedNotes = [],
+  projectRelation,
 } = Astro.props;
 const { data } = article;
 const locale = data.language;
@@ -57,6 +62,9 @@ const languageAlternatives: LocaleAlternative[] = translations.map((entry) => ({
 }));
 const seriesSummary = seriesNavigation
   ? localizedSeriesSummary(seriesNavigation.series, locale)
+  : undefined;
+const projectSummary = projectRelation
+  ? localizedProjectSummary(projectRelation.project, locale)
   : undefined;
 const mobileCollection = seriesNavigation && seriesSummary ? {
   label: localeInfo.ui.seriesLabel,
@@ -116,6 +124,18 @@ const schema = {
         {data.tags.length > 0 && (
           <div class="tag-list" aria-label={localeInfo.ui.tags}>
             {data.tags.map((tag) => <a href={pathForLocale(articleTagHref(tag), locale)} rel="tag">{tag}</a>)}
+          </div>
+        )}
+        {projectRelation && projectSummary && (
+          <div class="tag-list" aria-label={locale === "en" ? "Project context" : "项目关联"}>
+            <a href={projectHref(projectRelation.project, locale)}>
+              {locale === "en" ? "Project" : "项目"} · {projectSummary.title}
+            </a>
+            {projectRelation.components.map((component) => (
+              <a href={`${projectHref(projectRelation.project, locale)}#component-${component.id}`}>
+                {component.name}
+              </a>
+            ))}
           </div>
         )}
       </header>

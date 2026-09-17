@@ -10,11 +10,14 @@ import {
   formatDate,
   groupByCategory,
   groupNotesByTopic,
+  localizedProjectSummary,
   localizedSeriesSummary,
   noteTopicHref,
+  projectHref,
   seriesHref,
   seriesStatusLabel,
 } from "../../../lib/content";
+import { getSeriesProjectRelation, type ProjectRelation } from "../../../lib/project-relations";
 import {
   seriesArticlesForLocale,
   seriesHasLocaleSummary,
@@ -25,13 +28,20 @@ export async function getStaticPaths() {
   const seriesEntries = await getCollection("series");
   const articles = await getCollection("articles");
   const notes = await getCollection("notes");
+  const projects = await getCollection("projects");
 
   return nonDefaultLocales().flatMap((locale) =>
     seriesEntries
       .filter((series) => seriesHasLocaleSummary(series, locale))
       .map((series) => ({
         params: { locale: LOCALES[locale].path, slug: series.id },
-        props: { locale, series, articles, notes },
+        props: {
+          locale,
+          series,
+          articles,
+          notes,
+          projectRelation: getSeriesProjectRelation(series, projects),
+        },
       })),
   );
 }
@@ -41,10 +51,14 @@ interface Props {
   series: CollectionEntry<"series">;
   articles: CollectionEntry<"articles">[];
   notes: CollectionEntry<"notes">[];
+  projectRelation?: ProjectRelation;
 }
 
-const { locale, series, articles, notes } = Astro.props;
+const { locale, series, articles, notes, projectRelation } = Astro.props;
 const summary = localizedSeriesSummary(series, locale);
+const projectSummary = projectRelation
+  ? localizedProjectSummary(projectRelation.project, locale)
+  : undefined;
 const seriesUi = SERIES_UI[locale];
 const localizedArticles = seriesArticlesForLocale(series, articles, locale);
 const noteCategories = new Map(groupByCategory(notes).map((group) => [group.category, group]));
@@ -85,7 +99,19 @@ const relatedNoteGroups = [...relatedNoteCategories, ...relatedNoteScopes];
         <div class="note-meta">
           <span>{seriesStatusLabel(series.data.status, locale)}</span>
           <span>{LOCALES[locale].ui.updatedAt} {formatDate(series.data.updatedAt, locale)}</span>
+          {projectRelation && projectSummary && (
+            <a href={projectHref(projectRelation.project, locale)}>Project · {projectSummary.title}</a>
+          )}
         </div>
+        {projectRelation && projectRelation.components.length > 0 && (
+          <div class="tag-list" aria-label="Project components">
+            {projectRelation.components.map((component) => (
+              <a href={`${projectHref(projectRelation.project, locale)}#component-${component.id}`}>
+                {component.name}
+              </a>
+            ))}
+          </div>
+        )}
       </header>
       <section aria-label={seriesUi.articlesAriaLabel}>
         <ArticleList

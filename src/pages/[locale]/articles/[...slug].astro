@@ -13,6 +13,7 @@ import {
   getRelatedNotesForArticle,
 } from "../../../lib/content-relations";
 import { localizeNotes } from "../../../lib/note-i18n";
+import { getArticleProjectRelation, type ProjectRelation } from "../../../lib/project-relations";
 
 export async function getStaticPaths() {
   const allArticles = await getCollection("articles");
@@ -21,6 +22,7 @@ export async function getStaticPaths() {
   const noteTranslations = await getCollection("noteTranslations");
   const relationIndex = buildArticleNoteRelationIndex(allArticles, notes);
   const seriesEntries = await getCollection("series");
+  const projects = await getCollection("projects");
 
   return articles
     .filter((article) => article.data.language !== DEFAULT_LOCALE)
@@ -35,12 +37,13 @@ export async function getStaticPaths() {
         noteTranslations,
         article.data.language,
       );
+      const projectRelation = getArticleProjectRelation(article, allArticles, seriesEntries, projects);
       return {
         params: {
           locale: localePathSegment(article.data.language),
           slug: articleSlug(article),
         },
-        props: { article, translations, seriesNavigation, relatedNotes },
+        props: { article, translations, seriesNavigation, relatedNotes, projectRelation },
       };
     });
 }
@@ -50,9 +53,10 @@ interface Props {
   translations: CollectionEntry<"articles">[];
   seriesNavigation?: import("../../../lib/content").ArticleSeriesNavigation;
   relatedNotes: CollectionEntry<"notes">[];
+  projectRelation?: ProjectRelation;
 }
 
-const { article, translations, seriesNavigation, relatedNotes } = Astro.props;
+const { article, translations, seriesNavigation, relatedNotes, projectRelation } = Astro.props;
 const { Content, headings, remarkPluginFrontmatter } = await render(article);
 const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
 const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0
@@ -67,6 +71,7 @@ const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes >
   translations={translations}
   seriesNavigation={seriesNavigation}
   relatedNotes={relatedNotes}
+  projectRelation={projectRelation}
 >
   <Content />
 </ArticleLayout>
