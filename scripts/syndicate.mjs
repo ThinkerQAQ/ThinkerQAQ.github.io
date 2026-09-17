@@ -179,13 +179,13 @@ export async function upsertDevtoArticle(desired, {
   fetchImpl = fetch,
 } = {}) {
   const existing = remoteArticles.find((article) => (
-  desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
-)) ?? (!desired.canonical_url
-  ? remoteArticles.find((article) => (
-      !String(article.canonical_url || "").trim()
-      && article.title === desired.title
-    ))
-  : undefined);
+    desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
+  )) ?? (!desired.canonical_url
+    ? remoteArticles.find((article) => (
+        !String(article.canonical_url || "").trim()
+        && article.title === desired.title
+      ))
+    : undefined);
   if (!existing) {
     const created = await devtoRequest(
       apiKey,

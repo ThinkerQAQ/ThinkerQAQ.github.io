@@ -59,10 +59,10 @@ export async function runMediumSyndication(loadedArticles, {
   for (const item of loadedArticles) {
     const draft = buildMediumDraft(item.article, { slug: item.slug, publishingConfig });
     const fallbackPath = await writeMediumCopyHtml(item.article, {
-  slug: item.slug,
-  outputRoot,
-  publishingConfig,
-});
+      slug: item.slug,
+      outputRoot,
+      publishingConfig,
+    });
     prepared.push({ ...item, draft, fallbackPath });
   }
 
