@@ -37,10 +37,10 @@ func TestBuildSyncPlanSplitsChinaAndInternational(t *testing.T) {
 	if len(plan) != 2 {
 		t.Fatalf("got %d plan entries, want 2", len(plan))
 	}
-	if plan[0].group != "china" || plan[0].script != "scripts/distribute.mjs" {
+	if plan[0].group != "china" || plan[0].script != "scripts/blogctl-distribute.mjs" {
 		t.Fatalf("unexpected china plan: %+v", plan[0])
 	}
-	if plan[1].group != "international" || plan[1].script != "scripts/syndicate-cli.mjs" {
+	if plan[1].group != "international" || plan[1].script != "scripts/blogctl-syndicate.mjs" {
 		t.Fatalf("unexpected international plan: %+v", plan[1])
 	}
 	want := []string{"--article", "concurrency-series-00", "--platforms", "devto,medium", "--dry-run"}
