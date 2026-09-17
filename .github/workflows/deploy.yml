@@ -95,11 +95,27 @@ jobs:
         working-directory: engine
         run: npm run build
 
+      - name: Prepare public AI Search input
+        continue-on-error: true
+        working-directory: engine
+        run: node scripts/prepare-ai-search-input.mjs "$RUNNER_TEMP/ai-search-input"
+
+      - name: Upload public AI Search input
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-search-input
+          path: ${{ runner.temp }}/ai-search-input
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Prepare IndexNow payload
+        continue-on-error: true
         working-directory: engine
         run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
 
       - name: Upload IndexNow payload
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: indexnow-payload
@@ -134,40 +150,22 @@ jobs:
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
-      CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
         with:
           path: engine
 
-      - name: Checkout private content
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.CONTENT_REPOSITORY }}
-          ref: ${{ inputs.content_sha || '' }}
-          ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
-          path: content-source
-          persist-credentials: false
-
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: engine/package-lock.json
 
-      - name: Install engine dependencies
-        working-directory: engine
-        run: npm ci
-
-      - name: Validate private content source contract
-        working-directory: engine
-        run: node scripts/validate-content-source.mjs ../content-source
-
-      - name: Assemble private content for AI Search
-        working-directory: engine
-        run: node scripts/assemble-content.mjs ../content-source
+      - name: Download public AI Search input
+        uses: actions/download-artifact@v5
+        with:
+          name: ai-search-input
+          path: engine/src/content
 
       - name: Sync public Markdown to Cloudflare AI Search
         working-directory: engine
@@ -181,6 +179,7 @@ jobs:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
     runs-on: ubuntu-latest
     needs: deploy
+    continue-on-error: true
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
