@@ -29,7 +29,13 @@ jobs:
 
       - name: Check BlogCTL formatting
         working-directory: tools/blogctl
-        run: test -z "$(gofmt -l .)"
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "The following BlogCTL files need gofmt:"
+            printf '%s\n' "$files"
+            exit 1
+          fi
 
       - name: Test BlogCTL
         working-directory: tools/blogctl
