@@ -5,6 +5,7 @@ import {
   parseArguments,
   syncExports,
 } from "./distribute.mjs";
+import { loadPublishingConfig } from "./publishing-config.mjs";
 
 function log(severity, operation, status, details = {}) {
   console.log(JSON.stringify({
@@ -36,11 +37,13 @@ export async function runBlogctlDistribution(argv, env = process.env) {
   }
 
   const contentRoot = resolveBlogContentRoot(env);
+  const publishingConfig = await loadPublishingConfig(env);
   const result = await exportArticles({
     articleRoot: path.join(contentRoot, "src", "content", "articles"),
     outputRoot: resolveDistributionOutputRoot(contentRoot, options.outputRoot),
     platforms: options.platforms,
     requestedSlugs: options.requestedSlugs,
+    publishingConfig,
   });
 
   for (const item of result.exported) {
