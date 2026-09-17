@@ -131,11 +131,6 @@ const schema = {
             <a href={projectHref(projectRelation.project, locale)}>
               {locale === "en" ? "Project" : "项目"} · {projectSummary.title}
             </a>
-            {projectRelation.components.map((component) => (
-              <a href={`${projectHref(projectRelation.project, locale)}#component-${component.id}`}>
-                {component.name}
-              </a>
-            ))}
           </div>
         )}
       </header>
