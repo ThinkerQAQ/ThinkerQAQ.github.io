@@ -2,6 +2,11 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArticle } from "./distribute.mjs";
+import {
+  defaultPlatformPublishingConfig,
+  nativeCanonicalUrl,
+  renderPublishingFooter,
+} from "./publishing-config.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const DEVTO_API_ORIGIN = "https://dev.to";
@@ -71,18 +76,27 @@ function truncate(value, maxLength) {
   return characters.length <= maxLength ? String(value) : `${characters.slice(0, maxLength - 1).join("")}…`;
 }
 
-export function buildDevtoArticle(article, { slug, published = true } = {}) {
-  const canonicalUrl = buildCanonicalUrl(slug);
-  const body = makeExternalLinksAbsolute(article.body).trim();
-  const footer = `> This article was first published on [ThinkerQAQ's personal blog](${canonicalUrl}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.`;
-  return {
-    title: article.title,
-    body_markdown: `${body}\n\n---\n\n${footer}\n`,
-    published,
-    canonical_url: canonicalUrl,
-    description: truncate(article.description, MAX_DEVTO_DESCRIPTION),
-    tags: normalizeDevtoTags(article.tags).join(","),
-  };
+export function buildDevtoArticle(article, {
+	slug,
+	published = true,
+	publishingConfig = defaultPlatformPublishingConfig("devto"),
+} = {}) {
+	const canonicalUrl = buildCanonicalUrl(slug);
+	const body = makeExternalLinksAbsolute(article.body).trim();
+	const footer = renderPublishingFooter(publishingConfig, {
+		canonicalUrl,
+		title: article.title,
+		site: "ThinkerQAQ's personal blog",
+	});
+	const footerSection = footer ? `\n\n---\n\n${footer}` : "";
+	return {
+		title: article.title,
+		body_markdown: `${body}${footerSection}\n`,
+		published,
+		canonical_url: nativeCanonicalUrl(canonicalUrl, publishingConfig),
+		description: truncate(article.description, MAX_DEVTO_DESCRIPTION),
+		tags: normalizeDevtoTags(article.tags).join(","),
+	};
 }
 
 function normalizeBody(value = "") {
@@ -96,16 +110,19 @@ function remoteTags(article) {
 }
 
 export function devtoArticleMatches(remote, desired) {
-  if (!remote) return false;
-  const remotePublished = typeof remote.published === "boolean"
-    ? remote.published
-    : Boolean(remote.published_at || remote.published_timestamp);
-  return remote.title === desired.title
-    && remote.description === desired.description
-    && canonicalUrlsEqual(remote.canonical_url, desired.canonical_url)
-    && normalizeBody(remote.body_markdown) === normalizeBody(desired.body_markdown)
-    && remoteTags(remote).join(",") === normalizeDevtoTags(desired.tags.split(",")).join(",")
-    && remotePublished === Boolean(desired.published);
+	if (!remote) return false;
+	const remotePublished = typeof remote.published === "boolean"
+		? remote.published
+		: Boolean(remote.published_at || remote.published_timestamp);
+	const canonicalMatches = desired.canonical_url
+		? canonicalUrlsEqual(remote.canonical_url, desired.canonical_url)
+		: !String(remote.canonical_url || "").trim();
+	return remote.title === desired.title
+		&& remote.description === desired.description
+		&& canonicalMatches
+		&& normalizeBody(remote.body_markdown) === normalizeBody(desired.body_markdown)
+		&& remoteTags(remote).join(",") === normalizeDevtoTags(desired.tags.split(",")).join(",")
+		&& remotePublished === Boolean(desired.published);
 }
 
 function articleEndpoint(apiOrigin, suffix) {
@@ -161,10 +178,11 @@ export async function upsertDevtoArticle(desired, {
   apiOrigin = DEVTO_API_ORIGIN,
   fetchImpl = fetch,
 } = {}) {
-  const existing = remoteArticles.find((article) => canonicalUrlsEqual(
-    article.canonical_url,
-    desired.canonical_url,
-  ));
+  const existing = remoteArticles.find((article) => (
+  desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
+)) ?? (!desired.canonical_url
+  ? remoteArticles.find((article) => article.title === desired.title)
+  : undefined);
   if (!existing) {
     const created = await devtoRequest(
       apiKey,
@@ -279,7 +297,7 @@ export async function runSyndication({
   const loaded = await loadEnglishArticles({ articleRoot, requestedSlugs });
   const desiredArticles = loaded.map(({ slug, article }) => ({
     slug,
-    payload: buildDevtoArticle(article, { slug, published: !draft }),
+    payload: buildDevtoArticle(article, { slug, published: !draft, publishingConfig }),
   }));
 
   if (dryRun) {

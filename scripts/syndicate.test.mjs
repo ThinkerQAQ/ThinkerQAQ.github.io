@@ -38,6 +38,58 @@ test("builds DEV.to payload with canonical and absolute root links", () => {
   assert.equal(payload.published, true);
 });
 
+
+test("DEV.to publishing profile controls footer tracking and native canonical", () => {
+  const article = {
+    title: "Test",
+    description: "Description",
+    status: "published",
+    tags: ["Go"],
+    body: "Body",
+  };
+  const payload = buildDevtoArticle(article, {
+    slug: "test",
+    publishingConfig: {
+      footer: { enabled: true, template: "> Source: {url}" },
+      canonical: { mode: "none" },
+      tracking: { enabled: true, source: "custom-devto", medium: "social", campaign: "campaign-x" },
+    },
+  });
+  assert.equal(payload.canonical_url, "");
+  assert.match(payload.body_markdown, /Source: https:\/\/thinkerqaq\.github\.io\/en\/articles\/test\/\?utm_source=custom-devto&utm_medium=social&utm_campaign=campaign-x/u);
+
+  const noFooter = buildDevtoArticle(article, {
+    slug: "test",
+    publishingConfig: {
+      footer: { enabled: false, template: "> ignored {url}" },
+      canonical: { mode: "native" },
+      tracking: { enabled: true, source: "devto", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.equal(noFooter.canonical_url, "https://thinkerqaq.github.io/en/articles/test/");
+  assert.doesNotMatch(noFooter.body_markdown, /ignored/u);
+});
+
+test("DEV.to matching supports profiles without native canonical", async () => {
+  const desired = buildDevtoArticle({
+    title: "Test", description: "Description", tags: ["Go"], body: "Body", status: "published",
+  }, {
+    slug: "test",
+    publishingConfig: {
+      footer: { enabled: false, template: "" },
+      canonical: { mode: "none" },
+      tracking: { enabled: false, source: "devto", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.equal(devtoArticleMatches({ ...desired, id: 1, tag_list: ["go"] }, desired), true);
+  const result = await upsertDevtoArticle(desired, {
+    apiKey: "key",
+    remoteArticles: [{ id: 1, title: "Test", canonical_url: "", body_markdown: desired.body_markdown, description: desired.description, tag_list: ["go"], published: true }],
+    fetchImpl: async () => new Response(JSON.stringify({ id: 1, title: "Test", tag_list: ["go"], ...desired }), { status: 200 }),
+  });
+  assert.equal(result.action, "skipped");
+});
+
 test("canonical comparison ignores query, hash and trailing slash", () => {
   assert.equal(canonicalUrlsEqual(
     "https://thinkerqaq.github.io/en/articles/test/?utm_source=x#foo",

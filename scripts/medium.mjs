@@ -1,5 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  defaultPlatformPublishingConfig,
+  nativeCanonicalUrl,
+  renderPublishingFooter,
+} from "./publishing-config.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const MEDIUM_MAX_TAGS = 5;
@@ -271,48 +276,46 @@ export function parseMediumBlocks(markdown) {
   return { blocks, warnings: [...new Set(warnings)] };
 }
 
-function footerData(canonicalUrl) {
-  const anchor = "ThinkerQAQ's personal blog";
-  const prefix = "This article was first published on ";
-  const suffix = " and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.";
-  const text = `${prefix}${anchor}${suffix}`;
-  const start = prefix.length;
-  return {
-    text,
-    html: `<em>${escapeHtml(prefix)}<a href="${escapeHtml(canonicalUrl)}">${escapeHtml(anchor)}</a>${escapeHtml(suffix)}</em>`,
-    markups: [
-      { type: MARKUP_ITALIC, start: 0, end: text.length },
-      { type: MARKUP_LINK, start, end: start + anchor.length, href: canonicalUrl, anchorType: 0 },
-    ],
-  };
+function footerData(article, canonicalUrl, publishingConfig) {
+	const markdown = renderPublishingFooter(publishingConfig, {
+		canonicalUrl,
+		title: article.title,
+		site: "ThinkerQAQ's personal blog",
+	}).replace(/^>\s?/u, "").trim();
+	if (!markdown) return null;
+	return parseInline(markdown, []);
 }
 
-export function buildMediumDraft(article, { slug }) {
-  const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
-  const { blocks, warnings } = parseMediumBlocks(article.body);
-  const deltas = blocks.map((block, index) => ({
-    type: 1,
-    index,
-    paragraph: {
-      type: block.paragraphType,
-      text: block.text,
-      markups: block.markups,
-    },
-  }));
-  const footer = footerData(canonicalUrl);
-  deltas.push({
-    type: 1,
-    index: deltas.length,
-    paragraph: { type: BLOCKQUOTE, text: footer.text, markups: footer.markups },
-  });
-
-  return {
-    title: article.title,
-    canonicalUrl,
-    tags: article.tags.slice(0, MEDIUM_MAX_TAGS),
-    deltas,
-    warnings,
-  };
+export function buildMediumDraft(article, {
+	slug,
+	publishingConfig = defaultPlatformPublishingConfig("medium"),
+}) {
+	const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+	const { blocks, warnings } = parseMediumBlocks(article.body);
+	const deltas = blocks.map((block, index) => ({
+		type: 1,
+		index,
+		paragraph: {
+			type: block.paragraphType,
+			text: block.text,
+			markups: block.markups,
+		},
+	}));
+	const footer = footerData(article, canonicalUrl, publishingConfig);
+	if (footer) {
+		deltas.push({
+			type: 1,
+			index: deltas.length,
+			paragraph: { type: BLOCKQUOTE, text: footer.text, markups: footer.markups },
+		});
+	}
+	return {
+		title: article.title,
+		canonicalUrl: nativeCanonicalUrl(canonicalUrl, publishingConfig),
+		tags: article.tags.slice(0, MEDIUM_MAX_TAGS),
+		deltas,
+		warnings,
+	};
 }
 
 function renderBlocks(blocks) {
@@ -350,12 +353,16 @@ function renderBlocks(blocks) {
   return out.join("\n");
 }
 
-export function buildMediumCopyHtml(article, { slug }) {
-  const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
-  const { blocks } = parseMediumBlocks(article.body);
-  const footer = footerData(canonicalUrl);
-  const body = renderBlocks(blocks);
-  return `<!doctype html>
+export function buildMediumCopyHtml(article, {
+	slug,
+	publishingConfig = defaultPlatformPublishingConfig("medium"),
+}) {
+	const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+	const { blocks } = parseMediumBlocks(article.body);
+	const footer = footerData(article, canonicalUrl, publishingConfig);
+	const body = renderBlocks(blocks);
+	const footerHtml = footer ? `\n<hr>\n<blockquote><p>${footer.html}</p></blockquote>` : "";
+	return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -374,9 +381,7 @@ blockquote{border-left:3px solid #242424;margin-left:0;padding-left:18px}hr{bord
 <div id="toolbar"><button id="copyBtn">Copy for Medium</button><span id="status" style="margin-left:10px;color:#666"></span></div>
 <article id="article">
 <h1>${escapeHtml(article.title)}</h1>
-${body}
-<hr>
-<blockquote><p>${footer.html}</p></blockquote>
+${body}${footerHtml}
 </article>
 <script>
 document.getElementById('copyBtn').addEventListener('click', async () => {
@@ -400,9 +405,13 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 </html>`;
 }
 
-export async function writeMediumCopyHtml(article, { slug, outputRoot = ".distribution/medium" } = {}) {
+export async function writeMediumCopyHtml(article, {
+	slug,
+	outputRoot = ".distribution/medium",
+	publishingConfig = defaultPlatformPublishingConfig("medium"),
+} = {}) {
   const outputFile = path.resolve(outputRoot, `${slug}.html`);
   await mkdir(path.dirname(outputFile), { recursive: true });
-  await writeFile(outputFile, buildMediumCopyHtml(article, { slug }), "utf8");
+  await writeFile(outputFile, buildMediumCopyHtml(article, { slug, publishingConfig }), "utf8");
   return outputFile;
 }

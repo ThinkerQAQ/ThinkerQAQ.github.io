@@ -10,6 +10,7 @@ import {
   runSyndication,
 } from "./syndicate.mjs";
 import { runMediumSyndication } from "./syndicate-medium.mjs";
+import { loadPublishingConfig } from "./publishing-config.mjs";
 
 function removePlatformsArg(argv) {
   const output = [];
@@ -51,6 +52,7 @@ export async function runBlogctlSyndication(argv, env = process.env) {
   const options = parseDevtoArguments([...baseArgs, "--platforms", "devto"]);
 
   const contentRoot = resolveBlogContentRoot(env);
+  const publishingConfig = await loadPublishingConfig(env);
   const articleRoot = path.join(contentRoot, "src", "content", "articles", "en");
   const summaries = {};
 
@@ -61,6 +63,7 @@ export async function runBlogctlSyndication(argv, env = process.env) {
         requestedSlugs: options.requestedSlugs,
         dryRun: options.dryRun,
         draft: options.draft,
+        publishingConfig: publishingConfig.devto,
       });
       continue;
     }
@@ -72,6 +75,7 @@ export async function runBlogctlSyndication(argv, env = process.env) {
     summaries.medium = await runMediumSyndication(loaded, {
       dryRun: options.dryRun,
       outputRoot: resolveMediumOutputRoot(contentRoot),
+      publishingConfig: publishingConfig.medium,
       onEvent: logMediumEvent,
     });
   }

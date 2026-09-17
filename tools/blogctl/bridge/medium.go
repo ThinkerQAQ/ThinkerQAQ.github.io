@@ -165,7 +165,7 @@ func (c mediumClient) createDraft(ctx context.Context, session platformSession, 
 		"draftUrl":         mediumOrigin + "/p/" + postID + "/edit",
 		"mediumUrl":        nullString(mediumURL),
 		"canonicalUrl":     nullString(draft.CanonicalURL),
-		"canonicalPending": true,
+		"canonicalPending": strings.TrimSpace(draft.CanonicalURL) != "",
 		"tagsPending":      len(draft.Tags) > 0,
 	}, nil
 }
