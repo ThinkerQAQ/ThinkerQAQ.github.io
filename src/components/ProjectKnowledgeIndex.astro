@@ -1,0 +1,120 @@
+---
+import type { Locale } from "../config/i18n";
+import ArticleList from "./ArticleList.astro";
+import {
+  articleHref,
+  localizedSeriesSummary,
+  seriesHref,
+  seriesStatusLabel,
+  type ArticleEntry,
+  type ProjectEntry,
+  type SeriesEntry,
+} from "../lib/content";
+import { buildProjectKnowledge } from "../lib/project-relations";
+
+interface Props {
+  project: ProjectEntry;
+  articles: ArticleEntry[];
+  seriesEntries: SeriesEntry[];
+  locale: Locale;
+}
+
+const { project, articles, seriesEntries, locale } = Astro.props;
+const knowledge = buildProjectKnowledge(project, locale, articles, seriesEntries);
+const ui = locale === "en"
+  ? {
+      components: "Components",
+      articles: "Articles",
+      series: "Series",
+      related: "Related content",
+      noRelated: "No related article or series yet.",
+      article: "Article",
+      seriesItem: "Series",
+      untranslatedArticle: "Chinese",
+    }
+  : {
+      components: "项目组件",
+      articles: "相关文章",
+      series: "系列",
+      related: "关联内容",
+      noRelated: "暂时还没有关联文章或系列。",
+      article: "文章",
+      seriesItem: "系列",
+      untranslatedArticle: undefined,
+    };
+---
+
+{knowledge.components.length > 0 && (
+  <section class="related-content" aria-labelledby="project-components-heading">
+    <h2 id="project-components-heading">{ui.components}</h2>
+    <div class="category-index">
+      {knowledge.components.map(({ component, articles: componentArticles, series: componentSeries }) => (
+        <section id={`component-${component.id}`}>
+          <div class="category-title">
+            <h2>
+              {component.website
+                ? <a href={component.website}>{component.name}</a>
+                : component.name}
+            </h2>
+            {component.category && <small>{component.category}</small>}
+          </div>
+          <p class="category-preview-label">{ui.related}</p>
+          {componentArticles.length === 0 && componentSeries.length === 0 ? (
+            <p class="empty-state">{ui.noRelated}</p>
+          ) : (
+            <ul>
+              {componentArticles.map((article) => (
+                <li>
+                  <a href={articleHref(article)}>{article.data.title}</a>
+                  <small> · {ui.article}</small>
+                </li>
+              ))}
+              {componentSeries.map((series) => {
+                const summary = localizedSeriesSummary(series, locale);
+                return (
+                  <li>
+                    <a href={seriesHref(series, locale)}>{summary.title}</a>
+                    <small> · {ui.seriesItem}</small>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  </section>
+)}
+
+{knowledge.articles.length > 0 && (
+  <section class="related-content" aria-labelledby="project-articles-heading">
+    <h2 id="project-articles-heading">{ui.articles}</h2>
+    <ArticleList
+      entries={knowledge.articles}
+      locale={locale}
+      languageFallbackLabel={ui.untranslatedArticle}
+    />
+  </section>
+)}
+
+{knowledge.series.length > 0 && (
+  <section class="related-content" aria-labelledby="project-series-heading">
+    <h2 id="project-series-heading">{ui.series}</h2>
+    <ol class="content-list">
+      {knowledge.series.map((series) => {
+        const summary = localizedSeriesSummary(series, locale);
+        return (
+          <li>
+            <div class="content-list-main">
+              <a class="content-title" href={seriesHref(series, locale)}>{summary.title}</a>
+              <p>{summary.description}</p>
+            </div>
+            <div class="content-meta">
+              <span>{seriesStatusLabel(series.data.status, locale)}</span>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  </section>
+)}
