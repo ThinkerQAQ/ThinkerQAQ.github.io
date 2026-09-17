@@ -56,25 +56,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: |
-            engine/package-lock.json
-            content-source/package-lock.json
+          cache-dependency-path: engine/package-lock.json
 
       - name: Install engine dependencies
         working-directory: engine
         run: npm ci
 
-      - name: Install content validation dependencies
-        working-directory: content-source
-        run: npm ci
-
-      - name: Validate private content policies
-        working-directory: content-source
-        run: |
-          npm run test:vnotes
-          npm run check:vnote-metadata
-          npm run test:article-relations
-          npm run test:homepage
+      - name: Validate private content source contract
+        working-directory: engine
+        run: node scripts/validate-content-source.mjs ../content-source
 
       - name: Setup Java for PlantUML
         uses: actions/setup-java@v5
@@ -104,37 +94,6 @@ jobs:
       - name: Build static site
         working-directory: engine
         run: npm run build
-
-      - name: Hand built site and build metadata to private verification scripts
-        run: |
-          rm -rf content-source/dist
-          cp -a engine/dist content-source/dist
-          mkdir -p content-source/.astro/plantuml
-          cp engine/.astro/plantuml/manifest.json content-source/.astro/plantuml/manifest.json
-          if [ -f engine/src/data/drawio-manifest.json ]; then
-            cp engine/src/data/drawio-manifest.json content-source/src/data/drawio-manifest.json
-          fi
-
-      - name: Verify curated notes output
-        continue-on-error: true
-        working-directory: content-source
-        run: node scripts/verify-build-with-curated-notes.mjs
-
-      - name: Verify computer network hierarchy
-        working-directory: content-source
-        run: node scripts/verify-computer-network-hierarchy.mjs
-
-      - name: Verify system design hierarchy
-        working-directory: content-source
-        run: node scripts/verify-system-design-hierarchy.mjs
-
-      - name: Verify i18n output
-        working-directory: content-source
-        run: node scripts/verify-i18n.mjs
-
-      - name: Verify article-note relations
-        working-directory: content-source
-        run: node scripts/verify-article-note-relations.mjs
 
       - name: Prepare IndexNow payload
         working-directory: engine
@@ -200,6 +159,10 @@ jobs:
       - name: Install engine dependencies
         working-directory: engine
         run: npm ci
+
+      - name: Validate private content source contract
+        working-directory: engine
+        run: node scripts/validate-content-source.mjs ../content-source
 
       - name: Assemble private content for AI Search
         working-directory: engine
