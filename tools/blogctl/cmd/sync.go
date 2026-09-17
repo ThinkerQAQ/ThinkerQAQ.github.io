@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
 )
 
 var chinaPlatforms = map[string]struct{}{
@@ -133,12 +135,19 @@ func (a app) runSync(args []string) error {
 	if a.contentRoot == "" {
 		return errors.New("content repository root is required for sync")
 	}
+	if err := bridge.UpdateWorkspaceRoots(a.contentRoot, a.root); err != nil {
+		fmt.Fprintf(a.out, "[config] unable to persist workspace roots: %v\n", err)
+	}
+
 	node, _, err := a.prepareNode(true)
 	if err != nil {
 		return err
 	}
 
 	env := withEnvironment(os.Environ(), contentRootEnvironment, a.contentRoot)
+	if configPath, configErr := bridge.ConfigPath(); configErr == nil {
+		env = withEnvironment(env, "BLOGCTL_CONFIG_FILE", configPath)
+	}
 	if slices.Contains(options.platforms, "medium") && !options.dryRun {
 		state, err := ensureBridgeProcess()
 		if err != nil {
