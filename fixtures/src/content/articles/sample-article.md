@@ -8,8 +8,6 @@ tags:
 status: published
 featured: true
 project: sample-project
-components:
-  - sample-component
 relatedNotes:
   - sample-note
 ---

@@ -103,15 +103,6 @@ const relatedNoteGroups = [...relatedNoteCategories, ...relatedNoteScopes];
             <a href={projectHref(projectRelation.project, locale)}>Project · {projectSummary.title}</a>
           )}
         </div>
-        {projectRelation && projectRelation.components.length > 0 && (
-          <div class="tag-list" aria-label="Project components">
-            {projectRelation.components.map((component) => (
-              <a href={`${projectHref(projectRelation.project, locale)}#component-${component.id}`}>
-                {component.name}
-              </a>
-            ))}
-          </div>
-        )}
       </header>
       <section aria-label={seriesUi.articlesAriaLabel}>
         <ArticleList
