@@ -1,0 +1,475 @@
+name: Temporary BlogCTL international publishing profile
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-content-workspace
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/blogctl-content-workspace
+
+      - name: Wire DEV.to publishing profile
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('scripts/syndicate.mjs')
+          text = path.read_text()
+
+          marker = 'import { parseArticle } from "./distribute.mjs";\n'
+          addition = '''import {
+            defaultPlatformPublishingConfig,
+            nativeCanonicalUrl,
+            renderPublishingFooter,
+          } from "./publishing-config.mjs";
+          '''.replace('          ', '')
+          if addition not in text:
+              if marker not in text:
+                  raise SystemExit('syndicate import marker not found')
+              text = text.replace(marker, marker + addition, 1)
+
+          start = text.find('export function buildDevtoArticle(article, { slug, published = true } = {}) {')
+          end = text.find('function normalizeBody(', start)
+          if start < 0 or end < 0:
+              raise SystemExit('buildDevtoArticle block not found')
+          replacement = '''export function buildDevtoArticle(article, {
+          \tslug,
+          \tpublished = true,
+          \tpublishingConfig = defaultPlatformPublishingConfig("devto"),
+          } = {}) {
+          \tconst canonicalUrl = buildCanonicalUrl(slug);
+          \tconst body = makeExternalLinksAbsolute(article.body).trim();
+          \tconst footer = renderPublishingFooter(publishingConfig, {
+          \t\tcanonicalUrl,
+          \t\ttitle: article.title,
+          \t\tsite: "ThinkerQAQ's personal blog",
+          \t});
+          \tconst footerSection = footer ? `\\n\\n---\\n\\n${footer}` : "";
+          \treturn {
+          \t\ttitle: article.title,
+          \t\tbody_markdown: `${body}${footerSection}\\n`,
+          \t\tpublished,
+          \t\tcanonical_url: nativeCanonicalUrl(canonicalUrl, publishingConfig),
+          \t\tdescription: truncate(article.description, MAX_DEVTO_DESCRIPTION),
+          \t\ttags: normalizeDevtoTags(article.tags).join(","),
+          \t};
+          }
+
+          '''.replace('          ', '')
+          text = text[:start] + replacement + text[end:]
+
+          old_match = '''  return remote.title === desired.title
+            && remote.description === desired.description
+            && canonicalUrlsEqual(remote.canonical_url, desired.canonical_url)
+            && normalizeBody(remote.body_markdown) === normalizeBody(desired.body_markdown)'''.replace('          ', '')
+          new_match = '''  const canonicalMatches = desired.canonical_url
+            ? canonicalUrlsEqual(remote.canonical_url, desired.canonical_url)
+            : !String(remote.canonical_url || "").trim();
+          return remote.title === desired.title
+            && remote.description === desired.description
+            && canonicalMatches
+            && normalizeBody(remote.body_markdown) === normalizeBody(desired.body_markdown)'''.replace('          ', '')
+          if old_match not in text:
+              raise SystemExit('devtoArticleMatches canonical block not found')
+          text = text.replace(old_match, new_match, 1)
+
+          old_lookup = '''  const existing = remoteArticles.find((article) => canonicalUrlsEqual(
+            article.canonical_url,
+            desired.canonical_url,
+          ));'''.replace('          ', '')
+          new_lookup = '''  const existing = remoteArticles.find((article) => (
+            desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
+          )) ?? (!desired.canonical_url
+            ? remoteArticles.find((article) => article.title === desired.title)
+            : undefined);'''.replace('          ', '')
+          if old_lookup not in text:
+              raise SystemExit('DEV.to lookup block not found')
+          text = text.replace(old_lookup, new_lookup, 1)
+
+          signature = '''export async function runSyndication({
+            articleRoot,
+            requestedSlugs = [],
+            dryRun = false,
+            draft = false,
+            apiKey = process.env.DEVTO_API_KEY,'''.replace('          ', '')
+          replacement = '''export async function runSyndication({
+            articleRoot,
+            requestedSlugs = [],
+            dryRun = false,
+            draft = false,
+            publishingConfig = defaultPlatformPublishingConfig("devto"),
+            apiKey = process.env.DEVTO_API_KEY,'''.replace('          ', '')
+          if signature not in text:
+              raise SystemExit('runSyndication signature not found')
+          text = text.replace(signature, replacement, 1)
+          old_build = 'payload: buildDevtoArticle(article, { slug, published: !draft }),'
+          new_build = 'payload: buildDevtoArticle(article, { slug, published: !draft, publishingConfig }),'
+          if old_build not in text:
+              raise SystemExit('runSyndication build payload call not found')
+          text = text.replace(old_build, new_build, 1)
+          path.write_text(text)
+
+      - name: Wire Medium publishing profile
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('scripts/medium.mjs')
+          text = path.read_text()
+
+          marker = 'import path from "node:path";\n'
+          addition = '''import {
+            defaultPlatformPublishingConfig,
+            nativeCanonicalUrl,
+            renderPublishingFooter,
+          } from "./publishing-config.mjs";
+          '''.replace('          ', '')
+          if addition not in text:
+              if marker not in text:
+                  raise SystemExit('medium import marker not found')
+              text = text.replace(marker, marker + addition, 1)
+
+          footer_start = text.find('function footerData(canonicalUrl) {')
+          draft_start = text.find('export function buildMediumDraft(', footer_start)
+          if footer_start < 0 or draft_start < 0:
+              raise SystemExit('legacy medium footer block not found')
+          footer_block = '''function footerData(article, canonicalUrl, publishingConfig) {
+          \tconst markdown = renderPublishingFooter(publishingConfig, {
+          \t\tcanonicalUrl,
+          \t\ttitle: article.title,
+          \t\tsite: "ThinkerQAQ's personal blog",
+          \t}).replace(/^>\\s?/u, "").trim();
+          \tif (!markdown) return null;
+          \treturn parseInline(markdown, []);
+          }
+
+          '''.replace('          ', '')
+          text = text[:footer_start] + footer_block + text[draft_start:]
+
+          draft_start = text.find('export function buildMediumDraft(article, { slug }) {')
+          render_start = text.find('function renderBlocks(', draft_start)
+          if draft_start < 0 or render_start < 0:
+              raise SystemExit('buildMediumDraft block not found')
+          draft_block = '''export function buildMediumDraft(article, {
+          \tslug,
+          \tpublishingConfig = defaultPlatformPublishingConfig("medium"),
+          }) {
+          \tconst canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+          \tconst { blocks, warnings } = parseMediumBlocks(article.body);
+          \tconst deltas = blocks.map((block, index) => ({
+          \t\ttype: 1,
+          \t\tindex,
+          \t\tparagraph: {
+          \t\t\ttype: block.paragraphType,
+          \t\t\ttext: block.text,
+          \t\t\tmarkups: block.markups,
+          \t\t},
+          \t}));
+          \tconst footer = footerData(article, canonicalUrl, publishingConfig);
+          \tif (footer) {
+          \t\tdeltas.push({
+          \t\t\ttype: 1,
+          \t\t\tindex: deltas.length,
+          \t\t\tparagraph: { type: BLOCKQUOTE, text: footer.text, markups: footer.markups },
+          \t\t});
+          \t}
+
+          \treturn {
+          \t\ttitle: article.title,
+          \t\tcanonicalUrl: nativeCanonicalUrl(canonicalUrl, publishingConfig),
+          \t\ttags: article.tags.slice(0, MEDIUM_MAX_TAGS),
+          \t\tdeltas,
+          \t\twarnings,
+          \t};
+          }
+
+          '''.replace('          ', '')
+          text = text[:draft_start] + draft_block + text[render_start:]
+
+          copy_start = text.find('export function buildMediumCopyHtml(article, { slug }) {')
+          write_start = text.find('export async function writeMediumCopyHtml(', copy_start)
+          if copy_start < 0 or write_start < 0:
+              raise SystemExit('buildMediumCopyHtml block not found')
+          copy_block = '''export function buildMediumCopyHtml(article, {
+          \tslug,
+          \tpublishingConfig = defaultPlatformPublishingConfig("medium"),
+          }) {
+          \tconst canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+          \tconst { blocks } = parseMediumBlocks(article.body);
+          \tconst footer = footerData(article, canonicalUrl, publishingConfig);
+          \tconst body = renderBlocks(blocks);
+          \tconst footerHtml = footer ? `\\n<hr>\\n<blockquote><p>${footer.html}</p></blockquote>` : "";
+          \treturn `<!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>${escapeHtml(article.title)} — Medium Copy</title>
+          <style>
+          body{font-family:Georgia,"Times New Roman",serif;max-width:760px;margin:40px auto;padding:0 24px 80px;line-height:1.65;color:#242424}
+          #toolbar{position:sticky;top:0;background:#fff;padding:12px 0;border-bottom:1px solid #e5e5e5;margin-bottom:32px;z-index:10}
+          button{font:inherit;padding:9px 14px;cursor:pointer}h1{font-size:2.35rem;line-height:1.15}h2{font-size:1.7rem;margin-top:2.1em}h3{font-size:1.3rem;margin-top:1.7em}
+          code{font-family:Consolas,"SFMono-Regular",Menlo,monospace}p code,li code{background:#f2f2f2;padding:.08em .28em;border-radius:3px}
+          pre{font-family:Consolas,"SFMono-Regular",Menlo,monospace;white-space:pre;overflow-x:auto;background:#f7f7f7;padding:16px;border-radius:4px;line-height:1.5}pre code{background:transparent;padding:0}
+          blockquote{border-left:3px solid #242424;margin-left:0;padding-left:18px}hr{border:0;border-top:1px solid #ddd;margin:2em 0}
+          </style>
+          </head>
+          <body>
+          <div id="toolbar"><button id="copyBtn">Copy for Medium</button><span id="status" style="margin-left:10px;color:#666"></span></div>
+          <article id="article">
+          <h1>${escapeHtml(article.title)}</h1>
+          ${body}${footerHtml}
+          </article>
+          <script>
+          document.getElementById('copyBtn').addEventListener('click', async () => {
+            const article = document.getElementById('article');
+            const status = document.getElementById('status');
+            try {
+              await navigator.clipboard.write([new ClipboardItem({
+                'text/html': new Blob([article.innerHTML], {type:'text/html'}),
+                'text/plain': new Blob([article.innerText], {type:'text/plain'})
+              })]);
+              status.textContent = 'Copied. Paste into Medium.';
+            } catch (error) {
+              const range = document.createRange(); range.selectNodeContents(article);
+              const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+              document.execCommand('copy'); selection.removeAllRanges();
+              status.textContent = 'Copied with fallback. Paste into Medium.';
+            }
+          });
+          </script>
+          </body>
+          </html>`;
+          }
+
+          '''.replace('          ', '')
+          text = text[:copy_start] + copy_block + text[write_start:]
+
+          old_write = 'export async function writeMediumCopyHtml(article, { slug, outputRoot = ".distribution/medium" } = {}) {'
+          new_write = '''export async function writeMediumCopyHtml(article, {
+          \tslug,
+          \toutputRoot = ".distribution/medium",
+          \tpublishingConfig = defaultPlatformPublishingConfig("medium"),
+          } = {}) {'''.replace('          ', '')
+          if old_write not in text:
+              raise SystemExit('writeMediumCopyHtml signature not found')
+          text = text.replace(old_write, new_write, 1)
+          old_call = 'await writeFile(outputFile, buildMediumCopyHtml(article, { slug }), "utf8");'
+          new_call = 'await writeFile(outputFile, buildMediumCopyHtml(article, { slug, publishingConfig }), "utf8");'
+          if old_call not in text:
+              raise SystemExit('writeMediumCopyHtml call not found')
+          text = text.replace(old_call, new_call, 1)
+          path.write_text(text)
+
+          path = Path('scripts/syndicate-medium.mjs')
+          text = path.read_text()
+          signature = '''export async function runMediumSyndication(loadedArticles, {
+            dryRun = false,
+            outputRoot = ".distribution/medium",
+            onEvent = () => {},
+          } = {}) {'''.replace('          ', '')
+          replacement = '''export async function runMediumSyndication(loadedArticles, {
+            dryRun = false,
+            outputRoot = ".distribution/medium",
+            publishingConfig,
+            onEvent = () => {},
+          } = {}) {'''.replace('          ', '')
+          if signature not in text:
+              raise SystemExit('runMediumSyndication signature not found')
+          text = text.replace(signature, replacement, 1)
+          old_prepare = '''    const draft = buildMediumDraft(item.article, { slug: item.slug });
+            const fallbackPath = await writeMediumCopyHtml(item.article, { slug: item.slug, outputRoot });'''.replace('          ', '')
+          new_prepare = '''    const draft = buildMediumDraft(item.article, { slug: item.slug, publishingConfig });
+            const fallbackPath = await writeMediumCopyHtml(item.article, {
+              slug: item.slug,
+              outputRoot,
+              publishingConfig,
+            });'''.replace('          ', '')
+          if old_prepare not in text:
+              raise SystemExit('medium prepare block not found')
+          text = text.replace(old_prepare, new_prepare, 1)
+          path.write_text(text)
+
+      - name: Load profiles in BlogCTL syndication wrapper
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('scripts/blogctl-syndicate.mjs')
+          text = path.read_text()
+          marker = 'import { runMediumSyndication } from "./syndicate-medium.mjs";\n'
+          addition = 'import { loadPublishingConfig } from "./publishing-config.mjs";\n'
+          if addition not in text:
+              if marker not in text:
+                  raise SystemExit('blogctl-syndicate import marker not found')
+              text = text.replace(marker, marker + addition, 1)
+          root_marker = '  const contentRoot = resolveBlogContentRoot(env);\n'
+          if 'const publishingConfig = await loadPublishingConfig(env);' not in text:
+              if root_marker not in text:
+                  raise SystemExit('blogctl-syndicate root marker not found')
+              text = text.replace(root_marker, root_marker + '  const publishingConfig = await loadPublishingConfig(env);\n', 1)
+          devto_marker = '        draft: options.draft,\n'
+          if '        publishingConfig: publishingConfig.devto,\n' not in text:
+              if devto_marker not in text:
+                  raise SystemExit('DEV.to wrapper args marker not found')
+              text = text.replace(devto_marker, devto_marker + '        publishingConfig: publishingConfig.devto,\n', 1)
+          medium_marker = '      outputRoot: resolveMediumOutputRoot(contentRoot),\n'
+          if '      publishingConfig: publishingConfig.medium,\n' not in text:
+              if medium_marker not in text:
+                  raise SystemExit('Medium wrapper args marker not found')
+              text = text.replace(medium_marker, medium_marker + '      publishingConfig: publishingConfig.medium,\n', 1)
+          path.write_text(text)
+
+      - name: Make Medium canonical pending conditional
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('tools/blogctl/bridge/medium.go')
+          text = path.read_text()
+          old = '\t\t"canonicalPending": true,\n'
+          new = '\t\t"canonicalPending": strings.TrimSpace(draft.CanonicalURL) != "",\n'
+          if old not in text:
+              raise SystemExit('Medium canonicalPending marker not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+      - name: Add international publishing profile coverage
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('scripts/syndicate.test.mjs')
+          text = path.read_text()
+          marker = 'test("canonical comparison ignores query, hash and trailing slash", () => {'
+          addition = r'''
+          test("DEV.to publishing profile controls footer tracking and native canonical", () => {
+            const article = {
+              title: "Test",
+              description: "Description",
+              status: "published",
+              tags: ["Go"],
+              body: "Body",
+            };
+            const payload = buildDevtoArticle(article, {
+              slug: "test",
+              publishingConfig: {
+                footer: { enabled: true, template: "> Source: {url}" },
+                canonical: { mode: "none" },
+                tracking: { enabled: true, source: "custom-devto", medium: "social", campaign: "campaign-x" },
+              },
+            });
+            assert.equal(payload.canonical_url, "");
+            assert.match(payload.body_markdown, /Source: https:\/\/thinkerqaq\.github\.io\/en\/articles\/test\/\?utm_source=custom-devto&utm_medium=social&utm_campaign=campaign-x/u);
+
+            const noFooter = buildDevtoArticle(article, {
+              slug: "test",
+              publishingConfig: {
+                footer: { enabled: false, template: "> ignored {url}" },
+                canonical: { mode: "native" },
+                tracking: { enabled: true, source: "devto", medium: "referral", campaign: "article_syndication" },
+              },
+            });
+            assert.equal(noFooter.canonical_url, "https://thinkerqaq.github.io/en/articles/test/");
+            assert.doesNotMatch(noFooter.body_markdown, /ignored/u);
+          });
+
+          test("DEV.to matching supports profiles without native canonical", async () => {
+            const desired = buildDevtoArticle({
+              title: "Test", description: "Description", tags: ["Go"], body: "Body", status: "published",
+            }, {
+              slug: "test",
+              publishingConfig: {
+                footer: { enabled: false, template: "" },
+                canonical: { mode: "none" },
+                tracking: { enabled: false, source: "devto", medium: "referral", campaign: "article_syndication" },
+              },
+            });
+            assert.equal(devtoArticleMatches({ ...desired, id: 1, tag_list: ["go"] }, desired), true);
+            const result = await upsertDevtoArticle(desired, {
+              apiKey: "key",
+              remoteArticles: [{ id: 1, title: "Test", canonical_url: "", body_markdown: desired.body_markdown, description: desired.description, tag_list: ["go"], published: true }],
+              fetchImpl: async () => new Response(JSON.stringify({ id: 1, title: "Test", tag_list: ["go"], ...desired }), { status: 200 }),
+            });
+            assert.equal(result.action, "skipped");
+          });
+
+          '''.replace('          ', '')
+          if 'publishing profile controls footer tracking' not in text:
+              if marker not in text:
+                  raise SystemExit('syndicate test insertion marker not found')
+              text = text.replace(marker, addition + marker, 1)
+          path.write_text(text)
+
+          path = Path('scripts/medium.test.mjs')
+          text = path.read_text()
+          old = '''  assert.equal(link.href, draft.canonicalUrl);
+          });'''.replace('          ', '')
+          new = '''  assert.equal(link.href, "https://thinkerqaq.github.io/en/articles/concurrency-series-00/?utm_source=medium&utm_medium=referral&utm_campaign=article_syndication");
+          });'''.replace('          ', '')
+          if old not in text:
+              raise SystemExit('medium default footer assertion not found')
+          text = text.replace(old, new, 1)
+          marker = 'test("builds a copy/paste HTML fallback without TOC and with copy button", () => {'
+          addition = r'''
+          test("Medium publishing profile controls footer tracking and native canonical", () => {
+            const draft = buildMediumDraft(article, {
+              slug: "concurrency-series-00",
+              publishingConfig: {
+                footer: { enabled: true, template: "> Source: {url}" },
+                canonical: { mode: "none" },
+                tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
+              },
+            });
+            assert.equal(draft.canonicalUrl, "");
+            const footer = draft.deltas.at(-1).paragraph;
+            assert.equal(footer.type, 9);
+            assert.equal(footer.text, "Source: ThinkerQAQ's personal blog");
+            const link = footer.markups.find((markup) => markup.type === 3);
+            assert.equal(link.href, "https://thinkerqaq.github.io/en/articles/concurrency-series-00/");
+
+            const output = buildMediumCopyHtml(article, {
+              slug: "concurrency-series-00",
+              publishingConfig: {
+                footer: { enabled: false, template: "> ignored {url}" },
+                canonical: { mode: "native" },
+                tracking: { enabled: true, source: "medium", medium: "referral", campaign: "article_syndication" },
+              },
+            });
+            assert.doesNotMatch(output, /ignored/u);
+            assert.doesNotMatch(output, /<hr>/u);
+          });
+
+          '''.replace('          ', '')
+          if 'Medium publishing profile controls footer tracking' not in text:
+              if marker not in text:
+                  raise SystemExit('medium test insertion marker not found')
+              text = text.replace(marker, addition + marker, 1)
+          path.write_text(text)
+
+      - name: Format and test international publishing
+        shell: bash
+        run: |
+          gofmt -w tools/blogctl/bridge/medium.go
+          cd tools/blogctl
+          go test ./...
+          cd ../..
+          npm ci
+          npm run test:syndicate
+
+      - name: Commit international publishing profile wiring
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/syndicate.mjs scripts/syndicate.test.mjs scripts/medium.mjs scripts/medium.test.mjs scripts/syndicate-medium.mjs scripts/blogctl-syndicate.mjs tools/blogctl/bridge/medium.go
+          git commit -m "refactor: apply publishing profiles to international syndication"
+          git push origin HEAD:refactor/blogctl-content-workspace
