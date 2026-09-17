@@ -23,29 +23,20 @@ jobs:
           from pathlib import Path
           path = Path("tools/blogctl/bridge/control.go")
           text = path.read_text()
-          old = '''type articleSummary struct {
-          \tSlug   string `json:"slug"`
-          \tTitle  string `json:"title"`
-          \tStatus string `json:"status"`
-          }'''.replace("          ", "")
-          new = '''type articleSummary struct {
-          \tSlug          string `json:"slug"`
-          \tTitle         string `json:"title"`
-          \tStatus        string `json:"status"`
-          \tLanguage      string `json:"language"`
-          \tEnglishMirror bool   `json:"englishMirror"`
-          \tSourcePath    string `json:"sourcePath"`
-          }'''.replace("          ", "")
+          old = "type articleSummary struct {\n\tSlug   string `json:\"slug\"`\n\tTitle  string `json:\"title\"`\n\tStatus string `json:\"status\"`\n}"
+          new = "type articleSummary struct {\n\tSlug          string `json:\"slug\"`\n\tTitle         string `json:\"title\"`\n\tStatus        string `json:\"status\"`\n\tLanguage      string `json:\"language\"`\n\tEnglishMirror bool   `json:\"englishMirror\"`\n\tSourcePath    string `json:\"sourcePath\"`\n}"
           if old not in text:
               raise SystemExit("articleSummary block not found")
           text = text.replace(old, new, 1)
 
-          old = '''\t\tarticles = append(articles, articleSummary{Slug: slug, Title: title, Status: "published"})'''
-          new = '''\t\tenglishMirror := filePresent(filepath.Join(articleRoot, "en", filepath.FromSlash(slug)+".md"))
-          \t\tarticles = append(articles, articleSummary{
-          \t\t\tSlug: slug, Title: title, Status: "published", Language: "zh-CN",
-          \t\t\tEnglishMirror: englishMirror, SourcePath: filepath.ToSlash(relative),
-          \t\t})'''
+          old = '\t\tarticles = append(articles, articleSummary{Slug: slug, Title: title, Status: "published"})'
+          new = '\n'.join([
+              '\t\tenglishMirror := filePresent(filepath.Join(articleRoot, "en", filepath.FromSlash(slug)+".md"))',
+              '\t\tarticles = append(articles, articleSummary{',
+              '\t\t\tSlug: slug, Title: title, Status: "published", Language: "zh-CN",',
+              '\t\t\tEnglishMirror: englishMirror, SourcePath: filepath.ToSlash(relative),',
+              '\t\t})',
+          ])
           if old not in text:
               raise SystemExit("article append marker not found")
           path.write_text(text.replace(old, new, 1))
