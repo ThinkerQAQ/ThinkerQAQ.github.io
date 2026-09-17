@@ -13,6 +13,7 @@ const changeManifestPath = String(
   process.env.AI_SEARCH_CHANGE_MANIFEST
     || path.join(repositoryRoot, "src", "content", "ai-search-changed-paths.txt"),
 ).trim();
+const forceFullSync = String(process.env.AI_SEARCH_FORCE_FULL_SYNC || "").trim() === "1";
 const apiBase = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai-search/instances`;
 const collections = ["articles", "notes"];
 const collectionPriority = { articles: 2, notes: 1 };
@@ -234,7 +235,7 @@ async function ensureInstance() {
       body: JSON.stringify({ id: instanceName, ...desired }),
     }, [200, 201]);
     log("instance-created", { instance: instanceName });
-    return true;
+    return "created";
   }
 
   const info = existing.result || existing;
@@ -264,8 +265,9 @@ async function ensureInstance() {
       body: JSON.stringify(desired),
     }, [200]);
     log("instance-updated", { instance: instanceName });
+    return "updated";
   }
-  return false;
+  return "unchanged";
 }
 
 async function listItems() {
@@ -281,6 +283,18 @@ async function listItems() {
     if (result.length < 50) break;
   }
   return all;
+}
+
+async function findItemByKey(key) {
+  const payload = await cloudflareRequest(
+    `${apiBase}/${encodeURIComponent(instanceName)}/items?key=${encodeURIComponent(key)}&source=builtin`,
+    {},
+    [200],
+  );
+  const result = Array.isArray(payload?.result)
+    ? payload.result
+    : payload?.result ? [payload.result] : [];
+  return result.find((item) => item?.key === key) || null;
 }
 
 async function changedContentPaths() {
@@ -350,6 +364,33 @@ async function runPool(items, concurrency, handler) {
   await Promise.all(workers);
 }
 
+function incrementalCandidates(documents, changedPaths) {
+  const bySourcePath = new Map(
+    [...documents.values()].map((document) => [document.sourcePath, document]),
+  );
+  const candidates = new Map();
+
+  for (const changedPath of changedPaths) {
+    const document = bySourcePath.get(changedPath);
+    if (!document) {
+      return { safe: false, candidates: [] };
+    }
+    candidates.set(document.key, document);
+
+    if (document.collection === "notes" && document.sourcePath.startsWith("src/content/notes/")) {
+      for (const dependent of documents.values()) {
+        if (dependent.collection === "notes"
+          && dependent.id === document.id
+          && dependent.sourcePath.startsWith("src/content/note-translations/")) {
+          candidates.set(dependent.key, dependent);
+        }
+      }
+    }
+  }
+
+  return { safe: true, candidates: [...candidates.values()] };
+}
+
 if (!accountId || !apiToken) {
   const missing = [
     !accountId ? "CLOUDFLARE_ACCOUNT_ID" : null,
@@ -366,21 +407,49 @@ if (!accountId || !apiToken) {
 
 try {
   const documents = await loadDocuments();
-  const instanceCreated = await ensureInstance();
-  const existingItems = await listItems();
-  const existingByKey = new Map(existingItems.map((item) => [item.key, item]));
-  const changedPaths = instanceCreated || existingItems.length === 0 ? null : await changedContentPaths();
-
-  const staleItems = existingItems.filter((item) => item.key?.startsWith("blog--") && !documents.has(item.key));
-  await runPool(staleItems, 4, deleteItem);
+  const instanceState = await ensureInstance();
+  const changedPaths = instanceState === "unchanged" && !forceFullSync
+    ? await changedContentPaths()
+    : null;
+  const incremental = changedPaths !== null ? incrementalCandidates(documents, changedPaths) : null;
+  const useFastPath = incremental?.safe === true;
 
   const uploads = [];
-  for (const document of documents.values()) {
-    const existing = existingByKey.get(document.key);
-    const contentChanged = changedPaths === null || changedPaths.has(document.sourcePath);
-    const metadataChanged = existing ? itemMetadataNeedsRefresh(existing, document) : true;
-    if (!existing || contentChanged || metadataChanged) {
-      uploads.push({ document, existing, metadataChanged });
+  let staleItems = [];
+  let metadataRefreshes = 0;
+
+  if (useFastPath) {
+    log("incremental-fast-path", {
+      changedPaths: changedPaths.size,
+      candidateDocuments: incremental.candidates.length,
+    });
+
+    await runPool(incremental.candidates, 6, async (document) => {
+      const existing = await findItemByKey(document.key);
+      if (existing && itemMetadataNeedsRefresh(existing, document)) metadataRefreshes += 1;
+      uploads.push({ document, existing });
+    });
+  } else {
+    if (changedPaths !== null) {
+      log("incremental-fast-path-unavailable", {
+        reason: "a changed path no longer maps to a public document",
+        mode: "full-list-reconcile",
+      });
+    }
+
+    const existingItems = await listItems();
+    const existingByKey = new Map(existingItems.map((item) => [item.key, item]));
+    staleItems = existingItems.filter((item) => item.key?.startsWith("blog--") && !documents.has(item.key));
+    await runPool(staleItems, 4, deleteItem);
+
+    for (const document of documents.values()) {
+      const existing = existingByKey.get(document.key);
+      const contentChanged = changedPaths === null || changedPaths.has(document.sourcePath);
+      const metadataChanged = existing ? itemMetadataNeedsRefresh(existing, document) : true;
+      if (!existing || contentChanged || metadataChanged) {
+        uploads.push({ document, existing });
+        if (metadataChanged) metadataRefreshes += 1;
+      }
     }
   }
 
@@ -397,9 +466,10 @@ try {
     instance: instanceName,
     publicDocuments: documents.size,
     uploaded: uploads.length,
-    metadataRefreshes: uploads.filter((entry) => entry.metadataChanged).length,
+    metadataRefreshes,
     deleted: staleItems.length,
     incremental: changedPaths !== null,
+    fastPath: useFastPath,
     changedPaths: changedPaths?.size ?? null,
     schemaVersion: indexSchemaVersion,
     indexing: "cloudflare-background",

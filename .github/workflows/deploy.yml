@@ -119,7 +119,7 @@ jobs:
             echo "No reliable previous content SHA; AI Search will use a full-sync fallback."
           else
             git -C content-source fetch --no-tags --depth=1 origin "$CONTENT_BEFORE_SHA"
-            git -C content-source diff --name-only "$CONTENT_BEFORE_SHA" "$CONTENT_SHA" -- \
+            git -C content-source diff --no-renames --name-only "$CONTENT_BEFORE_SHA" "$CONTENT_SHA" -- \
               src/content/articles src/content/notes src/content/note-translations > "$manifest"
             echo "AI Search changed content paths: $(wc -l < "$manifest")"
           fi
