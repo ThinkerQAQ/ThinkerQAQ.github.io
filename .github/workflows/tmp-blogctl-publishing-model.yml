@@ -23,25 +23,20 @@ jobs:
 
           path = Path('tools/blogctl/bridge/control.go')
           text = path.read_text()
-          old_type = '''type publishingPlatformView struct {
-          \tID             string `json:"id"`
-          \tLabel          string `json:"label"`
-          \tFooterEnabled  bool   `json:"footerEnabled"`
-          \tFooterTemplate string `json:"footerTemplate"`
-          \tTrackingQuery  string `json:"trackingQuery"`
-          }
-          '''.replace('          ', '')
+
+          type_start = text.find('type publishingPlatformView struct {')
+          type_end_marker = '\n}\n\nfunc readFrontmatterScalar'
+          type_end = text.find(type_end_marker, type_start)
+          if type_start < 0 or type_end < 0:
+              raise SystemExit('publishing view type boundaries not found')
           new_type = '''type publishingPlatformView struct {
           \tID        string                    `json:"id"`
           \tLabel     string                    `json:"label"`
           \tFooter    publishingFooterConfig    `json:"footer"`
           \tCanonical publishingCanonicalConfig `json:"canonical"`
           \tTracking  publishingTrackingConfig  `json:"tracking"`
-          }
-          '''.replace('          ', '')
-          if old_type not in text:
-              raise SystemExit('publishing view type block not found')
-          text = text.replace(old_type, new_type, 1)
+          }'''.replace('          ', '')
+          text = text[:type_start] + new_type + text[type_end + 2:]
 
           start = text.find('func publishingViews(config bridgeConfig) []publishingPlatformView {')
           end = text.find('func normalizeSyncRequest(', start)
@@ -83,6 +78,8 @@ jobs:
           from pathlib import Path
           path = Path('tools/blogctl/bridge/config_test.go')
           text = path.read_text()
+          if '"strings"' not in text:
+              text = text.replace('\t"reflect"\n', '\t"reflect"\n\t"strings"\n', 1)
           addition = r'''
 
           func TestBridgeConfigMigratesLegacyPublishingProfiles(t *testing.T) {
@@ -125,7 +122,6 @@ jobs:
           '''.replace('          ', '')
           if 'TestBridgeConfigMigratesLegacyPublishingProfiles' not in text:
               text += addition
-          text = text.replace('"reflect"\n', '"reflect"\n\t"strings"\n', 1)
           path.write_text(text)
       - name: Format and test BlogCTL
         shell: bash
