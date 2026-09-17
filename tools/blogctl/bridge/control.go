@@ -43,15 +43,15 @@ type syncRequest struct {
 }
 
 type syncJob struct {
-	ID        string   `json:"id"`
-	Article   string   `json:"article"`
-	Platforms []string `json:"platforms"`
-	State     string   `json:"state"`
-	StartedAt string   `json:"startedAt"`
-	FinishedAt string  `json:"finishedAt,omitempty"`
-	Output    string   `json:"output,omitempty"`
-	Error     string   `json:"error,omitempty"`
-	DryRun    bool     `json:"dryRun"`
+	ID         string   `json:"id"`
+	Article    string   `json:"article"`
+	Platforms  []string `json:"platforms"`
+	State      string   `json:"state"`
+	StartedAt  string   `json:"startedAt"`
+	FinishedAt string   `json:"finishedAt,omitempty"`
+	Output     string   `json:"output,omitempty"`
+	Error      string   `json:"error,omitempty"`
+	DryRun     bool     `json:"dryRun"`
 }
 
 type toolField struct {
@@ -248,20 +248,20 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		{
 			Name: "bridge", DisplayName: "BlogCTL Bridge", Kind: "runtime", Required: true,
 			Description: "Extension 与本机 BlogCTL 的持久控制连接。",
-			Health: toolHealth{OK: true, Status: "ok", Summary: "运行中"},
-			Config: toolConfigView{Scope: "bridge", Values: map[string]any{}, DefaultExpanded: true},
+			Health:      toolHealth{OK: true, Status: "ok", Summary: "运行中"},
+			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{}, DefaultExpanded: true},
 		},
 		{
 			Name: "content-workspace", DisplayName: "Content Repository", Kind: "runtime", Required: true,
 			Description: "Articles / Notes / Series / Projects 的 canonical source。",
-			Health: workspaceHealth(config.ContentRoot, "content"),
-			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"contentRoot": config.ContentRoot}, Schema: []toolField{{Key: "contentRoot", Label: "Content Repository", Type: "directory", Description: "例如 C:\\Users\\zsk\\code\\blog\\blog-content"}}, DefaultExpanded: true},
+			Health:      workspaceHealth(config.ContentRoot, "content"),
+			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{"contentRoot": config.ContentRoot}, Schema: []toolField{{Key: "contentRoot", Label: "Content Repository", Type: "directory", Description: "例如 C:\\Users\\zsk\\code\\blog\\blog-content"}}, DefaultExpanded: true},
 		},
 		{
 			Name: "engine-workspace", DisplayName: "Public Engine", Kind: "runtime", Required: true,
 			Description: "Astro、BlogCTL scripts 与 publishing adapters 所在仓库。",
-			Health: workspaceHealth(config.EngineRoot, "engine"),
-			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"engineRoot": config.EngineRoot}, Schema: []toolField{{Key: "engineRoot", Label: "Engine Repository", Type: "directory", Description: "例如 C:\\Users\\zsk\\code\\blog\\ThinkerQAQ.github.io"}}, DefaultExpanded: true},
+			Health:      workspaceHealth(config.EngineRoot, "engine"),
+			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{"engineRoot": config.EngineRoot}, Schema: []toolField{{Key: "engineRoot", Label: "Engine Repository", Type: "directory", Description: "例如 C:\\Users\\zsk\\code\\blog\\ThinkerQAQ.github.io"}}, DefaultExpanded: true},
 		},
 		{
 			Name: "network-proxy", DisplayName: "Network Proxy", Kind: "runtime", Required: false,
