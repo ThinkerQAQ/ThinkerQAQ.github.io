@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BlogCTL Extension",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Browser integration for BlogCTL. Shows publishing-platform login status, local bridge and proxy configuration, and Medium session handoff without persisting browser credentials.",
   "permissions": [
     "cookies"
