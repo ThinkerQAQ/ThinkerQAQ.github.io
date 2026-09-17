@@ -13,6 +13,16 @@ function methodOf(input, init) {
   return "GET";
 }
 
+function endpointOf(input) {
+  try {
+    const raw = input instanceof Request ? input.url : String(input);
+    const url = new URL(raw);
+    return url.pathname.replace(/\/client\/v4\/accounts\/[^/]+/, "/client/v4/accounts/:account");
+  } catch {
+    return "unknown";
+  }
+}
+
 function retryAfterMs(response) {
   const value = response.headers.get("retry-after");
   if (!value) return null;
@@ -56,12 +66,20 @@ export function createRetryingFetch(fetchImpl, {
     status: "cloudflare-request-retry",
     ...details,
   })),
+  logFailure = (details) => console.error(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    operation: "sync-ai-search",
+    status: "cloudflare-request-failed",
+    ...details,
+  })),
 } = {}) {
   return async function retryingFetch(input, init = {}) {
     const method = methodOf(input, init);
+    const endpoint = endpointOf(input);
     let lastError;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt += 1) {
+      const startedAt = Date.now();
       const timeoutSignal = AbortSignal.timeout(requestTimeoutMs);
       const signal = init.signal
         ? AbortSignal.any([init.signal, timeoutSignal])
@@ -75,9 +93,11 @@ export function createRetryingFetch(fetchImpl, {
         const delayMs = retryDelayMs(response, attempt, retryBaseMs, retryMaxMs);
         logRetry({
           method,
+          endpoint,
           statusCode: response.status,
           attempt,
           maxAttempts: maxRetries + 1,
+          elapsedMs: Date.now() - startedAt,
           delayMs,
         });
         try {
@@ -89,14 +109,27 @@ export function createRetryingFetch(fetchImpl, {
       } catch (error) {
         lastError = error;
         const canRetryNetworkFailure = attempt <= maxRetries && (method === "GET" || method === "HEAD");
-        if (!canRetryNetworkFailure) throw error;
+        if (!canRetryNetworkFailure) {
+          logFailure({
+            method,
+            endpoint,
+            attempt,
+            maxAttempts: maxRetries + 1,
+            elapsedMs: Date.now() - startedAt,
+            timeoutMs: requestTimeoutMs,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }
 
         const delayMs = Math.min(retryBaseMs * (2 ** Math.max(0, attempt - 1)), retryMaxMs);
         logRetry({
           method,
+          endpoint,
           error: error instanceof Error ? error.message : String(error),
           attempt,
           maxAttempts: maxRetries + 1,
+          elapsedMs: Date.now() - startedAt,
           delayMs,
         });
         await sleep(delayMs);
