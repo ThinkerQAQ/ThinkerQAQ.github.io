@@ -1,7 +1,9 @@
 package app
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -39,9 +41,18 @@ type SyncConfig struct {
 }
 
 type SyncPlan struct {
-	Group  string
-	Script string
-	Args   []string
+	Group     string
+	Script    string
+	Args      []string
+	Platforms []string
+}
+
+type SyncEvent struct {
+	Platform string `json:"platform,omitempty"`
+	State    string `json:"state"`
+	Result   string `json:"result,omitempty"`
+	URL      string `json:"url,omitempty"`
+	Message  string `json:"message,omitempty"`
 }
 
 type CommandRunner interface {
@@ -59,7 +70,8 @@ func (OSCommandRunner) Run(ctx context.Context, name string, args []string, dir 
 }
 
 type SyncService struct {
-	Runner CommandRunner
+	Runner  CommandRunner
+	OnEvent func(SyncEvent)
 }
 
 func NewSyncService() SyncService {
@@ -140,7 +152,10 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		if request.DryRun {
 			args = append(args, "--dry-run")
 		}
-		plan = append(plan, SyncPlan{Group: "china", Script: "scripts/blogctl-distribute.mjs", Args: args})
+		plan = append(plan, SyncPlan{
+			Group: "china", Script: "scripts/blogctl-distribute.mjs", Args: args,
+			Platforms: append([]string{}, china...),
+		})
 	}
 	if len(international) > 0 {
 		args := append([]string{}, articleArgs...)
@@ -154,7 +169,10 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		if request.Draft {
 			args = append(args, "--draft")
 		}
-		plan = append(plan, SyncPlan{Group: "international", Script: "scripts/blogctl-syndicate.mjs", Args: args})
+		plan = append(plan, SyncPlan{
+			Group: "international", Script: "scripts/blogctl-syndicate.mjs", Args: args,
+			Platforms: append([]string{}, international...),
+		})
 	}
 	return plan
 }
@@ -203,14 +221,154 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 	}
 
 	for _, entry := range BuildSyncPlan(request) {
+		terminal := map[string]bool{}
+		for _, platform := range entry.Platforms {
+			s.emit(SyncEvent{Platform: platform, State: "running"})
+		}
 		script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
 		commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
 		appendOutput(&output, commandOutput)
+		for _, event := range ParseSyncEvents(commandOutput) {
+			if !containsPlatform(entry.Platforms, event.Platform) {
+				continue
+			}
+			s.emit(event)
+			if event.State == "completed" || event.State == "failed" {
+				terminal[event.Platform] = true
+			}
+		}
 		if runErr != nil {
-			return output.String(), fmt.Errorf("%s syndication: %w", entry.Group, runErr)
+			message := fmt.Sprintf("%s syndication: %v", entry.Group, runErr)
+			for _, platform := range entry.Platforms {
+				if !terminal[platform] {
+					s.emit(SyncEvent{Platform: platform, State: "failed", Message: message})
+				}
+			}
+			return output.String(), errors.New(message)
+		}
+		for _, platform := range entry.Platforms {
+			if !terminal[platform] {
+				s.emit(SyncEvent{Platform: platform, State: "completed", Result: "completed"})
+			}
 		}
 	}
 	return output.String(), nil
+}
+
+func (s SyncService) emit(event SyncEvent) {
+	if s.OnEvent != nil {
+		s.OnEvent(event)
+	}
+}
+
+func containsPlatform(platforms []string, target string) bool {
+	for _, platform := range platforms {
+		if platform == target {
+			return true
+		}
+	}
+	return false
+}
+
+type scriptLogEvent struct {
+	Operation string `json:"operation"`
+	Status    string `json:"status"`
+	Platform  string `json:"platform"`
+	DraftURL  string `json:"draftUrl"`
+	RemoteURL string `json:"remoteUrl"`
+	Message   string `json:"message"`
+	Exception struct {
+		Message string `json:"message"`
+	} `json:"exception"`
+}
+
+func ParseSyncEvents(output string) []SyncEvent {
+	events := []SyncEvent{}
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	buffer := make([]byte, 0, 64*1024)
+	scanner.Buffer(buffer, 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var raw scriptLogEvent
+		if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			continue
+		}
+		if event, ok := syncEventFromLog(raw); ok {
+			events = append(events, event)
+		}
+	}
+	return events
+}
+
+func syncEventFromLog(raw scriptLogEvent) (SyncEvent, bool) {
+	message := strings.TrimSpace(raw.Message)
+	if message == "" {
+		message = strings.TrimSpace(raw.Exception.Message)
+	}
+	switch raw.Operation {
+	case "distribution-sync":
+		if raw.Platform == "" {
+			return SyncEvent{}, false
+		}
+		event := SyncEvent{Platform: raw.Platform, Message: message}
+		switch raw.Status {
+		case "started":
+			event.State = "running"
+		case "rate-limit-retry-wait":
+			event.State = "waiting"
+			event.Result = "rate-limit-retry"
+		case "dry-run-completed":
+			event.State = "completed"
+			event.Result = "dry-run"
+			event.URL = raw.DraftURL
+		case "completed":
+			event.State = "completed"
+			event.Result = "completed"
+			if raw.DraftURL != "" {
+				event.Result = "draft-created"
+				event.URL = raw.DraftURL
+			}
+		case "failed":
+			event.State = "failed"
+		default:
+			return SyncEvent{}, false
+		}
+		return event, true
+	case "syndication-devto":
+		event := SyncEvent{Platform: "devto", Message: message, URL: raw.RemoteURL}
+		switch raw.Status {
+		case "dry-run":
+			event.State = "completed"
+			event.Result = "dry-run"
+		case "created", "updated", "skipped":
+			event.State = "completed"
+			event.Result = raw.Status
+		default:
+			return SyncEvent{}, false
+		}
+		return event, true
+	case "syndication-medium":
+		event := SyncEvent{Platform: "medium", Message: message, URL: raw.DraftURL}
+		switch raw.Status {
+		case "waiting-for-session":
+			event.State = "waiting"
+			event.Result = "waiting-for-session"
+		case "dry-run":
+			event.State = "completed"
+			event.Result = "dry-run"
+		case "draft-created":
+			event.State = "completed"
+			event.Result = "draft-created"
+		default:
+			return SyncEvent{}, false
+		}
+		return event, true
+	default:
+		return SyncEvent{}, false
+	}
 }
 
 func validateSyncWorkspaces(config SyncConfig) error {
