@@ -1,0 +1,223 @@
+name: Temporary BlogCTL Chinese publishing profile
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-content-workspace
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/blogctl-content-workspace
+
+      - name: Wire distribution to publishing profiles
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('scripts/distribute.mjs')
+          text = path.read_text()
+
+          import_marker = 'import { fileURLToPath } from "node:url";\n'
+          publishing_import = '''import {
+            defaultPlatformPublishingConfig,
+            defaultPublishingConfig,
+            renderPublishingFooter,
+            trackedPublishingUrl,
+          } from "./publishing-config.mjs";
+          '''.replace('          ', '')
+          if publishing_import not in text:
+              if import_marker not in text:
+                  raise SystemExit('distribute import marker not found')
+              text = text.replace(import_marker, import_marker + publishing_import, 1)
+
+          constants_start = text.find('export const UTM_MEDIUM =')
+          log_start = text.find('function log(', constants_start)
+          if constants_start < 0 or log_start < 0:
+              raise SystemExit('legacy tracked URL block not found')
+          tracked_block = '''export function buildTrackedUrl(canonicalUrl, platform, publishingConfig = null) {
+          \tif (!SUPPORTED_PLATFORMS.includes(platform)) {
+          \t\tthrow new Error(`Unsupported platform: ${platform}`);
+          \t}
+          \tconst profile = publishingConfig ?? defaultPlatformPublishingConfig(platform);
+          \treturn trackedPublishingUrl(canonicalUrl, profile);
+          }
+
+          '''.replace('          ', '')
+          text = text[:constants_start] + tracked_block + text[log_start:]
+
+          build_start = text.find('export function buildPlatformMarkdown(article, { platform, slug }) {')
+          sha_start = text.find('function sha256(', build_start)
+          if build_start < 0 or sha_start < 0:
+              raise SystemExit('buildPlatformMarkdown block not found')
+          build_block = '''export function buildPlatformMarkdown(article, {
+          \tplatform,
+          \tslug,
+          \tpublishingConfig = null,
+          }) {
+          \tif (!SUPPORTED_PLATFORMS.includes(platform)) {
+          \t\tthrow new Error(`Unsupported platform: ${platform}`);
+          \t}
+          \tconst profile = publishingConfig ?? defaultPlatformPublishingConfig(platform);
+          \tconst canonicalUrl = new URL(`/articles/${slug}/`, SITE_ORIGIN).toString();
+          \tconst tagLimit = platform === "cnblogs" ? article.tags.length : 5;
+          \tconst tags = article.tags.slice(0, tagLimit);
+          \tconst descriptionLimit = platform === "juejin" ? 100 : 256;
+          \tconst frontmatter = [
+          \t\t"---",
+          \t\t`title: ${JSON.stringify(article.title)}`,
+          \t\t`description: ${JSON.stringify(truncate(article.description, descriptionLimit))}`,
+          \t\t`summary: ${JSON.stringify(truncate(article.description, descriptionLimit))}`,
+          \t\t...yamlList("tags", tags),
+          \t\t...(platform === "cnblogs" ? yamlList("categories", ["[Markdown]"]) : []),
+          \t\t...(profile.canonical?.mode === "none" ? [] : [`canonicalUrl: ${JSON.stringify(canonicalUrl)}`]),
+          \t\t`sourcePlatform: ${JSON.stringify("ThinkerQAQ personal blog")}`,
+          \t\t"---",
+          \t].join("\\n");
+          \tconst body = makeExternalLinksAbsolute(article.body);
+          \tconst footer = renderPublishingFooter(profile, {
+          \t\tcanonicalUrl,
+          \t\ttitle: article.title,
+          \t\tsite: "ThinkerQAQ 的个人博客",
+          \t});
+          \tconst footerSection = footer ? `\\n\\n---\\n\\n${footer}` : "";
+          \treturn `${frontmatter}\\n\\n${body}${footerSection}\\n`;
+          }
+
+          '''.replace('          ', '')
+          text = text[:build_start] + build_block + text[sha_start:]
+
+          signature = '''export async function exportArticles({
+            articleRoot,
+            outputRoot,
+            platforms = SUPPORTED_PLATFORMS,
+            requestedSlugs = [],
+          } = {}) {'''.replace('          ', '')
+          replacement = '''export async function exportArticles({
+            articleRoot,
+            outputRoot,
+            platforms = SUPPORTED_PLATFORMS,
+            requestedSlugs = [],
+            publishingConfig = defaultPublishingConfig(),
+          } = {}) {'''.replace('          ', '')
+          if signature not in text:
+              raise SystemExit('exportArticles signature not found')
+          text = text.replace(signature, replacement, 1)
+
+          old_call = 'const generated = buildPlatformMarkdown(article, { platform, slug });'
+          new_call = '''const generated = buildPlatformMarkdown(article, {
+          \t\tplatform,
+          \t\tslug,
+          \t\tpublishingConfig: publishingConfig?.[platform] ?? defaultPlatformPublishingConfig(platform),
+          \t});'''.replace('          ', '')
+          if old_call not in text:
+              raise SystemExit('buildPlatformMarkdown export call not found')
+          text = text.replace(old_call, new_call, 1)
+          path.write_text(text)
+
+          path = Path('scripts/blogctl-distribute.mjs')
+          text = path.read_text()
+          import_marker = '} from "./distribute.mjs";\n'
+          publishing_import = 'import { loadPublishingConfig } from "./publishing-config.mjs";\n'
+          if publishing_import not in text:
+              if import_marker not in text:
+                  raise SystemExit('blogctl-distribute import marker not found')
+              text = text.replace(import_marker, import_marker + publishing_import, 1)
+          root_marker = '  const contentRoot = resolveBlogContentRoot(env);\n'
+          if 'const publishingConfig = await loadPublishingConfig(env);' not in text:
+              if root_marker not in text:
+                  raise SystemExit('blogctl-distribute content root marker not found')
+              text = text.replace(root_marker, root_marker + '  const publishingConfig = await loadPublishingConfig(env);\n', 1)
+          args_marker = '    requestedSlugs: options.requestedSlugs,\n'
+          if '    publishingConfig,\n' not in text:
+              if args_marker not in text:
+                  raise SystemExit('blogctl-distribute export args marker not found')
+              text = text.replace(args_marker, args_marker + '    publishingConfig,\n', 1)
+          path.write_text(text)
+
+      - name: Add distribution profile coverage
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('scripts/distribute.test.mjs')
+          text = path.read_text()
+          marker = 'test("exportArticles exports published articles and leaves drafts out", async () => {'
+          addition = r'''
+          test("buildPlatformMarkdown applies publishing footer tracking and canonical policies", () => {
+            const article = parseArticle(ARTICLE);
+            const custom = buildPlatformMarkdown(article, {
+              platform: "juejin",
+              slug: "concurrency/test",
+              publishingConfig: {
+                footer: { enabled: true, template: "> 自定义来源：{url}" },
+                canonical: { mode: "none" },
+                tracking: {
+                  enabled: true,
+                  source: "custom-juejin",
+                  medium: "social",
+                  campaign: "custom-campaign",
+                },
+              },
+            });
+            assert.doesNotMatch(custom, /canonicalUrl:/u);
+            assert.match(custom, /> 自定义来源：https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\/\?utm_source=custom-juejin&utm_medium=social&utm_campaign=custom-campaign/u);
+            assert.doesNotMatch(custom, /由作者本人同步发布/u);
+
+            const clean = buildPlatformMarkdown(article, {
+              platform: "csdn",
+              slug: "concurrency/test",
+              publishingConfig: {
+                footer: { enabled: true, template: "> {url}" },
+                canonical: { mode: "footer" },
+                tracking: { enabled: false, source: "csdn", medium: "referral", campaign: "article_syndication" },
+              },
+            });
+            assert.match(clean, /canonicalUrl: "https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\/"/u);
+            assert.match(clean, /> https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\//u);
+            assert.doesNotMatch(clean, /utm_source/u);
+
+            const noFooter = buildPlatformMarkdown(article, {
+              platform: "zhihu",
+              slug: "concurrency/test",
+              publishingConfig: {
+                footer: { enabled: false, template: "> ignored {url}" },
+                canonical: { mode: "footer" },
+                tracking: { enabled: true, source: "zhihu", medium: "referral", campaign: "article_syndication" },
+              },
+            });
+            assert.doesNotMatch(noFooter, /ignored/u);
+            assert.doesNotMatch(noFooter, /本文首发于/u);
+          });
+
+          '''.replace('          ', '')
+          if 'applies publishing footer tracking and canonical policies' not in text:
+              if marker not in text:
+                  raise SystemExit('distribution test insertion marker not found')
+              text = text.replace(marker, addition + marker, 1)
+          path.write_text(text)
+
+      - name: Test publishing and distribution
+        shell: bash
+        run: |
+          npm ci
+          npm run test:distribute
+          npm run test:syndicate
+
+      - name: Commit Chinese publishing profile wiring
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/distribute.mjs scripts/distribute.test.mjs scripts/blogctl-distribute.mjs
+          git commit -m "refactor: apply publishing profiles to Chinese distribution"
+          git push origin HEAD:refactor/blogctl-content-workspace
