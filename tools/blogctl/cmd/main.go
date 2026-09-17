@@ -10,22 +10,35 @@ import (
 )
 
 type app struct {
-	root   string
-	runner commandRunner
-	out    io.Writer
+	root        string
+	contentRoot string
+	runner      commandRunner
+	out         io.Writer
 }
 
 func main() {
-	root, err := findRepositoryRoot()
+	root, contentRoot, err := rootsForCommand(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	a := app{root: root, runner: osRunner{dir: root}, out: os.Stdout}
+	a := app{root: root, contentRoot: contentRoot, runner: osRunner{dir: root}, out: os.Stdout}
 	if err := a.run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "blogctl:", err)
 		os.Exit(1)
 	}
+}
+
+func rootsForCommand(args []string) (string, string, error) {
+	command := "preview"
+	if len(args) > 0 {
+		command = args[0]
+	}
+	if command == "sync" {
+		return resolveSyncWorkspace()
+	}
+	root, err := findRepositoryRoot()
+	return root, "", err
 }
 
 func (a app) run(args []string) error {
@@ -106,7 +119,8 @@ Usage:
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
 
-scripts/ stays at the repository root as the Astro/Node implementation layer.`)
+Run sync from the blog-content repository. Engine commands still run from ThinkerQAQ.github.io.
+scripts/ stays at the engine repository root as the Astro/Node implementation layer.`)
 }
 
 func findRepositoryRoot() (string, error) {
@@ -114,19 +128,27 @@ func findRepositoryRoot() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for {
-		if fileExists(filepath.Join(current, "package.json")) && fileExists(filepath.Join(current, "astro.config.mjs")) {
-			return current, nil
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			return "", errors.New("not inside the ThinkerQAQ blog repository")
-		}
-		current = parent
+	root := findAncestor(current, isEngineRoot)
+	if root == "" {
+		return "", errors.New("not inside the ThinkerQAQ public engine repository")
 	}
+	return root, nil
 }
 
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func directoryExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+func cleanAbsolutePath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(absolute), nil
 }
