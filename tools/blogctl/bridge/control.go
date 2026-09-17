@@ -497,6 +497,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 		s.jobOrder = s.jobOrder[:20]
 	}
 	config := s.config
+	response := cloneSyncJob(job)
 	s.mu.Unlock()
 
 	go func() {
@@ -527,7 +528,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 		}
 		stored.State = "completed"
 	}()
-	return cloneSyncJob(job)
+	return response
 }
 
 func cloneSyncJob(job *syncJob) *syncJob {
