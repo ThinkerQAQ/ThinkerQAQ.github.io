@@ -1,0 +1,130 @@
+---
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../config/i18n";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export function getStaticPaths() {
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale },
+  }));
+}
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+---
+
+<BaseLayout
+  title="Analytics control"
+  description="Control whether this browser is counted by Umami analytics."
+  canonicalPath={localizePath(locale, "/disable-analytics/")}
+  locale={locale}
+  noindex={true}
+  analytics={false}
+>
+  <div class="shell page narrow analytics-control">
+    <p class="eyebrow">UMAMI</p>
+    <h1 id="status">Checking analytics setting…</h1>
+    <p id="detail" class="detail"></p>
+    <p id="hint" class="hint"></p>
+
+    <div class="actions" aria-label="Umami analytics controls">
+      <a class="control-button" href="?disabled=1">Disable tracking</a>
+      <a class="control-button" href="?disabled=0">Enable tracking</a>
+    </div>
+  </div>
+
+  <script is:inline>
+    const status = document.getElementById("status");
+    const detail = document.getElementById("detail");
+    const hint = document.getElementById("hint");
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("disabled");
+
+    try {
+      if (requested === "1") {
+        localStorage.setItem("umami.disabled", "1");
+      } else if (requested === "0") {
+        localStorage.removeItem("umami.disabled");
+      }
+
+      const disabled = localStorage.getItem("umami.disabled") === "1";
+
+      if (disabled) {
+        status.textContent = "Umami tracking is disabled on this browser.";
+        detail.innerHTML = 'Stored as <code>umami.disabled = "1"</code> for <code>thinkerqaq.github.io</code>.';
+      } else {
+        status.textContent = "Umami tracking is enabled on this browser.";
+        detail.innerHTML = 'The <code>umami.disabled</code> flag is not set for <code>thinkerqaq.github.io</code>.';
+      }
+
+      if (requested === "1") {
+        hint.textContent = "Tracking has been disabled. You can close this page.";
+      } else if (requested === "0") {
+        hint.textContent = "Tracking has been restored. The next normal blog page you open can be counted by Umami.";
+      } else {
+        hint.textContent = "Use the controls below to change whether this browser is counted by Umami.";
+      }
+    } catch (_) {
+      status.textContent = "Could not update the analytics setting.";
+      detail.textContent = "This browser blocked access to localStorage.";
+      hint.textContent = "No analytics preference was changed.";
+    }
+  </script>
+</BaseLayout>
+
+<style>
+  .analytics-control h1 {
+    margin: 0;
+    font-weight: 760;
+    line-height: 1.16;
+    letter-spacing: -0.045em;
+  }
+
+  .detail {
+    margin: 1.25rem 0 0;
+    color: var(--muted);
+  }
+
+  .hint {
+    margin: 0.45rem 0 0;
+    color: var(--faint);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  .control-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 650;
+    text-decoration: none;
+    box-shadow: var(--shadow);
+  }
+
+  .control-button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  :global(.analytics-control code) {
+    padding: 0.12em 0.35em;
+    border-radius: 0.35rem;
+    background: var(--accent-soft);
+    color: var(--text);
+    font-size: 0.9em;
+  }
+</style>
