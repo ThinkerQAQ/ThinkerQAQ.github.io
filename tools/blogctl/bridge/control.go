@@ -30,9 +30,12 @@ var platformLabels = map[string]string{
 }
 
 type articleSummary struct {
-	Slug   string `json:"slug"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
+	Slug          string `json:"slug"`
+	Title         string `json:"title"`
+	Status        string `json:"status"`
+	Language      string `json:"language"`
+	EnglishMirror bool   `json:"englishMirror"`
+	SourcePath    string `json:"sourcePath"`
 }
 
 type syncRequest struct {
@@ -198,7 +201,11 @@ func listArticles(contentRoot string) ([]articleSummary, error) {
 		if title == "" {
 			title = slug
 		}
-		articles = append(articles, articleSummary{Slug: slug, Title: title, Status: "published"})
+		englishMirror := filePresent(filepath.Join(articleRoot, "en", filepath.FromSlash(slug)+".md"))
+		articles = append(articles, articleSummary{
+			Slug: slug, Title: title, Status: "published", Language: "zh-CN",
+			EnglishMirror: englishMirror, SourcePath: filepath.ToSlash(relative),
+		})
 		return nil
 	})
 	if err != nil {
