@@ -23,6 +23,7 @@ interface Props {
   locale?: Locale;
   languageAlternatives?: LocaleAlternative[];
   languageSwitcherAlternatives?: LocaleAlternative[];
+  analytics?: boolean;
 }
 
 const {
@@ -35,6 +36,7 @@ const {
   language = LOCALES[locale].htmlLang,
   languageAlternatives: providedLanguageAlternatives,
   languageSwitcherAlternatives: providedLanguageSwitcherAlternatives,
+  analytics = true,
 } = Astro.props;
 
 // The language switcher answers "where can the reader browse this page in another
@@ -123,7 +125,7 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <meta property="og:site_name" content={SITE.title} />
     <meta property="og:locale" content={language.replace("-", "_")} />
     <meta name="twitter:card" content="summary" />
-    {umamiWebsiteId && umamiProxyOrigin && (
+    {analytics && umamiWebsiteId && umamiProxyOrigin && (
       <script
         is:inline
         defer
