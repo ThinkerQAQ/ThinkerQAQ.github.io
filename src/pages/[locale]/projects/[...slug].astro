@@ -1,8 +1,14 @@
 ---
 import { getCollection, render, type CollectionEntry } from "astro:content";
+import ProjectKnowledgeIndex from "../../../components/ProjectKnowledgeIndex.astro";
 import { LOCALES, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
-import { formatDate, localizedProjectSummary, projectHref, projectStatusLabel } from "../../../lib/content";
+import {
+  formatDate,
+  localizedProjectSummary,
+  projectHref,
+  projectStatusLabel,
+} from "../../../lib/content";
 
 export async function getStaticPaths() {
   const projects = await getCollection("projects");
@@ -22,6 +28,8 @@ const { data } = project;
 const { Content } = await render(project);
 const summary = localizedProjectSummary(project, locale);
 const hasTranslation = Boolean(data.translations?.[locale]);
+const articles = await getCollection("articles");
+const seriesEntries = await getCollection("series");
 ---
 
 <BaseLayout
@@ -44,6 +52,12 @@ const hasTranslation = Boolean(data.translations?.[locale]);
       </header>
       {!hasTranslation && <p class="source-note">The project body is currently maintained in Chinese.</p>}
       <div class="prose" lang={!hasTranslation ? "zh-CN" : LOCALES[locale].htmlLang}><Content /></div>
+      <ProjectKnowledgeIndex
+        project={project}
+        articles={articles}
+        seriesEntries={seriesEntries}
+        locale={locale}
+      />
     </article>
   </div>
 </BaseLayout>
