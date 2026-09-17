@@ -1,0 +1,58 @@
+name: Temporary BlogCTL job response race fix
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-content-workspace
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/blogctl-content-workspace
+      - name: Clone response before starting worker
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("tools/blogctl/bridge/control.go")
+          text = path.read_text()
+          old = '''\tconfig := s.config
+          \ts.mu.Unlock()
+
+          \tgo func() {'''.replace("          ", "")
+          new = '''\tconfig := s.config
+          \tresponse := cloneSyncJob(job)
+          \ts.mu.Unlock()
+
+          \tgo func() {'''.replace("          ", "")
+          if old not in text:
+              raise SystemExit("job worker start marker not found")
+          text = text.replace(old, new, 1)
+          old = '''\t}()
+          \treturn cloneSyncJob(job)
+          }'''.replace("          ", "")
+          new = '''\t}()
+          \treturn response
+          }'''.replace("          ", "")
+          if old not in text:
+              raise SystemExit("job response return marker not found")
+          path.write_text(text.replace(old, new, 1))
+      - name: Format and test Bridge
+        working-directory: tools/blogctl
+        run: |
+          gofmt -w bridge/control.go
+          go test ./bridge ./app
+      - name: Commit race fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/blogctl/bridge/control.go
+          git commit -m "fix: snapshot sync job before worker starts"
+          git push origin HEAD:refactor/blogctl-content-workspace
