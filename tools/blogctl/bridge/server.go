@@ -43,6 +43,8 @@ type Server struct {
 
 	mu       sync.Mutex
 	sessions map[string]platformSession
+	jobs     map[string]*syncJob
+	jobOrder []string
 }
 
 func New(token string) (*Server, error) {
@@ -60,6 +62,7 @@ func New(token string) (*Server, error) {
 		httpClient: client,
 		config:     config,
 		sessions:   make(map[string]platformSession),
+		jobs:       make(map[string]*syncJob),
 	}, nil
 }
 
@@ -118,6 +121,61 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 	}
 
+	if path == "v1/articles" && request.Method == http.MethodGet {
+		if !allowReadOnlyBridgeStatus(response, request) {
+			return
+		}
+		s.handleArticles(response)
+		return
+	}
+
+	if path == "v1/tools" && request.Method == http.MethodGet {
+		if !allowReadOnlyBridgeStatus(response, request) {
+			return
+		}
+		s.handleTools(response)
+		return
+	}
+	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "tools" && request.Method == http.MethodPut {
+		s.handleToolConfigPut(response, request, parts[2])
+		return
+	}
+
+	if path == "v1/publishing" {
+		switch request.Method {
+		case http.MethodGet:
+			if !allowReadOnlyBridgeStatus(response, request) {
+				return
+			}
+			s.handlePublishingGet(response)
+			return
+		case http.MethodPut:
+			s.handlePublishingPut(response, request)
+			return
+		}
+	}
+
+	if path == "v1/sync/jobs" {
+		switch request.Method {
+		case http.MethodGet:
+			if !allowReadOnlyBridgeStatus(response, request) {
+				return
+			}
+			writeJSON(response, http.StatusOK, map[string]any{"jobs": s.syncJobs()})
+			return
+		case http.MethodPost:
+			s.handleSyncStart(response, request)
+			return
+		}
+	}
+	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && request.Method == http.MethodGet {
+		if !allowReadOnlyBridgeStatus(response, request) {
+			return
+		}
+		s.handleSyncJobGet(response, parts[3])
+		return
+	}
+
 	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "sessions" && parts[3] == "status" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {
 			return
@@ -156,6 +214,16 @@ func allowReadOnlyBridgeStatus(response http.ResponseWriter, request *http.Reque
 	return true
 }
 
+func allowExtensionWrite(response http.ResponseWriter, request *http.Request) (string, bool) {
+	origin := request.Header.Get("origin")
+	if !validBrowserExtensionOrigin(origin) {
+		writeJSON(response, http.StatusForbidden, map[string]any{"error": "forbidden origin"})
+		return "", false
+	}
+	response.Header().Set("access-control-allow-origin", origin)
+	return origin, true
+}
+
 func (s *Server) handleOptions(response http.ResponseWriter, request *http.Request) {
 	origin := request.Header.Get("origin")
 	if !validBrowserExtensionOrigin(origin) {
@@ -178,17 +246,25 @@ func (s *Server) handleConfigGet(response http.ResponseWriter) {
 }
 
 func (s *Server) handleConfigPut(response http.ResponseWriter, request *http.Request) {
-	origin := request.Header.Get("origin")
-	if !validBrowserExtensionOrigin(origin) {
-		writeJSON(response, http.StatusForbidden, map[string]any{"error": "forbidden origin"})
+	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
-	var config bridgeConfig
-	if err := readJSON(request, 64*1024, &config); err != nil {
+	var patch struct {
+		ProxyEnabled bool   `json:"proxyEnabled"`
+		ProxyHost    string `json:"proxyHost"`
+		ProxyPort    int    `json:"proxyPort"`
+	}
+	if err := readJSON(request, 64*1024, &patch); err != nil {
 		writeError(response, err)
 		return
 	}
-	normalized, err := normalizeBridgeConfig(config)
+	s.mu.Lock()
+	current := s.config
+	s.mu.Unlock()
+	current.ProxyEnabled = patch.ProxyEnabled
+	current.ProxyHost = patch.ProxyHost
+	current.ProxyPort = patch.ProxyPort
+	normalized, err := normalizeBridgeConfig(current)
 	if err != nil {
 		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
@@ -206,16 +282,135 @@ func (s *Server) handleConfigPut(response http.ResponseWriter, request *http.Req
 	s.config = normalized
 	s.httpClient = client
 	s.mu.Unlock()
-	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
 		"ok": true, "config": normalized, "networkMode": proxySummary(normalized),
 	})
 }
 
+func (s *Server) handleArticles(response http.ResponseWriter) {
+	s.mu.Lock()
+	contentRoot := s.config.ContentRoot
+	s.mu.Unlock()
+	articles, err := listArticles(contentRoot)
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"articles": articles})
+}
+
+func (s *Server) handleTools(response http.ResponseWriter) {
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	writeJSON(response, http.StatusOK, map[string]any{"tools": toolRegistry(config)})
+}
+
+func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http.Request, name string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	var body toolConfigRequest
+	if err := readJSON(request, 128*1024, &body); err != nil {
+		writeError(response, err)
+		return
+	}
+	s.mu.Lock()
+	current := s.config
+	s.mu.Unlock()
+	normalized, err := updateToolConfig(current, name, body.Config)
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	client, err := httpClientForConfig(normalized)
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if err := saveBridgeConfig(normalized); err != nil {
+		writeJSON(response, http.StatusInternalServerError, map[string]any{"error": "无法保存 BlogCTL 配置"})
+		return
+	}
+	s.mu.Lock()
+	s.config = normalized
+	s.httpClient = client
+	s.mu.Unlock()
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "tools": toolRegistry(normalized)})
+}
+
+func (s *Server) handlePublishingGet(response http.ResponseWriter) {
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	writeJSON(response, http.StatusOK, map[string]any{"platforms": publishingViews(config)})
+}
+
+func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	var body struct {
+		Platforms []publishingPlatformView `json:"platforms"`
+	}
+	if err := readJSON(request, 512*1024, &body); err != nil {
+		writeError(response, err)
+		return
+	}
+	s.mu.Lock()
+	current := s.config
+	s.mu.Unlock()
+	normalized, err := updatePublishing(current, body.Platforms)
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if err := saveBridgeConfig(normalized); err != nil {
+		writeJSON(response, http.StatusInternalServerError, map[string]any{"error": "无法保存发布配置"})
+		return
+	}
+	s.mu.Lock()
+	s.config = normalized
+	s.mu.Unlock()
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "platforms": publishingViews(normalized)})
+}
+
+func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	var body syncRequest
+	if err := readJSON(request, 128*1024, &body); err != nil {
+		writeError(response, err)
+		return
+	}
+	normalized, err := normalizeSyncRequest(body)
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	job := s.startSyncJob(normalized)
+	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
+}
+
+func (s *Server) handleSyncJobGet(response http.ResponseWriter, id string) {
+	s.mu.Lock()
+	job := s.jobs[id]
+	var copy syncJob
+	if job != nil {
+		copy = *job
+	}
+	s.mu.Unlock()
+	if job == nil {
+		writeJSON(response, http.StatusNotFound, map[string]any{"error": "sync job not found"})
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"job": copy})
+}
+
 func (s *Server) handleSession(response http.ResponseWriter, request *http.Request, platform string) {
-	origin := request.Header.Get("origin")
-	if !validBrowserExtensionOrigin(origin) {
-		writeJSON(response, http.StatusForbidden, map[string]any{"error": "forbidden origin"})
+	origin, ok := allowExtensionWrite(response, request)
+	if !ok {
 		return
 	}
 	if platform != "medium" {
