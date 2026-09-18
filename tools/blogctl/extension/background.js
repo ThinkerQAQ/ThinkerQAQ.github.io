@@ -231,6 +231,18 @@ async function syncBrowserSession(platform) {
   return result;
 }
 
+async function syncSessionsForPlatforms(platforms = []) {
+  const unique = [...new Set(platforms.map((platform) => String(platform || "").trim()).filter(Boolean))];
+  for (const platform of unique) {
+    if (!PLATFORM_SESSIONS[platform]) continue;
+    await syncPlatformSession(platform);
+  }
+}
+
+async function prepareJobSessions(job) {
+  await syncSessionsForPlatforms(job?.platforms ?? []);
+}
+
 async function handleMessage(message) {
   switch (message.type) {
     case "blogctl.status": return { ok: true, status: await getStatus() };
@@ -277,7 +289,9 @@ async function handleMessage(message) {
       return { ok: true, jobs: result?.jobs ?? [] };
     }
     case "blogctl.job.start": {
-      const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", message.request ?? {}));
+      const request = message.request ?? {};
+      await syncSessionsForPlatforms(request.platforms ?? []);
+      const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
@@ -299,7 +313,17 @@ async function handleMessage(message) {
     case "blogctl.job.retry": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
+      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      await prepareJobSessions(current?.job);
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      return { ok: true, job: result?.job };
+    }
+    case "blogctl.job.publish": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      await prepareJobSessions(current?.job);
+      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
       return { ok: true, job: result?.job };
     }
     default: return null;
