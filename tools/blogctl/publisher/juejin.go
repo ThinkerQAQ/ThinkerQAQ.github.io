@@ -287,12 +287,12 @@ func (j *juejinAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dra
 
 type juejinDraftDetail struct {
 	Data struct {
-		ID        string `json:"id"`
-		ArticleID string `json:"article_id"`
+		ID          string `json:"id"`
+		ArticleID   string `json:"article_id"`
 		ArticleInfo struct {
-			ArticleID string   `json:"article_id"`
-			CategoryID string  `json:"category_id"`
-			TagIDs     []any   `json:"tag_ids"`
+			ArticleID  string `json:"article_id"`
+			CategoryID string `json:"category_id"`
+			TagIDs     []any  `json:"tag_ids"`
 		} `json:"article_info"`
 	} `json:"data"`
 	ErrNo  int    `json:"err_no"`
@@ -362,10 +362,10 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 	}
 
 	body, _ := json.Marshal(map[string]any{
-		"draft_id": ref.ID,
+		"draft_id":    ref.ID,
 		"sync_to_org": false,
-		"column_ids": []string{},
-		"theme_ids": []string{},
+		"column_ids":  []string{},
+		"theme_ids":   []string{},
 	})
 	req, err := j.request(ctx, http.MethodPost, j.apiBase+"/content_api/v1/article/publish", bytes.NewReader(body))
 	if err != nil {
