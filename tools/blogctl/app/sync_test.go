@@ -226,10 +226,10 @@ func TestSyncServiceRequiresWechatsyncTokenForLiveChina(t *testing.T) {
 func TestSyncEnvironmentIncludesWechatsyncBridgeConfig(t *testing.T) {
 	t.Setenv("WECHATSYNC_TOKEN", "inherited-token")
 	env := syncEnvironment(SyncConfig{
-		ContentRoot: "content",
-		EngineRoot: "engine",
+		ContentRoot:     "content",
+		EngineRoot:      "engine",
 		WechatsyncToken: "configured-token",
-		WechatsyncPort: 9600,
+		WechatsyncPort:  9600,
 	})
 	joined := strings.Join(env, "\n")
 	if !strings.Contains(joined, "WECHATSYNC_TOKEN=configured-token") {
