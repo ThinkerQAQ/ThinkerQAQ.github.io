@@ -2,7 +2,24 @@
 
 (function (root) {
   const state = { initialized: false, active: false, status: null, tools: [] };
+  const EXPANDED_TOOLS_KEY = "blogctl.environment.expandedTools";
+  const storedExpandedTools = (() => {
+    try {
+      const raw = localStorage.getItem(EXPANDED_TOOLS_KEY);
+      if (raw === null) return null;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? new Set(parsed) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const expandedTools = storedExpandedTools ?? new Set();
+  let initializedExpansion = storedExpandedTools !== null;
   let toolRegistry, platformStatuses, message;
+
+  function persistExpandedTools() {
+    localStorage.setItem(EXPANDED_TOOLS_KEY, JSON.stringify([...expandedTools]));
+  }
   function platformById(status, id) { return (status?.platforms ?? []).find((platform) => platform.id === id) ?? {}; }
   function renderPlatforms(statusView) {
     platformStatuses.replaceChildren();
@@ -50,22 +67,62 @@
 
   function renderTools() {
     toolRegistry.replaceChildren();
+    if (!initializedExpansion) {
+      for (const tool of state.tools) {
+        if (tool.config?.defaultExpanded) expandedTools.add(tool.name);
+      }
+      initializedExpansion = true;
+      persistExpandedTools();
+    }
+
     for (const tool of state.tools) {
-      const card = document.createElement("div"); card.className = "tool-card";
-      const header = document.createElement("div"); header.className = "status-row";
+      const card = document.createElement("details");
+      card.className = "tool-card";
+      card.dataset.toolName = tool.name || "";
+      card.open = expandedTools.has(tool.name);
+      card.addEventListener("toggle", () => {
+        if (card.open) expandedTools.add(tool.name);
+        else expandedTools.delete(tool.name);
+        persistExpandedTools();
+      });
+
+      const summary = document.createElement("summary");
+      summary.className = "status-row";
       const name = document.createElement("strong"); name.textContent = tool.displayName || tool.name;
-      const status = document.createElement("span"); BlogCTLPopup.setStatus(status, healthKind(tool.health), tool.health?.summary || tool.health?.status || "未知", tool.health?.detail || ""); header.append(name, status); card.append(header);
-      if (tool.description) { const description = document.createElement("p"); description.className = "card-hint"; description.textContent = tool.description; card.append(description); }
+      const status = document.createElement("span");
+      BlogCTLPopup.setStatus(status, healthKind(tool.health), tool.health?.summary || tool.health?.status || "未知", tool.health?.detail || "");
+      summary.append(name, status);
+
+      const body = document.createElement("div");
+      body.className = "tool-card-body";
+      if (tool.description) {
+        const description = document.createElement("p");
+        description.className = "card-hint";
+        description.textContent = tool.description;
+        body.append(description);
+      }
       const detailText = [tool.health?.detail, tool.health?.path].filter(Boolean).join(" · ");
-      if (detailText) { const detail = document.createElement("code"); detail.className = "path-value"; detail.textContent = detailText; card.append(detail); }
+      if (detailText) {
+        const detail = document.createElement("code");
+        detail.className = "path-value";
+        detail.textContent = detailText;
+        body.append(detail);
+      }
       if (tool.config?.toggle) {
         const toggleLabel = document.createElement("label"); toggleLabel.className = "switch-row";
         const text = document.createElement("span"); const title = document.createElement("strong"); title.textContent = tool.config.toggle.label; const detail = document.createElement("small"); detail.textContent = tool.config.toggle.description || ""; text.append(title, detail);
-        const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.dataset.toggleKey = tool.config.toggle.key; toggle.checked = Boolean(tool.config.values?.[tool.config.toggle.key]); toggleLabel.append(text, toggle); card.append(toggleLabel);
+        const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.dataset.toggleKey = tool.config.toggle.key; toggle.checked = Boolean(tool.config.values?.[tool.config.toggle.key]); toggleLabel.append(text, toggle); body.append(toggleLabel);
       }
-      for (const field of tool.config?.schema ?? []) card.append(makeConfigInput(tool, field));
+      for (const field of tool.config?.schema ?? []) body.append(makeConfigInput(tool, field));
       const configurable = Boolean(tool.config?.toggle || (tool.config?.schema ?? []).length);
-      if (configurable) { const button = document.createElement("button"); button.type = "button"; button.className = "secondary full-width"; button.textContent = "保存"; button.addEventListener("click", () => saveTool(tool, card, button)); card.append(button); }
+      if (configurable) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondary full-width";
+        button.textContent = "保存";
+        button.addEventListener("click", () => saveTool(tool, card, button));
+        body.append(button);
+      }
       const actions = Array.isArray(tool.actions) ? tool.actions : [];
       if (actions.length) {
         const actionRow = document.createElement("div"); actionRow.className = "tool-actions";
@@ -74,8 +131,10 @@
           button.addEventListener("click", () => runToolAction(tool, action, button));
           actionRow.append(button);
         }
-        card.append(actionRow);
+        body.append(actionRow);
       }
+
+      card.append(summary, body);
       toolRegistry.append(card);
     }
     if (!toolRegistry.childElementCount) toolRegistry.innerHTML = '<div class="platform-loading">没有工具信息</div>';

@@ -55,3 +55,9 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .danger-action { color: #991b1b; }
 
 .tool-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.tool-card > summary { cursor: pointer; list-style: none; }
+.tool-card > summary::-webkit-details-marker { display: none; }
+.tool-card > summary::after { content: "›"; margin-left: 4px; color: #9ca3af; font-size: 16px; line-height: 1; transform: rotate(0deg); transition: transform .12s ease; }
+.tool-card[open] > summary::after { transform: rotate(90deg); }
+.tool-card-body { display: grid; gap: 8px; padding-top: 8px; }
