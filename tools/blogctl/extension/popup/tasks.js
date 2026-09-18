@@ -177,15 +177,16 @@
     }
   }
 
-  async function refresh() {
+  async function refresh(includeStatus = true) {
     if (!state.active) return;
     try {
-      const [jobsResponse, statusResponse] = await Promise.all([
-        BlogCTLPopup.send("blogctl.jobs"),
-        BlogCTLPopup.send("blogctl.status"),
-      ]);
+      const jobsPromise = BlogCTLPopup.send("blogctl.jobs");
+      const statusPromise = includeStatus || !state.status
+        ? BlogCTLPopup.send("blogctl.status")
+        : Promise.resolve(null);
+      const [jobsResponse, statusResponse] = await Promise.all([jobsPromise, statusPromise]);
       state.jobs = jobsResponse.jobs ?? [];
-      state.status = statusResponse.status;
+      if (statusResponse) state.status = statusResponse.status;
       renderJobs();
     } catch (error) {
       BlogCTLPopup.setMessage(message, `任务读取失败：${BlogCTLPopup.errorMessage(error)}`, "error");
@@ -214,15 +215,15 @@
     refreshButton = document.getElementById("refreshTasks");
     clearButton = document.getElementById("clearFinishedTasks");
     message = document.getElementById("tasksMessage");
-    refreshButton.addEventListener("click", refresh);
+    refreshButton.addEventListener("click", () => refresh(true));
     clearButton.addEventListener("click", clearFinished);
     state.initialized = true;
   }
 
   function activate() {
     state.active = true;
-    refresh();
-    if (!state.pollTimer) state.pollTimer = setInterval(refresh, 2000);
+    refresh(true);
+    if (!state.pollTimer) state.pollTimer = setInterval(() => refresh(false), 2000);
   }
 
   function deactivate() {
