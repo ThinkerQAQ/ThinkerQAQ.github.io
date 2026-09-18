@@ -42,7 +42,7 @@ type juejinAdapter struct {
 
 	mu              sync.Mutex
 	csrfToken       string
-	imageToken      *imageXToken
+	cachedImageToken *imageXToken
 	imageTokenUntil time.Time
 }
 
@@ -327,8 +327,8 @@ func (j *juejinAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (
 
 func (j *juejinAdapter) imageToken(ctx context.Context) (imageXToken, error) {
 	j.mu.Lock()
-	if j.imageToken != nil && j.now().Before(j.imageTokenUntil.Add(-time.Minute)) {
-		value := *j.imageToken
+	if j.cachedImageToken != nil && j.now().Before(j.imageTokenUntil.Add(-time.Minute)) {
+		value := *j.cachedImageToken
 		j.mu.Unlock()
 		return value, nil
 	}
@@ -385,7 +385,7 @@ func (j *juejinAdapter) imageToken(ctx context.Context) (imageXToken, error) {
 		ExpiresAt:       expires,
 	}
 	j.mu.Lock()
-	j.imageToken = &token
+	j.cachedImageToken = &token
 	j.imageTokenUntil = expires
 	j.mu.Unlock()
 	return token, nil
