@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"strconv"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -18,6 +17,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -143,7 +143,6 @@ func multipartBody(fields map[string]string, fileField, filename, contentType st
 	}
 	return &body, writer.FormDataContentType(), nil
 }
-
 
 func formBody(values url.Values) io.Reader {
 	return strings.NewReader(values.Encode())
