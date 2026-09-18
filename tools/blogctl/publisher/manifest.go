@@ -15,6 +15,43 @@ const DistributionManifestVersion = 2
 
 var juejinDraftURLPattern = regexp.MustCompile(`/editor/drafts/([^/?#]+)`)
 
+func migrateManifestV2(manifest map[string]any) error {
+	version := int(numberValue(manifest["version"]))
+	if version != 1 && version != DistributionManifestVersion {
+		return fmt.Errorf("unsupported distribution manifest version: %d", version)
+	}
+	if version == 1 {
+		articles := objectValue(manifest["articles"])
+		for _, articleValue := range articles {
+			article := objectValue(articleValue)
+			platforms := objectValue(article["platforms"])
+			for platform, stateValue := range platforms {
+				state := objectValue(stateValue)
+				if state == nil {
+					continue
+				}
+				if stringValue(state["draftHash"]) == "" {
+					if legacy := stringValue(state["lastSyncedHash"]); legacy != "" {
+						state["draftHash"] = legacy
+					}
+				}
+				if stringValue(state["draftSyncedAt"]) == "" {
+					if legacy := stringValue(state["lastSyncedAt"]); legacy != "" {
+						state["draftSyncedAt"] = legacy
+					}
+				}
+				if stringValue(state["remoteDraftId"]) == "" {
+					if id := draftIDFromURL(platform, stringValue(state["draftUrl"])); id != "" {
+						state["remoteDraftId"] = id
+					}
+				}
+			}
+		}
+		manifest["version"] = float64(DistributionManifestVersion)
+	}
+	return nil
+}
+
 func readManifest(path string) (map[string]any, error) {
 	payload, err := os.ReadFile(path)
 	if err != nil {
@@ -24,9 +61,11 @@ func readManifest(path string) (map[string]any, error) {
 	if err := json.Unmarshal(payload, &manifest); err != nil {
 		return nil, err
 	}
-	version := int(numberValue(manifest["version"]))
-	if version != 1 && version != DistributionManifestVersion {
-		return nil, fmt.Errorf("unsupported distribution manifest version: %d", version)
+	if objectValue(manifest["articles"]) == nil {
+		return nil, errors.New("distribution manifest is missing articles")
+	}
+	if err := migrateManifestV2(manifest); err != nil {
+		return nil, err
 	}
 	return manifest, nil
 }
