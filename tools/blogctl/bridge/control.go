@@ -568,6 +568,18 @@ func (s *Server) syncJobs() []syncJob {
 	return result
 }
 
+func (s *Server) runningSyncJobs() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	running := 0
+	for _, job := range s.jobs {
+		if job != nil && job.State == "running" {
+			running++
+		}
+	}
+	return running
+}
+
 func (s *Server) deleteSyncJob(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
