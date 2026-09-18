@@ -113,7 +113,7 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, source string, input D
 	if err != nil {
 		return "", platformError(ErrUpload, c.ID(), "download-image", 0, err.Error(), true)
 	}
-	body, bodyType, err := multipartBody(map[string]string{"app":"blog","uploadType":"Select"}, "image", inferImageFilename(source, contentType), contentType, payload)
+	body, bodyType, err := multipartBody(map[string]string{"app": "blog", "uploadType": "Select"}, "image", inferImageFilename(source, contentType), contentType, payload)
 	if err != nil {
 		return "", err
 	}
@@ -127,7 +127,7 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, source string, input D
 	if err := doJSON(c.client, req, c.ID(), "image-upload", &decoded); err != nil {
 		return "", err
 	}
-	for _, key := range []string{"data","url","imageUrl","src"} {
+	for _, key := range []string{"data", "url", "imageUrl", "src"} {
 		if target := valueString(decoded[key]); target != "" {
 			return target, nil
 		}
@@ -157,48 +157,48 @@ func cnBlogsPayload(id string, input DraftInput, body string, publish bool) map[
 		idValue = id
 	}
 	return map[string]any{
-		"id": idValue,
-		"postType": 2,
-		"accessPermission": 0,
-		"title": input.Title,
-		"url": nil,
-		"postBody": body,
-		"categoryIds": nil,
-		"categories": nil,
-		"collectionIds": []any{},
-		"inSiteCandidate": false,
-		"inSiteHome": false,
-		"siteCategoryId": nil,
-		"blogTeamIds": []any{},
-		"isPublished": publish,
-		"displayOnHomePage": publish,
-		"isAllowComments": true,
-		"includeInMainSyndication": false,
-		"isPinned": false,
-		"showBodyWhenPinned": false,
-		"isOnlyForRegisterUser": false,
-		"isUpdateDateAdded": false,
-		"entryName": nil,
-		"description": input.Description,
-		"featuredImage": nil,
-		"tags": nil,
-		"password": nil,
-		"publishAt": nil,
-		"datePublished": time.Now().UTC().Format(time.RFC3339),
-		"dateUpdated": nil,
-		"isMarkdown": true,
-		"isDraft": !publish,
-		"autoDesc": nil,
-		"changePostType": false,
-		"blogId": 0,
-		"author": nil,
-		"removeScript": false,
-		"clientInfo": nil,
-		"changeCreatedTime": false,
-		"canChangeCreatedTime": false,
+		"id":                                  idValue,
+		"postType":                            2,
+		"accessPermission":                    0,
+		"title":                               input.Title,
+		"url":                                 nil,
+		"postBody":                            body,
+		"categoryIds":                         nil,
+		"categories":                          nil,
+		"collectionIds":                       []any{},
+		"inSiteCandidate":                     false,
+		"inSiteHome":                          false,
+		"siteCategoryId":                      nil,
+		"blogTeamIds":                         []any{},
+		"isPublished":                         publish,
+		"displayOnHomePage":                   publish,
+		"isAllowComments":                     true,
+		"includeInMainSyndication":            false,
+		"isPinned":                            false,
+		"showBodyWhenPinned":                  false,
+		"isOnlyForRegisterUser":               false,
+		"isUpdateDateAdded":                   false,
+		"entryName":                           nil,
+		"description":                         input.Description,
+		"featuredImage":                       nil,
+		"tags":                                nil,
+		"password":                            nil,
+		"publishAt":                           nil,
+		"datePublished":                       time.Now().UTC().Format(time.RFC3339),
+		"dateUpdated":                         nil,
+		"isMarkdown":                          true,
+		"isDraft":                             !publish,
+		"autoDesc":                            nil,
+		"changePostType":                      false,
+		"blogId":                              0,
+		"author":                              nil,
+		"removeScript":                        false,
+		"clientInfo":                          nil,
+		"changeCreatedTime":                   false,
+		"canChangeCreatedTime":                false,
 		"isContributeToImpressiveBugActivity": false,
-		"usingEditorId": 5,
-		"sourceUrl": nil,
+		"usingEditorId":                       5,
+		"sourceUrl":                           nil,
 	}
 }
 
@@ -222,7 +222,7 @@ func (c *cnBlogsAdapter) save(ctx context.Context, refID string, input DraftInpu
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("x-xsrf-token", token)
 	var decoded map[string]any
-	if err := doJSON(c.client, req, c.ID(), map[bool]string{true:"publish-draft", false:"save-draft"}[publish], &decoded); err != nil {
+	if err := doJSON(c.client, req, c.ID(), map[bool]string{true: "publish-draft", false: "save-draft"}[publish], &decoded); err != nil {
 		return nil, err
 	}
 	if valueString(decoded["id"]) == "" && refID == "" {
@@ -237,7 +237,7 @@ func (c *cnBlogsAdapter) CreateDraft(ctx context.Context, input DraftInput) (Dra
 		return DraftResult{}, err
 	}
 	id := valueString(decoded["id"])
-	return DraftResult{ID:id, URL:cnBlogsOrigin+"/articles/edit;postId="+url.QueryEscape(id), Created:true}, nil
+	return DraftResult{ID: id, URL: cnBlogsOrigin + "/articles/edit;postId=" + url.QueryEscape(id), Created: true}, nil
 }
 
 func (c *cnBlogsAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error) {
@@ -252,8 +252,10 @@ func (c *cnBlogsAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dr
 		return DraftResult{}, err
 	}
 	id := valueString(decoded["id"])
-	if id == "" { id = ref.ID }
-	return DraftResult{ID:id, URL:cnBlogsOrigin+"/articles/edit;postId="+url.QueryEscape(id), Updated:true}, nil
+	if id == "" {
+		id = ref.ID
+	}
+	return DraftResult{ID: id, URL: cnBlogsOrigin + "/articles/edit;postId=" + url.QueryEscape(id), Updated: true}, nil
 }
 
 func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {
@@ -264,11 +266,15 @@ func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if err != nil {
 		return PublishResult{}, err
 	}
-	for _, key := range []string{"url","postUrl","post_url"} {
+	for _, key := range []string{"url", "postUrl", "post_url"} {
 		if target := valueString(decoded[key]); target != "" {
-			if strings.HasPrefix(target, "//") { target = "https:"+target }
-			if strings.HasPrefix(target, "/") { target = "https://www.cnblogs.com"+target }
-			return PublishResult{URL:target}, nil
+			if strings.HasPrefix(target, "//") {
+				target = "https:" + target
+			}
+			if strings.HasPrefix(target, "/") {
+				target = "https://www.cnblogs.com" + target
+			}
+			return PublishResult{URL: target}, nil
 		}
 	}
 	if c.username == "" {
@@ -277,5 +283,5 @@ func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if c.username == "" {
 		return PublishResult{}, platformError(ErrUpstream, c.ID(), "publish-draft", 0, "published response did not include a public URL", false)
 	}
-	return PublishResult{URL:"https://www.cnblogs.com/"+url.PathEscape(c.username)+"/p/"+url.PathEscape(ref.ID)+".html"}, nil
+	return PublishResult{URL: "https://www.cnblogs.com/" + url.PathEscape(c.username) + "/p/" + url.PathEscape(ref.ID) + ".html"}, nil
 }
