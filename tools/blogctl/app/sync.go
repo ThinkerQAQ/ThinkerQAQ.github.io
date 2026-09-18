@@ -22,6 +22,10 @@ var internationalPlatforms = map[string]struct{}{
 	"devto": {}, "medium": {},
 }
 
+var nativeChinaPlatforms = map[string]struct{}{
+	"juejin": {},
+}
+
 type SyncRequest struct {
 	Articles  []string
 	All       bool
@@ -47,6 +51,24 @@ type SyncPlan struct {
 	Script    string
 	Args      []string
 	Platforms []string
+	Native    bool
+}
+
+type NativeDraftRequest struct {
+	Article     string
+	Platform    string
+	ContentRoot string
+	ChangedOnly bool
+}
+
+type NativeDraftResult struct {
+	Result  string
+	URL     string
+	Message string
+}
+
+type NativeDraftPublisher interface {
+	CreateOrUpdateDraft(ctx context.Context, request NativeDraftRequest) (NativeDraftResult, error)
 }
 
 type SyncEvent struct {
@@ -72,8 +94,9 @@ func (OSCommandRunner) Run(ctx context.Context, name string, args []string, dir 
 }
 
 type SyncService struct {
-	Runner  CommandRunner
-	OnEvent func(SyncEvent)
+	Runner          CommandRunner
+	NativePublisher NativeDraftPublisher
+	OnEvent         func(SyncEvent)
 }
 
 func NewSyncService() SyncService {
@@ -129,14 +152,19 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 }
 
 func BuildSyncPlan(request SyncRequest) []SyncPlan {
-	china := []string{}
+	nativeChina := []string{}
+	legacyChina := []string{}
 	international := []string{}
 	for _, platform := range request.Platforms {
-		if _, ok := chinaPlatforms[platform]; ok {
-			china = append(china, platform)
-		} else {
-			international = append(international, platform)
+		if _, ok := nativeChinaPlatforms[platform]; ok {
+			nativeChina = append(nativeChina, platform)
+			continue
 		}
+		if _, ok := chinaPlatforms[platform]; ok {
+			legacyChina = append(legacyChina, platform)
+			continue
+		}
+		international = append(international, platform)
 	}
 
 	articleArgs := make([]string, 0, len(request.Articles)*2)
@@ -144,10 +172,18 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		articleArgs = append(articleArgs, "--article", article)
 	}
 
-	plan := make([]SyncPlan, 0, 2)
-	if len(china) > 0 {
+	plan := make([]SyncPlan, 0, 3)
+	if len(nativeChina) > 0 {
 		args := append([]string{}, articleArgs...)
-		args = append(args, "--platforms", strings.Join(china, ","), "--sync")
+		args = append(args, "--platforms", strings.Join(nativeChina, ","))
+		plan = append(plan, SyncPlan{
+			Group: "native-china", Script: "scripts/blogctl-distribute.mjs", Args: args,
+			Platforms: append([]string{}, nativeChina...), Native: true,
+		})
+	}
+	if len(legacyChina) > 0 {
+		args := append([]string{}, articleArgs...)
+		args = append(args, "--platforms", strings.Join(legacyChina, ","), "--sync")
 		if request.Changed {
 			args = append(args, "--changed")
 		}
@@ -156,7 +192,7 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		}
 		plan = append(plan, SyncPlan{
 			Group: "china", Script: "scripts/blogctl-distribute.mjs", Args: args,
-			Platforms: append([]string{}, china...),
+			Platforms: append([]string{}, legacyChina...),
 		})
 	}
 	if len(international) > 0 {
@@ -193,7 +229,7 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 		}
 	}
 
-	if usesChinaPlatform(request.Platforms) && !request.DryRun {
+	if usesLegacyChinaPlatform(request.Platforms) && !request.DryRun {
 		token := strings.TrimSpace(config.WechatsyncToken)
 		if token == "" {
 			token = strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN"))
@@ -257,6 +293,35 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 				}
 			}
 			return output.String(), errors.New(message)
+		}
+		if entry.Native {
+			if request.DryRun {
+				for _, platform := range entry.Platforms {
+					s.emit(SyncEvent{Platform: platform, State: "completed", Result: "dry-run"})
+					terminal[platform] = true
+				}
+			} else {
+				if s.NativePublisher == nil {
+					return output.String(), errors.New("native publisher is not configured")
+				}
+				for _, article := range request.Articles {
+					for _, platform := range entry.Platforms {
+						result, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
+							Article: article, Platform: platform, ContentRoot: config.ContentRoot,
+							ChangedOnly: request.Changed,
+						})
+						if publishErr != nil {
+							s.emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
+							return output.String(), publishErr
+						}
+						s.emit(SyncEvent{
+							Platform: platform, State: "completed", Result: result.Result,
+							URL: result.URL, Message: result.Message,
+						})
+						terminal[platform] = true
+					}
+				}
+			}
 		}
 		for _, platform := range entry.Platforms {
 			if !terminal[platform] {
@@ -484,6 +549,19 @@ func usesPlatform(platforms []string, target string) bool {
 		if platform == target {
 			return true
 		}
+	}
+	return false
+}
+
+func usesLegacyChinaPlatform(platforms []string) bool {
+	for _, platform := range platforms {
+		if _, china := chinaPlatforms[platform]; !china {
+			continue
+		}
+		if _, native := nativeChinaPlatforms[platform]; native {
+			continue
+		}
+		return true
 	}
 	return false
 }
