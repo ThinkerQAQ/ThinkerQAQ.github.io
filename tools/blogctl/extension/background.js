@@ -1,4 +1,5 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
+import { selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
@@ -209,33 +210,11 @@ async function syncPlatformSession(platform) {
 
   const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
   const batches = await Promise.all(cookieUrls.map((url) => chrome.cookies.getAll({ url })));
-  const allowed = Array.isArray(definition.cookieNames) ? new Set(definition.cookieNames) : null;
-  const deduped = new Map();
-
-  for (const cookie of batches.flat()) {
-    if (allowed && !allowed.has(cookie.name)) continue;
-    const key = [cookie.name, cookie.domain, cookie.path, cookie.storeId || ""].join("\u0000");
-    deduped.set(key, {
-      name: cookie.name,
-      value: cookie.value,
-      domain: cookie.domain || "",
-      path: cookie.path || "/",
-      secure: Boolean(cookie.secure),
-      httpOnly: Boolean(cookie.httpOnly),
-      hostOnly: Boolean(cookie.hostOnly),
-      sameSite: cookie.sameSite || "unspecified",
-      expirationDate: Number.isFinite(cookie.expirationDate) ? cookie.expirationDate : null,
-    });
-  }
-
-  const selected = [...deduped.values()];
-  for (const required of definition.requiredCookieNames ?? []) {
-    if (!selected.some((cookie) => cookie.name === required && cookie.value)) {
-      throw new Error(`${platform}: required cookie ${required} not found. Sign in first.`);
-    }
-  }
-  if (selected.length === 0) {
-    throw new Error(`${platform}: no browser cookies were available. Sign in first.`);
+  let selected;
+  try {
+    selected = selectBrowserSessionCookies(definition, batches);
+  } catch (error) {
+    throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
   }
 
   return fetchJSON(
