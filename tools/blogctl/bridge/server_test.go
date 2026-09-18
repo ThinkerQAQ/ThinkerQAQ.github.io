@@ -275,7 +275,6 @@ func TestMediumSessionRequiredStructuredError(t *testing.T) {
 	}
 }
 
-
 func TestBridgeRestartEndpointRestartsWhenIdle(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
