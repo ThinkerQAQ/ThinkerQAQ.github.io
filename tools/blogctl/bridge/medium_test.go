@@ -1,6 +1,10 @@
 package bridge
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestFilterMediumCookies(t *testing.T) {
 	got := filterMediumCookies([]browserCookie{

@@ -30,6 +30,8 @@ tags:
   - JVM
   - Memory Model
 status: published
+coverImage: "/media/articles/test/cover.png"
+coverImageAlt: "Synthetic test cover"
 ---
 
 ## 正文
