@@ -127,8 +127,23 @@ async function platformLoginStatus(definition) {
       case "final-url": loggedIn = await probeFinalURL(probe); break;
       default: throw new Error(`Unsupported auth probe: ${probe.kind || "missing"}`);
     }
-    return { id: definition.id, label: definition.label, known: true, loggedIn: Boolean(loggedIn) };
+    if (loggedIn) {
+      return { id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: false };
+    }
+    if (await platformHasSessionCookies(definition.id)) {
+      return {
+        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
+        warning: "Login probe did not match, but browser session cookies are available.",
+      };
+    }
+    return { id: definition.id, label: definition.label, known: true, loggedIn: false, inferred: false };
   } catch (error) {
+    if (await platformHasSessionCookies(definition.id)) {
+      return {
+        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
+        warning: `Login probe failed: ${errorMessage(error)}`,
+      };
+    }
     return { id: definition.id, label: definition.label, known: false, loggedIn: false, error: errorMessage(error) };
   }
 }
@@ -204,15 +219,39 @@ async function saveBridgeConfig(config) {
   }));
 }
 
+async function collectPlatformCookieBatches(definition) {
+  const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
+  const cookieDomains = definition.cookieDomains ?? [];
+  const requests = [
+    ...cookieUrls.map((url) => chrome.cookies.getAll({ url })),
+    ...cookieDomains.map((domain) => chrome.cookies.getAll({ domain })),
+  ];
+  return Promise.all(requests);
+}
+
+async function selectedPlatformCookies(platform) {
+  const definition = PLATFORM_SESSIONS[platform];
+  if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
+  const batches = await collectPlatformCookieBatches(definition);
+  return selectBrowserSessionCookies(definition, batches);
+}
+
+async function platformHasSessionCookies(platform) {
+  if (!PLATFORM_SESSIONS[platform]) return false;
+  try {
+    return (await selectedPlatformCookies(platform)).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function syncPlatformSession(platform) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
 
-  const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
-  const batches = await Promise.all(cookieUrls.map((url) => chrome.cookies.getAll({ url })));
   let selected;
   try {
-    selected = selectBrowserSessionCookies(definition, batches);
+    selected = await selectedPlatformCookies(platform);
   } catch (error) {
     throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
   }
