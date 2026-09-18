@@ -174,7 +174,6 @@ func TestRetrySyncJobReusesIDAndReplacesFailedAttempt(t *testing.T) {
 	}
 }
 
-
 func TestPublishSyncJobCreatesIndependentPublishAttempt(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
