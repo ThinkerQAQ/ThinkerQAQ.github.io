@@ -282,6 +282,27 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
 }
 
+func devtoAPIKey(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.DevtoAPIKey); configured != "" {
+		return configured
+	}
+	return strings.TrimSpace(os.Getenv("DEVTO_API_KEY"))
+}
+
+func devtoAPIHealth(config bridgeConfig) toolHealth {
+	if devtoAPIKey(config) == "" {
+		return toolHealth{Status: "missing", Summary: "API Key 未配置"}
+	}
+	return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
+}
+
+func devtoAPIPlaceholder(config bridgeConfig) string {
+	if devtoAPIKey(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "DEV.to API Key"
+}
+
 func toolRegistry(config bridgeConfig) []toolDescriptor {
 	pathField := func(key, label, description string) []toolField {
 		return []toolField{{Key: key, Label: label, Type: "file", Description: description}}
@@ -328,6 +349,20 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 					{Key: "proxyHost", Label: "代理主机", Type: "text", Placeholder: "127.0.0.1"},
 					{Key: "proxyPort", Label: "代理端口", Type: "integer", Placeholder: "7890", Min: 1, Max: 65535},
 				},
+			},
+		},
+		{
+			Name: "devto-api", DisplayName: "DEV.to API", Kind: "publishing", Required: false,
+			Description: "DEV.to 使用官方 API 发布；API Key 仅保存在本机 BlogCTL 配置中，不返回给 Extension。",
+			Health: devtoAPIHealth(config),
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{},
+				Schema: []toolField{{
+					Key: "apiKey", Label: "API Key", Type: "secret",
+					Placeholder: devtoAPIPlaceholder(config),
+					Description: "在 DEV.to Settings → Extensions 中生成。留空保存不会清除已有 Key。",
+				}},
 			},
 		},
 		{
@@ -379,6 +414,10 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		config.ProxyEnabled = boolConfig(values, "proxyEnabled")
 		config.ProxyHost = stringConfig(values, "proxyHost")
 		config.ProxyPort = intConfig(values, "proxyPort")
+	case "devto-api":
+		if key := stringConfig(values, "apiKey"); key != "" {
+			config.DevtoAPIKey = key
+		}
 	case "node", "npm", "git":
 		if config.ToolPaths == nil {
 			config.ToolPaths = map[string]string{}
@@ -538,6 +577,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		ContentRoot:  config.ContentRoot,
 		BridgeOrigin: "http://" + DefaultAddress,
 		BridgeToken:  s.token,
+		DevtoAPIKey:  config.DevtoAPIKey,
 		ToolPaths:    config.ToolPaths,
 	}
 	if configPath, err := ConfigPath(); err == nil {
