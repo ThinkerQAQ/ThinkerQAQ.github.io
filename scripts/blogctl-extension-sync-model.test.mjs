@@ -93,25 +93,13 @@ test("disables platforms whose login state is unavailable or logged out", () => 
   );
 });
 
-test("gates only legacy Wechatsync platforms on tool readiness", () => {
-  assert.deepEqual(
-    model.deliveryToolAvailability("csdn", [{
-      name: "wechatsync",
-      health: { ok: false, summary: "Token 未配置" },
-    }]),
-    { available: false, reason: "Wechatsync：Token 未配置" },
-  );
-  assert.deepEqual(
-    model.deliveryToolAvailability("juejin", [{
-      name: "wechatsync",
-      health: { ok: false, summary: "Token 未配置" },
-    }]),
-    { available: true, reason: "" },
-  );
-  assert.deepEqual(
-    model.deliveryToolAvailability("medium", []),
-    { available: true, reason: "" },
-  );
+test("native publishing is not gated by a legacy delivery tool", () => {
+  for (const platform of ["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao"]) {
+    assert.deepEqual(
+      model.deliveryToolAvailability(platform, []),
+      { available: true, reason: "" },
+    );
+  }
 });
 
 test("does not gate platforms when no article is selected", () => {
