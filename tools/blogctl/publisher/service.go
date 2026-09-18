@@ -37,13 +37,7 @@ func (s Service) CreateOrUpdateDraft(
 		}, nil
 	}
 
-	var adapter Adapter
-	switch platform {
-	case "juejin":
-		adapter, err = NewJuejinAdapter(s.HTTPClient, session)
-	default:
-		return DraftResult{}, platformError(ErrNotImplemented, platform, "draft", 0, "native adapter is not implemented", false)
-	}
+	adapter, err := newAdapter(platform, s.HTTPClient, session)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -72,6 +66,49 @@ func (s Service) CreateOrUpdateDraft(
 	}
 	if err := SaveDraftResult(manifestPath, slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return DraftResult{}, err
+	}
+	return result, nil
+}
+
+func (s Service) PublishDraft(
+	ctx context.Context,
+	platform string,
+	session Session,
+	contentRoot string,
+	slug string,
+) (PublishResult, error) {
+	input, manifestPath, err := LoadDraftInput(contentRoot, platform, slug)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	if input.RemoteDraftID == "" {
+		return PublishResult{}, platformError(ErrValidation, platform, "publish-draft", 0, "remote draft id is missing; create or update the draft first", false)
+	}
+	if input.DraftHash == "" || input.DraftHash != input.ContentHash {
+		return PublishResult{}, platformError(ErrValidation, platform, "publish-draft", 0, "source changed after the remote draft was prepared; update and preview the draft again", false)
+	}
+
+	adapter, err := newAdapter(platform, s.HTTPClient, session)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	auth, err := adapter.CheckAuth(ctx)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	if !auth.Authenticated {
+		return PublishResult{}, platformError(ErrAuthExpired, platform, "auth", http.StatusUnauthorized, "browser session is not authenticated", false)
+	}
+
+	result, err := adapter.PublishDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	if result.URL == "" {
+		return PublishResult{}, fmt.Errorf("%s adapter returned an incomplete publish result", platform)
+	}
+	if err := SavePublishResult(manifestPath, slug, platform, input.ContentHash, result, s.now()); err != nil {
+		return PublishResult{}, err
 	}
 	return result, nil
 }
