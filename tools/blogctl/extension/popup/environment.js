@@ -39,7 +39,7 @@
   function makeConfigInput(tool, field) {
     const label = document.createElement("label"); label.className = "field";
     const title = document.createElement("span"); title.textContent = field.label || field.key;
-    const input = document.createElement("input"); input.dataset.configKey = field.key; input.type = field.type === "integer" ? "number" : "text"; if (field.min) input.min = String(field.min); if (field.max) input.max = String(field.max); if (field.placeholder) input.placeholder = field.placeholder; input.value = tool.config?.values?.[field.key] ?? "";
+    const input = document.createElement("input"); input.dataset.configKey = field.key; input.type = field.type === "integer" ? "number" : field.type === "secret" ? "password" : "text"; if (field.type === "secret") input.autocomplete = "off"; if (field.min) input.min = String(field.min); if (field.max) input.max = String(field.max); if (field.placeholder) input.placeholder = field.placeholder; input.value = tool.config?.values?.[field.key] ?? "";
     label.append(title, input);
     if (field.description) { const hint = document.createElement("small"); hint.className = "field-hint"; hint.textContent = field.description; label.append(hint); }
     return label;
