@@ -96,6 +96,8 @@ Medium needs a short-lived browser-session handoff internally for draft creation
 
 When Medium is logged in, BlogCTL refreshes the approved Medium Session automatically when needed. There is no separate Session status or manual Session button. Only adapter-approved Medium browser session fields are sent; the Bridge keeps them in memory. Other platform login probes do not send their cookies to BlogCTL.
 
+Publishing language is a persistent per-platform policy under **发布配置**. Chinese platforms default to `zh-CN`; DEV.to and Medium default to `en`. Either default can be changed. The selected language controls the complete source article (title, description, tags and body) plus the blog canonical/Footer URL. See [PUBLISHING_LANGUAGE.md](./PUBLISHING_LANGUAGE.md).
+
 ### Network proxy
 
 BlogCTL follows the same proxy model as DownKit: proxy configuration belongs to the local Bridge rather than to an individual `sync` invocation. The Extension exposes a persistent **Network Proxy** card with an explicit enable switch plus proxy host and port fields.
