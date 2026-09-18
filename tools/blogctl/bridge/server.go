@@ -40,6 +40,7 @@ type Server struct {
 	now        func() time.Time
 	httpClient *http.Client
 	config     bridgeConfig
+	restart    func()
 
 	mu       sync.Mutex
 	sessions map[string]platformSession
@@ -134,6 +135,11 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 			return
 		}
 		s.handleTools(response)
+		return
+	}
+
+	if path == "v1/restart" && request.Method == http.MethodPost {
+		s.handleRestart(response, request)
 		return
 	}
 	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "tools" && request.Method == http.MethodPut {
@@ -317,6 +323,30 @@ func (s *Server) handleTools(response http.ResponseWriter) {
 	config := s.config
 	s.mu.Unlock()
 	writeJSON(response, http.StatusOK, map[string]any{"tools": toolRegistry(config)})
+}
+
+func (s *Server) handleRestart(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	if running := s.runningSyncJobs(); running > 0 {
+		writeAPIError(response, http.StatusConflict, "sync_jobs_running",
+			fmt.Sprintf("仍有 %d 个同步任务正在运行，请等待任务结束后再重启", running),
+			map[string]any{"runningJobs": running})
+		return
+	}
+	s.mu.Lock()
+	restart := s.restart
+	s.mu.Unlock()
+	if restart == nil {
+		writeAPIError(response, http.StatusServiceUnavailable, "restart_unavailable", "当前 Bridge 不支持重启", nil)
+		return
+	}
+	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "restarting": true})
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		restart()
+	}()
 }
 
 func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http.Request, name string) {
@@ -597,6 +627,12 @@ func (s *Server) SetHTTPClient(client *http.Client) {
 	}
 	s.mu.Lock()
 	s.httpClient = client
+	s.mu.Unlock()
+}
+
+func (s *Server) SetRestart(restart func()) {
+	s.mu.Lock()
+	s.restart = restart
 	s.mu.Unlock()
 }
 
