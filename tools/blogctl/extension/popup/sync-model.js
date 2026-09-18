@@ -1,7 +1,7 @@
 "use strict";
 
 (function (root) {
-  const WECHATSYNC_PLATFORMS = new Set(["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao"]);
+  const WECHATSYNC_PLATFORMS = new Set(["cnblogs", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao"]);
 
   function deliveryToolAvailability(platformId, tools = []) {
     if (!WECHATSYNC_PLATFORMS.has(platformId)) return { available: true, reason: "" };
