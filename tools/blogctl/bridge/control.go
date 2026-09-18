@@ -374,7 +374,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Description: "中文平台发布 adapter；CLI 通过本机 WebSocket 与 Wechatsync Chrome 扩展连接。",
 			Health:      wechatsyncHealth(config),
 			Config: toolConfigView{
-				Scope: "bridge",
+				Scope:  "bridge",
 				Values: map[string]any{"path": config.ToolPaths["wechatsync"], "port": config.WechatsyncPort},
 				Schema: []toolField{
 					{Key: "path", Label: "Executable", Type: "file", Description: "留空时从 PATH 自动检测 wechatsync"},
