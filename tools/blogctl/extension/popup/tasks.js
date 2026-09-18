@@ -67,8 +67,7 @@
     if (!job.output) return;
     const details = document.createElement("details");
     details.className = "job-debug";
-    details.open = state.ui.isLogExpanded(job.id);
-    details.addEventListener("toggle", () => state.ui.setLogExpanded(job.id, details.open));
+    BlogCTLTaskUIState.bindDetails(details, state.ui, "log", job.id);
     const summary = document.createElement("summary");
     summary.textContent = "详细日志";
     const output = document.createElement("pre");
@@ -93,7 +92,7 @@
     try {
       const response = await BlogCTLPopup.send("blogctl.job.retry", { id: job.id });
       if (response.job?.id) state.ui.setJobExpanded(response.job.id, true);
-      BlogCTLPopup.setMessage(message, "已创建新的重试任务。", "ok");
+      BlogCTLPopup.setMessage(message, "任务已重置并重新执行。", "ok");
       await refresh();
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -159,8 +158,7 @@
       const card = document.createElement("details");
       card.className = "job-item";
       card.dataset.jobId = job.id;
-      card.open = state.ui.isJobExpanded(job.id);
-      card.addEventListener("toggle", () => state.ui.setJobExpanded(job.id, card.open));
+      BlogCTLTaskUIState.bindDetails(card, state.ui, "job", job.id);
 
       const summary = document.createElement("summary");
       const title = document.createElement("span");
