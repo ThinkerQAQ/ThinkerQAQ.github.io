@@ -33,6 +33,7 @@ type DraftInput struct {
 	Title         string
 	Description   string
 	Markdown      string
+	HTML          string
 	Language      string
 	ContentHash   string
 	DraftHash     string
