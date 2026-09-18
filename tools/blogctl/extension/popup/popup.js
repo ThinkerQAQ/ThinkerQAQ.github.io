@@ -2,10 +2,12 @@
 
 const modules = {
   sync: BlogCTLSync,
+  tasks: BlogCTLTasks,
   publishing: BlogCTLPublishing,
   environment: BlogCTLEnvironment,
 };
 
+const ACTIVE_TAB_KEY = "blogctl.activeTab";
 let activeTab = "sync";
 
 function activateTab(name) {
@@ -24,6 +26,7 @@ function activateTab(name) {
 
   modules[activeTab]?.deactivate();
   activeTab = name;
+  localStorage.setItem(ACTIVE_TAB_KEY, name);
   modules[name].activate();
 }
 
@@ -48,7 +51,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
   BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
-  activateTab("sync");
+  const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
+  activateTab(modules[savedTab] ? savedTab : "sync");
 });
 
 window.addEventListener("unload", () => {
