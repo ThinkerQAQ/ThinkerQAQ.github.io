@@ -35,9 +35,10 @@ type juejinAdapter struct {
 	client     *http.Client
 	userAgent  string
 	apiBase    string
-	imageXBase string
-	now        func() time.Time
-	uuid       string
+	imageXBase   string
+	uploadScheme string
+	now          func() time.Time
+	uuid         string
 
 	mu              sync.Mutex
 	csrfToken       string
@@ -52,7 +53,7 @@ func NewJuejinAdapter(base *http.Client, session Session) (Adapter, error) {
 	}
 	return &juejinAdapter{
 		client: client, userAgent: session.UserAgent,
-		apiBase: juejinDefaultAPIBase, imageXBase: juejinImageXBase,
+		apiBase: juejinDefaultAPIBase, imageXBase: juejinImageXBase, uploadScheme: "https",
 		now: time.Now, uuid: randomJuejinUUID(),
 	}, nil
 }
@@ -460,7 +461,11 @@ func (j *juejinAdapter) applyImageUpload(ctx context.Context, token imageXToken)
 func (j *juejinAdapter) uploadTOS(ctx context.Context, address imageXUploadAddress, payload []byte, contentType string) error {
 	store := address.StoreInfos[0]
 	host := address.UploadHosts[0]
-	rawURL := "https://" + host + "/" + strings.TrimPrefix(store.StoreURI, "/")
+	scheme := j.uploadScheme
+	if scheme == "" {
+		scheme = "https"
+	}
+	rawURL := scheme + "://" + host + "/" + strings.TrimPrefix(store.StoreURI, "/")
 	req, err := j.request(ctx, http.MethodPut, rawURL, bytes.NewReader(payload))
 	if err != nil {
 		return err
