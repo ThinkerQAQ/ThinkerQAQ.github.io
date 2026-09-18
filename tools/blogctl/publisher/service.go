@@ -19,6 +19,25 @@ func (s Service) now() time.Time {
 	return time.Now()
 }
 
+func (s Service) authenticatedAdapter(ctx context.Context, platform string, session Session) (Adapter, error) {
+	adapter, err := newAdapter(platform, s.HTTPClient, session)
+	if err != nil {
+		return nil, err
+	}
+	auth, err := adapter.CheckAuth(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !auth.Authenticated {
+		return nil, platformError(ErrAuthExpired, platform, "auth", http.StatusUnauthorized, "browser session is not authenticated", false)
+	}
+	return adapter, nil
+}
+
+func retryableAuthError(err error) bool {
+	return IsKind(err, ErrAuthExpired) || IsKind(err, ErrCSRF)
+}
+
 func (s Service) CreateOrUpdateDraft(
 	ctx context.Context,
 	platform string,
@@ -37,26 +56,31 @@ func (s Service) CreateOrUpdateDraft(
 		}, nil
 	}
 
-	adapter, err := newAdapter(platform, s.HTTPClient, session)
-	if err != nil {
-		return DraftResult{}, err
-	}
-	auth, err := adapter.CheckAuth(ctx)
-	if err != nil {
-		return DraftResult{}, err
-	}
-	if !auth.Authenticated {
-		return DraftResult{}, platformError(ErrAuthExpired, platform, "auth", http.StatusUnauthorized, "browser session is not authenticated", false)
+	var result DraftResult
+	run := func(adapter Adapter) error {
+		var operationErr error
+		if input.RemoteDraftID != "" {
+			result, operationErr = adapter.UpdateDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
+			if operationErr != nil && IsKind(operationErr, ErrRemoteDraftMissing) {
+				result, operationErr = adapter.CreateDraft(ctx, input)
+			}
+		} else {
+			result, operationErr = adapter.CreateDraft(ctx, input)
+		}
+		return operationErr
 	}
 
-	var result DraftResult
-	if input.RemoteDraftID != "" {
-		result, err = adapter.UpdateDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
-		if err != nil && IsKind(err, ErrRemoteDraftMissing) {
-			result, err = adapter.CreateDraft(ctx, input)
+	adapter, err := s.authenticatedAdapter(ctx, platform, session)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	err = run(adapter)
+	if err != nil && retryableAuthError(err) {
+		adapter, refreshErr := s.authenticatedAdapter(ctx, platform, session)
+		if refreshErr != nil {
+			return DraftResult{}, refreshErr
 		}
-	} else {
-		result, err = adapter.CreateDraft(ctx, input)
+		err = run(adapter)
 	}
 	if err != nil {
 		return DraftResult{}, err
@@ -88,19 +112,18 @@ func (s Service) PublishDraft(
 		return PublishResult{}, platformError(ErrValidation, platform, "publish-draft", 0, "source changed after the remote draft was prepared; update and preview the draft again", false)
 	}
 
-	adapter, err := newAdapter(platform, s.HTTPClient, session)
+	adapter, err := s.authenticatedAdapter(ctx, platform, session)
 	if err != nil {
 		return PublishResult{}, err
 	}
-	auth, err := adapter.CheckAuth(ctx)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	if !auth.Authenticated {
-		return PublishResult{}, platformError(ErrAuthExpired, platform, "auth", http.StatusUnauthorized, "browser session is not authenticated", false)
-	}
-
 	result, err := adapter.PublishDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
+	if err != nil && retryableAuthError(err) {
+		adapter, refreshErr := s.authenticatedAdapter(ctx, platform, session)
+		if refreshErr != nil {
+			return PublishResult{}, refreshErr
+		}
+		result, err = adapter.PublishDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
+	}
 	if err != nil {
 		return PublishResult{}, err
 	}
