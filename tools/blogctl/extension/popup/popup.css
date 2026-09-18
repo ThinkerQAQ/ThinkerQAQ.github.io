@@ -13,8 +13,6 @@ h1 { margin: 0; font-size: 17px; line-height: 1.3; } h1 span { color: #6b7280; f
 .status-card { display: grid; gap: 10px; margin-bottom: 12px; }
 .section-title { color: #6b7280; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .platform-statuses, .platform-choices, .job-list, .tool-list { display: grid; gap: 9px; } .platform-loading { color: #6b7280; font-size: 12px; }
-.platform-status-text { display: grid; gap: 2px; min-width: 0; }
-.platform-status-text small { color: #6b7280; font-size: 10px; line-height: 1.35; }
 .status-row, .switch-row, .checkbox-row, .platform-choice { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
 .switch-row, .checkbox-row, .platform-choice { cursor: pointer; } .switch-row > span, .platform-choice-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .switch-row small, .platform-choice small, .field-hint { color: #6b7280; font-size: 11px; line-height: 1.4; font-weight: 400; }
