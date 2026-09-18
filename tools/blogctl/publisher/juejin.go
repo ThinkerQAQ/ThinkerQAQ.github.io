@@ -40,10 +40,10 @@ type juejinAdapter struct {
 	now          func() time.Time
 	uuid         string
 
-	mu              sync.Mutex
-	csrfToken       string
+	mu               sync.Mutex
+	csrfToken        string
 	cachedImageToken *imageXToken
-	imageTokenUntil time.Time
+	imageTokenUntil  time.Time
 }
 
 func NewJuejinAdapter(base *http.Client, session Session) (Adapter, error) {
