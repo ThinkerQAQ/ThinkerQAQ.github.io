@@ -275,12 +275,17 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 	response.WriteHeader(http.StatusNoContent)
 }
 
+func publicBridgeConfig(config bridgeConfig) bridgeConfig {
+	config.DevtoAPIKey = ""
+	return config
+}
+
 func (s *Server) handleConfigGet(response http.ResponseWriter) {
 	s.mu.Lock()
 	config := s.config
 	s.mu.Unlock()
 	writeJSON(response, http.StatusOK, map[string]any{
-		"ok": true, "config": config, "networkMode": proxySummary(config),
+		"ok": true, "config": publicBridgeConfig(config), "networkMode": proxySummary(config),
 	})
 }
 
@@ -322,7 +327,7 @@ func (s *Server) handleConfigPut(response http.ResponseWriter, request *http.Req
 	s.httpClient = client
 	s.mu.Unlock()
 	writeJSON(response, http.StatusOK, map[string]any{
-		"ok": true, "config": normalized, "networkMode": proxySummary(normalized),
+		"ok": true, "config": publicBridgeConfig(normalized), "networkMode": proxySummary(normalized),
 	})
 }
 
