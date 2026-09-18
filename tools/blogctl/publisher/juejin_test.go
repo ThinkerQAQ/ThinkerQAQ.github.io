@@ -325,7 +325,10 @@ func TestCRC32AndAWS4AreDeterministic(t *testing.T) {
 	if headers["x-amz-date"] != "20260918T040000Z" || headers["x-amz-security-token"] != "token" {
 		t.Fatalf("headers = %#v", headers)
 	}
-	if !strings.Contains(headers["authorization"], "Credential=ak/20260918/cn-north-1/imagex/aws4_request") {
+	const expectedAuthorization = "AWS4-HMAC-SHA256 Credential=ak/20260918/cn-north-1/imagex/aws4_request, " +
+		"SignedHeaders=x-amz-date;x-amz-security-token, " +
+		"Signature=0a3fddc7a02d7b815976528615d3b3b5892da8f950e6d714da2493ac934ae767"
+	if headers["authorization"] != expectedAuthorization {
 		t.Fatalf("authorization = %q", headers["authorization"])
 	}
 }
