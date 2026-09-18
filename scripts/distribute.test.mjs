@@ -177,6 +177,7 @@ test("exportArticles exports published articles and leaves drafts out", async ()
     assert.match(juejinOutput, /本文首发于/u);
     assert.match(juejinOutput, /utm_source=juejin/u);
     const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
+    assert.equal(manifest.version, 2);
     assert.equal(typeof manifest.articles.published.platforms.juejin.contentHash, "string");
     assert.equal(manifest.articles.draft, undefined);
   } finally {
@@ -247,6 +248,7 @@ test("syncExports records successful draft delivery and changed-only skips it ne
       { command: "wechatsync", args: ["sync", exported[0].outputFile, "-p", "juejin"] },
     ]);
     assert.equal(manifest.articles.example.platforms.juejin.lastSyncedHash, "abc");
+    assert.equal(manifest.articles.example.platforms.juejin.draftHash, "abc");
 
     const secondCount = await syncExports({
       exported: [{ ...exported[0], pending: false }],
@@ -256,6 +258,45 @@ test("syncExports records successful draft delivery and changed-only skips it ne
       run: async () => assert.fail("already-synced output should not run"),
     });
     assert.equal(secondCount, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("exportArticles migrates v1 draft state into manifest v2", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-migrate-test-"));
+  const articleRoot = path.join(root, "articles");
+  const outputRoot = path.join(root, "output");
+  try {
+    await mkdir(articleRoot);
+    await mkdir(outputRoot);
+    await writeFile(path.join(articleRoot, "example.md"), ARTICLE);
+    await writeFile(path.join(outputRoot, "manifest.json"), JSON.stringify({
+      version: 1,
+      articles: {
+        example: {
+          platforms: {
+            juejin: {
+              lastSyncedHash: "old-hash",
+              lastSyncedAt: "2026-09-01T00:00:00.000Z",
+              draftUrl: "https://juejin.cn/editor/drafts/legacy-id",
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await exportArticles({
+      articleRoot,
+      outputRoot,
+      platforms: ["juejin"],
+      requestedSlugs: ["example"],
+    });
+    const state = result.manifest.articles.example.platforms.juejin;
+    assert.equal(result.manifest.version, 2);
+    assert.equal(state.draftHash, "old-hash");
+    assert.equal(state.draftSyncedAt, "2026-09-01T00:00:00.000Z");
+    assert.equal(state.remoteDraftId, "legacy-id");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
