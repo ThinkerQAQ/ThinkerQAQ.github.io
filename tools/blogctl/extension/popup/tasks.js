@@ -206,7 +206,7 @@
       state.jobs = jobsResponse.jobs ?? [];
       if (statusResponse) state.status = statusResponse.status;
       const snapshot = BlogCTLTaskUIState.renderSnapshot(state.jobs, state.status);
-      if (snapshot === state.lastRenderedSnapshot && !state.renderDeferredForSelection) return;
+      if (!BlogCTLTaskUIState.shouldRender(state.lastRenderedSnapshot, snapshot, state.renderDeferredForSelection)) return;
       renderJobs(snapshot);
     } catch (error) {
       BlogCTLPopup.setMessage(message, `任务读取失败：${BlogCTLPopup.errorMessage(error)}`, "error");
