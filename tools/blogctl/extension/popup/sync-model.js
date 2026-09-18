@@ -1,16 +1,20 @@
 "use strict";
 
 (function (root) {
-  function deliveryToolAvailability(_platformId, _tools = []) {
-    return { available: true, reason: "" };
+  function deliveryToolAvailability(platformId, tools = []) {
+    if (platformId !== "devto") return { available: true, reason: "" };
+    const tool = tools.find((item) => item.name === "devto-api");
+    if (!tool) return { available: false, reason: "DEV.to API 状态未知" };
+    if (tool.health?.ok) return { available: true, reason: "" };
+    return { available: false, reason: tool.health?.summary || "DEV.to API Key 未配置" };
   }
 
-  const NATIVE_BROWSER_PLATFORMS = new Set([
-    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
+  const PUBLISHER_AUTH_PLATFORMS = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto",
   ]);
 
   function platformAvailability(article, platform, publishingProfile = {}) {
-    if (platform && typeof platform === "object" && !NATIVE_BROWSER_PLATFORMS.has(platform.id)) {
+    if (platform && typeof platform === "object" && !PUBLISHER_AUTH_PLATFORMS.has(platform.id)) {
       if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
       if (!platform.loggedIn) return { available: false, reason: "未登录" };
     }
