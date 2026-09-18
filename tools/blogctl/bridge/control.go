@@ -126,12 +126,12 @@ type toolConfigRequest struct {
 }
 
 type publishingPlatformView struct {
-	ID        string                     `json:"id"`
-	Label     string                     `json:"label"`
-	Language  string                     `json:"language"`
-	Footer    publishingFooterConfig     `json:"footer"`
-	Canonical publishingCanonicalConfig  `json:"canonical"`
-	Tracking  publishingTrackingConfig   `json:"tracking"`
+	ID        string                    `json:"id"`
+	Label     string                    `json:"label"`
+	Language  string                    `json:"language"`
+	Footer    publishingFooterConfig    `json:"footer"`
+	Canonical publishingCanonicalConfig `json:"canonical"`
+	Tracking  publishingTrackingConfig  `json:"tracking"`
 }
 
 func readFrontmatterScalar(path, name string) string {
