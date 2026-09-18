@@ -41,6 +41,7 @@ type Server struct {
 	httpClient *http.Client
 	config     bridgeConfig
 	restart    func()
+	syncRunner syncRunner
 
 	mu       sync.Mutex
 	sessions map[string]platformSession
