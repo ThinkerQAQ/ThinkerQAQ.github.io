@@ -205,7 +205,7 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		Code    *int   `json:"code"`
 		ErrNo   *int   `json:"err_no"`
 		Message string `json:"message"`
-		Data struct {
+		Data    struct {
 			PGCID any `json:"pgc_id"`
 		} `json:"data"`
 	}
