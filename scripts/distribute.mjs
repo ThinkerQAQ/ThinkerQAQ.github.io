@@ -241,13 +241,13 @@ export async function exportArticles({
       .split(path.sep)
       .join("/");
     if (requested.size > 0 && !requested.has(slug)) continue;
-    seenRequested.add(slug);
 
     const article = parseArticle(await readFile(sourceFile, "utf8"), sourceFile);
     if (article.status !== "published") {
       skippedDrafts += 1;
       continue;
     }
+    seenRequested.add(slug);
 
     const canonicalUrl = buildArticleCanonicalUrl(slug, language);
     const articleState = manifest.articles[slug] ?? {
