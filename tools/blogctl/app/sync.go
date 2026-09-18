@@ -22,6 +22,11 @@ var internationalPlatforms = map[string]struct{}{
 	"devto": {}, "medium": {},
 }
 
+var nativeChinaPlatforms = map[string]struct{}{
+	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {},
+}
+
 type SyncRequest struct {
 	Articles  []string
 	All       bool
@@ -29,17 +34,16 @@ type SyncRequest struct {
 	DryRun    bool
 	Changed   bool
 	Draft     bool
+	Operation string
 }
 
 type SyncConfig struct {
-	EngineRoot      string
-	ContentRoot     string
-	ConfigPath      string
-	BridgeOrigin    string
-	BridgeToken     string
-	ToolPaths       map[string]string
-	WechatsyncToken string
-	WechatsyncPort  int
+	EngineRoot   string
+	ContentRoot  string
+	ConfigPath   string
+	BridgeOrigin string
+	BridgeToken  string
+	ToolPaths    map[string]string
 }
 
 type SyncPlan struct {
@@ -47,6 +51,37 @@ type SyncPlan struct {
 	Script    string
 	Args      []string
 	Platforms []string
+	Native    bool
+}
+
+type NativeDraftRequest struct {
+	Article     string
+	Platform    string
+	ContentRoot string
+	ChangedOnly bool
+}
+
+type NativeDraftResult struct {
+	Result  string
+	URL     string
+	Message string
+}
+
+type NativePublishRequest struct {
+	Article     string
+	Platform    string
+	ContentRoot string
+}
+
+type NativePublishResult struct {
+	Result  string
+	URL     string
+	Message string
+}
+
+type NativeDraftPublisher interface {
+	CreateOrUpdateDraft(ctx context.Context, request NativeDraftRequest) (NativeDraftResult, error)
+	PublishDraft(ctx context.Context, request NativePublishRequest) (NativePublishResult, error)
 }
 
 type SyncEvent struct {
@@ -72,8 +107,9 @@ func (OSCommandRunner) Run(ctx context.Context, name string, args []string, dir 
 }
 
 type SyncService struct {
-	Runner  CommandRunner
-	OnEvent func(SyncEvent)
+	Runner          CommandRunner
+	NativePublisher NativeDraftPublisher
+	OnEvent         func(SyncEvent)
 }
 
 func NewSyncService() SyncService {
@@ -125,18 +161,41 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 		return request, errors.New("explicit platform selection is required")
 	}
 	request.Platforms = platforms
+	request.Operation = strings.ToLower(strings.TrimSpace(request.Operation))
+	if request.Operation == "" {
+		request.Operation = "draft"
+	}
+	switch request.Operation {
+	case "draft", "publish":
+	default:
+		return request, fmt.Errorf("unsupported sync operation: %s", request.Operation)
+	}
+	if request.Operation == "publish" {
+		for _, platform := range request.Platforms {
+			if _, native := nativeChinaPlatforms[platform]; !native {
+				return request, fmt.Errorf("confirm publish is not implemented for %s", platform)
+			}
+		}
+	}
+	if request.All {
+		for _, platform := range request.Platforms {
+			if _, native := nativeChinaPlatforms[platform]; native {
+				return request, fmt.Errorf("%s native publishing requires explicit article selection", platform)
+			}
+		}
+	}
 	return request, nil
 }
 
 func BuildSyncPlan(request SyncRequest) []SyncPlan {
-	china := []string{}
+	nativeChina := []string{}
 	international := []string{}
 	for _, platform := range request.Platforms {
 		if _, ok := chinaPlatforms[platform]; ok {
-			china = append(china, platform)
-		} else {
-			international = append(international, platform)
+			nativeChina = append(nativeChina, platform)
+			continue
 		}
+		international = append(international, platform)
 	}
 
 	articleArgs := make([]string, 0, len(request.Articles)*2)
@@ -145,18 +204,12 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 	}
 
 	plan := make([]SyncPlan, 0, 2)
-	if len(china) > 0 {
+	if len(nativeChina) > 0 {
 		args := append([]string{}, articleArgs...)
-		args = append(args, "--platforms", strings.Join(china, ","), "--sync")
-		if request.Changed {
-			args = append(args, "--changed")
-		}
-		if request.DryRun {
-			args = append(args, "--dry-run")
-		}
+		args = append(args, "--platforms", strings.Join(nativeChina, ","))
 		plan = append(plan, SyncPlan{
-			Group: "china", Script: "scripts/blogctl-distribute.mjs", Args: args,
-			Platforms: append([]string{}, china...),
+			Group: "native-china", Script: "scripts/blogctl-distribute.mjs", Args: args,
+			Platforms: append([]string{}, nativeChina...), Native: true,
 		})
 	}
 	if len(international) > 0 {
@@ -190,16 +243,6 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 	if usesPlatform(request.Platforms, "medium") && !request.DryRun {
 		if strings.TrimSpace(config.BridgeOrigin) == "" || strings.TrimSpace(config.BridgeToken) == "" {
 			return "", errors.New("Medium publishing requires an active BlogCTL Bridge")
-		}
-	}
-
-	if usesChinaPlatform(request.Platforms) && !request.DryRun {
-		token := strings.TrimSpace(config.WechatsyncToken)
-		if token == "" {
-			token = strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN"))
-		}
-		if token == "" {
-			return "", errors.New("Wechatsync Bridge Token 未配置；请在“工具与配置 → Wechatsync”中配置与 Chrome 扩展一致的 Token")
 		}
 	}
 
@@ -257,6 +300,50 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 				}
 			}
 			return output.String(), errors.New(message)
+		}
+		if entry.Native {
+			if request.DryRun {
+				for _, platform := range entry.Platforms {
+					s.emit(SyncEvent{Platform: platform, State: "completed", Result: "dry-run"})
+					terminal[platform] = true
+				}
+			} else {
+				if s.NativePublisher == nil {
+					return output.String(), errors.New("native publisher is not configured")
+				}
+				for _, article := range request.Articles {
+					for _, platform := range entry.Platforms {
+						if request.Operation == "publish" {
+							result, publishErr := s.NativePublisher.PublishDraft(ctx, NativePublishRequest{
+								Article: article, Platform: platform, ContentRoot: config.ContentRoot,
+							})
+							if publishErr != nil {
+								s.emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
+								return output.String(), publishErr
+							}
+							s.emit(SyncEvent{
+								Platform: platform, State: "completed", Result: result.Result,
+								URL: result.URL, Message: result.Message,
+							})
+							terminal[platform] = true
+							continue
+						}
+						result, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
+							Article: article, Platform: platform, ContentRoot: config.ContentRoot,
+							ChangedOnly: request.Changed,
+						})
+						if publishErr != nil {
+							s.emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
+							return output.String(), publishErr
+						}
+						s.emit(SyncEvent{
+							Platform: platform, State: "completed", Result: result.Result,
+							URL: result.URL, Message: result.Message,
+						})
+						terminal[platform] = true
+					}
+				}
+			}
 		}
 		for _, platform := range entry.Platforms {
 			if !terminal[platform] {
@@ -428,19 +515,13 @@ func syncEnvironment(config SyncConfig) []string {
 	if config.BridgeToken != "" {
 		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", config.BridgeToken)
 	}
-	if strings.TrimSpace(config.WechatsyncToken) != "" {
-		env = setEnvironment(env, "WECHATSYNC_TOKEN", strings.TrimSpace(config.WechatsyncToken))
-	}
-	if config.WechatsyncPort > 0 {
-		env = setEnvironment(env, "SYNC_WS_PORT", fmt.Sprintf("%d", config.WechatsyncPort))
-	}
 	return prependToolDirectories(env, config.ToolPaths)
 }
 
 func prependToolDirectories(env []string, toolPaths map[string]string) []string {
 	directories := []string{}
 	seen := map[string]struct{}{}
-	for _, name := range []string{"node", "npm", "git", "wechatsync"} {
+	for _, name := range []string{"node", "npm", "git"} {
 		path := strings.TrimSpace(toolPaths[name])
 		if path == "" {
 			continue

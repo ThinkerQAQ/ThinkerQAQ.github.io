@@ -27,16 +27,32 @@ func (r *recordingRunner) Run(_ context.Context, name string, args []string, dir
 
 type structuredEventRunner struct{}
 
+type nativePublisherStub struct {
+	draft   func(context.Context, NativeDraftRequest) (NativeDraftResult, error)
+	publish func(context.Context, NativePublishRequest) (NativePublishResult, error)
+}
+
+func (stub nativePublisherStub) CreateOrUpdateDraft(ctx context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
+	if stub.draft == nil {
+		return NativeDraftResult{}, nil
+	}
+	return stub.draft(ctx, request)
+}
+
+func (stub nativePublisherStub) PublishDraft(ctx context.Context, request NativePublishRequest) (NativePublishResult, error) {
+	if stub.publish == nil {
+		return NativePublishResult{}, nil
+	}
+	return stub.publish(ctx, request)
+}
+
 func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ string, _ []string) (string, error) {
 	if len(args) == 0 {
 		return "", nil
 	}
 	script := filepath.ToSlash(args[0])
 	if strings.HasSuffix(script, "/scripts/blogctl-distribute.mjs") {
-		return strings.Join([]string{
-			`{"operation":"distribution-sync","status":"started","platform":"juejin","slug":"example"}`,
-			`{"operation":"distribution-sync","status":"dry-run-completed","platform":"juejin","slug":"example"}`,
-		}, "\n") + "\n", nil
+		return `{"operation":"distribution-export","status":"completed","articles":1,"outputs":1}` + "\n", nil
 	}
 	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") {
 		return strings.Join([]string{
@@ -47,10 +63,10 @@ func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ s
 	return "", nil
 }
 
-func TestBuildSyncPlanSplitsChinaAndInternational(t *testing.T) {
+func TestBuildSyncPlanRoutesAllChinesePlatformsNatively(t *testing.T) {
 	request, err := NormalizeSyncRequest(SyncRequest{
 		Articles:  []string{"concurrency-series-00"},
-		Platforms: []string{"juejin", "devto", "medium"},
+		Platforms: []string{"juejin", "csdn", "devto", "medium"},
 		DryRun:    true,
 	})
 	if err != nil {
@@ -60,21 +76,14 @@ func TestBuildSyncPlanSplitsChinaAndInternational(t *testing.T) {
 	if len(plan) != 2 {
 		t.Fatalf("got %d plan entries, want 2", len(plan))
 	}
-	if plan[0].Group != "china" || plan[0].Script != "scripts/blogctl-distribute.mjs" {
-		t.Fatalf("unexpected china plan: %+v", plan[0])
+	if plan[0].Group != "native-china" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, []string{"juejin", "csdn"}) {
+		t.Fatalf("native plan = %#v", plan[0])
 	}
-	if !reflect.DeepEqual(plan[0].Platforms, []string{"juejin"}) {
-		t.Fatalf("china platforms = %#v", plan[0].Platforms)
+	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn"}) {
+		t.Fatalf("native args = %#v", plan[0].Args)
 	}
-	if plan[1].Group != "international" || plan[1].Script != "scripts/blogctl-syndicate.mjs" {
-		t.Fatalf("unexpected international plan: %+v", plan[1])
-	}
-	if !reflect.DeepEqual(plan[1].Platforms, []string{"devto", "medium"}) {
-		t.Fatalf("international platforms = %#v", plan[1].Platforms)
-	}
-	want := []string{"--article", "concurrency-series-00", "--platforms", "devto,medium", "--dry-run"}
-	if !reflect.DeepEqual(plan[1].Args, want) {
-		t.Fatalf("international args = %#v, want %#v", plan[1].Args, want)
+	if plan[1].Group != "international" || !reflect.DeepEqual(plan[1].Platforms, []string{"devto", "medium"}) {
+		t.Fatalf("international plan = %#v", plan[1])
 	}
 }
 
@@ -192,7 +201,6 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	}
 	want := []SyncEvent{
 		{Platform: "juejin", State: "running"},
-		{Platform: "juejin", State: "running"},
 		{Platform: "juejin", State: "completed", Result: "dry-run"},
 		{Platform: "devto", State: "running"},
 		{Platform: "medium", State: "running"},
@@ -204,42 +212,118 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	}
 }
 
-func TestSyncServiceRequiresWechatsyncTokenForLiveChina(t *testing.T) {
+func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	engineRoot := t.TempDir()
 	contentRoot := t.TempDir()
 	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
 	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
+	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
 	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("WECHATSYNC_TOKEN", "")
-	_, err := NewSyncService().Run(context.Background(), SyncConfig{
+	node := filepath.Join(t.TempDir(), "node")
+	npm := filepath.Join(t.TempDir(), "npm")
+	writeTestFile(t, node)
+	writeTestFile(t, npm)
+
+	runner := &recordingRunner{}
+	calls := []NativeDraftRequest{}
+	service := SyncService{
+		Runner: runner,
+		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
+			calls = append(calls, request)
+			return NativeDraftResult{Result: "draft-created", URL: "https://juejin.cn/editor/drafts/123"}, nil
+		}},
+	}
+	events := []SyncEvent{}
+	service.OnEvent = func(event SyncEvent) { events = append(events, event) }
+
+	_, err := service.Run(context.Background(), SyncConfig{
 		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
-		Articles: []string{"example"}, Platforms: []string{"juejin"},
+		Articles: []string{"example"}, Platforms: []string{"juejin"}, Changed: true,
 	})
-	if err == nil || !strings.Contains(err.Error(), "Wechatsync Bridge Token") {
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.commands) != 1 {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+	if strings.Contains(strings.Join(runner.commands[0].Args, " "), "--sync") {
+		t.Fatalf("native renderer unexpectedly invoked legacy sync: %#v", runner.commands[0].Args)
+	}
+	if len(calls) != 1 || calls[0].Platform != "juejin" || calls[0].Article != "example" || !calls[0].ChangedOnly {
+		t.Fatalf("native calls = %#v", calls)
+	}
+	if len(events) != 2 || events[1].Result != "draft-created" || events[1].URL == "" {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
+func TestNormalizeSyncRequestRejectsAllForNativeJuejin(t *testing.T) {
+	_, err := NormalizeSyncRequest(SyncRequest{All: true, Platforms: []string{"juejin"}})
+	if err == nil || !strings.Contains(err.Error(), "explicit article") {
 		t.Fatalf("error = %v", err)
 	}
 }
 
-func TestSyncEnvironmentIncludesWechatsyncBridgeConfig(t *testing.T) {
-	t.Setenv("WECHATSYNC_TOKEN", "inherited-token")
-	env := syncEnvironment(SyncConfig{
-		ContentRoot:     "content",
-		EngineRoot:      "engine",
-		WechatsyncToken: "configured-token",
-		WechatsyncPort:  9600,
+func TestSyncServicePublishesNativeDraft(t *testing.T) {
+	engineRoot := t.TempDir()
+	contentRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
+	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
+	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
+	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	node := filepath.Join(t.TempDir(), "node")
+	npm := filepath.Join(t.TempDir(), "npm")
+	writeTestFile(t, node)
+	writeTestFile(t, npm)
+
+	var calls []NativePublishRequest
+	var events []SyncEvent
+	service := SyncService{
+		Runner: &recordingRunner{},
+		NativePublisher: nativePublisherStub{publish: func(_ context.Context, request NativePublishRequest) (NativePublishResult, error) {
+			calls = append(calls, request)
+			return NativePublishResult{Result: "published", URL: "https://juejin.cn/post/123"}, nil
+		}},
+		OnEvent: func(event SyncEvent) { events = append(events, event) },
+	}
+	_, err := service.Run(context.Background(), SyncConfig{
+		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		ToolPaths: map[string]string{"node": node, "npm": npm},
+	}, SyncRequest{
+		Articles: []string{"example"}, Platforms: []string{"juejin"}, Operation: "publish",
 	})
-	joined := strings.Join(env, "\n")
-	if !strings.Contains(joined, "WECHATSYNC_TOKEN=configured-token") {
-		t.Fatalf("WECHATSYNC_TOKEN missing from env")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if strings.Contains(joined, "WECHATSYNC_TOKEN=inherited-token") {
-		t.Fatalf("configured token did not replace inherited token")
+	if len(calls) != 1 || calls[0].Platform != "juejin" || calls[0].Article != "example" {
+		t.Fatalf("publish calls = %#v", calls)
 	}
-	if !strings.Contains(joined, "SYNC_WS_PORT=9600") {
-		t.Fatalf("SYNC_WS_PORT missing from env")
+	if len(events) != 2 || events[1].Result != "published" || events[1].URL != "https://juejin.cn/post/123" {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
+func TestNormalizeSyncRequestRejectsInternationalConfirmPublish(t *testing.T) {
+	_, err := NormalizeSyncRequest(SyncRequest{
+		Articles: []string{"example"}, Platforms: []string{"medium"}, Operation: "publish",
+	})
+	if err == nil || !strings.Contains(err.Error(), "confirm publish is not implemented") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestNormalizeSyncRequestRejectsUnknownOperation(t *testing.T) {
+	_, err := NormalizeSyncRequest(SyncRequest{
+		Articles: []string{"example"}, Platforms: []string{"juejin"}, Operation: "delete",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unsupported sync operation") {
+		t.Fatalf("error = %v", err)
 	}
 }
 

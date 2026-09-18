@@ -43,6 +43,7 @@ export async function renderAll({ check = process.env.CI === "true" } = {}) {
   if (!check) {
     await mkdir(SOURCE_ROOT, { recursive: true });
     await mkdir(OUTPUT_ROOT, { recursive: true });
+    await mkdir(path.dirname(MANIFEST), { recursive: true });
   }
   await assertRegularDirectory(SOURCE_ROOT);
   await assertRegularDirectory(OUTPUT_ROOT);

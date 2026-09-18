@@ -1,6 +1,9 @@
 "use strict";
 
 (function (root) {
+  const NATIVE_BROWSER_PLATFORMS = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
+  ]);
   const state = { initialized: false, active: false, articles: [], status: null, publishing: [], tools: [] };
   let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message;
 
@@ -71,32 +74,28 @@
       const name = document.createElement("strong");
       name.textContent = platform.label || platform.id;
       const detail = document.createElement("small");
+      const nativeBrowserPlatform = NATIVE_BROWSER_PLATFORMS.has(platform.id);
       detail.textContent = !availability.available
         ? availability.reason
-        : platform.known === false ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}` : platform.loggedIn ? "已登录" : "未登录";
+        : platform.loggedIn
+          ? (platform.inferred ? "浏览器会话可用 · 执行时校验登录" : "已登录")
+          : nativeBrowserPlatform
+            ? "登录状态将在任务启动时校验"
+            : platform.known === false
+              ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}`
+              : "未登录";
       text.append(name, detail);
       const status = document.createElement("span");
       if (!availability.available) BlogCTLPopup.setStatus(status, "disabled", availability.reason);
+      else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", platform.inferred ? "会话可用" : "已登录");
+      else if (nativeBrowserPlatform) BlogCTLPopup.setStatus(status, "unknown", "待校验");
       else if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
-      else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", "已登录");
       else BlogCTLPopup.setStatus(status, "error", "未登录");
       label.append(checkbox, text, status);
       platformsContainer.append(label);
     }
     if (!platformsContainer.childElementCount) platformsContainer.innerHTML = '<div class="platform-loading">没有可用平台</div>';
     updateStartButton();
-  }
-
-  async function ensureMediumSession(platforms) {
-    if (!platforms.includes("medium")) return;
-    const medium = (state.status?.platforms ?? []).find((platform) => platform.id === "medium");
-    if (!medium?.loggedIn) throw new Error("Medium 尚未登录，请先在浏览器登录 Medium。");
-    if (state.status?.sessions?.medium?.synced) return;
-    BlogCTLPopup.setMessage(message, "Medium 已选择，正在自动同步浏览器 Session…");
-    const response = await BlogCTLPopup.send("blogctl.session.sync", { platform: "medium" });
-    state.status = response.status;
-    BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
-    renderPlatforms();
   }
 
   async function startSync() {
@@ -106,8 +105,9 @@
     startButton.disabled = true;
     BlogCTLPopup.setMessage(message, "正在创建同步任务…");
     try {
-      await ensureMediumSession(platforms);
-      const response = await BlogCTLPopup.send("blogctl.job.start", { request: { article, platforms, dryRun: false, changed: changedOnly.checked, draft: true } });
+      const response = await BlogCTLPopup.send("blogctl.job.start", {
+        request: { article, platforms, dryRun: false, changed: changedOnly.checked, draft: true, operation: "draft" },
+      });
       BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动，可在“任务”页查看进度。`, "ok");
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");

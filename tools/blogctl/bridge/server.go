@@ -20,8 +20,15 @@ const (
 )
 
 type browserCookie struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+	Name           string   `json:"name"`
+	Value          string   `json:"value"`
+	Domain         string   `json:"domain,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	Secure         bool     `json:"secure,omitempty"`
+	HTTPOnly       bool     `json:"httpOnly,omitempty"`
+	HostOnly       bool     `json:"hostOnly,omitempty"`
+	SameSite       string   `json:"sameSite,omitempty"`
+	ExpirationDate *float64 `json:"expirationDate,omitempty"`
 }
 
 type sessionRequest struct {
@@ -30,9 +37,15 @@ type sessionRequest struct {
 }
 
 type platformSession struct {
-	Cookies   map[string]string
-	UserAgent string
-	ExpiresAt time.Time
+	Cookies        map[string]string
+	BrowserCookies []browserCookie
+	UserAgent      string
+	ExpiresAt      time.Time
+}
+
+var browserSessionPlatforms = map[string]struct{}{
+	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "medium": {},
 }
 
 type Server struct {
@@ -43,11 +56,11 @@ type Server struct {
 	restart    func()
 	syncRunner syncRunner
 
-	mu           sync.Mutex
-	wechatsyncMu sync.Mutex
-	sessions     map[string]platformSession
-	jobs         map[string]*syncJob
-	jobOrder     []string
+	mu             sync.Mutex
+	distributionMu sync.Mutex
+	sessions       map[string]platformSession
+	jobs           map[string]*syncJob
+	jobOrder       []string
 }
 
 func New(token string) (*Server, error) {
@@ -194,6 +207,11 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && parts[4] == "retry" && request.Method == http.MethodPost {
 		s.handleSyncJobRetry(response, request, parts[3])
+		return
+	}
+
+	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && parts[4] == "publish" && request.Method == http.MethodPost {
+		s.handleSyncJobPublish(response, request, parts[3])
 		return
 	}
 
@@ -494,24 +512,56 @@ func (s *Server) handleSyncJobRetry(response http.ResponseWriter, request *http.
 	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
 }
 
+func (s *Server) handleSyncJobPublish(response http.ResponseWriter, request *http.Request, id string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	job, err := s.publishSyncJob(id)
+	if err != nil {
+		switch err.Error() {
+		case "sync job not found":
+			writeAPIError(response, http.StatusNotFound, "sync_job_not_found", err.Error(), map[string]any{"id": id})
+		case "sync job is not completed":
+			writeAPIError(response, http.StatusConflict, "sync_job_not_completed", err.Error(), map[string]any{"id": id})
+		default:
+			writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), map[string]any{"id": id})
+		}
+		return
+	}
+	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
+}
+
 func (s *Server) handleSession(response http.ResponseWriter, request *http.Request, platform string) {
 	origin, ok := allowExtensionWrite(response, request)
 	if !ok {
 		return
 	}
-	if platform != "medium" {
+	if _, supported := browserSessionPlatforms[platform]; !supported {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", platform+" does not use browser-session auth", map[string]any{"platform": platform})
 		return
 	}
 	var body sessionRequest
-	if err := readJSON(request, 64*1024, &body); err != nil {
+	if err := readJSON(request, 256*1024, &body); err != nil {
 		writeError(response, err)
 		return
 	}
-	cookies := filterMediumCookies(body.Cookies)
-	if cookies["sid"] == "" {
-		writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+	if len(body.Cookies) == 0 {
+		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
 		return
+	}
+	cookies := map[string]string{}
+	if platform == "medium" {
+		cookies = filterMediumCookies(body.Cookies)
+		if cookies["sid"] == "" {
+			writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+			return
+		}
+	} else {
+		for _, cookie := range body.Cookies {
+			if cookie.Name != "" && cookie.Value != "" {
+				cookies[cookie.Name] = cookie.Value
+			}
+		}
 	}
 	userAgent := strings.TrimSpace(body.UserAgent)
 	if userAgent == "" {
@@ -521,7 +571,12 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		userAgent = userAgent[:512]
 	}
 	s.mu.Lock()
-	s.sessions[platform] = platformSession{Cookies: cookies, UserAgent: userAgent, ExpiresAt: s.now().Add(sessionTTL)}
+	s.sessions[platform] = platformSession{
+		Cookies:        cookies,
+		BrowserCookies: append([]browserCookie{}, body.Cookies...),
+		UserAgent:      userAgent,
+		ExpiresAt:      s.now().Add(sessionTTL),
+	}
 	s.mu.Unlock()
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
@@ -530,7 +585,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 }
 
 func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
-	if platform != "medium" {
+	if _, supported := browserSessionPlatforms[platform]; !supported {
 		writeAPIError(response, http.StatusBadRequest, "unsupported_platform", "Unsupported platform: "+platform, map[string]any{"platform": platform})
 		return
 	}

@@ -7,15 +7,10 @@ import test from "node:test";
 import {
   buildPlatformMarkdown,
   buildTrackedUrl,
-  explainWechatsyncBridgeFailure,
-  extractDraftUrl,
   exportArticles,
-  normalizeDraftUrl,
   parseArguments,
   parseArticle,
-  preflightWechatsync,
   SUPPORTED_PLATFORMS,
-  syncExports,
 } from "./distribute.mjs";
 
 const ARTICLE = `---
@@ -55,20 +50,6 @@ test("buildTrackedUrl adds stable platform attribution", () => {
   assert.throws(
     () => buildTrackedUrl("https://thinkerqaq.github.io/articles/concurrency/test/", "unknown"),
     /Unsupported platform/u,
-  );
-});
-
-test("normalizes the legacy OSChina draft URL returned by Wechatsync", () => {
-  const legacy = "https://my.oschina.net/u/2360403/blog/write/draft/3317703";
-  const current = "https://my.oschina.net/u/2360403/blog/ai-write/draft/3317703";
-  assert.equal(normalizeDraftUrl("oschina", legacy), current);
-  assert.equal(
-    extractDraftUrl(`同步结果:\n  ✓ oschina (草稿)\n    ${legacy}\n`, "oschina"),
-    current,
-  );
-  assert.equal(
-    normalizeDraftUrl("juejin", "https://juejin.cn/editor/drafts/123"),
-    "https://juejin.cn/editor/drafts/123",
   );
 });
 
@@ -179,6 +160,7 @@ test("exportArticles exports published articles and leaves drafts out", async ()
     assert.match(juejinOutput, /本文首发于/u);
     assert.match(juejinOutput, /utm_source=juejin/u);
     const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
+    assert.equal(manifest.version, 2);
     assert.equal(typeof manifest.articles.published.platforms.juejin.contentHash, "string");
     assert.equal(manifest.articles.draft, undefined);
   } finally {
@@ -210,190 +192,101 @@ test("exportArticles records language-specific canonical metadata", async () => 
   }
 });
 
-test("syncExports records successful draft delivery and changed-only skips it next time", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-sync-test-"));
-  const manifestPath = path.join(root, "manifest.json");
-  const manifest = {
-    version: 1,
-    articles: {
-      example: {
-        platforms: {
-          juejin: { contentHash: "abc" },
+test("exportArticles migrates v1 draft state into manifest v2", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-migrate-test-"));
+  const articleRoot = path.join(root, "articles");
+  const outputRoot = path.join(root, "output");
+  try {
+    await mkdir(articleRoot);
+    await mkdir(outputRoot);
+    await writeFile(path.join(articleRoot, "example.md"), ARTICLE);
+    await writeFile(path.join(outputRoot, "manifest.json"), JSON.stringify({
+      version: 1,
+      articles: {
+        example: {
+          platforms: {
+            juejin: {
+              lastSyncedHash: "old-hash",
+              lastSyncedAt: "2026-09-01T00:00:00.000Z",
+              draftUrl: "https://juejin.cn/editor/drafts/juejin-id",
+            },
+            zhihu: {
+              draftUrl: "https://zhuanlan.zhihu.com/p/zhihu-id/edit",
+            },
+            "51cto": {
+              draftUrl: "https://blog.51cto.com/blogger/draft/51cto-id",
+            },
+            oschina: {
+              draftUrl: "https://my.oschina.net/u/42/blog/ai-write/draft/oschina-id",
+            },
+            csdn: {
+              draftUrl: "https://editor.csdn.net/md?articleId=csdn-id",
+            },
+            segmentfault: {
+              draftUrl: "https://segmentfault.com/write?draftId=segmentfault-id",
+            },
+            toutiao: {
+              draftUrl: "https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=toutiao-id",
+            },
+            cnblogs: {
+              draftUrl: "https://i.cnblogs.com/articles/edit;postId=cnblogs-id",
+            },
+          },
         },
       },
-    },
-  };
-  const exported = [{
-    slug: "example",
-    platform: "juejin",
-    outputFile: path.join(root, "example.md"),
-    contentHash: "abc",
-    pending: true,
-  }];
-  const calls = [];
-  try {
-    await writeFile(exported[0].outputFile, "example");
-    const count = await syncExports({
-      exported,
-      manifest,
-      manifestPath,
-      changedOnly: true,
-      run: async (command, args) => {
-        calls.push({ command, args });
-        return { output: "" };
-      },
-    });
-    assert.equal(count, 1);
-    assert.deepEqual(calls, [
-      { command: "wechatsync", args: ["--timeout", "5000", "platforms", "--auth"] },
-      { command: "wechatsync", args: ["sync", exported[0].outputFile, "-p", "juejin"] },
-    ]);
-    assert.equal(manifest.articles.example.platforms.juejin.lastSyncedHash, "abc");
+    }));
 
-    const secondCount = await syncExports({
-      exported: [{ ...exported[0], pending: false }],
-      manifest,
-      manifestPath,
-      changedOnly: true,
-      run: async () => assert.fail("already-synced output should not run"),
+    const result = await exportArticles({
+      articleRoot,
+      outputRoot,
+      platforms: ["juejin"],
+      requestedSlugs: ["example"],
     });
-    assert.equal(secondCount, 0);
+    assert.equal(result.manifest.version, 2);
+    const state = result.manifest.articles.example.platforms;
+    assert.equal(state.juejin.draftHash, "old-hash");
+    assert.equal(state.juejin.draftSyncedAt, "2026-09-01T00:00:00.000Z");
+    assert.equal(state.juejin.remoteDraftId, "juejin-id");
+    assert.equal(state.zhihu.remoteDraftId, "zhihu-id");
+    assert.equal(state["51cto"].remoteDraftId, "51cto-id");
+    assert.equal(state.oschina.remoteDraftId, "oschina-id");
+    assert.equal(state.csdn.remoteDraftId, "csdn-id");
+    assert.equal(state.segmentfault.remoteDraftId, "segmentfault-id");
+    assert.equal(state.toutiao.remoteDraftId, "toutiao-id");
+    assert.equal(state.cnblogs.remoteDraftId, "cnblogs-id");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("syncExports retries CSDN rate limits and does not record platform failures", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-sync-failure-test-"));
-  const manifestPath = path.join(root, "manifest.json");
-  const makeState = () => ({
-    version: 1,
-    articles: { example: { platforms: { csdn: { contentHash: "abc" } } } },
-  });
-  const exported = [{
-    slug: "example",
-    platform: "csdn",
-    outputFile: path.join(root, "example.md"),
-    contentHash: "abc",
-    pending: true,
-  }];
-  try {
-    await writeFile(exported[0].outputFile, "example");
-    const retryManifest = makeState();
-    let attempts = 0;
-    const count = await syncExports({
-      exported,
-      manifest: retryManifest,
-      manifestPath,
-      run: async (_command, args) => {
-        if (args[0] === "--timeout") return { output: "bridge ready" };
-        attempts++;
-        return {
-          output: attempts === 1
-            ? "文章频繁发布，请稍后再试\n同步完成: 0 成功, 1 失败"
-            : "同步完成: 1 成功, 0 失败",
-        };
-      },
-      wait: async () => {},
-      rateLimitRetryMs: 0,
-    });
-    assert.equal(count, 1);
-    assert.equal(attempts, 2);
-    assert.equal(retryManifest.articles.example.platforms.csdn.lastSyncedHash, "abc");
+test("renderPlatformHtml renders fenced code and GFM-style tables deterministically", () => {
+  const html = renderPlatformHtml([
+    "| Name | Value |",
+    "| --- | --- |",
+    "| `count++` | **three steps** |",
+    "",
+    "```go",
+    "count++",
+    "```",
+  ].join("\n"));
 
-    const failedManifest = makeState();
-    await assert.rejects(
-      syncExports({
-        exported,
-        manifest: failedManifest,
-        manifestPath,
-        run: async (_command, args) => args[0] === "--timeout"
-          ? { output: "bridge ready" }
-          : { output: "同步完成: 0 成功, 1 失败" },
-      }),
-      /Failed to sync example to csdn/u,
-    );
-    assert.equal(failedManifest.articles.example.platforms.csdn.lastSyncedHash, undefined);
-
-    const toutiaoManifest = {
-      version: 1,
-      articles: { example: { platforms: { toutiao: { contentHash: "abc" } } } },
-    };
-    await assert.rejects(
-      syncExports({
-        exported: [{ ...exported[0], platform: "toutiao" }],
-        manifest: toutiaoManifest,
-        manifestPath,
-        run: async (_command, args) => args[0] === "--timeout"
-          ? { output: "bridge ready" }
-          : { output: "无头条广告权限\n同步完成: 0 成功, 1 失败" },
-      }),
-      /advertising mode unavailable/u,
-    );
-    assert.equal(toutiaoManifest.articles.example.platforms.toutiao.lastSyncedHash, undefined);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+  assert.match(html, /<table>/u);
+  assert.match(html, /<thead><tr><th>Name<\/th><th>Value<\/th><\/tr><\/thead>/u);
+  assert.match(html, /<td><code>count\+\+<\/code><\/td>/u);
+  assert.match(html, /<td><strong>three steps<\/strong><\/td>/u);
+  assert.match(html, /<pre><code class="language-go">count\+\+/u);
 });
 
-test("Wechatsync preflight fails fast with bridge-specific diagnosis", async () => {
-  const calls = [];
-  await assert.rejects(
-    preflightWechatsync(async (command, args) => {
-      calls.push({ command, args });
-      throw new Error("wechatsync exited with code 1\n连接超时: 已有实例正在运行但 Chrome Extension 未连接\n请确保 Chrome 扩展已启用「同步桥接」并且 Token 正确");
-    }),
-    /Chrome Bridge 未连接/u,
-  );
-  assert.deepEqual(calls, [{
-    command: "wechatsync",
-    args: ["--timeout", "5000", "platforms", "--auth"],
-  }]);
-  assert.match(
-    explainWechatsyncBridgeFailure(new Error("Invalid or missing token")),
-    /Token 不匹配或缺失/u,
-  );
-});
-
-test("syncExports never starts article sync when Wechatsync preflight fails", async () => {
-  const exported = [{
-    slug: "example",
-    platform: "juejin",
-    outputFile: "example.md",
-    contentHash: "abc",
-    pending: true,
-  }];
-  const manifest = { version: 1, articles: { example: { platforms: { juejin: { contentHash: "abc" } } } } };
-  const calls = [];
-  await assert.rejects(
-    syncExports({
-      exported,
-      manifest,
-      manifestPath: "manifest.json",
-      run: async (command, args) => {
-        calls.push({ command, args });
-        throw new Error("连接超时: 已有实例正在运行但 Chrome Extension 未连接");
-      },
-    }),
-    /Chrome Bridge 未连接/u,
-  );
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].args[0], "--timeout");
-});
-
-test("parseArguments validates platform and changed options", () => {
+test("parseArguments validates native renderer scope", () => {
   assert.deepEqual(SUPPORTED_PLATFORMS, [
     "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
   ]);
   assert.deepEqual(
-    parseArguments(["--article", "a", "--platforms", "juejin,cnblogs", "--sync", "--changed"]),
+    parseArguments(["--article", "a", "--platforms", "juejin,cnblogs"]),
     {
       platforms: ["juejin", "cnblogs"],
       requestedSlugs: ["a"],
       outputRoot: ".distribution",
-      sync: true,
-      changedOnly: true,
-      dryRun: false,
       help: false,
     },
   );
@@ -403,16 +296,15 @@ test("parseArguments validates platform and changed options", () => {
       platforms: ["juejin", "csdn", "cnblogs"],
       requestedSlugs: [],
       outputRoot: ".distribution",
-      sync: false,
-      changedOnly: false,
-      dryRun: false,
       help: false,
     },
   );
   assert.throws(() => parseArguments(["--platforms", "unknown"]), /Unsupported platform/u);
   assert.throws(() => parseArguments(["--article"]), /requires a value/u);
   assert.throws(() => parseArguments(["--platforms"]), /at least one platform/u);
-  assert.throws(() => parseArguments(["--changed"]), /together with --sync/u);
+  assert.throws(() => parseArguments(["--sync"]), /Unknown option/u);
+  assert.throws(() => parseArguments(["--changed"]), /Unknown option/u);
+  assert.throws(() => parseArguments(["--dry-run"]), /Unknown option/u);
 });
 
 

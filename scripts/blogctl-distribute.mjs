@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import {
   exportArticles,
   parseArguments,
-  syncExports,
 } from "./distribute.mjs";
 import { loadPublishingConfig } from "./publishing-config.mjs";
 
@@ -73,19 +72,8 @@ export async function runBlogctlDistribution(argv, env = process.env) {
     }
   }
 
-  let synced = 0;
-  if (options.sync) {
-    synced = await syncExports({
-      ...result,
-      changedOnly: options.changedOnly,
-      dryRun: options.dryRun,
-    });
-  }
-
   const summary = {
     outputs: result.exported.length,
-    synced,
-    dryRun: options.dryRun,
     durationMs: Date.now() - startedAt,
   };
   log("info", "distribution", "completed", summary);

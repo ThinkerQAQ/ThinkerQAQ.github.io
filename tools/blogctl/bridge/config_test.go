@@ -49,84 +49,12 @@ func TestBridgeConfigRetainsProxyAddressWhileDisabled(t *testing.T) {
 	}
 }
 
-func TestBridgeConfigDefaultsWechatsyncPortAndPersistsToken(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
-
-	config, err := normalizeBridgeConfig(bridgeConfig{
-		WechatsyncToken: " token-123 ",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if config.WechatsyncToken != "token-123" || config.WechatsyncPort != 9527 {
-		t.Fatalf("wechatsync config = token:%q port:%d", config.WechatsyncToken, config.WechatsyncPort)
-	}
-	if err := saveBridgeConfig(config); err != nil {
-		t.Fatal(err)
-	}
-	loaded := loadBridgeConfig()
-	if loaded.WechatsyncToken != "token-123" || loaded.WechatsyncPort != 9527 {
-		t.Fatalf("loaded wechatsync config = token:%q port:%d", loaded.WechatsyncToken, loaded.WechatsyncPort)
-	}
-}
-
-func TestUpdateWechatsyncToolKeepsConfiguredTokenWhenSecretFieldIsBlank(t *testing.T) {
+func TestToolRegistryDoesNotExposeLegacyWechatsyncDependency(t *testing.T) {
 	config := defaultBridgeConfig()
-	config.WechatsyncToken = "existing-token"
-	updated, err := updateToolConfig(config, "wechatsync", map[string]any{
-		"path":  "",
-		"token": "",
-		"port":  float64(9600),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.WechatsyncToken != "existing-token" {
-		t.Fatalf("token = %q", updated.WechatsyncToken)
-	}
-	if updated.WechatsyncPort != 9600 {
-		t.Fatalf("port = %d", updated.WechatsyncPort)
-	}
-}
-
-func TestBridgeConfigRejectsInvalidWechatsyncPort(t *testing.T) {
-	if _, err := normalizeBridgeConfig(bridgeConfig{WechatsyncPort: 70000}); err == nil {
-		t.Fatal("invalid Wechatsync port unexpectedly succeeded")
-	}
-}
-
-func TestWechatsyncToolNeverExposesStoredToken(t *testing.T) {
-	t.Setenv("WECHATSYNC_TOKEN", "")
-	executable := filepath.Join(t.TempDir(), "wechatsync")
-	if err := os.WriteFile(executable, []byte("test"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	config := defaultBridgeConfig()
-	config.ToolPaths["wechatsync"] = executable
-	config.WechatsyncToken = "secret-token"
-	tools := toolRegistry(config)
-	var wechatsync toolDescriptor
-	for _, tool := range tools {
+	for _, tool := range toolRegistry(config) {
 		if tool.Name == "wechatsync" {
-			wechatsync = tool
-			break
+			t.Fatalf("legacy Wechatsync tool is still exposed: %#v", tool)
 		}
-	}
-	if !wechatsync.Health.OK {
-		t.Fatalf("health = %#v", wechatsync.Health)
-	}
-	if _, exposed := wechatsync.Config.Values["token"]; exposed {
-		t.Fatal("stored Wechatsync token was exposed through tool registry")
-	}
-	foundSecret := false
-	for _, field := range wechatsync.Config.Schema {
-		if field.Key == "token" {
-			foundSecret = field.Type == "secret"
-		}
-	}
-	if !foundSecret {
-		t.Fatalf("token secret field missing: %#v", wechatsync.Config.Schema)
 	}
 }
 

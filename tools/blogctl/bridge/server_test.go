@@ -51,12 +51,59 @@ func TestBridgeAcceptsOnlyApprovedMediumCookies(t *testing.T) {
 	}
 }
 
+func TestBridgeStoresJuejinCookieMetadataInMemory(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	expiry := float64(time.Now().Add(time.Hour).Unix())
+	body := map[string]any{
+		"cookies": []map[string]any{
+			{
+				"name": "sessionid", "value": "secret", "domain": ".juejin.cn", "path": "/",
+				"secure": true, "httpOnly": true, "hostOnly": false, "sameSite": "lax",
+				"expirationDate": expiry,
+			},
+		},
+		"userAgent": "UA",
+	}
+	encoded, _ := json.Marshal(body)
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/juejin", bytes.NewReader(encoded))
+	request.Header.Set("origin", "chrome-extension://test")
+	request.Header.Set("content-type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", response.StatusCode)
+	}
+
+	server.mu.Lock()
+	session := server.sessions["juejin"]
+	server.mu.Unlock()
+	if len(session.BrowserCookies) != 1 {
+		t.Fatalf("cookies = %#v", session.BrowserCookies)
+	}
+	cookie := session.BrowserCookies[0]
+	if cookie.Domain != ".juejin.cn" || cookie.Path != "/" || !cookie.Secure || !cookie.HTTPOnly || cookie.Value != "secret" {
+		t.Fatalf("cookie = %#v", cookie)
+	}
+	if session.UserAgent != "UA" {
+		t.Fatalf("user agent = %q", session.UserAgent)
+	}
+}
+
 func TestBridgeReadOnlyStatusDoesNotRequireToken(t *testing.T) {
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
 	defer handler.Close()
 
-	for _, path := range []string{"/v1/health", "/v1/config", "/v1/sessions/medium/status"} {
+	for _, path := range []string{"/v1/health", "/v1/config", "/v1/sessions/medium/status", "/v1/sessions/juejin/status"} {
 		request, _ := http.NewRequest(http.MethodGet, handler.URL+path, nil)
 		request.Header.Set("origin", "chrome-extension://test")
 		response, err := http.DefaultClient.Do(request)

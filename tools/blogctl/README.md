@@ -92,9 +92,9 @@ BlogCTL Extension independently reports browser login status for the publishing 
 
 The extension contacts the registered Native Messaging Host whenever Bridge access is required. The host reuses an existing healthy Bridge or starts `blogctl --bridge` in the background, then returns the current loopback endpoint. Live `blogctl sync --platforms medium` uses the same persistent Bridge state instead of creating a second per-command Bridge.
 
-Medium needs a short-lived browser-session handoff internally for draft creation, but that is an implementation detail and is not exposed in the popup. Users only see Medium's normal login state.
+Platforms that publish through browser-authenticated native adapters use a short-lived browser-session handoff internally. This is an implementation detail and is not exposed as a separate Session control in the popup; users only see the normal platform login state.
 
-When Medium is logged in, BlogCTL refreshes the approved Medium Session automatically when needed. There is no separate Session status or manual Session button. Only adapter-approved Medium browser session fields are sent; the Bridge keeps them in memory. Other platform login probes do not send their cookies to BlogCTL.
+Before creating a draft, retrying a failed job, or confirming publication, the BlogCTL Extension refreshes the approved session for the selected platform automatically. Only adapter-approved browser cookies plus the browser user agent are handed to the local Bridge, and the Bridge keeps them in memory with a short TTL rather than persisting them in BlogCTL configuration.
 
 Publishing language is a persistent per-platform policy under **发布配置**. Chinese platforms default to `zh-CN`; DEV.to and Medium default to `en`. Either default can be changed. The selected language controls the complete source article (title, description, tags and body) plus the blog canonical/Footer URL. See [PUBLISHING_LANGUAGE.md](./PUBLISHING_LANGUAGE.md).
 
@@ -115,10 +115,11 @@ This keeps the command stable:
 blogctl sync --article concurrency-series-01-hardware --platforms medium
 ```
 
-Current routing is intentionally incremental:
+Current routing uses one BlogCTL control plane:
 
 - DEV.to keeps the official API implementation.
-- Medium uses `blogctl` + persistent Bridge + BlogCTL Extension and remains draft-only.
-- Chinese destinations keep the existing Wechatsync subprocess while their platform adapters are migrated. This preserves working behavior without copying GPL-licensed Wechatsync implementation into the MIT blog repository. Live Chinese sync therefore still needs the existing Wechatsync environment during this migration stage.
+- Medium uses the persistent BlogCTL Bridge plus BlogCTL Extension and remains draft-oriented.
+- 博客园、掘金、CSDN、思否、知乎、51CTO、开源中国、今日头条 use BlogCTL's native Go publisher adapters. They do not require the Wechatsync CLI or Wechatsync browser extension.
+- Native Chinese publishing follows two explicit phases: first create or update the remote draft and return its preview URL; after preview, use **确定发布** from the task page. BlogCTL refuses confirmation when the source content hash no longer matches the reviewed draft.
 
-This compatibility path is not a second `blogctl` architecture. The target remains one CLI, one bridge implementation, and one BlogCTL Extension.
+The browser extension is therefore the only browser-side component required by BlogCTL publishing.

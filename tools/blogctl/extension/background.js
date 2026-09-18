@@ -1,4 +1,5 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
+import { selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
@@ -126,8 +127,23 @@ async function platformLoginStatus(definition) {
       case "final-url": loggedIn = await probeFinalURL(probe); break;
       default: throw new Error(`Unsupported auth probe: ${probe.kind || "missing"}`);
     }
-    return { id: definition.id, label: definition.label, known: true, loggedIn: Boolean(loggedIn) };
+    if (loggedIn) {
+      return { id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: false };
+    }
+    if (await platformHasSessionCookies(definition.id)) {
+      return {
+        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
+        warning: "Login probe did not match, but browser session cookies are available.",
+      };
+    }
+    return { id: definition.id, label: definition.label, known: true, loggedIn: false, inferred: false };
   } catch (error) {
+    if (await platformHasSessionCookies(definition.id)) {
+      return {
+        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
+        warning: `Login probe failed: ${errorMessage(error)}`,
+      };
+    }
     return { id: definition.id, label: definition.label, known: false, loggedIn: false, error: errorMessage(error) };
   }
 }
@@ -186,8 +202,13 @@ async function platformSessionStatus(platform, bridge) {
 
 async function getStatus() {
   const [bridge, platforms] = await Promise.all([bridgeStatus(), allPlatformLoginStatuses()]);
-  const mediumSession = await platformSessionStatus("medium", bridge);
-  return { bridge, platforms, sessions: { medium: mediumSession } };
+  const sessionEntries = await Promise.all(
+    Object.keys(PLATFORM_SESSIONS).map(async (platform) => [
+      platform,
+      await platformSessionStatus(platform, bridge),
+    ]),
+  );
+  return { bridge, platforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
 async function saveBridgeConfig(config) {
@@ -198,16 +219,47 @@ async function saveBridgeConfig(config) {
   }));
 }
 
+async function collectPlatformCookieBatches(definition) {
+  const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
+  const cookieDomains = definition.cookieDomains ?? [];
+  const requests = [
+    ...cookieUrls.map((url) => chrome.cookies.getAll({ url })),
+    ...cookieDomains.map((domain) => chrome.cookies.getAll({ domain })),
+  ];
+  return Promise.all(requests);
+}
+
+async function selectedPlatformCookies(platform) {
+  const definition = PLATFORM_SESSIONS[platform];
+  if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
+  const batches = await collectPlatformCookieBatches(definition);
+  return selectBrowserSessionCookies(definition, batches);
+}
+
+async function platformHasSessionCookies(platform) {
+  if (!PLATFORM_SESSIONS[platform]) return false;
+  try {
+    return (await selectedPlatformCookies(platform)).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function syncPlatformSession(platform) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
-  const cookies = await chrome.cookies.getAll({ url: definition.cookieUrl });
-  const allowed = new Set(definition.cookieNames);
-  const selected = cookies.filter((cookie) => allowed.has(cookie.name)).map((cookie) => ({ name: cookie.name, value: cookie.value }));
-  for (const required of definition.requiredCookieNames ?? []) {
-    if (!selected.some((cookie) => cookie.name === required && cookie.value)) throw new Error(`${platform}: required cookie ${required} not found. Sign in first.`);
+
+  let selected;
+  try {
+    selected = await selectedPlatformCookies(platform);
+  } catch (error) {
+    throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
   }
-  return fetchJSON(`/v1/sessions/${encodeURIComponent(platform)}`, jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent }));
+
+  return fetchJSON(
+    `/v1/sessions/${encodeURIComponent(platform)}`,
+    jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent }),
+  );
 }
 
 async function syncBrowserSession(platform) {
@@ -216,6 +268,18 @@ async function syncBrowserSession(platform) {
   await setBadge("✓", "#1a8917");
   clearBadgeLater();
   return result;
+}
+
+async function syncSessionsForPlatforms(platforms = []) {
+  const unique = [...new Set(platforms.map((platform) => String(platform || "").trim()).filter(Boolean))];
+  for (const platform of unique) {
+    if (!PLATFORM_SESSIONS[platform]) continue;
+    await syncPlatformSession(platform);
+  }
+}
+
+async function prepareJobSessions(job) {
+  await syncSessionsForPlatforms(job?.platforms ?? []);
 }
 
 async function handleMessage(message) {
@@ -264,7 +328,9 @@ async function handleMessage(message) {
       return { ok: true, jobs: result?.jobs ?? [] };
     }
     case "blogctl.job.start": {
-      const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", message.request ?? {}));
+      const request = message.request ?? {};
+      await syncSessionsForPlatforms(request.platforms ?? []);
+      const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
@@ -286,7 +352,17 @@ async function handleMessage(message) {
     case "blogctl.job.retry": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
+      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      await prepareJobSessions(current?.job);
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      return { ok: true, job: result?.job };
+    }
+    case "blogctl.job.publish": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      await prepareJobSessions(current?.job);
+      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
       return { ok: true, job: result?.job };
     }
     default: return null;

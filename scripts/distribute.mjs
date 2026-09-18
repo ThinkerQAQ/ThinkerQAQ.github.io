@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { micromark } from "micromark";
 import {
   defaultPlatformPublishingConfig,
   defaultPublishingConfig,
@@ -23,6 +23,7 @@ export const SUPPORTED_PLATFORMS = [
 ];
 export const DEFAULT_OUTPUT_ROOT = ".distribution";
 export const MANIFEST_FILE = "manifest.json";
+export const MANIFEST_VERSION = 2;
 
 export function resolveArticleAssetUrl(value) {
   const raw = String(value || "").trim();
@@ -187,6 +188,101 @@ export function buildPlatformMarkdown(article, {
 	return `${frontmatter}\n\n${body}${footerSection}\n`;
 }
 
+function splitTableRow(line) {
+  let text = String(line).trim();
+  if (text.startsWith("|")) text = text.slice(1);
+  if (text.endsWith("|")) text = text.slice(0, -1);
+  const cells = [];
+  let current = "";
+  let escaped = false;
+  let codeTicks = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      current += char;
+      escaped = true;
+      continue;
+    }
+    if (char === "`") {
+      let run = 1;
+      while (text[index + run] === "`") run += 1;
+      const token = "`".repeat(run);
+      current += token;
+      index += run - 1;
+      codeTicks = codeTicks === run ? 0 : (codeTicks === 0 ? run : codeTicks);
+      continue;
+    }
+    if (char === "|" && codeTicks === 0) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function isTableDelimiter(line) {
+  const cells = splitTableRow(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/u.test(cell.trim()));
+}
+
+function inlineMarkdownToHtml(value) {
+  const rendered = micromark(String(value), { allowDangerousHtml: true }).trim();
+  const match = rendered.match(/^<p>([\s\S]*)<\/p>$/u);
+  return match ? match[1] : rendered;
+}
+
+export function renderPlatformHtml(markdown) {
+  const lines = String(markdown).replaceAll("\r\n", "\n").split("\n");
+  const output = [];
+  let index = 0;
+  let fence = "";
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const fenceMatch = line.match(/^\s*([`~]{3,})/u);
+    if (fenceMatch) {
+      const token = fenceMatch[1][0];
+      if (!fence) fence = token;
+      else if (fence === token) fence = "";
+      output.push(line);
+      index += 1;
+      continue;
+    }
+
+    if (!fence && index + 1 < lines.length && line.includes("|") && isTableDelimiter(lines[index + 1])) {
+      const headers = splitTableRow(line);
+      const delimiter = splitTableRow(lines[index + 1]);
+      if (headers.length === delimiter.length && headers.length > 0) {
+        const rows = [];
+        index += 2;
+        while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+          const row = splitTableRow(lines[index]);
+          if (row.length !== headers.length) break;
+          rows.push(row);
+          index += 1;
+        }
+        const head = headers.map((cell) => `<th>${inlineMarkdownToHtml(cell)}</th>`).join("");
+        const body = rows.map((row) => `<tr>${row.map((cell) => `<td>${inlineMarkdownToHtml(cell)}</td>`).join("")}</tr>`).join("");
+        output.push(`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`);
+        continue;
+      }
+    }
+
+    output.push(line);
+    index += 1;
+  }
+
+  return micromark(output.join("\n"), { allowDangerousHtml: true });
+}
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -215,10 +311,70 @@ async function walkMarkdown(directory, { excludedDirectories = new Set() } = {})
   return files.sort();
 }
 
+function draftIdFromUrl(platform, draftUrl) {
+  const trimmed = typeof draftUrl === "string" ? draftUrl.trim() : "";
+  if (!trimmed) return "";
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return "";
+  }
+  const pathId = () => {
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    return segments.length ? segments[segments.length - 1] : "";
+  };
+  switch (platform) {
+    case "juejin":
+    case "51cto":
+    case "oschina":
+      return pathId();
+    case "zhihu": {
+      // 草稿/编辑链接为 /p/<id>/edit，公开链接为 /p/<id>；兼容旧的 /write/<id>。
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      if (segments[0] === "p" && segments[1]) return segments[1];
+      return pathId();
+    }
+    case "csdn":
+      return parsed.searchParams.get("articleId") ?? "";
+    case "segmentfault":
+      return parsed.searchParams.get("draftId") ?? "";
+    case "toutiao":
+      return parsed.searchParams.get("pgc_id") ?? "";
+    case "cnblogs":
+      return trimmed.match(/postId=([^&?#]+)/u)?.[1] ?? "";
+    default:
+      return "";
+  }
+}
+
+function migrateManifest(manifest) {
+  if (!manifest || typeof manifest.articles !== "object") {
+    return { version: MANIFEST_VERSION, articles: {} };
+  }
+  if (manifest.version === MANIFEST_VERSION) return manifest;
+  if (manifest.version !== 1) {
+    throw new Error(`Unsupported distribution manifest version: ${manifest.version}`);
+  }
+  for (const article of Object.values(manifest.articles)) {
+    for (const [platform, state] of Object.entries(article?.platforms ?? {})) {
+      if (!state || typeof state !== "object") continue;
+      if (!state.draftHash && state.lastSyncedHash) state.draftHash = state.lastSyncedHash;
+      if (!state.draftSyncedAt && state.lastSyncedAt) state.draftSyncedAt = state.lastSyncedAt;
+      if (!state.remoteDraftId) {
+        const id = draftIdFromUrl(platform, state.draftUrl);
+        if (id) state.remoteDraftId = id;
+      }
+    }
+  }
+  manifest.version = MANIFEST_VERSION;
+  return manifest;
+}
+
 async function readManifest(manifestPath) {
-  if (!(await exists(manifestPath))) return { version: 1, articles: {} };
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== 1 || typeof manifest.articles !== "object") {
+  if (!(await exists(manifestPath))) return { version: MANIFEST_VERSION, articles: {} };
+  const manifest = migrateManifest(JSON.parse(await readFile(manifestPath, "utf8")));
+  if (typeof manifest.articles !== "object") {
     throw new Error(`Unsupported distribution manifest: ${manifestPath}`);
   }
   return manifest;
@@ -228,7 +384,7 @@ async function writeManifest(manifestPath, manifest) {
   await mkdir(path.dirname(manifestPath), { recursive: true });
   const output = {
     ...manifest,
-    version: 1,
+    version: MANIFEST_VERSION,
     generatedAt: new Date().toISOString(),
   };
   await writeFile(manifestPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
@@ -285,17 +441,24 @@ export async function exportArticles({
 		publishingConfig: publishingConfig?.[platform] ?? defaultPlatformPublishingConfig(platform),
 		language,
 	});
-      const contentHash = sha256(generated);
+      const generatedArticle = parseArticle(generated, `${platform}:${slug}`);
+      const renderedHtml = renderPlatformHtml(generatedArticle.body);
+      const contentHash = sha256(`${generated}\n<!-- blogctl-html -->\n${renderedHtml}`);
       const outputFile = path.join(resolvedOutputRoot, platform, `${slug}.md`);
+      const htmlOutputFile = path.join(resolvedOutputRoot, platform, `${slug}.html`);
       await mkdir(path.dirname(outputFile), { recursive: true });
       const outputChanged = !(await exists(outputFile))
         || await readFile(outputFile, "utf8") !== generated;
       if (outputChanged) await writeFile(outputFile, generated, "utf8");
+      const htmlOutputChanged = !(await exists(htmlOutputFile))
+        || await readFile(htmlOutputFile, "utf8") !== renderedHtml;
+      if (htmlOutputChanged) await writeFile(htmlOutputFile, renderedHtml, "utf8");
 
       const previous = articleState.platforms[platform] ?? {};
       articleState.platforms[platform] = {
         ...previous,
         output: path.relative(process.cwd(), outputFile).split(path.sep).join("/"),
+        htmlOutput: path.relative(process.cwd(), htmlOutputFile).split(path.sep).join("/"),
         language,
         canonicalUrl,
         contentHash,
@@ -308,7 +471,7 @@ export async function exportArticles({
         canonicalUrl,
         outputFile,
         contentHash,
-        pending: previous.lastSyncedHash !== contentHash,
+        pending: (previous.draftHash ?? previous.lastSyncedHash) !== contentHash,
         tagCount: article.tags.length,
         exportedTagCount: platform === "cnblogs" ? article.tags.length : Math.min(5, article.tags.length),
       });
@@ -331,203 +494,11 @@ export async function exportArticles({
   return { exported, manifest, manifestPath };
 }
 
-function runProcess(command, args, { cwd = process.cwd(), timeoutMs = 120_000 } = {}) {
-  return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
-    const output = [];
-    let timedOut = false;
-    const child = spawn(command, args, {
-      cwd,
-      env: process.env,
-      stdio: ["inherit", "pipe", "pipe"],
-      shell: process.platform === "win32",
-      windowsHide: true,
-    });
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, timeoutMs);
-    child.stdout.on("data", (chunk) => {
-      output.push(chunk);
-      process.stdout.write(chunk);
-    });
-    child.stderr.on("data", (chunk) => {
-      output.push(chunk);
-      process.stderr.write(chunk);
-    });
-    child.once("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.once("exit", (code, signal) => {
-      clearTimeout(timer);
-      if (timedOut) {
-        reject(new Error(`${command} timed out after ${timeoutMs}ms`));
-        return;
-      }
-      if (signal) {
-        reject(new Error(`${command} terminated by signal ${signal}`));
-        return;
-      }
-      const combinedOutput = Buffer.concat(output).toString("utf8");
-      if (code !== 0) {
-        const detail = combinedOutput.trim().slice(-4000);
-        reject(new Error(`${command} exited with code ${code}${detail ? `\n${detail}` : ""}`));
-        return;
-      }
-      resolve({
-        durationMs: Date.now() - startedAt,
-        output: combinedOutput,
-      });
-    });
-  });
-}
-
-function normalizeWechatsyncOutput(output = "") {
-  return String(output).replace(/\x1B\[[0-?]*[ -/]*[@-~]/gu, "");
-}
-
-export function explainWechatsyncBridgeFailure(error) {
-  const normalized = normalizeWechatsyncOutput(error?.message || error || "");
-  if (/已有实例正在运行但 Chrome Extension 未连接|等待 Chrome Extension 连接/u.test(normalized)) {
-    return "Wechatsync Chrome Bridge 未连接：请开启 Wechatsync 扩展的“同步桥接 / MCP 连接”，并确保 Token 与 WebSocket 端口和 BlogCTL 配置一致。";
-  }
-  if (/Invalid or missing token|token.*(invalid|missing)|Token.*(错误|不正确|不匹配)/iu.test(normalized)) {
-    return "Wechatsync Bridge Token 不匹配或缺失：BlogCTL 与 Wechatsync Chrome 扩展必须使用同一个 Token。";
-  }
-  if (/端口被占用|EADDRINUSE|Primary not reachable/u.test(normalized)) {
-    return "Wechatsync Bridge 端口被其他实例占用或已有实例不可达；BlogCTL 会串行执行 Wechatsync 任务，但外部遗留进程仍需先退出。";
-  }
-  return `Wechatsync Bridge 不可用：${normalized.trim().slice(-1200) || "unknown error"}`;
-}
-
-export async function preflightWechatsync(run = runProcess) {
-  const startedAt = Date.now();
-  log("info", "distribution-wechatsync-preflight", "started");
-  try {
-    const result = await run("wechatsync", ["--timeout", "5000", "platforms", "--auth"]);
-    log("info", "distribution-wechatsync-preflight", "completed", {
-      durationMs: Date.now() - startedAt,
-    });
-    return result;
-  } catch (error) {
-    const message = explainWechatsyncBridgeFailure(error);
-    log("error", "distribution-wechatsync-preflight", "failed", {
-      durationMs: Date.now() - startedAt,
-      exception: { name: error?.name || "Error", message },
-    });
-    throw new Error(message, { cause: error });
-  }
-}
-
-function wechatsyncFailure(output = "") {
-  const normalized = normalizeWechatsyncOutput(output);
-  if (/文章频繁发布，请稍后再试/u.test(normalized)) return "rate-limited";
-  if (/Invalid or missing token/u.test(normalized)) return "invalid-token";
-  if (/无头条广告权限/u.test(normalized)) return "toutiao-ad-permission";
-  if (/同步完成:\s*0\s*成功,\s*[1-9]\d*\s*失败/u.test(normalized)) return "platform-failed";
-  return null;
-}
-
-export function normalizeDraftUrl(platform, draftUrl) {
-  if (!draftUrl) return undefined;
-  if (platform === "oschina") {
-    return draftUrl.replace(
-      /^(https:\/\/my\.oschina\.net\/u\/\d+\/blog)\/write\/draft\/(\d+)(?:\/)?$/u,
-      "$1/ai-write/draft/$2",
-    );
-  }
-  return draftUrl;
-}
-
-export function extractDraftUrl(output = "", platform) {
-  const normalized = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/gu, "");
-  const urls = normalized.match(/https?:\/\/[^\s]+/gu) ?? [];
-  const platformUrl = platform === "oschina"
-    ? urls.find((url) => url.startsWith("https://my.oschina.net/"))
-    : urls.at(-1);
-  return normalizeDraftUrl(platform, platformUrl?.replace(/[),.;]+$/u, ""));
-}
-
-export async function syncExports({
-  exported,
-  manifest,
-  manifestPath,
-  changedOnly = false,
-  dryRun = false,
-  run = runProcess,
-  wait = (durationMs) => new Promise((resolve) => setTimeout(resolve, durationMs)),
-  rateLimitRetryMs = 60_000,
-} = {}) {
-  const selected = changedOnly ? exported.filter((item) => item.pending) : exported;
-  if (selected.length === 0) return 0;
-  if (!dryRun) {
-    await preflightWechatsync(run);
-  }
-  for (const item of selected) {
-    const startedAt = Date.now();
-    const args = ["sync", item.outputFile, "-p", item.platform];
-    if (dryRun) args.push("--dry-run");
-    log("info", "distribution-sync", "started", {
-      slug: item.slug,
-      platform: item.platform,
-      dryRun,
-    });
-    try {
-      let result = await run("wechatsync", args);
-      let failure = wechatsyncFailure(result?.output);
-      if (!dryRun && item.platform === "csdn" && failure === "rate-limited") {
-        log("warn", "distribution-sync", "rate-limit-retry-wait", {
-          slug: item.slug,
-          platform: item.platform,
-          retryDelayMs: rateLimitRetryMs,
-        });
-        await wait(rateLimitRetryMs);
-        result = await run("wechatsync", args);
-        failure = wechatsyncFailure(result?.output);
-      }
-      if (failure) throw new Error(`Wechatsync reported ${failure}`);
-      const draftUrl = extractDraftUrl(result?.output, item.platform);
-      if (!dryRun) {
-        const state = manifest.articles[item.slug].platforms[item.platform];
-        state.lastSyncedHash = item.contentHash;
-        state.lastSyncedAt = new Date().toISOString();
-        if (draftUrl) state.draftUrl = draftUrl;
-        await writeManifest(manifestPath, manifest);
-      }
-      log("info", "distribution-sync", dryRun ? "dry-run-completed" : "completed", {
-        slug: item.slug,
-        platform: item.platform,
-        ...(draftUrl ? { draftUrl } : {}),
-        durationMs: Date.now() - startedAt,
-      });
-    } catch (error) {
-      log("error", "distribution-sync", "failed", {
-        slug: item.slug,
-        platform: item.platform,
-        durationMs: Date.now() - startedAt,
-        exception: { name: error.name, message: error.message },
-      });
-      const advice = error.message.includes("toutiao-ad-permission")
-        ? "The Wechatsync Toutiao adapter requested an advertising mode unavailable to this account; do not retry automatically. Use a fixed adapter or create the draft in Toutiao manually."
-        : "Install @wechatsync/cli, enable its Chrome bridge, and log in to the platform.";
-      throw new Error(
-        `Failed to sync ${item.slug} to ${item.platform}. ${error.message} ${advice}`,
-        { cause: error },
-      );
-    }
-  }
-  return selected.length;
-}
-
 export function parseArguments(argv) {
   const options = {
     platforms: [...SUPPORTED_PLATFORMS],
     requestedSlugs: [],
     outputRoot: DEFAULT_OUTPUT_ROOT,
-    sync: false,
-    changedOnly: false,
-    dryRun: false,
     help: false,
   };
 
@@ -551,37 +522,29 @@ export function parseArguments(argv) {
     } else if (argument === "--output") {
       options.outputRoot = requireValue(argument, index);
       index += 1;
+    } else if (argument === "--help" || argument === "-h") {
+      options.help = true;
+    } else {
+      throw new Error(`Unknown option: ${argument}`);
     }
-    else if (argument === "--sync") options.sync = true;
-    else if (argument === "--changed") options.changedOnly = true;
-    else if (argument === "--dry-run") options.dryRun = true;
-    else if (argument === "--help" || argument === "-h") options.help = true;
-    else throw new Error(`Unknown option: ${argument}`);
   }
 
   if (!options.outputRoot) throw new Error("--output requires a directory");
   if (options.platforms.length === 0) throw new Error("--platforms requires at least one platform");
   const unsupported = options.platforms.filter((item) => !SUPPORTED_PLATFORMS.includes(item));
   if (unsupported.length > 0) throw new Error(`Unsupported platform: ${unsupported.join(", ")}`);
-  if (options.changedOnly && !options.sync) {
-    throw new Error("--changed is only meaningful together with --sync");
-  }
-  if (options.dryRun && !options.sync) throw new Error("--dry-run requires --sync");
   return options;
 }
 
 function printHelp() {
   console.log(`Usage: npm run distribute -- [options]
 
-Generate platform-ready Markdown from published articles. Add --sync to send drafts through Wechatsync.
+Generate platform-ready Markdown and HTML artifacts for BlogCTL native publishers.
 
 Options:
   --article <slug>       Export one article; may be repeated
   --platforms <list>     Comma- or space-separated: cnblogs,juejin,csdn,segmentfault,zhihu,51cto,oschina,toutiao
   --output <directory>   Output directory (default: .distribution)
-  --sync                 Send generated Markdown to platform drafts
-  --changed              With --sync, send only content not synced before
-  --dry-run              Ask Wechatsync to validate without creating drafts
   -h, --help             Show this help`);
 }
 
@@ -613,18 +576,8 @@ async function main() {
     }
   }
 
-  let synced = 0;
-  if (options.sync) {
-    synced = await syncExports({
-      ...result,
-      changedOnly: options.changedOnly,
-      dryRun: options.dryRun,
-    });
-  }
   log("info", "distribution", "completed", {
     outputs: result.exported.length,
-    synced,
-    dryRun: options.dryRun,
     durationMs: Date.now() - startedAt,
   });
 }
