@@ -16,6 +16,7 @@ import (
 	"time"
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 var supportedSyncPlatforms = map[string]struct{}{
@@ -492,7 +493,7 @@ func newJobID() string {
 
 type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
 
-func usesWechatsyncPlatform(platforms []string) bool {
+func usesChinaPublishingPlatform(platforms []string) bool {
 	for _, platform := range platforms {
 		switch platform {
 		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
@@ -500,6 +501,48 @@ func usesWechatsyncPlatform(platforms []string) bool {
 		}
 	}
 	return false
+}
+
+type bridgeNativePublisher struct {
+	server *Server
+}
+
+func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
+	p.server.mu.Lock()
+	session, ok := p.server.sessions[request.Platform]
+	if ok && !session.ExpiresAt.After(p.server.now()) {
+		delete(p.server.sessions, request.Platform)
+		ok = false
+	}
+	httpClient := p.server.httpClient
+	p.server.mu.Unlock()
+	if !ok {
+		return blogapp.NativeDraftResult{}, fmt.Errorf("%s browser session is required", request.Platform)
+	}
+
+	cookies := make([]publisher.BrowserCookie, 0, len(session.BrowserCookies))
+	for _, cookie := range session.BrowserCookies {
+		cookies = append(cookies, publisher.BrowserCookie{
+			Name: cookie.Name, Value: cookie.Value, Domain: cookie.Domain, Path: cookie.Path,
+			Secure: cookie.Secure, HTTPOnly: cookie.HTTPOnly, HostOnly: cookie.HostOnly,
+			SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
+		})
+	}
+	service := publisher.Service{HTTPClient: httpClient}
+	result, err := service.CreateOrUpdateDraft(ctx, request.Platform, publisher.Session{
+		Cookies: cookies, UserAgent: session.UserAgent,
+	}, request.ContentRoot, request.Article, request.ChangedOnly)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	resultName := "draft-created"
+	if result.Updated {
+		resultName = "updated"
+	}
+	if result.Skipped {
+		resultName = "skipped"
+	}
+	return blogapp.NativeDraftResult{Result: resultName, URL: result.URL}, nil
 }
 
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
@@ -516,10 +559,11 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		applicationConfig.ConfigPath = configPath
 	}
 	service := blogapp.NewSyncService()
+	service.NativePublisher = bridgeNativePublisher{server: s}
 	service.OnEvent = onEvent
-	if usesWechatsyncPlatform(request.Platforms) {
-		s.wechatsyncMu.Lock()
-		defer s.wechatsyncMu.Unlock()
+	if usesChinaPublishingPlatform(request.Platforms) {
+		s.distributionMu.Lock()
+		defer s.distributionMu.Unlock()
 	}
 	return service.Run(ctx, applicationConfig, blogapp.SyncRequest{
 		Articles:  []string{request.Article},
