@@ -176,6 +176,24 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	}, manifestPath, nil
 }
 
+
+func writeManifestAtomic(path string, manifest map[string]any) error {
+	payload, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	payload = append(payload, '\n')
+	temp := path + ".tmp"
+	if err := os.WriteFile(temp, payload, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(temp, path); err != nil {
+		_ = os.Remove(temp)
+		return err
+	}
+	return nil
+}
+
 func SaveDraftResult(manifestPath, slug, platform, contentHash string, result DraftResult, now time.Time) error {
 	manifest, err := readManifest(manifestPath)
 	if err != nil {
@@ -194,18 +212,23 @@ func SaveDraftResult(manifestPath, slug, platform, contentHash string, result Dr
 	state["lastSyncedHash"] = contentHash
 	state["lastSyncedAt"] = now.UTC().Format(time.RFC3339)
 
-	payload, err := json.MarshalIndent(manifest, "", "  ")
+	return writeManifestAtomic(manifestPath, manifest)
+}
+
+func SavePublishResult(manifestPath, slug, platform, contentHash string, result PublishResult, now time.Time) error {
+	manifest, err := readManifest(manifestPath)
 	if err != nil {
 		return err
 	}
-	payload = append(payload, '\n')
-	temp := manifestPath + ".tmp"
-	if err := os.WriteFile(temp, payload, 0o600); err != nil {
+	state, err := platformState(manifest, slug, platform)
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(temp, manifestPath); err != nil {
-		_ = os.Remove(temp)
-		return err
+	if stringValue(state["draftHash"]) != contentHash {
+		return errors.New("refusing to record publication for a stale draft")
 	}
-	return nil
+	state["publishedUrl"] = result.URL
+	state["publishedHash"] = contentHash
+	state["publishedAt"] = now.UTC().Format(time.RFC3339)
+	return writeManifestAtomic(manifestPath, manifest)
 }
