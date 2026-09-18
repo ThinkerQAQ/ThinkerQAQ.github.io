@@ -104,7 +104,7 @@ var (
 	zhihuImagePattern       = regexp.MustCompile(`(?is)<img\b[^>]*>`)
 	zhihuNestedFigure       = regexp.MustCompile(`(?is)<figure[^>]*>\s*<figure>\s*(<img\b[^>]*>)\s*</figure>\s*</figure>`)
 	zhihuCodePattern        = regexp.MustCompile(`(?i)<pre><code class="language-([^"]+)">`)
-	zhihuDataPattern        = regexp.MustCompile(`(?i)\s+data-(?!draft)[a-z0-9_-]+="[^"]*"`)
+	zhihuDataPattern        = regexp.MustCompile(`(?i)\s+data-[a-z0-9_-]+="[^"]*"`)
 	zhihuStylePattern       = regexp.MustCompile(`(?i)\s+style="[^"]*"`)
 	zhihuSectionOpenPattern = regexp.MustCompile(`(?i)<section([^>]*)>`)
 	zhihuSectionClosePattern = regexp.MustCompile(`(?i)</section>`)
@@ -154,7 +154,12 @@ func transformZhihuHTML(html string) string {
 	result = zhihuCodePattern.ReplaceAllString(result, `<pre lang="$1"><code>`)
 	result = zhihuSectionOpenPattern.ReplaceAllString(result, "<div$1>")
 	result = zhihuSectionClosePattern.ReplaceAllString(result, "</div>")
-	result = zhihuDataPattern.ReplaceAllString(result, "")
+	result = zhihuDataPattern.ReplaceAllStringFunc(result, func(attribute string) string {
+		if strings.Contains(strings.ToLower(attribute), "data-draft") {
+			return attribute
+		}
+		return ""
+	})
 	result = zhihuStylePattern.ReplaceAllString(result, "")
 	return result
 }
