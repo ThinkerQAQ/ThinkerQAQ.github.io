@@ -5,8 +5,12 @@
     return { available: true, reason: "" };
   }
 
+  const NATIVE_BROWSER_PLATFORMS = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
+  ]);
+
   function platformAvailability(article, platform, publishingProfile = {}) {
-    if (platform && typeof platform === "object") {
+    if (platform && typeof platform === "object" && !NATIVE_BROWSER_PLATFORMS.has(platform.id)) {
       if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
       if (!platform.loggedIn) return { available: false, reason: "未登录" };
     }
