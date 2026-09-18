@@ -2,7 +2,6 @@ package publisher
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
