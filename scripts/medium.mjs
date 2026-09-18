@@ -276,11 +276,23 @@ export function parseMediumBlocks(markdown) {
   return { blocks, warnings: [...new Set(warnings)] };
 }
 
+function publishingLanguage(publishingConfig) {
+  return publishingConfig?.language === "zh-CN" ? "zh-CN" : "en";
+}
+
+function mediumCanonicalUrl(slug, publishingConfig) {
+  const language = publishingLanguage(publishingConfig);
+  const prefix = language === "en" ? "/en/articles/" : "/articles/";
+  const encodedSlug = String(slug).split("/").map(encodeURIComponent).join("/");
+  return new URL(`${prefix}${encodedSlug}/`, SITE_ORIGIN).toString();
+}
+
 function footerData(article, canonicalUrl, publishingConfig) {
+  const language = publishingLanguage(publishingConfig);
   const markdown = renderPublishingFooter(publishingConfig, {
     canonicalUrl,
     title: article.title,
-    site: "ThinkerQAQ's personal blog",
+    site: language === "en" ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客",
   }).replace(/^>\s?/u, "").trim();
   if (!markdown) return null;
   return parseInline(markdown, []);
@@ -290,7 +302,7 @@ export function buildMediumDraft(article, {
   slug,
   publishingConfig = defaultPlatformPublishingConfig("medium"),
 }) {
-  const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+  const canonicalUrl = mediumCanonicalUrl(slug, publishingConfig);
   const { blocks, warnings } = parseMediumBlocks(article.body);
   const deltas = blocks.map((block, index) => ({
     type: 1,
@@ -357,13 +369,13 @@ export function buildMediumCopyHtml(article, {
   slug,
   publishingConfig = defaultPlatformPublishingConfig("medium"),
 }) {
-  const canonicalUrl = new URL(`/en/articles/${slug}/`, SITE_ORIGIN).toString();
+  const canonicalUrl = mediumCanonicalUrl(slug, publishingConfig);
   const { blocks } = parseMediumBlocks(article.body);
   const footer = footerData(article, canonicalUrl, publishingConfig);
   const body = renderBlocks(blocks);
   const footerHtml = footer ? `\n<hr>\n<blockquote><p>${footer.html}</p></blockquote>` : "";
   return `<!doctype html>
-<html lang="en">
+<html lang="${publishingLanguage(publishingConfig)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
