@@ -49,8 +49,8 @@ jobs:
             git -C content-source ls-files --others --exclude-standard -z
           } > "$RUNNER_TEMP/tdoc-migration/changed-files.z"
           if [ -s "$RUNNER_TEMP/tdoc-migration/changed-files.z" ]; then
-            tar --null -T "$RUNNER_TEMP/tdoc-migration/changed-files.z" \
-              -C content-source -czf "$RUNNER_TEMP/tdoc-migration/migration-output.tar.gz"
+            tar -C content-source --null -T "$RUNNER_TEMP/tdoc-migration/changed-files.z" \
+              -czf "$RUNNER_TEMP/tdoc-migration/migration-output.tar.gz"
           else
             tar -czf "$RUNNER_TEMP/tdoc-migration/migration-output.tar.gz" --files-from /dev/null
           fi
