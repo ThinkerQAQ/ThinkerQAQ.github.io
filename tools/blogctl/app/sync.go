@@ -32,12 +32,14 @@ type SyncRequest struct {
 }
 
 type SyncConfig struct {
-	EngineRoot   string
-	ContentRoot  string
-	ConfigPath   string
-	BridgeOrigin string
-	BridgeToken  string
-	ToolPaths    map[string]string
+	EngineRoot      string
+	ContentRoot     string
+	ConfigPath      string
+	BridgeOrigin    string
+	BridgeToken     string
+	ToolPaths       map[string]string
+	WechatsyncToken string
+	WechatsyncPort  int
 }
 
 type SyncPlan struct {
@@ -188,6 +190,16 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 	if usesPlatform(request.Platforms, "medium") && !request.DryRun {
 		if strings.TrimSpace(config.BridgeOrigin) == "" || strings.TrimSpace(config.BridgeToken) == "" {
 			return "", errors.New("Medium publishing requires an active BlogCTL Bridge")
+		}
+	}
+
+	if usesChinaPlatform(request.Platforms) && !request.DryRun {
+		token := strings.TrimSpace(config.WechatsyncToken)
+		if token == "" {
+			token = strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN"))
+		}
+		if token == "" {
+			return "", errors.New("Wechatsync Bridge Token 未配置；请在“工具与配置 → Wechatsync”中配置与 Chrome 扩展一致的 Token")
 		}
 	}
 
@@ -416,6 +428,12 @@ func syncEnvironment(config SyncConfig) []string {
 	if config.BridgeToken != "" {
 		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", config.BridgeToken)
 	}
+	if strings.TrimSpace(config.WechatsyncToken) != "" {
+		env = setEnvironment(env, "WECHATSYNC_TOKEN", strings.TrimSpace(config.WechatsyncToken))
+	}
+	if config.WechatsyncPort > 0 {
+		env = setEnvironment(env, "SYNC_WS_PORT", fmt.Sprintf("%d", config.WechatsyncPort))
+	}
 	return prependToolDirectories(env, config.ToolPaths)
 }
 
@@ -464,6 +482,15 @@ func setEnvironment(env []string, key, value string) []string {
 func usesPlatform(platforms []string, target string) bool {
 	for _, platform := range platforms {
 		if platform == target {
+			return true
+		}
+	}
+	return false
+}
+
+func usesChinaPlatform(platforms []string) bool {
+	for _, platform := range platforms {
+		if _, ok := chinaPlatforms[platform]; ok {
 			return true
 		}
 	}
