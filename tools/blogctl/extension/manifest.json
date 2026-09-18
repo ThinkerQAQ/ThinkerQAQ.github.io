@@ -19,7 +19,15 @@
     "https://*.toutiao.com/*",
     "https://dev.to/*",
     "https://medium.com/*",
-    "http://127.0.0.1:32145/*"
+    "http://127.0.0.1:32145/*",
+    "https://cnblogs.com/*",
+    "https://juejin.cn/*",
+    "https://csdn.net/*",
+    "https://segmentfault.com/*",
+    "https://zhihu.com/*",
+    "https://51cto.com/*",
+    "https://oschina.net/*",
+    "https://toutiao.com/*"
   ],
   "background": {
     "service_worker": "background.js",
