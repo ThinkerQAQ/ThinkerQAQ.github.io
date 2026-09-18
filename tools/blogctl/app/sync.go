@@ -148,6 +148,13 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 		return request, errors.New("explicit platform selection is required")
 	}
 	request.Platforms = platforms
+	if request.All {
+		for _, platform := range request.Platforms {
+			if _, native := nativeChinaPlatforms[platform]; native {
+				return request, fmt.Errorf("%s native publishing requires explicit article selection", platform)
+			}
+		}
+	}
 	return request, nil
 }
 
