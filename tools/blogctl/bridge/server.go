@@ -20,8 +20,15 @@ const (
 )
 
 type browserCookie struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+	Name           string   `json:"name"`
+	Value          string   `json:"value"`
+	Domain         string   `json:"domain,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	Secure         bool     `json:"secure,omitempty"`
+	HTTPOnly       bool     `json:"httpOnly,omitempty"`
+	HostOnly       bool     `json:"hostOnly,omitempty"`
+	SameSite       string   `json:"sameSite,omitempty"`
+	ExpirationDate *float64 `json:"expirationDate,omitempty"`
 }
 
 type sessionRequest struct {
@@ -30,9 +37,15 @@ type sessionRequest struct {
 }
 
 type platformSession struct {
-	Cookies   map[string]string
-	UserAgent string
-	ExpiresAt time.Time
+	Cookies        map[string]string
+	BrowserCookies []browserCookie
+	UserAgent      string
+	ExpiresAt      time.Time
+}
+
+var browserSessionPlatforms = map[string]struct{}{
+	"juejin": {},
+	"medium": {},
 }
 
 type Server struct {
@@ -499,19 +512,32 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 	if !ok {
 		return
 	}
-	if platform != "medium" {
+	if _, supported := browserSessionPlatforms[platform]; !supported {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", platform+" does not use browser-session auth", map[string]any{"platform": platform})
 		return
 	}
 	var body sessionRequest
-	if err := readJSON(request, 64*1024, &body); err != nil {
+	if err := readJSON(request, 256*1024, &body); err != nil {
 		writeError(response, err)
 		return
 	}
-	cookies := filterMediumCookies(body.Cookies)
-	if cookies["sid"] == "" {
-		writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+	if len(body.Cookies) == 0 {
+		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
 		return
+	}
+	cookies := map[string]string{}
+	if platform == "medium" {
+		cookies = filterMediumCookies(body.Cookies)
+		if cookies["sid"] == "" {
+			writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+			return
+		}
+	} else {
+		for _, cookie := range body.Cookies {
+			if cookie.Name != "" && cookie.Value != "" {
+				cookies[cookie.Name] = cookie.Value
+			}
+		}
 	}
 	userAgent := strings.TrimSpace(body.UserAgent)
 	if userAgent == "" {
@@ -521,7 +547,12 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		userAgent = userAgent[:512]
 	}
 	s.mu.Lock()
-	s.sessions[platform] = platformSession{Cookies: cookies, UserAgent: userAgent, ExpiresAt: s.now().Add(sessionTTL)}
+	s.sessions[platform] = platformSession{
+		Cookies:        cookies,
+		BrowserCookies: append([]browserCookie{}, body.Cookies...),
+		UserAgent:      userAgent,
+		ExpiresAt:      s.now().Add(sessionTTL),
+	}
 	s.mu.Unlock()
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
@@ -530,7 +561,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 }
 
 func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
-	if platform != "medium" {
+	if _, supported := browserSessionPlatforms[platform]; !supported {
 		writeAPIError(response, http.StatusBadRequest, "unsupported_platform", "Unsupported platform: "+platform, map[string]any{"platform": platform})
 		return
 	}
