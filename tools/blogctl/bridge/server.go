@@ -166,13 +166,26 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		case http.MethodPost:
 			s.handleSyncStart(response, request)
 			return
-		}
-	}
-	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && request.Method == http.MethodGet {
-		if !allowReadOnlyBridgeStatus(response, request) {
+		case http.MethodDelete:
+			s.handleSyncJobsClear(response, request)
 			return
 		}
-		s.handleSyncJobGet(response, parts[3])
+	}
+	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" {
+		switch request.Method {
+		case http.MethodGet:
+			if !allowReadOnlyBridgeStatus(response, request) {
+				return
+			}
+			s.handleSyncJobGet(response, parts[3])
+			return
+		case http.MethodDelete:
+			s.handleSyncJobDelete(response, request, parts[3])
+			return
+		}
+	}
+	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && parts[4] == "retry" && request.Method == http.MethodPost {
+		s.handleSyncJobRetry(response, request, parts[3])
 		return
 	}
 
@@ -231,7 +244,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 		return
 	}
 	response.Header().Set("access-control-allow-origin", origin)
-	response.Header().Set("access-control-allow-methods", "GET, POST, PUT, OPTIONS")
+	response.Header().Set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
 	response.Header().Set("access-control-allow-headers", "content-type")
 	response.WriteHeader(http.StatusNoContent)
 }
@@ -402,6 +415,51 @@ func (s *Server) handleSyncJobGet(response http.ResponseWriter, id string) {
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"job": job})
+}
+
+func (s *Server) handleSyncJobDelete(response http.ResponseWriter, request *http.Request, id string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	if err := s.deleteSyncJob(id); err != nil {
+		switch err.Error() {
+		case "sync job not found":
+			writeAPIError(response, http.StatusNotFound, "sync_job_not_found", err.Error(), map[string]any{"id": id})
+		case "running sync job cannot be deleted":
+			writeAPIError(response, http.StatusConflict, "sync_job_running", err.Error(), map[string]any{"id": id})
+		default:
+			writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), map[string]any{"id": id})
+		}
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleSyncJobsClear(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	removed := s.clearFinishedSyncJobs()
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "removed": removed, "jobs": s.syncJobs()})
+}
+
+func (s *Server) handleSyncJobRetry(response http.ResponseWriter, request *http.Request, id string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	job, err := s.retrySyncJob(id)
+	if err != nil {
+		switch err.Error() {
+		case "sync job not found":
+			writeAPIError(response, http.StatusNotFound, "sync_job_not_found", err.Error(), map[string]any{"id": id})
+		case "running sync job cannot be retried":
+			writeAPIError(response, http.StatusConflict, "sync_job_running", err.Error(), map[string]any{"id": id})
+		default:
+			writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), map[string]any{"id": id})
+		}
+		return
+	}
+	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
 }
 
 func (s *Server) handleSession(response http.ResponseWriter, request *http.Request, platform string) {
