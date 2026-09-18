@@ -1,6 +1,9 @@
 "use strict";
 
 (function (root) {
+  const NATIVE_BROWSER_PLATFORMS = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
+  ]);
   const state = { initialized: false, active: false, articles: [], status: null, publishing: [], tools: [] };
   let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message;
 
@@ -71,14 +74,22 @@
       const name = document.createElement("strong");
       name.textContent = platform.label || platform.id;
       const detail = document.createElement("small");
+      const nativeBrowserPlatform = NATIVE_BROWSER_PLATFORMS.has(platform.id);
       detail.textContent = !availability.available
         ? availability.reason
-        : platform.known === false ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}` : platform.loggedIn ? "已登录" : "未登录";
+        : platform.loggedIn
+          ? (platform.inferred ? "浏览器会话可用 · 执行时校验登录" : "已登录")
+          : nativeBrowserPlatform
+            ? "登录状态将在任务启动时校验"
+            : platform.known === false
+              ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}`
+              : "未登录";
       text.append(name, detail);
       const status = document.createElement("span");
       if (!availability.available) BlogCTLPopup.setStatus(status, "disabled", availability.reason);
+      else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", platform.inferred ? "会话可用" : "已登录");
+      else if (nativeBrowserPlatform) BlogCTLPopup.setStatus(status, "unknown", "待校验");
       else if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
-      else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", "已登录");
       else BlogCTLPopup.setStatus(status, "error", "未登录");
       label.append(checkbox, text, status);
       platformsContainer.append(label);
