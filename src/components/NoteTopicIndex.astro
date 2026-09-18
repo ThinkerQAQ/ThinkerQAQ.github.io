@@ -32,7 +32,10 @@ const {
 } = Astro.props;
 const ui = LOCALES[locale].ui;
 const navigableTopics = topics.filter((topic) => topic.path.length > 0);
-const hasTopics = navigableTopics.length > 0;
+const rootNotes = topics
+  .filter((topic) => topic.path.length === 0)
+  .flatMap((topic) => topic.notes);
+const hasNavigation = navigableTopics.length > 0 || rootNotes.length > 0;
 const currentPathKey = currentTopicPath.join("/");
 const topicToGroup = (topic: NoteTopicTreeNode): TopicNavigationGroup => ({
   label: topic.label,
@@ -53,18 +56,25 @@ const groups = [
       current: currentTopicPath.length === 0,
     }],
   },
+  ...(rootNotes.length > 0 ? [{
+    items: rootNotes.map((note) => ({
+      href: noteHref(note, locale),
+      title: note.data.title,
+      current: false,
+    })),
+  }] : []),
   ...buildNoteTopicTree(navigableTopics).map(topicToGroup),
 ];
 ---
 
-<div class:list={["shell", "content-shell", "note-topic-shell", { "note-topic-shell--without-topics": !hasTopics }]}>
-  {hasTopics && (
+<div class:list={["shell", "content-shell", "note-topic-shell", { "note-topic-shell--without-topics": !hasNavigation }]}>
+  {hasNavigation && (
     <MobileReadingNavigation
       collection={{ label: ui.noteTopics, title: categoryLabel, href: categoryHref(category, locale), groups }}
       collectionTabLabel={ui.noteOutline}
     />
   )}
-  {hasTopics && (
+  {hasNavigation && (
     <ContentCollectionIndex
       label={ui.noteTopics}
       title={categoryLabel}

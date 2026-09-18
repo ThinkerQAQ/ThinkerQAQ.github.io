@@ -7,6 +7,7 @@ interface Props {
   entries: NoteEntry[];
   showCategory?: boolean;
   showTopic?: boolean;
+  showPreview?: boolean;
   emptyMessage?: string;
   locale?: Locale;
 }
@@ -15,6 +16,7 @@ const {
   entries,
   showCategory = true,
   showTopic = false,
+  showPreview = true,
   locale = DEFAULT_LOCALE,
   emptyMessage = locale === "en" ? "There is no public content here yet." : "这里还没有公开内容。",
 } = Astro.props;
@@ -57,7 +59,7 @@ function sourceDateFor(entry: NoteEntry): Date | undefined {
   <ol class="content-list">
     {entries.map((entry) => {
       const topicPath = getNoteTopicPath(entry);
-      const preview = previewFor(entry);
+      const preview = showPreview ? previewFor(entry) : "";
       const sourceDate = sourceDateFor(entry);
       return (
         <li>
