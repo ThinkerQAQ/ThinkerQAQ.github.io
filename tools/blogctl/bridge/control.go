@@ -442,6 +442,8 @@ func newJobID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
+type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
+
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
 	applicationConfig := blogapp.SyncConfig{
 		EngineRoot:   config.EngineRoot,
@@ -522,8 +524,12 @@ func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
 }
 
 func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeConfig) {
+	runner := s.syncRunner
+	if runner == nil {
+		runner = s.runSyncApplication
+	}
 	go func() {
-		output, err := s.runSyncApplication(context.Background(), config, request, func(event blogapp.SyncEvent) {
+		output, err := runner(context.Background(), config, request, func(event blogapp.SyncEvent) {
 			s.recordSyncEvent(jobID, event)
 		})
 		s.mu.Lock()
