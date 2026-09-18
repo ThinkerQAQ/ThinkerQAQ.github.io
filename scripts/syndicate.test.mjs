@@ -16,6 +16,31 @@ test("builds English canonical URL", () => {
   );
 });
 
+test("DEV.to canonical can target the Chinese source", () => {
+  assert.equal(
+    buildCanonicalUrl("concurrency-series-00", "zh-CN"),
+    "https://thinkerqaq.github.io/articles/concurrency-series-00/",
+  );
+  const payload = buildDevtoArticle({
+    title: "并发文章",
+    description: "描述",
+    status: "published",
+    tags: ["Go"],
+    body: "正文",
+  }, {
+    slug: "test",
+    language: "zh-CN",
+    publishingConfig: {
+      language: "zh-CN",
+      footer: { enabled: true, template: "> 来源：[{site}]({url})" },
+      canonical: { mode: "native" },
+      tracking: { enabled: false, source: "devto", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.equal(payload.canonical_url, "https://thinkerqaq.github.io/articles/test/");
+  assert.match(payload.body_markdown, /ThinkerQAQ 的个人博客/u);
+});
+
 test("normalizes DEV.to tags and keeps at most four", () => {
   assert.deepEqual(
     normalizeDevtoTags(["Concurrency", "Java", "Go", "Python", "Distributed Systems", "Java"]),

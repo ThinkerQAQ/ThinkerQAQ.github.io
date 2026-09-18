@@ -3,11 +3,13 @@ import path from "node:path";
 import test from "node:test";
 import {
   resolveBlogContentRoot as resolveDistributionRoot,
+  resolveDistributionArticleRoot,
   resolveDistributionOutputRoot,
 } from "./blogctl-distribute.mjs";
 import {
   resolveBlogContentRoot as resolveSyndicationRoot,
   resolveMediumOutputRoot,
+  resolveSyndicationArticleRoot,
 } from "./blogctl-syndicate.mjs";
 
 for (const [name, resolveRoot] of [
@@ -26,6 +28,16 @@ for (const [name, resolveRoot] of [
     );
   });
 }
+
+
+test("publishing source roots follow the configured language", () => {
+  const contentRoot = path.resolve("fixtures");
+  const articles = path.join(contentRoot, "src", "content", "articles");
+  assert.equal(resolveDistributionArticleRoot(contentRoot, "zh-CN"), articles);
+  assert.equal(resolveDistributionArticleRoot(contentRoot, "en"), path.join(articles, "en"));
+  assert.equal(resolveSyndicationArticleRoot(contentRoot, "zh-CN"), articles);
+  assert.equal(resolveSyndicationArticleRoot(contentRoot, "en"), path.join(articles, "en"));
+});
 
 test("distribution output stays in the content workspace", () => {
   const contentRoot = path.resolve("fixtures");

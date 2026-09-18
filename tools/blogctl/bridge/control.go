@@ -128,6 +128,7 @@ type toolConfigRequest struct {
 type publishingPlatformView struct {
 	ID        string                    `json:"id"`
 	Label     string                    `json:"label"`
+	Language  string                    `json:"language"`
 	Footer    publishingFooterConfig    `json:"footer"`
 	Canonical publishingCanonicalConfig `json:"canonical"`
 	Tracking  publishingTrackingConfig  `json:"tracking"`
@@ -201,7 +202,9 @@ func listArticles(contentRoot string) ([]articleSummary, error) {
 		if title == "" {
 			title = slug
 		}
-		englishMirror := filePresent(filepath.Join(articleRoot, "en", filepath.FromSlash(slug)+".md"))
+		englishPath := filepath.Join(articleRoot, "en", filepath.FromSlash(slug)+".md")
+		englishStatus := readFrontmatterScalar(englishPath, "status")
+		englishMirror := filePresent(englishPath) && (englishStatus == "" || englishStatus == "published")
 		articles = append(articles, articleSummary{
 			Slug: slug, Title: title, Status: "published", Language: "zh-CN",
 			EnglishMirror: englishMirror, SourcePath: filepath.ToSlash(relative),
@@ -378,7 +381,7 @@ func publishingViews(config bridgeConfig) []publishingPlatformView {
 	for _, id := range publishingPlatformOrder {
 		value := config.Publishing.Platforms[id]
 		views = append(views, publishingPlatformView{
-			ID: id, Label: platformLabels[id], Footer: value.Footer,
+			ID: id, Label: platformLabels[id], Language: value.Language, Footer: value.Footer,
 			Canonical: value.Canonical, Tracking: value.Tracking,
 		})
 	}
@@ -394,7 +397,7 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
 		config.Publishing.Platforms[view.ID] = publishingPlatformConfig{
-			Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
+			Language: view.Language, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
 		}
 	}
 	return normalizeBridgeConfig(config)

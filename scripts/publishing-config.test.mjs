@@ -12,11 +12,24 @@ import {
   trackedPublishingUrl,
 } from "./publishing-config.mjs";
 
-test("publishing defaults separate canonical strategies", () => {
+test("publishing defaults separate languages and canonical strategies", () => {
+  assert.equal(defaultPlatformPublishingConfig("cnblogs").language, "zh-CN");
+  assert.equal(defaultPlatformPublishingConfig("juejin").language, "zh-CN");
+  assert.equal(defaultPlatformPublishingConfig("devto").language, "en");
+  assert.equal(defaultPlatformPublishingConfig("medium").language, "en");
   assert.equal(defaultPlatformPublishingConfig("cnblogs").canonical.mode, "footer");
   assert.equal(defaultPlatformPublishingConfig("juejin").canonical.mode, "footer");
   assert.equal(defaultPlatformPublishingConfig("devto").canonical.mode, "native");
   assert.equal(defaultPlatformPublishingConfig("medium").canonical.mode, "native");
+});
+
+test("publishing language can be overridden per platform", () => {
+  const medium = mergePublishingConfig({ medium: { language: "zh-CN" } }).medium;
+  const cnblogs = mergePublishingConfig({ cnblogs: { language: "en" } }).cnblogs;
+  assert.equal(medium.language, "zh-CN");
+  assert.equal(cnblogs.language, "en");
+  assert.match(medium.footer.template, /本文首发于/u);
+  assert.match(cnblogs.footer.template, /This article was first published/u);
 });
 
 test("tracking can be disabled without changing footer policy", () => {
@@ -80,6 +93,7 @@ test("loader reads new publishing.platforms schema", async () => {
     publishing: {
       platforms: {
         medium: {
+          language: "zh-CN",
           footer: { enabled: false, template: "unused" },
           canonical: { mode: "native" },
           tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
@@ -88,6 +102,7 @@ test("loader reads new publishing.platforms schema", async () => {
     },
   }));
   const config = await loadPublishingConfig({ BLOGCTL_CONFIG_FILE: configFile });
+  assert.equal(config.medium.language, "zh-CN");
   assert.equal(config.medium.footer.enabled, false);
   assert.equal(config.medium.canonical.mode, "native");
   assert.equal(config.medium.tracking.enabled, false);

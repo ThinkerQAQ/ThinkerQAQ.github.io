@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 
+export const CONTENT_LANGUAGES = ["zh-CN", "en"];
+
 export const PUBLISHING_PLATFORMS = [
   "cnblogs",
   "juejin",
@@ -16,16 +18,32 @@ export const PUBLISHING_PLATFORMS = [
 const ZH_FOOTER = "> 本文首发于 [{site}]({url})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。";
 const EN_FOOTER = "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.";
 
+export function defaultPublishingLanguage(platform) {
+  return platform === "devto" || platform === "medium" ? "en" : "zh-CN";
+}
+
+export function normalizePublishingLanguage(value, fallback = "zh-CN") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "en") return "en";
+  if (normalized === "zh-cn" || normalized === "zh") return "zh-CN";
+  return fallback;
+}
+
 function defaultCanonicalMode(platform) {
   return platform === "devto" || platform === "medium" ? "native" : "footer";
 }
 
+function defaultFooterTemplate(language) {
+  return language === "en" ? EN_FOOTER : ZH_FOOTER;
+}
+
 export function defaultPlatformPublishingConfig(platform) {
-  const english = platform === "devto" || platform === "medium";
+  const language = defaultPublishingLanguage(platform);
   return {
+    language,
     footer: {
       enabled: true,
-      template: english ? EN_FOOTER : ZH_FOOTER,
+      template: defaultFooterTemplate(language),
     },
     canonical: {
       mode: defaultCanonicalMode(platform),
@@ -60,13 +78,15 @@ function legacyTracking(trackingQuery, fallback) {
 
 function mergePlatformPublishingConfig(platform, current = {}) {
   const defaults = defaultPlatformPublishingConfig(platform);
+  const language = normalizePublishingLanguage(current.language, defaults.language);
   const footer = current.footer ?? {};
   const canonical = current.canonical ?? {};
   const tracking = current.tracking ?? null;
   return {
+    language,
     footer: {
       enabled: footer.enabled ?? current.footerEnabled ?? defaults.footer.enabled,
-      template: String(footer.template || current.footerTemplate || defaults.footer.template),
+      template: String(footer.template || current.footerTemplate || defaultFooterTemplate(language)),
     },
     canonical: {
       mode: String(canonical.mode || defaults.canonical.mode),

@@ -2,7 +2,7 @@
 
 (function (root) {
   const state = { initialized: false, active: false, platforms: [] };
-  let platformSelect, footerEnabled, footerTemplate, canonicalMode;
+  let platformSelect, languageSelect, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
   let preview, saveButton, resetButton, message;
 
@@ -10,14 +10,19 @@
     return state.platforms.find((platform) => platform.id === platformSelect.value);
   }
 
+  function defaultFooterTemplate(language) {
+    return language === "en"
+      ? "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version."
+      : "> 本文首发于 [{site}]({url})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。";
+  }
+
   function defaultsFor(platform) {
     const english = platform === "devto" || platform === "medium";
     return {
+      language: english ? "en" : "zh-CN",
       footer: {
         enabled: true,
-        template: english
-          ? "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version."
-          : "> 本文首发于 [{site}]({url})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。",
+        template: defaultFooterTemplate(english ? "en" : "zh-CN"),
       },
       canonical: { mode: english ? "native" : "footer" },
       tracking: {
@@ -30,7 +35,8 @@
   }
 
   function trackedUrl() {
-    const url = new URL("https://thinkerqaq.github.io/articles/example/");
+    const prefix = languageSelect.value === "en" ? "/en/articles/" : "/articles/";
+    const url = new URL(`https://thinkerqaq.github.io${prefix}example/`);
     if (!trackingEnabled.checked) return url.toString();
     const values = {
       utm_source: trackingSource.value.trim(),
@@ -49,15 +55,17 @@
       footer: "Footer backlink",
       none: "Disabled",
     };
-    const lines = [`Canonical: ${canonicalLabels[canonicalMode.value] || canonicalMode.value}`];
+    const languageLabel = languageSelect.value === "en" ? "English" : "中文";
+    const lines = [`内容语言: ${languageLabel}`, `Canonical: ${canonicalLabels[canonicalMode.value] || canonicalMode.value}`];
     if (!footerEnabled.checked) {
       lines.push("Footer: 已关闭");
       preview.textContent = lines.join("\n\n");
       return;
     }
+    const english = languageSelect.value === "en";
     const rendered = footerTemplate.value
-      .replaceAll("{site}", "ThinkerQAQ 的个人博客")
-      .replaceAll("{title}", "示例文章")
+      .replaceAll("{site}", english ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客")
+      .replaceAll("{title}", english ? "Example article" : "示例文章")
       .replaceAll("{url}", trackedUrl())
       .trim();
     lines.push(rendered || "Footer 模板为空。");
@@ -67,6 +75,7 @@
   function writeForm(platform) {
     const profile = platform || {};
     const fallback = defaultsFor(profile.id || "cnblogs");
+    languageSelect.value = profile.language || fallback.language;
     const footer = profile.footer || fallback.footer;
     const canonical = profile.canonical || fallback.canonical;
     const tracking = profile.tracking || fallback.tracking;
@@ -86,6 +95,7 @@
     return {
       id: platform.id,
       label: platform.label,
+      language: languageSelect.value,
       footer: {
         enabled: footerEnabled.checked,
         template: footerTemplate.value.trim(),
@@ -164,6 +174,7 @@
   function init() {
     if (state.initialized) return;
     platformSelect = document.getElementById("publishingPlatform");
+    languageSelect = document.getElementById("publishingLanguage");
     footerEnabled = document.getElementById("footerEnabled");
     footerTemplate = document.getElementById("footerTemplate");
     canonicalMode = document.getElementById("canonicalMode");
@@ -177,6 +188,14 @@
     message = document.getElementById("publishingMessage");
 
     platformSelect.addEventListener("change", () => writeForm(currentPlatform()));
+    languageSelect.addEventListener("change", () => {
+      const currentTemplate = footerTemplate.value.trim();
+      const defaultTemplates = new Set([defaultFooterTemplate("zh-CN"), defaultFooterTemplate("en")]);
+      if (defaultTemplates.has(currentTemplate)) {
+        footerTemplate.value = defaultFooterTemplate(languageSelect.value);
+      }
+      updatePreview();
+    });
     for (const element of [footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
       element.addEventListener(element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input", updatePreview);
     }

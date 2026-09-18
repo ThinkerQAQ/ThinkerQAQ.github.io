@@ -1,8 +1,8 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, articles: [], status: null, jobs: [], pollTimer: null };
-  let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, dryRun, draftMode, startButton, message, jobsContainer, refreshJobsButton;
+  const state = { initialized: false, active: false, articles: [], status: null, publishing: [], jobs: [], pollTimer: null };
+  let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message, jobsContainer, refreshJobsButton;
 
   function selectedPlatforms() {
     return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
@@ -14,11 +14,15 @@
     return state.articles.find((item) => item.slug === articleSelect.value);
   }
 
+  function publishingProfile(platformId) {
+    return state.publishing.find((item) => item.id === platformId) ?? {};
+  }
+
   function updateStartButton() {
     const count = selectedPlatforms().length;
     const ready = Boolean(articleSelect.value) && count > 0 && Boolean(state.status?.bridge?.running);
     startButton.disabled = !ready;
-    startButton.textContent = ready ? `同步到 ${count} 个平台` : "选择文章和平台后同步";
+    startButton.textContent = ready ? `创建/更新 ${count} 个平台草稿` : "选择文章和平台后创建草稿";
   }
 
   function renderArticleMeta() {
@@ -51,7 +55,7 @@
     const article = selectedArticle();
     platformsContainer.replaceChildren();
     for (const platform of state.status?.platforms ?? []) {
-      const availability = BlogCTLSyncModel.platformAvailability(article, platform.id);
+      const availability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
       const label = document.createElement("label");
       label.className = "platform-choice";
       const checkbox = document.createElement("input");
@@ -145,7 +149,7 @@
       card.className = "job-item";
       const summary = document.createElement("summary");
       const title = document.createElement("span");
-      title.textContent = `${job.article}${job.dryRun ? " · Dry Run" : ""}`;
+      title.textContent = job.article;
       const status = document.createElement("strong");
       const presentation = stateLabel(job);
       BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
@@ -194,7 +198,7 @@
     BlogCTLPopup.setMessage(message, "正在创建同步任务…");
     try {
       await ensureMediumSession(platforms);
-      const response = await BlogCTLPopup.send("blogctl.job.start", { request: { article, platforms, dryRun: dryRun.checked, changed: changedOnly.checked, draft: draftMode.checked } });
+      const response = await BlogCTLPopup.send("blogctl.job.start", { request: { article, platforms, dryRun: false, changed: changedOnly.checked, draft: true } });
       BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动。`, "ok");
       await refreshJobs();
     } catch (error) {
@@ -208,9 +212,15 @@
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
     try {
-      const [articlesResponse, statusResponse, jobsResponse] = await Promise.all([BlogCTLPopup.send("blogctl.articles"), BlogCTLPopup.send("blogctl.status"), BlogCTLPopup.send("blogctl.jobs")]);
+      const [articlesResponse, statusResponse, publishingResponse, jobsResponse] = await Promise.all([
+        BlogCTLPopup.send("blogctl.articles"),
+        BlogCTLPopup.send("blogctl.status"),
+        BlogCTLPopup.send("blogctl.publishing"),
+        BlogCTLPopup.send("blogctl.jobs"),
+      ]);
       state.articles = articlesResponse.articles ?? [];
       state.status = statusResponse.status;
+      state.publishing = publishingResponse.platforms ?? [];
       state.jobs = jobsResponse.jobs ?? [];
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
       renderArticles(); renderPlatforms(); renderJobs();
@@ -222,7 +232,7 @@
 
   function init() {
     if (state.initialized) return;
-    articleFilter = document.getElementById("articleFilter"); articleSelect = document.getElementById("articleSelect"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); changedOnly = document.getElementById("changedOnly"); dryRun = document.getElementById("dryRun"); draftMode = document.getElementById("draftMode"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage"); jobsContainer = document.getElementById("syncJobs"); refreshJobsButton = document.getElementById("refreshJobs");
+    articleFilter = document.getElementById("articleFilter"); articleSelect = document.getElementById("articleSelect"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); changedOnly = document.getElementById("changedOnly"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage"); jobsContainer = document.getElementById("syncJobs"); refreshJobsButton = document.getElementById("refreshJobs");
     articleFilter.addEventListener("input", () => { renderArticles(); renderPlatforms(); });
     articleSelect.addEventListener("change", () => { renderArticleMeta(); renderPlatforms(); });
     startButton.addEventListener("click", startSync);

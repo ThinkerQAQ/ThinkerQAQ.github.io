@@ -94,6 +94,20 @@ test("buildPlatformMarkdown keeps canonical clean and tracks the attribution foo
 });
 
 
+test("buildPlatformMarkdown canonical follows configured content language", () => {
+  const article = parseArticle(ARTICLE);
+  const english = buildPlatformMarkdown(article, {
+    platform: "juejin",
+    slug: "concurrency/test",
+    language: "en",
+  });
+  assert.match(
+    english,
+    /canonicalUrl: "https:\/\/thinkerqaq\.github\.io\/en\/articles\/concurrency\/test\/"/u,
+  );
+  assert.match(english, /ThinkerQAQ's personal blog/u);
+});
+
 test("buildPlatformMarkdown applies publishing footer tracking and canonical policies", () => {
   const article = parseArticle(ARTICLE);
   const custom = buildPlatformMarkdown(article, {
@@ -163,6 +177,30 @@ test("exportArticles exports published articles and leaves drafts out", async ()
     const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
     assert.equal(typeof manifest.articles.published.platforms.juejin.contentHash, "string");
     assert.equal(manifest.articles.draft, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("exportArticles records language-specific canonical metadata", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-language-test-"));
+  const articleRoot = path.join(root, "articles", "en");
+  const outputRoot = path.join(root, "output");
+  try {
+    await mkdir(articleRoot, { recursive: true });
+    await writeFile(path.join(articleRoot, "example.md"), ARTICLE.replace("并发文章", "Concurrency Article").replace("这是一篇用于测试多平台分发的文章。", "Distribution test article."));
+    const result = await exportArticles({
+      articleRoot,
+      outputRoot,
+      platforms: ["juejin"],
+      requestedSlugs: ["example"],
+      language: "en",
+    });
+    assert.equal(result.exported[0].language, "en");
+    assert.equal(result.exported[0].canonicalUrl, "https://thinkerqaq.github.io/en/articles/example/");
+    const state = result.manifest.articles.example.platforms.juejin;
+    assert.equal(state.language, "en");
+    assert.equal(state.canonicalUrl, "https://thinkerqaq.github.io/en/articles/example/");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

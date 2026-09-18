@@ -92,13 +92,11 @@ BlogCTL Extension independently reports browser login status for the publishing 
 
 The extension contacts the registered Native Messaging Host whenever Bridge access is required. The host reuses an existing healthy Bridge or starts `blogctl --bridge` in the background, then returns the current loopback endpoint. Live `blogctl sync --platforms medium` uses the same persistent Bridge state instead of creating a second per-command Bridge.
 
-Medium has one additional state in the popup because its draft transport needs an explicit browser-session handoff:
+Medium needs a short-lived browser-session handoff internally for draft creation, but that is an implementation detail and is not exposed in the popup. Users only see Medium's normal login state.
 
-- BlogCTL Bridge running / not running.
-- Platform login states: logged in / not logged in / detection failed.
-- Medium Session synced / not synced, including the remaining session lifetime.
+When Medium is logged in, BlogCTL refreshes the approved Medium Session automatically when needed. There is no separate Session status or manual Session button. Only adapter-approved Medium browser session fields are sent; the Bridge keeps them in memory. Other platform login probes do not send their cookies to BlogCTL.
 
-The extension does not hand cookies to the bridge automatically. Open BlogCTL Extension, verify that Medium is logged in, then click **Sync Medium Session**. Only adapter-approved Medium browser session fields are sent; the Bridge keeps them in memory. Other platform login probes do not send their cookies to BlogCTL.
+Publishing language is a persistent per-platform policy under **发布配置**. Chinese platforms default to `zh-CN`; DEV.to and Medium default to `en`. Either default can be changed. The selected language controls the complete source article (title, description, tags and body) plus the blog canonical/Footer URL. See [PUBLISHING_LANGUAGE.md](./PUBLISHING_LANGUAGE.md).
 
 ### Network proxy
 

@@ -5,7 +5,7 @@ import {
   normalizeExplicitSyndicationArgs,
 } from "./syndicate-cli.mjs";
 import {
-  loadEnglishArticles,
+  loadArticles,
   parseArguments as parseDevtoArguments,
   runSyndication,
 } from "./syndicate.mjs";
@@ -36,6 +36,11 @@ export function resolveMediumOutputRoot(contentRoot) {
   return path.join(contentRoot, ".distribution", "medium");
 }
 
+export function resolveSyndicationArticleRoot(contentRoot, language = "en") {
+  const root = path.join(contentRoot, "src", "content", "articles");
+  return language === "en" ? path.join(root, "en") : root;
+}
+
 function logMediumEvent(event) {
   console.log(JSON.stringify({
     timestamp: new Date().toISOString(),
@@ -53,29 +58,34 @@ export async function runBlogctlSyndication(argv, env = process.env) {
 
   const contentRoot = resolveBlogContentRoot(env);
   const publishingConfig = await loadPublishingConfig(env);
-  const articleRoot = path.join(contentRoot, "src", "content", "articles", "en");
   const summaries = {};
 
   for (const platform of platforms) {
+    const profile = publishingConfig[platform];
+    const language = profile?.language || "en";
+    const articleRoot = resolveSyndicationArticleRoot(contentRoot, language);
+
     if (platform === "devto") {
       summaries.devto = await runSyndication({
         articleRoot,
         requestedSlugs: options.requestedSlugs,
         dryRun: options.dryRun,
         draft: options.draft,
-        publishingConfig: publishingConfig.devto,
+        publishingConfig: profile,
+        language,
       });
       continue;
     }
 
-    const loaded = await loadEnglishArticles({
+    const loaded = await loadArticles({
       articleRoot,
       requestedSlugs: options.requestedSlugs,
+      language,
     });
     summaries.medium = await runMediumSyndication(loaded, {
       dryRun: options.dryRun,
       outputRoot: resolveMediumOutputRoot(contentRoot),
-      publishingConfig: publishingConfig.medium,
+      publishingConfig: profile,
       onEvent: logMediumEvent,
     });
   }

@@ -51,15 +51,46 @@ test("falls back to the overall failed job state for legacy jobs", () => {
   assert.equal(row.error, "network failed");
 });
 
-test("disables international platforms when the article lacks an English mirror", () => {
+test("gates source availability by configured content language", () => {
+  const loggedIn = { id: "medium", known: true, loggedIn: true };
   const withoutMirror = { slug: "only-cn", englishMirror: false };
-  assert.deepEqual(model.platformAvailability(withoutMirror, "devto"), { available: false, reason: "缺少英文镜像" });
-  assert.deepEqual(model.platformAvailability(withoutMirror, "medium"), { available: false, reason: "缺少英文镜像" });
-  assert.deepEqual(model.platformAvailability(withoutMirror, "cnblogs"), { available: true, reason: "" });
+  assert.deepEqual(
+    model.platformAvailability(withoutMirror, loggedIn, { language: "en" }),
+    { available: false, reason: "缺少英文版本" },
+  );
+  assert.deepEqual(
+    model.platformAvailability(withoutMirror, loggedIn, { language: "zh-CN" }),
+    { available: true, reason: "" },
+  );
+
+  const chinesePlatform = { id: "cnblogs", known: true, loggedIn: true };
+  assert.deepEqual(
+    model.platformAvailability(withoutMirror, chinesePlatform, { language: "en" }),
+    { available: false, reason: "缺少英文版本" },
+  );
 
   const withMirror = { slug: "with-en", englishMirror: true };
-  assert.deepEqual(model.platformAvailability(withMirror, "devto"), { available: true, reason: "" });
-  assert.deepEqual(model.platformAvailability(withMirror, "medium"), { available: true, reason: "" });
+  assert.deepEqual(
+    model.platformAvailability(withMirror, loggedIn, { language: "en" }),
+    { available: true, reason: "" },
+  );
+});
+
+
+test("disables platforms whose login state is unavailable or logged out", () => {
+  const article = { slug: "with-en", englishMirror: true };
+  assert.deepEqual(
+    model.platformAvailability(article, { id: "csdn", known: true, loggedIn: false }),
+    { available: false, reason: "未登录" },
+  );
+  assert.deepEqual(
+    model.platformAvailability(article, { id: "juejin", known: false, loggedIn: false }),
+    { available: false, reason: "登录状态检测失败" },
+  );
+  assert.deepEqual(
+    model.platformAvailability(article, { id: "medium", known: true, loggedIn: true }),
+    { available: true, reason: "" },
+  );
 });
 
 test("does not gate platforms when no article is selected", () => {
