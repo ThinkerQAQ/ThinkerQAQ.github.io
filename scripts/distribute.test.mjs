@@ -7,11 +7,13 @@ import test from "node:test";
 import {
   buildPlatformMarkdown,
   buildTrackedUrl,
+  explainWechatsyncBridgeFailure,
   extractDraftUrl,
   exportArticles,
   normalizeDraftUrl,
   parseArguments,
   parseArticle,
+  preflightWechatsync,
   SUPPORTED_PLATFORMS,
   syncExports,
 } from "./distribute.mjs";
@@ -234,10 +236,16 @@ test("syncExports records successful draft delivery and changed-only skips it ne
       manifest,
       manifestPath,
       changedOnly: true,
-      run: async (command, args) => calls.push({ command, args }),
+      run: async (command, args) => {
+        calls.push({ command, args });
+        return { output: "" };
+      },
     });
     assert.equal(count, 1);
-    assert.deepEqual(calls, [{ command: "wechatsync", args: ["sync", exported[0].outputFile, "-p", "juejin"] }]);
+    assert.deepEqual(calls, [
+      { command: "wechatsync", args: ["--timeout", "5000", "platforms", "--auth"] },
+      { command: "wechatsync", args: ["sync", exported[0].outputFile, "-p", "juejin"] },
+    ]);
     assert.equal(manifest.articles.example.platforms.juejin.lastSyncedHash, "abc");
 
     const secondCount = await syncExports({
@@ -275,11 +283,15 @@ test("syncExports retries CSDN rate limits and does not record platform failures
       exported,
       manifest: retryManifest,
       manifestPath,
-      run: async () => ({
-        output: ++attempts === 1
-          ? "文章频繁发布，请稍后再试\n同步完成: 0 成功, 1 失败"
-          : "同步完成: 1 成功, 0 失败",
-      }),
+      run: async (_command, args) => {
+        if (args[0] === "--timeout") return { output: "bridge ready" };
+        attempts++;
+        return {
+          output: attempts === 1
+            ? "文章频繁发布，请稍后再试\n同步完成: 0 成功, 1 失败"
+            : "同步完成: 1 成功, 0 失败",
+        };
+      },
       wait: async () => {},
       rateLimitRetryMs: 0,
     });
@@ -293,7 +305,9 @@ test("syncExports retries CSDN rate limits and does not record platform failures
         exported,
         manifest: failedManifest,
         manifestPath,
-        run: async () => ({ output: "同步完成: 0 成功, 1 失败" }),
+        run: async (_command, args) => args[0] === "--timeout"
+          ? { output: "bridge ready" }
+          : { output: "同步完成: 0 成功, 1 失败" },
       }),
       /Failed to sync example to csdn/u,
     );
@@ -308,7 +322,9 @@ test("syncExports retries CSDN rate limits and does not record platform failures
         exported: [{ ...exported[0], platform: "toutiao" }],
         manifest: toutiaoManifest,
         manifestPath,
-        run: async () => ({ output: "无头条广告权限\n同步完成: 0 成功, 1 失败" }),
+        run: async (_command, args) => args[0] === "--timeout"
+          ? { output: "bridge ready" }
+          : { output: "无头条广告权限\n同步完成: 0 成功, 1 失败" },
       }),
       /advertising mode unavailable/u,
     );
@@ -316,6 +332,51 @@ test("syncExports retries CSDN rate limits and does not record platform failures
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("Wechatsync preflight fails fast with bridge-specific diagnosis", async () => {
+  const calls = [];
+  await assert.rejects(
+    preflightWechatsync(async (command, args) => {
+      calls.push({ command, args });
+      throw new Error("wechatsync exited with code 1\n连接超时: 已有实例正在运行但 Chrome Extension 未连接\n请确保 Chrome 扩展已启用「同步桥接」并且 Token 正确");
+    }),
+    /Chrome Bridge 未连接/u,
+  );
+  assert.deepEqual(calls, [{
+    command: "wechatsync",
+    args: ["--timeout", "5000", "platforms", "--auth"],
+  }]);
+  assert.match(
+    explainWechatsyncBridgeFailure(new Error("Invalid or missing token")),
+    /Token 不匹配或缺失/u,
+  );
+});
+
+test("syncExports never starts article sync when Wechatsync preflight fails", async () => {
+  const exported = [{
+    slug: "example",
+    platform: "juejin",
+    outputFile: "example.md",
+    contentHash: "abc",
+    pending: true,
+  }];
+  const manifest = { version: 1, articles: { example: { platforms: { juejin: { contentHash: "abc" } } } } };
+  const calls = [];
+  await assert.rejects(
+    syncExports({
+      exported,
+      manifest,
+      manifestPath: "manifest.json",
+      run: async (command, args) => {
+        calls.push({ command, args });
+        throw new Error("连接超时: 已有实例正在运行但 Chrome Extension 未连接");
+      },
+    }),
+    /Chrome Bridge 未连接/u,
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].args[0], "--timeout");
 });
 
 test("parseArguments validates platform and changed options", () => {
