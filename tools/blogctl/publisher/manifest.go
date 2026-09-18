@@ -148,6 +148,17 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	if err != nil {
 		return DraftInput{}, "", err
 	}
+	htmlPath := stringValue(state["htmlOutput"])
+	if htmlPath == "" {
+		htmlPath = filepath.Join(".distribution", platform, filepath.FromSlash(slug)+".html")
+	}
+	if !filepath.IsAbs(htmlPath) {
+		htmlPath = filepath.Join(contentRoot, filepath.FromSlash(htmlPath))
+	}
+	htmlBody := ""
+	if htmlRaw, htmlErr := os.ReadFile(htmlPath); htmlErr == nil {
+		htmlBody = strings.TrimSpace(string(htmlRaw))
+	}
 	draftHash := stringValue(state["draftHash"])
 	if draftHash == "" {
 		draftHash = stringValue(state["lastSyncedHash"])
@@ -158,7 +169,7 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 		remoteID = draftIDFromURL(platform, draftURL)
 	}
 	return DraftInput{
-		Slug: slug, Title: title, Description: description, Markdown: markdown,
+		Slug: slug, Title: title, Description: description, Markdown: markdown, HTML: htmlBody,
 		Language: language, ContentHash: contentHash, DraftHash: draftHash,
 		RemoteDraftID: remoteID, DraftURL: draftURL,
 		SourceDir: sourceDirectory(contentRoot, slug, language),
