@@ -95,38 +95,47 @@ export const PLATFORM_AUTH = Object.freeze([
 
 export const PLATFORM_SESSIONS = Object.freeze({
   cnblogs: {
+    cookieDomains: ["cnblogs.com"],
     cookieUrls: ["https://www.cnblogs.com/", "https://i.cnblogs.com/", "https://home.cnblogs.com/"],
     requiredCookieNames: [],
   },
   juejin: {
+    cookieDomains: ["juejin.cn"],
     cookieUrls: ["https://juejin.cn/", "https://api.juejin.cn/"],
     requiredCookieNames: [],
   },
   csdn: {
+    cookieDomains: ["csdn.net"],
     cookieUrls: ["https://www.csdn.net/", "https://editor.csdn.net/", "https://bizapi.csdn.net/"],
     requiredCookieNames: [],
   },
   segmentfault: {
+    cookieDomains: ["segmentfault.com"],
     cookieUrls: ["https://segmentfault.com/"],
     requiredCookieNames: [],
   },
   zhihu: {
+    cookieDomains: ["zhihu.com"],
     cookieUrls: ["https://www.zhihu.com/", "https://zhuanlan.zhihu.com/"],
     requiredCookieNames: [],
   },
   "51cto": {
+    cookieDomains: ["51cto.com"],
     cookieUrls: ["https://blog.51cto.com/"],
     requiredCookieNames: [],
   },
   oschina: {
+    cookieDomains: ["oschina.net"],
     cookieUrls: ["https://my.oschina.net/", "https://apiv1.oschina.net/"],
     requiredCookieNames: [],
   },
   toutiao: {
+    cookieDomains: ["toutiao.com"],
     cookieUrls: ["https://mp.toutiao.com/"],
     requiredCookieNames: [],
   },
   medium: {
+    cookieDomains: ["medium.com"],
     cookieUrls: ["https://medium.com/"],
     cookieNames: ["sid", "uid", "xsrf", "cf_clearance"],
     requiredCookieNames: ["sid"],
