@@ -1,0 +1,68 @@
+name: Temporary TDoc migration driver
+
+on:
+  push:
+    branches:
+      - migration/tdoc-assets-driver-20260918
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout public engine
+        uses: actions/checkout@v6
+        with:
+          ref: migration/tdoc-assets-driver-20260918
+          path: engine
+
+      - name: Checkout private content migration branch
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/blog-content
+          ref: migration/tdoc-assets-links-20260918
+          ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
+          path: content-source
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Run content migration
+        id: migrate
+        continue-on-error: true
+        working-directory: content-source
+        run: node scripts/migrate-tdoc-content.mjs
+
+      - name: Package changed content
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tdoc-migration"
+          {
+            git -C content-source diff --name-only -z HEAD
+            git -C content-source ls-files --others --exclude-standard -z
+          } > "$RUNNER_TEMP/tdoc-migration/changed-files.z"
+          if [ -s "$RUNNER_TEMP/tdoc-migration/changed-files.z" ]; then
+            tar --null -T "$RUNNER_TEMP/tdoc-migration/changed-files.z" \
+              -C content-source -czf "$RUNNER_TEMP/tdoc-migration/migration-output.tar.gz"
+          else
+            tar -czf "$RUNNER_TEMP/tdoc-migration/migration-output.tar.gz" --files-from /dev/null
+          fi
+          cp content-source/.migration/tdoc-content-report.json "$RUNNER_TEMP/tdoc-migration/report.json"
+          tr '\0' '\n' < "$RUNNER_TEMP/tdoc-migration/changed-files.z" > "$RUNNER_TEMP/tdoc-migration/changed-files.txt"
+          cat "$RUNNER_TEMP/tdoc-migration/changed-files.txt"
+
+      - name: Upload migration artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdoc-migration-output
+          path: ${{ runner.temp }}/tdoc-migration
+          retention-days: 1
+          if-no-files-found: error
