@@ -245,7 +245,7 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 
 	service := Service{
 		HTTPClient: client,
-		Now: func() time.Time { return time.Date(2026, 9, 18, 5, 0, 0, 0, time.UTC) },
+		Now:        func() time.Time { return time.Date(2026, 9, 18, 5, 0, 0, 0, time.UTC) },
 	}
 	result, err := service.CreateOrUpdateDraft(context.Background(), "juejin", juejinSession(), root, "example", true)
 	if err != nil {
