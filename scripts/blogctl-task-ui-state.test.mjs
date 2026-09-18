@@ -70,6 +70,17 @@ test("render snapshot changes only when rendered task data or platform labels ch
   assert.notEqual(renamedPlatform, first);
 });
 
+
+
+test("unchanged task snapshots do not request a DOM replacement", () => {
+  const snapshot = model.renderSnapshot([{ id: "job-1", state: "running" }], {
+    platforms: [{ id: "juejin", label: "掘金" }],
+  });
+  assert.equal(model.shouldRender(snapshot, snapshot, false), false);
+  assert.equal(model.shouldRender(snapshot, snapshot, true), true);
+  assert.equal(model.shouldRender(snapshot, snapshot + "changed", false), true);
+});
+
 test("invalid persisted state cannot force phantom expansion", () => {
   const storage = fakeStorage({
     "test.tasks.expandedJobs": "{broken",
