@@ -310,9 +310,9 @@ export function groupNotesByTopic(notes: NoteEntry[]): NoteTopicGroup[] {
     if (path.length === 0) {
       const key = "__ungrouped";
       const topic = topics.get(key) ?? {
-        // A root-level Computer_Network note is a file at the category root,
-        // not an artificial "Other" folder in the original VNote tree.
-        label: entry.data.category === "computer-network" ? "" : "其他",
+        // Root-level source notes stay at the category root instead of being
+        // placed in an artificial "Other" folder that does not exist in VNote.
+        label: entry.data.category === "computer-network" || entry.data.category === "database" ? "" : "其他",
         path: [],
         depth: 0,
         notes: [],
