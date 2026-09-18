@@ -207,7 +207,7 @@ func SaveDraftResult(manifestPath, slug, platform, contentHash string, result Dr
 	state["draftUrl"] = result.URL
 	state["draftHash"] = contentHash
 	state["draftSyncedAt"] = now.UTC().Format(time.RFC3339)
-	// Preserve the legacy fields while the remaining Wechatsync platforms still use them.
+	// Preserve the legacy v1 fields for backward compatibility with existing manifest readers.
 	state["lastSyncedHash"] = contentHash
 	state["lastSyncedAt"] = now.UTC().Format(time.RFC3339)
 
