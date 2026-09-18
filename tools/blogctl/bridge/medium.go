@@ -8,12 +8,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
-const (
-	mediumOrigin     = "https://medium.com"
-	mediumGraphQLURL = mediumOrigin + "/_/graphql"
-)
+const mediumOrigin = "https://medium.com"
 
 var mediumCookieNames = map[string]struct{}{
 	"sid": {}, "uid": {}, "xsrf": {}, "cf_clearance": {},
@@ -41,14 +39,17 @@ func filterMediumCookies(cookies []browserCookie) map[string]string {
 }
 
 func stripMediumXSSI(text string) string {
-	if !strings.HasPrefix(text, ")]}") {
-		return text
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "])}") && !strings.HasPrefix(trimmed, ")]}") {
+		return trimmed
 	}
-	if i := strings.IndexByte(text, '\n'); i >= 0 {
-		return text[i+1:]
+	if i := strings.IndexByte(trimmed, '\n'); i >= 0 {
+		return strings.TrimSpace(trimmed[i+1:])
 	}
-	if len(text) > 16 {
-		return text[16:]
+	for _, opener := range []byte{'{', '['} {
+		if i := strings.IndexByte(trimmed, opener); i >= 0 {
+			return strings.TrimSpace(trimmed[i:])
+		}
 	}
 	return ""
 }
@@ -64,60 +65,89 @@ func cookieHeader(cookies map[string]string) string {
 	return strings.Join(parts, "; ")
 }
 
-func (c mediumClient) graphql(ctx context.Context, session platformSession, operation, query string, variables any) (map[string]any, error) {
-	body, err := json.Marshal(map[string]any{
-		"operationName": operation,
-		"query":         query,
-		"variables":     variables,
-	})
-	if err != nil {
-		return nil, err
+func (c mediumClient) primeXSRF(ctx context.Context, session platformSession) platformSession {
+	if session.Cookies["xsrf"] != "" {
+		return session
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumGraphQLURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediumOrigin+"/", nil)
 	if err != nil {
-		return nil, err
+		return session
 	}
 	setMediumHeaders(req, session, mediumOrigin+"/")
+	req.Header.Del("content-type")
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return session
 	}
 	defer response.Body.Close()
-	payload, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 256<<10))
+	for _, cookie := range response.Cookies() {
+		if cookie.Name == "xsrf" && cookie.Value != "" {
+			if session.Cookies == nil {
+				session.Cookies = map[string]string{}
+			}
+			session.Cookies["xsrf"] = cookie.Value
+			break
+		}
+	}
+	return session
+}
+
+func (c mediumClient) createStory(ctx context.Context, session platformSession) (string, string, error) {
+	session = c.primeXSRF(ctx, session)
+	body, err := json.Marshal(map[string]any{
+		"deltas":     []any{},
+		"baseRev":    -1,
+		"coverless":  true,
+		"visibility": 0,
+	})
 	if err != nil {
-		return nil, err
+		return "", "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/new-story", bytes.NewReader(body))
+	if err != nil {
+		return "", "", err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/new-story")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return "", "", err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("Medium GraphQL %d: %s", response.StatusCode, truncate(string(payload), 500))
+		return "", "", fmt.Errorf("Medium new-story failed (%d): %s", response.StatusCode, truncate(stripMediumXSSI(string(raw)), 500))
 	}
 	var decoded struct {
-		Data   map[string]any `json:"data"`
-		Errors []any          `json:"errors"`
+		Success bool `json:"success"`
+		Payload struct {
+			Value struct {
+				ID        string `json:"id"`
+				MediumURL string `json:"mediumUrl"`
+			} `json:"value"`
+		} `json:"payload"`
+		Error string `json:"error"`
 	}
-	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return nil, fmt.Errorf("Medium GraphQL returned invalid JSON: %w", err)
+	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), &decoded); err != nil {
+		return "", "", fmt.Errorf("Medium new-story returned invalid JSON: %w", err)
 	}
-	if len(decoded.Errors) > 0 {
-		encoded, _ := json.Marshal(decoded.Errors)
-		return nil, fmt.Errorf("Medium GraphQL error: %s", encoded)
+	if !decoded.Success || strings.TrimSpace(decoded.Payload.Value.ID) == "" {
+		return "", "", fmt.Errorf("Medium new-story did not return a post id: %s", truncate(decoded.Error, 300))
 	}
-	return decoded.Data, nil
+	return decoded.Payload.Value.ID, decoded.Payload.Value.MediumURL, nil
 }
 
 func (c mediumClient) createDraft(ctx context.Context, session platformSession, draft mediumDraft) (map[string]any, error) {
 	if draft.Title == "" || draft.Deltas == nil {
 		return nil, fmt.Errorf("title and deltas are required")
 	}
-	data, err := c.graphql(ctx, session, "CreatePostMutation", `mutation CreatePostMutation($input: CreatePostInput!) {
-      createPost(input: $input) { id mediumUrl title creator { id username name } }
-    }`, map[string]any{"input": map[string]any{}})
+	session = c.primeXSRF(ctx, session)
+	postID, mediumURL, err := c.createStory(ctx, session)
 	if err != nil {
 		return nil, err
-	}
-	post, _ := data["createPost"].(map[string]any)
-	postID, _ := post["id"].(string)
-	if postID == "" {
-		return nil, fmt.Errorf("Medium createPost did not return a post id")
 	}
 	deltas := make([]map[string]any, 0, len(draft.Deltas)+1)
 	deltas = append(deltas, map[string]any{
@@ -133,7 +163,7 @@ func (c mediumClient) createDraft(ctx context.Context, session platformSession, 
 		copy["index"] = len(deltas)
 		deltas = append(deltas, copy)
 	}
-	body, err := json.Marshal(map[string]any{"baseRev": -1, "rev": 0, "deltas": deltas})
+	body, err := json.Marshal(map[string]any{"id": postID, "baseRev": -1, "rev": 0, "deltas": deltas})
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +189,6 @@ func (c mediumClient) createDraft(ctx context.Context, session platformSession, 
 		encoded, _ := json.Marshal(deltaResult)
 		return nil, fmt.Errorf("Medium delta write failed (%d): %s", response.StatusCode, truncate(string(encoded), 500))
 	}
-	mediumURL, _ := post["mediumUrl"].(string)
 	return map[string]any{
 		"postId":           postID,
 		"draftUrl":         mediumOrigin + "/p/" + postID + "/edit",
@@ -177,6 +206,9 @@ func setMediumHeaders(req *http.Request, session platformSession, referer string
 	req.Header.Set("referer", referer)
 	req.Header.Set("cookie", cookieHeader(session.Cookies))
 	req.Header.Set("user-agent", session.UserAgent)
+	req.Header.Set("x-requested-with", "XMLHttpRequest")
+	req.Header.Set("x-obvious-cid", "web")
+	req.Header.Set("x-client-date", fmt.Sprintf("%d", time.Now().UnixMilli()))
 	if xsrf := session.Cookies["xsrf"]; xsrf != "" {
 		req.Header.Set("x-xsrf-token", xsrf)
 	}
