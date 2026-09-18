@@ -49,6 +49,20 @@ func TestBridgeConfigRetainsProxyAddressWhileDisabled(t *testing.T) {
 	}
 }
 
+func TestBridgeConfigDefaultFooterFollowsConfiguredLanguage(t *testing.T) {
+	config, err := normalizeBridgeConfig(bridgeConfig{
+		Publishing: publishingConfig{Platforms: map[string]publishingPlatformConfig{
+			"cnblogs": {Language: "en"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(config.Publishing.Platforms["cnblogs"].Footer.Template, "This article was first published") {
+		t.Fatalf("footer = %q", config.Publishing.Platforms["cnblogs"].Footer.Template)
+	}
+}
+
 func TestBridgeConfigPublishingLanguageDefaultsAndValidation(t *testing.T) {
 	config, err := normalizeBridgeConfig(bridgeConfig{})
 	if err != nil {
