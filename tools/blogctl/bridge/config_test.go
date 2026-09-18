@@ -62,10 +62,10 @@ func TestBridgeConfigPublishingLanguageDefaultsAndValidation(t *testing.T) {
 	}
 
 	config.Publishing.Platforms["medium"] = publishingPlatformConfig{
-		Language: " zh-cn ",
-		Footer: defaultPlatformPublishingConfig("medium").Footer,
+		Language:  " zh-cn ",
+		Footer:    defaultPlatformPublishingConfig("medium").Footer,
 		Canonical: defaultPlatformPublishingConfig("medium").Canonical,
-		Tracking: defaultPlatformPublishingConfig("medium").Tracking,
+		Tracking:  defaultPlatformPublishingConfig("medium").Tracking,
 	}
 	normalized, err := normalizeBridgeConfig(config)
 	if err != nil {
