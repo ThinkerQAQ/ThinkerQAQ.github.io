@@ -51,7 +51,7 @@
     const article = selectedArticle();
     platformsContainer.replaceChildren();
     for (const platform of state.status?.platforms ?? []) {
-      const availability = BlogCTLSyncModel.platformAvailability(article, platform.id);
+      const availability = BlogCTLSyncModel.platformAvailability(article, platform);
       const label = document.createElement("label");
       label.className = "platform-choice";
       const checkbox = document.createElement("input");
