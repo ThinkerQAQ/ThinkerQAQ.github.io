@@ -278,13 +278,23 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
 }
 
+func wechatsyncTokenConfigured(config bridgeConfig) bool {
+	return strings.TrimSpace(config.WechatsyncToken) != "" || strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN")) != ""
+}
+
+func wechatsyncTokenPlaceholder(config bridgeConfig) string {
+	if wechatsyncTokenConfigured(config) {
+		return "已配置；留空保持现有 Token"
+	}
+	return "从 Wechatsync 扩展复制 Token"
+}
+
 func wechatsyncHealth(config bridgeConfig) toolHealth {
 	path, err := configuredExecutable(config, "wechatsync")
 	if err != nil {
 		return toolHealth{Status: "missing", Summary: "未检测到", Detail: err.Error()}
 	}
-	tokenConfigured := strings.TrimSpace(config.WechatsyncToken) != "" || strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN")) != ""
-	if !tokenConfigured {
+	if !wechatsyncTokenConfigured(config) {
 		return toolHealth{
 			Status: "error", Summary: "Token 未配置", Path: path,
 			Detail: "需要与 Wechatsync Chrome 扩展“同步桥接 / MCP 连接”的 Token 一致",
@@ -368,7 +378,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				Values: map[string]any{"path": config.ToolPaths["wechatsync"], "port": config.WechatsyncPort},
 				Schema: []toolField{
 					{Key: "path", Label: "Executable", Type: "file", Description: "留空时从 PATH 自动检测 wechatsync"},
-					{Key: "token", Label: "Bridge Token", Type: "secret", Placeholder: func() string { if strings.TrimSpace(config.WechatsyncToken) != "" || strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN")) != "" { return "已配置；留空保持现有 Token" }; return "从 Wechatsync 扩展复制 Token" }(), Description: "必须与 Wechatsync 扩展中的“同步桥接 / MCP 连接” Token 一致"},
+					{Key: "token", Label: "Bridge Token", Type: "secret", Placeholder: wechatsyncTokenPlaceholder(config), Description: "必须与 Wechatsync 扩展中的“同步桥接 / MCP 连接” Token 一致"},
 					{Key: "port", Label: "WebSocket Port", Type: "integer", Placeholder: "9527", Min: 1, Max: 65535, Description: "默认 9527；必须与 Wechatsync 扩展服务器地址一致"},
 				},
 			},
