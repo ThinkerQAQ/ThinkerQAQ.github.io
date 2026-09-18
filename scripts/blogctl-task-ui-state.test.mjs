@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -77,4 +78,33 @@ test("invalid persisted state cannot force phantom expansion", () => {
   const state = model.create(storage, "test.tasks");
   assert.equal(state.isJobExpanded("job-1"), false);
   assert.equal(state.isLogExpanded("job-1"), true);
+});
+
+
+test("bindDetails restores persisted state and records later toggles", () => {
+  const storage = fakeStorage();
+  const state = model.create(storage, "test.tasks");
+  state.setJobExpanded("job-1", true);
+
+  const listeners = new Map();
+  const details = {
+    open: false,
+    addEventListener(name, handler) { listeners.set(name, handler); },
+  };
+  model.bindDetails(details, state, "job", "job-1");
+  assert.equal(details.open, true);
+
+  details.open = false;
+  listeners.get("toggle")();
+  const reloaded = model.create(storage, "test.tasks");
+  assert.equal(reloaded.isJobExpanded("job-1"), false);
+});
+
+test("popup loads task state model before the task renderer", async () => {
+  const html = await fs.readFile(new URL("../tools/blogctl/extension/popup/popup.html", import.meta.url), "utf8");
+  const stateIndex = html.indexOf('src="task-ui-state.js"');
+  const tasksIndex = html.indexOf('src="tasks.js"');
+  assert.ok(stateIndex >= 0, "task-ui-state.js is missing from popup");
+  assert.ok(tasksIndex >= 0, "tasks.js is missing from popup");
+  assert.ok(stateIndex < tasksIndex, "task state model must load before tasks.js");
 });
