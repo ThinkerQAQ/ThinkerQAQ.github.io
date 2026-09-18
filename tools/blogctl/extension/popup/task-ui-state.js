@@ -72,6 +72,16 @@
     details.addEventListener("toggle", () => setExpanded(id, Boolean(details.open)));
   }
 
+  function captureDetails(cards, state) {
+    for (const card of cards || []) {
+      const id = card?.dataset?.jobId;
+      if (!id) continue;
+      state.setJobExpanded(id, Boolean(card.open));
+      const log = card.querySelector?.("details.job-debug");
+      if (log) state.setLogExpanded(id, Boolean(log.open));
+    }
+  }
+
   function shouldRender(lastRenderedSnapshot, nextSnapshot, renderDeferred = false) {
     return renderDeferred || lastRenderedSnapshot !== nextSnapshot;
   }
@@ -88,6 +98,7 @@
     create,
     parseStringSet,
     bindDetails,
+    captureDetails,
     shouldRender,
     renderSnapshot,
   };
