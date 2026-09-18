@@ -72,6 +72,10 @@
     details.addEventListener("toggle", () => setExpanded(id, Boolean(details.open)));
   }
 
+  function shouldRender(lastRenderedSnapshot, nextSnapshot, renderDeferred = false) {
+    return renderDeferred || lastRenderedSnapshot !== nextSnapshot;
+  }
+
   function renderSnapshot(jobs, status) {
     const platforms = (status?.platforms ?? []).map((platform) => ({
       id: platform.id,
@@ -84,6 +88,7 @@
     create,
     parseStringSet,
     bindDetails,
+    shouldRender,
     renderSnapshot,
   };
 })(globalThis);
