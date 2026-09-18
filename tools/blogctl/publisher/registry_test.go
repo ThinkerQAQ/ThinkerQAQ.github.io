@@ -12,7 +12,9 @@ func TestNativeAdapterRegistryCoversAllChinesePlatforms(t *testing.T) {
 	}
 	for _, platform := range platforms {
 		t.Run(platform, func(t *testing.T) {
-			adapter, err := newAdapter(platform, http.DefaultClient, Session{})
+			adapter, err := newAdapter(platform, http.DefaultClient, Session{
+				Cookies: []BrowserCookie{{Name: "session", Value: "test", Domain: ".example.com", Path: "/"}},
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
