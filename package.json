@@ -27,16 +27,18 @@
     "distribute": "node scripts/distribute.mjs",
     "syndicate": "node scripts/syndicate-cli.mjs",
     "sync:blogs": "go run ./tools/blogctl/cmd sync",
-    "build": "node scripts/clean-dist.mjs && npm run diagrams && astro build && node scripts/build-search.mjs",
+    "build": "node scripts/clean-dist.mjs && npm run diagrams && npm run covers:social && astro build && node scripts/build-search.mjs",
     "build:fixtures": "npm run assemble:fixtures && npm run build",
     "check": "astro check",
     "preview": "astro preview --port 4321",
-    "test": "npm run test:engine && npm run assemble:fixtures && npm run check && npm run build"
+    "test": "npm run test:engine && npm run assemble:fixtures && npm run check && npm run build",
+    "covers:social": "node scripts/render-cover-social.mjs"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
     "@astrojs/sitemap": "3.7.4",
-    "astro": "7.2.10"
+    "astro": "7.2.10",
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
