@@ -25,6 +25,7 @@
     skipped: "无变化",
     "dry-run": "Dry Run 完成",
     "draft-created": "草稿已创建",
+    published: "已发布",
     "waiting-for-session": "等待 Session",
     "rate-limit-retry": "等待限流重试",
   };
