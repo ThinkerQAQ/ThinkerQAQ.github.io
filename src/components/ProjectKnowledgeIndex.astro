@@ -1,6 +1,7 @@
 ---
 import type { Locale } from "../config/i18n";
 import ArticleList from "./ArticleList.astro";
+import ProjectLinkList from "./ProjectLinkList.astro";
 import {
   localizedSeriesSummary,
   seriesHref,
@@ -23,11 +24,17 @@ const knowledge = buildProjectKnowledge(project, locale, articles, seriesEntries
 const ui = locale === "en"
   ? {
       articles: "Articles",
+      github: "GitHub",
+      tutorial: "Tutorial",
+      documentation: "Documentation",
       series: "Related Series",
       untranslatedArticle: "Chinese",
     }
   : {
       articles: "文章",
+      github: "GitHub",
+      tutorial: "教程",
+      documentation: "文档",
       series: "相关系列",
       untranslatedArticle: undefined,
     };
@@ -38,6 +45,35 @@ const ui = locale === "en"
     <h2 id="project-articles-heading">{ui.articles}</h2>
     <ArticleList
       entries={knowledge.articles}
+      locale={locale}
+      languageFallbackLabel={ui.untranslatedArticle}
+    />
+  </section>
+)}
+
+{knowledge.github.length > 0 && (
+  <section class="related-content" aria-labelledby="project-github-heading">
+    <h2 id="project-github-heading">{ui.github}</h2>
+    <ProjectLinkList entries={knowledge.github} />
+  </section>
+)}
+
+{knowledge.tutorials.length > 0 && (
+  <section class="related-content" aria-labelledby="project-tutorial-heading">
+    <h2 id="project-tutorial-heading">{ui.tutorial}</h2>
+    <ArticleList
+      entries={knowledge.tutorials}
+      locale={locale}
+      languageFallbackLabel={ui.untranslatedArticle}
+    />
+  </section>
+)}
+
+{knowledge.documentation.length > 0 && (
+  <section class="related-content" aria-labelledby="project-documentation-heading">
+    <h2 id="project-documentation-heading">{ui.documentation}</h2>
+    <ArticleList
+      entries={knowledge.documentation}
       locale={locale}
       languageFallbackLabel={ui.untranslatedArticle}
     />

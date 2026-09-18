@@ -32,7 +32,6 @@ const seriesEntries = await getCollection("series");
         <div class="note-meta">
           <span>{projectStatus[data.status]}</span>
           <span>更新于 {formatDate(data.updatedAt)}</span>
-          {data.repository && <a href={data.repository}>源代码</a>}
         </div>
       </header>
       <div class="prose"><Content /></div>
