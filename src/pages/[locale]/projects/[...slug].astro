@@ -47,7 +47,6 @@ const seriesEntries = await getCollection("series");
         <div class="note-meta">
           <span>{projectStatusLabel(data.status, locale)}</span>
           <span>{LOCALES[locale].ui.updatedAt} {formatDate(data.updatedAt, locale)}</span>
-          {data.repository && <a href={data.repository}>Source code</a>}
         </div>
       </header>
       {!hasTranslation && <p class="source-note">The project body is currently maintained in Chinese.</p>}

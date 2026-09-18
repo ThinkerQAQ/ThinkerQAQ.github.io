@@ -99,7 +99,13 @@ const projects = defineCollection({
     updatedAt: z.coerce.date(),
     tags: z.array(z.string()).default([]),
     featured: z.boolean().default(false),
-    repository: z.url().optional(),
+    github: z.array(z.object({
+      title: z.string(),
+      description: z.string().optional(),
+      url: z.url(),
+    })).default([]),
+    tutorials: z.array(z.string()).default([]),
+    documentation: z.array(z.string()).default([]),
     translations: z.record(z.string(), localizedSummary).default({}),
   }),
 });

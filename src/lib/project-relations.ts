@@ -12,8 +12,13 @@ export interface ProjectRelation {
   project: ProjectEntry;
 }
 
+export type ProjectExternalLink = ProjectEntry["data"]["github"][number];
+
 export interface ProjectKnowledge {
   articles: ArticleEntry[];
+  github: ProjectExternalLink[];
+  tutorials: ArticleEntry[];
+  documentation: ArticleEntry[];
   series: SeriesEntry[];
 }
 
@@ -80,6 +85,49 @@ function localizedArticleForRoot(
   ) ?? root;
 }
 
+function resolveProjectArticleReferences(
+  project: ProjectEntry,
+  rootIds: string[],
+  relationName: "tutorials" | "documentation",
+  locale: Locale,
+  articles: ArticleEntry[],
+  seriesEntries: SeriesEntry[],
+): ArticleEntry[] {
+  const seen = new Set<string>();
+
+  return rootIds.flatMap((rootId) => {
+    if (seen.has(rootId)) {
+      throw new Error(`Project ${project.id}: duplicate ${relationName} article ${rootId}`);
+    }
+    seen.add(rootId);
+
+    const root = articles.find((candidate) => candidate.id === rootId);
+    if (!root) {
+      throw new Error(`Project ${project.id}: ${relationName} article ${rootId} not found`);
+    }
+    if (root.data.translationOf) {
+      throw new Error(
+        `Project ${project.id}: ${relationName} must reference article roots, not translation ${rootId}`,
+      );
+    }
+    if (root.data.language !== DEFAULT_LOCALE) {
+      throw new Error(
+        `Project ${project.id}: ${relationName} article ${rootId} must use the default locale`,
+      );
+    }
+
+    const ownerProjectId = articleProjectId(root, seriesEntries);
+    if (ownerProjectId !== project.id) {
+      throw new Error(
+        `Project ${project.id}: ${relationName} article ${rootId} belongs to ${ownerProjectId ?? "no project"}`,
+      );
+    }
+
+    const localized = localizedArticleForRoot(root, locale, articles);
+    return localized ? [localized] : [];
+  });
+}
+
 export function getArticleProjectRelation(
   article: ArticleEntry,
   articles: ArticleEntry[],
@@ -123,8 +171,28 @@ export function buildProjectKnowledge(
     }),
   );
 
+  const tutorials = resolveProjectArticleReferences(
+    project,
+    project.data.tutorials,
+    "tutorials",
+    locale,
+    articles,
+    seriesEntries,
+  );
+  const documentation = resolveProjectArticleReferences(
+    project,
+    project.data.documentation,
+    "documentation",
+    locale,
+    articles,
+    seriesEntries,
+  );
+
   return {
     articles: projectArticles,
+    github: project.data.github,
+    tutorials,
+    documentation,
     series: projectSeries,
   };
 }

@@ -1,0 +1,23 @@
+---
+import type { ProjectExternalLink } from "../lib/project-relations";
+
+interface Props {
+  entries: ProjectExternalLink[];
+}
+
+const { entries } = Astro.props;
+---
+
+<ol class="content-list">
+  {entries.map((entry) => (
+    <li>
+      <div class="content-list-main">
+        <a class="content-title" href={entry.url}>{entry.title}</a>
+        {entry.description && <p>{entry.description}</p>}
+      </div>
+      <div class="content-meta">
+        <span>GitHub</span>
+      </div>
+    </li>
+  ))}
+</ol>
