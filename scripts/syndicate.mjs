@@ -66,9 +66,10 @@ export function makeExternalLinksAbsolute(body) {
     .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${SITE_ORIGIN}/`);
 }
 
-export function buildCanonicalUrl(slug) {
+export function buildCanonicalUrl(slug, language = "en") {
   const encodedSlug = slug.split("/").map(encodeURIComponent).join("/");
-  return new URL(`/en/articles/${encodedSlug}/`, SITE_ORIGIN).toString();
+  const prefix = language === "en" ? "/en/articles/" : "/articles/";
+  return new URL(`${prefix}${encodedSlug}/`, SITE_ORIGIN).toString();
 }
 
 function truncate(value, maxLength) {
@@ -80,13 +81,15 @@ export function buildDevtoArticle(article, {
   slug,
   published = true,
   publishingConfig = defaultPlatformPublishingConfig("devto"),
+  language = null,
 } = {}) {
-  const canonicalUrl = buildCanonicalUrl(slug);
+  const contentLanguage = language || publishingConfig?.language || "en";
+  const canonicalUrl = buildCanonicalUrl(slug, contentLanguage);
   const body = makeExternalLinksAbsolute(article.body).trim();
   const footer = renderPublishingFooter(publishingConfig, {
     canonicalUrl,
     title: article.title,
-    site: "ThinkerQAQ's personal blog",
+    site: contentLanguage === "en" ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客",
   });
   const footerSection = footer ? `\n\n---\n\n${footer}` : "";
   return {
@@ -231,7 +234,7 @@ async function walkMarkdown(directory) {
   return files.sort();
 }
 
-export async function loadEnglishArticles({ articleRoot, requestedSlugs = [] } = {}) {
+export async function loadArticles({ articleRoot, requestedSlugs = [], language = "en" } = {}) {
   const root = path.resolve(articleRoot);
   const requested = new Set(requestedSlugs);
   const seen = new Set();
@@ -248,8 +251,12 @@ export async function loadEnglishArticles({ articleRoot, requestedSlugs = [] } =
     articles.push({ slug, sourceFile, article });
   }
   const missing = [...requested].filter((slug) => !seen.has(slug));
-  if (missing.length > 0) throw new Error(`Unknown English article slug: ${missing.join(", ")}`);
+  if (missing.length > 0) throw new Error(`Unknown ${language} article slug: ${missing.join(", ")}`);
   return articles;
+}
+
+export async function loadEnglishArticles(options = {}) {
+  return loadArticles({ ...options, language: "en" });
 }
 
 export function parseArguments(argv) {
@@ -285,7 +292,7 @@ export function parseArguments(argv) {
 }
 
 function printHelp() {
-  console.log(`Usage: npm run syndicate -- [options]\n\nSyndicate published English articles to international platforms.\n\nOptions:\n  --article <slug>       Sync one English article; may be repeated\n  --platforms <list>     Comma-separated platforms (currently: devto)\n  --dry-run              Validate and print planned payloads without network calls\n  --draft                Create or update DEV.to articles as drafts\n  -h, --help             Show this help`);
+  console.log(`Usage: npm run syndicate -- [options]\n\nSyndicate published articles to international platforms.\n\nOptions:\n  --article <slug>       Sync one article; may be repeated\n  --platforms <list>     Comma-separated platforms (currently: devto)\n  --dry-run              Validate and print planned payloads without network calls\n  --draft                Create or update DEV.to articles as drafts\n  -h, --help             Show this help`);
 }
 
 export async function runSyndication({
@@ -294,14 +301,16 @@ export async function runSyndication({
   dryRun = false,
   draft = false,
   publishingConfig = defaultPlatformPublishingConfig("devto"),
+  language = null,
   apiKey = process.env.DEVTO_API_KEY,
   apiOrigin = process.env.DEVTO_API_ORIGIN || DEVTO_API_ORIGIN,
   fetchImpl = fetch,
 } = {}) {
-  const loaded = await loadEnglishArticles({ articleRoot, requestedSlugs });
+  const contentLanguage = language || publishingConfig?.language || "en";
+  const loaded = await loadArticles({ articleRoot, requestedSlugs, language: contentLanguage });
   const desiredArticles = loaded.map(({ slug, article }) => ({
     slug,
-    payload: buildDevtoArticle(article, { slug, published: !draft, publishingConfig }),
+    payload: buildDevtoArticle(article, { slug, published: !draft, publishingConfig, language: contentLanguage }),
   }));
 
   if (dryRun) {
