@@ -105,7 +105,6 @@ func TestCloneSyncJobPreservesRetryRequest(t *testing.T) {
 	}
 }
 
-
 func TestMoveJobToFrontDoesNotDuplicateID(t *testing.T) {
 	got := moveJobToFront([]string{"newer", "job-1", "older"}, "job-1")
 	want := []string{"job-1", "newer", "older"}
