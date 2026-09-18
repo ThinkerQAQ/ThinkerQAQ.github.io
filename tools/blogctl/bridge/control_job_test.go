@@ -46,7 +46,6 @@ func TestCloneSyncJobDeepCopiesCollections(t *testing.T) {
 	}
 }
 
-
 func TestDeleteSyncJobRejectsRunningAndRemovesFinished(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
@@ -93,10 +92,10 @@ func TestCloneSyncJobPreservesRetryRequest(t *testing.T) {
 	original := &syncJob{
 		ID: "job-1",
 		Request: syncRequest{
-			Article: "example",
+			Article:   "example",
 			Platforms: []string{"juejin"},
-			Changed: true,
-			Draft: true,
+			Changed:   true,
+			Draft:     true,
 		},
 	}
 	clone := cloneSyncJob(original)
