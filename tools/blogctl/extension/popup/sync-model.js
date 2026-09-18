@@ -1,6 +1,19 @@
 "use strict";
 
 (function (root) {
+  const WECHATSYNC_PLATFORMS = new Set(["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao"]);
+
+  function deliveryToolAvailability(platformId, tools = []) {
+    if (!WECHATSYNC_PLATFORMS.has(platformId)) return { available: true, reason: "" };
+    const tool = tools.find((item) => item.name === "wechatsync");
+    if (!tool) return { available: false, reason: "Wechatsync 状态未知" };
+    if (tool.health?.ok) return { available: true, reason: "" };
+    return {
+      available: false,
+      reason: tool.health?.summary ? `Wechatsync：${tool.health.summary}` : "Wechatsync 不可用",
+    };
+  }
+
   function platformAvailability(article, platform, publishingProfile = {}) {
     if (platform && typeof platform === "object") {
       if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
@@ -63,5 +76,5 @@
     });
   }
 
-  root.BlogCTLSyncModel = { platformRows, statePresentation, platformAvailability };
+  root.BlogCTLSyncModel = { deliveryToolAvailability, platformRows, statePresentation, platformAvailability };
 })(globalThis);

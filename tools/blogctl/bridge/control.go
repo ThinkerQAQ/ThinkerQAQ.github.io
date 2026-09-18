@@ -278,6 +278,34 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
 }
 
+func wechatsyncTokenConfigured(config bridgeConfig) bool {
+	return strings.TrimSpace(config.WechatsyncToken) != "" || strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN")) != ""
+}
+
+func wechatsyncTokenPlaceholder(config bridgeConfig) string {
+	if wechatsyncTokenConfigured(config) {
+		return "已配置；留空保持现有 Token"
+	}
+	return "从 Wechatsync 扩展复制 Token"
+}
+
+func wechatsyncHealth(config bridgeConfig) toolHealth {
+	path, err := configuredExecutable(config, "wechatsync")
+	if err != nil {
+		return toolHealth{Status: "missing", Summary: "未检测到", Detail: err.Error()}
+	}
+	if !wechatsyncTokenConfigured(config) {
+		return toolHealth{
+			Status: "error", Summary: "Token 未配置", Path: path,
+			Detail: "需要与 Wechatsync Chrome 扩展“同步桥接 / MCP 连接”的 Token 一致",
+		}
+	}
+	return toolHealth{
+		OK: true, Status: "ok", Summary: "已配置", Path: path,
+		Detail: fmt.Sprintf("Token 已配置 · WebSocket 端口 %d · 同步前自动预检", config.WechatsyncPort),
+	}
+}
+
 func toolRegistry(config bridgeConfig) []toolDescriptor {
 	pathField := func(key, label, description string) []toolField {
 		return []toolField{{Key: key, Label: label, Type: "file", Description: description}}
@@ -343,8 +371,17 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "wechatsync", DisplayName: "Wechatsync", Kind: "dependency", Required: false,
-			Description: "中文平台迁移完成前的兼容发布 adapter。", Health: executableHealth(config, "wechatsync"),
-			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["wechatsync"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 wechatsync")},
+			Description: "中文平台发布 adapter；CLI 通过本机 WebSocket 与 Wechatsync Chrome 扩展连接。",
+			Health:      wechatsyncHealth(config),
+			Config: toolConfigView{
+				Scope:  "bridge",
+				Values: map[string]any{"path": config.ToolPaths["wechatsync"], "port": config.WechatsyncPort},
+				Schema: []toolField{
+					{Key: "path", Label: "Executable", Type: "file", Description: "留空时从 PATH 自动检测 wechatsync"},
+					{Key: "token", Label: "Bridge Token", Type: "secret", Placeholder: wechatsyncTokenPlaceholder(config), Description: "必须与 Wechatsync 扩展中的“同步桥接 / MCP 连接” Token 一致"},
+					{Key: "port", Label: "WebSocket Port", Type: "integer", Placeholder: "9527", Min: 1, Max: 65535, Description: "默认 9527；必须与 Wechatsync 扩展服务器地址一致"},
+				},
+			},
 		},
 	}
 }
@@ -380,11 +417,22 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		config.ProxyEnabled = boolConfig(values, "proxyEnabled")
 		config.ProxyHost = stringConfig(values, "proxyHost")
 		config.ProxyPort = intConfig(values, "proxyPort")
-	case "node", "npm", "git", "wechatsync":
+	case "node", "npm", "git":
 		if config.ToolPaths == nil {
 			config.ToolPaths = map[string]string{}
 		}
 		config.ToolPaths[name] = stringConfig(values, "path")
+	case "wechatsync":
+		if config.ToolPaths == nil {
+			config.ToolPaths = map[string]string{}
+		}
+		config.ToolPaths[name] = stringConfig(values, "path")
+		if token := stringConfig(values, "token"); token != "" {
+			config.WechatsyncToken = token
+		}
+		if port := intConfig(values, "port"); port != 0 {
+			config.WechatsyncPort = port
+		}
 	default:
 		return config, fmt.Errorf("tool configuration is not supported: %s", name)
 	}
@@ -444,19 +492,35 @@ func newJobID() string {
 
 type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
 
+func usesWechatsyncPlatform(platforms []string) bool {
+	for _, platform := range platforms {
+		switch platform {
+		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
 	applicationConfig := blogapp.SyncConfig{
-		EngineRoot:   config.EngineRoot,
-		ContentRoot:  config.ContentRoot,
-		BridgeOrigin: "http://" + DefaultAddress,
-		BridgeToken:  s.token,
-		ToolPaths:    config.ToolPaths,
+		EngineRoot:      config.EngineRoot,
+		ContentRoot:     config.ContentRoot,
+		BridgeOrigin:    "http://" + DefaultAddress,
+		BridgeToken:     s.token,
+		ToolPaths:       config.ToolPaths,
+		WechatsyncToken: config.WechatsyncToken,
+		WechatsyncPort:  config.WechatsyncPort,
 	}
 	if configPath, err := ConfigPath(); err == nil {
 		applicationConfig.ConfigPath = configPath
 	}
 	service := blogapp.NewSyncService()
 	service.OnEvent = onEvent
+	if usesWechatsyncPlatform(request.Platforms) {
+		s.wechatsyncMu.Lock()
+		defer s.wechatsyncMu.Unlock()
+	}
 	return service.Run(ctx, applicationConfig, blogapp.SyncRequest{
 		Articles:  []string{request.Article},
 		Platforms: append([]string{}, request.Platforms...),
