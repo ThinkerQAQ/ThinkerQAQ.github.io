@@ -223,13 +223,17 @@ export async function upsertDevtoArticle(desired, {
   return { action: "updated", article: updated };
 }
 
-async function walkMarkdown(directory) {
+async function walkMarkdown(directory, { excludedDirectories = new Set() } = {}) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const absolute = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await walkMarkdown(absolute));
-    else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) files.push(absolute);
+    if (entry.isDirectory()) {
+      if (excludedDirectories.has(entry.name)) continue;
+      files.push(...await walkMarkdown(absolute, { excludedDirectories }));
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
+      files.push(absolute);
+    }
   }
   return files.sort();
 }
@@ -239,7 +243,8 @@ export async function loadArticles({ articleRoot, requestedSlugs = [], language 
   const requested = new Set(requestedSlugs);
   const seen = new Set();
   const articles = [];
-  for (const sourceFile of await walkMarkdown(root)) {
+  const excludedDirectories = language === "zh-CN" ? new Set(["en"]) : new Set();
+  for (const sourceFile of await walkMarkdown(root, { excludedDirectories })) {
     const slug = path.relative(root, sourceFile)
       .replace(/\.md$/iu, "")
       .split(path.sep)
