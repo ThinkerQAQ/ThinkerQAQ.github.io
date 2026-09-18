@@ -27,14 +27,14 @@ const (
 type imageXToken struct {
 	AccessKeyID     string
 	SecretAccessKey string
-	SessionToken   string
-	ExpiresAt      time.Time
+	SessionToken    string
+	ExpiresAt       time.Time
 }
 
 type juejinAdapter struct {
-	client     *http.Client
-	userAgent  string
-	apiBase    string
+	client       *http.Client
+	userAgent    string
+	apiBase      string
 	imageXBase   string
 	uploadScheme string
 	now          func() time.Time
@@ -140,8 +140,8 @@ func (j *juejinAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	}
 	return AuthResult{
 		Authenticated: decoded.Data.UserID != "",
-		UserID: decoded.Data.UserID,
-		Username: decoded.Data.UserName,
+		UserID:        decoded.Data.UserID,
+		Username:      decoded.Data.UserName,
 	}, nil
 }
 
@@ -267,8 +267,8 @@ func (j *juejinAdapter) mutateDraft(ctx context.Context, path, operation string,
 		return DraftResult{}, platformError(ErrUpstream, "juejin", operation, response.StatusCode, "response did not contain a draft id", false)
 	}
 	return DraftResult{
-		ID: draftID,
-		URL: juejinOrigin + "/editor/drafts/" + url.PathEscape(draftID),
+		ID:      draftID,
+		URL:     juejinOrigin + "/editor/drafts/" + url.PathEscape(draftID),
 		Created: operation == "create-draft",
 		Updated: operation == "update-draft",
 	}, nil
@@ -361,8 +361,8 @@ func (j *juejinAdapter) imageToken(ctx context.Context) (imageXToken, error) {
 			Token struct {
 				AccessKeyID     string `json:"AccessKeyId"`
 				SecretAccessKey string `json:"SecretAccessKey"`
-				SessionToken   string `json:"SessionToken"`
-				ExpiredTime    string `json:"ExpiredTime"`
+				SessionToken    string `json:"SessionToken"`
+				ExpiredTime     string `json:"ExpiredTime"`
 			} `json:"token"`
 		} `json:"data"`
 		ErrNo  int    `json:"err_no"`
@@ -379,10 +379,10 @@ func (j *juejinAdapter) imageToken(ctx context.Context) (imageXToken, error) {
 		expires = j.now().Add(5 * time.Minute)
 	}
 	token := imageXToken{
-		AccessKeyID: decoded.Data.Token.AccessKeyID,
+		AccessKeyID:     decoded.Data.Token.AccessKeyID,
 		SecretAccessKey: decoded.Data.Token.SecretAccessKey,
-		SessionToken: decoded.Data.Token.SessionToken,
-		ExpiresAt: expires,
+		SessionToken:    decoded.Data.Token.SessionToken,
+		ExpiresAt:       expires,
 	}
 	j.mu.Lock()
 	j.imageToken = &token
@@ -403,11 +403,11 @@ type imageXUploadAddress struct {
 
 func (j *juejinAdapter) signedImageXRequest(ctx context.Context, method, rawURL string, token imageXToken) (*http.Request, error) {
 	headers, err := SignAWS4(method, rawURL, AWS4Credentials{
-		AccessKeyID: token.AccessKeyID,
+		AccessKeyID:     token.AccessKeyID,
 		SecretAccessKey: token.SecretAccessKey,
-		SecurityToken: token.SessionToken,
-		Region: "cn-north-1",
-		Service: "imagex",
+		SecurityToken:   token.SessionToken,
+		Region:          "cn-north-1",
+		Service:         "imagex",
 	}, j.now())
 	if err != nil {
 		return nil, err
