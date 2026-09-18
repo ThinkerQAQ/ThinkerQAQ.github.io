@@ -156,7 +156,7 @@ func (z *zhihuAdapter) CreateDraft(ctx context.Context, input DraftInput) (Draft
 	}
 	return DraftResult{
 		ID:      id,
-		URL:     zhihuOrigin + "/write/" + url.PathEscape(id),
+		URL:     zhihuOrigin + "/p/" + url.PathEscape(id) + "/edit",
 		Created: true,
 	}, nil
 }
@@ -168,7 +168,7 @@ func (z *zhihuAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Draf
 	if err := z.updateDraft(ctx, ref.ID, input); err != nil {
 		return DraftResult{}, err
 	}
-	return DraftResult{ID: ref.ID, URL: zhihuOrigin + "/write/" + url.PathEscape(ref.ID), Updated: true}, nil
+	return DraftResult{ID: ref.ID, URL: zhihuOrigin + "/p/" + url.PathEscape(ref.ID) + "/edit", Updated: true}, nil
 }
 
 func (z *zhihuAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {

@@ -117,7 +117,15 @@ func draftIDFromURL(platform, rawURL string) string {
 		return strings.TrimSpace(parsed.Query().Get(name))
 	}
 	switch platform {
-	case "juejin", "51cto", "oschina", "zhihu":
+	case "juejin", "51cto", "oschina":
+		return pathID()
+	case "zhihu":
+		// 草稿/编辑链接为 /p/<articleID>/edit，公开链接为 /p/<articleID>；
+		// 兼容更早的 /write/<articleID> 形态。
+		segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+		if len(segments) >= 2 && segments[0] == "p" && strings.TrimSpace(segments[1]) != "" {
+			return strings.TrimSpace(segments[1])
+		}
 		return pathID()
 	case "csdn":
 		return queryID("articleId")

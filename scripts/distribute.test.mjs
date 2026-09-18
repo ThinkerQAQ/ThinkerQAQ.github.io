@@ -209,7 +209,7 @@ test("exportArticles migrates v1 draft state into manifest v2", async () => {
               draftUrl: "https://juejin.cn/editor/drafts/juejin-id",
             },
             zhihu: {
-              draftUrl: "https://zhuanlan.zhihu.com/write/zhihu-id",
+              draftUrl: "https://zhuanlan.zhihu.com/p/zhihu-id/edit",
             },
             "51cto": {
               draftUrl: "https://blog.51cto.com/blogger/draft/51cto-id",

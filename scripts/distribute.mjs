@@ -215,8 +215,13 @@ function draftIdFromUrl(platform, draftUrl) {
     case "juejin":
     case "51cto":
     case "oschina":
-    case "zhihu":
       return pathId();
+    case "zhihu": {
+      // 草稿/编辑链接为 /p/<id>/edit，公开链接为 /p/<id>；兼容旧的 /write/<id>。
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      if (segments[0] === "p" && segments[1]) return segments[1];
+      return pathId();
+    }
     case "csdn":
       return parsed.searchParams.get("articleId") ?? "";
     case "segmentfault":

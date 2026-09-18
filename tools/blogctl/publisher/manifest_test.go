@@ -74,7 +74,9 @@ func TestDraftIDFromURL(t *testing.T) {
 		want     string
 	}{
 		{"juejin", "https://juejin.cn/editor/drafts/draft-42", "draft-42"},
-		{"zhihu", "https://zhuanlan.zhihu.com/write/5678", "5678"},
+		{"zhihu", "https://zhuanlan.zhihu.com/p/5678/edit", "5678"},
+		{"zhihu", "https://zhuanlan.zhihu.com/p/5678", "5678"},
+		{"zhihu", "https://zhuanlan.zhihu.com/write/9999", "9999"},
 		{"51cto", "https://blog.51cto.com/blogger/draft/123", "123"},
 		{"oschina", "https://my.oschina.net/u/42/blog/ai-write/draft/789", "789"},
 		{"csdn", "https://editor.csdn.net/md?articleId=cs-1", "cs-1"},
