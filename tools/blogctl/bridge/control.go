@@ -67,6 +67,7 @@ type syncJob struct {
 	ID         string                        `json:"id"`
 	Article    string                        `json:"article"`
 	Platforms  []string                      `json:"platforms"`
+	Request    syncRequest                   `json:"-"`
 	Results    map[string]syncPlatformResult `json:"results"`
 	Events     []syncJobEvent                `json:"events,omitempty"`
 	State      string                        `json:"state"`
@@ -491,7 +492,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	}
 	job := &syncJob{
 		ID: newJobID(), Article: request.Article, Platforms: append([]string{}, request.Platforms...),
-		Results: results, Events: events, State: "running",
+		Request: request, Results: results, Events: events, State: "running",
 		StartedAt: startedAt.Format(time.RFC3339), DryRun: request.DryRun,
 	}
 	s.mu.Lock()
@@ -565,4 +566,59 @@ func (s *Server) syncJobs() []syncJob {
 		}
 	}
 	return result
+}
+
+func (s *Server) deleteSyncJob(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job := s.jobs[id]
+	if job == nil {
+		return errors.New("sync job not found")
+	}
+	if job.State == "running" {
+		return errors.New("running sync job cannot be deleted")
+	}
+	delete(s.jobs, id)
+	filtered := s.jobOrder[:0]
+	for _, candidate := range s.jobOrder {
+		if candidate != id {
+			filtered = append(filtered, candidate)
+		}
+	}
+	s.jobOrder = filtered
+	return nil
+}
+
+func (s *Server) clearFinishedSyncJobs() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.jobOrder[:0]
+	removed := 0
+	for _, id := range s.jobOrder {
+		job := s.jobs[id]
+		if job != nil && job.State == "running" {
+			kept = append(kept, id)
+			continue
+		}
+		delete(s.jobs, id)
+		removed++
+	}
+	s.jobOrder = kept
+	return removed
+}
+
+func (s *Server) retrySyncJob(id string) (*syncJob, error) {
+	s.mu.Lock()
+	job := s.jobs[id]
+	if job == nil {
+		s.mu.Unlock()
+		return nil, errors.New("sync job not found")
+	}
+	if job.State == "running" {
+		s.mu.Unlock()
+		return nil, errors.New("running sync job cannot be retried")
+	}
+	request := job.Request
+	s.mu.Unlock()
+	return s.startSyncJob(request), nil
 }
