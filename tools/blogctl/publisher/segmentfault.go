@@ -196,7 +196,7 @@ func (s *segmentFaultAdapter) prepareMarkdown(ctx context.Context, input DraftIn
 	return replaceImages(input.Markdown, replacements), nil
 }
 
-func (s *segmentFaultAdapter) mutateDraft(ctx context.Context, refID string, input DraftInput) (DraftResult, error) {
+func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input DraftInput) (DraftResult, error) {
 	token, err := s.sessionToken(ctx)
 	if err != nil {
 		return DraftResult{}, err
@@ -205,22 +205,38 @@ func (s *segmentFaultAdapter) mutateDraft(ctx context.Context, refID string, inp
 	if err != nil {
 		return DraftResult{}, err
 	}
-	body, _ := json.Marshal(map[string]any{
-		"title":     input.Title,
-		"tags":      []string{},
-		"text":      content,
-		"object_id": refID,
-		"type":      "article",
-	})
-	req, err := s.request(ctx, http.MethodPost, segmentFaultOrigin+"/gateway/draft", strings.NewReader(string(body)))
+
+	method := http.MethodPost
+	rawURL := segmentFaultOrigin + "/gateway/draft"
+	operation := "create-draft"
+	payload := map[string]any{
+		"title": input.Title,
+		"tags":  []string{},
+		"text":  content,
+		"type":  "article",
+	}
+	if refID == "" {
+		payload["object_id"] = ""
+	} else {
+		method = http.MethodPut
+		rawURL += "/" + url.PathEscape(refID)
+		operation = "update-draft"
+		payload["id"] = refID
+	}
+
+	body, _ := json.Marshal(payload)
+	req, err := s.request(ctx, method, rawURL, strings.NewReader(string(body)))
 	if err != nil {
 		return DraftResult{}, err
 	}
 	req.Header.Set("content-type", "application/json")
+	req.Header.Set("accept", "application/json, text/plain, */*")
 	req.Header.Set("token", token)
+	req.Header.Set("authorization", "Bearer "+token)
+
 	response, err := s.client.Do(req)
 	if err != nil {
-		return DraftResult{}, platformError(ErrUpstream, s.ID(), "save-draft", 0, err.Error(), true)
+		return DraftResult{}, platformError(ErrUpstream, s.ID(), operation, 0, err.Error(), true)
 	}
 	defer response.Body.Close()
 	raw, err := readBounded(response, 2<<20)
@@ -229,19 +245,21 @@ func (s *segmentFaultAdapter) mutateDraft(ctx context.Context, refID string, inp
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		if refID != "" && (response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusGone) {
-			return DraftResult{}, platformError(ErrRemoteDraftMissing, s.ID(), "update-draft", response.StatusCode, string(raw), false)
+			return DraftResult{}, platformError(ErrRemoteDraftMissing, s.ID(), operation, response.StatusCode, string(raw), false)
 		}
-		return DraftResult{}, classifyHTTP(s.ID(), "save-draft", response.StatusCode, string(raw))
+		return DraftResult{}, classifyHTTP(s.ID(), operation, response.StatusCode, string(raw))
 	}
-	id, err := parseSegmentFaultID(raw)
-	if err != nil {
-		if refID != "" && strings.Contains(strings.ToLower(string(raw)), "not") {
-			return DraftResult{}, platformError(ErrRemoteDraftMissing, s.ID(), "update-draft", response.StatusCode, err.Error(), false)
+
+	id := refID
+	if len(strings.TrimSpace(string(raw))) > 0 {
+		if parsedID, parseErr := parseSegmentFaultID(raw); parseErr == nil && parsedID != "" {
+			id = parsedID
+		} else if refID == "" {
+			return DraftResult{}, platformError(ErrUpstream, s.ID(), operation, response.StatusCode, parseErr.Error(), false)
 		}
-		return DraftResult{}, platformError(ErrUpstream, s.ID(), "save-draft", response.StatusCode, err.Error(), false)
 	}
 	if id == "" {
-		id = refID
+		return DraftResult{}, platformError(ErrUpstream, s.ID(), operation, response.StatusCode, "response did not contain a draft id", false)
 	}
 	return DraftResult{
 		ID:      id,
@@ -252,14 +270,14 @@ func (s *segmentFaultAdapter) mutateDraft(ctx context.Context, refID string, inp
 }
 
 func (s *segmentFaultAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
-	return s.mutateDraft(ctx, "", input)
+	return s.saveDraft(ctx, "", input)
 }
 
 func (s *segmentFaultAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error) {
 	if strings.TrimSpace(ref.ID) == "" {
 		return DraftResult{}, platformError(ErrValidation, s.ID(), "update-draft", 0, "draft id is required", false)
 	}
-	return s.mutateDraft(ctx, ref.ID, input)
+	return s.saveDraft(ctx, ref.ID, input)
 }
 
 func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {
