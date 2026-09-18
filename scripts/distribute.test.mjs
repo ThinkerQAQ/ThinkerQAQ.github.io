@@ -30,6 +30,8 @@ tags:
   - JVM
   - Memory Model
 status: published
+coverImage: "/media/articles/test/cover.png"
+coverImageAlt: "Synthetic test cover"
 ---
 
 ## 正文
@@ -411,4 +413,31 @@ test("parseArguments validates platform and changed options", () => {
   assert.throws(() => parseArguments(["--article"]), /requires a value/u);
   assert.throws(() => parseArguments(["--platforms"]), /at least one platform/u);
   assert.throws(() => parseArguments(["--changed"]), /together with --sync/u);
+});
+
+
+test("parseArticle reads required cover metadata for published articles", () => {
+  const parsed = parseArticle(`---
+title: "Cover"
+description: "Cover test"
+status: published
+coverImage: "/media/articles/cover/cover.png"
+coverImageAlt: "Cover alt"
+tags: []
+---
+
+Body`);
+  assert.equal(parsed.coverImage, "/media/articles/cover/cover.png");
+  assert.equal(parsed.coverImageAlt, "Cover alt");
+});
+
+test("parseArticle rejects published articles without cover metadata", () => {
+  assert.throws(() => parseArticle(`---
+title: "Missing cover"
+description: "Cover test"
+status: published
+tags: []
+---
+
+Body`), /cover metadata is incomplete/u);
 });

@@ -1,6 +1,10 @@
 package bridge
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestFilterMediumCookies(t *testing.T) {
 	got := filterMediumCookies([]browserCookie{
@@ -21,5 +25,26 @@ func TestStripMediumXSSI(t *testing.T) {
 	plain := `{"success":true}`
 	if got := stripMediumXSSI(plain); got != plain {
 		t.Fatalf("plain response changed to %q", got)
+	}
+}
+
+func TestMediumDraftCoverImageJSON(t *testing.T) {
+	draft := mediumDraft{
+		Title:  "Cover test",
+		Deltas: []map[string]any{},
+		CoverImage: &mediumCoverImage{
+			URL: "https://thinkerqaq.github.io/media/articles/test/cover.png",
+			Alt: "Test cover",
+		},
+	}
+	payload, err := json.Marshal(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(payload), "\"coverImage\"") {
+		t.Fatalf("expected coverImage in JSON: %s", payload)
+	}
+	if !strings.Contains(string(payload), "cover.png") {
+		t.Fatalf("expected cover URL in JSON: %s", payload)
 	}
 }

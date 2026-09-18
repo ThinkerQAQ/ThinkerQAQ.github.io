@@ -6,6 +6,7 @@ export const SITE = {
   author: "ThinkerQAQ",
   url: "https://thinkerqaq.github.io",
   repository: "https://github.com/ThinkerQAQ/ThinkerQAQ.github.io",
+  contact: "mailto:zhangshengkunz@gmail.com",
   locale: "zh-CN",
 } as const;
 
