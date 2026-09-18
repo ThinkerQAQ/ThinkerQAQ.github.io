@@ -29,6 +29,11 @@ export function resolveDistributionOutputRoot(contentRoot, outputRoot) {
   return path.resolve(contentRoot, outputRoot);
 }
 
+export function resolveDistributionArticleRoot(contentRoot, language = "zh-CN") {
+  const root = path.join(contentRoot, "src", "content", "articles");
+  return language === "en" ? path.join(root, "en") : root;
+}
+
 export async function runBlogctlDistribution(argv, env = process.env) {
   const startedAt = Date.now();
   const options = parseArguments(argv);
@@ -38,13 +43,24 @@ export async function runBlogctlDistribution(argv, env = process.env) {
 
   const contentRoot = resolveBlogContentRoot(env);
   const publishingConfig = await loadPublishingConfig(env);
-  const result = await exportArticles({
-    articleRoot: path.join(contentRoot, "src", "content", "articles"),
-    outputRoot: resolveDistributionOutputRoot(contentRoot, options.outputRoot),
-    platforms: options.platforms,
-    requestedSlugs: options.requestedSlugs,
-    publishingConfig,
-  });
+  const outputRoot = resolveDistributionOutputRoot(contentRoot, options.outputRoot);
+  const result = { exported: [], manifest: null, manifestPath: "" };
+
+  for (const platform of options.platforms) {
+    const profile = publishingConfig[platform];
+    const language = profile?.language || "zh-CN";
+    const platformResult = await exportArticles({
+      articleRoot: resolveDistributionArticleRoot(contentRoot, language),
+      outputRoot,
+      platforms: [platform],
+      requestedSlugs: options.requestedSlugs,
+      publishingConfig,
+      language,
+    });
+    result.exported.push(...platformResult.exported);
+    result.manifest = platformResult.manifest;
+    result.manifestPath = platformResult.manifestPath;
+  }
 
   for (const item of result.exported) {
     if (item.tagCount > item.exportedTagCount) {
