@@ -195,6 +195,84 @@ func TestJuejinImageUploadRewritesMarkdown(t *testing.T) {
 	}
 }
 
+func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
+	root := t.TempDir()
+	output := filepath.Join(root, ".distribution", "juejin")
+	if err := os.MkdirAll(output, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(output, "example.md"), []byte("---\ntitle: \"Example\"\ndescription: \"Desc\"\n---\n\nChanged body\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest := map[string]any{
+		"version": 2,
+		"articles": map[string]any{
+			"example": map[string]any{"platforms": map[string]any{
+				"juejin": map[string]any{
+					"contentHash": "new", "draftHash": "old",
+					"remoteDraftId": "missing", "draftUrl": "https://juejin.cn/editor/drafts/missing",
+					"language": "zh-CN",
+				},
+			}},
+		},
+	}
+	payload, _ := json.Marshal(manifest)
+	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	updateCalls := 0
+	createCalls := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/user_api/v1/user/get":
+			return jsonResponse(request, 200, `{"data":{"user_id":"u1"}}`, nil), nil
+		case "/user_api/v1/sys/token":
+			return jsonResponse(request, 200, "", map[string]string{
+				"x-ware-csrf-token": "0,csrf,1,success,x",
+			}), nil
+		case "/content_api/v1/article_draft/update":
+			updateCalls++
+			return jsonResponse(request, http.StatusNotFound, `{"err_no":404,"err_msg":"draft not found"}`, nil), nil
+		case "/content_api/v1/article_draft/create":
+			createCalls++
+			return jsonResponse(request, 200, `{"err_no":0,"data":{"id":"replacement"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s", request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	service := Service{
+		HTTPClient: client,
+		Now: func() time.Time { return time.Date(2026, 9, 18, 5, 0, 0, 0, time.UTC) },
+	}
+	result, err := service.CreateOrUpdateDraft(context.Background(), "juejin", juejinSession(), root, "example", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updateCalls != 1 || createCalls != 1 {
+		t.Fatalf("update/create calls = %d/%d", updateCalls, createCalls)
+	}
+	if result.ID != "replacement" || !result.Created {
+		t.Fatalf("result = %#v", result)
+	}
+
+	rawManifest, err := os.ReadFile(filepath.Join(root, ".distribution", "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved map[string]any
+	if err := json.Unmarshal(rawManifest, &saved); err != nil {
+		t.Fatal(err)
+	}
+	state := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
+	savedState := objectValue(state)
+	if stringValue(savedState["remoteDraftId"]) != "replacement" || stringValue(savedState["draftHash"]) != "new" {
+		t.Fatalf("saved state = %#v", savedState)
+	}
+}
+
 func TestServiceSkipsUnchangedDraftWithoutNetwork(t *testing.T) {
 	root := t.TempDir()
 	output := filepath.Join(root, ".distribution", "juejin")
