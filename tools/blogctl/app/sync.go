@@ -204,7 +204,7 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		articleArgs = append(articleArgs, "--article", article)
 	}
 
-	plan := make([]SyncPlan, 0, 2)
+	plan := make([]SyncPlan, 0, 1+len(international))
 	if len(nativeChina) > 0 {
 		args := append([]string{}, articleArgs...)
 		args = append(args, "--platforms", strings.Join(nativeChina, ","))
@@ -213,12 +213,12 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 			Platforms: append([]string{}, nativeChina...), Native: true,
 		})
 	}
-	if len(international) > 0 {
+	for _, platform := range international {
 		args := append([]string{}, articleArgs...)
 		if request.All {
 			args = append(args, "--all")
 		}
-		args = append(args, "--platforms", strings.Join(international, ","))
+		args = append(args, "--platforms", platform)
 		if request.DryRun {
 			args = append(args, "--dry-run")
 		}
@@ -226,11 +226,39 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 			args = append(args, "--draft")
 		}
 		plan = append(plan, SyncPlan{
-			Group: "international", Script: "scripts/blogctl-syndicate.mjs", Args: args,
-			Platforms: append([]string{}, international...),
+			Group: "international-" + platform, Script: "scripts/blogctl-syndicate.mjs", Args: args,
+			Platforms: []string{platform},
 		})
 	}
 	return plan
+}
+
+func scriptFailureMessage(output string) string {
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	buffer := make([]byte, 0, 64*1024)
+	scanner.Buffer(buffer, 1024*1024)
+	message := ""
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var raw scriptLogEvent
+		if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			continue
+		}
+		if raw.Status != "failed" {
+			continue
+		}
+		candidate := strings.TrimSpace(raw.Exception.Message)
+		if candidate == "" {
+			candidate = strings.TrimSpace(raw.Message)
+		}
+		if candidate != "" {
+			message = candidate
+		}
+	}
+	return message
 }
 
 func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncRequest) (string, error) {
@@ -276,6 +304,7 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 		}
 	}
 
+	failures := []string{}
 	for _, entry := range BuildSyncPlan(request) {
 		terminal := map[string]bool{}
 		for _, platform := range entry.Platforms {
@@ -294,13 +323,19 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 			}
 		}
 		if runErr != nil {
-			message := fmt.Sprintf("%s syndication: %v", entry.Group, runErr)
+			detail := scriptFailureMessage(commandOutput)
+			if detail == "" {
+				detail = runErr.Error()
+			}
+			message := fmt.Sprintf("%s: %s", entry.Group, detail)
 			for _, platform := range entry.Platforms {
 				if !terminal[platform] {
 					s.emit(SyncEvent{Platform: platform, State: "failed", Message: message})
+					terminal[platform] = true
 				}
 			}
-			return output.String(), errors.New(message)
+			failures = append(failures, message)
+			continue
 		}
 		if entry.Native {
 			if request.DryRun {
@@ -310,7 +345,13 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 				}
 			} else {
 				if s.NativePublisher == nil {
-					return output.String(), errors.New("native publisher is not configured")
+					message := "native publisher is not configured"
+					for _, platform := range entry.Platforms {
+						s.emit(SyncEvent{Platform: platform, State: "failed", Message: message})
+						terminal[platform] = true
+					}
+					failures = append(failures, message)
+					continue
 				}
 				for _, article := range request.Articles {
 					for _, platform := range entry.Platforms {
@@ -319,8 +360,11 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 								Article: article, Platform: platform, ContentRoot: config.ContentRoot,
 							})
 							if publishErr != nil {
+								message := platform + ": " + publishErr.Error()
 								s.emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
-								return output.String(), publishErr
+								terminal[platform] = true
+								failures = append(failures, message)
+								continue
 							}
 							s.emit(SyncEvent{
 								Platform: platform, State: "completed", Result: result.Result,
@@ -334,8 +378,11 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 							ChangedOnly: request.Changed,
 						})
 						if publishErr != nil {
+							message := platform + ": " + publishErr.Error()
 							s.emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
-							return output.String(), publishErr
+							terminal[platform] = true
+							failures = append(failures, message)
+							continue
 						}
 						s.emit(SyncEvent{
 							Platform: platform, State: "completed", Result: result.Result,
@@ -351,6 +398,9 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 				s.emit(SyncEvent{Platform: platform, State: "completed", Result: "completed"})
 			}
 		}
+	}
+	if len(failures) > 0 {
+		return output.String(), errors.New(strings.Join(failures, "; "))
 	}
 	return output.String(), nil
 }
