@@ -93,6 +93,27 @@ test("disables platforms whose login state is unavailable or logged out", () => 
   );
 });
 
+test("gates Wechatsync-backed platforms on tool readiness", () => {
+  assert.deepEqual(
+    model.deliveryToolAvailability("juejin", [{
+      name: "wechatsync",
+      health: { ok: false, summary: "Token 未配置" },
+    }]),
+    { available: false, reason: "Wechatsync：Token 未配置" },
+  );
+  assert.deepEqual(
+    model.deliveryToolAvailability("juejin", [{
+      name: "wechatsync",
+      health: { ok: true, summary: "已配置" },
+    }]),
+    { available: true, reason: "" },
+  );
+  assert.deepEqual(
+    model.deliveryToolAvailability("medium", []),
+    { available: true, reason: "" },
+  );
+});
+
 test("does not gate platforms when no article is selected", () => {
   assert.deepEqual(model.platformAvailability(undefined, "devto"), { available: true, reason: "" });
 });
