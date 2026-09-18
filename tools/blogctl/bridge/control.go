@@ -494,6 +494,17 @@ func (s *Server) recordSyncEvent(jobID string, event blogapp.SyncEvent) {
 	applySyncEventToJob(s.jobs[jobID], event, s.now())
 }
 
+func moveJobToFront(order []string, id string) []string {
+	result := make([]string, 0, len(order)+1)
+	result = append(result, id)
+	for _, candidate := range order {
+		if candidate != id {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
 func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
 	results := make(map[string]syncPlatformResult, len(request.Platforms))
 	events := make([]syncJobEvent, 0, len(request.Platforms))
@@ -657,14 +668,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 	request := job.Request
 	replacement := newSyncJob(id, request, startedAt)
 	s.jobs[id] = replacement
-	order := make([]string, 0, len(s.jobOrder))
-	order = append(order, id)
-	for _, candidate := range s.jobOrder {
-		if candidate != id {
-			order = append(order, candidate)
-		}
-	}
-	s.jobOrder = order
+	s.jobOrder = moveJobToFront(s.jobOrder, id)
 	config := s.config
 	response := cloneSyncJob(replacement)
 	s.mu.Unlock()
