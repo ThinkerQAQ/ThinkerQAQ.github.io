@@ -214,3 +214,63 @@ func TestBridgeProxyConfigWriteRequiresExtensionOrigin(t *testing.T) {
 		}
 	}
 }
+
+func TestSyncJobNotFoundReturnsStructuredError(t *testing.T) {
+	server, _ := New("token")
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodGet, handler.URL+"/v1/sync/jobs/missing", nil)
+	request.Header.Set("origin", "chrome-extension://test")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", response.StatusCode)
+	}
+	var payload struct {
+		Error   string         `json:"error"`
+		Code    string         `json:"code"`
+		Message string         `json:"message"`
+		Details map[string]any `json:"details"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Code != "sync_job_not_found" || payload.Error != "sync job not found" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload.Details["id"] != "missing" {
+		t.Fatalf("details = %#v", payload.Details)
+	}
+}
+
+func TestMediumSessionRequiredStructuredError(t *testing.T) {
+	server, _ := New("token")
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/platforms/medium/drafts", bytes.NewBufferString(`{}`))
+	request.Header.Set("x-thinkerqaq-token", "token")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusPreconditionRequired {
+		t.Fatalf("status = %d, want 428", response.StatusCode)
+	}
+	var payload struct {
+		Error   string `json:"error"`
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Code != "medium_session_required" || payload.Error != "medium_session_required" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}

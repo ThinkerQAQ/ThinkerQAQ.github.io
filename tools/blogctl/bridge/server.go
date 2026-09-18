@@ -190,7 +190,7 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 
 	if request.Header.Get("x-thinkerqaq-token") != s.token {
-		writeJSON(response, http.StatusUnauthorized, map[string]any{"error": "invalid bridge token"})
+		writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
 		return
 	}
 
@@ -199,13 +199,13 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-	writeJSON(response, http.StatusNotFound, map[string]any{"error": "not found"})
+	writeAPIError(response, http.StatusNotFound, "not_found", "not found", map[string]any{"path": "/" + path})
 }
 
 func allowReadOnlyBridgeStatus(response http.ResponseWriter, request *http.Request) bool {
 	origin := request.Header.Get("origin")
 	if origin != "" && !validBrowserExtensionOrigin(origin) {
-		writeJSON(response, http.StatusForbidden, map[string]any{"error": "forbidden origin"})
+		writeAPIError(response, http.StatusForbidden, "forbidden", "forbidden origin", map[string]any{"origin": origin})
 		return false
 	}
 	if origin != "" {
@@ -217,7 +217,7 @@ func allowReadOnlyBridgeStatus(response http.ResponseWriter, request *http.Reque
 func allowExtensionWrite(response http.ResponseWriter, request *http.Request) (string, bool) {
 	origin := request.Header.Get("origin")
 	if !validBrowserExtensionOrigin(origin) {
-		writeJSON(response, http.StatusForbidden, map[string]any{"error": "forbidden origin"})
+		writeAPIError(response, http.StatusForbidden, "forbidden", "forbidden origin", map[string]any{"origin": origin})
 		return "", false
 	}
 	response.Header().Set("access-control-allow-origin", origin)
@@ -227,7 +227,7 @@ func allowExtensionWrite(response http.ResponseWriter, request *http.Request) (s
 func (s *Server) handleOptions(response http.ResponseWriter, request *http.Request) {
 	origin := request.Header.Get("origin")
 	if !validBrowserExtensionOrigin(origin) {
-		writeJSON(response, http.StatusForbidden, map[string]any{"error": "forbidden origin"})
+		writeAPIError(response, http.StatusForbidden, "forbidden", "forbidden origin", map[string]any{"origin": origin})
 		return
 	}
 	response.Header().Set("access-control-allow-origin", origin)
@@ -266,16 +266,16 @@ func (s *Server) handleConfigPut(response http.ResponseWriter, request *http.Req
 	current.ProxyPort = patch.ProxyPort
 	normalized, err := normalizeBridgeConfig(current)
 	if err != nil {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
 	client, err := httpClientForConfig(normalized)
 	if err != nil {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
 	if err := saveBridgeConfig(normalized); err != nil {
-		writeJSON(response, http.StatusInternalServerError, map[string]any{"error": "无法保存 BlogCTL 配置"})
+		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法保存 BlogCTL 配置", nil)
 		return
 	}
 	s.mu.Lock()
@@ -293,7 +293,7 @@ func (s *Server) handleArticles(response http.ResponseWriter) {
 	s.mu.Unlock()
 	articles, err := listArticles(contentRoot)
 	if err != nil {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"articles": articles})
@@ -320,16 +320,16 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 	s.mu.Unlock()
 	normalized, err := updateToolConfig(current, name, body.Config)
 	if err != nil {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
 	client, err := httpClientForConfig(normalized)
 	if err != nil {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
 	if err := saveBridgeConfig(normalized); err != nil {
-		writeJSON(response, http.StatusInternalServerError, map[string]any{"error": "无法保存 BlogCTL 配置"})
+		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法保存 BlogCTL 配置", nil)
 		return
 	}
 	s.mu.Lock()
@@ -362,11 +362,11 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 	s.mu.Unlock()
 	normalized, err := updatePublishing(current, body.Platforms)
 	if err != nil {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
 	if err := saveBridgeConfig(normalized); err != nil {
-		writeJSON(response, http.StatusInternalServerError, map[string]any{"error": "无法保存发布配置"})
+		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法保存发布配置", nil)
 		return
 	}
 	s.mu.Lock()
@@ -386,7 +386,7 @@ func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Req
 	}
 	normalized, err := normalizeSyncRequest(body)
 	if err != nil {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
 	job := s.startSyncJob(normalized)
@@ -398,7 +398,7 @@ func (s *Server) handleSyncJobGet(response http.ResponseWriter, id string) {
 	job := cloneSyncJob(s.jobs[id])
 	s.mu.Unlock()
 	if job == nil {
-		writeJSON(response, http.StatusNotFound, map[string]any{"error": "sync job not found"})
+		writeAPIError(response, http.StatusNotFound, "sync_job_not_found", "sync job not found", map[string]any{"id": id})
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"job": job})
@@ -410,7 +410,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		return
 	}
 	if platform != "medium" {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": platform + " does not use browser-session auth"})
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", platform+" does not use browser-session auth", map[string]any{"platform": platform})
 		return
 	}
 	var body sessionRequest
@@ -420,7 +420,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 	}
 	cookies := filterMediumCookies(body.Cookies)
 	if cookies["sid"] == "" {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": "medium sid cookie not found"})
+		writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
 		return
 	}
 	userAgent := strings.TrimSpace(body.UserAgent)
@@ -441,7 +441,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 
 func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 	if platform != "medium" {
-		writeJSON(response, http.StatusBadRequest, map[string]any{"error": "Unsupported platform: " + platform})
+		writeAPIError(response, http.StatusBadRequest, "unsupported_platform", "Unsupported platform: "+platform, map[string]any{"platform": platform})
 		return
 	}
 	s.mu.Lock()
@@ -462,7 +462,7 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 
 func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request, platform string) {
 	if platform != "medium" {
-		writeJSON(response, http.StatusNotImplemented, map[string]any{"error": platform + " draft transport is not implemented by the browser bridge"})
+		writeAPIError(response, http.StatusNotImplemented, "not_implemented", platform+" draft transport is not implemented by the browser bridge", map[string]any{"platform": platform})
 		return
 	}
 	s.mu.Lock()
@@ -474,7 +474,7 @@ func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request
 	httpClient := s.httpClient
 	s.mu.Unlock()
 	if !ok {
-		writeJSON(response, http.StatusPreconditionRequired, map[string]any{"error": "medium_session_required"})
+		writeAPIError(response, http.StatusPreconditionRequired, "medium_session_required", "medium_session_required", nil)
 		return
 	}
 	var draft mediumDraft
@@ -485,7 +485,7 @@ func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request
 	client := mediumClient{httpClient: httpClient}
 	result, err := client.createDraft(request.Context(), session, draft)
 	if err != nil {
-		writeJSON(response, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		writeAPIError(response, http.StatusBadGateway, "upstream_error", err.Error(), nil)
 		return
 	}
 	writeJSON(response, http.StatusCreated, result)
@@ -522,10 +522,10 @@ func readJSON(request *http.Request, limit int64, target any) error {
 func writeError(response http.ResponseWriter, err error) {
 	var typed httpError
 	if errors.As(err, &typed) {
-		writeJSON(response, typed.status, map[string]any{"error": typed.err.Error()})
+		writeAPIError(response, typed.status, errorCodeForStatus(typed.status), typed.err.Error(), nil)
 		return
 	}
-	writeJSON(response, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+	writeAPIError(response, http.StatusInternalServerError, "internal_error", err.Error(), nil)
 }
 
 func writeJSON(response http.ResponseWriter, status int, payload any) {

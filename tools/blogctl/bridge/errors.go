@@ -23,7 +23,7 @@ func writeAPIError(response http.ResponseWriter, status int, code, message strin
 
 func errorCodeForStatus(status int) string {
 	switch status {
-	case http.StatusBadRequest:
+	case http.StatusBadRequest, http.StatusRequestEntityTooLarge:
 		return "invalid_request"
 	case http.StatusUnauthorized:
 		return "unauthorized"
