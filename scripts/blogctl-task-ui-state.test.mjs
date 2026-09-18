@@ -72,6 +72,26 @@ test("render snapshot changes only when rendered task data or platform labels ch
 
 
 
+test("captureDetails records the live DOM state before replacement", () => {
+  const storage = fakeStorage();
+  const state = model.create(storage, "test.tasks");
+  const log = { open: true };
+  const card = {
+    open: true,
+    dataset: { jobId: "job-1" },
+    querySelector(selector) {
+      assert.equal(selector, "details.job-debug");
+      return log;
+    },
+  };
+
+  model.captureDetails([card], state);
+
+  const reloaded = model.create(storage, "test.tasks");
+  assert.equal(reloaded.isJobExpanded("job-1"), true);
+  assert.equal(reloaded.isLogExpanded("job-1"), true);
+});
+
 test("unchanged task snapshots do not request a DOM replacement", () => {
   const snapshot = model.renderSnapshot([{ id: "job-1", state: "running" }], {
     platforms: [{ id: "juejin", label: "掘金" }],
