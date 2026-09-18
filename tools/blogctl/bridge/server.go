@@ -43,8 +43,9 @@ type Server struct {
 	restart    func()
 	syncRunner syncRunner
 
-	mu       sync.Mutex
-	sessions map[string]platformSession
+	mu           sync.Mutex
+	wechatsyncMu sync.Mutex
+	sessions     map[string]platformSession
 	jobs     map[string]*syncJob
 	jobOrder []string
 }
