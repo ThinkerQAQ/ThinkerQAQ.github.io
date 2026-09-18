@@ -365,8 +365,45 @@ function runProcess(command, args, { cwd = process.cwd(), timeoutMs = 120_000 } 
   });
 }
 
+function normalizeWechatsyncOutput(output = "") {
+  return String(output).replace(/\x1B\[[0-?]*[ -/]*[@-~]/gu, "");
+}
+
+export function explainWechatsyncBridgeFailure(error) {
+  const normalized = normalizeWechatsyncOutput(error?.message || error || "");
+  if (/已有实例正在运行但 Chrome Extension 未连接|等待 Chrome Extension 连接/u.test(normalized)) {
+    return "Wechatsync Chrome Bridge 未连接：请开启 Wechatsync 扩展的“同步桥接 / MCP 连接”，并确保 Token 与 WebSocket 端口和 BlogCTL 配置一致。";
+  }
+  if (/Invalid or missing token|token.*(invalid|missing)|Token.*(错误|不正确|不匹配)/iu.test(normalized)) {
+    return "Wechatsync Bridge Token 不匹配或缺失：BlogCTL 与 Wechatsync Chrome 扩展必须使用同一个 Token。";
+  }
+  if (/端口被占用|EADDRINUSE|Primary not reachable/u.test(normalized)) {
+    return "Wechatsync Bridge 端口被其他实例占用或已有实例不可达；BlogCTL 会串行执行 Wechatsync 任务，但外部遗留进程仍需先退出。";
+  }
+  return `Wechatsync Bridge 不可用：${normalized.trim().slice(-1200) || "unknown error"}`;
+}
+
+export async function preflightWechatsync(run = runProcess) {
+  const startedAt = Date.now();
+  log("info", "distribution-wechatsync-preflight", "started");
+  try {
+    const result = await run("wechatsync", ["--timeout", "5000", "platforms", "--auth"]);
+    log("info", "distribution-wechatsync-preflight", "completed", {
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    const message = explainWechatsyncBridgeFailure(error);
+    log("error", "distribution-wechatsync-preflight", "failed", {
+      durationMs: Date.now() - startedAt,
+      exception: { name: error?.name || "Error", message },
+    });
+    throw new Error(message, { cause: error });
+  }
+}
+
 function wechatsyncFailure(output = "") {
-  const normalized = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/gu, "");
+  const normalized = normalizeWechatsyncOutput(output);
   if (/文章频繁发布，请稍后再试/u.test(normalized)) return "rate-limited";
   if (/Invalid or missing token/u.test(normalized)) return "invalid-token";
   if (/无头条广告权限/u.test(normalized)) return "toutiao-ad-permission";
@@ -405,6 +442,10 @@ export async function syncExports({
   rateLimitRetryMs = 60_000,
 } = {}) {
   const selected = changedOnly ? exported.filter((item) => item.pending) : exported;
+  if (selected.length === 0) return 0;
+  if (!dryRun) {
+    await preflightWechatsync(run);
+  }
   for (const item of selected) {
     const startedAt = Date.now();
     const args = ["sync", item.outputFile, "-p", item.platform];
