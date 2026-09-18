@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
@@ -157,7 +158,7 @@ func runBridgeProcess() error {
 	if err != nil {
 		return err
 	}
-	listener, _, err := server.Listen(bridge.DefaultAddress)
+	listener, httpServer, err := server.Listen(bridge.DefaultAddress)
 	if err != nil {
 		return err
 	}
@@ -166,7 +167,33 @@ func runBridgeProcess() error {
 		_ = listener.Close()
 		return err
 	}
-	select {}
+
+	restartRequested := make(chan struct{}, 1)
+	server.SetRestart(func() {
+		select {
+		case restartRequested <- struct{}{}:
+		default:
+		}
+	})
+	<-restartRequested
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := bridge.Shutdown(ctx, httpServer); err != nil {
+		return err
+	}
+
+	command, err := newBridgeCommand()
+	if err != nil {
+		return err
+	}
+	if err := command.Start(); err != nil {
+		return err
+	}
+	if command.Process != nil {
+		_ = command.Process.Release()
+	}
+	return nil
 }
 
 func runNativeHost() error {
