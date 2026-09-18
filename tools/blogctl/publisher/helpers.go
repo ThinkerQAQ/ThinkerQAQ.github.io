@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -153,4 +154,33 @@ func htmlFor(input DraftInput) string {
 		return input.HTML
 	}
 	return "<p>" + strings.ReplaceAll(strings.ReplaceAll(input.Markdown, "&", "&amp;"), "\n\n", "</p><p>") + "</p>"
+}
+
+func valueString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case json.Number:
+		return typed.String()
+	case float64:
+		if typed == float64(int64(typed)) {
+			return strconv.FormatInt(int64(typed), 10)
+		}
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case int:
+		return strconv.Itoa(typed)
+	case int64:
+		return strconv.FormatInt(typed, 10)
+	default:
+		return ""
+	}
+}
+
+func responseMessage(values ...any) string {
+	for _, value := range values {
+		if text := valueString(value); text != "" {
+			return text
+		}
+	}
+	return "upstream rejected the request"
 }
