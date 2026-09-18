@@ -14,6 +14,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -123,12 +124,12 @@ func multipartBody(fields map[string]string, fileField, filename, contentType st
 		}
 	}
 	if fileField != "" {
-		header := make(textprotoMIMEHeader)
+		header := make(textproto.MIMEHeader)
 		header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fileField, filename))
 		if contentType != "" {
 			header.Set("Content-Type", contentType)
 		}
-		part, err := writer.CreatePart(http.Header(header))
+		part, err := writer.CreatePart(header)
 		if err != nil {
 			return nil, "", err
 		}
@@ -142,12 +143,6 @@ func multipartBody(fields map[string]string, fileField, filename, contentType st
 	return &body, writer.FormDataContentType(), nil
 }
 
-// textprotoMIMEHeader avoids leaking net/textproto-specific helpers through adapter code.
-type textprotoMIMEHeader map[string][]string
-
-func (h textprotoMIMEHeader) Set(key, value string) {
-	h[http.CanonicalHeaderKey(key)] = []string{value}
-}
 
 func formBody(values url.Values) io.Reader {
 	return strings.NewReader(values.Encode())
