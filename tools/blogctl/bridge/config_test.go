@@ -98,7 +98,12 @@ func TestBridgeConfigRejectsInvalidWechatsyncPort(t *testing.T) {
 
 func TestWechatsyncToolNeverExposesStoredToken(t *testing.T) {
 	t.Setenv("WECHATSYNC_TOKEN", "")
+	executable := filepath.Join(t.TempDir(), "wechatsync")
+	if err := os.WriteFile(executable, []byte("test"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	config := defaultBridgeConfig()
+	config.ToolPaths["wechatsync"] = executable
 	config.WechatsyncToken = "secret-token"
 	tools := toolRegistry(config)
 	var wechatsync toolDescriptor
