@@ -4,25 +4,12 @@
   const state = { initialized: false, active: false, status: null, tools: [] };
   let bridgeStatus, bridgeDetail, toolRegistry, platformStatuses, message;
   function platformById(status, id) { return (status?.platforms ?? []).find((platform) => platform.id === id) ?? {}; }
-  function mediumSessionDetail(status) {
-    const session = status?.sessions?.medium ?? {};
-    if (session.unavailable) return "Session 不可用";
-    if (session.known === false) return "Session 检测失败";
-    if (session.synced) {
-      const minutes = Math.max(1, Math.ceil(Number(session.expiresInSeconds || 0) / 60));
-      return `Session 已自动同步 · ${minutes} 分钟`;
-    }
-    return "Session 将在同步文章时自动获取";
-  }
   function renderPlatforms(statusView) {
     platformStatuses.replaceChildren();
     for (const platform of statusView?.platforms ?? []) {
       const row = document.createElement("div"); row.className = "status-row";
-      const text = document.createElement("span"); text.className = "platform-status-text";
-      const label = document.createElement("span"); label.textContent = platform.label || platform.id; text.append(label);
-      if (platform.id === "medium") {
-        const detail = document.createElement("small"); detail.textContent = mediumSessionDetail(statusView); text.append(detail);
-      }
+      const text = document.createElement("span");
+      text.textContent = platform.label || platform.id;
       const status = document.createElement("strong");
       if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "检测失败", platform.error || "");
       else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", "已登录");
