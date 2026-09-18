@@ -152,7 +152,7 @@
     }
     if (canConfirmPublish(job)) {
       let publish;
-      publish = actionButton("确定发布", "primary compact", () => publishJob(job, publish));
+      publish = actionButton("确定发布", "primary inline-primary compact", () => publishJob(job, publish));
       actions.append(publish);
     }
     let remove;
