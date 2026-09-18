@@ -26,9 +26,10 @@ type publishingTrackingConfig struct {
 }
 
 type publishingPlatformConfig struct {
-	Footer    publishingFooterConfig    `json:"footer"`
-	Canonical publishingCanonicalConfig `json:"canonical"`
-	Tracking  publishingTrackingConfig  `json:"tracking"`
+	Language  string                     `json:"language"`
+	Footer    publishingFooterConfig     `json:"footer"`
+	Canonical publishingCanonicalConfig  `json:"canonical"`
+	Tracking  publishingTrackingConfig   `json:"tracking"`
 }
 
 type publishingConfig struct {
@@ -56,6 +57,13 @@ var publishingPlatformOrder = []string{
 	"cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium",
 }
 
+func defaultPublishingLanguage(platform string) string {
+	if platform == "devto" || platform == "medium" {
+		return "en"
+	}
+	return "zh-CN"
+}
+
 func defaultFooterTemplate(language string) string {
 	if language == "en" {
 		return "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version."
@@ -71,11 +79,9 @@ func defaultCanonicalMode(platform string) string {
 }
 
 func defaultPlatformPublishingConfig(platform string) publishingPlatformConfig {
-	language := "zh"
-	if platform == "devto" || platform == "medium" {
-		language = "en"
-	}
+	language := defaultPublishingLanguage(platform)
 	return publishingPlatformConfig{
+		Language: language,
 		Footer: publishingFooterConfig{
 			Enabled:  true,
 			Template: defaultFooterTemplate(language),
@@ -140,6 +146,9 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 			config.Publishing.Platforms[platform] = value
 			continue
 		}
+		if configured.Language == "" {
+			configured.Language = value.Language
+		}
 		if configured.Footer.Template == "" {
 			configured.Footer.Template = value.Footer.Template
 		}
@@ -179,6 +188,14 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 		return config, errors.New("启用代理前请填写代理主机和端口")
 	}
 	for platform, value := range config.Publishing.Platforms {
+		switch strings.ToLower(strings.TrimSpace(value.Language)) {
+		case "en":
+			value.Language = "en"
+		case "zh", "zh-cn":
+			value.Language = "zh-CN"
+		default:
+			return config, errors.New(platform + " language must be zh-CN or en")
+		}
 		value.Footer.Template = strings.TrimSpace(value.Footer.Template)
 		value.Canonical.Mode = strings.TrimSpace(strings.ToLower(value.Canonical.Mode))
 		value.Tracking.Source = strings.TrimSpace(value.Tracking.Source)
