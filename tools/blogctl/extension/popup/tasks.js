@@ -143,6 +143,10 @@
     }
     state.renderDeferredForSelection = false;
 
+    BlogCTLTaskUIState.captureDetails(
+      list.querySelectorAll("details.job-item[data-job-id]"),
+      state.ui,
+    );
     const validIDs = new Set(state.jobs.map((job) => job.id));
     state.ui.prune(validIDs);
     list.replaceChildren();
