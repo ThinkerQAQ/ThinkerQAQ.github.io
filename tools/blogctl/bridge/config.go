@@ -150,7 +150,7 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 			configured.Language = value.Language
 		}
 		if configured.Footer.Template == "" {
-			configured.Footer.Template = value.Footer.Template
+			configured.Footer.Template = defaultFooterTemplate(configured.Language)
 		}
 		if configured.Canonical.Mode == "" {
 			configured.Canonical.Mode = value.Canonical.Mode
