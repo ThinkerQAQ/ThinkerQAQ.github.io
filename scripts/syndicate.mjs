@@ -250,9 +250,9 @@ export async function loadArticles({ articleRoot, requestedSlugs = [], language 
       .split(path.sep)
       .join("/");
     if (requested.size > 0 && !requested.has(slug)) continue;
-    seen.add(slug);
     const article = parseArticle(await readFile(sourceFile, "utf8"), sourceFile);
     if (article.status !== "published") continue;
+    seen.add(slug);
     articles.push({ slug, sourceFile, article });
   }
   const missing = [...requested].filter((slug) => !seen.has(slug));
