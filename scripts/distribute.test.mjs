@@ -257,6 +257,24 @@ test("exportArticles migrates v1 draft state into manifest v2", async () => {
   }
 });
 
+test("renderPlatformHtml renders fenced code and GFM-style tables deterministically", () => {
+  const html = renderPlatformHtml([
+    "| Name | Value |",
+    "| --- | --- |",
+    "| `count++` | **three steps** |",
+    "",
+    "```go",
+    "count++",
+    "```",
+  ].join("\n"));
+
+  assert.match(html, /<table>/u);
+  assert.match(html, /<thead><tr><th>Name<\/th><th>Value<\/th><\/tr><\/thead>/u);
+  assert.match(html, /<td><code>count\+\+<\/code><\/td>/u);
+  assert.match(html, /<td><strong>three steps<\/strong><\/td>/u);
+  assert.match(html, /<pre><code class="language-go">count\+\+/u);
+});
+
 test("parseArguments validates native renderer scope", () => {
   assert.deepEqual(SUPPORTED_PLATFORMS, [
     "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
