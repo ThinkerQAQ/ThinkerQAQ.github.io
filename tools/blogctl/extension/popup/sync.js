@@ -1,8 +1,8 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, articles: [], status: null, publishing: [], jobs: [], pollTimer: null };
-  let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message, jobsContainer, refreshJobsButton;
+  const state = { initialized: false, active: false, articles: [], status: null, publishing: [] };
+  let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message;
 
   function selectedPlatforms() {
     return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
@@ -85,99 +85,6 @@
     updateStartButton();
   }
 
-  function stateLabel(job) {
-    return BlogCTLSyncModel.statePresentation(job.state);
-  }
-
-  function renderPlatformResults(job, card) {
-    const rows = BlogCTLSyncModel.platformRows(job, state.status);
-    if (!rows.length) return;
-    const container = document.createElement("div");
-    container.className = "job-platform-results";
-    for (const row of rows) {
-      const item = document.createElement("div");
-      item.className = "job-platform-result";
-
-      const main = document.createElement("div");
-      main.className = "job-platform-main";
-      const name = document.createElement("strong");
-      name.textContent = row.label;
-      const status = document.createElement("span");
-      BlogCTLPopup.setStatus(status, row.kind, row.statusLabel);
-      main.append(name, status);
-      item.append(main);
-
-      const detailText = row.error || row.message;
-      if (detailText) {
-        const detail = document.createElement("small");
-        detail.className = row.error ? "job-platform-message error-text" : "job-platform-message";
-        detail.textContent = detailText;
-        item.append(detail);
-      }
-      if (row.url) {
-        const link = document.createElement("a");
-        link.className = "job-result-link";
-        link.href = row.url;
-        link.target = "_blank";
-        link.rel = "noreferrer noopener";
-        link.textContent = "打开结果";
-        item.append(link);
-      }
-      container.append(item);
-    }
-    card.append(container);
-  }
-
-  function renderDebugOutput(job, card) {
-    if (!job.output) return;
-    const details = document.createElement("details");
-    details.className = "job-debug";
-    const summary = document.createElement("summary");
-    summary.textContent = "详细日志";
-    const output = document.createElement("pre");
-    output.className = "job-output";
-    output.textContent = job.output;
-    details.append(summary, output);
-    card.append(details);
-  }
-
-  function renderJobs() {
-    jobsContainer.replaceChildren();
-    if (!state.jobs.length) { jobsContainer.innerHTML = '<div class="platform-loading">暂无任务</div>'; return; }
-    for (const job of state.jobs) {
-      const card = document.createElement("details");
-      card.className = "job-item";
-      const summary = document.createElement("summary");
-      const title = document.createElement("span");
-      title.textContent = job.article;
-      const status = document.createElement("strong");
-      const presentation = stateLabel(job);
-      BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
-      summary.append(title, status);
-      card.append(summary);
-      const meta = document.createElement("div");
-      meta.className = "job-meta";
-      const started = BlogCTLPopup.formatTime(job.startedAt);
-      const finished = BlogCTLPopup.formatTime(job.finishedAt);
-      meta.textContent = [started ? `开始 ${started}` : "", finished ? `结束 ${finished}` : ""].filter(Boolean).join(" · ");
-      card.append(meta);
-      renderPlatformResults(job, card);
-      if (job.error) { const error = document.createElement("pre"); error.className = "job-output error-output"; error.textContent = job.error; card.append(error); }
-      renderDebugOutput(job, card);
-      jobsContainer.append(card);
-    }
-  }
-
-  async function refreshJobs() {
-    try {
-      const response = await BlogCTLPopup.send("blogctl.jobs");
-      state.jobs = response.jobs ?? [];
-      renderJobs();
-    } catch (error) {
-      if (state.active) BlogCTLPopup.setMessage(message, `任务读取失败：${BlogCTLPopup.errorMessage(error)}`, "error");
-    }
-  }
-
   async function ensureMediumSession(platforms) {
     if (!platforms.includes("medium")) return;
     const medium = (state.status?.platforms ?? []).find((platform) => platform.id === "medium");
@@ -199,8 +106,7 @@
     try {
       await ensureMediumSession(platforms);
       const response = await BlogCTLPopup.send("blogctl.job.start", { request: { article, platforms, dryRun: false, changed: changedOnly.checked, draft: true } });
-      BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动。`, "ok");
-      await refreshJobs();
+      BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动，可在“任务”页查看进度。`, "ok");
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally {
@@ -212,18 +118,16 @@
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
     try {
-      const [articlesResponse, statusResponse, publishingResponse, jobsResponse] = await Promise.all([
+      const [articlesResponse, statusResponse, publishingResponse] = await Promise.all([
         BlogCTLPopup.send("blogctl.articles"),
         BlogCTLPopup.send("blogctl.status"),
         BlogCTLPopup.send("blogctl.publishing"),
-        BlogCTLPopup.send("blogctl.jobs"),
       ]);
       state.articles = articlesResponse.articles ?? [];
       state.status = statusResponse.status;
       state.publishing = publishingResponse.platforms ?? [];
-      state.jobs = jobsResponse.jobs ?? [];
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
-      renderArticles(); renderPlatforms(); renderJobs();
+      renderArticles(); renderPlatforms();
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
       updateStartButton();
@@ -232,15 +136,14 @@
 
   function init() {
     if (state.initialized) return;
-    articleFilter = document.getElementById("articleFilter"); articleSelect = document.getElementById("articleSelect"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); changedOnly = document.getElementById("changedOnly"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage"); jobsContainer = document.getElementById("syncJobs"); refreshJobsButton = document.getElementById("refreshJobs");
+    articleFilter = document.getElementById("articleFilter"); articleSelect = document.getElementById("articleSelect"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); changedOnly = document.getElementById("changedOnly"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage");
     articleFilter.addEventListener("input", () => { renderArticles(); renderPlatforms(); });
     articleSelect.addEventListener("change", () => { renderArticleMeta(); renderPlatforms(); });
     startButton.addEventListener("click", startSync);
-    refreshJobsButton.addEventListener("click", refreshJobs);
     state.initialized = true;
   }
 
-  function activate() { state.active = true; refresh(); if (!state.pollTimer) state.pollTimer = setInterval(refreshJobs, 2000); }
-  function deactivate() { state.active = false; if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; } }
+  function activate() { state.active = true; refresh(); }
+  function deactivate() { state.active = false; }
   root.BlogCTLSync = { init, activate, deactivate, refresh };
 })(globalThis);
