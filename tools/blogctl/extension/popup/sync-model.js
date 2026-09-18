@@ -3,7 +3,12 @@
 (function (root) {
   const INTERNATIONAL_PLATFORMS = new Set(["devto", "medium"]);
 
-  function platformAvailability(article, platformId) {
+  function platformAvailability(article, platform) {
+    const platformId = typeof platform === "string" ? platform : platform?.id;
+    if (platform && typeof platform === "object") {
+      if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
+      if (!platform.loggedIn) return { available: false, reason: "未登录" };
+    }
     if (!article) return { available: true, reason: "" };
     if (INTERNATIONAL_PLATFORMS.has(platformId) && !article.englishMirror) {
       return { available: false, reason: "缺少英文镜像" };
