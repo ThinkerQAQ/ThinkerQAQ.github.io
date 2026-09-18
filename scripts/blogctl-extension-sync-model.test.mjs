@@ -77,19 +77,19 @@ test("gates source availability by configured content language", () => {
 });
 
 
-test("disables platforms whose login state is unavailable or logged out", () => {
+test("native platforms defer authoritative login checks to the publisher", () => {
   const article = { slug: "with-en", englishMirror: true };
   assert.deepEqual(
     model.platformAvailability(article, { id: "csdn", known: true, loggedIn: false }),
-    { available: false, reason: "未登录" },
+    { available: true, reason: "" },
   );
   assert.deepEqual(
     model.platformAvailability(article, { id: "juejin", known: false, loggedIn: false }),
-    { available: false, reason: "登录状态检测失败" },
+    { available: true, reason: "" },
   );
   assert.deepEqual(
-    model.platformAvailability(article, { id: "medium", known: true, loggedIn: true }),
-    { available: true, reason: "" },
+    model.platformAvailability(article, { id: "medium", known: true, loggedIn: false }),
+    { available: false, reason: "未登录" },
   );
 });
 
