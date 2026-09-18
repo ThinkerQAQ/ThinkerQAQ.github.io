@@ -21,6 +21,7 @@
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
       <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="sync">同步发布</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">发布配置</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">工具与配置</button>
     </nav>
@@ -44,10 +45,23 @@
       <button id="startSync" class="primary" type="button" disabled>选择文章和平台后创建草稿</button>
       <p id="syncMessage" class="message" role="status"></p>
 
-      <section class="status-card jobs-card">
-        <div class="status-row"><span class="section-title">最近任务</span><button id="refreshJobs" class="secondary compact" type="button">刷新</button></div>
-        <div id="syncJobs" class="job-list"><div class="platform-loading">暂无任务</div></div>
+    </section>
+
+    <section class="panel" role="tabpanel" data-panel="tasks">
+      <section class="status-card">
+        <div class="status-row">
+          <div>
+            <div class="section-title">同步任务</div>
+            <p class="card-hint">查看运行状态、平台结果与详细日志。</p>
+          </div>
+          <div class="task-toolbar">
+            <button id="refreshTasks" class="secondary compact" type="button">刷新</button>
+            <button id="clearFinishedTasks" class="secondary compact" type="button">清理已结束</button>
+          </div>
+        </div>
+        <div id="taskList" class="job-list"><div class="platform-loading">暂无任务</div></div>
       </section>
+      <p id="tasksMessage" class="message" role="status"></p>
     </section>
 
     <section class="panel" role="tabpanel" data-panel="publishing">
@@ -87,6 +101,7 @@
   <script src="core.js"></script>
   <script src="sync-model.js"></script>
   <script src="sync.js"></script>
+  <script src="tasks.js"></script>
   <script src="publishing.js"></script>
   <script src="environment.js"></script>
   <script src="popup.js"></script>
