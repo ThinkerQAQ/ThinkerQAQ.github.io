@@ -58,6 +58,52 @@ func TestToolRegistryDoesNotExposeLegacyWechatsyncDependency(t *testing.T) {
 	}
 }
 
+func TestDevtoAPIKeyPersistsAndToolRegistryMasksSecret(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	t.Setenv("DEVTO_API_KEY", "")
+
+	config, err := normalizeBridgeConfig(bridgeConfig{DevtoAPIKey: " secret-key "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.DevtoAPIKey != "secret-key" {
+		t.Fatalf("normalized key = %q", config.DevtoAPIKey)
+	}
+	if err := saveBridgeConfig(config); err != nil {
+		t.Fatal(err)
+	}
+	reloaded := loadBridgeConfig()
+	if reloaded.DevtoAPIKey != "secret-key" {
+		t.Fatalf("reloaded key = %q", reloaded.DevtoAPIKey)
+	}
+
+	var devto toolDescriptor
+	for _, tool := range toolRegistry(reloaded) {
+		if tool.Name == "devto-api" {
+			devto = tool
+			break
+		}
+	}
+	if !devto.Health.OK || devto.Health.Summary != "已配置" {
+		t.Fatalf("DEV.to health = %#v", devto.Health)
+	}
+	if _, exposed := devto.Config.Values["apiKey"]; exposed {
+		t.Fatalf("DEV.to API key was exposed: %#v", devto.Config.Values)
+	}
+	if len(devto.Config.Schema) != 1 || devto.Config.Schema[0].Type != "secret" {
+		t.Fatalf("DEV.to schema = %#v", devto.Config.Schema)
+	}
+
+	unchanged, err := updateToolConfig(reloaded, "devto-api", map[string]any{"apiKey": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.DevtoAPIKey != "secret-key" {
+		t.Fatalf("blank secret save cleared key: %q", unchanged.DevtoAPIKey)
+	}
+}
+
 func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 	config := defaultBridgeConfig()
 	views := publishingViews(config)
