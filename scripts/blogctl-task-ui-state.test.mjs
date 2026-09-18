@@ -1,0 +1,80 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+await import("../tools/blogctl/extension/popup/task-ui-state.js");
+const model = globalThis.BlogCTLTaskUIState;
+
+function fakeStorage(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    getItem(key) { return data.has(key) ? data.get(key) : null; },
+    setItem(key, value) { data.set(key, String(value)); },
+    dump() { return Object.fromEntries(data); },
+  };
+}
+
+test("task expansion and log expansion persist independently", () => {
+  const storage = fakeStorage();
+  const state = model.create(storage, "test.tasks");
+
+  state.setJobExpanded("job-1", true);
+  state.setLogExpanded("job-1", true);
+  state.setJobExpanded("job-2", true);
+  state.setLogExpanded("job-2", false);
+
+  const reloaded = model.create(storage, "test.tasks");
+  assert.equal(reloaded.isJobExpanded("job-1"), true);
+  assert.equal(reloaded.isLogExpanded("job-1"), true);
+  assert.equal(reloaded.isJobExpanded("job-2"), true);
+  assert.equal(reloaded.isLogExpanded("job-2"), false);
+});
+
+test("prune removes expansion state only for jobs that no longer exist", () => {
+  const storage = fakeStorage();
+  const state = model.create(storage, "test.tasks");
+  state.setJobExpanded("job-1", true);
+  state.setLogExpanded("job-1", true);
+  state.setJobExpanded("job-2", true);
+  state.setLogExpanded("job-2", true);
+
+  state.prune(new Set(["job-2"]));
+
+  assert.equal(state.isJobExpanded("job-1"), false);
+  assert.equal(state.isLogExpanded("job-1"), false);
+  assert.equal(state.isJobExpanded("job-2"), true);
+  assert.equal(state.isLogExpanded("job-2"), true);
+});
+
+test("render snapshot changes only when rendered task data or platform labels change", () => {
+  const jobs = [{ id: "job-1", state: "running", output: "" }];
+  const status = {
+    platforms: [{ id: "juejin", label: "掘金", loggedIn: true }],
+    sessions: { medium: { expiresInSeconds: 600 } },
+  };
+
+  const first = model.renderSnapshot(jobs, status);
+  const sessionOnlyChange = model.renderSnapshot(jobs, {
+    ...status,
+    sessions: { medium: { expiresInSeconds: 599 } },
+  });
+  assert.equal(sessionOnlyChange, first);
+
+  const updatedJob = model.renderSnapshot([{ ...jobs[0], state: "failed" }], status);
+  assert.notEqual(updatedJob, first);
+
+  const renamedPlatform = model.renderSnapshot(jobs, {
+    ...status,
+    platforms: [{ id: "juejin", label: "Juejin" }],
+  });
+  assert.notEqual(renamedPlatform, first);
+});
+
+test("invalid persisted state cannot force phantom expansion", () => {
+  const storage = fakeStorage({
+    "test.tasks.expandedJobs": "{broken",
+    "test.tasks.expandedLogs": JSON.stringify([null, "", 42, "job-1"]),
+  });
+  const state = model.create(storage, "test.tasks");
+  assert.equal(state.isJobExpanded("job-1"), false);
+  assert.equal(state.isLogExpanded("job-1"), true);
+});
