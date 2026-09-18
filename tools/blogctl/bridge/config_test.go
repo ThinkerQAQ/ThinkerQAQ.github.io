@@ -49,6 +49,29 @@ func TestBridgeConfigRetainsProxyAddressWhileDisabled(t *testing.T) {
 	}
 }
 
+func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
+	config := defaultBridgeConfig()
+	views := publishingViews(config)
+	var medium publishingPlatformView
+	for _, view := range views {
+		if view.ID == "medium" {
+			medium = view
+			break
+		}
+	}
+	if medium.Language != "en" {
+		t.Fatalf("medium view language = %q", medium.Language)
+	}
+	medium.Language = "zh-CN"
+	updated, err := updatePublishing(config, []publishingPlatformView{medium})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Publishing.Platforms["medium"].Language != "zh-CN" {
+		t.Fatalf("updated medium language = %q", updated.Publishing.Platforms["medium"].Language)
+	}
+}
+
 func TestBridgeConfigDefaultFooterFollowsConfiguredLanguage(t *testing.T) {
 	config, err := normalizeBridgeConfig(bridgeConfig{
 		Publishing: publishingConfig{Platforms: map[string]publishingPlatformConfig{
