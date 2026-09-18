@@ -75,9 +75,12 @@
       name.textContent = platform.label || platform.id;
       const detail = document.createElement("small");
       const nativeBrowserPlatform = NATIVE_BROWSER_PLATFORMS.has(platform.id);
+      const apiPlatform = platform.id === "devto";
       detail.textContent = !availability.available
         ? availability.reason
-        : platform.loggedIn
+        : apiPlatform
+          ? "API Key 已配置"
+          : platform.loggedIn
           ? (platform.inferred ? "浏览器会话可用 · 执行时校验登录" : "已登录")
           : nativeBrowserPlatform
             ? "登录状态将在任务启动时校验"
@@ -87,6 +90,7 @@
       text.append(name, detail);
       const status = document.createElement("span");
       if (!availability.available) BlogCTLPopup.setStatus(status, "disabled", availability.reason);
+      else if (apiPlatform) BlogCTLPopup.setStatus(status, "ok", "可用");
       else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", platform.inferred ? "会话可用" : "已登录");
       else if (nativeBrowserPlatform) BlogCTLPopup.setStatus(status, "unknown", "待校验");
       else if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
