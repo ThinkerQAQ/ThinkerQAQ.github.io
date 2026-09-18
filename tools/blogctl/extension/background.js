@@ -186,8 +186,13 @@ async function platformSessionStatus(platform, bridge) {
 
 async function getStatus() {
   const [bridge, platforms] = await Promise.all([bridgeStatus(), allPlatformLoginStatuses()]);
-  const mediumSession = await platformSessionStatus("medium", bridge);
-  return { bridge, platforms, sessions: { medium: mediumSession } };
+  const sessionEntries = await Promise.all(
+    Object.keys(PLATFORM_SESSIONS).map(async (platform) => [
+      platform,
+      await platformSessionStatus(platform, bridge),
+    ]),
+  );
+  return { bridge, platforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
 async function saveBridgeConfig(config) {
@@ -201,13 +206,42 @@ async function saveBridgeConfig(config) {
 async function syncPlatformSession(platform) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
-  const cookies = await chrome.cookies.getAll({ url: definition.cookieUrl });
-  const allowed = new Set(definition.cookieNames);
-  const selected = cookies.filter((cookie) => allowed.has(cookie.name)).map((cookie) => ({ name: cookie.name, value: cookie.value }));
-  for (const required of definition.requiredCookieNames ?? []) {
-    if (!selected.some((cookie) => cookie.name === required && cookie.value)) throw new Error(`${platform}: required cookie ${required} not found. Sign in first.`);
+
+  const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
+  const batches = await Promise.all(cookieUrls.map((url) => chrome.cookies.getAll({ url })));
+  const allowed = Array.isArray(definition.cookieNames) ? new Set(definition.cookieNames) : null;
+  const deduped = new Map();
+
+  for (const cookie of batches.flat()) {
+    if (allowed && !allowed.has(cookie.name)) continue;
+    const key = [cookie.name, cookie.domain, cookie.path, cookie.storeId || ""].join("\u0000");
+    deduped.set(key, {
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain || "",
+      path: cookie.path || "/",
+      secure: Boolean(cookie.secure),
+      httpOnly: Boolean(cookie.httpOnly),
+      hostOnly: Boolean(cookie.hostOnly),
+      sameSite: cookie.sameSite || "unspecified",
+      expirationDate: Number.isFinite(cookie.expirationDate) ? cookie.expirationDate : null,
+    });
   }
-  return fetchJSON(`/v1/sessions/${encodeURIComponent(platform)}`, jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent }));
+
+  const selected = [...deduped.values()];
+  for (const required of definition.requiredCookieNames ?? []) {
+    if (!selected.some((cookie) => cookie.name === required && cookie.value)) {
+      throw new Error(`${platform}: required cookie ${required} not found. Sign in first.`);
+    }
+  }
+  if (selected.length === 0) {
+    throw new Error(`${platform}: no browser cookies were available. Sign in first.`);
+  }
+
+  return fetchJSON(
+    `/v1/sessions/${encodeURIComponent(platform)}`,
+    jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent }),
+  );
 }
 
 async function syncBrowserSession(platform) {
