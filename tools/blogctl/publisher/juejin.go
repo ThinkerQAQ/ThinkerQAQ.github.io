@@ -285,8 +285,138 @@ func (j *juejinAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dra
 	return j.mutateDraft(ctx, "/content_api/v1/article_draft/update", "update-draft", input, ref.ID)
 }
 
-func (j *juejinAdapter) PublishDraft(context.Context, DraftRef) (PublishResult, error) {
-	return PublishResult{}, platformError(ErrNotImplemented, "juejin", "publish-draft", 0, "confirm-publish is scheduled for the next phase", false)
+type juejinDraftDetail struct {
+	Data struct {
+		ID        string `json:"id"`
+		ArticleID string `json:"article_id"`
+		ArticleInfo struct {
+			ArticleID string   `json:"article_id"`
+			CategoryID string  `json:"category_id"`
+			TagIDs     []any   `json:"tag_ids"`
+		} `json:"article_info"`
+	} `json:"data"`
+	ErrNo  int    `json:"err_no"`
+	ErrMsg string `json:"err_msg"`
+}
+
+func (j *juejinAdapter) draftDetail(ctx context.Context, draftID string) (juejinDraftDetail, error) {
+	encoded, _ := json.Marshal(map[string]string{"draft_id": draftID})
+	req, err := j.request(ctx, http.MethodPost, j.apiBase+"/content_api/v1/article_draft/detail", bytes.NewReader(encoded))
+	if err != nil {
+		return juejinDraftDetail{}, err
+	}
+	req.Header.Set("content-type", "application/json")
+	csrf, err := j.csrf(ctx)
+	if err != nil {
+		return juejinDraftDetail{}, err
+	}
+	req.Header.Set("x-secsdk-csrf-token", csrf)
+	response, err := j.client.Do(req)
+	if err != nil {
+		return juejinDraftDetail{}, err
+	}
+	defer response.Body.Close()
+	raw, err := readBounded(response, 2<<20)
+	if err != nil {
+		return juejinDraftDetail{}, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return juejinDraftDetail{}, classifyHTTP("juejin", "draft-detail", response.StatusCode, string(raw))
+	}
+	var decoded juejinDraftDetail
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return juejinDraftDetail{}, platformError(ErrUpstream, "juejin", "draft-detail", response.StatusCode, "invalid JSON response", false)
+	}
+	if decoded.ErrNo != 0 {
+		message := strings.TrimSpace(decoded.ErrMsg)
+		if strings.Contains(message, "不存在") || strings.Contains(strings.ToLower(message), "not found") {
+			return juejinDraftDetail{}, platformError(ErrRemoteDraftMissing, "juejin", "draft-detail", response.StatusCode, message, false)
+		}
+		return juejinDraftDetail{}, platformError(ErrUpstream, "juejin", "draft-detail", response.StatusCode, message, false)
+	}
+	return decoded, nil
+}
+
+func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {
+	if strings.TrimSpace(ref.ID) == "" {
+		return PublishResult{}, platformError(ErrValidation, "juejin", "publish-draft", 0, "draft id is required", false)
+	}
+	detail, err := j.draftDetail(ctx, ref.ID)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	articleID := detail.Data.ArticleID
+	if articleID == "" {
+		articleID = detail.Data.ArticleInfo.ArticleID
+	}
+	if articleID != "" {
+		return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
+	}
+	categoryID := strings.TrimSpace(detail.Data.ArticleInfo.CategoryID)
+	if categoryID == "" || categoryID == "0" || len(detail.Data.ArticleInfo.TagIDs) == 0 {
+		return PublishResult{}, platformError(
+			ErrValidation, "juejin", "publish-draft", 0,
+			"the previewed Juejin draft still needs a category and at least one tag; set them in the draft editor, then confirm publish again",
+			false,
+		)
+	}
+
+	body, _ := json.Marshal(map[string]any{
+		"draft_id": ref.ID,
+		"sync_to_org": false,
+		"column_ids": []string{},
+		"theme_ids": []string{},
+	})
+	req, err := j.request(ctx, http.MethodPost, j.apiBase+"/content_api/v1/article/publish", bytes.NewReader(body))
+	if err != nil {
+		return PublishResult{}, err
+	}
+	req.Header.Set("content-type", "application/json")
+	csrf, err := j.csrf(ctx)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	req.Header.Set("x-secsdk-csrf-token", csrf)
+	response, err := j.client.Do(req)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	defer response.Body.Close()
+	raw, err := readBounded(response, 2<<20)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return PublishResult{}, classifyHTTP("juejin", "publish-draft", response.StatusCode, string(raw))
+	}
+	var decoded struct {
+		Data struct {
+			ArticleID string `json:"article_id"`
+		} `json:"data"`
+		ErrNo  int    `json:"err_no"`
+		ErrMsg string `json:"err_msg"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, "invalid JSON response", false)
+	}
+	if decoded.ErrNo != 0 {
+		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, decoded.ErrMsg, false)
+	}
+	articleID = decoded.Data.ArticleID
+	if articleID == "" {
+		verified, verifyErr := j.draftDetail(ctx, ref.ID)
+		if verifyErr == nil {
+			articleID = verified.Data.ArticleID
+			if articleID == "" {
+				articleID = verified.Data.ArticleInfo.ArticleID
+			}
+		}
+	}
+	if articleID == "" {
+		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, "publish response did not contain an article id", false)
+	}
+	_ = input
+	return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
 }
 
 func shouldKeepJuejinImage(source string) bool {
