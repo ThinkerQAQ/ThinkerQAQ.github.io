@@ -57,6 +57,34 @@ async function ensureBridge(force = false) {
   return bridgeSession;
 }
 
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function restartBridge() {
+  const current = await ensureBridge(false);
+  const previousPID = Number(current?.pid || 0);
+  await fetchJSON("/v1/restart", { method: "POST" }, false);
+  bridgeSession = null;
+  await delay(300);
+
+  const deadline = Date.now() + 10000;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const response = await requestNativeBridge();
+      if (!previousPID || Number(response?.pid || 0) !== previousPID) {
+        bridgeSession = { ...response, checkedAt: Date.now() };
+        return bridgeSession;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await delay(250);
+  }
+  throw new Error(lastError?.message || "Bridge 重启超时");
+}
+
 async function probeCookies(probe) {
   const cookies = await chrome.cookies.getAll({ url: probe.cookieUrl });
   const byName = new Map(cookies.map((cookie) => [cookie.name, cookie]));
@@ -213,6 +241,15 @@ async function handleMessage(message) {
       if (!name) throw new Error("tool name is required");
       const result = await fetchJSON(`/v1/tools/${encodeURIComponent(name)}`, jsonOptions("PUT", { config: message.config ?? {} }));
       return { ok: true, tools: result?.tools ?? [] };
+    }
+    case "blogctl.tool.action": {
+      const name = String(message.name || "").trim();
+      const action = String(message.action || "").trim();
+      if (name === "bridge" && action === "restart") {
+        const bridge = await restartBridge();
+        return { ok: true, bridge };
+      }
+      throw new Error(`unsupported tool action: ${name}/${action}`);
     }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");

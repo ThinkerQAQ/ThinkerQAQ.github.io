@@ -53,3 +53,5 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .task-toolbar, .task-actions { display: flex; align-items: center; gap: 6px; }
 .task-actions { justify-content: flex-end; margin-top: 9px; }
 .danger-action { color: #991b1b; }
+
+.tool-actions { display: flex; justify-content: flex-end; gap: 6px; }

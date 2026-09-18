@@ -2,7 +2,7 @@
 
 (function (root) {
   const state = { initialized: false, active: false, status: null, tools: [] };
-  let bridgeStatus, bridgeDetail, toolRegistry, platformStatuses, message;
+  let toolRegistry, platformStatuses, message;
   function platformById(status, id) { return (status?.platforms ?? []).find((platform) => platform.id === id) ?? {}; }
   function renderPlatforms(statusView) {
     platformStatuses.replaceChildren();
@@ -34,6 +34,20 @@
     try { const response = await BlogCTLPopup.send("blogctl.tool.save", { name: tool.name, config: values }); state.tools = response.tools ?? []; renderTools(); BlogCTLPopup.setMessage(message, `${tool.displayName} 已保存并重新检测。`, "ok"); }
     catch (error) { button.disabled = false; button.textContent = "保存"; BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); }
   }
+  async function runToolAction(tool, action, button) {
+    button.disabled = true;
+    BlogCTLPopup.setMessage(message, `正在执行 ${tool.displayName || tool.name}：${action.label || action.id}…`);
+    try {
+      await BlogCTLPopup.send("blogctl.tool.action", { name: tool.name, action: action.id });
+      BlogCTLPopup.setMessage(message, action.id === "restart" ? "Bridge 已重启并重新连接。" : "操作已完成。", "ok");
+      await refresh();
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function renderTools() {
     toolRegistry.replaceChildren();
     for (const tool of state.tools) {
@@ -42,7 +56,8 @@
       const name = document.createElement("strong"); name.textContent = tool.displayName || tool.name;
       const status = document.createElement("span"); BlogCTLPopup.setStatus(status, healthKind(tool.health), tool.health?.summary || tool.health?.status || "未知", tool.health?.detail || ""); header.append(name, status); card.append(header);
       if (tool.description) { const description = document.createElement("p"); description.className = "card-hint"; description.textContent = tool.description; card.append(description); }
-      if (tool.health?.path) { const path = document.createElement("code"); path.className = "path-value"; path.textContent = tool.health.path; card.append(path); }
+      const detailText = [tool.health?.detail, tool.health?.path].filter(Boolean).join(" · ");
+      if (detailText) { const detail = document.createElement("code"); detail.className = "path-value"; detail.textContent = detailText; card.append(detail); }
       if (tool.config?.toggle) {
         const toggleLabel = document.createElement("label"); toggleLabel.className = "switch-row";
         const text = document.createElement("span"); const title = document.createElement("strong"); title.textContent = tool.config.toggle.label; const detail = document.createElement("small"); detail.textContent = tool.config.toggle.description || ""; text.append(title, detail);
@@ -51,19 +66,27 @@
       for (const field of tool.config?.schema ?? []) card.append(makeConfigInput(tool, field));
       const configurable = Boolean(tool.config?.toggle || (tool.config?.schema ?? []).length);
       if (configurable) { const button = document.createElement("button"); button.type = "button"; button.className = "secondary full-width"; button.textContent = "保存"; button.addEventListener("click", () => saveTool(tool, card, button)); card.append(button); }
+      const actions = Array.isArray(tool.actions) ? tool.actions : [];
+      if (actions.length) {
+        const actionRow = document.createElement("div"); actionRow.className = "tool-actions";
+        for (const action of actions) {
+          const button = document.createElement("button"); button.type = "button"; button.className = "secondary"; button.textContent = action.label || action.id; button.title = action.description || "";
+          button.addEventListener("click", () => runToolAction(tool, action, button));
+          actionRow.append(button);
+        }
+        card.append(actionRow);
+      }
       toolRegistry.append(card);
     }
     if (!toolRegistry.childElementCount) toolRegistry.innerHTML = '<div class="platform-loading">没有工具信息</div>';
   }
   function renderStatus(status) {
-    state.status = status; const bridge = status?.bridge ?? {};
-    if (bridge.running) { BlogCTLPopup.setStatus(bridgeStatus, "ok", "运行中", bridge.pid ? `PID ${bridge.pid}` : ""); bridgeDetail.textContent = bridge.pid ? `PID ${bridge.pid} · 127.0.0.1:32145` : "127.0.0.1:32145"; }
-    else { BlogCTLPopup.setStatus(bridgeStatus, "error", "未运行", bridge.error || ""); bridgeDetail.textContent = bridge.error || ""; }
+    state.status = status;
     renderPlatforms(status);
     BlogCTLPopup.refreshBridgeIndicator(status).catch(() => {});
   }
   async function refresh() {
-    if (!state.active) return; BlogCTLPopup.setMessage(message); bridgeDetail.textContent = "";
+    if (!state.active) return; BlogCTLPopup.setMessage(message);
     try {
       const [statusResponse, toolsResponse] = await Promise.all([BlogCTLPopup.send("blogctl.status"), BlogCTLPopup.send("blogctl.tools")]);
       state.tools = toolsResponse.tools ?? [];
@@ -82,10 +105,10 @@
       }
       renderStatus(status); renderTools();
     }
-    catch (error) { BlogCTLPopup.setStatus(bridgeStatus, "unknown", "检测失败", BlogCTLPopup.errorMessage(error)); bridgeDetail.textContent = BlogCTLPopup.errorMessage(error); toolRegistry.innerHTML = '<div class="platform-loading">环境读取失败</div>'; BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); BlogCTLPopup.refreshBridgeIndicator().catch(() => {}); }
+    catch (error) { toolRegistry.innerHTML = '<div class="platform-loading">环境读取失败</div>'; BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); BlogCTLPopup.refreshBridgeIndicator().catch(() => {}); }
   }
   function init() {
-    if (state.initialized) return; bridgeStatus = document.getElementById("bridgeStatus"); bridgeDetail = document.getElementById("bridgeDetail"); toolRegistry = document.getElementById("toolRegistry"); platformStatuses = document.getElementById("platformStatuses"); message = document.getElementById("environmentMessage"); state.initialized = true;
+    if (state.initialized) return; toolRegistry = document.getElementById("toolRegistry"); platformStatuses = document.getElementById("platformStatuses"); message = document.getElementById("environmentMessage"); state.initialized = true;
   }
   function activate() { state.active = true; refresh(); }
   function deactivate() { state.active = false; }
