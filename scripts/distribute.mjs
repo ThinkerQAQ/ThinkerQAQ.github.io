@@ -351,13 +351,15 @@ function runProcess(command, args, { cwd = process.cwd(), timeoutMs = 120_000 } 
         reject(new Error(`${command} terminated by signal ${signal}`));
         return;
       }
+      const combinedOutput = Buffer.concat(output).toString("utf8");
       if (code !== 0) {
-        reject(new Error(`${command} exited with code ${code}`));
+        const detail = combinedOutput.trim().slice(-4000);
+        reject(new Error(`${command} exited with code ${code}${detail ? `\n${detail}` : ""}`));
         return;
       }
       resolve({
         durationMs: Date.now() - startedAt,
-        output: Buffer.concat(output).toString("utf8"),
+        output: combinedOutput,
       });
     });
   });
@@ -451,7 +453,7 @@ export async function syncExports({
         ? "The Wechatsync Toutiao adapter requested an advertising mode unavailable to this account; do not retry automatically. Use a fixed adapter or create the draft in Toutiao manually."
         : "Install @wechatsync/cli, enable its Chrome bridge, and log in to the platform.";
       throw new Error(
-        `Failed to sync ${item.slug} to ${item.platform}. ${advice}`,
+        `Failed to sync ${item.slug} to ${item.platform}. ${error.message} ${advice}`,
         { cause: error },
       );
     }

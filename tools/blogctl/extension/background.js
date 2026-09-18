@@ -236,6 +236,22 @@ async function handleMessage(message) {
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       return { ok: true, job: result?.job };
     }
+    case "blogctl.job.delete": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
+      return { ok: true };
+    }
+    case "blogctl.jobs.clear": {
+      const result = await fetchJSON("/v1/sync/jobs", { method: "DELETE" });
+      return { ok: true, jobs: result?.jobs ?? [], removed: Number(result?.removed || 0) };
+    }
+    case "blogctl.job.retry": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      return { ok: true, job: result?.job };
+    }
     default: return null;
   }
 }
