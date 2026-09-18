@@ -95,6 +95,12 @@ type toolToggle struct {
 	Description string `json:"description,omitempty"`
 }
 
+type toolAction struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+}
+
 type toolConfigView struct {
 	Scope           string         `json:"scope"`
 	Values          map[string]any `json:"values"`
@@ -118,6 +124,7 @@ type toolDescriptor struct {
 	Kind        string         `json:"kind"`
 	Description string         `json:"description"`
 	Required    bool           `json:"required"`
+	Actions     []toolAction   `json:"actions,omitempty"`
 	Health      toolHealth     `json:"health"`
 	Config      toolConfigView `json:"config"`
 }
@@ -279,8 +286,15 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		{
 			Name: "bridge", DisplayName: "BlogCTL Bridge", Kind: "runtime", Required: true,
 			Description: "Extension 与本机 BlogCTL 的持久控制连接。",
-			Health:      toolHealth{OK: true, Status: "ok", Summary: "运行中"},
-			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{}, DefaultExpanded: true},
+			Health: toolHealth{
+				OK: true, Status: "ok", Summary: "运行中",
+				Detail: fmt.Sprintf("PID %d · %s", os.Getpid(), DefaultAddress),
+			},
+			Actions: []toolAction{{
+				ID: "restart", Label: "重启 Bridge",
+				Description: "重新启动本地服务；存在运行中的同步任务时会拒绝操作。",
+			}},
+			Config: toolConfigView{Scope: "bridge", Values: map[string]any{}},
 		},
 		{
 			Name: "content-workspace", DisplayName: "Content Repository", Kind: "runtime", Required: true,
