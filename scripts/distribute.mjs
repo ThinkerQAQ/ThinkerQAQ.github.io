@@ -293,10 +293,11 @@ export async function exportArticles({
   return { exported, manifest, manifestPath };
 }
 
-function runProcess(command, args, { cwd = process.cwd() } = {}) {
+function runProcess(command, args, { cwd = process.cwd(), timeoutMs = 120_000 } = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const output = [];
+    let timedOut = false;
     const child = spawn(command, args, {
       cwd,
       env: process.env,
@@ -304,6 +305,10 @@ function runProcess(command, args, { cwd = process.cwd() } = {}) {
       shell: process.platform === "win32",
       windowsHide: true,
     });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       output.push(chunk);
       process.stdout.write(chunk);
@@ -312,8 +317,16 @@ function runProcess(command, args, { cwd = process.cwd() } = {}) {
       output.push(chunk);
       process.stderr.write(chunk);
     });
-    child.once("error", reject);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.once("exit", (code, signal) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        reject(new Error(`${command} timed out after ${timeoutMs}ms`));
+        return;
+      }
       if (signal) {
         reject(new Error(`${command} terminated by signal ${signal}`));
         return;
