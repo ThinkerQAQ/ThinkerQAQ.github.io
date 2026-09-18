@@ -96,6 +96,35 @@ func TestBridgeConfigRejectsInvalidWechatsyncPort(t *testing.T) {
 	}
 }
 
+func TestWechatsyncToolNeverExposesStoredToken(t *testing.T) {
+	t.Setenv("WECHATSYNC_TOKEN", "")
+	config := defaultBridgeConfig()
+	config.WechatsyncToken = "secret-token"
+	tools := toolRegistry(config)
+	var wechatsync toolDescriptor
+	for _, tool := range tools {
+		if tool.Name == "wechatsync" {
+			wechatsync = tool
+			break
+		}
+	}
+	if !wechatsync.Health.OK {
+		t.Fatalf("health = %#v", wechatsync.Health)
+	}
+	if _, exposed := wechatsync.Config.Values["token"]; exposed {
+		t.Fatal("stored Wechatsync token was exposed through tool registry")
+	}
+	foundSecret := false
+	for _, field := range wechatsync.Config.Schema {
+		if field.Key == "token" {
+			foundSecret = field.Type == "secret"
+		}
+	}
+	if !foundSecret {
+		t.Fatalf("token secret field missing: %#v", wechatsync.Config.Schema)
+	}
+}
+
 func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 	config := defaultBridgeConfig()
 	views := publishingViews(config)
