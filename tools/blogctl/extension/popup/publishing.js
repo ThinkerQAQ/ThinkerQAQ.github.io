@@ -2,7 +2,7 @@
 
 (function (root) {
   const state = { initialized: false, active: false, platforms: [] };
-  let platformSelect, footerEnabled, footerTemplate, canonicalMode;
+  let platformSelect, languageSelect, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
   let preview, saveButton, resetButton, message;
 
@@ -13,6 +13,7 @@
   function defaultsFor(platform) {
     const english = platform === "devto" || platform === "medium";
     return {
+      language: english ? "en" : "zh-CN",
       footer: {
         enabled: true,
         template: english
@@ -30,7 +31,8 @@
   }
 
   function trackedUrl() {
-    const url = new URL("https://thinkerqaq.github.io/articles/example/");
+    const prefix = languageSelect.value === "en" ? "/en/articles/" : "/articles/";
+    const url = new URL(`https://thinkerqaq.github.io${prefix}example/`);
     if (!trackingEnabled.checked) return url.toString();
     const values = {
       utm_source: trackingSource.value.trim(),
@@ -49,15 +51,17 @@
       footer: "Footer backlink",
       none: "Disabled",
     };
-    const lines = [`Canonical: ${canonicalLabels[canonicalMode.value] || canonicalMode.value}`];
+    const languageLabel = languageSelect.value === "en" ? "English" : "中文";
+    const lines = [`内容语言: ${languageLabel}`, `Canonical: ${canonicalLabels[canonicalMode.value] || canonicalMode.value}`];
     if (!footerEnabled.checked) {
       lines.push("Footer: 已关闭");
       preview.textContent = lines.join("\n\n");
       return;
     }
+    const english = languageSelect.value === "en";
     const rendered = footerTemplate.value
-      .replaceAll("{site}", "ThinkerQAQ 的个人博客")
-      .replaceAll("{title}", "示例文章")
+      .replaceAll("{site}", english ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客")
+      .replaceAll("{title}", english ? "Example article" : "示例文章")
       .replaceAll("{url}", trackedUrl())
       .trim();
     lines.push(rendered || "Footer 模板为空。");
@@ -67,6 +71,7 @@
   function writeForm(platform) {
     const profile = platform || {};
     const fallback = defaultsFor(profile.id || "cnblogs");
+    languageSelect.value = profile.language || fallback.language;
     const footer = profile.footer || fallback.footer;
     const canonical = profile.canonical || fallback.canonical;
     const tracking = profile.tracking || fallback.tracking;
@@ -86,6 +91,7 @@
     return {
       id: platform.id,
       label: platform.label,
+      language: languageSelect.value,
       footer: {
         enabled: footerEnabled.checked,
         template: footerTemplate.value.trim(),
@@ -164,6 +170,7 @@
   function init() {
     if (state.initialized) return;
     platformSelect = document.getElementById("publishingPlatform");
+    languageSelect = document.getElementById("publishingLanguage");
     footerEnabled = document.getElementById("footerEnabled");
     footerTemplate = document.getElementById("footerTemplate");
     canonicalMode = document.getElementById("canonicalMode");
@@ -177,7 +184,7 @@
     message = document.getElementById("publishingMessage");
 
     platformSelect.addEventListener("change", () => writeForm(currentPlatform()));
-    for (const element of [footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
+    for (const element of [languageSelect, footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
       element.addEventListener(element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input", updatePreview);
     }
     saveButton.addEventListener("click", save);
