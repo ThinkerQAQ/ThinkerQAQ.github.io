@@ -49,6 +49,53 @@ func TestBridgeConfigRetainsProxyAddressWhileDisabled(t *testing.T) {
 	}
 }
 
+func TestBridgeConfigDefaultsWechatsyncPortAndPersistsToken(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+
+	config, err := normalizeBridgeConfig(bridgeConfig{
+		WechatsyncToken: " token-123 ",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.WechatsyncToken != "token-123" || config.WechatsyncPort != 9527 {
+		t.Fatalf("wechatsync config = token:%q port:%d", config.WechatsyncToken, config.WechatsyncPort)
+	}
+	if err := saveBridgeConfig(config); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadBridgeConfig()
+	if loaded.WechatsyncToken != "token-123" || loaded.WechatsyncPort != 9527 {
+		t.Fatalf("loaded wechatsync config = token:%q port:%d", loaded.WechatsyncToken, loaded.WechatsyncPort)
+	}
+}
+
+func TestUpdateWechatsyncToolKeepsConfiguredTokenWhenSecretFieldIsBlank(t *testing.T) {
+	config := defaultBridgeConfig()
+	config.WechatsyncToken = "existing-token"
+	updated, err := updateToolConfig(config, "wechatsync", map[string]any{
+		"path":  "",
+		"token": "",
+		"port":  float64(9600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.WechatsyncToken != "existing-token" {
+		t.Fatalf("token = %q", updated.WechatsyncToken)
+	}
+	if updated.WechatsyncPort != 9600 {
+		t.Fatalf("port = %d", updated.WechatsyncPort)
+	}
+}
+
+func TestBridgeConfigRejectsInvalidWechatsyncPort(t *testing.T) {
+	if _, err := normalizeBridgeConfig(bridgeConfig{WechatsyncPort: 70000}); err == nil {
+		t.Fatal("invalid Wechatsync port unexpectedly succeeded")
+	}
+}
+
 func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 	config := defaultBridgeConfig()
 	views := publishingViews(config)
