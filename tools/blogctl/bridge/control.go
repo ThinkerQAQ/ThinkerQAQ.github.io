@@ -45,6 +45,7 @@ type syncRequest struct {
 	DryRun    bool     `json:"dryRun"`
 	Changed   bool     `json:"changed"`
 	Draft     bool     `json:"draft"`
+	Operation string   `json:"operation,omitempty"`
 }
 
 type syncPlatformResult struct {
@@ -279,34 +280,6 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
 }
 
-func wechatsyncTokenConfigured(config bridgeConfig) bool {
-	return strings.TrimSpace(config.WechatsyncToken) != "" || strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN")) != ""
-}
-
-func wechatsyncTokenPlaceholder(config bridgeConfig) string {
-	if wechatsyncTokenConfigured(config) {
-		return "已配置；留空保持现有 Token"
-	}
-	return "从 Wechatsync 扩展复制 Token"
-}
-
-func wechatsyncHealth(config bridgeConfig) toolHealth {
-	path, err := configuredExecutable(config, "wechatsync")
-	if err != nil {
-		return toolHealth{Status: "missing", Summary: "未检测到", Detail: err.Error()}
-	}
-	if !wechatsyncTokenConfigured(config) {
-		return toolHealth{
-			Status: "error", Summary: "Token 未配置", Path: path,
-			Detail: "需要与 Wechatsync Chrome 扩展“同步桥接 / MCP 连接”的 Token 一致",
-		}
-	}
-	return toolHealth{
-		OK: true, Status: "ok", Summary: "已配置", Path: path,
-		Detail: fmt.Sprintf("Token 已配置 · WebSocket 端口 %d · 同步前自动预检", config.WechatsyncPort),
-	}
-}
-
 func toolRegistry(config bridgeConfig) []toolDescriptor {
 	pathField := func(key, label, description string) []toolField {
 		return []toolField{{Key: key, Label: label, Type: "file", Description: description}}
@@ -370,20 +343,6 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Description: "BlogCTL developer workflow dependency。", Health: executableHealth(config, "git"),
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
 		},
-		{
-			Name: "wechatsync", DisplayName: "Wechatsync", Kind: "dependency", Required: false,
-			Description: "中文平台发布 adapter；CLI 通过本机 WebSocket 与 Wechatsync Chrome 扩展连接。",
-			Health:      wechatsyncHealth(config),
-			Config: toolConfigView{
-				Scope:  "bridge",
-				Values: map[string]any{"path": config.ToolPaths["wechatsync"], "port": config.WechatsyncPort},
-				Schema: []toolField{
-					{Key: "path", Label: "Executable", Type: "file", Description: "留空时从 PATH 自动检测 wechatsync"},
-					{Key: "token", Label: "Bridge Token", Type: "secret", Placeholder: wechatsyncTokenPlaceholder(config), Description: "必须与 Wechatsync 扩展中的“同步桥接 / MCP 连接” Token 一致"},
-					{Key: "port", Label: "WebSocket Port", Type: "integer", Placeholder: "9527", Min: 1, Max: 65535, Description: "默认 9527；必须与 Wechatsync 扩展服务器地址一致"},
-				},
-			},
-		},
 	}
 }
 
@@ -423,17 +382,6 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 			config.ToolPaths = map[string]string{}
 		}
 		config.ToolPaths[name] = stringConfig(values, "path")
-	case "wechatsync":
-		if config.ToolPaths == nil {
-			config.ToolPaths = map[string]string{}
-		}
-		config.ToolPaths[name] = stringConfig(values, "path")
-		if token := stringConfig(values, "token"); token != "" {
-			config.WechatsyncToken = token
-		}
-		if port := intConfig(values, "port"); port != 0 {
-			config.WechatsyncPort = port
-		}
 	default:
 		return config, fmt.Errorf("tool configuration is not supported: %s", name)
 	}
@@ -474,12 +422,14 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 		DryRun:    request.DryRun,
 		Changed:   request.Changed,
 		Draft:     request.Draft,
+		Operation: request.Operation,
 	})
 	if err != nil {
 		return request, err
 	}
 	request.Article = normalized.Articles[0]
 	request.Platforms = normalized.Platforms
+	request.Operation = normalized.Operation
 	return request, nil
 }
 
@@ -507,17 +457,17 @@ type bridgeNativePublisher struct {
 	server *Server
 }
 
-func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
+func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Session, *http.Client, error) {
 	p.server.mu.Lock()
-	session, ok := p.server.sessions[request.Platform]
+	session, ok := p.server.sessions[platform]
 	if ok && !session.ExpiresAt.After(p.server.now()) {
-		delete(p.server.sessions, request.Platform)
+		delete(p.server.sessions, platform)
 		ok = false
 	}
 	httpClient := p.server.httpClient
 	p.server.mu.Unlock()
 	if !ok {
-		return blogapp.NativeDraftResult{}, fmt.Errorf("%s browser session is required", request.Platform)
+		return publisher.Session{}, nil, fmt.Errorf("%s browser session is required", platform)
 	}
 
 	cookies := make([]publisher.BrowserCookie, 0, len(session.BrowserCookies))
@@ -528,10 +478,18 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 			SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
 		})
 	}
+	return publisher.Session{Cookies: cookies, UserAgent: session.UserAgent}, httpClient, nil
+}
+
+func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
+	session, httpClient, err := p.publisherSession(request.Platform)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
 	service := publisher.Service{HTTPClient: httpClient}
-	result, err := service.CreateOrUpdateDraft(ctx, request.Platform, publisher.Session{
-		Cookies: cookies, UserAgent: session.UserAgent,
-	}, request.ContentRoot, request.Article, request.ChangedOnly)
+	result, err := service.CreateOrUpdateDraft(
+		ctx, request.Platform, session, request.ContentRoot, request.Article, request.ChangedOnly,
+	)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
@@ -545,15 +503,26 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 	return blogapp.NativeDraftResult{Result: resultName, URL: result.URL}, nil
 }
 
+func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp.NativePublishRequest) (blogapp.NativePublishResult, error) {
+	session, httpClient, err := p.publisherSession(request.Platform)
+	if err != nil {
+		return blogapp.NativePublishResult{}, err
+	}
+	service := publisher.Service{HTTPClient: httpClient}
+	result, err := service.PublishDraft(ctx, request.Platform, session, request.ContentRoot, request.Article)
+	if err != nil {
+		return blogapp.NativePublishResult{}, err
+	}
+	return blogapp.NativePublishResult{Result: "published", URL: result.URL}, nil
+}
+
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
 	applicationConfig := blogapp.SyncConfig{
-		EngineRoot:      config.EngineRoot,
-		ContentRoot:     config.ContentRoot,
-		BridgeOrigin:    "http://" + DefaultAddress,
-		BridgeToken:     s.token,
-		ToolPaths:       config.ToolPaths,
-		WechatsyncToken: config.WechatsyncToken,
-		WechatsyncPort:  config.WechatsyncPort,
+		EngineRoot:   config.EngineRoot,
+		ContentRoot:  config.ContentRoot,
+		BridgeOrigin: "http://" + DefaultAddress,
+		BridgeToken:  s.token,
+		ToolPaths:    config.ToolPaths,
 	}
 	if configPath, err := ConfigPath(); err == nil {
 		applicationConfig.ConfigPath = configPath
@@ -571,6 +540,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		DryRun:    request.DryRun,
 		Changed:   request.Changed,
 		Draft:     request.Draft,
+		Operation: request.Operation,
 	})
 }
 
