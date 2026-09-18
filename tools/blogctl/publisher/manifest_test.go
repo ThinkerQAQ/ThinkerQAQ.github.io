@@ -24,6 +24,10 @@ func TestReadManifestMigratesAllLegacyPlatformDraftState(t *testing.T) {
 						"lastSyncedHash": "csdn-hash",
 						"lastSyncedAt":   "2026-09-02T00:00:00Z",
 					},
+					"cnblogs": map[string]any{
+						"lastSyncedHash": "cnblogs-hash",
+						"draftUrl":       "https://i.cnblogs.com/articles/edit;postId=cnblogs-42",
+					},
 				},
 			},
 		},
@@ -55,6 +59,36 @@ func TestReadManifestMigratesAllLegacyPlatformDraftState(t *testing.T) {
 	if stringValue(csdn["draftHash"]) != "csdn-hash" ||
 		stringValue(csdn["draftSyncedAt"]) != "2026-09-02T00:00:00Z" {
 		t.Fatalf("csdn = %#v", csdn)
+	}
+
+	cnblogs := objectValue(platforms["cnblogs"])
+	if stringValue(cnblogs["remoteDraftId"]) != "cnblogs-42" {
+		t.Fatalf("cnblogs = %#v", cnblogs)
+	}
+}
+
+func TestDraftIDFromURL(t *testing.T) {
+	cases := []struct {
+		platform string
+		rawURL   string
+		want     string
+	}{
+		{"juejin", "https://juejin.cn/editor/drafts/draft-42", "draft-42"},
+		{"zhihu", "https://zhuanlan.zhihu.com/write/5678", "5678"},
+		{"51cto", "https://blog.51cto.com/blogger/draft/123", "123"},
+		{"oschina", "https://my.oschina.net/u/42/blog/ai-write/draft/789", "789"},
+		{"csdn", "https://editor.csdn.net/md?articleId=cs-1", "cs-1"},
+		{"segmentfault", "https://segmentfault.com/write?draftId=sf-2", "sf-2"},
+		{"toutiao", "https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=tt-3", "tt-3"},
+		{"cnblogs", "https://i.cnblogs.com/articles/edit;postId=cb-4", "cb-4"},
+		{"juejin", " https://juejin.cn/editor/drafts/trimmed ", "trimmed"},
+		{"csdn", "", ""},
+		{"unknown", "https://example.com/x/1", ""},
+	}
+	for _, tc := range cases {
+		if got := draftIDFromURL(tc.platform, tc.rawURL); got != tc.want {
+			t.Errorf("draftIDFromURL(%q, %q) = %q, want %q", tc.platform, tc.rawURL, got, tc.want)
+		}
 	}
 }
 

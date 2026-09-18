@@ -4,16 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
 
 const DistributionManifestVersion = 2
-
-var juejinDraftURLPattern = regexp.MustCompile(`/editor/drafts/([^/?#]+)`)
 
 func migrateManifestV2(manifest map[string]any) error {
 	version := int(numberValue(manifest["version"]))
@@ -100,13 +98,47 @@ func platformState(manifest map[string]any, slug, platform string) (map[string]a
 }
 
 func draftIDFromURL(platform, rawURL string) string {
-	if platform == "juejin" {
-		match := juejinDraftURLPattern.FindStringSubmatch(rawURL)
-		if len(match) == 2 {
-			return match[1]
-		}
+	text := strings.TrimSpace(rawURL)
+	if text == "" {
+		return ""
 	}
-	return ""
+	parsed, err := url.Parse(text)
+	if err != nil {
+		return ""
+	}
+	pathID := func() string {
+		segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+		if len(segments) == 0 {
+			return ""
+		}
+		return strings.TrimSpace(segments[len(segments)-1])
+	}
+	queryID := func(name string) string {
+		return strings.TrimSpace(parsed.Query().Get(name))
+	}
+	switch platform {
+	case "juejin", "51cto", "oschina", "zhihu":
+		return pathID()
+	case "csdn":
+		return queryID("articleId")
+	case "segmentfault":
+		return queryID("draftId")
+	case "toutiao":
+		return queryID("pgc_id")
+	case "cnblogs":
+		// Draft URLs use a matrix-style parameter: /articles/edit;postId=<id>.
+		const marker = "postId="
+		if index := strings.Index(text, marker); index >= 0 {
+			rest := text[index+len(marker):]
+			if end := strings.IndexAny(rest, "&?#"); end >= 0 {
+				rest = rest[:end]
+			}
+			return strings.TrimSpace(rest)
+		}
+		return ""
+	default:
+		return ""
+	}
 }
 
 func sourceDirectory(contentRoot, slug, language string) string {

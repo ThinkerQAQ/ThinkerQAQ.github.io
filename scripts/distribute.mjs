@@ -198,6 +198,38 @@ async function walkMarkdown(directory, { excludedDirectories = new Set() } = {})
   return files.sort();
 }
 
+function draftIdFromUrl(platform, draftUrl) {
+  const trimmed = typeof draftUrl === "string" ? draftUrl.trim() : "";
+  if (!trimmed) return "";
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return "";
+  }
+  const pathId = () => {
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    return segments.length ? segments[segments.length - 1] : "";
+  };
+  switch (platform) {
+    case "juejin":
+    case "51cto":
+    case "oschina":
+    case "zhihu":
+      return pathId();
+    case "csdn":
+      return parsed.searchParams.get("articleId") ?? "";
+    case "segmentfault":
+      return parsed.searchParams.get("draftId") ?? "";
+    case "toutiao":
+      return parsed.searchParams.get("pgc_id") ?? "";
+    case "cnblogs":
+      return trimmed.match(/postId=([^&?#]+)/u)?.[1] ?? "";
+    default:
+      return "";
+  }
+}
+
 function migrateManifest(manifest) {
   if (!manifest || typeof manifest.articles !== "object") {
     return { version: MANIFEST_VERSION, articles: {} };
@@ -211,9 +243,9 @@ function migrateManifest(manifest) {
       if (!state || typeof state !== "object") continue;
       if (!state.draftHash && state.lastSyncedHash) state.draftHash = state.lastSyncedHash;
       if (!state.draftSyncedAt && state.lastSyncedAt) state.draftSyncedAt = state.lastSyncedAt;
-      if (!state.remoteDraftId && platform === "juejin" && typeof state.draftUrl === "string") {
-        const match = state.draftUrl.match(/\/editor\/drafts\/([^/?#]+)/u);
-        if (match) state.remoteDraftId = match[1];
+      if (!state.remoteDraftId) {
+        const id = draftIdFromUrl(platform, state.draftUrl);
+        if (id) state.remoteDraftId = id;
       }
     }
   }
