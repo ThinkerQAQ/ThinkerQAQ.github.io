@@ -47,10 +47,11 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
-	ContentRoot string            `json:"contentRoot"`
-	EngineRoot  string            `json:"engineRoot"`
-	ToolPaths   map[string]string `json:"toolPaths"`
-	Publishing  publishingConfig  `json:"publishing"`
+	ContentRoot  string            `json:"contentRoot"`
+	EngineRoot   string            `json:"engineRoot"`
+	ToolPaths    map[string]string `json:"toolPaths"`
+	DevtoAPIKey  string            `json:"devtoApiKey,omitempty"`
+	Publishing   publishingConfig  `json:"publishing"`
 }
 
 var publishingPlatformOrder = []string{
@@ -173,6 +174,7 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config = mergeConfigDefaults(config)
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
+	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
