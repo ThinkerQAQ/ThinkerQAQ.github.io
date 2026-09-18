@@ -62,6 +62,23 @@ test("disables international platforms when the article lacks an English mirror"
   assert.deepEqual(model.platformAvailability(withMirror, "medium"), { available: true, reason: "" });
 });
 
+
+test("disables platforms whose login state is unavailable or logged out", () => {
+  const article = { slug: "with-en", englishMirror: true };
+  assert.deepEqual(
+    model.platformAvailability(article, { id: "csdn", known: true, loggedIn: false }),
+    { available: false, reason: "未登录" },
+  );
+  assert.deepEqual(
+    model.platformAvailability(article, { id: "juejin", known: false, loggedIn: false }),
+    { available: false, reason: "登录状态检测失败" },
+  );
+  assert.deepEqual(
+    model.platformAvailability(article, { id: "medium", known: true, loggedIn: true }),
+    { available: true, reason: "" },
+  );
+});
+
 test("does not gate platforms when no article is selected", () => {
   assert.deepEqual(model.platformAvailability(undefined, "devto"), { available: true, reason: "" });
 });
