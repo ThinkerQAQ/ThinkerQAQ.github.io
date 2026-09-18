@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { resolveArticleAssetUrl } from "./distribute.mjs";
 import {
   defaultPlatformPublishingConfig,
   nativeCanonicalUrl,
@@ -321,10 +322,12 @@ export function buildMediumDraft(article, {
       paragraph: { type: BLOCKQUOTE, text: footer.text, markups: footer.markups },
     });
   }
+  const coverUrl = resolveArticleAssetUrl(article.coverImage);
   return {
     title: article.title,
     canonicalUrl: nativeCanonicalUrl(canonicalUrl, publishingConfig),
     tags: article.tags.slice(0, MEDIUM_MAX_TAGS),
+    coverImage: coverUrl ? { url: coverUrl, alt: article.coverImageAlt || "" } : null,
     deltas,
     warnings,
   };
@@ -373,6 +376,10 @@ export function buildMediumCopyHtml(article, {
   const { blocks } = parseMediumBlocks(article.body);
   const footer = footerData(article, canonicalUrl, publishingConfig);
   const body = renderBlocks(blocks);
+  const coverUrl = resolveArticleAssetUrl(article.coverImage);
+  const coverHtml = coverUrl
+    ? `<figure class="cover"><img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(article.coverImageAlt || "")}"></figure>\n`
+    : "";
   const footerHtml = footer ? `\n<hr>\n<blockquote><p>${footer.html}</p></blockquote>` : "";
   return `<!doctype html>
 <html lang="${publishingLanguage(publishingConfig)}">
@@ -383,7 +390,7 @@ export function buildMediumCopyHtml(article, {
 <style>
 body{font-family:Georgia,"Times New Roman",serif;max-width:760px;margin:40px auto;padding:0 24px 80px;line-height:1.65;color:#242424}
 #toolbar{position:sticky;top:0;background:#fff;padding:12px 0;border-bottom:1px solid #e5e5e5;margin-bottom:32px;z-index:10}
-button{font:inherit;padding:9px 14px;cursor:pointer}h1{font-size:2.35rem;line-height:1.15}h2{font-size:1.7rem;margin-top:2.1em}h3{font-size:1.3rem;margin-top:1.7em}
+button{font:inherit;padding:9px 14px;cursor:pointer}.cover{margin:0 0 32px}.cover img{display:block;width:100%;height:auto}h1{font-size:2.35rem;line-height:1.15}h2{font-size:1.7rem;margin-top:2.1em}h3{font-size:1.3rem;margin-top:1.7em}
 code{font-family:Consolas,"SFMono-Regular",Menlo,monospace}p code,li code{background:#f2f2f2;padding:.08em .28em;border-radius:3px}
 pre{font-family:Consolas,"SFMono-Regular",Menlo,monospace;white-space:pre;overflow-x:auto;background:#f7f7f7;padding:16px;border-radius:4px;line-height:1.5}pre code{background:transparent;padding:0}
 blockquote{border-left:3px solid #242424;margin-left:0;padding-left:18px}hr{border:0;border-top:1px solid #ddd;margin:2em 0}
@@ -393,7 +400,7 @@ blockquote{border-left:3px solid #242424;margin-left:0;padding-left:18px}hr{bord
 <div id="toolbar"><button id="copyBtn">Copy for Medium</button><span id="status" style="margin-left:10px;color:#666"></span></div>
 <article id="article">
 <h1>${escapeHtml(article.title)}</h1>
-${body}${footerHtml}
+${coverHtml}${body}${footerHtml}
 </article>
 <script>
 document.getElementById('copyBtn').addEventListener('click', async () => {
