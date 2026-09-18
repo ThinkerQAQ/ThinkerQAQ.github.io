@@ -10,15 +10,19 @@
     return state.platforms.find((platform) => platform.id === platformSelect.value);
   }
 
+  function defaultFooterTemplate(language) {
+    return language === "en"
+      ? "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version."
+      : "> 本文首发于 [{site}]({url})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。";
+  }
+
   function defaultsFor(platform) {
     const english = platform === "devto" || platform === "medium";
     return {
       language: english ? "en" : "zh-CN",
       footer: {
         enabled: true,
-        template: english
-          ? "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version."
-          : "> 本文首发于 [{site}]({url})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。",
+        template: defaultFooterTemplate(english ? "en" : "zh-CN"),
       },
       canonical: { mode: english ? "native" : "footer" },
       tracking: {
@@ -184,7 +188,15 @@
     message = document.getElementById("publishingMessage");
 
     platformSelect.addEventListener("change", () => writeForm(currentPlatform()));
-    for (const element of [languageSelect, footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
+    languageSelect.addEventListener("change", () => {
+      const currentTemplate = footerTemplate.value.trim();
+      const defaultTemplates = new Set([defaultFooterTemplate("zh-CN"), defaultFooterTemplate("en")]);
+      if (defaultTemplates.has(currentTemplate)) {
+        footerTemplate.value = defaultFooterTemplate(languageSelect.value);
+      }
+      updatePreview();
+    });
+    for (const element of [footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
       element.addEventListener(element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input", updatePreview);
     }
     saveButton.addEventListener("click", save);
