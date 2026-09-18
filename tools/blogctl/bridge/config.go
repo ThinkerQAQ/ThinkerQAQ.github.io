@@ -47,10 +47,12 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
-	ContentRoot string            `json:"contentRoot"`
-	EngineRoot  string            `json:"engineRoot"`
-	ToolPaths   map[string]string `json:"toolPaths"`
-	Publishing  publishingConfig  `json:"publishing"`
+	ContentRoot     string            `json:"contentRoot"`
+	EngineRoot      string            `json:"engineRoot"`
+	ToolPaths       map[string]string `json:"toolPaths"`
+	WechatsyncToken string            `json:"wechatsyncToken,omitempty"`
+	WechatsyncPort  int               `json:"wechatsyncPort"`
+	Publishing      publishingConfig  `json:"publishing"`
 }
 
 var publishingPlatformOrder = []string{
@@ -106,8 +108,9 @@ func defaultPublishingConfig() publishingConfig {
 
 func defaultBridgeConfig() bridgeConfig {
 	return bridgeConfig{
-		ToolPaths:  map[string]string{},
-		Publishing: defaultPublishingConfig(),
+		ToolPaths:      map[string]string{},
+		WechatsyncPort: 9527,
+		Publishing:     defaultPublishingConfig(),
 	}
 }
 
@@ -139,6 +142,9 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	}
 	if config.Publishing.Platforms == nil {
 		config.Publishing.Platforms = map[string]publishingPlatformConfig{}
+	}
+	if config.WechatsyncPort == 0 {
+		config.WechatsyncPort = defaults.WechatsyncPort
 	}
 	for platform, value := range defaults.Publishing.Platforms {
 		configured, ok := config.Publishing.Platforms[platform]
@@ -173,6 +179,10 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config = mergeConfigDefaults(config)
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
+	config.WechatsyncToken = strings.TrimSpace(config.WechatsyncToken)
+	if config.WechatsyncPort < 1 || config.WechatsyncPort > 65535 {
+		return config, errors.New("Wechatsync port must be between 1 and 65535")
+	}
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
