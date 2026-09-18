@@ -125,12 +125,12 @@ func (c *cto51Adapter) uploadSign(ctx context.Context) (string, error) {
 type cto51UploadConfig struct {
 	URL    string `json:"url"`
 	Fields struct {
-		Key            string `json:"key"`
-		Policy         string `json:"policy"`
-		Algorithm      string `json:"x-amz-algorithm"`
-		Signature      string `json:"x-amz-signature"`
-		Credential     string `json:"x-amz-credential"`
-		Date           string `json:"X-Amz-Date"`
+		Key        string `json:"key"`
+		Policy     string `json:"policy"`
+		Algorithm  string `json:"x-amz-algorithm"`
+		Signature  string `json:"x-amz-signature"`
+		Credential string `json:"x-amz-credential"`
+		Date       string `json:"X-Amz-Date"`
 	} `json:"fields"`
 }
 
@@ -175,13 +175,13 @@ func (c *cto51Adapter) uploadImage(ctx context.Context, source string, input Dra
 		return "", err
 	}
 	fields := map[string]string{
-		"key": config.Fields.Key,
-		"policy": config.Fields.Policy,
-		"x-amz-algorithm": config.Fields.Algorithm,
-		"x-amz-signature": config.Fields.Signature,
+		"key":              config.Fields.Key,
+		"policy":           config.Fields.Policy,
+		"x-amz-algorithm":  config.Fields.Algorithm,
+		"x-amz-signature":  config.Fields.Signature,
 		"x-amz-credential": config.Fields.Credential,
-		"X-Amz-Date": config.Fields.Date,
-		"Content-Type": contentType,
+		"X-Amz-Date":       config.Fields.Date,
+		"Content-Type":     contentType,
 	}
 	body, bodyType, err := multipartBody(fields, "file", filename, contentType, payload)
 	if err != nil {
@@ -294,8 +294,8 @@ func (c *cto51Adapter) saveDraft(ctx context.Context, refID string, input DraftI
 		return DraftResult{}, platformError(ErrUpstream, c.ID(), "save-draft", 0, "response did not contain a draft id", false)
 	}
 	return DraftResult{
-		ID: id,
-		URL: cto51Origin + "/blogger/draft/" + url.PathEscape(id),
+		ID:      id,
+		URL:     cto51Origin + "/blogger/draft/" + url.PathEscape(id),
 		Created: refID == "",
 		Updated: refID != "",
 	}, nil
