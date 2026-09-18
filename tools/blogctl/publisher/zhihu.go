@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -30,7 +31,12 @@ func NewZhihuAdapter(base *http.Client, session Session) (Adapter, error) {
 func (z *zhihuAdapter) ID() string { return "zhihu" }
 
 func (z *zhihuAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
-	return browserRequest(ctx, method, rawURL, zhihuOrigin, zhihuOrigin+"/write", z.userAgent, body)
+	req, err := browserRequest(ctx, method, rawURL, zhihuOrigin, zhihuOrigin+"/write", z.userAgent, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("x-requested-with", "fetch")
+	return req, nil
 }
 
 func (z *zhihuAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
@@ -86,6 +92,73 @@ func (z *zhihuAdapter) uploadImage(ctx context.Context, source string) (string, 
 	return decoded.Src, nil
 }
 
+var (
+	zhihuFigureTablePattern = regexp.MustCompile(`(?is)<figure[^>]*>\s*(<table[\s\S]*?</table>)\s*</figure>`)
+	zhihuTablePattern       = regexp.MustCompile(`(?is)<table[^>]*>([\s\S]*?)</table>`)
+	zhihuTheadPattern       = regexp.MustCompile(`(?is)<thead[^>]*>([\s\S]*?)</thead>`)
+	zhihuTbodyPattern       = regexp.MustCompile(`(?is)<tbody[^>]*>([\s\S]*?)</tbody>`)
+	zhihuFirstRowPattern    = regexp.MustCompile(`(?is)<tr[^>]*>([\s\S]*?)</tr>`)
+	zhihuTDOpenPattern      = regexp.MustCompile(`(?i)<td([^>]*)>`)
+	zhihuTDClosePattern     = regexp.MustCompile(`(?i)</td>`)
+	zhihuParagraphImage     = regexp.MustCompile(`(?is)<p>\s*(<img\b[^>]*>)\s*</p>`)
+	zhihuImagePattern       = regexp.MustCompile(`(?is)<img\b[^>]*>`)
+	zhihuNestedFigure       = regexp.MustCompile(`(?is)<figure[^>]*>\s*<figure>\s*(<img\b[^>]*>)\s*</figure>\s*</figure>`)
+	zhihuCodePattern        = regexp.MustCompile(`(?i)<pre><code class="language-([^"]+)">`)
+	zhihuDataPattern        = regexp.MustCompile(`(?i)\s+data-(?!draft)[a-z0-9_-]+="[^"]*"`)
+	zhihuStylePattern       = regexp.MustCompile(`(?i)\s+style="[^"]*"`)
+	zhihuSectionOpenPattern = regexp.MustCompile(`(?i)<section([^>]*)>`)
+	zhihuSectionClosePattern = regexp.MustCompile(`(?i)</section>`)
+)
+
+func transformZhihuTables(html string) string {
+	result := zhihuFigureTablePattern.ReplaceAllString(html, "$1")
+	return zhihuTablePattern.ReplaceAllStringFunc(result, func(table string) string {
+		match := zhihuTablePattern.FindStringSubmatch(table)
+		if len(match) != 2 {
+			return table
+		}
+		content := match[1]
+		headerRows := ""
+		bodyRows := ""
+
+		if head := zhihuTheadPattern.FindStringSubmatch(content); len(head) == 2 {
+			headerRows = zhihuTDOpenPattern.ReplaceAllString(head[1], "<th$1>")
+			headerRows = zhihuTDClosePattern.ReplaceAllString(headerRows, "</th>")
+		}
+		if body := zhihuTbodyPattern.FindStringSubmatch(content); len(body) == 2 {
+			bodyRows = body[1]
+		} else {
+			bodyRows = zhihuTheadPattern.ReplaceAllString(content, "")
+			bodyRows = regexp.MustCompile(`(?i)</?tbody[^>]*>`).ReplaceAllString(bodyRows, "")
+		}
+		if headerRows == "" {
+			if first := zhihuFirstRowPattern.FindStringSubmatch(bodyRows); len(first) == 2 &&
+				strings.Contains(strings.ToLower(first[1]), "<th") &&
+				!strings.Contains(strings.ToLower(first[1]), "<td") {
+				headerRows = first[0]
+				bodyRows = strings.Replace(bodyRows, first[0], "", 1)
+			}
+		}
+		return `<table data-draft-node="block" data-draft-type="table" data-size="normal" data-row-style="normal"><tbody>` +
+			headerRows + bodyRows + "</tbody></table>"
+	})
+}
+
+func transformZhihuHTML(html string) string {
+	result := transformZhihuTables(html)
+	result = zhihuParagraphImage.ReplaceAllString(result, "<figure>$1</figure>")
+	result = zhihuImagePattern.ReplaceAllStringFunc(result, func(image string) string {
+		return "<figure>" + image + "</figure>"
+	})
+	result = zhihuNestedFigure.ReplaceAllString(result, "<figure>$1</figure>")
+	result = zhihuCodePattern.ReplaceAllString(result, `<pre lang="$1"><code>`)
+	result = zhihuSectionOpenPattern.ReplaceAllString(result, "<div$1>")
+	result = zhihuSectionClosePattern.ReplaceAllString(result, "</div>")
+	result = zhihuDataPattern.ReplaceAllString(result, "")
+	result = zhihuStylePattern.ReplaceAllString(result, "")
+	return result
+}
+
 func (z *zhihuAdapter) prepareHTML(ctx context.Context, input DraftInput) (string, error) {
 	html := htmlFor(input)
 	replacements := map[string]string{}
@@ -102,7 +175,7 @@ func (z *zhihuAdapter) prepareHTML(ctx context.Context, input DraftInput) (strin
 	for source, target := range replacements {
 		html = strings.ReplaceAll(html, source, target)
 	}
-	return html, nil
+	return transformZhihuHTML(html), nil
 }
 
 func (z *zhihuAdapter) createDraftID(ctx context.Context) (string, error) {
