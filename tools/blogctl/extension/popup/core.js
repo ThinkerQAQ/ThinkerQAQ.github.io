@@ -15,6 +15,9 @@
         }
         if (!response?.ok) {
           const error = new Error(response?.error || "BlogCTL Extension request failed");
+          error.code = response?.code || "";
+          error.details = response?.details || null;
+          error.status = response?.status || 0;
           error.response = response;
           reject(error);
           return;

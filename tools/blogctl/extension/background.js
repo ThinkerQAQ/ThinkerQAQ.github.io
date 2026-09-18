@@ -1,4 +1,5 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
+import { toError } from "./errors.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -112,7 +113,7 @@ async function fetchJSON(pathname, options = {}, retry = true) {
   try {
     const response = await fetch(`${bridge.baseUrl}${pathname}`, options);
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `bridge HTTP ${response.status}`);
+    if (!response.ok) throw toError(payload, response.status);
     return payload;
   } catch (error) {
     if (retry) {
@@ -249,7 +250,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       await setBadge("!", "#b42318");
       clearBadgeLater();
     }
-    sendResponse({ ok: false, error: errorMessage(error) });
+    sendResponse({ ok: false, error: errorMessage(error), code: error?.code || "", status: error?.status || 0, details: error?.details || null });
   });
   return true;
 });

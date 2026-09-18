@@ -5,7 +5,13 @@
   let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, dryRun, draftMode, startButton, message, jobsContainer, refreshJobsButton;
 
   function selectedPlatforms() {
-    return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')].map((input) => input.dataset.platform);
+    return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
+      .filter((input) => !input.disabled)
+      .map((input) => input.dataset.platform);
+  }
+
+  function selectedArticle() {
+    return state.articles.find((item) => item.slug === articleSelect.value);
   }
 
   function updateStartButton() {
@@ -42,24 +48,30 @@
 
   function renderPlatforms() {
     const previous = new Set(selectedPlatforms());
+    const article = selectedArticle();
     platformsContainer.replaceChildren();
     for (const platform of state.status?.platforms ?? []) {
+      const availability = BlogCTLSyncModel.platformAvailability(article, platform.id);
       const label = document.createElement("label");
       label.className = "platform-choice";
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.dataset.platform = platform.id;
-      checkbox.checked = previous.has(platform.id);
+      checkbox.checked = previous.has(platform.id) && availability.available;
+      checkbox.disabled = !availability.available;
       checkbox.addEventListener("change", updateStartButton);
       const text = document.createElement("span");
       text.className = "platform-choice-text";
       const name = document.createElement("strong");
       name.textContent = platform.label || platform.id;
       const detail = document.createElement("small");
-      detail.textContent = platform.known === false ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}` : platform.loggedIn ? "已登录" : "未登录";
+      detail.textContent = !availability.available
+        ? availability.reason
+        : platform.known === false ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}` : platform.loggedIn ? "已登录" : "未登录";
       text.append(name, detail);
       const status = document.createElement("span");
-      if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
+      if (!availability.available) BlogCTLPopup.setStatus(status, "disabled", availability.reason);
+      else if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
       else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", "已登录");
       else BlogCTLPopup.setStatus(status, "error", "未登录");
       label.append(checkbox, text, status);
@@ -211,8 +223,8 @@
   function init() {
     if (state.initialized) return;
     articleFilter = document.getElementById("articleFilter"); articleSelect = document.getElementById("articleSelect"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); changedOnly = document.getElementById("changedOnly"); dryRun = document.getElementById("dryRun"); draftMode = document.getElementById("draftMode"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage"); jobsContainer = document.getElementById("syncJobs"); refreshJobsButton = document.getElementById("refreshJobs");
-    articleFilter.addEventListener("input", renderArticles);
-    articleSelect.addEventListener("change", () => { renderArticleMeta(); updateStartButton(); });
+    articleFilter.addEventListener("input", () => { renderArticles(); renderPlatforms(); });
+    articleSelect.addEventListener("change", () => { renderArticleMeta(); renderPlatforms(); });
     startButton.addEventListener("click", startSync);
     refreshJobsButton.addEventListener("click", refreshJobs);
     state.initialized = true;

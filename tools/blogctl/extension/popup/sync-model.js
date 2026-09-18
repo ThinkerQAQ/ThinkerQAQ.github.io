@@ -1,6 +1,16 @@
 "use strict";
 
 (function (root) {
+  const INTERNATIONAL_PLATFORMS = new Set(["devto", "medium"]);
+
+  function platformAvailability(article, platformId) {
+    if (!article) return { available: true, reason: "" };
+    if (INTERNATIONAL_PLATFORMS.has(platformId) && !article.englishMirror) {
+      return { available: false, reason: "缺少英文镜像" };
+    }
+    return { available: true, reason: "" };
+  }
+
   const resultLabels = {
     completed: "完成",
     created: "已创建",
@@ -50,5 +60,5 @@
     });
   }
 
-  root.BlogCTLSyncModel = { platformRows, statePresentation };
+  root.BlogCTLSyncModel = { platformRows, statePresentation, platformAvailability };
 })(globalThis);
