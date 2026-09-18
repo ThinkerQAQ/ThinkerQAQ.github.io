@@ -93,9 +93,9 @@ test("disables platforms whose login state is unavailable or logged out", () => 
   );
 });
 
-test("gates Wechatsync-backed platforms on tool readiness", () => {
+test("gates only legacy Wechatsync platforms on tool readiness", () => {
   assert.deepEqual(
-    model.deliveryToolAvailability("juejin", [{
+    model.deliveryToolAvailability("csdn", [{
       name: "wechatsync",
       health: { ok: false, summary: "Token 未配置" },
     }]),
@@ -104,7 +104,7 @@ test("gates Wechatsync-backed platforms on tool readiness", () => {
   assert.deepEqual(
     model.deliveryToolAvailability("juejin", [{
       name: "wechatsync",
-      health: { ok: true, summary: "已配置" },
+      health: { ok: false, summary: "Token 未配置" },
     }]),
     { available: true, reason: "" },
   );
