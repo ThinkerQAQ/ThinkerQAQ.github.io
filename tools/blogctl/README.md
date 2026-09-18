@@ -92,9 +92,9 @@ BlogCTL Extension independently reports browser login status for the publishing 
 
 The extension contacts the registered Native Messaging Host whenever Bridge access is required. The host reuses an existing healthy Bridge or starts `blogctl --bridge` in the background, then returns the current loopback endpoint. Live `blogctl sync --platforms medium` uses the same persistent Bridge state instead of creating a second per-command Bridge.
 
-Medium needs a short-lived browser-session handoff for draft creation. The popup now keeps that state inside the **平台登录状态** list: the Medium row shows both login state and the remaining synchronized Session lifetime.
+Medium needs a short-lived browser-session handoff internally for draft creation, but that is an implementation detail and is not exposed in the popup. Users only see Medium's normal login state.
 
-When Medium is logged in, BlogCTL refreshes the approved Medium Session automatically when the environment panel is opened and also immediately before a Medium sync if needed. There is no separate manual Session button. Only adapter-approved Medium browser session fields are sent; the Bridge keeps them in memory. Other platform login probes do not send their cookies to BlogCTL.
+When Medium is logged in, BlogCTL refreshes the approved Medium Session automatically when needed. There is no separate Session status or manual Session button. Only adapter-approved Medium browser session fields are sent; the Bridge keeps them in memory. Other platform login probes do not send their cookies to BlogCTL.
 
 ### Network proxy
 
