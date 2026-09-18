@@ -68,3 +68,23 @@ test("selectBrowserSessionCookies rejects an empty usable session", () => {
     /no browser cookies/u,
   );
 });
+
+test("all native platform sessions declare domain-wide cookie discovery", async () => {
+  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  const expected = {
+    cnblogs: "cnblogs.com",
+    juejin: "juejin.cn",
+    csdn: "csdn.net",
+    segmentfault: "segmentfault.com",
+    zhihu: "zhihu.com",
+    "51cto": "51cto.com",
+    oschina: "oschina.net",
+    toutiao: "toutiao.com",
+  };
+  for (const [platform, domain] of Object.entries(expected)) {
+    assert.ok(
+      PLATFORM_SESSIONS[platform]?.cookieDomains?.includes(domain),
+      `${platform} must collect cookies across ${domain} subdomains`,
+    );
+  }
+});
