@@ -1,0 +1,45 @@
+name: Temporary English link audit
+
+on:
+  push:
+    branches:
+      - audit/english-links-20260918
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout public engine
+        uses: actions/checkout@v6
+        with:
+          ref: audit/english-links-20260918
+          path: engine
+
+      - name: Checkout private content branch
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/blog-content
+          ref: migration/tdoc-assets-links-20260918
+          ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
+          path: content-source
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Audit English link labels
+        working-directory: content-source
+        run: node scripts/audit-english-link-labels.mjs
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: english-link-audit
+          path: content-source/.migration/english-link-audit.json
+          retention-days: 1
+          if-no-files-found: error
