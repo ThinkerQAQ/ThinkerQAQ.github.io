@@ -43,9 +43,9 @@ func (o *osChinaAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 		return AuthResult{}, err
 	}
 	var decoded struct {
-		Success bool `json:"success"`
+		Success bool   `json:"success"`
 		Message string `json:"message"`
-		Result struct {
+		Result  struct {
 			UserID any `json:"userId"`
 			UserVo struct {
 				Name string `json:"name"`
@@ -136,13 +136,13 @@ func (o *osChinaAdapter) saveDraft(ctx context.Context, refID string, input Draf
 		return DraftResult{}, err
 	}
 	payload := map[string]any{
-		"title": input.Title,
-		"user": o.userID,
-		"content": content,
-		"contentType": 1,
-		"catalog": 0,
-		"originUrl": "",
-		"privacy": true,
+		"title":          input.Title,
+		"user":           o.userID,
+		"content":        content,
+		"contentType":    1,
+		"catalog":        0,
+		"originUrl":      "",
+		"privacy":        true,
 		"disableComment": false,
 	}
 	if refID != "" {
@@ -156,10 +156,10 @@ func (o *osChinaAdapter) saveDraft(ctx context.Context, refID string, input Draf
 	}
 	req.Header.Set("content-type", "application/json")
 	var decoded struct {
-		Success bool `json:"success"`
-		Code    int  `json:"code"`
+		Success bool   `json:"success"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
-		Result struct {
+		Result  struct {
 			ID any `json:"id"`
 		} `json:"result"`
 	}
@@ -181,8 +181,8 @@ func (o *osChinaAdapter) saveDraft(ctx context.Context, refID string, input Draf
 		return DraftResult{}, platformError(ErrUpstream, o.ID(), "save-draft", decoded.Code, "response did not contain a draft id", false)
 	}
 	return DraftResult{
-		ID: id,
-		URL: fmt.Sprintf("%s/u/%s/blog/ai-write/draft/%s", osChinaOrigin, url.PathEscape(o.userID), url.PathEscape(id)),
+		ID:      id,
+		URL:     fmt.Sprintf("%s/u/%s/blog/ai-write/draft/%s", osChinaOrigin, url.PathEscape(o.userID), url.PathEscape(id)),
 		Created: refID == "",
 		Updated: refID != "",
 	}, nil
@@ -205,9 +205,9 @@ func (o *osChinaAdapter) catalogID(ctx context.Context) (string, error) {
 		return "", err
 	}
 	var decoded struct {
-		Success bool `json:"success"`
+		Success bool   `json:"success"`
 		Message string `json:"message"`
-		Result []struct {
+		Result  []struct {
 			ID        any `json:"id"`
 			BlogCount int `json:"blogCount"`
 		} `json:"result"`
@@ -240,15 +240,15 @@ func (o *osChinaAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 		return PublishResult{}, err
 	}
 	payload := map[string]any{
-		"title": input.Title,
-		"content": input.Markdown,
-		"contentType": 1,
-		"type": "1",
-		"originUrl": "",
-		"catalog": catalog,
-		"privacy": true,
+		"title":          input.Title,
+		"content":        input.Markdown,
+		"contentType":    1,
+		"type":           "1",
+		"originUrl":      "",
+		"catalog":        catalog,
+		"privacy":        true,
 		"disableComment": false,
-		"user": o.userID,
+		"user":           o.userID,
 	}
 	body, _ := json.Marshal(payload)
 	req, err := o.request(ctx, http.MethodPost, osChinaAPIOrigin+"/oschinapi/blog/web/add", strings.NewReader(string(body)))
@@ -257,10 +257,10 @@ func (o *osChinaAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	}
 	req.Header.Set("content-type", "application/json")
 	var decoded struct {
-		Code    int `json:"code"`
-		Success bool `json:"success"`
+		Code    int    `json:"code"`
+		Success bool   `json:"success"`
 		Message string `json:"message"`
-		Result any `json:"result"`
+		Result  any    `json:"result"`
 	}
 	if err := doJSON(o.client, req, o.ID(), "publish-draft", &decoded); err != nil {
 		return PublishResult{}, err
