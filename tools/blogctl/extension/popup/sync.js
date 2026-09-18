@@ -1,7 +1,7 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, articles: [], status: null, publishing: [] };
+  const state = { initialized: false, active: false, articles: [], status: null, publishing: [], tools: [] };
   let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message;
 
   function selectedPlatforms() {
@@ -55,7 +55,9 @@
     const article = selectedArticle();
     platformsContainer.replaceChildren();
     for (const platform of state.status?.platforms ?? []) {
-      const availability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
+      const sourceAvailability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
+      const toolAvailability = BlogCTLSyncModel.deliveryToolAvailability(platform.id, state.tools);
+      const availability = sourceAvailability.available ? toolAvailability : sourceAvailability;
       const label = document.createElement("label");
       label.className = "platform-choice";
       const checkbox = document.createElement("input");
@@ -118,14 +120,16 @@
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
     try {
-      const [articlesResponse, statusResponse, publishingResponse] = await Promise.all([
+      const [articlesResponse, statusResponse, publishingResponse, toolsResponse] = await Promise.all([
         BlogCTLPopup.send("blogctl.articles"),
         BlogCTLPopup.send("blogctl.status"),
         BlogCTLPopup.send("blogctl.publishing"),
+        BlogCTLPopup.send("blogctl.tools"),
       ]);
       state.articles = articlesResponse.articles ?? [];
       state.status = statusResponse.status;
       state.publishing = publishingResponse.platforms ?? [];
+      state.tools = toolsResponse.tools ?? [];
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
       renderArticles(); renderPlatforms();
     } catch (error) {
