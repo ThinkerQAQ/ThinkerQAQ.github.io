@@ -43,6 +43,7 @@ type SyncConfig struct {
 	ConfigPath   string
 	BridgeOrigin string
 	BridgeToken  string
+	DevtoAPIKey  string
 	ToolPaths    map[string]string
 }
 
@@ -514,6 +515,9 @@ func syncEnvironment(config SyncConfig) []string {
 	}
 	if config.BridgeToken != "" {
 		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", config.BridgeToken)
+	}
+	if strings.TrimSpace(config.DevtoAPIKey) != "" {
+		env = setEnvironment(env, "DEVTO_API_KEY", strings.TrimSpace(config.DevtoAPIKey))
 	}
 	return prependToolDirectories(env, config.ToolPaths)
 }
