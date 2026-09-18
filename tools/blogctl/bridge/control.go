@@ -69,6 +69,7 @@ type syncJob struct {
 	ID         string                        `json:"id"`
 	Article    string                        `json:"article"`
 	Platforms  []string                      `json:"platforms"`
+	Operation  string                        `json:"operation"`
 	Request    syncRequest                   `json:"-"`
 	Results    map[string]syncPlatformResult `json:"results"`
 	Events     []syncJobEvent                `json:"events,omitempty"`
@@ -610,7 +611,7 @@ func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
 	}
 	return &syncJob{
 		ID: id, Article: request.Article, Platforms: append([]string{}, request.Platforms...),
-		Request: request, Results: results, Events: events, State: "running",
+		Operation: request.Operation, Request: request, Results: results, Events: events, State: "running",
 		StartedAt: startedAt.Format(time.RFC3339), DryRun: request.DryRun,
 	}
 }
