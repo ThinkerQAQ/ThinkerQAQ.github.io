@@ -2,16 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
+	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
 )
 
@@ -28,11 +24,6 @@ type syncOptions struct {
 	dryRun    bool
 	changed   bool
 	draft     bool
-}
-
-type syncPlan struct {
-	group, script string
-	args          []string
 }
 
 func parseSyncArgs(args []string) (syncOptions, error) {
@@ -89,98 +80,43 @@ func parseSyncArgs(args []string) (syncOptions, error) {
 	return options, nil
 }
 
-func buildSyncPlan(options syncOptions) []syncPlan {
-	china, international := []string{}, []string{}
-	for _, platform := range options.platforms {
-		if _, ok := chinaPlatforms[platform]; ok {
-			china = append(china, platform)
-		} else {
-			international = append(international, platform)
-		}
-	}
-	articleArgs := make([]string, 0, len(options.articles)*2)
-	for _, article := range options.articles {
-		articleArgs = append(articleArgs, "--article", article)
-	}
-	plan := make([]syncPlan, 0, 2)
-	if len(china) > 0 {
-		args := append([]string{}, articleArgs...)
-		args = append(args, "--platforms", strings.Join(china, ","), "--sync")
-		if options.changed {
-			args = append(args, "--changed")
-		}
-		if options.dryRun {
-			args = append(args, "--dry-run")
-		}
-		plan = append(plan, syncPlan{group: "china", script: "scripts/distribute.mjs", args: args})
-	}
-	if len(international) > 0 {
-		args := append([]string{}, articleArgs...)
-		if options.all {
-			args = append(args, "--all")
-		}
-		args = append(args, "--platforms", strings.Join(international, ","))
-		if options.dryRun {
-			args = append(args, "--dry-run")
-		}
-		if options.draft {
-			args = append(args, "--draft")
-		}
-		plan = append(plan, syncPlan{group: "international", script: "scripts/syndicate-cli.mjs", args: args})
-	}
-	return plan
-}
-
 func (a app) runSync(args []string) error {
 	options, err := parseSyncArgs(args)
 	if err != nil {
 		return err
 	}
-	node, _, err := a.prepareNode(true)
-	if err != nil {
-		return err
+	if a.contentRoot == "" {
+		return errors.New("content repository root is required for sync")
+	}
+	if err := bridge.UpdateWorkspaceRoots(a.contentRoot, a.root); err != nil {
+		fmt.Fprintf(a.out, "[config] unable to persist workspace roots: %v\n", err)
 	}
 
-	env := os.Environ()
+	config := blogapp.SyncConfig{EngineRoot: a.root, ContentRoot: a.contentRoot}
+	if configPath, configErr := bridge.ConfigPath(); configErr == nil {
+		config.ConfigPath = configPath
+	}
 	if slices.Contains(options.platforms, "medium") && !options.dryRun {
-		token, err := randomToken()
-		if err != nil {
-			return err
+		state, bridgeErr := ensureBridgeProcess()
+		if bridgeErr != nil {
+			return fmt.Errorf("start syndication bridge: %w", bridgeErr)
 		}
-		server, err := bridge.New(token)
-		if err != nil {
-			return err
-		}
-		listener, httpServer, err := server.Listen(bridge.DefaultAddress)
-		if err != nil {
-			return fmt.Errorf("start syndication bridge: %w", err)
-		}
-		origin := bridge.Origin(listener)
-		fmt.Fprintf(a.out, "[bridge] listening on %s\n", origin)
-		env = append(env,
-			"THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN="+origin,
-			"THINKERQAQ_SYNDICATION_BRIDGE_TOKEN="+token,
-		)
-		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			_ = bridge.Shutdown(ctx, httpServer)
-		}()
+		fmt.Fprintf(a.out, "[bridge] ready on %s\n", state.BaseURL)
+		config.BridgeOrigin = state.BaseURL
+		config.BridgeToken = state.Token
 	}
 
-	for _, entry := range buildSyncPlan(options) {
-		script := filepath.Join(a.root, filepath.FromSlash(entry.script))
-		if err := a.runner.Run(node, append([]string{script}, entry.args...), env); err != nil {
-			return fmt.Errorf("%s syndication: %w", entry.group, err)
-		}
+	service := blogapp.NewSyncService()
+	output, err := service.Run(context.Background(), config, blogapp.SyncRequest{
+		Articles:  append([]string{}, options.articles...),
+		All:       options.all,
+		Platforms: append([]string{}, options.platforms...),
+		DryRun:    options.dryRun,
+		Changed:   options.changed,
+		Draft:     options.draft,
+	})
+	if output != "" {
+		fmt.Fprint(a.out, output)
 	}
-	return nil
-}
-
-func randomToken() (string, error) {
-	value := make([]byte, 32)
-	if _, err := rand.Read(value); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(value), nil
+	return err
 }

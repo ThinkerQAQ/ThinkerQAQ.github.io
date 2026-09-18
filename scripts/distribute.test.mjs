@@ -93,6 +93,53 @@ test("buildPlatformMarkdown keeps canonical clean and tracks the attribution foo
   assert.equal((cnblogs.match(/^  - /gmu) ?? []).length, 7);
 });
 
+
+test("buildPlatformMarkdown applies publishing footer tracking and canonical policies", () => {
+  const article = parseArticle(ARTICLE);
+  const custom = buildPlatformMarkdown(article, {
+    platform: "juejin",
+    slug: "concurrency/test",
+    publishingConfig: {
+      footer: { enabled: true, template: "> 自定义来源：{url}" },
+      canonical: { mode: "none" },
+      tracking: {
+        enabled: true,
+        source: "custom-juejin",
+        medium: "social",
+        campaign: "custom-campaign",
+      },
+    },
+  });
+  assert.doesNotMatch(custom, /canonicalUrl:/u);
+  assert.match(custom, /> 自定义来源：https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\/\?utm_source=custom-juejin&utm_medium=social&utm_campaign=custom-campaign/u);
+  assert.doesNotMatch(custom, /由作者本人同步发布/u);
+
+  const clean = buildPlatformMarkdown(article, {
+    platform: "csdn",
+    slug: "concurrency/test",
+    publishingConfig: {
+      footer: { enabled: true, template: "> {url}" },
+      canonical: { mode: "footer" },
+      tracking: { enabled: false, source: "csdn", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.match(clean, /canonicalUrl: "https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\/"/u);
+  assert.match(clean, /> https:\/\/thinkerqaq\.github\.io\/articles\/concurrency\/test\//u);
+  assert.doesNotMatch(clean, /utm_source/u);
+
+  const noFooter = buildPlatformMarkdown(article, {
+    platform: "zhihu",
+    slug: "concurrency/test",
+    publishingConfig: {
+      footer: { enabled: false, template: "> ignored {url}" },
+      canonical: { mode: "footer" },
+      tracking: { enabled: true, source: "zhihu", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.doesNotMatch(noFooter, /ignored/u);
+  assert.doesNotMatch(noFooter, /本文首发于/u);
+});
+
 test("exportArticles exports published articles and leaves drafts out", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "distribution-test-"));
   const articleRoot = path.join(root, "articles");

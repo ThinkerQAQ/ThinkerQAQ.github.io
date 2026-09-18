@@ -3,6 +3,12 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  defaultPlatformPublishingConfig,
+  defaultPublishingConfig,
+  renderPublishingFooter,
+  trackedPublishingUrl,
+} from "./publishing-config.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const SUPPORTED_PLATFORMS = [
@@ -17,24 +23,12 @@ export const SUPPORTED_PLATFORMS = [
 ];
 export const DEFAULT_OUTPUT_ROOT = ".distribution";
 export const MANIFEST_FILE = "manifest.json";
-export const UTM_MEDIUM = "referral";
-export const UTM_CAMPAIGN = "article_syndication";
-
-const FOOTER_TEMPLATE = (trackedUrl) => [
-  "---",
-  "",
-  `> 本文首发于 [ThinkerQAQ 的个人博客](${trackedUrl})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。`,
-].join("\n");
-
-export function buildTrackedUrl(canonicalUrl, platform) {
-  if (!SUPPORTED_PLATFORMS.includes(platform)) {
-    throw new Error(`Unsupported platform: ${platform}`);
-  }
-  const url = new URL(canonicalUrl);
-  url.searchParams.set("utm_source", platform);
-  url.searchParams.set("utm_medium", UTM_MEDIUM);
-  url.searchParams.set("utm_campaign", UTM_CAMPAIGN);
-  return url.toString();
+export function buildTrackedUrl(canonicalUrl, platform, publishingConfig = null) {
+	if (!SUPPORTED_PLATFORMS.includes(platform)) {
+		throw new Error(`Unsupported platform: ${platform}`);
+	}
+	const profile = publishingConfig ?? defaultPlatformPublishingConfig(platform);
+	return trackedPublishingUrl(canonicalUrl, profile);
 }
 
 function log(severity, operation, status, details = {}) {
@@ -132,28 +126,38 @@ function makeExternalLinksAbsolute(body) {
     .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${SITE_ORIGIN}/`);
 }
 
-export function buildPlatformMarkdown(article, { platform, slug }) {
-  if (!SUPPORTED_PLATFORMS.includes(platform)) {
-    throw new Error(`Unsupported platform: ${platform}`);
-  }
-  const canonicalUrl = new URL(`/articles/${slug}/`, SITE_ORIGIN).toString();
-  const trackedUrl = buildTrackedUrl(canonicalUrl, platform);
-  const tagLimit = platform === "cnblogs" ? article.tags.length : 5;
-  const tags = article.tags.slice(0, tagLimit);
-  const descriptionLimit = platform === "juejin" ? 100 : 256;
-  const frontmatter = [
-    "---",
-    `title: ${JSON.stringify(article.title)}`,
-    `description: ${JSON.stringify(truncate(article.description, descriptionLimit))}`,
-    `summary: ${JSON.stringify(truncate(article.description, descriptionLimit))}`,
-    ...yamlList("tags", tags),
-    ...(platform === "cnblogs" ? yamlList("categories", ["[Markdown]"]) : []),
-    `canonicalUrl: ${JSON.stringify(canonicalUrl)}`,
-    `sourcePlatform: ${JSON.stringify("ThinkerQAQ personal blog")}`,
-    "---",
-  ].join("\n");
-  const body = makeExternalLinksAbsolute(article.body);
-  return `${frontmatter}\n\n${body}\n\n${FOOTER_TEMPLATE(trackedUrl)}\n`;
+export function buildPlatformMarkdown(article, {
+	platform,
+	slug,
+	publishingConfig = null,
+}) {
+	if (!SUPPORTED_PLATFORMS.includes(platform)) {
+		throw new Error(`Unsupported platform: ${platform}`);
+	}
+	const profile = publishingConfig ?? defaultPlatformPublishingConfig(platform);
+	const canonicalUrl = new URL(`/articles/${slug}/`, SITE_ORIGIN).toString();
+	const tagLimit = platform === "cnblogs" ? article.tags.length : 5;
+	const tags = article.tags.slice(0, tagLimit);
+	const descriptionLimit = platform === "juejin" ? 100 : 256;
+	const frontmatter = [
+		"---",
+		`title: ${JSON.stringify(article.title)}`,
+		`description: ${JSON.stringify(truncate(article.description, descriptionLimit))}`,
+		`summary: ${JSON.stringify(truncate(article.description, descriptionLimit))}`,
+		...yamlList("tags", tags),
+		...(platform === "cnblogs" ? yamlList("categories", ["[Markdown]"]) : []),
+		...(profile.canonical?.mode === "none" ? [] : [`canonicalUrl: ${JSON.stringify(canonicalUrl)}`]),
+		`sourcePlatform: ${JSON.stringify("ThinkerQAQ personal blog")}`,
+		"---",
+	].join("\n");
+	const body = makeExternalLinksAbsolute(article.body);
+	const footer = renderPublishingFooter(profile, {
+		canonicalUrl,
+		title: article.title,
+		site: "ThinkerQAQ 的个人博客",
+	});
+	const footerSection = footer ? `\n\n---\n\n${footer}` : "";
+	return `${frontmatter}\n\n${body}${footerSection}\n`;
 }
 
 function sha256(value) {
@@ -204,6 +208,7 @@ export async function exportArticles({
   outputRoot,
   platforms = SUPPORTED_PLATFORMS,
   requestedSlugs = [],
+  publishingConfig = defaultPublishingConfig(),
 } = {}) {
   const startedAt = Date.now();
   const resolvedArticleRoot = path.resolve(articleRoot);
@@ -241,7 +246,11 @@ export async function exportArticles({
     articleState.platforms ??= {};
 
     for (const platform of platforms) {
-      const generated = buildPlatformMarkdown(article, { platform, slug });
+      const generated = buildPlatformMarkdown(article, {
+		platform,
+		slug,
+		publishingConfig: publishingConfig?.[platform] ?? defaultPlatformPublishingConfig(platform),
+	});
       const contentHash = sha256(generated);
       const outputFile = path.join(resolvedOutputRoot, platform, `${slug}.md`);
       await mkdir(path.dirname(outputFile), { recursive: true });

@@ -3,73 +3,93 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>BlogCTL Extension</title>
+  <title>BlogCTL</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <main class="app">
     <header class="header">
       <div>
-        <h1>BlogCTL Extension <span id="version"></span></h1>
-        <p>平台登录状态与本地 BlogCTL Bridge</p>
+        <div class="brand-row">
+          <h1>BlogCTL <span id="version"></span></h1>
+          <strong id="bridgeIndicator" class="status checking">Bridge 检测中</strong>
+        </div>
+        <p>博客同步发布控制面</p>
       </div>
-      <button id="refresh" class="secondary" type="button">刷新</button>
+      <button id="refresh" class="secondary compact" type="button">刷新</button>
     </header>
 
-    <section class="status-card" aria-live="polite">
-      <div class="status-row">
-        <span>BlogCTL Bridge</span>
-        <strong id="bridgeStatus" class="status checking">检测中</strong>
-      </div>
+    <nav class="tabs" role="tablist" aria-label="BlogCTL">
+      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="sync">同步发布</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">发布配置</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">工具与配置</button>
+    </nav>
+
+    <section class="panel active" role="tabpanel" data-panel="sync">
+      <section class="status-card">
+        <label class="field"><span>查找文章</span><input id="articleFilter" type="search" placeholder="标题或 slug" autocomplete="off"></label>
+        <label class="field"><span>文章</span><select id="articleSelect"><option value="">正在加载文章…</option></select></label>
+        <p id="articleMeta" class="card-hint"></p>
+      </section>
+
+      <section class="status-card">
+        <div class="section-title">发布平台</div>
+        <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
+      </section>
+
+      <section class="status-card compact-options">
+        <label class="checkbox-row"><input id="changedOnly" type="checkbox"><span>仅同步发生变化的平台</span></label>
+        <label class="checkbox-row"><input id="dryRun" type="checkbox"><span>Dry Run</span></label>
+        <label class="checkbox-row"><input id="draftMode" type="checkbox"><span>优先创建草稿</span></label>
+      </section>
+
+      <button id="startSync" class="primary" type="button" disabled>选择文章和平台后同步</button>
+      <p id="syncMessage" class="message" role="status"></p>
+
+      <section class="status-card jobs-card">
+        <div class="status-row"><span class="section-title">最近任务</span><button id="refreshJobs" class="secondary compact" type="button">刷新</button></div>
+        <div id="syncJobs" class="job-list"><div class="platform-loading">暂无任务</div></div>
+      </section>
     </section>
 
-    <section class="status-card proxy-card" aria-live="polite">
-      <div class="status-row">
-        <span class="section-title proxy-title">网络代理</span>
-        <strong id="proxyStatus" class="status checking">检测中</strong>
-      </div>
-      <label class="switch-row" for="proxyEnabled">
-        <span>
-          <strong>启用代理</strong>
-          <small>只影响 Bridge 发起的外网请求；本机控制通信保持直连。</small>
-        </span>
-        <input id="proxyEnabled" type="checkbox" disabled>
-      </label>
-      <div class="proxy-fields">
-        <label>
-          <span>代理主机</span>
-          <input id="proxyHost" type="text" placeholder="127.0.0.1" autocomplete="off" disabled>
-        </label>
-        <label>
-          <span>代理端口</span>
-          <input id="proxyPort" type="number" min="1" max="65535" placeholder="7890" autocomplete="off" disabled>
-        </label>
-      </div>
-      <button id="saveProxy" class="secondary full-width" type="button" disabled>保存代理设置</button>
-      <p id="proxyHint" class="card-hint">配置保存到本机 BlogCTL，不需要在每次 sync 时传代理参数。</p>
+    <section class="panel" role="tabpanel" data-panel="publishing">
+      <section class="status-card">
+        <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
+
+        <div class="section-title">Footer</div>
+        <label class="switch-row" for="footerEnabled"><span><strong>启用 Footer</strong><small>同步时追加到平台文章末尾。</small></span><input id="footerEnabled" type="checkbox"></label>
+        <label class="field"><span>Footer 模板</span><textarea id="footerTemplate" placeholder="支持 {site} {title} {url}"></textarea></label>
+        <p class="card-hint">可用变量：<code>{site}</code> <code>{title}</code> <code>{url}</code></p>
+
+        <div class="section-title">Canonical</div>
+        <label class="field"><span>策略</span><select id="canonicalMode"><option value="native">Native canonical</option><option value="footer">Footer backlink</option><option value="none">Disabled</option></select></label>
+
+        <div class="section-title">Tracking</div>
+        <label class="switch-row" for="trackingEnabled"><span><strong>启用 Tracking</strong><small>为 Footer 中的原文链接追加 UTM 参数。</small></span><input id="trackingEnabled" type="checkbox"></label>
+        <label class="field"><span>Source</span><input id="trackingSource" type="text" placeholder="cnblogs"></label>
+        <label class="field"><span>Medium</span><input id="trackingMedium" type="text" placeholder="referral"></label>
+        <label class="field"><span>Campaign</span><input id="trackingCampaign" type="text" placeholder="article_syndication"></label>
+
+        <div class="preview-box"><div class="section-title">预览</div><pre id="publishingPreview"></pre></div>
+        <div class="button-row"><button id="resetPublishing" class="secondary" type="button">恢复默认</button><button id="savePublishing" class="primary inline-primary" type="button">保存</button></div>
+        <p id="publishingMessage" class="message" role="status"></p>
+      </section>
     </section>
 
-    <section class="status-card" aria-live="polite">
-      <div class="section-title">平台登录状态</div>
-      <div id="platformStatuses" class="platform-statuses">
-        <div class="platform-loading">正在检测平台登录状态…</div>
-      </div>
-    </section>
-
-    <section class="status-card session-card" aria-live="polite">
-      <div class="status-row">
-        <span>Medium Session</span>
-        <strong id="mediumSessionStatus" class="status checking">检测中</strong>
-      </div>
-    </section>
-
-    <section class="action-card">
-      <button id="sync" class="primary" type="button" disabled>同步 Medium Session</button>
-      <p id="hint">平台登录状态独立检测；只有 Medium 当前需要把浏览器 Session 同步给本地 Bridge。</p>
-      <p id="message" class="message" role="status"></p>
+    <section class="panel" role="tabpanel" data-panel="environment">
+      <section class="status-card"><div class="status-row"><span>BlogCTL Bridge</span><strong id="bridgeStatus" class="status checking">检测中</strong></div><p id="bridgeDetail" class="card-hint"></p></section>
+      <section class="status-card"><div class="section-title">工具与工作区</div><div id="toolRegistry" class="tool-list"><div class="platform-loading">正在检测本机环境…</div></div></section>
+      <section class="status-card"><div class="section-title">平台登录状态</div><div id="platformStatuses" class="platform-statuses"><div class="platform-loading">正在检测平台登录状态…</div></div></section>
+      <section class="status-card session-card"><div class="status-row"><span>Medium Session</span><strong id="mediumSessionStatus" class="status checking">检测中</strong></div><button id="syncMediumSession" class="secondary full-width" type="button" disabled>同步 Medium Session</button></section>
+      <p id="environmentMessage" class="message" role="status"></p>
     </section>
   </main>
 
+  <script src="core.js"></script>
+  <script src="sync-model.js"></script>
+  <script src="sync.js"></script>
+  <script src="publishing.js"></script>
+  <script src="environment.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -3,6 +3,8 @@ package bridge
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -10,12 +12,15 @@ func TestBridgeConfigPersistsProxy(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
 
-	want := bridgeConfig{ProxyEnabled: true, ProxyHost: "127.0.0.1", ProxyPort: 7890}
+	want, err := normalizeBridgeConfig(bridgeConfig{ProxyEnabled: true, ProxyHost: "127.0.0.1", ProxyPort: 7890})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := saveBridgeConfig(want); err != nil {
 		t.Fatal(err)
 	}
 	got := loadBridgeConfig()
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("config = %#v, want %#v", got, want)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
@@ -41,5 +46,43 @@ func TestBridgeConfigRetainsProxyAddressWhileDisabled(t *testing.T) {
 	}
 	if config.ProxyHost != "127.0.0.1" || config.ProxyPort != 7890 || config.ProxyEnabled {
 		t.Fatalf("config = %#v", config)
+	}
+}
+
+func TestBridgeConfigMigratesLegacyPublishingProfiles(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	legacy := `{
+	  "publishing": {
+	    "cnblogs": {
+	      "footerEnabled": true,
+	      "footerTemplate": "legacy {url}",
+	      "trackingQuery": "utm_source=legacy-cnblogs&utm_medium=referral&utm_campaign=legacy"
+	    }
+	  }
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config := loadBridgeConfig()
+	profile := config.Publishing.Platforms["cnblogs"]
+	if !profile.Footer.Enabled || profile.Footer.Template != "legacy {url}" {
+		t.Fatalf("footer = %#v", profile.Footer)
+	}
+	if profile.Canonical.Mode != "footer" {
+		t.Fatalf("canonical = %#v", profile.Canonical)
+	}
+	if !profile.Tracking.Enabled || profile.Tracking.Source != "legacy-cnblogs" || profile.Tracking.Campaign != "legacy" {
+		t.Fatalf("tracking = %#v", profile.Tracking)
+	}
+	if err := saveBridgeConfig(config); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"platforms"`) || strings.Contains(string(data), `"trackingQuery"`) {
+		t.Fatalf("migrated config = %s", data)
 	}
 }

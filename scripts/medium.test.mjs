@@ -64,7 +64,36 @@ test("builds a Medium draft with canonical footer matching DEV.to wording", () =
   assert.equal(footer.type, 9);
   assert.match(footer.text, /This article was first published on ThinkerQAQ's personal blog and syndicated here by the author/u);
   const link = footer.markups.find((markup) => markup.type === 3);
-  assert.equal(link.href, draft.canonicalUrl);
+  assert.equal(link.href, "https://thinkerqaq.github.io/en/articles/concurrency-series-00/?utm_source=medium&utm_medium=referral&utm_campaign=article_syndication");
+});
+
+
+test("Medium publishing profile controls footer tracking and native canonical", () => {
+  const draft = buildMediumDraft(article, {
+    slug: "concurrency-series-00",
+    publishingConfig: {
+      footer: { enabled: true, template: "> Source: [{site}]({url})" },
+      canonical: { mode: "none" },
+      tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.equal(draft.canonicalUrl, "");
+  const footer = draft.deltas.at(-1).paragraph;
+  assert.equal(footer.type, 9);
+  assert.equal(footer.text, "Source: ThinkerQAQ's personal blog");
+  const link = footer.markups.find((markup) => markup.type === 3);
+  assert.equal(link.href, "https://thinkerqaq.github.io/en/articles/concurrency-series-00/");
+
+  const output = buildMediumCopyHtml(article, {
+    slug: "concurrency-series-00",
+    publishingConfig: {
+      footer: { enabled: false, template: "> ignored {url}" },
+      canonical: { mode: "native" },
+      tracking: { enabled: true, source: "medium", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.doesNotMatch(output, /ignored/u);
+  assert.doesNotMatch(output, /<hr>/u);
 });
 
 test("builds a copy/paste HTML fallback without TOC and with copy button", () => {
