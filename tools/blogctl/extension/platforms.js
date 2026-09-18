@@ -94,8 +94,36 @@ export const PLATFORM_AUTH = Object.freeze([
 ]);
 
 export const PLATFORM_SESSIONS = Object.freeze({
+  cnblogs: {
+    cookieUrls: ["https://www.cnblogs.com/", "https://i.cnblogs.com/", "https://home.cnblogs.com/"],
+    requiredCookieNames: [],
+  },
   juejin: {
     cookieUrls: ["https://juejin.cn/", "https://api.juejin.cn/"],
+    requiredCookieNames: [],
+  },
+  csdn: {
+    cookieUrls: ["https://www.csdn.net/", "https://editor.csdn.net/", "https://bizapi.csdn.net/"],
+    requiredCookieNames: [],
+  },
+  segmentfault: {
+    cookieUrls: ["https://segmentfault.com/"],
+    requiredCookieNames: [],
+  },
+  zhihu: {
+    cookieUrls: ["https://www.zhihu.com/", "https://zhuanlan.zhihu.com/"],
+    requiredCookieNames: [],
+  },
+  "51cto": {
+    cookieUrls: ["https://blog.51cto.com/"],
+    requiredCookieNames: [],
+  },
+  oschina: {
+    cookieUrls: ["https://my.oschina.net/", "https://apiv1.oschina.net/"],
+    requiredCookieNames: [],
+  },
+  toutiao: {
+    cookieUrls: ["https://mp.toutiao.com/"],
     requiredCookieNames: [],
   },
   medium: {
