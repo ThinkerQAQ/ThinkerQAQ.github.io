@@ -87,14 +87,19 @@
     updateStartButton();
   }
 
-  async function ensureMediumSession(platforms) {
-    if (!platforms.includes("medium")) return;
-    const medium = (state.status?.platforms ?? []).find((platform) => platform.id === "medium");
-    if (!medium?.loggedIn) throw new Error("Medium 尚未登录，请先在浏览器登录 Medium。");
-    if (state.status?.sessions?.medium?.synced) return;
-    BlogCTLPopup.setMessage(message, "Medium 已选择，正在自动同步浏览器 Session…");
-    const response = await BlogCTLPopup.send("blogctl.session.sync", { platform: "medium" });
-    state.status = response.status;
+  const BROWSER_SESSION_PLATFORMS = new Set(["juejin", "medium"]);
+
+  async function ensureBrowserSessions(platforms) {
+    for (const platformId of platforms) {
+      if (!BROWSER_SESSION_PLATFORMS.has(platformId)) continue;
+      const platform = (state.status?.platforms ?? []).find((item) => item.id === platformId);
+      if (!platform?.loggedIn) {
+        throw new Error(`${platform?.label || platformId} 尚未登录，请先在浏览器登录。`);
+      }
+      BlogCTLPopup.setMessage(message, `正在准备 ${platform.label || platformId} 登录状态…`);
+      const response = await BlogCTLPopup.send("blogctl.session.sync", { platform: platformId });
+      state.status = response.status;
+    }
     BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
     renderPlatforms();
   }
@@ -106,7 +111,7 @@
     startButton.disabled = true;
     BlogCTLPopup.setMessage(message, "正在创建同步任务…");
     try {
-      await ensureMediumSession(platforms);
+      await ensureBrowserSessions(platforms);
       const response = await BlogCTLPopup.send("blogctl.job.start", { request: { article, platforms, dryRun: false, changed: changedOnly.checked, draft: true } });
       BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动，可在“任务”页查看进度。`, "ok");
     } catch (error) {
