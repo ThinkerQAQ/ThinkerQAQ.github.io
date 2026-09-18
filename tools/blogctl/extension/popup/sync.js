@@ -1,7 +1,7 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, articles: [], status: null, jobs: [], pollTimer: null };
+  const state = { initialized: false, active: false, articles: [], status: null, publishing: [], jobs: [], pollTimer: null };
   let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message, jobsContainer, refreshJobsButton;
 
   function selectedPlatforms() {
@@ -12,6 +12,10 @@
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === articleSelect.value);
+  }
+
+  function publishingProfile(platformId) {
+    return state.publishing.find((item) => item.id === platformId) ?? {};
   }
 
   function updateStartButton() {
@@ -51,7 +55,7 @@
     const article = selectedArticle();
     platformsContainer.replaceChildren();
     for (const platform of state.status?.platforms ?? []) {
-      const availability = BlogCTLSyncModel.platformAvailability(article, platform);
+      const availability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
       const label = document.createElement("label");
       label.className = "platform-choice";
       const checkbox = document.createElement("input");
@@ -208,9 +212,15 @@
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
     try {
-      const [articlesResponse, statusResponse, jobsResponse] = await Promise.all([BlogCTLPopup.send("blogctl.articles"), BlogCTLPopup.send("blogctl.status"), BlogCTLPopup.send("blogctl.jobs")]);
+      const [articlesResponse, statusResponse, publishingResponse, jobsResponse] = await Promise.all([
+        BlogCTLPopup.send("blogctl.articles"),
+        BlogCTLPopup.send("blogctl.status"),
+        BlogCTLPopup.send("blogctl.publishing"),
+        BlogCTLPopup.send("blogctl.jobs"),
+      ]);
       state.articles = articlesResponse.articles ?? [];
       state.status = statusResponse.status;
+      state.publishing = publishingResponse.platforms ?? [];
       state.jobs = jobsResponse.jobs ?? [];
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
       renderArticles(); renderPlatforms(); renderJobs();
