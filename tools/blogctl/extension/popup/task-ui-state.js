@@ -65,6 +65,13 @@
     };
   }
 
+  function bindDetails(details, state, kind, id) {
+    const isExpanded = kind === "log" ? state.isLogExpanded : state.isJobExpanded;
+    const setExpanded = kind === "log" ? state.setLogExpanded : state.setJobExpanded;
+    details.open = Boolean(isExpanded(id));
+    details.addEventListener("toggle", () => setExpanded(id, Boolean(details.open)));
+  }
+
   function renderSnapshot(jobs, status) {
     const platforms = (status?.platforms ?? []).map((platform) => ({
       id: platform.id,
@@ -76,6 +83,7 @@
   root.BlogCTLTaskUIState = {
     create,
     parseStringSet,
+    bindDetails,
     renderSnapshot,
   };
 })(globalThis);
