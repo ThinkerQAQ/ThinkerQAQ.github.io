@@ -2,18 +2,32 @@
 
 (function (root) {
   const state = { initialized: false, active: false, status: null, tools: [] };
-  let bridgeStatus, bridgeDetail, toolRegistry, platformStatuses, mediumSessionStatus, syncMediumSessionButton, message;
+  let bridgeStatus, bridgeDetail, toolRegistry, platformStatuses, message;
   function platformById(status, id) { return (status?.platforms ?? []).find((platform) => platform.id === id) ?? {}; }
-  function renderPlatforms(platforms) {
+  function mediumSessionDetail(status) {
+    const session = status?.sessions?.medium ?? {};
+    if (session.unavailable) return "Session 不可用";
+    if (session.known === false) return "Session 检测失败";
+    if (session.synced) {
+      const minutes = Math.max(1, Math.ceil(Number(session.expiresInSeconds || 0) / 60));
+      return `Session 已自动同步 · ${minutes} 分钟`;
+    }
+    return "Session 将在同步文章时自动获取";
+  }
+  function renderPlatforms(statusView) {
     platformStatuses.replaceChildren();
-    for (const platform of platforms ?? []) {
+    for (const platform of statusView?.platforms ?? []) {
       const row = document.createElement("div"); row.className = "status-row";
-      const label = document.createElement("span"); label.textContent = platform.label || platform.id;
+      const text = document.createElement("span"); text.className = "platform-status-text";
+      const label = document.createElement("span"); label.textContent = platform.label || platform.id; text.append(label);
+      if (platform.id === "medium") {
+        const detail = document.createElement("small"); detail.textContent = mediumSessionDetail(statusView); text.append(detail);
+      }
       const status = document.createElement("strong");
       if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "检测失败", platform.error || "");
       else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", "已登录");
       else BlogCTLPopup.setStatus(status, "error", "未登录");
-      row.append(label, status); platformStatuses.append(row);
+      row.append(text, status); platformStatuses.append(row);
     }
     if (!platformStatuses.childElementCount) platformStatuses.innerHTML = '<div class="platform-loading">没有可检测的平台</div>';
   }
@@ -55,29 +69,36 @@
     if (!toolRegistry.childElementCount) toolRegistry.innerHTML = '<div class="platform-loading">没有工具信息</div>';
   }
   function renderStatus(status) {
-    state.status = status; const bridge = status?.bridge ?? {}; const medium = platformById(status, "medium"); const mediumSession = status?.sessions?.medium ?? {};
+    state.status = status; const bridge = status?.bridge ?? {};
     if (bridge.running) { BlogCTLPopup.setStatus(bridgeStatus, "ok", "运行中", bridge.pid ? `PID ${bridge.pid}` : ""); bridgeDetail.textContent = bridge.pid ? `PID ${bridge.pid} · 127.0.0.1:32145` : "127.0.0.1:32145"; }
     else { BlogCTLPopup.setStatus(bridgeStatus, "error", "未运行", bridge.error || ""); bridgeDetail.textContent = bridge.error || ""; }
-    renderPlatforms(status?.platforms);
-    if (mediumSession.unavailable) BlogCTLPopup.setStatus(mediumSessionStatus, "unknown", "不可用", mediumSession.error || "BlogCTL Bridge 未运行");
-    else if (mediumSession.known === false) BlogCTLPopup.setStatus(mediumSessionStatus, "unknown", "检测失败", mediumSession.error || "");
-    else if (mediumSession.synced) { const minutes = Math.max(1, Math.ceil(Number(mediumSession.expiresInSeconds || 0) / 60)); BlogCTLPopup.setStatus(mediumSessionStatus, "ok", `已同步 · ${minutes} 分钟`); }
-    else BlogCTLPopup.setStatus(mediumSessionStatus, "error", "未同步");
-    syncMediumSessionButton.disabled = !bridge.running || medium.known === false || !medium.loggedIn; BlogCTLPopup.refreshBridgeIndicator(status).catch(() => {});
-  }
-  async function syncMediumSession() {
-    syncMediumSessionButton.disabled = true; syncMediumSessionButton.textContent = "正在同步…"; BlogCTLPopup.setMessage(message, "正在同步 Medium 浏览器 Session…");
-    try { const response = await BlogCTLPopup.send("blogctl.session.sync", { platform: "medium" }); renderStatus(response.status); BlogCTLPopup.setMessage(message, "Medium Session 已同步。", "ok"); }
-    catch (error) { BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); }
-    finally { syncMediumSessionButton.textContent = "同步 Medium Session"; if (state.status) renderStatus(state.status); }
+    renderPlatforms(status);
+    BlogCTLPopup.refreshBridgeIndicator(status).catch(() => {});
   }
   async function refresh() {
     if (!state.active) return; BlogCTLPopup.setMessage(message); bridgeDetail.textContent = "";
-    try { const [statusResponse, toolsResponse] = await Promise.all([BlogCTLPopup.send("blogctl.status"), BlogCTLPopup.send("blogctl.tools")]); state.tools = toolsResponse.tools ?? []; renderStatus(statusResponse.status); renderTools(); }
+    try {
+      const [statusResponse, toolsResponse] = await Promise.all([BlogCTLPopup.send("blogctl.status"), BlogCTLPopup.send("blogctl.tools")]);
+      state.tools = toolsResponse.tools ?? [];
+      let status = statusResponse.status;
+      const medium = platformById(status, "medium");
+      const session = status?.sessions?.medium ?? {};
+      if (status?.bridge?.running && medium.known !== false && medium.loggedIn && !session.synced && !session.unavailable) {
+        BlogCTLPopup.setMessage(message, "Medium 已登录，正在自动同步 Session…");
+        try {
+          const sessionResponse = await BlogCTLPopup.send("blogctl.session.sync", { platform: "medium" });
+          status = sessionResponse.status;
+          BlogCTLPopup.setMessage(message, "Medium Session 已自动同步。", "ok");
+        } catch (error) {
+          BlogCTLPopup.setMessage(message, `Medium Session 自动同步失败：${BlogCTLPopup.errorMessage(error)}`, "error");
+        }
+      }
+      renderStatus(status); renderTools();
+    }
     catch (error) { BlogCTLPopup.setStatus(bridgeStatus, "unknown", "检测失败", BlogCTLPopup.errorMessage(error)); bridgeDetail.textContent = BlogCTLPopup.errorMessage(error); toolRegistry.innerHTML = '<div class="platform-loading">环境读取失败</div>'; BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); BlogCTLPopup.refreshBridgeIndicator().catch(() => {}); }
   }
   function init() {
-    if (state.initialized) return; bridgeStatus = document.getElementById("bridgeStatus"); bridgeDetail = document.getElementById("bridgeDetail"); toolRegistry = document.getElementById("toolRegistry"); platformStatuses = document.getElementById("platformStatuses"); mediumSessionStatus = document.getElementById("mediumSessionStatus"); syncMediumSessionButton = document.getElementById("syncMediumSession"); message = document.getElementById("environmentMessage"); syncMediumSessionButton.addEventListener("click", syncMediumSession); state.initialized = true;
+    if (state.initialized) return; bridgeStatus = document.getElementById("bridgeStatus"); bridgeDetail = document.getElementById("bridgeDetail"); toolRegistry = document.getElementById("toolRegistry"); platformStatuses = document.getElementById("platformStatuses"); message = document.getElementById("environmentMessage"); state.initialized = true;
   }
   function activate() { state.active = true; refresh(); }
   function deactivate() { state.active = false; }
