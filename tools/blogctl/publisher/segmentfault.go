@@ -14,7 +14,7 @@ import (
 const segmentFaultOrigin = "https://segmentfault.com"
 
 var (
-	segmentFaultUserPattern = regexp.MustCompile(`href=["']/u/([^"'/]+)`)
+	segmentFaultUserPattern  = regexp.MustCompile(`href=["']/u/([^"'/]+)`)
 	segmentFaultTokenPattern = regexp.MustCompile(`(?i)(?:"Token"\s*:\s*"([^"]+)"|"key"\s*:\s*"([^"]+)")`)
 )
 
@@ -206,11 +206,11 @@ func (s *segmentFaultAdapter) mutateDraft(ctx context.Context, refID string, inp
 		return DraftResult{}, err
 	}
 	body, _ := json.Marshal(map[string]any{
-		"title": input.Title,
-		"tags": []string{},
-		"text": content,
+		"title":     input.Title,
+		"tags":      []string{},
+		"text":      content,
 		"object_id": refID,
-		"type": "article",
+		"type":      "article",
 	})
 	req, err := s.request(ctx, http.MethodPost, segmentFaultOrigin+"/gateway/draft", strings.NewReader(string(body)))
 	if err != nil {
@@ -244,8 +244,8 @@ func (s *segmentFaultAdapter) mutateDraft(ctx context.Context, refID string, inp
 		id = refID
 	}
 	return DraftResult{
-		ID: id,
-		URL: segmentFaultOrigin + "/write?draftId=" + url.QueryEscape(id),
+		ID:      id,
+		URL:     segmentFaultOrigin + "/write?draftId=" + url.QueryEscape(id),
 		Created: refID == "",
 		Updated: refID != "",
 	}, nil
@@ -268,18 +268,18 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 		return PublishResult{}, err
 	}
 	values := map[string]string{
-		"type": "1",
-		"url": "",
-		"blogId": "0",
-		"isTiming": "0",
-		"created": "",
-		"weibo": "0",
-		"license": "0",
-		"title": input.Title,
-		"text": input.Markdown,
+		"type":      "1",
+		"url":       "",
+		"blogId":    "0",
+		"isTiming":  "0",
+		"created":   "",
+		"weibo":     "0",
+		"license":   "0",
+		"title":     input.Title,
+		"text":      input.Markdown,
 		"articleId": "",
-		"draftId": ref.ID,
-		"id": "",
+		"draftId":   ref.ID,
+		"id":        "",
 	}
 	body, bodyType, err := multipartBody(values, "", "", "", nil)
 	if err != nil {
@@ -306,7 +306,7 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 	}
 	var decoded struct {
 		Status int `json:"status"`
-		Data struct {
+		Data   struct {
 			URL string `json:"url"`
 		} `json:"data"`
 		Message string `json:"message"`
