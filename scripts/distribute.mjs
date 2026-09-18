@@ -23,6 +23,13 @@ export const SUPPORTED_PLATFORMS = [
 ];
 export const DEFAULT_OUTPUT_ROOT = ".distribution";
 export const MANIFEST_FILE = "manifest.json";
+
+export function buildArticleCanonicalUrl(slug, language = "zh-CN") {
+  const encodedSlug = String(slug).split("/").map(encodeURIComponent).join("/");
+  const prefix = language === "en" ? "/en/articles/" : "/articles/";
+  return new URL(`${prefix}${encodedSlug}/`, SITE_ORIGIN).toString();
+}
+
 export function buildTrackedUrl(canonicalUrl, platform, publishingConfig = null) {
 	if (!SUPPORTED_PLATFORMS.includes(platform)) {
 		throw new Error(`Unsupported platform: ${platform}`);
@@ -130,12 +137,14 @@ export function buildPlatformMarkdown(article, {
 	platform,
 	slug,
 	publishingConfig = null,
+	language = null,
 }) {
 	if (!SUPPORTED_PLATFORMS.includes(platform)) {
 		throw new Error(`Unsupported platform: ${platform}`);
 	}
 	const profile = publishingConfig ?? defaultPlatformPublishingConfig(platform);
-	const canonicalUrl = new URL(`/articles/${slug}/`, SITE_ORIGIN).toString();
+	const contentLanguage = language || profile.language || defaultPlatformPublishingConfig(platform).language;
+	const canonicalUrl = buildArticleCanonicalUrl(slug, contentLanguage);
 	const tagLimit = platform === "cnblogs" ? article.tags.length : 5;
 	const tags = article.tags.slice(0, tagLimit);
 	const descriptionLimit = platform === "juejin" ? 100 : 256;
@@ -147,14 +156,14 @@ export function buildPlatformMarkdown(article, {
 		...yamlList("tags", tags),
 		...(platform === "cnblogs" ? yamlList("categories", ["[Markdown]"]) : []),
 		...(profile.canonical?.mode === "none" ? [] : [`canonicalUrl: ${JSON.stringify(canonicalUrl)}`]),
-		`sourcePlatform: ${JSON.stringify("ThinkerQAQ personal blog")}`,
+		`sourcePlatform: ${JSON.stringify(contentLanguage === "en" ? "ThinkerQAQ personal blog" : "ThinkerQAQ 个人博客")}`,
 		"---",
 	].join("\n");
 	const body = makeExternalLinksAbsolute(article.body);
 	const footer = renderPublishingFooter(profile, {
 		canonicalUrl,
 		title: article.title,
-		site: "ThinkerQAQ 的个人博客",
+		site: contentLanguage === "en" ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客",
 	});
 	const footerSection = footer ? `\n\n---\n\n${footer}` : "";
 	return `${frontmatter}\n\n${body}${footerSection}\n`;
@@ -173,13 +182,17 @@ async function exists(file) {
   }
 }
 
-async function walkMarkdown(directory) {
+async function walkMarkdown(directory, { excludedDirectories = new Set() } = {}) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const absolute = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...(await walkMarkdown(absolute)));
-    else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) files.push(absolute);
+    if (entry.isDirectory()) {
+      if (excludedDirectories.has(entry.name)) continue;
+      files.push(...(await walkMarkdown(absolute, { excludedDirectories })));
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
+      files.push(absolute);
+    }
   }
   return files.sort();
 }
@@ -209,6 +222,7 @@ export async function exportArticles({
   platforms = SUPPORTED_PLATFORMS,
   requestedSlugs = [],
   publishingConfig = defaultPublishingConfig(),
+  language = "zh-CN",
 } = {}) {
   const startedAt = Date.now();
   const resolvedArticleRoot = path.resolve(articleRoot);
@@ -220,7 +234,8 @@ export async function exportArticles({
   const exported = [];
   let skippedDrafts = 0;
 
-  for (const sourceFile of await walkMarkdown(resolvedArticleRoot)) {
+  const excludedDirectories = language === "zh-CN" ? new Set(["en"]) : new Set();
+  for (const sourceFile of await walkMarkdown(resolvedArticleRoot, { excludedDirectories })) {
     const slug = path.relative(resolvedArticleRoot, sourceFile)
       .replace(/\.md$/iu, "")
       .split(path.sep)
@@ -234,7 +249,7 @@ export async function exportArticles({
       continue;
     }
 
-    const canonicalUrl = new URL(`/articles/${slug}/`, SITE_ORIGIN).toString();
+    const canonicalUrl = buildArticleCanonicalUrl(slug, language);
     const articleState = manifest.articles[slug] ?? {
       source: path.relative(process.cwd(), sourceFile).split(path.sep).join("/"),
       canonicalUrl,
@@ -250,6 +265,7 @@ export async function exportArticles({
 		platform,
 		slug,
 		publishingConfig: publishingConfig?.[platform] ?? defaultPlatformPublishingConfig(platform),
+		language,
 	});
       const contentHash = sha256(generated);
       const outputFile = path.join(resolvedOutputRoot, platform, `${slug}.md`);
@@ -262,12 +278,16 @@ export async function exportArticles({
       articleState.platforms[platform] = {
         ...previous,
         output: path.relative(process.cwd(), outputFile).split(path.sep).join("/"),
+        language,
+        canonicalUrl,
         contentHash,
       };
       exported.push({
         slug,
         platform,
         title: article.title,
+        language,
+        canonicalUrl,
         outputFile,
         contentHash,
         pending: previous.lastSyncedHash !== contentHash,
