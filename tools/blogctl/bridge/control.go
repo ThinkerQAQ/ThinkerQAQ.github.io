@@ -453,6 +453,20 @@ func usesChinaPublishingPlatform(platforms []string) bool {
 	return false
 }
 
+func allNativeChinaPlatforms(platforms []string) bool {
+	if len(platforms) == 0 {
+		return false
+	}
+	for _, platform := range platforms {
+		switch platform {
+		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 type bridgeNativePublisher struct {
 	server *Server
 }
@@ -759,4 +773,33 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 
 	s.launchSyncJob(id, request, config)
 	return response, nil
+}
+
+func (s *Server) publishSyncJob(id string) (*syncJob, error) {
+	s.mu.Lock()
+	source := s.jobs[id]
+	if source == nil {
+		s.mu.Unlock()
+		return nil, errors.New("sync job not found")
+	}
+	if source.State != "completed" {
+		s.mu.Unlock()
+		return nil, errors.New("sync job is not completed")
+	}
+	if source.Request.Operation == "publish" {
+		s.mu.Unlock()
+		return nil, errors.New("publish jobs cannot be published again")
+	}
+	if !allNativeChinaPlatforms(source.Platforms) {
+		s.mu.Unlock()
+		return nil, errors.New("confirm publish is currently available only for native Chinese platforms")
+	}
+	request := source.Request
+	request.Operation = "publish"
+	request.DryRun = false
+	request.Changed = false
+	request.Draft = false
+	s.mu.Unlock()
+
+	return s.startSyncJob(request), nil
 }
