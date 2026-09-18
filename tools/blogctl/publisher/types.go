@@ -64,7 +64,7 @@ type Adapter interface {
 	CheckAuth(ctx context.Context) (AuthResult, error)
 	CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error)
 	UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error)
-	PublishDraft(ctx context.Context, ref DraftRef) (PublishResult, error)
+	PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error)
 }
 
 type ClientFactory func(base *http.Client, session Session) (Adapter, error)
