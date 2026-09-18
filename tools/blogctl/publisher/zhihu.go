@@ -130,10 +130,10 @@ func (z *zhihuAdapter) updateDraft(ctx context.Context, id string, input DraftIn
 		return err
 	}
 	body, _ := json.Marshal(map[string]any{
-		"title": input.Title,
-		"content": html,
+		"title":             input.Title,
+		"content":           html,
 		"table_of_contents": true,
-		"delta_time": 30,
+		"delta_time":        30,
 	})
 	req, err := z.request(ctx, http.MethodPatch, zhihuOrigin+"/api/articles/"+url.PathEscape(id)+"/draft", strings.NewReader(string(body)))
 	if err != nil {
@@ -155,8 +155,8 @@ func (z *zhihuAdapter) CreateDraft(ctx context.Context, input DraftInput) (Draft
 		return DraftResult{}, err
 	}
 	return DraftResult{
-		ID: id,
-		URL: zhihuOrigin + "/write/" + url.PathEscape(id),
+		ID:      id,
+		URL:     zhihuOrigin + "/write/" + url.PathEscape(id),
 		Created: true,
 	}, nil
 }
@@ -177,7 +177,7 @@ func (z *zhihuAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	}
 	body, _ := json.Marshal(map[string]any{
 		"commentPermission": "anyone",
-		"invitedReviewers": []string{},
+		"invitedReviewers":  []string{},
 	})
 	req, err := z.request(ctx, http.MethodPut, zhihuOrigin+"/api/articles/"+url.PathEscape(ref.ID)+"/publish", strings.NewReader(string(body)))
 	if err != nil {
