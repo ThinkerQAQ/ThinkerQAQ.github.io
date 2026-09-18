@@ -165,4 +165,10 @@ func TestRetrySyncJobReusesIDAndReplacesFailedAttempt(t *testing.T) {
 	if retried.State != "running" || retried.Error != "" || retried.Output != "" || retried.FinishedAt != "" {
 		t.Fatalf("retried job was not reset: %#v", retried)
 	}
+	if retried.Results["juejin"].State != "queued" {
+		t.Fatalf("retry result = %#v", retried.Results["juejin"])
+	}
+	if len(retried.Events) != 1 || retried.Events[0].Platform != "juejin" || retried.Events[0].State != "queued" {
+		t.Fatalf("retry events = %#v", retried.Events)
+	}
 }
