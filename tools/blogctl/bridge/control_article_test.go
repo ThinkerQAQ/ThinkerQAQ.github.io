@@ -37,6 +37,29 @@ func TestListArticlesIncludesSourceLanguageAndEnglishMirror(t *testing.T) {
 	}
 }
 
+func TestListArticlesRequiresPublishedEnglishMirror(t *testing.T) {
+	root := t.TempDir()
+	articleRoot := filepath.Join(root, "src", "content", "articles")
+	if err := os.MkdirAll(filepath.Join(articleRoot, "en"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cn := "---\ntitle: 中文标题\nstatus: published\n---\n正文\n"
+	en := "---\ntitle: English title\nstatus: draft\n---\nBody\n"
+	if err := os.WriteFile(filepath.Join(articleRoot, "example.md"), []byte(cn), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(articleRoot, "en", "example.md"), []byte(en), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	articles, err := listArticles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(articles) != 1 || articles[0].EnglishMirror {
+		t.Fatalf("articles = %#v", articles)
+	}
+}
+
 func TestListArticlesReportsMissingEnglishMirror(t *testing.T) {
 	root := t.TempDir()
 	articleRoot := filepath.Join(root, "src", "content", "articles")
