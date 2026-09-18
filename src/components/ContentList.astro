@@ -1,5 +1,5 @@
 ---
-import { DEFAULT_LOCALE, LOCALES, type Locale } from "../config/i18n";
+import { DEFAULT_LOCALE, type Locale } from "../config/i18n";
 import type { NoteEntry } from "../lib/content";
 import { formatDate, getNoteTopicPath, noteHref } from "../lib/content";
 
@@ -35,7 +35,7 @@ function previewFor(entry: NoteEntry): string {
   const description = entry.data.description?.trim();
   if (description) return description;
 
-  const body = plainText(entry.body);
+  const body = plainText(entry.body ?? "");
   if (body.length <= 150) return body;
   return `${body.slice(0, 150).trimEnd()}…`;
 }
