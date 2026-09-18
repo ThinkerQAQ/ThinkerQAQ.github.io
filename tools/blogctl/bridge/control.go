@@ -482,6 +482,16 @@ func newJobID() string {
 
 type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
 
+func usesWechatsyncPlatform(platforms []string) bool {
+	for _, platform := range platforms {
+		switch platform {
+		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
 	applicationConfig := blogapp.SyncConfig{
 		EngineRoot:      config.EngineRoot,
@@ -497,6 +507,10 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	}
 	service := blogapp.NewSyncService()
 	service.OnEvent = onEvent
+	if usesWechatsyncPlatform(request.Platforms) {
+		s.wechatsyncMu.Lock()
+		defer s.wechatsyncMu.Unlock()
+	}
 	return service.Run(ctx, applicationConfig, blogapp.SyncRequest{
 		Articles:  []string{request.Article},
 		Platforms: append([]string{}, request.Platforms...),
