@@ -65,7 +65,13 @@ const description = locale === "en"
       {locale === "en" && <p class="note-description">{ui.notesChineseNotice}</p>}
     </header>
 
-    <ContentList entries={entries} showCategory={false} showTopic={true} locale={locale} />
+    <ContentList
+      entries={entries}
+      showCategory={false}
+      showTopic={true}
+      showPreview={false}
+      locale={locale}
+    />
     <Pagination
       currentPage={currentPage}
       lastPage={lastPage}
