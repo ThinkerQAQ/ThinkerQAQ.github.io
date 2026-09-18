@@ -28,10 +28,9 @@ func TestStripMediumXSSI(t *testing.T) {
 	}
 }
 
-
 func TestMediumDraftCoverImageJSON(t *testing.T) {
 	draft := mediumDraft{
-		Title: "Cover test",
+		Title:  "Cover test",
 		Deltas: []map[string]any{},
 		CoverImage: &mediumCoverImage{
 			URL: "https://thinkerqaq.github.io/media/articles/test/cover.png",
