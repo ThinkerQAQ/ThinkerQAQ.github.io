@@ -3,6 +3,7 @@ package bridge
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -117,6 +118,33 @@ func TestBridgeReadOnlyStatusDoesNotRequireToken(t *testing.T) {
 		if response.Header.Get("access-control-allow-origin") != "chrome-extension://test" {
 			t.Fatalf("%s missing extension CORS header", path)
 		}
+	}
+}
+
+func TestBridgeConfigResponseNeverExposesDevtoAPIKey(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.mu.Lock()
+	server.config.DevtoAPIKey = "top-secret-devto-key"
+	server.mu.Unlock()
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodGet, handler.URL+"/v1/config", nil)
+	request.Header.Set("origin", "chrome-extension://test")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte("top-secret-devto-key")) || bytes.Contains(raw, []byte("devtoApiKey")) {
+		t.Fatalf("config response exposed DEV.to credential: %s", raw)
 	}
 }
 
