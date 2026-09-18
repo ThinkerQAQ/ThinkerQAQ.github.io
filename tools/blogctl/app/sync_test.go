@@ -204,6 +204,45 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	}
 }
 
+func TestSyncServiceRequiresWechatsyncTokenForLiveChina(t *testing.T) {
+	engineRoot := t.TempDir()
+	contentRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
+	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
+	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("WECHATSYNC_TOKEN", "")
+	_, err := NewSyncService().Run(context.Background(), SyncConfig{
+		EngineRoot: engineRoot, ContentRoot: contentRoot,
+	}, SyncRequest{
+		Articles: []string{"example"}, Platforms: []string{"juejin"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "Wechatsync Bridge Token") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestSyncEnvironmentIncludesWechatsyncBridgeConfig(t *testing.T) {
+	t.Setenv("WECHATSYNC_TOKEN", "inherited-token")
+	env := syncEnvironment(SyncConfig{
+		ContentRoot: "content",
+		EngineRoot: "engine",
+		WechatsyncToken: "configured-token",
+		WechatsyncPort: 9600,
+	})
+	joined := strings.Join(env, "\n")
+	if !strings.Contains(joined, "WECHATSYNC_TOKEN=configured-token") {
+		t.Fatalf("WECHATSYNC_TOKEN missing from env")
+	}
+	if strings.Contains(joined, "WECHATSYNC_TOKEN=inherited-token") {
+		t.Fatalf("configured token did not replace inherited token")
+	}
+	if !strings.Contains(joined, "SYNC_WS_PORT=9600") {
+		t.Fatalf("SYNC_WS_PORT missing from env")
+	}
+}
+
 func TestSyncServiceRequiresBridgeForLiveMedium(t *testing.T) {
 	engineRoot := t.TempDir()
 	contentRoot := t.TempDir()
