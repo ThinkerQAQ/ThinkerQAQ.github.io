@@ -274,3 +274,60 @@ func TestMediumSessionRequiredStructuredError(t *testing.T) {
 		t.Fatalf("payload = %#v", payload)
 	}
 }
+
+
+func TestBridgeRestartEndpointRestartsWhenIdle(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := make(chan struct{}, 1)
+	server.SetRestart(func() { restarted <- struct{}{} })
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/restart", nil)
+	request.Header.Set("origin", "chrome-extension://test")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", response.StatusCode)
+	}
+	select {
+	case <-restarted:
+	case <-time.After(time.Second):
+		t.Fatal("restart callback was not invoked")
+	}
+}
+
+func TestBridgeRestartEndpointRejectsRunningSyncJob(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := make(chan struct{}, 1)
+	server.SetRestart(func() { restarted <- struct{}{} })
+	server.jobs["running"] = &syncJob{ID: "running", State: "running"}
+	server.jobOrder = []string{"running"}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/restart", nil)
+	request.Header.Set("origin", "chrome-extension://test")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", response.StatusCode)
+	}
+	select {
+	case <-restarted:
+		t.Fatal("restart callback should not run while a sync job is active")
+	case <-time.After(250 * time.Millisecond):
+	}
+}
