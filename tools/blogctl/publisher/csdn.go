@@ -44,7 +44,7 @@ func csdnNonce() string {
 	raw := make([]byte, 16)
 	if _, err := rand.Read(raw); err == nil {
 		hexed := hex.EncodeToString(raw)
-		return hexed[:8]+"-"+hexed[8:12]+"-4"+hexed[13:16]+"-a"+hexed[17:20]+"-"+hexed[20:32]
+		return hexed[:8] + "-" + hexed[8:12] + "-4" + hexed[13:16] + "-a" + hexed[17:20] + "-" + hexed[20:32]
 	}
 	return "00000000-0000-4000-a000-000000000000"
 }
@@ -55,9 +55,9 @@ func (c *csdnAdapter) signedHeaders(path, method string) http.Header {
 	if method != http.MethodGet {
 		contentType = "application/json"
 	}
-	signString := method+"\n*/*\n\n"+contentType+"\n\n"+
-		"x-ca-key:"+csdnKey+"\n"+
-		"x-ca-nonce:"+nonce+"\n"+
+	signString := method + "\n*/*\n\n" + contentType + "\n\n" +
+		"x-ca-key:" + csdnKey + "\n" +
+		"x-ca-nonce:" + nonce + "\n" +
 		path
 	headers := make(http.Header)
 	headers.Set("accept", "*/*")
@@ -90,33 +90,35 @@ func (c *csdnAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 		return AuthResult{}, err
 	}
 	var decoded struct {
-		Code int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
-		Data struct {
-			Name string `json:"name"`
+		Data    struct {
+			Name     string `json:"name"`
 			Nickname string `json:"nickname"`
 		} `json:"data"`
 	}
 	if err := doJSON(c.client, req, c.ID(), "auth", &decoded); err != nil {
 		if IsKind(err, ErrAuthExpired) {
-			return AuthResult{Authenticated:false}, nil
+			return AuthResult{Authenticated: false}, nil
 		}
 		return AuthResult{}, err
 	}
 	if decoded.Code != 200 || strings.TrimSpace(decoded.Data.Name) == "" {
-		return AuthResult{Authenticated:false}, nil
+		return AuthResult{Authenticated: false}, nil
 	}
 	c.userID = strings.TrimSpace(decoded.Data.Name)
 	name := strings.TrimSpace(decoded.Data.Nickname)
-	if name == "" { name = c.userID }
-	return AuthResult{Authenticated:true, UserID:c.userID, Username:name}, nil
+	if name == "" {
+		name = c.userID
+	}
+	return AuthResult{Authenticated: true, UserID: c.userID, Username: name}, nil
 }
 
 func csdnImageSuffix(source, contentType string) string {
 	name := inferImageFilename(source, contentType)
 	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(name)), ".")
 	switch extension {
-	case "jpg","jpeg","png","gif","webp":
+	case "jpg", "jpeg", "png", "gif", "webp":
 		return extension
 	default:
 		return "jpg"
@@ -131,27 +133,27 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input Draf
 	suffix := csdnImageSuffix(source, contentType)
 	path := "/resource-api/v1/image/direct/upload/signature"
 	body, _ := json.Marshal(map[string]any{
-		"imageTemplate":"",
-		"appName":"direct_blog_markdown",
-		"imageSuffix":suffix,
+		"imageTemplate": "",
+		"appName":       "direct_blog_markdown",
+		"imageSuffix":   suffix,
 	})
 	req, err := c.apiRequest(ctx, http.MethodPost, path, strings.NewReader(string(body)))
 	if err != nil {
 		return "", err
 	}
 	var signed struct {
-		Code int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
-		Data struct {
-			FilePath string `json:"filePath"`
-			Host string `json:"host"`
-			AccessID string `json:"accessId"`
-			Policy string `json:"policy"`
-			Signature string `json:"signature"`
-			CallbackURL string `json:"callbackUrl"`
-			CallbackBody string `json:"callbackBody"`
-			CallbackBodyType string `json:"callbackBodyType"`
-			CustomParam map[string]any `json:"customParam"`
+		Data    struct {
+			FilePath         string         `json:"filePath"`
+			Host             string         `json:"host"`
+			AccessID         string         `json:"accessId"`
+			Policy           string         `json:"policy"`
+			Signature        string         `json:"signature"`
+			CallbackURL      string         `json:"callbackUrl"`
+			CallbackBody     string         `json:"callbackBody"`
+			CallbackBodyType string         `json:"callbackBodyType"`
+			CustomParam      map[string]any `json:"customParam"`
 		} `json:"data"`
 	}
 	if err := doJSON(c.client, req, c.ID(), "image-signature", &signed); err != nil {
@@ -161,13 +163,13 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input Draf
 		return "", platformError(ErrUpload, c.ID(), "image-signature", signed.Code, responseMessage(signed.Message), false)
 	}
 	fields := map[string]string{
-		"key":signed.Data.FilePath,
-		"policy":signed.Data.Policy,
-		"signature":signed.Data.Signature,
-		"callbackBody":signed.Data.CallbackBody,
-		"callbackBodyType":signed.Data.CallbackBodyType,
-		"callbackUrl":signed.Data.CallbackURL,
-		"AccessKeyId":signed.Data.AccessID,
+		"key":              signed.Data.FilePath,
+		"policy":           signed.Data.Policy,
+		"signature":        signed.Data.Signature,
+		"callbackBody":     signed.Data.CallbackBody,
+		"callbackBodyType": signed.Data.CallbackBodyType,
+		"callbackUrl":      signed.Data.CallbackURL,
+		"AccessKeyId":      signed.Data.AccessID,
 	}
 	for key, value := range signed.Data.CustomParam {
 		fields["x:"+key] = valueString(value)
@@ -182,9 +184,9 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input Draf
 	}
 	uploadReq.Header.Set("content-type", multipartType)
 	var uploaded struct {
-		Code int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
-		Data struct {
+		Data    struct {
 			ImageURL string `json:"imageUrl"`
 		} `json:"data"`
 	}
@@ -219,25 +221,25 @@ func (c *csdnAdapter) save(ctx context.Context, refID string, input DraftInput, 
 		return nil, err
 	}
 	payload := map[string]any{
-		"title":input.Title,
-		"markdowncontent":markdown,
-		"content":htmlFor(input),
-		"readType":"public",
-		"level":0,
-		"tags":"",
-		"status":2,
-		"categories":"",
-		"type":"original",
-		"original_link":"",
-		"authorized_status":false,
-		"not_auto_saved":"1",
-		"source":"pc_mdeditor",
-		"cover_images":[]string{},
-		"cover_type":1,
-		"is_new":1,
-		"vote_id":0,
-		"resource_id":"",
-		"pubStatus":"draft",
+		"title":             input.Title,
+		"markdowncontent":   markdown,
+		"content":           htmlFor(input),
+		"readType":          "public",
+		"level":             0,
+		"tags":              "",
+		"status":            2,
+		"categories":        "",
+		"type":              "original",
+		"original_link":     "",
+		"authorized_status": false,
+		"not_auto_saved":    "1",
+		"source":            "pc_mdeditor",
+		"cover_images":      []string{},
+		"cover_type":        1,
+		"is_new":            1,
+		"vote_id":           0,
+		"resource_id":       "",
+		"pubStatus":         "draft",
 	}
 	if refID != "" {
 		payload["id"] = refID
@@ -253,30 +255,34 @@ func (c *csdnAdapter) save(ctx context.Context, refID string, input DraftInput, 
 		return nil, err
 	}
 	var decoded map[string]any
-	if err := doJSON(c.client, req, c.ID(), map[bool]string{true:"publish-draft",false:"save-draft"}[publish], &decoded); err != nil {
+	if err := doJSON(c.client, req, c.ID(), map[bool]string{true: "publish-draft", false: "save-draft"}[publish], &decoded); err != nil {
 		return nil, err
 	}
 	if int(numberValue(decoded["code"])) != 200 {
-		return nil, platformError(ErrUpstream, c.ID(), "save-article", int(numberValue(decoded["code"])), responseMessage(decoded["msg"],decoded["message"]), false)
+		return nil, platformError(ErrUpstream, c.ID(), "save-article", int(numberValue(decoded["code"])), responseMessage(decoded["msg"], decoded["message"]), false)
 	}
 	return decoded, nil
 }
 
 func csdnSavedID(decoded map[string]any, fallback string) string {
 	if data, ok := decoded["data"].(map[string]any); ok {
-		if id := valueString(data["id"]); id != "" { return id }
+		if id := valueString(data["id"]); id != "" {
+			return id
+		}
 	}
 	return fallback
 }
 
 func (c *csdnAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
 	decoded, err := c.save(ctx, "", input, false)
-	if err != nil { return DraftResult{}, err }
+	if err != nil {
+		return DraftResult{}, err
+	}
 	id := csdnSavedID(decoded, "")
 	if id == "" {
 		return DraftResult{}, platformError(ErrUpstream, c.ID(), "create-draft", 0, "response did not contain an article id", false)
 	}
-	return DraftResult{ID:id,URL:csdnOrigin+"/md?articleId="+url.QueryEscape(id),Created:true}, nil
+	return DraftResult{ID: id, URL: csdnOrigin + "/md?articleId=" + url.QueryEscape(id), Created: true}, nil
 }
 
 func (c *csdnAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error) {
@@ -284,9 +290,11 @@ func (c *csdnAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Draft
 		return DraftResult{}, platformError(ErrValidation, c.ID(), "update-draft", 0, "draft id is required", false)
 	}
 	decoded, err := c.save(ctx, ref.ID, input, false)
-	if err != nil { return DraftResult{}, err }
+	if err != nil {
+		return DraftResult{}, err
+	}
 	id := csdnSavedID(decoded, ref.ID)
-	return DraftResult{ID:id,URL:csdnOrigin+"/md?articleId="+url.QueryEscape(id),Updated:true}, nil
+	return DraftResult{ID: id, URL: csdnOrigin + "/md?articleId=" + url.QueryEscape(id), Updated: true}, nil
 }
 
 func (c *csdnAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {
@@ -294,11 +302,13 @@ func (c *csdnAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Draf
 		return PublishResult{}, platformError(ErrValidation, c.ID(), "publish-draft", 0, "draft id is required", false)
 	}
 	decoded, err := c.save(ctx, ref.ID, input, true)
-	if err != nil { return PublishResult{}, err }
+	if err != nil {
+		return PublishResult{}, err
+	}
 	id := csdnSavedID(decoded, ref.ID)
 	if data, ok := decoded["data"].(map[string]any); ok {
 		if target := valueString(data["url"]); target != "" {
-			return PublishResult{URL:target}, nil
+			return PublishResult{URL: target}, nil
 		}
 	}
 	if c.userID == "" {
@@ -307,5 +317,5 @@ func (c *csdnAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Draf
 	if c.userID == "" {
 		return PublishResult{}, platformError(ErrUpstream, c.ID(), "publish-draft", 0, "published response did not include a public URL", false)
 	}
-	return PublishResult{URL:"https://blog.csdn.net/"+url.PathEscape(c.userID)+"/article/details/"+url.PathEscape(id)}, nil
+	return PublishResult{URL: "https://blog.csdn.net/" + url.PathEscape(c.userID) + "/article/details/" + url.PathEscape(id)}, nil
 }
