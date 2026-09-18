@@ -170,6 +170,13 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 	default:
 		return request, fmt.Errorf("unsupported sync operation: %s", request.Operation)
 	}
+	if request.Operation == "publish" {
+		for _, platform := range request.Platforms {
+			if _, native := nativeChinaPlatforms[platform]; !native {
+				return request, fmt.Errorf("confirm publish is not implemented for %s", platform)
+			}
+		}
+	}
 	if request.All {
 		for _, platform := range request.Platforms {
 			if _, native := nativeChinaPlatforms[platform]; native {
@@ -238,7 +245,6 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 			return "", errors.New("Medium publishing requires an active BlogCTL Bridge")
 		}
 	}
-
 
 	runner := s.Runner
 	if runner == nil {
