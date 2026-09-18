@@ -46,8 +46,8 @@ type Server struct {
 	mu           sync.Mutex
 	wechatsyncMu sync.Mutex
 	sessions     map[string]platformSession
-	jobs     map[string]*syncJob
-	jobOrder []string
+	jobs         map[string]*syncJob
+	jobOrder     []string
 }
 
 func New(token string) (*Server, error) {
