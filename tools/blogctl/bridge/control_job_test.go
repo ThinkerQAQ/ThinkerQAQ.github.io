@@ -45,3 +45,62 @@ func TestCloneSyncJobDeepCopiesCollections(t *testing.T) {
 		t.Fatalf("original mutated: %#v", original)
 	}
 }
+
+
+func TestDeleteSyncJobRejectsRunningAndRemovesFinished(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.jobs["running"] = &syncJob{ID: "running", State: "running"}
+	server.jobs["done"] = &syncJob{ID: "done", State: "completed"}
+	server.jobOrder = []string{"running", "done"}
+
+	if err := server.deleteSyncJob("running"); err == nil || err.Error() != "running sync job cannot be deleted" {
+		t.Fatalf("running delete error = %v", err)
+	}
+	if err := server.deleteSyncJob("done"); err != nil {
+		t.Fatal(err)
+	}
+	if server.jobs["done"] != nil {
+		t.Fatal("finished job was not deleted")
+	}
+	if len(server.jobOrder) != 1 || server.jobOrder[0] != "running" {
+		t.Fatalf("jobOrder = %#v", server.jobOrder)
+	}
+}
+
+func TestClearFinishedSyncJobsKeepsRunningJobs(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.jobs["running"] = &syncJob{ID: "running", State: "running"}
+	server.jobs["failed"] = &syncJob{ID: "failed", State: "failed"}
+	server.jobs["done"] = &syncJob{ID: "done", State: "completed"}
+	server.jobOrder = []string{"running", "failed", "done"}
+
+	removed := server.clearFinishedSyncJobs()
+	if removed != 2 {
+		t.Fatalf("removed = %d", removed)
+	}
+	if len(server.jobOrder) != 1 || server.jobOrder[0] != "running" {
+		t.Fatalf("jobOrder = %#v", server.jobOrder)
+	}
+}
+
+func TestCloneSyncJobPreservesRetryRequest(t *testing.T) {
+	original := &syncJob{
+		ID: "job-1",
+		Request: syncRequest{
+			Article: "example",
+			Platforms: []string{"juejin"},
+			Changed: true,
+			Draft: true,
+		},
+	}
+	clone := cloneSyncJob(original)
+	if clone.Request.Article != "example" || !clone.Request.Changed || !clone.Request.Draft {
+		t.Fatalf("request = %#v", clone.Request)
+	}
+}
