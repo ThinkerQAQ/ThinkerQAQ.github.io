@@ -6,7 +6,9 @@
     active: false,
     jobs: [],
     status: null,
-    expanded: new Set(),
+    ui: BlogCTLTaskUIState.create(localStorage),
+    lastRenderedSnapshot: "",
+    renderDeferredForSelection: false,
     pollTimer: null,
   };
 
@@ -65,6 +67,7 @@
     if (!job.output) return;
     const details = document.createElement("details");
     details.className = "job-debug";
+    BlogCTLTaskUIState.bindDetails(details, state.ui, "log", job.id);
     const summary = document.createElement("summary");
     summary.textContent = "详细日志";
     const output = document.createElement("pre");
@@ -88,8 +91,8 @@
     BlogCTLPopup.setMessage(message, `正在重试任务 ${job.id}…`);
     try {
       const response = await BlogCTLPopup.send("blogctl.job.retry", { id: job.id });
-      if (response.job?.id) state.expanded.add(response.job.id);
-      BlogCTLPopup.setMessage(message, "已创建新的重试任务。", "ok");
+      if (response.job?.id) state.ui.setJobExpanded(response.job.id, true);
+      BlogCTLPopup.setMessage(message, "任务已重置并重新执行。", "ok");
       await refresh();
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -102,7 +105,8 @@
     BlogCTLPopup.setMessage(message, `正在删除任务 ${job.id}…`);
     try {
       await BlogCTLPopup.send("blogctl.job.delete", { id: job.id });
-      state.expanded.delete(job.id);
+      state.ui.setJobExpanded(job.id, false);
+      state.ui.setLogExpanded(job.id, false);
       BlogCTLPopup.setMessage(message, "任务已删除。", "ok");
       await refresh();
     } catch (error) {
@@ -126,23 +130,39 @@
     card.append(actions);
   }
 
-  function renderJobs() {
+  function selectionTouchesNode(node, selection) {
+    if (!node || !selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+    return node.contains(selection.anchorNode) || node.contains(selection.focusNode);
+  }
+
+  function renderJobs(snapshot) {
+    const selection = typeof root.getSelection === "function" ? root.getSelection() : null;
+    if (selectionTouchesNode(list, selection)) {
+      state.renderDeferredForSelection = true;
+      return false;
+    }
+    state.renderDeferredForSelection = false;
+
+    BlogCTLTaskUIState.captureDetails(
+      list.querySelectorAll("details.job-item[data-job-id]"),
+      state.ui,
+    );
+    const validIDs = new Set(state.jobs.map((job) => job.id));
+    state.ui.prune(validIDs);
     list.replaceChildren();
     clearButton.disabled = !state.jobs.some((job) => job.state !== "running");
 
     if (!state.jobs.length) {
       list.innerHTML = '<div class="platform-loading">暂无任务</div>';
-      return;
+      state.lastRenderedSnapshot = snapshot;
+      return true;
     }
 
     for (const job of state.jobs) {
       const card = document.createElement("details");
       card.className = "job-item";
-      card.open = state.expanded.has(job.id);
-      card.addEventListener("toggle", () => {
-        if (card.open) state.expanded.add(job.id);
-        else state.expanded.delete(job.id);
-      });
+      card.dataset.jobId = job.id;
+      BlogCTLTaskUIState.bindDetails(card, state.ui, "job", job.id);
 
       const summary = document.createElement("summary");
       const title = document.createElement("span");
@@ -175,6 +195,8 @@
       renderActions(job, card);
       list.append(card);
     }
+    state.lastRenderedSnapshot = snapshot;
+    return true;
   }
 
   async function refresh(includeStatus = true) {
@@ -187,7 +209,9 @@
       const [jobsResponse, statusResponse] = await Promise.all([jobsPromise, statusPromise]);
       state.jobs = jobsResponse.jobs ?? [];
       if (statusResponse) state.status = statusResponse.status;
-      renderJobs();
+      const snapshot = BlogCTLTaskUIState.renderSnapshot(state.jobs, state.status);
+      if (!BlogCTLTaskUIState.shouldRender(state.lastRenderedSnapshot, snapshot, state.renderDeferredForSelection)) return;
+      renderJobs(snapshot);
     } catch (error) {
       BlogCTLPopup.setMessage(message, `任务读取失败：${BlogCTLPopup.errorMessage(error)}`, "error");
     }
@@ -199,9 +223,9 @@
     try {
       const response = await BlogCTLPopup.send("blogctl.jobs.clear");
       state.jobs = response.jobs ?? [];
-      const existing = new Set(state.jobs.map((job) => job.id));
-      state.expanded = new Set([...state.expanded].filter((id) => existing.has(id)));
-      renderJobs();
+      state.ui.prune(new Set(state.jobs.map((job) => job.id)));
+      const snapshot = BlogCTLTaskUIState.renderSnapshot(state.jobs, state.status);
+      renderJobs(snapshot);
       BlogCTLPopup.setMessage(message, `已清理 ${response.removed || 0} 个任务。`, "ok");
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");

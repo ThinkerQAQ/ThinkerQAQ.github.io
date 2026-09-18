@@ -442,6 +442,8 @@ func newJobID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
+type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
+
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
 	applicationConfig := blogapp.SyncConfig{
 		EngineRoot:   config.EngineRoot,
@@ -494,8 +496,18 @@ func (s *Server) recordSyncEvent(jobID string, event blogapp.SyncEvent) {
 	applySyncEventToJob(s.jobs[jobID], event, s.now())
 }
 
-func (s *Server) startSyncJob(request syncRequest) *syncJob {
-	startedAt := s.now().UTC()
+func moveJobToFront(order []string, id string) []string {
+	result := make([]string, 0, len(order)+1)
+	result = append(result, id)
+	for _, candidate := range order {
+		if candidate != id {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
+func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
 	results := make(map[string]syncPlatformResult, len(request.Platforms))
 	events := make([]syncJobEvent, 0, len(request.Platforms))
 	for _, platform := range request.Platforms {
@@ -504,34 +516,25 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 			At: startedAt.Format(time.RFC3339), Platform: platform, State: "queued",
 		})
 	}
-	job := &syncJob{
-		ID: newJobID(), Article: request.Article, Platforms: append([]string{}, request.Platforms...),
+	return &syncJob{
+		ID: id, Article: request.Article, Platforms: append([]string{}, request.Platforms...),
 		Request: request, Results: results, Events: events, State: "running",
 		StartedAt: startedAt.Format(time.RFC3339), DryRun: request.DryRun,
 	}
-	s.mu.Lock()
-	if s.jobs == nil {
-		s.jobs = map[string]*syncJob{}
-	}
-	s.jobs[job.ID] = job
-	s.jobOrder = append([]string{job.ID}, s.jobOrder...)
-	if len(s.jobOrder) > 20 {
-		for _, id := range s.jobOrder[20:] {
-			delete(s.jobs, id)
-		}
-		s.jobOrder = s.jobOrder[:20]
-	}
-	config := s.config
-	response := cloneSyncJob(job)
-	s.mu.Unlock()
+}
 
+func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeConfig) {
+	runner := s.syncRunner
+	if runner == nil {
+		runner = s.runSyncApplication
+	}
 	go func() {
-		output, err := s.runSyncApplication(context.Background(), config, request, func(event blogapp.SyncEvent) {
-			s.recordSyncEvent(job.ID, event)
+		output, err := runner(context.Background(), config, request, func(event blogapp.SyncEvent) {
+			s.recordSyncEvent(jobID, event)
 		})
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		stored := s.jobs[job.ID]
+		stored := s.jobs[jobID]
 		if stored == nil {
 			return
 		}
@@ -553,6 +556,29 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 		}
 		stored.State = "completed"
 	}()
+}
+
+func (s *Server) startSyncJob(request syncRequest) *syncJob {
+	startedAt := s.now().UTC()
+	job := newSyncJob(newJobID(), request, startedAt)
+
+	s.mu.Lock()
+	if s.jobs == nil {
+		s.jobs = map[string]*syncJob{}
+	}
+	s.jobs[job.ID] = job
+	s.jobOrder = append([]string{job.ID}, s.jobOrder...)
+	if len(s.jobOrder) > 20 {
+		for _, id := range s.jobOrder[20:] {
+			delete(s.jobs, id)
+		}
+		s.jobOrder = s.jobOrder[:20]
+	}
+	config := s.config
+	response := cloneSyncJob(job)
+	s.mu.Unlock()
+
+	s.launchSyncJob(job.ID, request, config)
 	return response
 }
 
@@ -634,6 +660,7 @@ func (s *Server) clearFinishedSyncJobs() int {
 }
 
 func (s *Server) retrySyncJob(id string) (*syncJob, error) {
+	startedAt := s.now().UTC()
 	s.mu.Lock()
 	job := s.jobs[id]
 	if job == nil {
@@ -645,6 +672,13 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		return nil, errors.New("running sync job cannot be retried")
 	}
 	request := job.Request
+	replacement := newSyncJob(id, request, startedAt)
+	s.jobs[id] = replacement
+	s.jobOrder = moveJobToFront(s.jobOrder, id)
+	config := s.config
+	response := cloneSyncJob(replacement)
 	s.mu.Unlock()
-	return s.startSyncJob(request), nil
+
+	s.launchSyncJob(id, request, config)
+	return response, nil
 }
