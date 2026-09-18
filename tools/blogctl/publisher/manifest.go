@@ -176,7 +176,6 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	}, manifestPath, nil
 }
 
-
 func writeManifestAtomic(path string, manifest map[string]any) error {
 	payload, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
