@@ -38,9 +38,9 @@
       </section>
 
       <section class="status-card compact-options">
-        <label class="checkbox-row"><input id="changedOnly" type="checkbox"><span>仅同步发生变化的平台</span></label>
-        <label class="checkbox-row"><input id="dryRun" type="checkbox"><span>Dry Run</span></label>
-        <label class="checkbox-row"><input id="draftMode" type="checkbox"><span>优先创建草稿</span></label>
+        <label class="checkbox-row"><input id="changedOnly" type="checkbox"><span>中文平台：仅同步内容有变化的项</span></label>
+        <label class="checkbox-row"><input id="dryRun" type="checkbox"><span>Dry Run（仅校验，不写入平台）</span></label>
+        <label class="checkbox-row"><input id="draftMode" type="checkbox"><span>DEV.to 以草稿保存（Medium 始终创建草稿）</span></label>
       </section>
 
       <button id="startSync" class="primary" type="button" disabled>选择文章和平台后同步</button>
@@ -80,7 +80,6 @@
       <section class="status-card"><div class="status-row"><span>BlogCTL Bridge</span><strong id="bridgeStatus" class="status checking">检测中</strong></div><p id="bridgeDetail" class="card-hint"></p></section>
       <section class="status-card"><div class="section-title">工具与工作区</div><div id="toolRegistry" class="tool-list"><div class="platform-loading">正在检测本机环境…</div></div></section>
       <section class="status-card"><div class="section-title">平台登录状态</div><div id="platformStatuses" class="platform-statuses"><div class="platform-loading">正在检测平台登录状态…</div></div></section>
-      <section class="status-card session-card"><div class="status-row"><span>Medium Session</span><strong id="mediumSessionStatus" class="status checking">检测中</strong></div><button id="syncMediumSession" class="secondary full-width" type="button" disabled>同步 Medium Session</button></section>
       <p id="environmentMessage" class="message" role="status"></p>
     </section>
   </main>
