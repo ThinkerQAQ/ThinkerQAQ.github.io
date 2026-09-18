@@ -23,6 +23,7 @@ export const SUPPORTED_PLATFORMS = [
 ];
 export const DEFAULT_OUTPUT_ROOT = ".distribution";
 export const MANIFEST_FILE = "manifest.json";
+export const MANIFEST_VERSION = 2;
 
 export function buildArticleCanonicalUrl(slug, language = "zh-CN") {
   const encodedSlug = String(slug).split("/").map(encodeURIComponent).join("/");
@@ -197,10 +198,33 @@ async function walkMarkdown(directory, { excludedDirectories = new Set() } = {})
   return files.sort();
 }
 
+function migrateManifest(manifest) {
+  if (!manifest || typeof manifest.articles !== "object") {
+    return { version: MANIFEST_VERSION, articles: {} };
+  }
+  if (manifest.version === MANIFEST_VERSION) return manifest;
+  if (manifest.version !== 1) {
+    throw new Error(`Unsupported distribution manifest version: ${manifest.version}`);
+  }
+  for (const article of Object.values(manifest.articles)) {
+    for (const [platform, state] of Object.entries(article?.platforms ?? {})) {
+      if (!state || typeof state !== "object") continue;
+      if (!state.draftHash && state.lastSyncedHash) state.draftHash = state.lastSyncedHash;
+      if (!state.draftSyncedAt && state.lastSyncedAt) state.draftSyncedAt = state.lastSyncedAt;
+      if (!state.remoteDraftId && platform === "juejin" && typeof state.draftUrl === "string") {
+        const match = state.draftUrl.match(/\/editor\/drafts\/([^/?#]+)/u);
+        if (match) state.remoteDraftId = match[1];
+      }
+    }
+  }
+  manifest.version = MANIFEST_VERSION;
+  return manifest;
+}
+
 async function readManifest(manifestPath) {
-  if (!(await exists(manifestPath))) return { version: 1, articles: {} };
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.version !== 1 || typeof manifest.articles !== "object") {
+  if (!(await exists(manifestPath))) return { version: MANIFEST_VERSION, articles: {} };
+  const manifest = migrateManifest(JSON.parse(await readFile(manifestPath, "utf8")));
+  if (typeof manifest.articles !== "object") {
     throw new Error(`Unsupported distribution manifest: ${manifestPath}`);
   }
   return manifest;
@@ -210,7 +234,7 @@ async function writeManifest(manifestPath, manifest) {
   await mkdir(path.dirname(manifestPath), { recursive: true });
   const output = {
     ...manifest,
-    version: 1,
+    version: MANIFEST_VERSION,
     generatedAt: new Date().toISOString(),
   };
   await writeFile(manifestPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
@@ -290,7 +314,7 @@ export async function exportArticles({
         canonicalUrl,
         outputFile,
         contentHash,
-        pending: previous.lastSyncedHash !== contentHash,
+        pending: (previous.draftHash ?? previous.lastSyncedHash) !== contentHash,
         tagCount: article.tags.length,
         exportedTagCount: platform === "cnblogs" ? article.tags.length : Math.min(5, article.tags.length),
       });
@@ -472,9 +496,18 @@ export async function syncExports({
       const draftUrl = extractDraftUrl(result?.output, item.platform);
       if (!dryRun) {
         const state = manifest.articles[item.slug].platforms[item.platform];
+        const syncedAt = new Date().toISOString();
         state.lastSyncedHash = item.contentHash;
-        state.lastSyncedAt = new Date().toISOString();
-        if (draftUrl) state.draftUrl = draftUrl;
+        state.lastSyncedAt = syncedAt;
+        state.draftHash = item.contentHash;
+        state.draftSyncedAt = syncedAt;
+        if (draftUrl) {
+          state.draftUrl = draftUrl;
+          if (item.platform === "juejin") {
+            const match = draftUrl.match(/\/editor\/drafts\/([^/?#]+)/u);
+            if (match) state.remoteDraftId = match[1];
+          }
+        }
         await writeManifest(manifestPath, manifest);
       }
       log("info", "distribution-sync", dryRun ? "dry-run-completed" : "completed", {
