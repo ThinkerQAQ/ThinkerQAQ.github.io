@@ -39,10 +39,15 @@ func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ s
 	}
 	script := filepath.ToSlash(args[0])
 	if strings.HasSuffix(script, "/scripts/blogctl-distribute.mjs") {
-		return strings.Join([]string{
-			`{"operation":"distribution-sync","status":"started","platform":"juejin","slug":"example"}`,
-			`{"operation":"distribution-sync","status":"dry-run-completed","platform":"juejin","slug":"example"}`,
-		}, "\n") + "\n", nil
+		for _, argument := range args {
+			if argument == "--sync" {
+				return strings.Join([]string{
+					`{"operation":"distribution-sync","status":"started","platform":"csdn","slug":"example"}`,
+					`{"operation":"distribution-sync","status":"dry-run-completed","platform":"csdn","slug":"example"}`,
+				}, "\n") + "\n", nil
+			}
+		}
+		return `{"operation":"distribution-export","status":"completed","articles":1,"outputs":1}` + "\n", nil
 	}
 	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") {
 		return strings.Join([]string{
@@ -196,7 +201,6 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []SyncEvent{
-		{Platform: "juejin", State: "running"},
 		{Platform: "juejin", State: "running"},
 		{Platform: "juejin", State: "completed", Result: "dry-run"},
 		{Platform: "devto", State: "running"},
