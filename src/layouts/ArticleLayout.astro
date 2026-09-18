@@ -51,6 +51,9 @@ const {
   projectRelation,
 } = Astro.props;
 const { data } = article;
+const socialCoverImage = data.coverImage?.endsWith(".svg")
+  ? data.coverImage.replace(/\.svg$/i, ".jpg")
+  : data.coverImage;
 const locale = data.language;
 const localeInfo = LOCALES[locale];
 const readingUi = READING_EXPERIENCE_UI[locale];
@@ -89,7 +92,7 @@ const schema = {
   author: { "@type": "Person", name: SITE.author },
   inLanguage: localeInfo.htmlLang,
   mainEntityOfPage: new URL(articlePath, SITE.url).toString(),
-  ...(data.coverImage ? { image: new URL(data.coverImage, SITE.url).toString() } : {}),
+  ...(socialCoverImage ? { image: new URL(socialCoverImage, SITE.url).toString() } : {}),
 };
 ---
 
@@ -102,7 +105,7 @@ const schema = {
   locale={locale}
   languageAlternatives={languageAlternatives}
   noindex={data.status === "draft"}
-  image={data.coverImage}
+  image={socialCoverImage}
   imageAlt={data.coverImageAlt}
 >
   <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} />
