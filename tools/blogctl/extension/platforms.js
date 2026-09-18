@@ -94,8 +94,12 @@ export const PLATFORM_AUTH = Object.freeze([
 ]);
 
 export const PLATFORM_SESSIONS = Object.freeze({
+  juejin: {
+    cookieUrls: ["https://juejin.cn/", "https://api.juejin.cn/"],
+    requiredCookieNames: [],
+  },
   medium: {
-    cookieUrl: "https://medium.com/",
+    cookieUrls: ["https://medium.com/"],
     cookieNames: ["sid", "uid", "xsrf", "cf_clearance"],
     requiredCookieNames: ["sid"],
   },
