@@ -20,7 +20,6 @@
   function persistExpandedTools() {
     localStorage.setItem(EXPANDED_TOOLS_KEY, JSON.stringify([...expandedTools]));
   }
-  function platformById(status, id) { return (status?.platforms ?? []).find((platform) => platform.id === id) ?? {}; }
   function renderPlatforms(statusView) {
     platformStatuses.replaceChildren();
     for (const platform of statusView?.platforms ?? []) {
@@ -149,20 +148,7 @@
     try {
       const [statusResponse, toolsResponse] = await Promise.all([BlogCTLPopup.send("blogctl.status"), BlogCTLPopup.send("blogctl.tools")]);
       state.tools = toolsResponse.tools ?? [];
-      let status = statusResponse.status;
-      const medium = platformById(status, "medium");
-      const session = status?.sessions?.medium ?? {};
-      if (status?.bridge?.running && medium.known !== false && medium.loggedIn && !session.synced && !session.unavailable) {
-        BlogCTLPopup.setMessage(message, "Medium 已登录，正在自动同步 Session…");
-        try {
-          const sessionResponse = await BlogCTLPopup.send("blogctl.session.sync", { platform: "medium" });
-          status = sessionResponse.status;
-          BlogCTLPopup.setMessage(message, "Medium Session 已自动同步。", "ok");
-        } catch (error) {
-          BlogCTLPopup.setMessage(message, `Medium Session 自动同步失败：${BlogCTLPopup.errorMessage(error)}`, "error");
-        }
-      }
-      renderStatus(status); renderTools();
+      renderStatus(statusResponse.status); renderTools();
     }
     catch (error) { toolRegistry.innerHTML = '<div class="platform-loading">环境读取失败</div>'; BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); BlogCTLPopup.refreshBridgeIndicator().catch(() => {}); }
   }
