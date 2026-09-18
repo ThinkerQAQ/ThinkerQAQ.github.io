@@ -21,29 +21,6 @@ const {
   emptyMessage = locale === "en" ? "There is no public content here yet." : "这里还没有公开内容。",
 } = Astro.props;
 
-const preservationNotice = /^\s*>\s*(?:\*\*)?说明(?:\*\*)?[：:][^\n]*(?:\n>\s*[^\n]*)*\n*/u;
-
-function plainText(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/^\s*\[toc\]\s*$/gim, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/[>*_`~|]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function previewFor(entry: NoteEntry): string {
-  if (!entry.body) return entry.data.description;
-
-  const text = plainText(entry.body.replace(preservationNotice, ""));
-  const title = entry.data.title.replace(/^\d+(?:\.\d+)*\s+/, "");
-  const withoutRepeatedTitle = text.startsWith(title) ? text.slice(title.length).trim() : text;
-  return (withoutRepeatedTitle || entry.data.description).slice(0, 150);
-}
-
 function sourceDateFor(entry: NoteEntry): Date | undefined {
   // Historical notes imported from VNote have both original created/modified times.
   // A historical note without createdAt was restored manually, so its updatedAt may
@@ -59,7 +36,7 @@ function sourceDateFor(entry: NoteEntry): Date | undefined {
   <ol class="content-list">
     {entries.map((entry) => {
       const topicPath = getNoteTopicPath(entry);
-      const preview = showPreview ? previewFor(entry) : "";
+      const preview = showPreview ? entry.data.description : "";
       const sourceDate = sourceDateFor(entry);
       return (
         <li>
