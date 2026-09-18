@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -73,8 +74,8 @@ func TestBuildSyncPlanRoutesAllChinesePlatformsNatively(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := BuildSyncPlan(request)
-	if len(plan) != 2 {
-		t.Fatalf("got %d plan entries, want 2", len(plan))
+	if len(plan) != 3 {
+		t.Fatalf("got %d plan entries, want 3", len(plan))
 	}
 	if plan[0].Group != "native-china" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, []string{"juejin", "csdn"}) {
 		t.Fatalf("native plan = %#v", plan[0])
@@ -82,8 +83,11 @@ func TestBuildSyncPlanRoutesAllChinesePlatformsNatively(t *testing.T) {
 	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn"}) {
 		t.Fatalf("native args = %#v", plan[0].Args)
 	}
-	if plan[1].Group != "international" || !reflect.DeepEqual(plan[1].Platforms, []string{"devto", "medium"}) {
-		t.Fatalf("international plan = %#v", plan[1])
+	if plan[1].Group != "international-devto" || !reflect.DeepEqual(plan[1].Platforms, []string{"devto"}) {
+		t.Fatalf("DEV.to plan = %#v", plan[1])
+	}
+	if plan[2].Group != "international-medium" || !reflect.DeepEqual(plan[2].Platforms, []string{"medium"}) {
+		t.Fatalf("Medium plan = %#v", plan[2])
 	}
 }
 
@@ -203,8 +207,8 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 		{Platform: "juejin", State: "running"},
 		{Platform: "juejin", State: "completed", Result: "dry-run"},
 		{Platform: "devto", State: "running"},
-		{Platform: "medium", State: "running"},
 		{Platform: "devto", State: "completed", Result: "dry-run"},
+		{Platform: "medium", State: "running"},
 		{Platform: "medium", State: "completed", Result: "dry-run", URL: "C:/tmp/example.html"},
 	}
 	if !reflect.DeepEqual(events, want) {
@@ -341,6 +345,77 @@ func TestSyncServiceRequiresBridgeForLiveMedium(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "active BlogCTL Bridge") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+type isolatedFailureRunner struct{}
+
+func (isolatedFailureRunner) Run(_ context.Context, _ string, args []string, _ string, _ []string) (string, error) {
+	joined := strings.Join(args, " ")
+	if strings.Contains(joined, "--platforms devto") {
+		return `{"operation":"syndication","status":"failed","exception":{"message":"DEVTO_API_KEY is required"}}` + "\n", errors.New("exit status 1")
+	}
+	if strings.Contains(joined, "--platforms medium") {
+		return `{"operation":"syndication-medium","status":"dry-run","draftUrl":"C:/tmp/medium.html"}` + "\n", nil
+	}
+	return "ok\n", nil
+}
+
+func TestSyncServiceIsolatesInternationalFailuresAndSurfacesScriptMessage(t *testing.T) {
+	engineRoot := t.TempDir()
+	contentRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
+	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
+	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
+	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	node := filepath.Join(t.TempDir(), "node")
+	npm := filepath.Join(t.TempDir(), "npm")
+	writeTestFile(t, node)
+	writeTestFile(t, npm)
+
+	var events []SyncEvent
+	service := SyncService{
+		Runner: isolatedFailureRunner{},
+		OnEvent: func(event SyncEvent) { events = append(events, event) },
+	}
+	_, err := service.Run(context.Background(), SyncConfig{
+		EngineRoot: engineRoot, ContentRoot: contentRoot, BridgeOrigin: "http://127.0.0.1",
+		BridgeToken: "token", ToolPaths: map[string]string{"node": node, "npm": npm},
+	}, SyncRequest{
+		Articles: []string{"example"}, Platforms: []string{"devto", "medium"}, DryRun: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "DEVTO_API_KEY is required") {
+		t.Fatalf("error = %v", err)
+	}
+	foundMediumSuccess := false
+	foundDevtoDetail := false
+	for _, event := range events {
+		if event.Platform == "medium" && event.State == "completed" {
+			foundMediumSuccess = true
+		}
+		if event.Platform == "devto" && event.State == "failed" && strings.Contains(event.Message, "DEVTO_API_KEY is required") {
+			foundDevtoDetail = true
+		}
+	}
+	if !foundMediumSuccess || !foundDevtoDetail {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
+func TestSyncEnvironmentInjectsConfiguredDevtoAPIKey(t *testing.T) {
+	env := syncEnvironment(SyncConfig{
+		ContentRoot: t.TempDir(), EngineRoot: t.TempDir(), DevtoAPIKey: "configured-secret",
+	})
+	found := ""
+	for _, item := range env {
+		if strings.HasPrefix(item, "DEVTO_API_KEY=") {
+			found = strings.TrimPrefix(item, "DEVTO_API_KEY=")
+		}
+	}
+	if found != "configured-secret" {
+		t.Fatalf("DEVTO_API_KEY = %q", found)
 	}
 }
 
