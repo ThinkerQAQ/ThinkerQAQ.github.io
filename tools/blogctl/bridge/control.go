@@ -202,7 +202,9 @@ func listArticles(contentRoot string) ([]articleSummary, error) {
 		if title == "" {
 			title = slug
 		}
-		englishMirror := filePresent(filepath.Join(articleRoot, "en", filepath.FromSlash(slug)+".md"))
+		englishPath := filepath.Join(articleRoot, "en", filepath.FromSlash(slug)+".md")
+		englishStatus := readFrontmatterScalar(englishPath, "status")
+		englishMirror := filePresent(englishPath) && (englishStatus == "" || englishStatus == "published")
 		articles = append(articles, articleSummary{
 			Slug: slug, Title: title, Status: "published", Language: "zh-CN",
 			EnglishMirror: englishMirror, SourcePath: filepath.ToSlash(relative),
