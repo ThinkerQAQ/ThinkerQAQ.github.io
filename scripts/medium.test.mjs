@@ -68,6 +68,27 @@ test("builds a Medium draft with canonical footer matching DEV.to wording", () =
 });
 
 
+test("Medium canonical and footer follow configured content language", () => {
+  const draft = buildMediumDraft({
+    ...article,
+    title: "并发编程",
+    body: "## 正文\n\n内容。",
+  }, {
+    slug: "concurrency-series-00",
+    publishingConfig: {
+      language: "zh-CN",
+      footer: { enabled: true, template: "> 来源：[{site}]({url})" },
+      canonical: { mode: "native" },
+      tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
+    },
+  });
+  assert.equal(draft.canonicalUrl, "https://thinkerqaq.github.io/articles/concurrency-series-00/");
+  const footer = draft.deltas.at(-1).paragraph;
+  assert.match(footer.text, /ThinkerQAQ 的个人博客/u);
+  const link = footer.markups.find((markup) => markup.type === 3);
+  assert.equal(link.href, "https://thinkerqaq.github.io/articles/concurrency-series-00/");
+});
+
 test("Medium publishing profile controls footer tracking and native canonical", () => {
   const draft = buildMediumDraft(article, {
     slug: "concurrency-series-00",
