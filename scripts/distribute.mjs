@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { micromark } from "micromark";
 import {
   defaultPlatformPublishingConfig,
   defaultPublishingConfig,
@@ -291,17 +292,24 @@ export async function exportArticles({
 		publishingConfig: publishingConfig?.[platform] ?? defaultPlatformPublishingConfig(platform),
 		language,
 	});
-      const contentHash = sha256(generated);
+      const generatedArticle = parseArticle(generated, `${platform}:${slug}`);
+      const renderedHtml = micromark(generatedArticle.body, { allowDangerousHtml: true });
+      const contentHash = sha256(`${generated}\n<!-- blogctl-html -->\n${renderedHtml}`);
       const outputFile = path.join(resolvedOutputRoot, platform, `${slug}.md`);
+      const htmlOutputFile = path.join(resolvedOutputRoot, platform, `${slug}.html`);
       await mkdir(path.dirname(outputFile), { recursive: true });
       const outputChanged = !(await exists(outputFile))
         || await readFile(outputFile, "utf8") !== generated;
       if (outputChanged) await writeFile(outputFile, generated, "utf8");
+      const htmlOutputChanged = !(await exists(htmlOutputFile))
+        || await readFile(htmlOutputFile, "utf8") !== renderedHtml;
+      if (htmlOutputChanged) await writeFile(htmlOutputFile, renderedHtml, "utf8");
 
       const previous = articleState.platforms[platform] ?? {};
       articleState.platforms[platform] = {
         ...previous,
         output: path.relative(process.cwd(), outputFile).split(path.sep).join("/"),
+        htmlOutput: path.relative(process.cwd(), htmlOutputFile).split(path.sep).join("/"),
         language,
         canonicalUrl,
         contentHash,
