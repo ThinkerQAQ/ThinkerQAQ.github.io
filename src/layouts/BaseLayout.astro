@@ -55,6 +55,7 @@ const localizedSeoShellPaths = new Set([
   "/series/",
   "/projects/",
   "/about/",
+  "/contact/",
 ]);
 const logicalPath = unlocalizePath(Astro.url.pathname);
 const normalizedLogicalPath =
@@ -162,7 +163,7 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <main id="main-content">
       <slot />
     </main>
-    <SiteFooter />
+    <SiteFooter locale={locale} />
     <AskBlog locale={locale} />
   </body>
 </html>
