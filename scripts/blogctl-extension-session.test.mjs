@@ -69,6 +69,24 @@ test("selectBrowserSessionCookies rejects an empty usable session", () => {
   );
 });
 
+test("selectBrowserSessionCookies keeps only cookies within the allowed domain scope", () => {
+  const selected = selectBrowserSessionCookies({ cookieDomains: ["cnblogs.com"], requiredCookieNames: [] }, [[
+    { name: "login", value: "1", domain: ".cnblogs.com", path: "/" },
+    { name: "xsrf", value: "2", domain: "i.cnblogs.com", path: "/", hostOnly: true },
+    { name: "account", value: "3", domain: "account.cnblogs.com", path: "/", hostOnly: true },
+    { name: "attacker", value: "4", domain: "evil.com", path: "/" },
+    { name: "lookalike", value: "5", domain: "cnblogs.com.evil.com", path: "/" },
+  ]]);
+  assert.deepEqual(
+    selected.map((cookie) => cookie.name).sort(),
+    ["account", "login", "xsrf"],
+  );
+  assert.deepEqual(
+    selected.map((cookie) => cookie.domain).sort(),
+    [".cnblogs.com", "account.cnblogs.com", "i.cnblogs.com"],
+  );
+});
+
 test("all native platform sessions declare domain-wide cookie discovery", async () => {
   const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
   const expected = {
@@ -87,4 +105,13 @@ test("all native platform sessions declare domain-wide cookie discovery", async 
       `${platform} must collect cookies across ${domain} subdomains`,
     );
   }
+});
+
+test("cnblogs auth probe uses the JSON /api/user endpoint", async () => {
+  const { PLATFORM_AUTH } = await import("../tools/blogctl/extension/platforms.js");
+  const cnblogs = PLATFORM_AUTH.find((entry) => entry.id === "cnblogs");
+  assert.ok(cnblogs, "cnblogs platform auth definition exists");
+  assert.equal(cnblogs.probe.kind, "json");
+  assert.equal(cnblogs.probe.url, "https://i.cnblogs.com/api/user");
+  assert.equal(cnblogs.probe.path, "loginName");
 });

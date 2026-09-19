@@ -3,9 +3,9 @@ export const PLATFORM_AUTH = Object.freeze([
     id: "cnblogs",
     label: "博客园",
     probe: {
-      kind: "html",
-      url: "https://home.cnblogs.com/user/CurrentUserInfo",
-      match: "href=[\"']\/u\/[^\/\"']+\/[\"']",
+      kind: "json",
+      url: "https://i.cnblogs.com/api/user",
+      path: "loginName",
     },
   },
   {
@@ -96,7 +96,15 @@ export const PLATFORM_AUTH = Object.freeze([
 export const PLATFORM_SESSIONS = Object.freeze({
   cnblogs: {
     cookieDomains: ["cnblogs.com"],
-    cookieUrls: ["https://www.cnblogs.com/", "https://i.cnblogs.com/", "https://home.cnblogs.com/"],
+    cookieUrls: [
+      "https://www.cnblogs.com/",
+      "https://i.cnblogs.com/",
+      "https://i.cnblogs.com/api/user",
+      "https://i.cnblogs.com/api/posts",
+      "https://i.cnblogs.com/posts/edit",
+      "https://home.cnblogs.com/",
+      "https://upload.cnblogs.com/v2/images/cors-upload",
+    ],
     requiredCookieNames: [],
   },
   juejin: {

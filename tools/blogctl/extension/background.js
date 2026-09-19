@@ -223,8 +223,20 @@ async function collectPlatformCookieBatches(definition) {
   const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
   const cookieDomains = definition.cookieDomains ?? [];
   const requests = [
-    ...cookieUrls.map((url) => chrome.cookies.getAll({ url })),
-    ...cookieDomains.map((domain) => chrome.cookies.getAll({ domain })),
+    ...cookieUrls.map(async (url) => {
+      try {
+        return await chrome.cookies.getAll({ url });
+      } catch (error) {
+        throw new Error(`chrome.cookies.getAll({ url: ${url} }) failed: ${errorMessage(error)}`);
+      }
+    }),
+    ...cookieDomains.map(async (domain) => {
+      try {
+        return await chrome.cookies.getAll({ domain });
+      } catch (error) {
+        throw new Error(`chrome.cookies.getAll({ domain: ${domain} }) failed: ${errorMessage(error)}`);
+      }
+    }),
   ];
   return Promise.all(requests);
 }
