@@ -56,35 +56,36 @@ func cnBlogsAuthClient(t *testing.T, status int, body string) *http.Client {
 }
 
 // TestCNBlogsCheckAuthDecidesFromAPIUser locks auth to GET /api/user: 200 with a
-// non-empty loginName means logged in, empty loginName or 401/403 means not.
+// non-empty loginName means logged in; empty loginName or 401/403 produce an
+// auth-expired error carrying the underlying status for diagnostics.
 func TestCNBlogsCheckAuthDecidesFromAPIUser(t *testing.T) {
-	cases := []struct {
-		name     string
-		status   int
-		body     string
-		wantAuth bool
-		wantID   string
-	}{
-		{"logged in", 200, `{"loginName":"ThinkerQAQ","displayName":"TK"}`, true, "ThinkerQAQ"},
-		{"empty loginName", 200, `{"loginName":"","displayName":""}`, false, ""},
-		{"unauthorized", 401, `{"errors":["Unauthorized"],"type":1}`, false, ""},
-		{"forbidden", 403, `{"errors":["Forbidden"]}`, false, ""},
+	adapter, err := NewCNBlogsAdapter(cnBlogsAuthClient(t, 200, `{"loginName":"ThinkerQAQ","displayName":"TK"}`), cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	result, err := adapter.CheckAuth(context.Background())
+	if err != nil {
+		t.Fatalf("CheckAuth error: %v", err)
+	}
+	if !result.Authenticated || result.UserID != "ThinkerQAQ" {
+		t.Fatalf("result = %#v, want authenticated ThinkerQAQ", result)
+	}
+
+	for name, tc := range map[string]struct {
+		status int
+		body   string
+	}{
+		"empty loginName": {200, `{"loginName":"","displayName":""}`},
+		"unauthorized":    {401, `{"errors":["Unauthorized"],"type":1}`},
+		"forbidden":       {403, `{"errors":["Forbidden"]}`},
+	} {
+		t.Run(name, func(t *testing.T) {
 			adapter, err := NewCNBlogsAdapter(cnBlogsAuthClient(t, tc.status, tc.body), cnBlogsSession())
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := adapter.CheckAuth(context.Background())
-			if err != nil {
-				t.Fatalf("CheckAuth error: %v", err)
-			}
-			if result.Authenticated != tc.wantAuth {
-				t.Fatalf("Authenticated = %v, want %v", result.Authenticated, tc.wantAuth)
-			}
-			if tc.wantID != "" && result.UserID != tc.wantID {
-				t.Fatalf("UserID = %q, want %q", result.UserID, tc.wantID)
+			if _, err := adapter.CheckAuth(context.Background()); err == nil || !IsKind(err, ErrAuthExpired) {
+				t.Fatalf("err = %v, want auth-expired", err)
 			}
 		})
 	}

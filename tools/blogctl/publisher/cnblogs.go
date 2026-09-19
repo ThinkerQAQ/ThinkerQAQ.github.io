@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -13,14 +14,24 @@ import (
 const cnBlogsOrigin = "https://i.cnblogs.com"
 
 type cnBlogsAdapter struct {
-	client    *http.Client
-	session   Session
-	userAgent string
-	xsrf      string
-	username  string
+	client         *http.Client
+	session        Session
+	userAgent      string
+	xsrf           string
+	username       string
+	browserManaged bool
 }
 
+// BrowserManagedTransport performs CNBlogs requests inside the browser runtime.
+// Cookies and CSRF stay in that runtime instead of being copied into Go.
+type BrowserManagedTransport interface{ BrowserManaged() bool }
+
 func NewCNBlogsAdapter(base *http.Client, session Session) (Adapter, error) {
+	if base != nil && base.Transport != nil {
+		if runtime, ok := base.Transport.(BrowserManagedTransport); ok && runtime.BrowserManaged() {
+			return &cnBlogsAdapter{client: base, userAgent: session.UserAgent, browserManaged: true}, nil
+		}
+	}
 	client, err := HTTPClientForSession(base, session)
 	if err != nil {
 		return nil, err
@@ -49,7 +60,8 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 		return AuthResult{}, err
 	}
 	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return AuthResult{Authenticated: false}, nil
+		return AuthResult{}, platformError(ErrAuthExpired, c.ID(), "auth", response.StatusCode,
+			"unauthenticated /api/user (status "+strconv.Itoa(response.StatusCode)+")", false)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return AuthResult{}, classifyHTTP(c.ID(), "auth", response.StatusCode, string(raw))
@@ -62,7 +74,8 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 		return AuthResult{}, platformError(ErrUpstream, c.ID(), "auth", response.StatusCode, "invalid JSON response", false)
 	}
 	if strings.TrimSpace(decoded.LoginName) == "" {
-		return AuthResult{Authenticated: false}, nil
+		return AuthResult{}, platformError(ErrAuthExpired, c.ID(), "auth", response.StatusCode,
+			"no loginName in /api/user response", false)
 	}
 	c.username = decoded.LoginName
 	username := strings.TrimSpace(decoded.DisplayName)
@@ -73,6 +86,10 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 }
 
 func (c *cnBlogsAdapter) xsrfToken(ctx context.Context) (string, error) {
+	if c.browserManaged {
+		// The extension primes and injects XSRF immediately before each write.
+		return "", nil
+	}
 	if c.xsrf != "" {
 		return c.xsrf, nil
 	}

@@ -61,6 +61,7 @@ type Server struct {
 	sessions       map[string]platformSession
 	jobs           map[string]*syncJob
 	jobOrder       []string
+	browserRuntime *browserRuntime
 }
 
 func New(token string) (*Server, error) {
@@ -73,12 +74,13 @@ func New(token string) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		token:      token,
-		now:        time.Now,
-		httpClient: client,
-		config:     config,
-		sessions:   make(map[string]platformSession),
-		jobs:       make(map[string]*syncJob),
+		token:          token,
+		now:            time.Now,
+		httpClient:     client,
+		config:         config,
+		sessions:       make(map[string]platformSession),
+		jobs:           make(map[string]*syncJob),
+		browserRuntime: newBrowserRuntime(),
 	}, nil
 }
 
@@ -114,6 +116,14 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
+	if path == "v1/browser-runtime/next" && request.Method == http.MethodGet {
+		s.handleBrowserRuntimeNext(response, request)
+		return
+	}
+	if path == "v1/browser-runtime/result" && request.Method == http.MethodPost {
+		s.handleBrowserRuntimeResult(response, request)
+		return
+	}
 
 	if path == "v1/health" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {
@@ -271,7 +281,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	response.Header().Set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
-	response.Header().Set("access-control-allow-headers", "content-type")
+	response.Header().Set("access-control-allow-headers", "content-type, x-thinkerqaq-token")
 	response.WriteHeader(http.StatusNoContent)
 }
 
