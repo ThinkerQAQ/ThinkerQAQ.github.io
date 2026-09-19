@@ -1,5 +1,14 @@
 ---
+import { DEFAULT_LOCALE, LOCALES, localizePath, type Locale } from "../config/i18n";
 import { SITE } from "../config/site";
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = DEFAULT_LOCALE } = Astro.props;
+const localeInfo = LOCALES[locale];
+const contactHref = localizePath(locale, "/contact/");
 ---
 
 <footer class="site-footer">
@@ -8,7 +17,7 @@ import { SITE } from "../config/site";
     <span class="footer-links">
       <a href="/rss.xml">RSS</a>
       <a href={SITE.repository} rel="me">GitHub</a>
-      <a href={SITE.contact}>Contact</a>
+      <a href={contactHref}>{localeInfo.nav.contact}</a>
     </span>
   </div>
 </footer>
