@@ -206,7 +206,7 @@ func (s *Server) cnBlogsBrowserClient() *http.Client {
 	}
 	client.Transport = cnBlogsBrowserTransport{runtime: s.browserRuntime, fallback: fallback}
 	client.Jar = nil
-	client.Timeout = 0 // Browser requests have their own bounded deadline.
+	client.Timeout = 95 * time.Second // Browser RPC expires after 90 seconds; image downloads stay bounded too.
 	return &client
 }
 
