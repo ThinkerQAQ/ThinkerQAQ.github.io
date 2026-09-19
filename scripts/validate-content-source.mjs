@@ -63,9 +63,10 @@ async function validatePublishedArticleCovers(articleRoot) {
     if (!coverImage) failures.push(`${relative}: published article is missing coverImage`);
     if (!coverImageAlt) failures.push(`${relative}: published article is missing coverImageAlt`);
     if (coverImage) {
-      if (!coverImage.startsWith("/media/")) {
-        failures.push(`${relative}: coverImage must be rooted under /media/`);
-      } else {
+      const isAbsoluteUrl = /^https?:\/\//i.test(coverImage);
+      if (!isAbsoluteUrl && !coverImage.startsWith("/media/")) {
+        failures.push(`${relative}: coverImage must be rooted under /media/ or be an absolute URL`);
+      } else if (!isAbsoluteUrl) {
         const asset = path.join(root, "public", ...coverImage.replace(/^\/+/, "").split("/"));
         if (!(await exists(asset))) failures.push(`${relative}: coverImage does not exist: ${coverImage}`);
       }
