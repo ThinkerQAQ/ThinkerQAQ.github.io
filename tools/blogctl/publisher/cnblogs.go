@@ -158,7 +158,7 @@ func cnBlogsPayload(id string, input DraftInput, body string, publish bool) map[
 	}
 	return map[string]any{
 		"id":                                  idValue,
-		"postType":                            2,
+		"postType":                            1,
 		"accessPermission":                    0,
 		"title":                               input.Title,
 		"url":                                 nil,
@@ -188,6 +188,7 @@ func cnBlogsPayload(id string, input DraftInput, body string, publish bool) map[
 		"dateUpdated":                         nil,
 		"isMarkdown":                          true,
 		"isDraft":                             !publish,
+		"isAigc":                              false,
 		"autoDesc":                            nil,
 		"changePostType":                      false,
 		"blogId":                              0,
