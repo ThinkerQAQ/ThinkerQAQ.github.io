@@ -25,7 +25,7 @@ func TestTransformZhihuHTMLNormalizesTablesCodeAndImages(t *testing.T) {
 	if !strings.Contains(got, `<figure><img src="https://example.com/image.png"></figure>`) {
 		t.Fatalf("image was not normalized: %s", got)
 	}
-	if strings.Contains(got, "style=") || strings.Contains(got, "data-foo=") {
+	if strings.Contains(got, `style="width`) || strings.Contains(got, "data-foo=") {
 		t.Fatalf("unsupported attributes were not removed: %s", got)
 	}
 	if !strings.Contains(got, "data-draft-node=") {
@@ -36,7 +36,14 @@ func TestTransformZhihuHTMLNormalizesTablesCodeAndImages(t *testing.T) {
 func TestTransformZhihuHTMLKeepsDraftTableAttributes(t *testing.T) {
 	input := `<table data-draft-node="block" data-draft-type="table"><tbody><tr><td>a</td></tr></tbody></table>`
 	got := transformZhihuHTML(input)
-	if !strings.Contains(got, `data-draft-node="block"`) || !strings.Contains(got, `data-draft-type="table"`) {
-		t.Fatalf("draft attributes were lost: %s", got)
+	for _, attribute := range []string{
+		`data-draft-node="block"`,
+		`data-draft-type="table"`,
+		`data-size="normal"`,
+		`data-row-style="normal"`,
+	} {
+		if !strings.Contains(got, attribute) {
+			t.Fatalf("draft table attribute %q was lost: %s", attribute, got)
+		}
 	}
 }

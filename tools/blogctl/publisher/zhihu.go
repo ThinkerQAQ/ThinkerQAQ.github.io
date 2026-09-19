@@ -144,6 +144,18 @@ func transformZhihuTables(html string) string {
 	})
 }
 
+// isZhihuDraftAttribute reports whether a data-* attribute belongs to the
+// Zhihu Draft.js editor table model and must be preserved. The Node renderer
+// emits data-foo="bar" style attributes that Zhihu rejects, but the table
+// normalization in transformZhihuTables relies on data-size/data-row-style
+// in addition to the data-draft-* attributes.
+func isZhihuDraftAttribute(attribute string) bool {
+	lower := strings.ToLower(attribute)
+	return strings.Contains(lower, "data-draft") ||
+		strings.Contains(lower, "data-size=") ||
+		strings.Contains(lower, "data-row-style=")
+}
+
 func transformZhihuHTML(html string) string {
 	result := transformZhihuTables(html)
 	result = zhihuParagraphImage.ReplaceAllString(result, "<figure>$1</figure>")
@@ -155,7 +167,7 @@ func transformZhihuHTML(html string) string {
 	result = zhihuSectionOpenPattern.ReplaceAllString(result, "<div$1>")
 	result = zhihuSectionClosePattern.ReplaceAllString(result, "</div>")
 	result = zhihuDataPattern.ReplaceAllStringFunc(result, func(attribute string) string {
-		if strings.Contains(strings.ToLower(attribute), "data-draft") {
+		if isZhihuDraftAttribute(attribute) {
 			return attribute
 		}
 		return ""
