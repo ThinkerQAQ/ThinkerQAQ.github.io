@@ -1,0 +1,42 @@
+---
+import CollectionHeader from "../../components/CollectionHeader.astro";
+import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../config/i18n";
+import { SITE } from "../../config/site";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export function getStaticPaths() {
+  return nonDefaultLocales().map((locale) => ({
+    params: { locale: LOCALES[locale].path },
+    props: { locale },
+  }));
+}
+
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+---
+
+<BaseLayout
+  title="Contact"
+  description="Contact ThinkerQAQ for technical discussions, article feedback, or collaboration."
+  canonicalPath={localizePath(locale, "/contact/")}
+  locale={locale}
+>
+  <div class="shell page narrow collection-page">
+    <CollectionHeader
+      title="Contact"
+      description="For technical discussions, article feedback, or collaboration, you can reach me through the channels below."
+    />
+
+    <div class="prose">
+      <h2>Email</h2>
+      <p><a href={SITE.contact}>zhangshengkunz@gmail.com</a></p>
+      <p>Technical discussions, article feedback, and collaboration inquiries are welcome by email.</p>
+
+      <h2>GitHub</h2>
+      <p>
+        For code or project-specific topics, you can also contact me through
+        <a href={SITE.repository}>GitHub</a>.
+      </p>
+    </div>
+  </div>
+</BaseLayout>
