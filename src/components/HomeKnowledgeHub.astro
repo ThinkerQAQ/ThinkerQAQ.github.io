@@ -157,7 +157,7 @@ function resolveKnowledge(definitions: KnowledgeDefinition[], minimumNotes = 1) 
 }
 
 const engineeringAreas = resolveKnowledge(engineeringDefinitions);
-const beyondEngineeringAreas = resolveKnowledge(beyondDefinitions, 5);
+const beyondEngineeringAreas = resolveKnowledge(beyondDefinitions);
 
 const localizedProjects = locale === "en"
   ? allProjects.filter((project) => Boolean(project.data.translations?.en))
