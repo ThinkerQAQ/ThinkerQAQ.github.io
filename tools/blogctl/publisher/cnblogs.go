@@ -6,17 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 )
 
-const (
-	cnBlogsOrigin = "https://i.cnblogs.com"
-	cnBlogsHome   = "https://home.cnblogs.com"
-)
-
-var cnBlogsUserPattern = regexp.MustCompile(`href=["']/u/([^/"']+)/?["']`)
+const cnBlogsOrigin = "https://i.cnblogs.com"
 
 type cnBlogsAdapter struct {
 	client    *http.Client
@@ -41,7 +35,7 @@ func (c *cnBlogsAdapter) request(ctx context.Context, method, rawURL string, bod
 }
 
 func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
-	req, err := c.request(ctx, http.MethodGet, cnBlogsHome+"/user/CurrentUserInfo", nil)
+	req, err := c.request(ctx, http.MethodGet, cnBlogsOrigin+"/api/user", nil)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -60,12 +54,22 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return AuthResult{}, classifyHTTP(c.ID(), "auth", response.StatusCode, string(raw))
 	}
-	match := cnBlogsUserPattern.FindStringSubmatch(string(raw))
-	if len(match) != 2 {
+	var decoded struct {
+		LoginName   string `json:"loginName"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return AuthResult{}, platformError(ErrUpstream, c.ID(), "auth", response.StatusCode, "invalid JSON response", false)
+	}
+	if strings.TrimSpace(decoded.LoginName) == "" {
 		return AuthResult{Authenticated: false}, nil
 	}
-	c.username = match[1]
-	return AuthResult{Authenticated: true, UserID: c.username, Username: c.username}, nil
+	c.username = decoded.LoginName
+	username := strings.TrimSpace(decoded.DisplayName)
+	if username == "" {
+		username = decoded.LoginName
+	}
+	return AuthResult{Authenticated: true, UserID: decoded.LoginName, Username: username}, nil
 }
 
 func (c *cnBlogsAdapter) xsrfToken(ctx context.Context) (string, error) {
@@ -203,6 +207,46 @@ func cnBlogsPayload(id string, input DraftInput, body string, publish bool) map[
 	}
 }
 
+// fetchPost 读取 CNBlogs 已有草稿的服务端字段。更新草稿时必须先以此结果为基础，
+// 以保留 url、datePublished、dateUpdated、blogId、author、autoDesc 等浏览器保存时沿用的字段。
+// 草稿不存在时 doJSON 会把 404 归类为 ErrRemoteDraftMissing，调用方直接向上抛出。
+func (c *cnBlogsAdapter) fetchPost(ctx context.Context, id string) (map[string]any, error) {
+	req, err := c.request(ctx, http.MethodGet, cnBlogsOrigin+"/api/posts/"+url.PathEscape(id), nil)
+	if err != nil {
+		return nil, err
+	}
+	var decoded struct {
+		BlogPost map[string]any `json:"blogPost"`
+	}
+	if err := doJSON(c.client, req, c.ID(), "get-post", &decoded); err != nil {
+		return nil, err
+	}
+	if len(decoded.BlogPost) == 0 {
+		return nil, platformError(ErrRemoteDraftMissing, c.ID(), "get-post", 0, "draft not found", false)
+	}
+	return decoded.BlogPost, nil
+}
+
+// cnBlogsUpdatePayload 以服务端 blogPost 为基础构造更新 payload：保留服务端 url、
+// datePublished、dateUpdated、blogId、author、autoDesc、displayOnHomePage 等原值，
+// 仅覆盖本次明确要编辑的标题、正文、描述与草稿／发布状态，并把 usingEditorId 补为编辑器 id。
+func cnBlogsUpdatePayload(id string, input DraftInput, body string, publish bool, base map[string]any) map[string]any {
+	payload := make(map[string]any, len(base)+6)
+	for key, value := range base {
+		payload[key] = value
+	}
+	if payload["id"] == nil {
+		payload["id"] = id
+	}
+	payload["title"] = input.Title
+	payload["postBody"] = body
+	payload["description"] = input.Description
+	payload["isPublished"] = publish
+	payload["isDraft"] = !publish
+	payload["usingEditorId"] = 5
+	return payload
+}
+
 func (c *cnBlogsAdapter) save(ctx context.Context, refID string, input DraftInput, publish bool) (map[string]any, error) {
 	token, err := c.xsrfToken(ctx)
 	if err != nil {
@@ -215,7 +259,15 @@ func (c *cnBlogsAdapter) save(ctx context.Context, refID string, input DraftInpu
 			return nil, err
 		}
 	}
-	payload, _ := json.Marshal(cnBlogsPayload(refID, input, bodyText, publish))
+	payloadValue := cnBlogsPayload(refID, input, bodyText, publish)
+	if strings.TrimSpace(refID) != "" {
+		base, err := c.fetchPost(ctx, refID)
+		if err != nil {
+			return nil, err
+		}
+		payloadValue = cnBlogsUpdatePayload(refID, input, bodyText, publish, base)
+	}
+	payload, _ := json.Marshal(payloadValue)
 	req, err := c.request(ctx, http.MethodPost, cnBlogsOrigin+"/api/posts", strings.NewReader(string(payload)))
 	if err != nil {
 		return nil, err
