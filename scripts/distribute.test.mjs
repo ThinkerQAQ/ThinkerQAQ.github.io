@@ -10,6 +10,7 @@ import {
   exportArticles,
   parseArguments,
   parseArticle,
+  renderPlatformHtml,
   SUPPORTED_PLATFORMS,
 } from "./distribute.mjs";
 
