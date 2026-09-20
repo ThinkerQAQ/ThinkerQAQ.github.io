@@ -21,6 +21,17 @@ flowchart LR
 
 如果浏览器无法加载 renderer，原始 Mermaid 源码会继续保留在页面中作为降级内容。
 
+### Mermaid 跨平台发布
+
+站内仍使用上述 Mermaid renderer。BlogCTL 对外分发时不会依赖 Medium、DEV.to、CSDN、掘金等平台各自的 Mermaid 支持，而是把 Mermaid fence 编译成内容寻址的 PNG：
+
+```text
+public/media/generated/mermaid/<hash>.png
+https://thinkerqaq.github.io/media/generated/mermaid/<hash>.png
+```
+
+`npm run diagrams` 会扫描文章并生成缺失的发布 PNG。发布编译器、平台策略和 Medium 降级规则见 [Publishing Compiler](./publishing-compiler.md)。
+
 
 ## draw.io 工作流
 
