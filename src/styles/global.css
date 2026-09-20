@@ -1364,6 +1364,33 @@ main {
   margin: 0;
 }
 
+.prose pre.mermaid-diagram {
+  max-width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: #fff !important;
+  color: #24292f;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.prose pre.mermaid-diagram[data-processed="true"] {
+  white-space: normal;
+}
+
+.prose pre.mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.prose pre.mermaid-diagram[data-mermaid-failed="true"] {
+  border-style: dashed;
+}
+
 @media print {
   .site-header,
   .site-footer,
