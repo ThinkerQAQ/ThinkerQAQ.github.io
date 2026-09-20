@@ -75,6 +75,7 @@ const serializedCopy = JSON.stringify(copy).replaceAll("<", "\\u003c");
 
   if (root && toggle) {
     let controllerPromise;
+    let loading = false;
 
     const loadController = () => {
       controllerPromise ??= import("../lib/ask-blog-runtime.js")
@@ -87,11 +88,15 @@ const serializedCopy = JSON.stringify(copy).replaceAll("<", "\\u003c");
     };
 
     toggle.addEventListener("click", async () => {
+      if (loading) return;
+      loading = true;
       try {
         const controller = await loadController();
         controller?.toggle();
       } catch (error) {
         console.error("Failed to load Ask this blog", error);
+      } finally {
+        loading = false;
       }
     });
   }
