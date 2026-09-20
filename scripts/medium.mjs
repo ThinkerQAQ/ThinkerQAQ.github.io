@@ -209,7 +209,7 @@ function standaloneImage(line) {
 function isBlockStart(line) {
   const value = line.trim();
   return !value
-    || value.startsWith("\`\`\`")
+    || value.startsWith("```")
     || /^#{1,6}\s+/u.test(value)
     || /^>/u.test(value)
     || /^[-*+]\s+/u.test(value)
