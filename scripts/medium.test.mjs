@@ -131,3 +131,31 @@ test("builds a copy/paste HTML fallback without TOC and with copy button", () =>
   assert.match(output, /<img src="https:\/\/thinkerqaq\.github\.io\/media\/articles\/concurrency-series-00\/cover\.png" alt="Concurrency series cover">/u);
   assert.match(output, /ThinkerQAQ's personal blog/u);
 });
+
+test("Medium fallback renders Mermaid as an image and marks live delta unsafe", () => {
+  const mermaidArticle = {
+    ...article,
+    body: [
+      "## Lock path",
+      "",
+      "```mermaid",
+      "flowchart LR",
+      "accDescr: Mutex fast and slow paths",
+      "A --> B",
+      "```",
+    ].join("\n"),
+  };
+
+  const draft = buildMediumDraft(mermaidArticle, { slug: "mutex" });
+  assert.equal(draft.requiresHtmlFallback, true);
+  assert.equal(draft.publishingAssets.length, 1);
+  assert.match(draft.publishingAssets[0].url, /\/media\/generated\/mermaid\/[a-f0-9]{24}\.png$/u);
+
+  const imageDelta = draft.deltas.find((delta) => delta.paragraph.text === "[Image: Mutex fast and slow paths]");
+  assert.ok(imageDelta);
+  assert.match(imageDelta.paragraph.markups[0].href, /\/media\/generated\/mermaid\/[a-f0-9]{24}\.png$/u);
+
+  const output = buildMediumCopyHtml(mermaidArticle, { slug: "mutex" });
+  assert.match(output, /<figure class="body-image"><img src="https:\/\/thinkerqaq\.github\.io\/media\/generated\/mermaid\/[a-f0-9]{24}\.png"/u);
+  assert.doesNotMatch(output, /flowchart LR/u);
+});
