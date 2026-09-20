@@ -3,7 +3,7 @@ export function isMermaid(node) {
 }
 
 export function mermaidBlock(node, file = "Markdown") {
-  const source = node.value.replaceAll("\\r\\n", "\\n");
+  const source = node.value;
   if (!source.trim()) {
     throw new Error(`${file}:${node.position?.start.line ?? "?"}: Empty Mermaid diagram`);
   }
