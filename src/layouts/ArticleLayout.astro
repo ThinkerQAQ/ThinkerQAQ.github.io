@@ -63,7 +63,7 @@ const commentRoot = translations.find((entry) => entry.data.language === DEFAULT
 if (!commentRoot) {
   throw new Error(`Article ${article.id}: missing default-locale translation root for comments`);
 }
-const commentCanonicalPath = articleHref(commentRoot);
+const commentThreadPath = articleHref(commentRoot);
 const languageAlternatives: LocaleAlternative[] = translations.map((entry) => ({
   locale: entry.data.language,
   href: articleHref(entry),
@@ -182,7 +182,7 @@ const schema = {
           <p class="source-note">This article was migrated from the <a href={sourceNoteHref}>original learning notes</a> and is maintained independently.</p>
         )
       )}
-      <ContentComments language={locale} canonicalPath={commentCanonicalPath} />
+      <ContentComments language={locale} threadPath={commentThreadPath} />
     </article>
     <TableOfContents headings={headings} locale={locale} />
   </div>
