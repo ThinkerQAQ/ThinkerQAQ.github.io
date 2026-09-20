@@ -1,10 +1,7 @@
-// @ts-nocheck
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 
 export function initAskBlog(root) {
-  if (!root) return null;
-
   const endpoint = root.dataset.endpoint?.trim() || "";
   const turnstileSiteKey = root.dataset.turnstileSitekey?.trim() || "";
   const locale = root.dataset.locale?.trim() || "zh";
@@ -430,7 +427,6 @@ export function initAskBlog(root) {
   renderConversation();
 
   return {
-    setOpen,
     toggle: () => setOpen(panel.hidden),
   };
 }
