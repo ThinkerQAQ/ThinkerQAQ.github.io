@@ -46,12 +46,7 @@ const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
   const container = document.querySelector<HTMLElement>("[data-utterances-container]");
 
   if (container) {
-    let loaded = false;
-
     const loadUtterances = () => {
-      if (loaded) return;
-      loaded = true;
-
       const script = document.createElement("script");
       script.src = "https://utteranc.es/client.js";
       script.async = true;
