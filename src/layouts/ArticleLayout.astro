@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from "astro:content";
-import ArticleComments from "../components/ArticleComments.astro";
+import ContentComments from "../components/ContentComments.astro";
 import ArticleSeriesIndex from "../components/ArticleSeriesIndex.astro";
 import ArticleSeriesNavigation from "../components/ArticleSeriesNavigation.astro";
 import ContentReaction from "../components/ContentReaction.astro";
@@ -9,7 +9,7 @@ import ReadingExperience from "../components/ReadingExperience.astro";
 import RelatedContent from "../components/RelatedContent.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import { READING_EXPERIENCE_UI, RELATED_CONTENT_UI } from "../config/i18n-features";
-import { LOCALES, pathForLocale, type LocaleAlternative } from "../config/i18n";
+import { DEFAULT_LOCALE, LOCALES, pathForLocale, type LocaleAlternative } from "../config/i18n";
 import { SITE } from "../config/site";
 import {
   articleHref,
@@ -59,6 +59,11 @@ const localeInfo = LOCALES[locale];
 const readingUi = READING_EXPERIENCE_UI[locale];
 const relatedUi = RELATED_CONTENT_UI[locale];
 const articlePath = articleHref(article);
+const commentRoot = translations.find((entry) => entry.data.language === DEFAULT_LOCALE);
+if (!commentRoot) {
+  throw new Error(`Article ${article.id}: missing default-locale translation root for comments`);
+}
+const commentCanonicalPath = articleHref(commentRoot);
 const languageAlternatives: LocaleAlternative[] = translations.map((entry) => ({
   locale: entry.data.language,
   href: articleHref(entry),
@@ -177,7 +182,7 @@ const schema = {
           <p class="source-note">This article was migrated from the <a href={sourceNoteHref}>original learning notes</a> and is maintained independently.</p>
         )
       )}
-      <ArticleComments language={locale} pathname={articlePath} />
+      <ContentComments language={locale} canonicalPath={commentCanonicalPath} />
     </article>
     <TableOfContents headings={headings} locale={locale} />
   </div>
