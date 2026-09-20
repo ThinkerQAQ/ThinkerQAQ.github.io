@@ -116,9 +116,15 @@ export function collectPublishingAssets(markdown, {
     const openingIndex = index;
     index += 1;
     while (index < lines.length && !fenceEnd(lines[index], opening)) index += 1;
-    const closingIndex = index < lines.length ? index : lines.length;
+    const hasClosingFence = index < lines.length;
+    const closingIndex = hasClosingFence ? index : lines.length;
+    const language = fenceLanguage(opening.info);
 
-    if (fenceLanguage(opening.info) === "mermaid") {
+    if (language === "mermaid" && !hasClosingFence) {
+      throw new Error("Unclosed Mermaid fenced block");
+    }
+
+    if (language === "mermaid") {
       const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
       const asset = mermaidAssetForSource(source, { siteOrigin });
       assets.set(asset.id, asset);
@@ -152,6 +158,10 @@ export function compilePublishingMarkdown(markdown, {
     const hasClosingFence = index < lines.length;
     const closingIndex = hasClosingFence ? index : lines.length;
     const language = fenceLanguage(opening.info);
+
+    if (language === "mermaid" && !hasClosingFence) {
+      throw new Error("Unclosed Mermaid fenced block");
+    }
 
     if (language !== "mermaid" || platform === "site") {
       const end = hasClosingFence ? closingIndex + 1 : closingIndex;
