@@ -9,6 +9,7 @@ import {
   renderPublishingFooter,
   trackedPublishingUrl,
 } from "./publishing-config.mjs";
+import { compilePublishingMarkdown } from "./publishing/compiler.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const SUPPORTED_PLATFORMS = [
@@ -177,7 +178,10 @@ export function buildPlatformMarkdown(article, {
 		`sourcePlatform: ${JSON.stringify(contentLanguage === "en" ? "ThinkerQAQ personal blog" : "ThinkerQAQ 个人博客")}`,
 		"---",
 	].join("\n");
-	const body = makeExternalLinksAbsolute(article.body);
+	const body = compilePublishingMarkdown(article.body, {
+		platform,
+		siteOrigin: SITE_ORIGIN,
+	}).markdown;
 	const footer = renderPublishingFooter(profile, {
 		canonicalUrl,
 		title: article.title,
