@@ -7,6 +7,10 @@ import {
   nativeCanonicalUrl,
   renderPublishingFooter,
 } from "./publishing-config.mjs";
+import {
+  compilePublishingMarkdown,
+  makeExternalLinksAbsolute as compileExternalLinks,
+} from "./publishing/compiler.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const DEVTO_API_ORIGIN = "https://dev.to";
@@ -85,7 +89,10 @@ export function buildDevtoArticle(article, {
 } = {}) {
   const contentLanguage = language || publishingConfig?.language || "en";
   const canonicalUrl = buildCanonicalUrl(slug, contentLanguage);
-  const body = makeExternalLinksAbsolute(article.body).trim();
+  const body = compilePublishingMarkdown(article.body, {
+    platform: "devto",
+    siteOrigin: SITE_ORIGIN,
+  }).markdown.trim();
   const footer = renderPublishingFooter(publishingConfig, {
     canonicalUrl,
     title: article.title,
