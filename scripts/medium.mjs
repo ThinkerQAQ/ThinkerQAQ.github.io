@@ -189,15 +189,33 @@ export function flattenMarkdownTables(markdown) {
   return out.join("\n");
 }
 
+function standaloneImage(line) {
+  const match = String(line).trim().match(/^!\\[([^\\]]*)\\]\\((\\S+)(?:\\s+["']([^"']*)["'])?\\)$/u);
+  if (!match) return null;
+  const alt = match[1] || "";
+  const href = absoluteHref(match[2]);
+  const label = alt ? `[Image: ${alt}]` : "[Image]";
+  return {
+    kind: "image",
+    paragraphType: PARAGRAPH,
+    text: label,
+    markups: [{ type: MARKUP_LINK, start: 0, end: label.length, href, anchorType: 0 }],
+    html: `<a href="${escapeHtml(href)}">${escapeHtml(label)}</a>`,
+    url: href,
+    alt,
+  };
+}
+
 function isBlockStart(line) {
   const value = line.trim();
   return !value
     || /^```/u.test(value)
-    || /^#{1,6}\s+/u.test(value)
+    || /^#{1,6}\\s+/u.test(value)
     || /^>/u.test(value)
-    || /^[-*+]\s+/u.test(value)
-    || /^\d+[.)]\s+/u.test(value)
-    || /^---+$/u.test(value);
+    || /^[-*+]\\s+/u.test(value)
+    || /^\\d+[.)]\\s+/u.test(value)
+    || /^---+$/u.test(value)
+    || Boolean(standaloneImage(value));
 }
 
 export function parseMediumBlocks(markdown) {
@@ -225,6 +243,13 @@ export function parseMediumBlocks(markdown) {
       }
       if (index < lines.length) index += 1;
       blocks.push({ kind: "pre", paragraphType: PRE, text: code.join("\n"), language, markups: [] });
+      continue;
+    }
+
+    const image = standaloneImage(trimmed);
+    if (image) {
+      blocks.push(image);
+      index += 1;
       continue;
     }
 
