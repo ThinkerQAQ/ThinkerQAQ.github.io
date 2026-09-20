@@ -25,7 +25,7 @@ test("site Markdown processor turns Mermaid fences into render targets", async (
       "```js",
       "const n = 1;",
       "```",
-    ].join("\\n"),
+    ].join("\n"),
   );
 
   assert.match(result.code, /<pre class="mermaid mermaid-diagram">/);
@@ -41,7 +41,7 @@ test("Mermaid source is escaped as text instead of injected as HTML", async () =
     syntaxHighlight: false,
   });
   const result = await processor.render(
-    "```mermaid\\nflowchart LR\\nA[<script>alert(1)</script>] --> B\\n```",
+    "```mermaid\nflowchart LR\nA[<script>alert(1)</script>] --> B\n```",
   );
 
   assert.ok(!result.code.includes("<script>alert(1)</script>"));
@@ -51,6 +51,6 @@ test("Mermaid source is escaped as text instead of injected as HTML", async () =
 test("empty Mermaid diagrams fail with file and line context", () => {
   assert.throws(
     () => mermaidBlock({ value: "   ", position: { start: { line: 7 } } }, "fixture.md"),
-    /fixture\\.md:7: Empty Mermaid diagram/,
+    /fixture\.md:7: Empty Mermaid diagram/,
   );
 });
