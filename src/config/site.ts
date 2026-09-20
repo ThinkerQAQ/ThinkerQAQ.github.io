@@ -5,6 +5,7 @@ export const SITE = {
     "ThinkerQAQ 的个人技术博客，记录后端工程、Go、Java、并发编程、分布式系统、数据系统与软件工程实践。",
   author: "ThinkerQAQ",
   url: "https://thinkerqaq.github.io",
+  github: "https://github.com/ThinkerQAQ",
   repository: "https://github.com/ThinkerQAQ/ThinkerQAQ.github.io",
   contact: "mailto:zhangshengkunz@gmail.com",
   locale: "zh-CN",
