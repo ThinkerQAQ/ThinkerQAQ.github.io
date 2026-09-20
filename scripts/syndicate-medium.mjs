@@ -74,6 +74,7 @@ export async function runMediumSyndication(loadedArticles, {
         canonicalUrl: item.draft.canonicalUrl,
         blocks: item.draft.deltas.length,
         warnings: item.draft.warnings,
+        requiresHtmlFallback: Boolean(item.draft.requiresHtmlFallback),
         fallbackPath: item.fallbackPath,
       });
     }
@@ -84,6 +85,7 @@ export async function runMediumSyndication(loadedArticles, {
       skipped: 0,
       drafts: 0,
       dryRun: true,
+      requiresHtmlFallback: prepared.some((item) => item.draft.requiresHtmlFallback),
       fallbackPaths: prepared.map((item) => item.fallbackPath),
     };
   }
@@ -92,9 +94,15 @@ export async function runMediumSyndication(loadedArticles, {
     throw new Error("Medium draft sync currently requires exactly one explicit --article selection. Use --dry-run for batch preparation.");
   }
 
+  const item = prepared[0];
+  if (item.draft.requiresHtmlFallback) {
+    throw new Error(
+      `Medium live draft adapter cannot safely insert body images yet. Use the generated copy/paste fallback: ${item.fallbackPath}`,
+    );
+  }
+
   const bridge = configuredBridge();
   await waitForMediumSession(bridge, onEvent);
-  const item = prepared[0];
   const result = await bridgeRequest(bridge, "/v1/platforms/medium/drafts", {
     method: "POST",
     body: JSON.stringify(item.draft),
