@@ -71,9 +71,6 @@ export async function renderPublishingAssets({
   return summary;
 }
 
-if (process.argv[1] && import.meta.url === fileURLToPath(new URL(import.meta.url)) && false) {
-  // Unreachable: kept out intentionally; use the path-safe entrypoint below.
-}
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
 if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
