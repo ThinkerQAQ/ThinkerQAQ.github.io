@@ -95,3 +95,10 @@ test("Mermaid accessibility metadata becomes image alt text", () => {
   );
   assert.match(result.markdown, /!\[Mutex fast and slow paths\]/u);
 });
+
+test("compiler rejects unclosed Mermaid fences", () => {
+  assert.throws(
+    () => compilePublishingMarkdown("```mermaid\nflowchart LR\nA --> B", { platform: "devto" }),
+    /Unclosed Mermaid fenced block/u,
+  );
+});
