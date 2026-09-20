@@ -192,17 +192,6 @@ const tocPanelId = "mobile-reading-navigation-toc";
     const tabs = [...navigation.querySelectorAll<HTMLButtonElement>("[data-mobile-reading-nav-tab]")];
     const panels = [...navigation.querySelectorAll<HTMLElement>("[data-mobile-reading-nav-panel]")];
 
-    const logState = (operation: "open" | "close" | "switch-tab", result: string) => {
-      console.debug("navigation-panel-state", {
-        timestamp: new Date().toISOString(),
-        severity: "debug",
-        node: "mobile-reading-navigation",
-        operation,
-        result,
-        viewportWidth: window.innerWidth,
-      });
-    };
-
     const setActivePanel = (panelName: string) => {
       tabs.forEach((tab) => {
         const active = tab.dataset.mobileReadingNavTab === panelName;
@@ -212,7 +201,6 @@ const tocPanelId = "mobile-reading-navigation-toc";
       panels.forEach((panel) => {
         panel.hidden = panel.dataset.mobileReadingNavPanel !== panelName;
       });
-      logState("switch-tab", panelName);
     };
 
     const setOpen = (open: boolean) => {
@@ -223,7 +211,6 @@ const tocPanelId = "mobile-reading-navigation-toc";
       drawer.setAttribute("aria-hidden", String(!open));
       drawer.toggleAttribute("inert", !open);
       document.body.classList.toggle("mobile-reading-nav-open", open);
-      logState(open ? "open" : "close", "completed");
       if (open) {
         closeButton.focus();
         const currentLink = drawer.querySelector<HTMLElement>('[aria-current="page"]');

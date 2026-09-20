@@ -89,15 +89,15 @@ For local testing, Cloudflare provides dedicated test credentials. Use the alway
 
 ## Deploy the Worker
 
-Worker deployment is part of `.github/workflows/deploy.yml`. Every successful `master` build automatically runs:
+Worker deployment is handled by `.github/workflows/worker-release.yml`. A push to `main` that changes `workers/blog-ai/**` (or the release workflow itself) runs the Worker test suite and then deploys with:
 
 ```text
 wrangler deploy --config workers/blog-ai/wrangler.jsonc
 ```
 
-GitHub Actions authenticates non-interactively with the existing `CLOUDFLARE_ACCOUNT_ID` variable and `CLOUDFLARE_AI_SEARCH_TOKEN` secret. The site is deployed to GitHub Pages only after the Worker deployment succeeds, so a frontend release cannot depend on Worker routes that have not been deployed yet.
+GitHub Actions authenticates non-interactively with the existing `CLOUDFLARE_ACCOUNT_ID` variable and `CLOUDFLARE_AI_SEARCH_TOKEN` secret. Worker release and GitHub Pages deployment are separate workflows; neither workflow waits for the other.
 
-You do not need to run `wrangler login` or `wrangler deploy` locally for normal blog releases.
+You do not need to run `wrangler login` or `wrangler deploy` locally for normal Worker releases.
 
 After deployment, the existing `/chat` URL remains the frontend endpoint. For the GitHub Pages build, keep these public repository variables configured:
 
