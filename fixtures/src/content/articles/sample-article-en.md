@@ -12,3 +12,8 @@ translationOf: sample-article
 ---
 
 This English article is synthetic fixture content used only by public CI.
+
+```mermaid
+flowchart LR
+  Smoke[Publishing compiler] --> PNG[Portable PNG]
+```
