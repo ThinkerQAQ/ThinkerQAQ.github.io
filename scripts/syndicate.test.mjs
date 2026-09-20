@@ -221,3 +221,24 @@ test("updates a changed remote article", async () => {
   assert.equal(result.action, "updated");
   assert.deepEqual(calls.map((call) => call.init.method), ["GET", "PUT"]);
 });
+
+test("DEV.to payload compiles Mermaid to a portable PNG", () => {
+  const payload = buildDevtoArticle({
+    title: "Mermaid",
+    description: "Description",
+    status: "published",
+    tags: ["Go"],
+    body: [
+      "```mermaid",
+      "flowchart LR",
+      "A --> B",
+      "```",
+    ].join("\n"),
+  }, { slug: "mermaid" });
+
+  assert.doesNotMatch(payload.body_markdown, /```mermaid/u);
+  assert.match(
+    payload.body_markdown,
+    /!\[Mermaid diagram\]\(https:\/\/thinkerqaq\.github\.io\/media\/generated\/mermaid\/[a-f0-9]{24}\.png\)/u,
+  );
+});
