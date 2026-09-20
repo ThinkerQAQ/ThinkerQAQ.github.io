@@ -118,7 +118,13 @@ const schema = {
     <ReadingExperience locale={locale} />
     <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={localeInfo.ui.seriesLabel} headings={headings} locale={locale} />
     {seriesNavigation && <ArticleSeriesIndex navigation={seriesNavigation} />}
-    <article class="note" data-pagefind-body>
+    <article
+      class="note"
+      data-pagefind-body
+      data-analytics-content-type="article"
+      data-analytics-lang={locale}
+      data-analytics-series={data.series}
+    >
       <header class="note-header">
         {data.status === "draft" && <p class="eyebrow">{localeInfo.ui.draftPreview}</p>}
         <h1 data-pagefind-meta="title">{data.title}</h1>
