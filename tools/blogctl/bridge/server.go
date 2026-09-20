@@ -39,8 +39,23 @@ type browserCookie struct {
 }
 
 type sessionRequest struct {
-	Cookies   []browserCookie `json:"cookies"`
-	UserAgent string          `json:"userAgent"`
+	Cookies       []browserCookie         `json:"cookies"`
+	UserAgent     string                  `json:"userAgent"`
+	CookieQueries []cookieQueryDiagnostic `json:"cookieQueries,omitempty"`
+	CookieStores  []cookieStoreDiagnostic `json:"cookieStores,omitempty"`
+}
+
+type cookieQueryDiagnostic struct {
+	Target      string   `json:"target"`
+	Partitioned bool     `json:"partitioned"`
+	Count       int      `json:"count"`
+	Names       []string `json:"names"`
+}
+
+type cookieStoreDiagnostic struct {
+	StoreID         string `json:"storeId"`
+	CNBlogsTabCount int    `json:"cnBlogsTabCount"`
+	Error           string `json:"error,omitempty"`
 }
 
 type platformSession struct {
@@ -595,7 +610,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		for _, cookie := range body.Cookies {
 			cookieNames = append(cookieNames, cookie.Name)
 		}
-		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames)
+		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "cookieQueries", body.CookieQueries, "cookieStores", body.CookieStores)
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{

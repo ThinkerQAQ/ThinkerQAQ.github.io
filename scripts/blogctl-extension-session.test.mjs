@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectBrowserSessionCookieBatches, selectBrowserSessionCookies } from "../tools/blogctl/extension/session.js";
+import { collectBrowserSessionCookieBatches, cookieQueryDiagnostic, selectBrowserSessionCookies } from "../tools/blogctl/extension/session.js";
 
 test("CNBlogs also collects cookies in its top-level site partition", async () => {
   const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
@@ -16,6 +16,17 @@ test("CNBlogs also collects cookies in its top-level site partition", async () =
   const selected = selectBrowserSessionCookies(PLATFORM_SESSIONS.cnblogs, batches);
   assert.deepEqual(selected.map((cookie) => cookie.name), ["partitioned-login"]);
   assert.equal(selected[0].partitionKey.topLevelSite, "https://cnblogs.com");
+});
+
+test("cookie query diagnostics expose names and counts without values", async () => {
+  const diagnostics = [];
+  await collectBrowserSessionCookieBatches(
+    { cookieUrls: ["https://i.cnblogs.com/api/user"] },
+    async () => [{ name: "login", value: "secret", domain: "i.cnblogs.com" }],
+    (filter, cookies) => diagnostics.push(cookieQueryDiagnostic(filter, cookies)),
+  );
+  assert.deepEqual(diagnostics, [{ target: "i.cnblogs.com/api/user", partitioned: false, count: 1, names: ["login"] }]);
+  assert.equal(JSON.stringify(diagnostics).includes("secret"), false);
 });
 
 test("selectBrowserSessionCookies preserves domain/path metadata and deduplicates exact cookies", () => {

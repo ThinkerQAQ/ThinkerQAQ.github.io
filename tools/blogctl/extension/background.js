@@ -1,5 +1,5 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
-import { collectBrowserSessionCookieBatches, selectBrowserSessionCookies } from "./session.js";
+import { collectBrowserSessionCookieBatches, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
@@ -219,14 +219,31 @@ async function saveBridgeConfig(config) {
   }));
 }
 
-async function collectPlatformCookieBatches(definition) {
-  return collectBrowserSessionCookieBatches(definition, (filter) => chrome.cookies.getAll(filter));
+async function collectPlatformCookieBatches(definition, diagnostics) {
+  return collectBrowserSessionCookieBatches(definition, (filter) => chrome.cookies.getAll(filter), (filter, cookies) => {
+    if (!diagnostics) return;
+    diagnostics.push(cookieQueryDiagnostic(filter, cookies));
+  });
 }
 
-async function selectedPlatformCookies(platform) {
+async function cnBlogsCookieStores() {
+  try {
+    const stores = await chrome.cookies.getAllCookieStores();
+    const tabs = await chrome.tabs.query({ url: ["https://*.cnblogs.com/*", "https://cnblogs.com/*"] });
+    const cnBlogsTabIds = new Set(tabs.map((tab) => tab.id));
+    return stores.map((store) => ({
+      storeId: store.id,
+      cnBlogsTabCount: store.tabIds.filter((id) => cnBlogsTabIds.has(id)).length,
+    }));
+  } catch (error) {
+    return [{ error: errorMessage(error) }];
+  }
+}
+
+async function selectedPlatformCookies(platform, diagnostics) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
-  const batches = await collectPlatformCookieBatches(definition);
+  const batches = await collectPlatformCookieBatches(definition, diagnostics);
   return selectBrowserSessionCookies(definition, batches);
 }
 
@@ -244,15 +261,17 @@ async function syncPlatformSession(platform) {
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
 
   let selected;
+  const cookieQueries = [];
+  const cookieStores = platform === "cnblogs" ? await cnBlogsCookieStores() : [];
   try {
-    selected = await selectedPlatformCookies(platform);
+    selected = await selectedPlatformCookies(platform, platform === "cnblogs" ? cookieQueries : undefined);
   } catch (error) {
     throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
   }
 
   return fetchJSON(
     `/v1/sessions/${encodeURIComponent(platform)}`,
-    jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent }),
+    jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent, cookieQueries, cookieStores }),
   );
 }
 

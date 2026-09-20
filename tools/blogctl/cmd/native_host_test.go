@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -49,5 +50,20 @@ func TestBridgeStatePathUsesBlogCTLConfigDir(t *testing.T) {
 	}
 	if path != filepath.Join(dir, "bridge.json") {
 		t.Fatalf("path = %q", path)
+	}
+}
+
+func TestBridgeLogIsCreatedInBlogCTLConfigDir(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	file, err := openBridgeLog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "bridge.log")); err != nil {
+		t.Fatal(err)
 	}
 }

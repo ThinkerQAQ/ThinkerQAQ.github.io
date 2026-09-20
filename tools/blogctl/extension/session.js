@@ -1,4 +1,4 @@
-export async function collectBrowserSessionCookieBatches(definition, getAll) {
+export async function collectBrowserSessionCookieBatches(definition, getAll, onQuery = () => {}) {
   const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
   const cookieDomains = definition.cookieDomains ?? [];
   const partitionKeys = definition.cookiePartitionKeys ?? [];
@@ -12,13 +12,25 @@ export async function collectBrowserSessionCookieBatches(definition, getAll) {
   ];
   return Promise.all(filters.map(async (filter) => {
     try {
-      return await getAll(filter);
+      const cookies = await getAll(filter);
+      onQuery(filter, cookies);
+      return cookies;
     } catch (error) {
       const target = filter.url ? new URL(filter.url).hostname : filter.domain;
       const scope = filter.partitionKey ? "partitioned" : "unpartitioned";
       throw new Error(`cookie query failed for ${target} (${scope}): ${error?.message || String(error)}`);
     }
   }));
+}
+
+export function cookieQueryDiagnostic(filter, cookies) {
+  const url = filter.url ? new URL(filter.url) : null;
+  return {
+    target: url ? `${url.hostname}${url.pathname}` : filter.domain,
+    partitioned: Boolean(filter.partitionKey),
+    count: cookies.length,
+    names: cookies.map((cookie) => cookie.name),
+  };
 }
 
 function matchesCookieDomain(domain, allowedDomains) {
