@@ -441,3 +441,24 @@ tags: []
 
 Body`), /cover metadata is incomplete/u);
 });
+
+test("Chinese platform export compiles Mermaid to a portable PNG", () => {
+  const article = parseArticle(ARTICLE);
+  article.body = [
+    "## 正文",
+    "",
+    "```mermaid",
+    "flowchart LR",
+    "A --> B",
+    "```",
+  ].join("\n");
+  const output = buildPlatformMarkdown(article, {
+    platform: "csdn",
+    slug: "concurrency/test",
+  });
+  assert.doesNotMatch(output, /```mermaid/u);
+  assert.match(
+    output,
+    /https:\/\/thinkerqaq\.github\.io\/media\/generated\/mermaid\/[a-f0-9]{24}\.png/u,
+  );
+});
