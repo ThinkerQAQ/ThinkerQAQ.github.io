@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { renderAll as renderPlantUml } from "./render-plantuml.mjs";
 import { renderAll as renderDrawIo } from "./render-drawio.mjs";
+import { renderPublishingAssets } from "./render-publishing-assets.mjs";
 
 function log(status, details = {}, severity = "info") {
   console.log(JSON.stringify({
@@ -18,6 +19,7 @@ export async function renderAll() {
   log("started");
   await renderPlantUml();
   await renderDrawIo();
+  await renderPublishingAssets();
   log("completed", { durationMs: Date.now() - startedAt });
 }
 
