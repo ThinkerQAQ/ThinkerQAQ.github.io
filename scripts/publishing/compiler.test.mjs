@@ -90,7 +90,7 @@ test("Mermaid accessibility metadata becomes image alt text", () => {
     "A --> B",
   ].join("\n");
   const result = compilePublishingMarkdown(
-    ["```mermaid", source, "```"].join("\\n"),
+    ["```mermaid", source, "```"].join("\n"),
     { platform: "csdn" },
   );
   assert.match(result.markdown, /!\[Mutex fast and slow paths\]/u);
