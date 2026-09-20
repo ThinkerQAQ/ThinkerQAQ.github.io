@@ -26,16 +26,21 @@
 
   runtimeWindow.__thinkerContentAnalyticsBootstrapCleanup?.();
 
+  let activeMarker: HTMLElement | null = null;
+
   const initializePageAnalytics = () => {
+    const marker = document.querySelector<HTMLElement>("[data-analytics-content-type]");
+    if (marker && marker === activeMarker && runtimeWindow.__thinkerContentAnalyticsPageCleanup) return;
+
     runtimeWindow.__thinkerContentAnalyticsPageCleanup?.();
     runtimeWindow.__thinkerContentAnalyticsPageCleanup = undefined;
-
-    const marker = document.querySelector<HTMLElement>("[data-analytics-content-type]");
+    activeMarker = null;
     const readingContent = document.querySelector<HTMLElement>("[data-reading-content]");
     const readingStart = document.getElementById("reading-start");
     const readingEnd = document.getElementById("reading-end");
 
     if (!marker || !readingContent || !readingStart || !readingEnd) return;
+    activeMarker = marker;
 
     try {
       if (localStorage.getItem("umami.disabled") === "1") return;
@@ -255,6 +260,7 @@
       window.removeEventListener("resize", scheduleProgressSample);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("click", onDocumentClick, true);
+      activeMarker = null;
     };
   };
 
