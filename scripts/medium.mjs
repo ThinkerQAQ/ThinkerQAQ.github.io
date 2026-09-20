@@ -6,6 +6,7 @@ import {
   nativeCanonicalUrl,
   renderPublishingFooter,
 } from "./publishing-config.mjs";
+import { compilePublishingMarkdown } from "./publishing/compiler.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const MEDIUM_MAX_TAGS = 5;
@@ -304,7 +305,12 @@ export function buildMediumDraft(article, {
   publishingConfig = defaultPlatformPublishingConfig("medium"),
 }) {
   const canonicalUrl = mediumCanonicalUrl(slug, publishingConfig);
-  const { blocks, warnings } = parseMediumBlocks(article.body);
+  const compiled = compilePublishingMarkdown(article.body, {
+    platform: "medium",
+    siteOrigin: SITE_ORIGIN,
+  });
+  const { blocks, warnings } = parseMediumBlocks(compiled.markdown);
+  const requiresHtmlFallback = blocks.some((block) => block.kind === "image");
   const deltas = blocks.map((block, index) => ({
     type: 1,
     index,
@@ -330,6 +336,12 @@ export function buildMediumDraft(article, {
     coverImage: coverUrl ? { url: coverUrl, alt: article.coverImageAlt || "" } : null,
     deltas,
     warnings,
+    requiresHtmlFallback,
+    publishingAssets: compiled.assets.map((asset) => ({
+      kind: asset.kind,
+      id: asset.id,
+      url: asset.publicUrl,
+    })),
   };
 }
 
@@ -353,7 +365,9 @@ function renderBlocks(blocks) {
     }
     closeList();
 
-    if (block.kind === "pre") {
+    if (block.kind === "image") {
+      out.push(`<figure class="body-image"><img src="${escapeHtml(block.url)}" alt="${escapeHtml(block.alt)}"></figure>`);
+    } else if (block.kind === "pre") {
       out.push(`<pre><code>${escapeHtml(block.text)}</code></pre>`);
     } else if (block.kind === "blockquote") {
       out.push(`<blockquote><p>${block.html.replaceAll("\n", "<br>")}</p></blockquote>`);
@@ -373,7 +387,11 @@ export function buildMediumCopyHtml(article, {
   publishingConfig = defaultPlatformPublishingConfig("medium"),
 }) {
   const canonicalUrl = mediumCanonicalUrl(slug, publishingConfig);
-  const { blocks } = parseMediumBlocks(article.body);
+  const compiled = compilePublishingMarkdown(article.body, {
+    platform: "medium",
+    siteOrigin: SITE_ORIGIN,
+  });
+  const { blocks } = parseMediumBlocks(compiled.markdown);
   const footer = footerData(article, canonicalUrl, publishingConfig);
   const body = renderBlocks(blocks);
   const coverUrl = resolveArticleAssetUrl(article.coverImage);
@@ -390,7 +408,7 @@ export function buildMediumCopyHtml(article, {
 <style>
 body{font-family:Georgia,"Times New Roman",serif;max-width:760px;margin:40px auto;padding:0 24px 80px;line-height:1.65;color:#242424}
 #toolbar{position:sticky;top:0;background:#fff;padding:12px 0;border-bottom:1px solid #e5e5e5;margin-bottom:32px;z-index:10}
-button{font:inherit;padding:9px 14px;cursor:pointer}.cover{margin:0 0 32px}.cover img{display:block;width:100%;height:auto}h1{font-size:2.35rem;line-height:1.15}h2{font-size:1.7rem;margin-top:2.1em}h3{font-size:1.3rem;margin-top:1.7em}
+button{font:inherit;padding:9px 14px;cursor:pointer}.cover{margin:0 0 32px}.cover img,.body-image img{display:block;max-width:100%;height:auto}.body-image{margin:28px 0}h1{font-size:2.35rem;line-height:1.15}h2{font-size:1.7rem;margin-top:2.1em}h3{font-size:1.3rem;margin-top:1.7em}
 code{font-family:Consolas,"SFMono-Regular",Menlo,monospace}p code,li code{background:#f2f2f2;padding:.08em .28em;border-radius:3px}
 pre{font-family:Consolas,"SFMono-Regular",Menlo,monospace;white-space:pre;overflow-x:auto;background:#f7f7f7;padding:16px;border-radius:4px;line-height:1.5}pre code{background:transparent;padding:0}
 blockquote{border-left:3px solid #242424;margin-left:0;padding-left:18px}hr{border:0;border-top:1px solid #ddd;margin:2em 0}
