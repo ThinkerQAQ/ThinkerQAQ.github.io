@@ -9,7 +9,7 @@ function image(properties = {}) {
 test("keeps the first markdown image eager/default and lazily loads later images", () => {
   const first = image({ src: "/first.png" });
   const second = image({ src: "/second.png" });
-  const third = image({ src: "/third.png", loading: "eager" });
+  const third = image({ src: "/third.png", loading: "eager", decoding: "sync" });
   const tree = {
     type: "root",
     children: [
@@ -26,5 +26,5 @@ test("keeps the first markdown image eager/default and lazily loads later images
   assert.equal(second.properties.loading, "lazy");
   assert.equal(second.properties.decoding, "async");
   assert.equal(third.properties.loading, "eager");
-  assert.equal(third.properties.decoding, "async");
+  assert.equal(third.properties.decoding, "sync");
 });
