@@ -112,13 +112,15 @@ func TestCNBlogsCookieReachesGoJarAndStatusRedactsValue(t *testing.T) {
 	defer handler.Close()
 
 	const cookieValue = "test-login-value"
+	const requestCookieHeader = ".CNBlogsCookie=test-request-value"
 	body, _ := json.Marshal(map[string]any{
 		"cookies": []map[string]any{{
 			"name": ".CNBlogsCookie", "value": cookieValue, "domain": ".cnblogs.com",
 			"path": "/", "secure": true, "storeId": "0",
 			"partitionKey": map[string]string{"topLevelSite": "https://cnblogs.com"},
 		}},
-		"userAgent": "UA",
+		"userAgent":           "UA",
+		"requestCookieHeader": requestCookieHeader,
 	})
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/cnblogs", bytes.NewReader(body))
 	request.Header.Set("origin", "chrome-extension://test")
@@ -135,6 +137,9 @@ func TestCNBlogsCookieReachesGoJarAndStatusRedactsValue(t *testing.T) {
 	session, base, err := (bridgeNativePublisher{server: server}).publisherSession("cnblogs")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if session.RequestCookieHeader != requestCookieHeader {
+		t.Fatal("captured browser Cookie header did not reach the publisher")
 	}
 	client, err := publisher.HTTPClientForSession(base, session)
 	if err != nil {
@@ -154,11 +159,12 @@ func TestCNBlogsCookieReachesGoJarAndStatusRedactsValue(t *testing.T) {
 	}
 	defer statusResponse.Body.Close()
 	statusBody, _ := io.ReadAll(statusResponse.Body)
-	if statusResponse.StatusCode != http.StatusOK || strings.Contains(string(statusBody), cookieValue) {
+	if statusResponse.StatusCode != http.StatusOK || strings.Contains(string(statusBody), cookieValue) || strings.Contains(string(statusBody), requestCookieHeader) {
 		t.Fatal("session status failed or exposed a cookie value")
 	}
 	var status struct {
-		Cookies []struct {
+		RequestCookieNames []string `json:"requestCookieNames"`
+		Cookies            []struct {
 			Name        string `json:"name"`
 			StoreID     string `json:"storeId"`
 			Partitioned bool   `json:"partitioned"`
@@ -169,6 +175,27 @@ func TestCNBlogsCookieReachesGoJarAndStatusRedactsValue(t *testing.T) {
 	}
 	if len(status.Cookies) != 1 || status.Cookies[0].Name != ".CNBlogsCookie" || status.Cookies[0].StoreID != "0" || !status.Cookies[0].Partitioned {
 		t.Fatal("session status did not retain cookie metadata")
+	}
+	if len(status.RequestCookieNames) != 1 || status.RequestCookieNames[0] != ".CNBlogsCookie" {
+		t.Fatal("session status did not report captured request Cookie names")
+	}
+}
+
+func TestCNBlogsAcceptsCapturedRequestCookieWithoutCookieAPIEntries(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/cnblogs", strings.NewReader(`{"cookies":[],"requestCookieHeader":".CNBlogsCookie=test-login"}`))
+	request.Header.Set("origin", "chrome-extension://test")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("cnblogs")
+	if err != nil || session.RequestCookieHeader == "" {
+		t.Fatal("captured request Cookie was not available to the Go publisher")
 	}
 }
 

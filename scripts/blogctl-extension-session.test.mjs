@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectBrowserSessionCookieBatches, cookieQueryDiagnostic, selectBrowserSessionCookies } from "../tools/blogctl/extension/session.js";
+import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "../tools/blogctl/extension/session.js";
+
+test("captures only the extension's exact CNBlogs auth request Cookie header", () => {
+  const origin = "chrome-extension://blogctl";
+  const url = "https://i.cnblogs.com/api/user?blogctl_cookie_probe=one";
+  const details = {
+    initiator: origin, url, method: "GET",
+    requestHeaders: [{ name: "Cookie", value: "login=secret; xsrf=token" }],
+  };
+  assert.equal(cookieHeaderFromRequest(details, origin, url), "login=secret; xsrf=token");
+  assert.equal(cookieHeaderFromRequest({ ...details, initiator: undefined }, origin, url), "login=secret; xsrf=token");
+  assert.equal(cookieHeaderFromRequest({ ...details, initiator: "https://i.cnblogs.com" }, origin, url), null);
+  assert.equal(cookieHeaderFromRequest(details, origin, `${url}2`), null);
+});
 
 test("CNBlogs also collects cookies in its top-level site partition", async () => {
   const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");

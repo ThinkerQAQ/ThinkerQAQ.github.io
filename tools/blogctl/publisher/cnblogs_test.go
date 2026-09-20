@@ -91,6 +91,31 @@ func TestCNBlogsCheckAuthDecidesFromAPIUser(t *testing.T) {
 	}
 }
 
+func TestCNBlogsUsesCapturedBrowserCookieHeaderForAPI(t *testing.T) {
+	const captured = ".Cnblogs.AspNetCore.Cookies=login; .CNBlogsCookie=legacy"
+	session := Session{UserAgent: "BlogCTL-Test-UA", RequestCookieHeader: captured}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/api/user" || request.Header.Get("Cookie") != captured {
+			t.Fatal("CNBlogs auth request did not contain the captured browser Cookie header")
+		}
+		return jsonResponse(request, http.StatusOK, `{"loginName":"ThinkerQAQ"}`, nil), nil
+	})}
+	adapter, err := NewCNBlogsAdapter(client, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.CheckAuth(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	uploadRequest, err := adapter.(*cnBlogsAdapter).request(context.Background(), http.MethodGet, "https://upload.cnblogs.com/v2/images/cors-upload", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploadRequest.Header.Get("Cookie") != "" {
+		t.Fatal("CNBlogs editor Cookie header was sent to the upload host")
+	}
+}
+
 // TestCNBlogsCheckAuthRejectsInvalidJSON ensures a 200 with non-JSON body is an
 // upstream error, never a false "logged in".
 func TestCNBlogsCheckAuthRejectsInvalidJSON(t *testing.T) {

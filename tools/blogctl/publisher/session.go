@@ -51,7 +51,7 @@ func HTTPClientForSession(base *http.Client, session Session) (*http.Client, err
 		}
 		jar.SetCookies(seed, []*http.Cookie{value})
 	}
-	if len(session.Cookies) == 0 {
+	if len(session.Cookies) == 0 && session.RequestCookieHeader == "" {
 		return nil, errors.New("browser session contains no cookies")
 	}
 	if base == nil {

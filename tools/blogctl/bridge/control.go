@@ -533,7 +533,7 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 			SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
 		})
 	}
-	return publisher.Session{Cookies: cookies, UserAgent: session.UserAgent}, httpClient, nil
+	return publisher.Session{Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader}, httpClient, nil
 }
 
 func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {

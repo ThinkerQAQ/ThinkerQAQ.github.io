@@ -1,11 +1,20 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
-import { collectBrowserSessionCookieBatches, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
+import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
 let bridgeSession = null;
+const pendingCNBlogsCookieCaptures = new Map();
+const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
+
+chrome.webRequest.onSendHeaders.addListener((details) => {
+  const pending = pendingCNBlogsCookieCaptures.get(details.url);
+  if (!pending) return;
+  const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
+  if (header !== null) pending.resolve(header);
+}, { urls: ["https://i.cnblogs.com/api/user*"] }, ["requestHeaders", "extraHeaders"]);
 
 async function setBadge(text, color) {
   await chrome.action.setBadgeText({ text });
@@ -240,6 +249,24 @@ async function cnBlogsCookieStores() {
   }
 }
 
+async function captureCNBlogsRequestCookieHeader() {
+  const url = `https://i.cnblogs.com/api/user?blogctl_cookie_probe=${crypto.randomUUID()}`;
+  let resolveCapture;
+  const captured = new Promise((resolve) => { resolveCapture = resolve; });
+  pendingCNBlogsCookieCaptures.set(url, { url, resolve: resolveCapture });
+  try {
+    const response = await fetchWithTimeout(url, { cache: "no-store" });
+    const header = await Promise.race([captured, delay(1500).then(() => "")]);
+    if (!response.ok) throw new Error(`CNBlogs browser auth HTTP ${response.status}`);
+    const payload = await response.json();
+    if (!payload?.loginName) throw new Error("CNBlogs browser auth has no loginName");
+    if (!header) throw new Error("CNBlogs browser request Cookie header was not captured");
+    return header;
+  } finally {
+    pendingCNBlogsCookieCaptures.delete(url);
+  }
+}
+
 async function selectedPlatformCookies(platform, diagnostics) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
@@ -263,15 +290,17 @@ async function syncPlatformSession(platform) {
   let selected;
   const cookieQueries = [];
   const cookieStores = platform === "cnblogs" ? await cnBlogsCookieStores() : [];
+  const requestCookieHeader = platform === "cnblogs" ? await captureCNBlogsRequestCookieHeader() : "";
   try {
     selected = await selectedPlatformCookies(platform, platform === "cnblogs" ? cookieQueries : undefined);
   } catch (error) {
-    throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
+    if (platform === "cnblogs" && errorMessage(error) === "no browser cookies were available") selected = [];
+    else throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
   }
 
   return fetchJSON(
     `/v1/sessions/${encodeURIComponent(platform)}`,
-    jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent, cookieQueries, cookieStores }),
+    jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent, cookieQueries, cookieStores, requestCookieHeader }),
   );
 }
 

@@ -39,10 +39,11 @@ type browserCookie struct {
 }
 
 type sessionRequest struct {
-	Cookies       []browserCookie         `json:"cookies"`
-	UserAgent     string                  `json:"userAgent"`
-	CookieQueries []cookieQueryDiagnostic `json:"cookieQueries,omitempty"`
-	CookieStores  []cookieStoreDiagnostic `json:"cookieStores,omitempty"`
+	Cookies             []browserCookie         `json:"cookies"`
+	UserAgent           string                  `json:"userAgent"`
+	CookieQueries       []cookieQueryDiagnostic `json:"cookieQueries,omitempty"`
+	CookieStores        []cookieStoreDiagnostic `json:"cookieStores,omitempty"`
+	RequestCookieHeader string                  `json:"requestCookieHeader,omitempty"`
 }
 
 type cookieQueryDiagnostic struct {
@@ -58,11 +59,23 @@ type cookieStoreDiagnostic struct {
 	Error           string `json:"error,omitempty"`
 }
 
+func cookieHeaderNames(header string) []string {
+	names := []string{}
+	for _, pair := range strings.Split(header, ";") {
+		name, _, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if ok && name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
 type platformSession struct {
-	Cookies        map[string]string
-	BrowserCookies []browserCookie
-	UserAgent      string
-	ExpiresAt      time.Time
+	Cookies             map[string]string
+	BrowserCookies      []browserCookie
+	RequestCookieHeader string
+	UserAgent           string
+	ExpiresAt           time.Time
 }
 
 var browserSessionPlatforms = map[string]struct{}{
@@ -572,8 +585,12 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		writeError(response, err)
 		return
 	}
-	if len(body.Cookies) == 0 {
+	if len(body.Cookies) == 0 && !(platform == "cnblogs" && body.RequestCookieHeader != "") {
 		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
+		return
+	}
+	if len(body.RequestCookieHeader) > 32768 || strings.ContainsAny(body.RequestCookieHeader, "\r\n") {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", "invalid browser Cookie header", nil)
 		return
 	}
 	cookies := map[string]string{}
@@ -599,10 +616,11 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 	}
 	s.mu.Lock()
 	s.sessions[platform] = platformSession{
-		Cookies:        cookies,
-		BrowserCookies: append([]browserCookie{}, body.Cookies...),
-		UserAgent:      userAgent,
-		ExpiresAt:      s.now().Add(sessionTTL),
+		Cookies:             cookies,
+		BrowserCookies:      append([]browserCookie{}, body.Cookies...),
+		RequestCookieHeader: body.RequestCookieHeader,
+		UserAgent:           userAgent,
+		ExpiresAt:           s.now().Add(sessionTTL),
 	}
 	s.mu.Unlock()
 	if platform == "cnblogs" {
@@ -610,7 +628,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		for _, cookie := range body.Cookies {
 			cookieNames = append(cookieNames, cookie.Name)
 		}
-		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "cookieQueries", body.CookieQueries, "cookieStores", body.CookieStores)
+		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "requestCookieNames", cookieHeaderNames(body.RequestCookieHeader), "cookieQueries", body.CookieQueries, "cookieStores", body.CookieStores)
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
@@ -647,6 +665,9 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 			})
 		}
 		payload["cookies"] = cookies
+		if platform == "cnblogs" {
+			payload["requestCookieNames"] = cookieHeaderNames(session.RequestCookieHeader)
+		}
 	}
 	writeJSON(response, http.StatusOK, payload)
 }

@@ -33,7 +33,14 @@ func NewCNBlogsAdapter(base *http.Client, session Session) (Adapter, error) {
 func (c *cnBlogsAdapter) ID() string { return "cnblogs" }
 
 func (c *cnBlogsAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
-	return browserRequest(ctx, method, rawURL, cnBlogsOrigin, cnBlogsOrigin+"/", c.userAgent, body)
+	req, err := browserRequest(ctx, method, rawURL, cnBlogsOrigin, cnBlogsOrigin+"/", c.userAgent, body)
+	if err != nil {
+		return nil, err
+	}
+	if req.URL.Hostname() == "i.cnblogs.com" && c.session.RequestCookieHeader != "" {
+		req.Header.Set("Cookie", c.session.RequestCookieHeader)
+	}
+	return req, nil
 }
 
 func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
@@ -42,6 +49,9 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 		return AuthResult{}, err
 	}
 	cookieNames := []string{}
+	for _, cookie := range req.Cookies() {
+		cookieNames = append(cookieNames, cookie.Name)
+	}
 	if c.client.Jar != nil {
 		for _, cookie := range c.client.Jar.Cookies(req.URL) {
 			cookieNames = append(cookieNames, cookie.Name)

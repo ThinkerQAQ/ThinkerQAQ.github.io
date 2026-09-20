@@ -18,8 +18,9 @@ type BrowserCookie struct {
 }
 
 type Session struct {
-	Cookies   []BrowserCookie
-	UserAgent string
+	Cookies             []BrowserCookie
+	UserAgent           string
+	RequestCookieHeader string
 }
 
 type AuthResult struct {

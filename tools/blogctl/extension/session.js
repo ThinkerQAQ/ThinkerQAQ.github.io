@@ -33,6 +33,14 @@ export function cookieQueryDiagnostic(filter, cookies) {
   };
 }
 
+export function cookieHeaderFromRequest(details, extensionOrigin, expectedURL) {
+  if (details?.initiator && details.initiator !== extensionOrigin) return null;
+  if (details?.url !== expectedURL || details?.method !== "GET") return null;
+  const headers = details.requestHeaders ?? [];
+  return headers.filter((header) => header.name?.toLowerCase() === "cookie")
+    .map((header) => header.value || "").filter(Boolean).join("; ");
+}
+
 function matchesCookieDomain(domain, allowedDomains) {
   const host = String(domain || "").replace(/^\./, "").toLowerCase();
   if (!host) return false;
