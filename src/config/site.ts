@@ -17,7 +17,6 @@ export const NOTE_PAGE_SIZE = 10;
 export const COMMENTS = {
   provider: "utterances",
   repository: "ThinkerQAQ/ThinkerQAQ.github.io",
-  issueTerm: "pathname",
   label: "blog-comment",
   theme: "preferred-color-scheme",
 } as const;

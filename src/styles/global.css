@@ -1318,34 +1318,34 @@ main {
   font-size: 0.8rem;
 }
 
-.article-comments {
+.content-comments {
   margin-top: 4rem;
   padding-top: 2.25rem;
   border-top: 1px solid var(--border);
 }
 
-.article-comments-header {
+.content-comments-header {
   margin-bottom: 1.5rem;
 }
 
-.article-comments-header h2 {
+.content-comments-header h2 {
   margin: 0;
   font-size: 1.35rem;
   letter-spacing: -0.02em;
 }
 
-.article-comments-header p,
-.article-comments noscript p {
+.content-comments-header p,
+.content-comments noscript p {
   margin: 0.45rem 0 0;
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.article-comments-header a {
+.content-comments-header a {
   margin-left: 0.45rem;
 }
 
-.article-comments .utterances {
+.content-comments .utterances {
   max-width: none;
 }
 
@@ -1374,7 +1374,7 @@ main {
     display: none;
   }
 
-  .article-comments {
+  .content-comments {
     display: none;
   }
 

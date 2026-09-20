@@ -4,24 +4,28 @@ import { COMMENTS, SITE } from "../config/site";
 
 interface Props {
   language?: Locale;
-  pathname: string;
+  threadPath: string;
 }
 
-const { language = "zh", pathname } = Astro.props;
+const { language = "zh", threadPath } = Astro.props;
 const isChinese = language === "zh";
 const heading = isChinese ? "讨论" : "Discussion";
 const description = isChinese
   ? "使用 GitHub 账号参与讨论，评论会保存在 GitHub Issues 中。"
   : "Sign in with GitHub to comment. Discussions are stored as GitHub Issues.";
+
+const threadKey = threadPath.length < 2
+  ? "index"
+  : threadPath.replace(/^\/+/, "").replace(/\.\w+$/, "");
 const issueSearch = new URLSearchParams({
-  q: `is:issue label:${COMMENTS.label} "${pathname}"`,
+  q: `is:issue label:${COMMENTS.label} "${threadKey}"`,
 });
 const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
 ---
 
-<section class="article-comments" aria-labelledby="article-comments-title">
-  <header class="article-comments-header">
-    <h2 id="article-comments-title">{heading}</h2>
+<section class="content-comments" aria-labelledby="content-comments-title">
+  <header class="content-comments-header">
+    <h2 id="content-comments-title">{heading}</h2>
     <p>
       {description}
       <a href={issuesUrl} rel="external">{isChinese ? "在 GitHub 查看" : "View on GitHub"}</a>
@@ -30,7 +34,7 @@ const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
   <div
     data-utterances-container
     data-repo={COMMENTS.repository}
-    data-issue-term={COMMENTS.issueTerm}
+    data-issue-term={threadKey}
     data-label={COMMENTS.label}
     data-theme={COMMENTS.theme}
   ></div>
@@ -52,7 +56,7 @@ const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
       script.async = true;
       script.crossOrigin = "anonymous";
       script.setAttribute("repo", container.dataset.repo ?? "");
-      script.setAttribute("issue-term", container.dataset.issueTerm ?? "pathname");
+      script.setAttribute("issue-term", container.dataset.issueTerm ?? "");
       script.setAttribute("label", container.dataset.label ?? "");
       script.setAttribute("theme", container.dataset.theme ?? "github-light");
       container.append(script);

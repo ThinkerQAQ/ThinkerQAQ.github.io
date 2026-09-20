@@ -1,5 +1,6 @@
 ---
 import type { CollectionEntry } from "astro:content";
+import ContentComments from "../components/ContentComments.astro";
 import ContentReaction from "../components/ContentReaction.astro";
 import NoteCollectionIndex from "../components/NoteCollectionIndex.astro";
 import NoteSequenceNavigation from "../components/NoteCollectionNavigation.astro";
@@ -53,8 +54,8 @@ const readingUi = READING_EXPERIENCE_UI[locale];
 const relatedUi = RELATED_CONTENT_UI[locale];
 const topicPath = getNoteTopicPath(note);
 const notePath = noteHref(note, locale);
-const hasLocalizedBody = locale === DEFAULT_LOCALE || data.language === locale;
-const canonicalPath = data.canonicalPath ?? (hasLocalizedBody ? notePath : noteHref(note, DEFAULT_LOCALE));
+const commentThreadPath = noteHref(note, DEFAULT_LOCALE);
+const canonicalPath = data.canonicalPath ?? notePath;
 const hasSourceTimestamps = data.status !== "historical" || Boolean(data.createdAt);
 const localizedTags = data.tags.flatMap((tag) => {
   const label = localizeNoteTagLabel(tag, locale);
@@ -90,7 +91,7 @@ const schema = {
 <BaseLayout
   title={data.title}
   description={data.description}
-  noindex={!data.indexable || !hasLocalizedBody}
+  noindex={!data.indexable}
   type="article"
   canonicalPath={canonicalPath}
   locale={locale}
@@ -134,7 +135,6 @@ const schema = {
         )}
       </header>
 
-      {locale === "en" && data.language !== "en" && <p class="source-note">{ui.notesChineseNotice}</p>}
       {data.status === "historical" && (
         <p class="historical-note">
           {locale === "en"
@@ -169,6 +169,7 @@ const schema = {
       {(collectionNavigation.previous || collectionNavigation.next) && (
         <NoteSequenceNavigation navigation={collectionNavigation} locale={locale} />
       )}
+      <ContentComments language={locale} threadPath={commentThreadPath} />
     </article>
     <TableOfContents headings={headings} locale={locale} />
   </div>
