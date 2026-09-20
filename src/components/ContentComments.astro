@@ -4,19 +4,19 @@ import { COMMENTS, SITE } from "../config/site";
 
 interface Props {
   language?: Locale;
-  canonicalPath: string;
+  threadPath: string;
 }
 
-const { language = "zh", canonicalPath } = Astro.props;
+const { language = "zh", threadPath } = Astro.props;
 const isChinese = language === "zh";
 const heading = isChinese ? "讨论" : "Discussion";
 const description = isChinese
   ? "使用 GitHub 账号参与讨论，评论会保存在 GitHub Issues 中。"
   : "Sign in with GitHub to comment. Discussions are stored as GitHub Issues.";
 
-const threadKey = canonicalPath.length < 2
+const threadKey = threadPath.length < 2
   ? "index"
-  : canonicalPath.replace(/^\/+/, "").replace(/\.\w+$/, "");
+  : threadPath.replace(/^\/+/, "").replace(/\.\w+$/, "");
 const issueSearch = new URLSearchParams({
   q: `is:issue label:${COMMENTS.label} "${threadKey}"`,
 });
