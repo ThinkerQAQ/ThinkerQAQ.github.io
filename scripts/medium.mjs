@@ -190,17 +190,17 @@ export function flattenMarkdownTables(markdown) {
 }
 
 function standaloneImage(line) {
-  const match = String(line).trim().match(/^!\\[([^\\]]*)\\]\\((\\S+)(?:\\s+["']([^"']*)["'])?\\)$/u);
+  const match = String(line).trim().match(/^!\[([^\]]*)\]\((\S+)(?:\s+["']([^"']*)["'])?\)$/u);
   if (!match) return null;
   const alt = match[1] || "";
   const href = absoluteHref(match[2]);
-  const label = alt ? `[Image: ${alt}]` : "[Image]";
+  const label = alt ? \`[Image: \${alt}]\` : "[Image]";
   return {
     kind: "image",
     paragraphType: PARAGRAPH,
     text: label,
     markups: [{ type: MARKUP_LINK, start: 0, end: label.length, href, anchorType: 0 }],
-    html: `<a href="${escapeHtml(href)}">${escapeHtml(label)}</a>`,
+    html: \`<a href="\${escapeHtml(href)}">\${escapeHtml(label)}</a>\`,
     url: href,
     alt,
   };
@@ -209,11 +209,11 @@ function standaloneImage(line) {
 function isBlockStart(line) {
   const value = line.trim();
   return !value
-    || /^```/u.test(value)
-    || /^#{1,6}\\s+/u.test(value)
+    || /^\`\`\`/u.test(value)
+    || /^#{1,6}\s+/u.test(value)
     || /^>/u.test(value)
-    || /^[-*+]\\s+/u.test(value)
-    || /^\\d+[.)]\\s+/u.test(value)
+    || /^[-*+]\s+/u.test(value)
+    || /^\d+[.)]\s+/u.test(value)
     || /^---+$/u.test(value)
     || Boolean(standaloneImage(value));
 }
