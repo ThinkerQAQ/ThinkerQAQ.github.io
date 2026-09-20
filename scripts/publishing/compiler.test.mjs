@@ -54,7 +54,7 @@ test("compiler preserves non-Mermaid fences and does not rewrite links inside th
   const result = compilePublishingMarkdown(source, { platform: "devto" });
   assert.match(result.markdown, /\[outside\]\(https:\/\/thinkerqaq\.github\.io\/articles\/a\/\)/u);
   assert.match(result.markdown, /\[example\]\(\/articles\/inside\/\)/u);
-  assert.match(result.markdown, /src=\"\/inside\.png\"/u);
+  assert.equal(result.markdown.includes('src="/inside.png"'), true);
 });
 
 test("root-relative Markdown and HTML links become absolute outside fences", () => {
