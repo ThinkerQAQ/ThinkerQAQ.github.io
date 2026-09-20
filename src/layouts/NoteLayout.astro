@@ -54,7 +54,7 @@ const readingUi = READING_EXPERIENCE_UI[locale];
 const relatedUi = RELATED_CONTENT_UI[locale];
 const topicPath = getNoteTopicPath(note);
 const notePath = noteHref(note, locale);
-const commentCanonicalPath = noteHref(note, DEFAULT_LOCALE);
+const commentThreadPath = noteHref(note, DEFAULT_LOCALE);
 const canonicalPath = data.canonicalPath ?? notePath;
 const hasSourceTimestamps = data.status !== "historical" || Boolean(data.createdAt);
 const localizedTags = data.tags.flatMap((tag) => {
@@ -169,7 +169,7 @@ const schema = {
       {(collectionNavigation.previous || collectionNavigation.next) && (
         <NoteSequenceNavigation navigation={collectionNavigation} locale={locale} />
       )}
-      <ContentComments language={locale} canonicalPath={commentCanonicalPath} />
+      <ContentComments language={locale} threadPath={commentThreadPath} />
     </article>
     <TableOfContents headings={headings} locale={locale} />
   </div>
