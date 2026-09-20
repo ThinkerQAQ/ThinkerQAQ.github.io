@@ -1,7 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { selectBrowserSessionCookies } from "../tools/blogctl/extension/session.js";
+import { collectBrowserSessionCookieBatches, selectBrowserSessionCookies } from "../tools/blogctl/extension/session.js";
+
+test("CNBlogs also collects cookies in its top-level site partition", async () => {
+  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  const filters = [];
+  const batches = await collectBrowserSessionCookieBatches(PLATFORM_SESSIONS.cnblogs, async (filter) => {
+    filters.push(filter);
+    return filter.url === "https://i.cnblogs.com/api/user" && filter.partitionKey?.topLevelSite === "https://cnblogs.com"
+      ? [{ name: "partitioned-login", value: "secret", domain: "i.cnblogs.com", path: "/", hostOnly: true, partitionKey: filter.partitionKey }]
+      : [];
+  });
+  assert.ok(filters.some((filter) => filter.partitionKey?.topLevelSite === "https://cnblogs.com"));
+  const selected = selectBrowserSessionCookies(PLATFORM_SESSIONS.cnblogs, batches);
+  assert.deepEqual(selected.map((cookie) => cookie.name), ["partitioned-login"]);
+  assert.equal(selected[0].partitionKey.topLevelSite, "https://cnblogs.com");
+});
 
 test("selectBrowserSessionCookies preserves domain/path metadata and deduplicates exact cookies", () => {
   const selected = selectBrowserSessionCookies({ requiredCookieNames: [] }, [[

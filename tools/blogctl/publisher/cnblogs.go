@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,24 +15,14 @@ import (
 const cnBlogsOrigin = "https://i.cnblogs.com"
 
 type cnBlogsAdapter struct {
-	client         *http.Client
-	session        Session
-	userAgent      string
-	xsrf           string
-	username       string
-	browserManaged bool
+	client    *http.Client
+	session   Session
+	userAgent string
+	xsrf      string
+	username  string
 }
 
-// BrowserManagedTransport performs CNBlogs requests inside the browser runtime.
-// Cookies and CSRF stay in that runtime instead of being copied into Go.
-type BrowserManagedTransport interface{ BrowserManaged() bool }
-
 func NewCNBlogsAdapter(base *http.Client, session Session) (Adapter, error) {
-	if base != nil && base.Transport != nil {
-		if runtime, ok := base.Transport.(BrowserManagedTransport); ok && runtime.BrowserManaged() {
-			return &cnBlogsAdapter{client: base, userAgent: session.UserAgent, browserManaged: true}, nil
-		}
-	}
 	client, err := HTTPClientForSession(base, session)
 	if err != nil {
 		return nil, err
@@ -50,10 +41,19 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	if err != nil {
 		return AuthResult{}, err
 	}
+	cookieNames := []string{}
+	if c.client.Jar != nil {
+		for _, cookie := range c.client.Jar.Cookies(req.URL) {
+			cookieNames = append(cookieNames, cookie.Name)
+		}
+	}
+	started := time.Now()
 	response, err := c.client.Do(req)
 	if err != nil {
+		slog.Warn("cnblogs auth request failed", "operation", "auth", "endpoint", "/api/user", "cookieNames", cookieNames, "durationMs", time.Since(started).Milliseconds(), "error", err)
 		return AuthResult{}, platformError(ErrUpstream, c.ID(), "auth", 0, err.Error(), true)
 	}
+	slog.Info("cnblogs auth response", "operation", "auth", "endpoint", "/api/user", "cookieNames", cookieNames, "status", response.StatusCode, "durationMs", time.Since(started).Milliseconds())
 	defer response.Body.Close()
 	raw, err := readBounded(response, 2<<20)
 	if err != nil {
@@ -86,10 +86,6 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 }
 
 func (c *cnBlogsAdapter) xsrfToken(ctx context.Context) (string, error) {
-	if c.browserManaged {
-		// The extension primes and injects XSRF immediately before each write.
-		return "", nil
-	}
 	if c.xsrf != "" {
 		return c.xsrf, nil
 	}

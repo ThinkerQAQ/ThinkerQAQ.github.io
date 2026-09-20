@@ -96,6 +96,9 @@ export const PLATFORM_AUTH = Object.freeze([
 export const PLATFORM_SESSIONS = Object.freeze({
   cnblogs: {
     cookieDomains: ["cnblogs.com"],
+    // Chrome cookies.getAll defaults to unpartitioned cookies. CNBlogs can also
+    // have cookies scoped to its top-level site partition.
+    cookiePartitionKeys: [{ topLevelSite: "https://cnblogs.com" }],
     cookieUrls: [
       "https://www.cnblogs.com/",
       "https://i.cnblogs.com/",
@@ -103,6 +106,7 @@ export const PLATFORM_SESSIONS = Object.freeze({
       "https://i.cnblogs.com/api/posts",
       "https://i.cnblogs.com/posts/edit",
       "https://home.cnblogs.com/",
+      "https://account.cnblogs.com/",
       "https://upload.cnblogs.com/v2/images/cors-upload",
     ],
     requiredCookieNames: [],

@@ -6,8 +6,6 @@
   "description": "Browser integration for BlogCTL. Shows publishing-platform login status, manages the local bridge and proxy configuration, and hands short-lived platform sessions to native publishers without persisting browser credentials.",
   "permissions": [
     "cookies",
-    "alarms",
-    "declarativeNetRequest",
     "nativeMessaging"
   ],
   "host_permissions": [

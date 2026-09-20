@@ -537,16 +537,9 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 }
 
 func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
-	var session publisher.Session
-	var httpClient *http.Client
-	var err error
-	if request.Platform == "cnblogs" {
-		httpClient = p.server.cnBlogsBrowserClient()
-	} else {
-		session, httpClient, err = p.publisherSession(request.Platform)
-		if err != nil {
-			return blogapp.NativeDraftResult{}, err
-		}
+	session, httpClient, err := p.publisherSession(request.Platform)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
 	}
 	service := publisher.Service{HTTPClient: httpClient}
 	result, err := service.CreateOrUpdateDraft(

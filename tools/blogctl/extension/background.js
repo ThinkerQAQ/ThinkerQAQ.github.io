@@ -1,14 +1,11 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
-import { selectBrowserSessionCookies } from "./session.js";
+import { collectBrowserSessionCookieBatches, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
-import { executeBrowserRequest } from "./browser-runtime.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
 let bridgeSession = null;
-let browserRuntimePump = null;
-const BROWSER_RUNTIME_ALARM = "blogctl-cnblogs-runtime";
 
 async function setBadge(text, color) {
   await chrome.action.setBadgeText({ text });
@@ -208,9 +205,7 @@ async function getStatus() {
   const sessionEntries = await Promise.all(
     Object.keys(PLATFORM_SESSIONS).map(async (platform) => [
       platform,
-      platform === "cnblogs"
-        ? { known: bridge.running, synced: Boolean(bridge.running && platforms.find((item) => item.id === "cnblogs")?.loggedIn && !platforms.find((item) => item.id === "cnblogs")?.inferred), expiresInSeconds: 0, unavailable: !bridge.running }
-        : await platformSessionStatus(platform, bridge),
+      await platformSessionStatus(platform, bridge),
     ]),
   );
   return { bridge, platforms, sessions: Object.fromEntries(sessionEntries) };
@@ -225,25 +220,7 @@ async function saveBridgeConfig(config) {
 }
 
 async function collectPlatformCookieBatches(definition) {
-  const cookieUrls = definition.cookieUrls ?? (definition.cookieUrl ? [definition.cookieUrl] : []);
-  const cookieDomains = definition.cookieDomains ?? [];
-  const requests = [
-    ...cookieUrls.map(async (url) => {
-      try {
-        return await chrome.cookies.getAll({ url });
-      } catch (error) {
-        throw new Error(`chrome.cookies.getAll({ url: ${url} }) failed: ${errorMessage(error)}`);
-      }
-    }),
-    ...cookieDomains.map(async (domain) => {
-      try {
-        return await chrome.cookies.getAll({ domain });
-      } catch (error) {
-        throw new Error(`chrome.cookies.getAll({ domain: ${domain} }) failed: ${errorMessage(error)}`);
-      }
-    }),
-  ];
-  return Promise.all(requests);
+  return collectBrowserSessionCookieBatches(definition, (filter) => chrome.cookies.getAll(filter));
 }
 
 async function selectedPlatformCookies(platform) {
@@ -299,78 +276,6 @@ async function prepareJobSessions(job) {
   await syncSessionsForPlatforms(job?.platforms ?? []);
 }
 
-async function browserRuntimeFetch(path, options = {}) {
-  const bridge = await ensureBridge();
-  const response = await fetch(`${bridge.baseUrl}${path}`, {
-    ...options,
-    headers: { "x-thinkerqaq-token": bridge.token, ...(options.headers ?? {}) },
-  });
-  if (!response.ok) throw new Error(`browser runtime bridge HTTP ${response.status}`);
-  return response.json();
-}
-
-async function runningCNBlogsJobs() {
-  const result = await fetchJSON("/v1/sync/jobs");
-  return (result?.jobs ?? []).some((job) => job.state === "running" && job.operation !== "publish" && job.platforms?.includes("cnblogs"));
-}
-
-const CNBLOGS_RULE_IDS = [3214501, 3214502];
-
-async function setCNBlogsHeaderRules(enabled) {
-  const addRules = enabled ? [
-    { id: CNBLOGS_RULE_IDS[0], priority: 1, action: { type: "modifyHeaders", requestHeaders: [
-      { header: "Origin", operation: "set", value: "https://i.cnblogs.com" },
-      { header: "Referer", operation: "set", value: "https://i.cnblogs.com/" },
-    ] }, condition: { urlFilter: "||i.cnblogs.com/", initiatorDomains: [chrome.runtime.id], resourceTypes: ["xmlhttprequest"] } },
-    { id: CNBLOGS_RULE_IDS[1], priority: 1, action: { type: "modifyHeaders", requestHeaders: [
-      { header: "Origin", operation: "set", value: "https://i.cnblogs.com" },
-      { header: "Referer", operation: "set", value: "https://i.cnblogs.com/" },
-    ] }, condition: { urlFilter: "||upload.cnblogs.com/", initiatorDomains: [chrome.runtime.id], resourceTypes: ["xmlhttprequest"] } },
-  ] : [];
-  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: CNBLOGS_RULE_IDS, addRules });
-}
-
-function startBrowserRuntimePump() {
-  if (browserRuntimePump) return browserRuntimePump;
-  browserRuntimePump = (async () => {
-    try {
-      if (!(await runningCNBlogsJobs())) {
-        await setCNBlogsHeaderRules(false);
-        await chrome.alarms.clear(BROWSER_RUNTIME_ALARM);
-        return;
-      }
-      await setCNBlogsHeaderRules(true);
-      while (await runningCNBlogsJobs()) {
-        const next = await browserRuntimeFetch("/v1/browser-runtime/next");
-        if (!next?.request) continue;
-        const result = await executeBrowserRequest(next.request);
-        await browserRuntimeFetch("/v1/browser-runtime/result", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(result),
-        });
-      }
-      await chrome.alarms.clear(BROWSER_RUNTIME_ALARM);
-    } catch (error) {
-      console.error("BlogCTL browser runtime stopped:", errorMessage(error));
-    } finally {
-      try { await setCNBlogsHeaderRules(false); } catch (error) { console.error("BlogCTL CNBlogs header cleanup failed:", errorMessage(error)); }
-      browserRuntimePump = null;
-    }
-  })();
-  return browserRuntimePump;
-}
-
-async function ensureBrowserRuntimeForJob(job) {
-  if (job?.operation === "publish" || !job?.platforms?.includes("cnblogs")) return;
-  await chrome.alarms.create(BROWSER_RUNTIME_ALARM, { periodInMinutes: 0.5 });
-  void startBrowserRuntimePump();
-}
-
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === BROWSER_RUNTIME_ALARM) void startBrowserRuntimePump();
-});
-
 async function handleMessage(message) {
   switch (message.type) {
     case "blogctl.status": return { ok: true, status: await getStatus() };
@@ -418,9 +323,8 @@ async function handleMessage(message) {
     }
     case "blogctl.job.start": {
       const request = message.request ?? {};
-      await syncSessionsForPlatforms((request.platforms ?? []).filter((platform) => platform !== "cnblogs"));
+      await syncSessionsForPlatforms(request.platforms ?? []);
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
-      await ensureBrowserRuntimeForJob(result?.job);
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
@@ -443,9 +347,8 @@ async function handleMessage(message) {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
-      await syncSessionsForPlatforms((current?.job?.platforms ?? []).filter((platform) => platform !== "cnblogs"));
+      await syncSessionsForPlatforms(current?.job?.platforms ?? []);
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
-      await ensureBrowserRuntimeForJob(result?.job);
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.publish": {

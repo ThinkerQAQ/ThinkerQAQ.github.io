@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -19,16 +20,22 @@ const (
 	maxBodyBytes   = 2 * 1024 * 1024
 )
 
+type browserPartitionKey struct {
+	TopLevelSite string `json:"topLevelSite"`
+}
+
 type browserCookie struct {
-	Name           string   `json:"name"`
-	Value          string   `json:"value"`
-	Domain         string   `json:"domain,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	Secure         bool     `json:"secure,omitempty"`
-	HTTPOnly       bool     `json:"httpOnly,omitempty"`
-	HostOnly       bool     `json:"hostOnly,omitempty"`
-	SameSite       string   `json:"sameSite,omitempty"`
-	ExpirationDate *float64 `json:"expirationDate,omitempty"`
+	Name           string               `json:"name"`
+	Value          string               `json:"value"`
+	StoreID        string               `json:"storeId,omitempty"`
+	PartitionKey   *browserPartitionKey `json:"partitionKey,omitempty"`
+	Domain         string               `json:"domain,omitempty"`
+	Path           string               `json:"path,omitempty"`
+	Secure         bool                 `json:"secure,omitempty"`
+	HTTPOnly       bool                 `json:"httpOnly,omitempty"`
+	HostOnly       bool                 `json:"hostOnly,omitempty"`
+	SameSite       string               `json:"sameSite,omitempty"`
+	ExpirationDate *float64             `json:"expirationDate,omitempty"`
 }
 
 type sessionRequest struct {
@@ -61,7 +68,6 @@ type Server struct {
 	sessions       map[string]platformSession
 	jobs           map[string]*syncJob
 	jobOrder       []string
-	browserRuntime *browserRuntime
 }
 
 func New(token string) (*Server, error) {
@@ -74,13 +80,12 @@ func New(token string) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		token:          token,
-		now:            time.Now,
-		httpClient:     client,
-		config:         config,
-		sessions:       make(map[string]platformSession),
-		jobs:           make(map[string]*syncJob),
-		browserRuntime: newBrowserRuntime(),
+		token:      token,
+		now:        time.Now,
+		httpClient: client,
+		config:     config,
+		sessions:   make(map[string]platformSession),
+		jobs:       make(map[string]*syncJob),
 	}, nil
 }
 
@@ -116,14 +121,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
-	if path == "v1/browser-runtime/next" && request.Method == http.MethodGet {
-		s.handleBrowserRuntimeNext(response, request)
-		return
-	}
-	if path == "v1/browser-runtime/result" && request.Method == http.MethodPost {
-		s.handleBrowserRuntimeResult(response, request)
-		return
-	}
 
 	if path == "v1/health" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {
@@ -281,7 +278,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	response.Header().Set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
-	response.Header().Set("access-control-allow-headers", "content-type, x-thinkerqaq-token")
+	response.Header().Set("access-control-allow-headers", "content-type")
 	response.WriteHeader(http.StatusNoContent)
 }
 
@@ -593,6 +590,13 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		ExpiresAt:      s.now().Add(sessionTTL),
 	}
 	s.mu.Unlock()
+	if platform == "cnblogs" {
+		cookieNames := make([]string, 0, len(body.Cookies))
+		for _, cookie := range body.Cookies {
+			cookieNames = append(cookieNames, cookie.Name)
+		}
+		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames)
+	}
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
 		"ok": true, "platform": platform, "expiresInSeconds": int(sessionTTL.Seconds()),
@@ -615,9 +619,21 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 	if ok {
 		seconds = max(0, int(session.ExpiresAt.Sub(s.now()).Seconds()))
 	}
-	writeJSON(response, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"platform": platform, "authenticated": ok, "expiresInSeconds": seconds,
-	})
+	}
+	if ok {
+		cookies := make([]map[string]any, 0, len(session.BrowserCookies))
+		for _, cookie := range session.BrowserCookies {
+			cookies = append(cookies, map[string]any{
+				"name": cookie.Name, "domain": cookie.Domain, "path": cookie.Path,
+				"secure": cookie.Secure, "httpOnly": cookie.HTTPOnly, "hostOnly": cookie.HostOnly,
+				"storeId": cookie.StoreID, "partitioned": cookie.PartitionKey != nil,
+			})
+		}
+		payload["cookies"] = cookies
+	}
+	writeJSON(response, http.StatusOK, payload)
 }
 
 func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request, platform string) {

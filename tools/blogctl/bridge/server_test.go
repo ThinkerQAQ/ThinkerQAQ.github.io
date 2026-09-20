@@ -6,8 +6,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 func TestBridgeAcceptsOnlyApprovedMediumCookies(t *testing.T) {
@@ -96,6 +100,75 @@ func TestBridgeStoresJuejinCookieMetadataInMemory(t *testing.T) {
 	}
 	if session.UserAgent != "UA" {
 		t.Fatalf("user agent = %q", session.UserAgent)
+	}
+}
+
+func TestCNBlogsCookieReachesGoJarAndStatusRedactsValue(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	const cookieValue = "test-login-value"
+	body, _ := json.Marshal(map[string]any{
+		"cookies": []map[string]any{{
+			"name": ".CNBlogsCookie", "value": cookieValue, "domain": ".cnblogs.com",
+			"path": "/", "secure": true, "storeId": "0",
+			"partitionKey": map[string]string{"topLevelSite": "https://cnblogs.com"},
+		}},
+		"userAgent": "UA",
+	})
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/cnblogs", bytes.NewReader(body))
+	request.Header.Set("origin", "chrome-extension://test")
+	request.Header.Set("content-type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("session status = %d", response.StatusCode)
+	}
+
+	session, base, err := (bridgeNativePublisher{server: server}).publisherSession("cnblogs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := publisher.HTTPClientForSession(base, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, _ := url.Parse("https://i.cnblogs.com/api/user")
+	attached := client.Jar.Cookies(target)
+	if len(attached) != 1 || attached[0].Name != ".CNBlogsCookie" || attached[0].Value != cookieValue {
+		t.Fatal("CNBlogs login cookie was not attached to the Go request")
+	}
+
+	statusRequest, _ := http.NewRequest(http.MethodGet, handler.URL+"/v1/sessions/cnblogs/status", nil)
+	statusRequest.Header.Set("origin", "chrome-extension://test")
+	statusResponse, err := http.DefaultClient.Do(statusRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer statusResponse.Body.Close()
+	statusBody, _ := io.ReadAll(statusResponse.Body)
+	if statusResponse.StatusCode != http.StatusOK || strings.Contains(string(statusBody), cookieValue) {
+		t.Fatal("session status failed or exposed a cookie value")
+	}
+	var status struct {
+		Cookies []struct {
+			Name        string `json:"name"`
+			StoreID     string `json:"storeId"`
+			Partitioned bool   `json:"partitioned"`
+		} `json:"cookies"`
+	}
+	if err := json.Unmarshal(statusBody, &status); err != nil {
+		t.Fatal(err)
+	}
+	if len(status.Cookies) != 1 || status.Cookies[0].Name != ".CNBlogsCookie" || status.Cookies[0].StoreID != "0" || !status.Cookies[0].Partitioned {
+		t.Fatal("session status did not retain cookie metadata")
 	}
 }
 
