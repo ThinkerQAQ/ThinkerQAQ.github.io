@@ -20,7 +20,7 @@ test("reading progress matches the reading experience boundaries", () => {
   };
 
   assert.equal(computeReadingProgress({ ...input, scrollY: 920 }), 0);
-  assert.equal(computeReadingProgress({ ...input, scrollY: 3000 }), 53);
+  assert.equal(computeReadingProgress({ ...input, scrollY: 3000 }), 65);
   assert.equal(computeReadingProgress({ ...input, scrollY: 4120 }), 100);
   assert.equal(computeReadingProgress({ ...input, scrollY: 6000 }), 100);
 });
