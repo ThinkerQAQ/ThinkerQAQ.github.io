@@ -73,7 +73,7 @@ function makeLineLinksAbsolute(line, siteOrigin) {
   const origin = new URL(siteOrigin).origin;
   return line
     .replace(/(\]\()\/(?!\/)/gu, `$1${origin}/`)
-    .replace(/((?:href|src)=[\"'])\/(?!\/)/giu, `$1${origin}/`);
+    .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${origin}/`);
 }
 
 export function makeExternalLinksAbsolute(markdown, {
