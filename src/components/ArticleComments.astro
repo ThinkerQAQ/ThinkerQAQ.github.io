@@ -13,15 +13,6 @@ const heading = isChinese ? "讨论" : "Discussion";
 const description = isChinese
   ? "使用 GitHub 账号参与讨论，评论会保存在 GitHub Issues 中。"
   : "Sign in with GitHub to comment. Discussions are stored as GitHub Issues.";
-const utterancesAttributes = {
-  src: "https://utteranc.es/client.js",
-  repo: COMMENTS.repository,
-  "issue-term": COMMENTS.issueTerm,
-  label: COMMENTS.label,
-  theme: COMMENTS.theme,
-  crossorigin: "anonymous",
-  async: true,
-};
 const issueSearch = new URLSearchParams({
   q: `is:issue label:${COMMENTS.label} "${pathname}"`,
 });
@@ -36,7 +27,13 @@ const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
       <a href={issuesUrl} rel="external">{isChinese ? "在 GitHub 查看" : "View on GitHub"}</a>
     </p>
   </header>
-  <script is:inline {...utterancesAttributes}></script>
+  <div
+    data-utterances-container
+    data-repo={COMMENTS.repository}
+    data-issue-term={COMMENTS.issueTerm}
+    data-label={COMMENTS.label}
+    data-theme={COMMENTS.theme}
+  ></div>
   <noscript>
     <p>
       {isChinese ? "需要启用 JavaScript 才能加载评论。" : "JavaScript is required to load comments."}
@@ -44,3 +41,35 @@ const issuesUrl = `${SITE.repository}/issues?${issueSearch.toString()}`;
     </p>
   </noscript>
 </section>
+
+<script>
+  const container = document.querySelector<HTMLElement>("[data-utterances-container]");
+
+  if (container) {
+    const loadUtterances = () => {
+      const script = document.createElement("script");
+      script.src = "https://utteranc.es/client.js";
+      script.async = true;
+      script.crossOrigin = "anonymous";
+      script.setAttribute("repo", container.dataset.repo ?? "");
+      script.setAttribute("issue-term", container.dataset.issueTerm ?? "pathname");
+      script.setAttribute("label", container.dataset.label ?? "");
+      script.setAttribute("theme", container.dataset.theme ?? "github-light");
+      container.append(script);
+    };
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          observer.disconnect();
+          loadUtterances();
+        },
+        { rootMargin: "800px 0px" },
+      );
+      observer.observe(container);
+    } else {
+      loadUtterances();
+    }
+  }
+</script>
