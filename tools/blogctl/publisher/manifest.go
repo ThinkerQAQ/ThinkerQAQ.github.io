@@ -97,6 +97,37 @@ func platformState(manifest map[string]any, slug, platform string) (map[string]a
 	return state, nil
 }
 
+type ArticleLink struct {
+	Platform     string `json:"platform"`
+	RemoteID     string `json:"remoteId,omitempty"`
+	DraftURL     string `json:"draftUrl,omitempty"`
+	PublishedURL string `json:"publishedUrl,omitempty"`
+}
+
+// LoadArticleLinks reads locally recorded remote references without contacting a platform.
+func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) {
+	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]ArticleLink{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	article := objectValue(objectValue(manifest["articles"])[slug])
+	result := map[string]ArticleLink{}
+	for platform, raw := range objectValue(article["platforms"]) {
+		state := objectValue(raw)
+		link := ArticleLink{Platform: platform, RemoteID: stringValue(state["remoteDraftId"]), DraftURL: stringValue(state["draftUrl"]), PublishedURL: stringValue(state["publishedUrl"])}
+		if link.RemoteID == "" {
+			link.RemoteID = draftIDFromURL(platform, link.DraftURL)
+		}
+		if link.RemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
+			result[platform] = link
+		}
+	}
+	return result, nil
+}
+
 func draftIDFromURL(platform, rawURL string) string {
 	text := strings.TrimSpace(rawURL)
 	if text == "" {

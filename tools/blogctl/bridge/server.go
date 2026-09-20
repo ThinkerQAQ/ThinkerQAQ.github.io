@@ -161,6 +161,14 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleCNBlogsBindingSearch(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/article-links" && request.Method == http.MethodGet {
+		s.handleArticleLinks(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding/verify" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingVerify(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/cnblogs/binding" && request.Method == http.MethodPost {
 		s.handleCNBlogsBindingPut(response, request, request.URL.Query().Get("article"))
 		return

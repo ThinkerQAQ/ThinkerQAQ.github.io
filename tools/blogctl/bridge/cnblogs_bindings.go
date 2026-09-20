@@ -45,6 +45,63 @@ func (s *Server) handleCNBlogsBindingGet(response http.ResponseWriter, request *
 	writeJSON(response, http.StatusOK, map[string]any{"article": article, "binding": binding, "found": found})
 }
 
+func (s *Server) handleArticleLinks(response http.ResponseWriter, request *http.Request, slug string) {
+	if !allowReadOnlyBridgeStatus(response, request) {
+		return
+	}
+	_, root, err := s.cnBlogsArticle(slug)
+	if err != nil {
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	links, err := publisher.LoadArticleLinks(root, slug)
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "article_links_read_failed", err.Error(), nil)
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"links": links})
+}
+
+func (s *Server) handleCNBlogsBindingVerify(response http.ResponseWriter, request *http.Request, slug string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	_, root, err := s.cnBlogsArticle(slug)
+	if err != nil {
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	binding, found, err := publisher.LoadCNBlogsBinding(root, slug)
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
+		return
+	}
+	if !found {
+		writeJSON(response, http.StatusOK, map[string]any{"found": false})
+		return
+	}
+	session, client, err := (bridgeNativePublisher{server: s}).publisherSession("cnblogs")
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "session_required", err.Error(), nil)
+		return
+	}
+	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
+	defer cancel()
+	started := time.Now()
+	account, post, err := publisher.CNBlogsGetPost(ctx, client, session, binding.PostID)
+	if err != nil {
+		slog.Warn("cnblogs binding verify failed", "operation", "binding-verify", "slug", slug, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+		writeAPIError(response, http.StatusBadGateway, "verification_failed", err.Error(), nil)
+		return
+	}
+	if binding.Account != "" && !strings.EqualFold(binding.Account, account) {
+		writeAPIError(response, http.StatusConflict, "account_mismatch", "binding belongs to a different CNBlogs account", nil)
+		return
+	}
+	slog.Info("cnblogs binding verified", "operation", "binding-verify", "slug", slug, "postId", post.ID, "durationMs", time.Since(started).Milliseconds())
+	writeJSON(response, http.StatusOK, map[string]any{"found": true, "binding": binding, "post": post, "account": account})
+}
+
 func (s *Server) handleCNBlogsBindingMigrate(response http.ResponseWriter, request *http.Request) {
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return

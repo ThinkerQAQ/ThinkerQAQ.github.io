@@ -134,6 +134,10 @@ func TestCNBlogsBindingSearchAndManualVerification(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".blogctl", "publications.json")); err != nil {
 		t.Fatal(err)
 	}
+	verified := post("/v1/cnblogs/binding/verify?article=example", nil)
+	if verified["found"] != true || verified["post"].(map[string]any)["id"] != "42" {
+		t.Fatalf("verified = %#v", verified)
+	}
 	if err := publisher.SaveCNBlogsBinding(root, publisher.CNBlogsBinding{Slug: "example", Account: "ThinkerQAQ", PostID: "42", State: "published", RemoteUpdatedAt: "baseline", LastPushedHash: "old-hash"}); err != nil {
 		t.Fatal(err)
 	}

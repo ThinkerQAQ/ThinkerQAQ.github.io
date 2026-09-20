@@ -338,6 +338,33 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/articles");
       return { ok: true, articles: result?.articles ?? [] };
     }
+    case "blogctl.article.match": {
+      const article = encodeURIComponent(String(message.article || ""));
+      const platform = String(message.platform || "");
+      if (!article || !platform) throw new Error("article and platform are required");
+      if (platform === "cnblogs") {
+        await fetchJSON("/v1/cnblogs/binding/migrate", { method: "POST" });
+        const current = await fetchJSON(`/v1/cnblogs/binding?article=${article}`);
+        await syncPlatformSession("cnblogs");
+        if (current.found) {
+          const verified = await fetchJSON(`/v1/cnblogs/binding/verify?article=${article}`, { method: "POST" });
+          const post = verified.post;
+          return { ok: true, match: { text: "已核验绑定文章", items: [{ title: post.title, id: post.id, published: post.published, url: post.url || "" }] } };
+        }
+        const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: { text: candidates.length
+          ? `尚未绑定；找到 ${candidates.length} 篇候选文章，请到“发布配置”核对并绑定。`
+          : "尚未绑定；未找到候选文章。可到“发布配置”填写 ID／链接。",
+          items: candidates.map((post) => ({ title: post.title, id: post.id, published: post.published, url: post.url || "" })) } };
+      }
+      const result = await fetchJSON(`/v1/article-links?article=${article}`);
+      const link = result.links?.[platform];
+      const reference = link?.remoteId || link?.publishedUrl || link?.draftUrl;
+      return { ok: true, match: { text: reference
+        ? `本地记录：${reference} · 尚未远端验证（当前平台不支持在线查找）`
+        : "当前平台尚不支持在线查找；本地没有文章关联记录。" } };
+    }
     case "blogctl.cnblogs.binding": {
       const article = encodeURIComponent(String(message.article || ""));
       await fetchJSON("/v1/cnblogs/binding/migrate", { method: "POST" });
