@@ -33,20 +33,21 @@
     if (marker && marker === activeMarker && runtimeWindow.__thinkerContentAnalyticsPageCleanup) return;
 
     runtimeWindow.__thinkerContentAnalyticsPageCleanup?.();
-    runtimeWindow.__thinkerContentAnalyticsPageCleanup = undefined;
+    delete runtimeWindow.__thinkerContentAnalyticsPageCleanup;
     activeMarker = null;
     const readingContent = document.querySelector<HTMLElement>("[data-reading-content]");
     const readingStart = document.getElementById("reading-start");
     const readingEnd = document.getElementById("reading-end");
 
     if (!marker || !readingContent || !readingStart || !readingEnd) return;
-    activeMarker = marker;
 
     try {
       if (localStorage.getItem("umami.disabled") === "1") return;
     } catch {
       // The Umami tracker already handles storage failures. Continue without a local override.
     }
+
+    activeMarker = marker;
 
     const metadata: EventData = {
       content_type: marker.dataset.analyticsContentType || "unknown",
@@ -274,7 +275,7 @@
 
   runtimeWindow.__thinkerContentAnalyticsBootstrapCleanup = () => {
     runtimeWindow.__thinkerContentAnalyticsPageCleanup?.();
-    runtimeWindow.__thinkerContentAnalyticsPageCleanup = undefined;
+    delete runtimeWindow.__thinkerContentAnalyticsPageCleanup;
     document.removeEventListener("astro:page-load", onPageLoad);
     document.removeEventListener("astro:before-swap", onBeforeSwap);
   };
