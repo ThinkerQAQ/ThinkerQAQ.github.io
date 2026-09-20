@@ -7,7 +7,9 @@ export default function markdownImageLoading() {
 
       if (node.type === "element" && node.tagName === "img") {
         node.properties ??= {};
-        node.properties.decoding = "async";
+        if (node.properties.decoding == null) {
+          node.properties.decoding = "async";
+        }
 
         if (imageIndex > 0 && node.properties.loading == null) {
           node.properties.loading = "lazy";
