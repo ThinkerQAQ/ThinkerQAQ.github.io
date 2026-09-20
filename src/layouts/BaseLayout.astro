@@ -1,5 +1,6 @@
 ---
 import AskBlog from "../components/AskBlogSession.astro";
+import MermaidRuntime from "../components/MermaidRuntime.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import {
@@ -165,5 +166,6 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     </main>
     <SiteFooter locale={locale} />
     <AskBlog locale={locale} />
+    <MermaidRuntime />
   </body>
 </html>

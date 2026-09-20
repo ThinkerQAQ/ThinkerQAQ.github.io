@@ -3,8 +3,24 @@
 ## 工具选择
 
 - draw.io：架构图、文章主图、需要手工布局和强调关系的图。
-- Mermaid：简单流程图、时序图和经常随代码变化的图。接入文章渲染前先作为辅助创作工具使用。
+- Mermaid：简单流程图、时序图和经常随代码变化的图。Markdown 中直接使用 `mermaid` fenced code block。
 - PlantUML：继续支持 Markdown 中已有的 `puml` / `plantuml` 代码块。
+
+## Mermaid 工作流
+
+在文章或笔记中直接写标准 Mermaid fenced code block：
+
+````markdown
+```mermaid
+flowchart LR
+  A[Write Markdown] --> B[Render diagram]
+```
+````
+
+不需要生成或提交额外的 SVG 文件。页面检测到 Mermaid 图表后，才会加载固定版本的 Mermaid renderer；没有 Mermaid 的页面不会下载它。当前 renderer 固定为 `mermaid@12.0.0`，使用 `securityLevel: "strict"`。
+
+如果浏览器无法加载 renderer，原始 Mermaid 源码会继续保留在页面中作为降级内容。
+
 
 ## draw.io 工作流
 

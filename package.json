@@ -11,7 +11,7 @@
     "diagrams:plantuml": "node scripts/render-plantuml.mjs",
     "diagrams:drawio": "node scripts/render-drawio.mjs",
     "check:drawio": "node scripts/render-drawio.mjs --check",
-    "test:diagrams": "npm run diagrams && node --test scripts/plantuml/plantuml.test.mjs scripts/drawio/drawio.test.mjs",
+    "test:diagrams": "npm run diagrams && node --test scripts/plantuml/plantuml.test.mjs scripts/drawio/drawio.test.mjs scripts/mermaid/mermaid.test.mjs",
     "test:indexnow": "node --test scripts/indexnow.test.mjs",
     "test:distribute": "node --test scripts/distribute.test.mjs",
     "test:syndicate": "node --test scripts/syndicate.test.mjs scripts/syndicate-run.test.mjs scripts/syndicate-cli.test.mjs scripts/medium.test.mjs scripts/blogctl-sync.test.mjs scripts/publishing-config.test.mjs",
