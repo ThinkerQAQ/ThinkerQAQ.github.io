@@ -123,3 +123,9 @@ Current routing uses one BlogCTL control plane:
 - Native Chinese publishing follows two explicit phases: first create or update the remote draft and return its preview URL; after preview, use **确定发布** from the task page. BlogCTL refuses confirmation when the source content hash no longer matches the reviewed draft.
 
 The browser extension is therefore the only browser-side component required by BlogCTL publishing.
+
+### CNBlogs existing article bindings
+
+In **同步发布**, select a local article and use **博客园文章绑定** to search the signed-in CNBlogs editor's posts or enter a CNBlogs article URL/ID. Search results are candidates; selecting one does not bind it until **验证并绑定** reads its editor detail. Existing bindings can be reverified, and changing an ID requires an explicit confirmation. BlogCTL-created drafts and confirmed bindings are kept in the content repository's `.blogctl/publications.json`, outside the generated `.distribution/` directory. The first visit to this section migrates existing CNBlogs IDs from `.distribution/manifest.json` into the durable file. Commit that file with the content repository to retain bindings across machines.
+
+A published binding cannot be sent through **创建/更新草稿**. Use **更新已发布文章** explicitly; BlogCTL checks the signed-in account, reads the remote post, compares its update time with the last verified baseline, and stops if the post changed remotely. Reverify the binding to accept a new remote baseline before retrying. These controls currently apply to CNBlogs only.

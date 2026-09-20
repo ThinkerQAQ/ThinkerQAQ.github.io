@@ -59,7 +59,7 @@
         link.href = row.url;
         link.target = "_blank";
         link.rel = "noreferrer noopener";
-        link.textContent = job.operation === "publish" ? "打开已发布文章" : "打开草稿";
+        link.textContent = job.operation === "publish" || job.operation === "update-published" ? "打开已发布文章" : "打开草稿";
         item.append(link);
       }
       container.append(item);
@@ -120,7 +120,7 @@
   }
 
   function canConfirmPublish(job) {
-    return job.operation !== "publish"
+    return job.operation === "draft"
       && job.state === "completed"
       && (job.platforms ?? []).length > 0
       && (job.platforms ?? []).every((platform) => NATIVE_CHINA_PLATFORMS.has(platform))

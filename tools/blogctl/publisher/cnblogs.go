@@ -270,13 +270,13 @@ func cnBlogsUpdatePayload(id string, input DraftInput, body string, publish bool
 	return payload
 }
 
-func (c *cnBlogsAdapter) save(ctx context.Context, refID string, input DraftInput, publish bool) (map[string]any, error) {
+func (c *cnBlogsAdapter) save(ctx context.Context, refID string, input DraftInput, publish, prepareImages bool) (map[string]any, error) {
 	token, err := c.xsrfToken(ctx)
 	if err != nil {
 		return nil, err
 	}
 	bodyText := input.Markdown
-	if !publish {
+	if prepareImages {
 		bodyText, err = c.prepareMarkdown(ctx, input)
 		if err != nil {
 			return nil, err
@@ -308,7 +308,7 @@ func (c *cnBlogsAdapter) save(ctx context.Context, refID string, input DraftInpu
 }
 
 func (c *cnBlogsAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
-	decoded, err := c.save(ctx, "", input, false)
+	decoded, err := c.save(ctx, "", input, false, true)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -320,7 +320,7 @@ func (c *cnBlogsAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dr
 	if strings.TrimSpace(ref.ID) == "" {
 		return DraftResult{}, platformError(ErrValidation, c.ID(), "update-draft", 0, "draft id is required", false)
 	}
-	decoded, err := c.save(ctx, ref.ID, input, false)
+	decoded, err := c.save(ctx, ref.ID, input, false, true)
 	if err != nil {
 		if IsKind(err, ErrRemoteDraftMissing) {
 			return DraftResult{}, err
@@ -338,7 +338,7 @@ func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if strings.TrimSpace(ref.ID) == "" {
 		return PublishResult{}, platformError(ErrValidation, c.ID(), "publish-draft", 0, "draft id is required", false)
 	}
-	decoded, err := c.save(ctx, ref.ID, input, true)
+	decoded, err := c.save(ctx, ref.ID, input, true, false)
 	if err != nil {
 		return PublishResult{}, err
 	}

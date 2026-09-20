@@ -42,6 +42,16 @@
         <label class="checkbox-row"><input id="changedOnly" type="checkbox"><span>仅更新内容有变化的平台草稿</span></label>
       </section>
 
+      <section class="status-card">
+        <div class="section-title">博客园文章绑定</div>
+        <p id="cnblogsBindingStatus" class="card-hint">选择文章后查看绑定。</p>
+        <div class="button-row"><button id="cnblogsFind" class="secondary" type="button" disabled>查找博客园文章</button></div>
+        <label class="field"><span>查找结果</span><select id="cnblogsCandidates"><option value="">可选择候选文章</option></select></label>
+        <label class="field"><span>或填写博客园文章 ID／链接</span><input id="cnblogsReference" type="text" autocomplete="off" placeholder="文章 ID 或 https://www.cnblogs.com/…/p/…"></label>
+        <div class="button-row"><button id="cnblogsBind" class="secondary" type="button" disabled>验证并绑定</button><button id="cnblogsUpdatePublished" class="secondary" type="button" disabled>更新已发布文章</button></div>
+        <p id="cnblogsBindingMessage" class="message" role="status"></p>
+      </section>
+
       <button id="startSync" class="primary" type="button" disabled>选择文章和平台后创建草稿</button>
       <p id="syncMessage" class="message" role="status"></p>
 

@@ -149,6 +149,26 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
+	if path == "v1/cnblogs/binding" && request.Method == http.MethodGet {
+		s.handleCNBlogsBindingGet(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding/migrate" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingMigrate(response, request)
+		return
+	}
+	if path == "v1/cnblogs/binding/search" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingSearch(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding/update" && request.Method == http.MethodPost {
+		s.handleCNBlogsPublishedUpdate(response, request, request.URL.Query().Get("article"))
+		return
+	}
 
 	if path == "v1/health" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {

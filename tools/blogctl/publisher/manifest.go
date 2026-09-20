@@ -271,3 +271,17 @@ func SavePublishResult(manifestPath, slug, platform, contentHash string, result 
 	state["publishedAt"] = now.UTC().Format(time.RFC3339)
 	return writeManifestAtomic(manifestPath, manifest)
 }
+
+func SavePublishedUpdateResult(manifestPath, slug, platform, contentHash string, now time.Time) error {
+	manifest, err := readManifest(manifestPath)
+	if err != nil {
+		return err
+	}
+	state, err := platformState(manifest, slug, platform)
+	if err != nil {
+		return err
+	}
+	state["publishedHash"] = contentHash
+	state["publishedSyncedAt"] = now.UTC().Format(time.RFC3339)
+	return writeManifestAtomic(manifestPath, manifest)
+}

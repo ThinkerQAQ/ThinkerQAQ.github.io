@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -583,6 +584,39 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	if configPath, err := ConfigPath(); err == nil {
 		applicationConfig.ConfigPath = configPath
 	}
+	if request.Operation == "update-published" {
+		started := time.Now()
+		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
+		s.distributionMu.Lock()
+		defer s.distributionMu.Unlock()
+		output, err := blogapp.NewSyncService().Run(ctx, applicationConfig, blogapp.SyncRequest{
+			Articles: []string{request.Article}, Platforms: []string{"cnblogs"}, DryRun: true, Draft: true, Operation: "draft",
+		})
+		if err != nil {
+			slog.Warn("cnblogs published update export failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
+			return output, err
+		}
+		session, client, err := (bridgeNativePublisher{server: s}).publisherSession("cnblogs")
+		if err != nil {
+			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
+			return output, err
+		}
+		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublished(ctx, session, config.ContentRoot, request.Article)
+		if err != nil {
+			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
+			return output, err
+		}
+		resultName := "published-updated"
+		if skipped {
+			resultName = "skipped"
+		}
+		onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "completed", Result: resultName, URL: result.URL})
+		slog.Info("cnblogs published update completed", "operation", "update-published", "slug", request.Article, "result", resultName, "durationMs", time.Since(started).Milliseconds())
+		return output, nil
+	}
 	service := blogapp.NewSyncService()
 	service.NativePublisher = bridgeNativePublisher{server: s}
 	service.OnEvent = onEvent
@@ -831,6 +865,10 @@ func (s *Server) publishSyncJob(id string) (*syncJob, error) {
 	if source.Request.Operation == "publish" {
 		s.mu.Unlock()
 		return nil, errors.New("publish jobs cannot be published again")
+	}
+	if source.Request.Operation != "draft" {
+		s.mu.Unlock()
+		return nil, errors.New("only draft jobs can be published")
 	}
 	if !allNativeChinaPlatforms(source.Platforms) {
 		s.mu.Unlock()

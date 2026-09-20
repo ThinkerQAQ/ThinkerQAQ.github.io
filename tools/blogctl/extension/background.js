@@ -338,6 +338,26 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/articles");
       return { ok: true, articles: result?.articles ?? [] };
     }
+    case "blogctl.cnblogs.binding": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await fetchJSON("/v1/cnblogs/binding/migrate", { method: "POST" });
+      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`)) };
+    }
+    case "blogctl.cnblogs.search": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("cnblogs");
+      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" })) };
+    }
+    case "blogctl.cnblogs.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("cnblogs");
+      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("POST", { reference: message.reference ?? "", replace: message.replace === true }))) };
+    }
+    case "blogctl.cnblogs.update": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("cnblogs");
+      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding/update?article=${article}`, { method: "POST" })) };
+    }
     case "blogctl.tools": {
       const result = await fetchJSON("/v1/tools");
       return { ok: true, tools: result?.tools ?? [] };
