@@ -200,7 +200,7 @@ function standaloneImage(line) {
     paragraphType: PARAGRAPH,
     text: label,
     markups: [{ type: MARKUP_LINK, start: 0, end: label.length, href, anchorType: 0 }],
-    html: "<a href=\\"" + escapeHtml(href) + "\\">" + escapeHtml(label) + "</a>",
+    html: '<a href="' + escapeHtml(href) + '">' + escapeHtml(label) + '</a>',
     url: href,
     alt,
   };
