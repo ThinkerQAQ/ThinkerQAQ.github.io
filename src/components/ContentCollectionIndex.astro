@@ -99,30 +99,8 @@ const hasGroups = groups.some((group) => group.label);
     seriesIndex.scrollTop = currentLink.offsetTop - seriesIndex.clientHeight / 2;
   }
 
-  if (seriesIndex) {
-    console.debug("navigation-tree-initialized", {
-      timestamp: new Date().toISOString(),
-      severity: "debug",
-      node: "content-collection-index",
-      operation: "render-navigation-tree",
-      result: "ready",
-      nestedGroupCount: seriesIndex.querySelectorAll('[data-navigation-depth]:not([data-navigation-depth="0"])').length,
-    });
-  }
-
   if (seriesIndex && region && shell && hideButton && restoreButton) {
-    const logPanelState = (collapsed: boolean, reason: "user" | "viewport") => {
-      console.debug("navigation-panel-state", {
-        timestamp: new Date().toISOString(),
-        severity: "debug",
-        node: "content-collection-index",
-        result: collapsed ? "collapsed" : "expanded",
-        reason,
-        viewportWidth: window.innerWidth,
-      });
-    };
-
-    const setCollapsed = (collapsed: boolean, reason: "user" | "viewport") => {
+    const setCollapsed = (collapsed: boolean) => {
       shell.classList.toggle("series-index-collapsed", collapsed);
       region.classList.toggle("series-index-region--hidden", collapsed);
       seriesIndex.setAttribute("aria-hidden", String(collapsed));
@@ -130,15 +108,14 @@ const hasGroups = groups.some((group) => group.label);
       hideButton.hidden = collapsed;
       restoreButton.setAttribute("aria-expanded", String(!collapsed));
       restoreButton.hidden = !collapsed;
-      logPanelState(collapsed, reason);
     };
 
-    hideButton.addEventListener("click", () => setCollapsed(true, "user"));
-    restoreButton.addEventListener("click", () => setCollapsed(false, "user"));
+    hideButton.addEventListener("click", () => setCollapsed(true));
+    restoreButton.addEventListener("click", () => setCollapsed(false));
 
     const narrowViewport = window.matchMedia("(max-width: 1200px)");
-    if (narrowViewport.matches) setCollapsed(true, "viewport");
-    narrowViewport.addEventListener("change", (event) => setCollapsed(event.matches, "viewport"));
+    if (narrowViewport.matches) setCollapsed(true);
+    narrowViewport.addEventListener("change", (event) => setCollapsed(event.matches));
   }
 </script>
 
