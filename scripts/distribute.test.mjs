@@ -98,6 +98,15 @@ test("buildPlatformMarkdown keeps canonical clean and tracks the attribution foo
 });
 
 
+
+test("buildPlatformMarkdown replaces Mermaid with a portable R2 image", () => {
+  const fence = String.fromCharCode(96).repeat(3);
+  const article = parseArticle(ARTICLE + "\n" + fence + "mermaid\nflowchart LR\n  accTitle: Mutex path\n  A --> B\n" + fence + "\n");
+  const output = buildPlatformMarkdown(article, { platform: "juejin", slug: "concurrency/test" });
+  assert.doesNotMatch(output, /flowchart LR/u);
+  assert.match(output, /!\[Mutex path\]\(https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png\)/u);
+});
+
 test("buildPlatformMarkdown canonical follows configured content language", () => {
   const article = parseArticle(ARTICLE);
   const english = buildPlatformMarkdown(article, {
