@@ -55,12 +55,15 @@ test("builds DEV.to payload with canonical and absolute root links", () => {
     status: "published",
     tags: ["Concurrency", "Java"],
     body: "See [notes](/notes/foo/) and <img src=\"/images/a.png\">.",
+    coverImage: "/media/articles/test/cover.png",
+    coverImageAlt: "Test cover",
   }, { slug: "test" });
   assert.equal(payload.canonical_url, "https://thinkerqaq.github.io/en/articles/test/");
   assert.match(payload.body_markdown, /https:\/\/thinkerqaq\.github\.io\/notes\/foo\//u);
   assert.match(payload.body_markdown, /src="https:\/\/thinkerqaq\.github\.io\/images\/a\.png"/u);
   assert.equal(payload.tags, "concurrency,java");
   assert.equal(payload.published, true);
+  assert.equal(payload.main_image, "https://thinkerqaq.github.io/media/articles/test/cover.png");
 });
 
 test("DEV.to payload compiles Mermaid through BlogCTL compiler", () => {
