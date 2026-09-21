@@ -59,3 +59,39 @@ test("compileArticle returns versioned in-memory publishing content without writ
     await rm(root, { recursive: true, force: true });
   }
 });
+
+
+test("compileArticle preserves DEV.to payload semantics in the unified protocol", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "blogctl-devto-protocol-"));
+  try {
+    const articleDir = path.join(root, "src", "content", "articles", "en");
+    await mkdir(articleDir, { recursive: true });
+    await writeFile(path.join(articleDir, "example.md"), ARTICLE.replace("  - Go", "  - Go\n  - Concurrency"));
+    const article = await compileArticle({
+      contentRoot: root,
+      slug: "example",
+      platform: "devto",
+      publishingConfig: {
+        devto: {
+          language: "en",
+          changedOnly: true,
+          footer: { enabled: false, template: "" },
+          canonical: { mode: "native" },
+          tracking: { enabled: false, source: "devto", medium: "referral", campaign: "article_syndication" },
+        },
+      },
+      dryRun: true,
+      draft: true,
+      env: {},
+    });
+    assert.equal(article.platform, "devto");
+    assert.equal(article.published, false);
+    assert.deepEqual(article.tags, ["go", "concurrency"]);
+    assert.equal(article.nativeCanonicalUrl, "https://thinkerqaq.github.io/en/articles/example/");
+    assert.equal(article.coverImageUrl, "https://thinkerqaq.github.io/media/articles/test/cover.png");
+    assert.equal(article.markdown.includes("flowchart LR"), false);
+    assert.match(article.markdown, /generated\/mermaid\/[a-f0-9]{24}\.png/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
