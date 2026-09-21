@@ -524,11 +524,22 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle) publisher.Draf
 		Slug: article.Slug, Title: article.Title, Description: article.Description,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
 		ContentHash: article.ContentHash, SourceDir: article.SourceDir,
+		Tags: append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
+		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
 	}
 }
 
 func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Session, *http.Client, error) {
 	p.server.mu.Lock()
+	if platform == "devto" {
+		apiKey := strings.TrimSpace(p.server.config.DevtoAPIKey)
+		httpClient := p.server.httpClient
+		p.server.mu.Unlock()
+		if apiKey == "" {
+			return publisher.Session{}, nil, errors.New("DEV.to API key is required")
+		}
+		return publisher.Session{APIKey: apiKey}, httpClient, nil
+	}
 	session, ok := p.server.sessions[platform]
 	if ok && !session.ExpiresAt.After(p.server.now()) {
 		delete(p.server.sessions, platform)
