@@ -68,6 +68,82 @@ func readManifest(path string) (map[string]any, error) {
 	return manifest, nil
 }
 
+func readOrCreateManifest(path string) (map[string]any, error) {
+	manifest, err := readManifest(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]any{
+			"version":  float64(DistributionManifestVersion),
+			"articles": map[string]any{},
+		}, nil
+	}
+	return manifest, err
+}
+
+type PublicationState struct {
+	RemoteDraftID string
+	DraftURL      string
+	DraftHash     string
+	PublishedURL  string
+	PublishedHash string
+}
+
+func LoadPublicationState(contentRoot, slug, platform string) (PublicationState, string, error) {
+	manifestPath := filepath.Join(contentRoot, ".distribution", "manifest.json")
+	manifest, err := readOrCreateManifest(manifestPath)
+	if err != nil {
+		return PublicationState{}, "", err
+	}
+	articles := objectValue(manifest["articles"])
+	article := objectValue(articles[slug])
+	if article == nil {
+		return PublicationState{}, manifestPath, nil
+	}
+	state := objectValue(objectValue(article["platforms"])[platform])
+	if state == nil {
+		return PublicationState{}, manifestPath, nil
+	}
+	draftURL := stringValue(state["draftUrl"])
+	remoteID := stringValue(state["remoteDraftId"])
+	if remoteID == "" {
+		remoteID = draftIDFromURL(platform, draftURL)
+	}
+	draftHash := stringValue(state["draftHash"])
+	if draftHash == "" {
+		draftHash = stringValue(state["lastSyncedHash"])
+	}
+	return PublicationState{
+		RemoteDraftID: remoteID,
+		DraftURL:      draftURL,
+		DraftHash:     draftHash,
+		PublishedURL:  stringValue(state["publishedUrl"]),
+		PublishedHash: stringValue(state["publishedHash"]),
+	}, manifestPath, nil
+}
+
+func ensurePlatformState(manifest map[string]any, slug, platform string) map[string]any {
+	articles := objectValue(manifest["articles"])
+	if articles == nil {
+		articles = map[string]any{}
+		manifest["articles"] = articles
+	}
+	article := objectValue(articles[slug])
+	if article == nil {
+		article = map[string]any{"platforms": map[string]any{}}
+		articles[slug] = article
+	}
+	platforms := objectValue(article["platforms"])
+	if platforms == nil {
+		platforms = map[string]any{}
+		article["platforms"] = platforms
+	}
+	state := objectValue(platforms[platform])
+	if state == nil {
+		state = map[string]any{}
+		platforms[platform] = state
+	}
+	return state
+}
+
 func stringValue(value any) string {
 	text, _ := value.(string)
 	return strings.TrimSpace(text)
@@ -265,14 +341,11 @@ func writeManifestAtomic(path string, manifest map[string]any) error {
 }
 
 func SaveDraftResult(manifestPath, slug, platform, contentHash string, result DraftResult, now time.Time) error {
-	manifest, err := readManifest(manifestPath)
+	manifest, err := readOrCreateManifest(manifestPath)
 	if err != nil {
 		return err
 	}
-	state, err := platformState(manifest, slug, platform)
-	if err != nil {
-		return err
-	}
+	state := ensurePlatformState(manifest, slug, platform)
 	manifest["version"] = float64(DistributionManifestVersion)
 	state["remoteDraftId"] = result.ID
 	state["draftUrl"] = result.URL
@@ -286,14 +359,11 @@ func SaveDraftResult(manifestPath, slug, platform, contentHash string, result Dr
 }
 
 func SavePublishResult(manifestPath, slug, platform, contentHash string, result PublishResult, now time.Time) error {
-	manifest, err := readManifest(manifestPath)
+	manifest, err := readOrCreateManifest(manifestPath)
 	if err != nil {
 		return err
 	}
-	state, err := platformState(manifest, slug, platform)
-	if err != nil {
-		return err
-	}
+	state := ensurePlatformState(manifest, slug, platform)
 	if stringValue(state["draftHash"]) != contentHash {
 		return errors.New("refusing to record publication for a stale draft")
 	}
@@ -304,14 +374,11 @@ func SavePublishResult(manifestPath, slug, platform, contentHash string, result 
 }
 
 func SavePublishedUpdateResult(manifestPath, slug, platform, contentHash string, now time.Time) error {
-	manifest, err := readManifest(manifestPath)
+	manifest, err := readOrCreateManifest(manifestPath)
 	if err != nil {
 		return err
 	}
-	state, err := platformState(manifest, slug, platform)
-	if err != nil {
-		return err
-	}
+	state := ensurePlatformState(manifest, slug, platform)
 	state["publishedHash"] = contentHash
 	state["publishedSyncedAt"] = now.UTC().Format(time.RFC3339)
 	return writeManifestAtomic(manifestPath, manifest)
