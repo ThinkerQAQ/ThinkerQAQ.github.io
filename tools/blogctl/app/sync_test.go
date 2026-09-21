@@ -80,7 +80,7 @@ func TestBuildSyncPlanRoutesAllChinesePlatformsNatively(t *testing.T) {
 	if plan[0].Group != "native-china" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, []string{"juejin", "csdn"}) {
 		t.Fatalf("native plan = %#v", plan[0])
 	}
-	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn"}) {
+	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn", "--dry-run"}) {
 		t.Fatalf("native args = %#v", plan[0].Args)
 	}
 	if plan[1].Group != "international-devto" || !reflect.DeepEqual(plan[1].Platforms, []string{"devto"}) {
