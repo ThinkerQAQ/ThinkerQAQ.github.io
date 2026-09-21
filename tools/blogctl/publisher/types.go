@@ -2,7 +2,6 @@ package publisher
 
 import (
 	"context"
-	"net/http"
 )
 
 type BrowserCookie struct {
@@ -73,5 +72,3 @@ type Adapter interface {
 	UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error)
 	PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error)
 }
-
-type ClientFactory func(base *http.Client, session Session) (Adapter, error)
