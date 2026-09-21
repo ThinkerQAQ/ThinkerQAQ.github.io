@@ -21,6 +21,7 @@ type Session struct {
 	Cookies             []BrowserCookie
 	UserAgent           string
 	RequestCookieHeader string
+	APIKey              string
 }
 
 type AuthResult struct {
@@ -40,7 +41,11 @@ type DraftInput struct {
 	DraftHash     string
 	RemoteDraftID string
 	DraftURL      string
-	SourceDir     string
+	SourceDir          string
+	Tags               []string
+	CoverImageURL      string
+	NativeCanonicalURL string
+	Published          bool
 }
 
 type DraftRef struct {
