@@ -235,3 +235,42 @@ func TestBridgeConfigMigratesLegacyPublishingProfiles(t *testing.T) {
 		t.Fatalf("migrated config = %s", data)
 	}
 }
+
+
+func TestBridgeConfigPublishingCompilerAndAssetsDefaults(t *testing.T) {
+	config, err := normalizeBridgeConfig(bridgeConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Publishing.Compiler.Mermaid.Format != "png" ||
+		config.Publishing.Compiler.Mermaid.Width != 1200 ||
+		config.Publishing.Compiler.Mermaid.Scale != 2 {
+		t.Fatalf("mermaid compiler config = %#v", config.Publishing.Compiler.Mermaid)
+	}
+	if config.Publishing.Assets.Store != "r2" {
+		t.Fatalf("asset store = %q", config.Publishing.Assets.Store)
+	}
+	if config.Publishing.Assets.R2.PublicBaseURL != "https://pub-366a15b6733345039775c083a1fffb3e.r2.dev/" {
+		t.Fatalf("R2 public base URL = %q", config.Publishing.Assets.R2.PublicBaseURL)
+	}
+}
+
+func TestBridgeConfigRejectsInvalidPublishingCompilerPolicy(t *testing.T) {
+	config := defaultBridgeConfig()
+	config.Publishing.Compiler.Mermaid.Format = "svg"
+	if _, err := normalizeBridgeConfig(config); err == nil || !strings.Contains(err.Error(), "Mermaid format must be png") {
+		t.Fatalf("unexpected Mermaid format validation error: %v", err)
+	}
+
+	config = defaultBridgeConfig()
+	config.Publishing.Assets.Store = "filesystem"
+	if _, err := normalizeBridgeConfig(config); err == nil || !strings.Contains(err.Error(), "asset store must be r2") {
+		t.Fatalf("unexpected asset store validation error: %v", err)
+	}
+
+	config = defaultBridgeConfig()
+	config.Publishing.Assets.R2.PublicBaseURL = "http://assets.example.com/"
+	if _, err := normalizeBridgeConfig(config); err == nil || !strings.Contains(err.Error(), "publicBaseUrl must be an HTTPS URL") {
+		t.Fatalf("unexpected R2 URL validation error: %v", err)
+	}
+}
