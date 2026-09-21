@@ -163,18 +163,83 @@ func TestCNBlogsPublishedUpdateRejectsRemoteChangesBeforePost(t *testing.T) {
 	}
 }
 
-func TestCNBlogsPublishedBindingCannotEnterDraftUpdate(t *testing.T) {
+func TestCNBlogsPublishedBindingCreatesSeparateDraft(t *testing.T) {
 	root := cnBlogsPublishedFixture(t)
 	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", PostID: "42", State: "published"}); err != nil {
 		t.Fatal(err)
 	}
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		t.Fatalf("published post unexpectedly requested %s %s", request.Method, request.URL.Path)
-		return nil, nil
+		switch request.URL.Path {
+		case "/api/user":
+			return jsonResponse(request, 200, `{"loginName":"ThinkerQAQ"}`, nil), nil
+		case "/posts/edit":
+			return jsonResponse(request, 200, "", nil), nil
+		case "/api/posts":
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["id"] == float64(42) {
+				t.Fatal("published post was overwritten")
+			}
+			return jsonResponse(request, 200, `{"id":52}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.Path)
+			return nil, nil
+		}
 	})}
-	_, err := (Service{HTTPClient: client}).CreateOrUpdateDraft(context.Background(), "cnblogs", cnBlogsSession(), root, "example", false)
-	if err == nil || !strings.Contains(err.Error(), "already published") {
-		t.Fatalf("draft update error = %v", err)
+	result, err := (Service{HTTPClient: client}).CreateOrUpdateDraft(context.Background(), "cnblogs", cnBlogsSession(), root, "example", false)
+	if err != nil || result.ID != "52" {
+		t.Fatalf("draft = %#v, %v", result, err)
+	}
+	bindings, err := LoadCNBlogsBindings(root, "example")
+	if err != nil || len(bindings) != 2 || bindings[0].PostID != "52" || bindings[1].PostID != "42" {
+		t.Fatalf("bindings = %#v, %v", bindings, err)
+	}
+}
+
+func TestCNBlogsBindingSlotsTransitionAndUnbind(t *testing.T) {
+	root := t.TempDir()
+	for _, binding := range []CNBlogsBinding{
+		{Slug: "example", PostID: "42", State: "published"},
+		{Slug: "example", PostID: "52", State: "draft"},
+	} {
+		if err := SaveCNBlogsBinding(root, binding); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", PostID: "52", State: "published"}); err != nil {
+		t.Fatal(err)
+	}
+	bindings, err := LoadCNBlogsBindings(root, "example")
+	if err != nil || len(bindings) != 1 || bindings[0].PostID != "52" || bindings[0].State != "published" {
+		t.Fatalf("transition = %#v, %v", bindings, err)
+	}
+	if err := DeleteCNBlogsBinding(root, "example", "published", "42"); err == nil {
+		t.Fatal("stale ID removed current binding")
+	}
+	if err := DeleteCNBlogsBinding(root, "example", "published", "52"); err != nil {
+		t.Fatal(err)
+	}
+	bindings, err = LoadCNBlogsBindings(root, "example")
+	if err != nil || len(bindings) != 0 {
+		t.Fatalf("unbind = %#v, %v", bindings, err)
+	}
+}
+
+func TestCNBlogsUnbindDoesNotResurrectLegacyManifest(t *testing.T) {
+	root := cnBlogsPublishedFixture(t)
+	if _, err := MigrateCNBlogsBindings(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteCNBlogsBinding(root, "example", "published", "42"); err != nil {
+		t.Fatal(err)
+	}
+	if binding, found, err := LoadCNBlogsBindingState(root, "example", "published"); err != nil || found {
+		t.Fatalf("legacy binding reappeared: %#v, %v, %v", binding, found, err)
+	}
+	if count, err := MigrateCNBlogsBindings(root); err != nil || count != 0 {
+		t.Fatalf("legacy binding migrated again: %d, %v", count, err)
 	}
 }
 

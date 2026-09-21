@@ -28,8 +28,8 @@
 
     <section class="panel active" role="tabpanel" data-panel="sync">
       <section class="status-card">
-        <label class="field"><span>查找文章</span><input id="articleFilter" type="search" placeholder="标题或 slug" autocomplete="off"></label>
-        <label class="field"><span>文章</span><select id="articleSelect"><option value="">正在加载文章…</option></select></label>
+        <label class="field"><span>文章</span><input id="articlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="articleOptions" placeholder="输入标题或 slug 搜索；留空列出全部" autocomplete="off"></label>
+        <div id="articleOptions" class="article-options" role="listbox" hidden></div>
         <p id="articleMeta" class="card-hint"></p>
       </section>
 
@@ -38,7 +38,7 @@
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
 
-      <button id="startSync" class="primary" type="button" disabled>选择文章和平台后创建草稿</button>
+      <div class="sync-actions"><button id="startSync" class="primary" type="button" disabled>创建／更新草稿</button><button id="updatePublished" class="secondary" type="button" disabled>更新已发布文章</button></div>
       <p id="syncMessage" class="message" role="status"></p>
 
     </section>
@@ -61,16 +61,6 @@
     </section>
 
     <section class="panel" role="tabpanel" data-panel="publishing">
-      <section class="status-card">
-        <div class="section-title">博客园文章绑定与更新</div>
-        <label class="field"><span>本地文章</span><select id="cnblogsBindingArticle"><option value="">正在加载文章…</option></select></label>
-        <p id="cnblogsBindingStatus" class="card-hint">选择文章后查看绑定。</p>
-        <div class="button-row"><button id="cnblogsFind" class="secondary" type="button" disabled>查找博客园文章</button></div>
-        <label class="field"><span>查找结果</span><select id="cnblogsCandidates"><option value="">可选择候选文章</option></select></label>
-        <label class="field"><span>或填写博客园文章 ID／链接</span><input id="cnblogsReference" type="text" autocomplete="off" placeholder="文章 ID 或 https://www.cnblogs.com/…/p/…"></label>
-        <div class="button-row"><button id="cnblogsBind" class="secondary" type="button" disabled>验证并绑定</button><button id="cnblogsUpdatePublished" class="secondary" type="button" disabled>更新已发布文章</button></div>
-        <p id="cnblogsBindingMessage" class="message" role="status"></p>
-      </section>
       <section class="status-card">
         <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
 
@@ -108,7 +98,6 @@
   <script src="core.js"></script>
   <script src="sync-model.js"></script>
   <script src="sync.js"></script>
-  <script src="bindings.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
   <script src="publishing.js"></script>

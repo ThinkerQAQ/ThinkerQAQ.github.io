@@ -22,6 +22,16 @@ h1 { margin: 0; font-size: 17px; line-height: 1.3; } h1 span { color: #6b7280; f
 .platform-choice-card .platform-choice { border: 0; }
 .article-match { padding: 0 9px 9px 38px; color: #4b5563; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .article-match a { color: #1d4ed8; }
+.article-match-row { display: grid; gap: 5px; padding: 7px 0; border-top: 1px solid #e5e7eb; }
+.article-match-row .secondary { justify-self: start; }
+.article-match details { display: grid; gap: 6px; padding-top: 7px; border-top: 1px solid #e5e7eb; }
+.article-match details > summary { cursor: pointer; }
+.article-match details[open] > input { margin-top: 6px; }
+.article-options { max-height: 190px; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 7px; background: #fff; }
+.article-options[hidden] { display: none; }
+.article-option { display: block; width: 100%; padding: 8px; border-radius: 0; background: #fff; text-align: left; font-size: 12px; }
+.article-option:hover, .article-option:focus { background: #f3f4f6; }
+.sync-actions { display: grid; gap: 8px; }
 .field { display: grid; gap: 5px; color: #6b7280; font-size: 11px; font-weight: 600; }
 input, select, textarea { min-width: 0; width: 100%; border: 1px solid #d1d5db; border-radius: 7px; padding: 8px; background: #fff; color: #111827; font: inherit; font-size: 12px; }
 textarea { min-height: 100px; resize: vertical; } input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }

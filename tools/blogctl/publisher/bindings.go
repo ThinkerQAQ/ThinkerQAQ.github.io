@@ -27,6 +27,7 @@ type CNBlogsBinding struct {
 type bindingFile struct {
 	Version int              `json:"version"`
 	CNBlogs []CNBlogsBinding `json:"cnblogs"`
+	Unbound []string         `json:"unbound,omitempty"`
 }
 
 func bindingPath(contentRoot string) string {
@@ -84,16 +85,53 @@ func legacyCNBlogsBinding(contentRoot, slug string) (CNBlogsBinding, bool, error
 
 // LoadCNBlogsBinding falls back to the existing generated manifest until it is verified and migrated.
 func LoadCNBlogsBinding(contentRoot, slug string) (CNBlogsBinding, bool, error) {
+	binding, found, err := LoadCNBlogsBindingState(contentRoot, slug, "published")
+	if err != nil || found {
+		return binding, found, err
+	}
+	return LoadCNBlogsBindingState(contentRoot, slug, "draft")
+}
+
+// LoadCNBlogsBindingState selects a draft or published post independently.
+func LoadCNBlogsBindingState(contentRoot, slug, state string) (CNBlogsBinding, bool, error) {
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return CNBlogsBinding{}, false, err
 	}
 	for _, binding := range bindings.CNBlogs {
-		if binding.Slug == slug {
+		if binding.Slug == slug && binding.State == state {
 			return binding, true, nil
 		}
 	}
-	return legacyCNBlogsBinding(contentRoot, slug)
+	for _, binding := range bindings.CNBlogs {
+		if binding.Slug == slug {
+			return CNBlogsBinding{}, false, nil
+		}
+	}
+	for _, key := range bindings.Unbound {
+		if key == slug+":"+state {
+			return CNBlogsBinding{}, false, nil
+		}
+	}
+	legacy, found, err := legacyCNBlogsBinding(contentRoot, slug)
+	if err != nil || !found || legacy.State != state {
+		return CNBlogsBinding{}, false, err
+	}
+	return legacy, true, nil
+}
+
+func LoadCNBlogsBindings(contentRoot, slug string) ([]CNBlogsBinding, error) {
+	result := make([]CNBlogsBinding, 0, 2)
+	for _, state := range []string{"draft", "published"} {
+		binding, found, err := LoadCNBlogsBindingState(contentRoot, slug, state)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			result = append(result, binding)
+		}
+	}
+	return result, nil
 }
 
 func SaveCNBlogsBinding(contentRoot string, binding CNBlogsBinding) error {
@@ -105,13 +143,16 @@ func SaveCNBlogsBinding(contentRoot string, binding CNBlogsBinding) error {
 		return err
 	}
 	for _, existing := range bindings.CNBlogs {
-		if existing.PostID == binding.PostID && existing.Slug != binding.Slug {
+		if existing.PostID == binding.PostID && (existing.Slug != binding.Slug || existing.State != binding.State) {
+			if existing.Slug == binding.Slug {
+				continue
+			}
 			return fmt.Errorf("CNBlogs post %s is already bound to %s", binding.PostID, existing.Slug)
 		}
 	}
 	replaced := false
 	for index := range bindings.CNBlogs {
-		if bindings.CNBlogs[index].Slug == binding.Slug {
+		if bindings.CNBlogs[index].Slug == binding.Slug && bindings.CNBlogs[index].State == binding.State {
 			bindings.CNBlogs[index] = binding
 			replaced = true
 			break
@@ -120,6 +161,53 @@ func SaveCNBlogsBinding(contentRoot string, binding CNBlogsBinding) error {
 	if !replaced {
 		bindings.CNBlogs = append(bindings.CNBlogs, binding)
 	}
+	filteredUnbound := bindings.Unbound[:0]
+	for _, key := range bindings.Unbound {
+		if key != binding.Slug+":"+binding.State {
+			filteredUnbound = append(filteredUnbound, key)
+		}
+	}
+	bindings.Unbound = filteredUnbound
+	filtered := bindings.CNBlogs[:0]
+	for _, existing := range bindings.CNBlogs {
+		if existing.Slug == binding.Slug && existing.State != binding.State && existing.PostID == binding.PostID {
+			continue
+		}
+		filtered = append(filtered, existing)
+	}
+	bindings.CNBlogs = filtered
+	return writeBindings(contentRoot, bindings)
+}
+
+func DeleteCNBlogsBinding(contentRoot, slug, state, postID string) error {
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	filtered := bindings.CNBlogs[:0]
+	removed := false
+	for _, binding := range bindings.CNBlogs {
+		if binding.Slug == slug && binding.State == state && binding.PostID == postID {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, binding)
+	}
+	if !removed {
+		return errors.New("binding not found or changed")
+	}
+	bindings.CNBlogs = filtered
+	key := slug + ":" + state
+	for _, existing := range bindings.Unbound {
+		if existing == key {
+			return writeBindings(contentRoot, bindings)
+		}
+	}
+	bindings.Unbound = append(bindings.Unbound, key)
+	return writeBindings(contentRoot, bindings)
+}
+
+func writeBindings(contentRoot string, bindings bindingFile) error {
 	path := bindingPath(contentRoot)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
@@ -163,6 +251,12 @@ func MigrateCNBlogsBindings(contentRoot string) (int, error) {
 		exists := false
 		for _, binding := range bindings.CNBlogs {
 			if binding.Slug == slug {
+				exists = true
+				break
+			}
+		}
+		for _, key := range bindings.Unbound {
+			if strings.HasPrefix(key, slug+":") {
 				exists = true
 				break
 			}

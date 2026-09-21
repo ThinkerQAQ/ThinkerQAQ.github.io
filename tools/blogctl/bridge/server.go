@@ -177,6 +177,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleCNBlogsBindingPut(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/cnblogs/binding" && request.Method == http.MethodDelete {
+		s.handleCNBlogsBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/cnblogs/binding/update" && request.Method == http.MethodPost {
 		s.handleCNBlogsPublishedUpdate(response, request, request.URL.Query().Get("article"))
 		return

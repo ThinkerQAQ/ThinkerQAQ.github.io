@@ -348,33 +348,35 @@ async function handleMessage(message) {
         await syncPlatformSession("cnblogs");
         const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
+        const bindings = current.bindings ?? [];
         const items = candidates.map((post) => ({
           title: String(post.title || "").replace(/<\/?strong>/gi, ""),
-          id: post.id, published: post.published, url: post.url || "",
-          bound: current.found && current.binding.postId === post.id,
+          id: post.id, published: post.published, url: post.url || (post.published ? "" : `https://i.cnblogs.com/articles/edit;postId=${post.id}`),
+          bound: bindings.some((binding) => binding.postId === post.id),
+          bindingState: bindings.find((binding) => binding.postId === post.id)?.state || "",
         }));
-        if (current.found) {
+        const warnings = [];
+        for (const binding of bindings) {
           try {
-            const verified = await fetchJSON(`/v1/cnblogs/binding/verify?article=${article}`, { method: "POST" });
+            const verified = await fetchJSON(`/v1/cnblogs/binding/verify?article=${article}&state=${binding.state}`, { method: "POST" });
             const post = verified.post;
-            if (!items.some((item) => item.id === post.id)) items.unshift({ title: post.title, id: post.id, published: post.published, url: post.url || "", bound: true });
-            return { ok: true, match: { text: `已核验绑定文章；远端搜索找到 ${candidates.length} 篇候选。`, items } };
+            const existing = items.find((item) => item.id === post.id);
+            if (existing) { existing.bound = true; existing.published = post.published; existing.bindingState = binding.state; }
+            else items.unshift({ title: post.title, id: post.id, published: post.published, url: post.url || (post.published ? "" : `https://i.cnblogs.com/articles/edit;postId=${post.id}`), bound: true, bindingState: binding.state });
           } catch (error) {
-            return { ok: true, match: { text: `已绑定 ID ${current.binding.postId}，但核验失败：${errorMessage(error)}；远端搜索找到 ${candidates.length} 篇候选。`, items } };
+            warnings.push(`${binding.state === "published" ? "已发布" : "草稿"} ID ${binding.postId} 核验失败：${errorMessage(error)}`);
+            if (!items.some((item) => item.id === binding.postId)) items.unshift({ title: `已绑定 ID ${binding.postId}（核验失败）`, id: binding.postId, published: binding.state === "published", bound: true, bindingState: binding.state, unverified: true });
           }
         }
-        return { ok: true, match: { text: items.length
-          ? `尚未绑定；找到 ${items.length} 篇候选文章，请到“发布配置”核对并绑定。`
-          : "尚未绑定；未找到候选文章。可到“发布配置”填写 ID／链接。",
-          items } };
+        return { ok: true, match: { text: `远端找到 ${candidates.length} 篇候选。${warnings.join("；")}`, items, bindings } };
       }
       if (platform === "devto") {
         const result = await fetchJSON(`/v1/devto/articles/search?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `远端找到 ${candidates.length} 篇候选文章${result.truncated ? "；仅检索了前 500 篇" : ""}，请核对标题与链接。`
-            : result.truncated ? "前 500 篇中未找到候选文章，结果尚不完整。" : "远端未找到候选文章。",
+            ? `远端找到 ${candidates.length} 篇候选文章${result.truncated ? "；仅检索了前 500 篇" : ""}。DEV.to 当前仅支持查找，尚不支持手动绑定。`
+            : result.truncated ? "前 500 篇中未找到候选文章，结果尚不完整。DEV.to 暂不支持手动绑定。" : "远端未找到候选文章。DEV.to 暂不支持手动绑定。",
           items: candidates.map((post) => ({ title: post.title, id: post.id, published: post.published, url: post.url || "" })),
         } };
       }
@@ -383,7 +385,8 @@ async function handleMessage(message) {
       const reference = link?.remoteId || link?.publishedUrl || link?.draftUrl;
       return { ok: true, match: { text: reference
         ? `本地记录：${reference} · 尚未远端验证（当前平台不支持在线查找）`
-        : "当前平台尚不支持在线查找；本地没有文章关联记录。" } };
+        : "当前平台尚不支持在线查找；本地没有文章关联记录。",
+        items: reference ? [{ title: "本地历史记录（未远端验证）", id: link.remoteId || "未知", published: Boolean(link.publishedUrl), url: link.publishedUrl || link.draftUrl || "", localOnly: true }] : [] } };
     }
     case "blogctl.cnblogs.binding": {
       const article = encodeURIComponent(String(message.article || ""));
@@ -399,6 +402,10 @@ async function handleMessage(message) {
       const article = encodeURIComponent(String(message.article || ""));
       await syncPlatformSession("cnblogs");
       return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("POST", { reference: message.reference ?? "", replace: message.replace === true }))) };
+    }
+    case "blogctl.cnblogs.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("DELETE", { state: message.state, postId: message.postId }))) };
     }
     case "blogctl.cnblogs.update": {
       const article = encodeURIComponent(String(message.article || ""));

@@ -54,15 +54,23 @@ func (s Service) CreateOrUpdateDraft(
 	var binding CNBlogsBinding
 	var bound bool
 	if platform == "cnblogs" {
-		binding, bound, err = LoadCNBlogsBinding(contentRoot, slug)
+		legacyPublished, legacyFound, lookupErr := LoadCNBlogsBindingState(contentRoot, slug, "published")
+		if lookupErr != nil {
+			return DraftResult{}, lookupErr
+		}
+		if legacyFound && legacyPublished.Source == "legacy" {
+			if err := SaveCNBlogsBinding(contentRoot, legacyPublished); err != nil {
+				return DraftResult{}, err
+			}
+		}
+		binding, bound, err = LoadCNBlogsBindingState(contentRoot, slug, "draft")
 		if err != nil {
 			return DraftResult{}, err
 		}
 		if bound {
-			if binding.State == "published" {
-				return DraftResult{}, platformError(ErrValidation, platform, "update-draft", 0, "article is already published; use Update Published", false)
-			}
 			input.RemoteDraftID, input.DraftURL, input.DraftHash = binding.PostID, binding.EditURL, binding.LastPushedHash
+		} else {
+			input.RemoteDraftID, input.DraftURL, input.DraftHash = "", "", ""
 		}
 	}
 	if platform != "cnblogs" && changedOnly && input.ContentHash == input.DraftHash && input.RemoteDraftID != "" {
@@ -154,15 +162,14 @@ func (s Service) PublishDraft(
 		return PublishResult{}, err
 	}
 	if platform == "cnblogs" {
-		binding, bound, bindingErr := LoadCNBlogsBinding(contentRoot, slug)
+		binding, bound, bindingErr := LoadCNBlogsBindingState(contentRoot, slug, "draft")
 		if bindingErr != nil {
 			return PublishResult{}, bindingErr
 		}
 		if bound {
-			if binding.State == "published" {
-				return PublishResult{}, platformError(ErrValidation, platform, "publish-draft", 0, "article is already published", false)
-			}
 			input.RemoteDraftID, input.DraftURL, input.DraftHash = binding.PostID, binding.EditURL, binding.LastPushedHash
+		} else {
+			input.RemoteDraftID, input.DraftURL, input.DraftHash = "", "", ""
 		}
 	}
 	if input.RemoteDraftID == "" {
@@ -177,7 +184,7 @@ func (s Service) PublishDraft(
 		return PublishResult{}, err
 	}
 	if platform == "cnblogs" {
-		binding, bound, bindingErr := LoadCNBlogsBinding(contentRoot, slug)
+		binding, bound, bindingErr := LoadCNBlogsBindingState(contentRoot, slug, "draft")
 		if bindingErr != nil {
 			return PublishResult{}, bindingErr
 		}
@@ -225,7 +232,7 @@ func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, co
 	if err != nil {
 		return PublishResult{}, false, err
 	}
-	binding, found, err := LoadCNBlogsBinding(contentRoot, slug)
+	binding, found, err := LoadCNBlogsBindingState(contentRoot, slug, "published")
 	if err != nil {
 		return PublishResult{}, false, err
 	}

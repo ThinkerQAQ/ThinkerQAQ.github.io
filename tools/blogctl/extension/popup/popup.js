@@ -25,11 +25,9 @@ function activateTab(name) {
   });
 
   modules[activeTab]?.deactivate();
-  if (activeTab === "publishing") BlogCTLBindings.deactivate();
   activeTab = name;
   localStorage.setItem(ACTIVE_TAB_KEY, name);
   modules[name].activate();
-  if (name === "publishing") BlogCTLBindings.activate();
 }
 
 async function refreshActiveTab() {
@@ -37,7 +35,6 @@ async function refreshActiveTab() {
   const module = modules[activeTab];
   if (typeof module?.refresh === "function") {
     await module.refresh();
-    if (activeTab === "publishing") await BlogCTLBindings.refresh();
     return;
   }
   module?.deactivate();
@@ -47,7 +44,6 @@ async function refreshActiveTab() {
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("version").textContent = `v${chrome.runtime.getManifest().version}`;
   Object.values(modules).forEach((module) => module.init());
-  BlogCTLBindings.init();
 
   document.querySelectorAll("[data-tab]").forEach((tab) => {
     tab.addEventListener("click", () => activateTab(tab.dataset.tab));
@@ -61,5 +57,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.addEventListener("unload", () => {
   Object.values(modules).forEach((module) => module.deactivate());
-  BlogCTLBindings.deactivate();
 });
