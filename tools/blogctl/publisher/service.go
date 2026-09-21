@@ -63,6 +63,7 @@ func (s Service) CreateOrUpdateDraftInput(
 	changedOnly bool,
 ) (DraftResult, error) {
 	slug := input.Slug
+	input.ChangedOnly = changedOnly
 	state, manifestPath, err := LoadPublicationState(contentRoot, slug, platform)
 	if err != nil {
 		return DraftResult{}, err
