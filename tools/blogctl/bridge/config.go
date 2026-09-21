@@ -146,6 +146,18 @@ func defaultBridgeConfig() bridgeConfig {
 	}
 }
 
+func resolvedPublishingJSON(config bridgeConfig) (string, error) {
+	payload, err := json.Marshal(config.Publishing)
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
+}
+
+func ResolvedPublishingJSON() (string, error) {
+	return resolvedPublishingJSON(loadBridgeConfig())
+}
+
 func ConfigPath() (string, error) {
 	if dir := strings.TrimSpace(os.Getenv("BLOGCTL_CONFIG_DIR")); dir != "" {
 		return filepath.Join(dir, "config.json"), nil
