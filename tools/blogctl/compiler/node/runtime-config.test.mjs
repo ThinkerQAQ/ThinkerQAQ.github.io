@@ -35,3 +35,19 @@ test("environment overrides R2 deployment coordinates but not compiler policy", 
   assert.equal(config.assets.r2.publicBaseUrl, "https://env.example.com/");
   assert.equal(config.mermaid.width, 1200);
 });
+
+
+test("Go-resolved publishing JSON is authoritative for compiler and asset policy", () => {
+  const config = loadBlogctlPublishingRuntimeConfig({
+    BLOGCTL_PUBLISHING_JSON: JSON.stringify({
+      compiler: { mermaid: { format: "png", width: 1800, scale: 4 } },
+      assets: { store: "r2", r2: { bucket: "go-bucket", publicBaseUrl: "https://go.example.com/" } },
+      platforms: {},
+    }),
+    BLOGCTL_CONFIG_FILE: "/should/not/be/read.json",
+  });
+  assert.deepEqual(config, {
+    mermaid: { format: "png", width: 1800, scale: 4 },
+    assets: { store: "r2", r2: { bucket: "go-bucket", publicBaseUrl: "https://go.example.com/" } },
+  });
+});
