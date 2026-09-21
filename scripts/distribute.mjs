@@ -29,6 +29,11 @@ export const DEFAULT_OUTPUT_ROOT = ".distribution";
 export const MANIFEST_FILE = "manifest.json";
 export const MANIFEST_VERSION = 2;
 
+export function resolveArticleAssetUrl(value) {
+  const raw = String(value || "").trim();
+  return raw ? new URL(raw, SITE_ORIGIN).toString() : "";
+}
+
 export function buildArticleCanonicalUrl(slug, language = "zh-CN") {
   const encodedSlug = String(slug).split("/").map(encodeURIComponent).join("/");
   const prefix = language === "en" ? "/en/articles/" : "/articles/";
@@ -112,6 +117,8 @@ export function parseArticle(markdown, source = "article.md") {
   const description = readScalar(frontmatter, "description", { required: true });
   const status = readScalar(frontmatter, "status") ?? "draft";
   const tags = readList(frontmatter, "tags");
+  const coverImage = readScalar(frontmatter, "coverImage");
+  const coverImageAlt = readScalar(frontmatter, "coverImageAlt");
   const body = normalized.slice(match[0].length).trim();
 
   if (typeof title !== "string" || !title.trim()) throw new Error(`Invalid title: ${source}`);
@@ -119,8 +126,19 @@ export function parseArticle(markdown, source = "article.md") {
     throw new Error(`Invalid description: ${source}`);
   }
   if (!body) throw new Error(`Article body is empty: ${source}`);
+  if (String(status) === "published" && (!coverImage || !coverImageAlt)) {
+    throw new Error(`Published article cover metadata is incomplete: ${source}`);
+  }
 
-  return { title, description, status: String(status), tags, body };
+  return {
+    title,
+    description,
+    status: String(status),
+    tags,
+    coverImage: coverImage ? String(coverImage) : "",
+    coverImageAlt: coverImageAlt ? String(coverImageAlt) : "",
+    body,
+  };
 }
 
 function truncate(value, maxLength) {
