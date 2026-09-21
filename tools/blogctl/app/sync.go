@@ -41,14 +41,14 @@ type SyncRequest struct {
 }
 
 type SyncConfig struct {
-	EngineRoot   string
-	ContentRoot  string
+	EngineRoot     string
+	ContentRoot    string
 	ConfigPath     string
 	PublishingJSON string
 	BridgeOrigin   string
-	BridgeToken  string
-	DevtoAPIKey  string
-	ToolPaths    map[string]string
+	BridgeToken    string
+	DevtoAPIKey    string
+	ToolPaths      map[string]string
 }
 
 type SyncPlan struct {
