@@ -384,7 +384,7 @@ func TestSyncServiceIsolatesInternationalFailuresAndSurfacesScriptMessage(t *tes
 
 	var events []SyncEvent
 	service := SyncService{
-		Runner: isolatedFailureRunner{},
+		Runner:  isolatedFailureRunner{},
 		OnEvent: func(event SyncEvent) { events = append(events, event) },
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
