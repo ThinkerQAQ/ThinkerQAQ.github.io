@@ -324,6 +324,9 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 }
 
 func writeManifestAtomic(path string, manifest map[string]any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
 	payload, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
