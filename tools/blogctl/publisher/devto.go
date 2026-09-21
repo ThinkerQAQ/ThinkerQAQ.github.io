@@ -1,0 +1,292 @@
+package publisher
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+)
+
+const (
+	devtoOrigin = "https://dev.to"
+	devtoAccept = "application/vnd.forem.api-v1+json"
+)
+
+type devtoAdapter struct {
+	client *http.Client
+	apiKey string
+	origin string
+}
+
+type devtoArticle struct {
+	ID                 int64    `json:"id"`
+	Title              string   `json:"title"`
+	Description        string   `json:"description"`
+	CanonicalURL       string   `json:"canonical_url"`
+	BodyMarkdown       string   `json:"body_markdown"`
+	TagList            []string `json:"tag_list"`
+	Tags               string   `json:"tags"`
+	Published          bool     `json:"published"`
+	PublishedAt        string   `json:"published_at"`
+	PublishedTimestamp string   `json:"published_timestamp"`
+	URL                string   `json:"url"`
+}
+
+type devtoPayload struct {
+	Title        string `json:"title"`
+	BodyMarkdown string `json:"body_markdown"`
+	Published    bool   `json:"published"`
+	CanonicalURL string `json:"canonical_url,omitempty"`
+	Description  string `json:"description"`
+	Tags         string `json:"tags"`
+	MainImage    string `json:"main_image,omitempty"`
+}
+
+func NewDEVToAdapter(base *http.Client, session Session) (Adapter, error) {
+	return newDEVToAdapter(base, session, devtoOrigin)
+}
+
+func newDEVToAdapter(base *http.Client, session Session, origin string) (*devtoAdapter, error) {
+	if base == nil {
+		base = http.DefaultClient
+	}
+	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+	if origin == "" {
+		origin = devtoOrigin
+	}
+	if _, err := url.ParseRequestURI(origin); err != nil {
+		return nil, err
+	}
+	return &devtoAdapter{client: base, apiKey: strings.TrimSpace(session.APIKey), origin: origin}, nil
+}
+
+func (a *devtoAdapter) ID() string { return "devto" }
+
+func (a *devtoAdapter) CheckAuth(_ context.Context) (AuthResult, error) {
+	return AuthResult{Authenticated: a.apiKey != ""}, nil
+}
+
+func devtoCanonicalEqual(left, right string) bool {
+	if strings.TrimSpace(left) == "" || strings.TrimSpace(right) == "" {
+		return false
+	}
+	a, err := url.Parse(left)
+	if err != nil {
+		return false
+	}
+	b, err := url.Parse(right)
+	if err != nil {
+		return false
+	}
+	a.RawQuery, a.Fragment = "", ""
+	b.RawQuery, b.Fragment = "", ""
+	return strings.EqualFold(a.Scheme, b.Scheme) &&
+		strings.EqualFold(a.Host, b.Host) &&
+		strings.TrimRight(a.Path, "/") == strings.TrimRight(b.Path, "/")
+}
+
+func normalizeDEVToTags(tags []string) []string {
+	result := []string{}
+	seen := map[string]struct{}{}
+	for _, tag := range tags {
+		tag = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(tag), " ", ""))
+		if tag == "" {
+			continue
+		}
+		if _, exists := seen[tag]; exists {
+			continue
+		}
+		seen[tag] = struct{}{}
+		result = append(result, tag)
+		if len(result) == 4 {
+			break
+		}
+	}
+	return result
+}
+
+func devtoRemoteTags(article devtoArticle) []string {
+	if len(article.TagList) > 0 {
+		return normalizeDEVToTags(article.TagList)
+	}
+	if article.Tags != "" {
+		return normalizeDEVToTags(strings.Split(article.Tags, ","))
+	}
+	return nil
+}
+
+func devtoDesired(input DraftInput) devtoPayload {
+	return devtoPayload{
+		Title:        input.Title,
+		BodyMarkdown: strings.TrimSpace(input.Markdown) + "\n",
+		Published:    input.Published,
+		CanonicalURL: strings.TrimSpace(input.NativeCanonicalURL),
+		Description:  input.Description,
+		Tags:         strings.Join(normalizeDEVToTags(input.Tags), ","),
+		MainImage:    strings.TrimSpace(input.CoverImageURL),
+	}
+}
+
+func devtoMatches(remote devtoArticle, desired devtoPayload) bool {
+	remotePublished := remote.Published || remote.PublishedAt != "" || remote.PublishedTimestamp != ""
+	canonicalMatches := strings.TrimSpace(desired.CanonicalURL) == ""
+	if desired.CanonicalURL != "" {
+		canonicalMatches = devtoCanonicalEqual(remote.CanonicalURL, desired.CanonicalURL)
+	} else if strings.TrimSpace(remote.CanonicalURL) != "" {
+		canonicalMatches = false
+	}
+	return remote.Title == desired.Title &&
+		remote.Description == desired.Description &&
+		canonicalMatches &&
+		strings.TrimSpace(remote.BodyMarkdown) == strings.TrimSpace(desired.BodyMarkdown) &&
+		strings.Join(devtoRemoteTags(remote), ",") == strings.Join(normalizeDEVToTags(strings.Split(desired.Tags, ",")), ",") &&
+		remotePublished == desired.Published
+}
+
+func (a *devtoAdapter) endpoint(suffix string) string {
+	return a.origin + "/api/" + strings.TrimLeft(suffix, "/")
+}
+
+func devtoError(operation string, status int, detail string) error {
+	kind := ErrUpstream
+	retryable := false
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		kind = ErrAuthExpired
+	case http.StatusNotFound:
+		kind = ErrRemoteDraftMissing
+	case http.StatusTooManyRequests:
+		kind, retryable = ErrRateLimited, true
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		kind = ErrValidation
+	}
+	return platformError(kind, "devto", operation, status, detail, retryable)
+}
+
+func (a *devtoAdapter) request(ctx context.Context, method, suffix string, body any, target any) error {
+	var reader io.Reader
+	if body != nil {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(payload)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, a.endpoint(suffix), reader)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("accept", devtoAccept)
+	request.Header.Set("api-key", a.apiKey)
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("user-agent", "ThinkerQAQ-BlogCTL/1.0")
+	response, err := a.client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	payload, err := io.ReadAll(io.LimitReader(response.Body, 4*1024*1024))
+	if err != nil {
+		return err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return devtoError(suffix, response.StatusCode, strings.TrimSpace(string(payload)))
+	}
+	if target != nil && len(payload) > 0 {
+		if err := json.Unmarshal(payload, target); err != nil {
+			return fmt.Errorf("devto %s: invalid JSON response: %w", suffix, err)
+		}
+	}
+	return nil
+}
+
+func (a *devtoAdapter) listArticles(ctx context.Context) ([]devtoArticle, error) {
+	result := []devtoArticle{}
+	for page := 1; ; page++ {
+		var batch []devtoArticle
+		suffix := "articles/me/all?page=" + strconv.Itoa(page) + "&per_page=100"
+		if err := a.request(ctx, http.MethodGet, suffix, nil, &batch); err != nil {
+			return nil, err
+		}
+		result = append(result, batch...)
+		if len(batch) < 100 {
+			return result, nil
+		}
+	}
+}
+
+func (a *devtoAdapter) getArticle(ctx context.Context, id string) (devtoArticle, error) {
+	var article devtoArticle
+	err := a.request(ctx, http.MethodGet, "articles/"+url.PathEscape(id), nil, &article)
+	return article, err
+}
+
+func (a *devtoAdapter) findExisting(ctx context.Context, desired devtoPayload) (*devtoArticle, error) {
+	articles, err := a.listArticles(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range articles {
+		article := &articles[index]
+		if desired.CanonicalURL != "" && devtoCanonicalEqual(article.CanonicalURL, desired.CanonicalURL) {
+			return article, nil
+		}
+		if desired.CanonicalURL == "" && strings.TrimSpace(article.CanonicalURL) == "" && article.Title == desired.Title {
+			return article, nil
+		}
+	}
+	return nil, nil
+}
+
+func (a *devtoAdapter) upsertExisting(ctx context.Context, existing devtoArticle, input DraftInput) (DraftResult, error) {
+	desired := devtoDesired(input)
+	full := existing
+	if strings.TrimSpace(full.BodyMarkdown) == "" {
+		var err error
+		full, err = a.getArticle(ctx, strconv.FormatInt(existing.ID, 10))
+		if err != nil {
+			return DraftResult{}, err
+		}
+	}
+	if (input.Published || input.ChangedOnly) && devtoMatches(full, desired) {
+		return DraftResult{ID: strconv.FormatInt(full.ID, 10), URL: full.URL, Skipped: true}, nil
+	}
+	var updated devtoArticle
+	if err := a.request(ctx, http.MethodPut, "articles/"+strconv.FormatInt(existing.ID, 10), map[string]any{"article": desired}, &updated); err != nil {
+		return DraftResult{}, err
+	}
+	return DraftResult{ID: strconv.FormatInt(updated.ID, 10), URL: updated.URL, Updated: true}, nil
+}
+
+func (a *devtoAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
+	desired := devtoDesired(input)
+	existing, err := a.findExisting(ctx, desired)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	if existing != nil {
+		return a.upsertExisting(ctx, *existing, input)
+	}
+	var created devtoArticle
+	if err := a.request(ctx, http.MethodPost, "articles", map[string]any{"article": desired}, &created); err != nil {
+		return DraftResult{}, err
+	}
+	return DraftResult{ID: strconv.FormatInt(created.ID, 10), URL: created.URL, Created: true}, nil
+}
+
+func (a *devtoAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error) {
+	existing, err := a.getArticle(ctx, ref.ID)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	return a.upsertExisting(ctx, existing, input)
+}
+
+func (a *devtoAdapter) PublishDraft(_ context.Context, _ DraftRef, _ DraftInput) (PublishResult, error) {
+	return PublishResult{}, platformError(ErrNotImplemented, "devto", "publish-draft", 0, "DEV.to publication state is selected while compiling the article", false)
+}
