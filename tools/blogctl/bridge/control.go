@@ -587,13 +587,18 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 }
 
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
+	publishingJSON, publishingErr := resolvedPublishingJSON(config)
+	if publishingErr != nil {
+		return "", publishingErr
+	}
 	applicationConfig := blogapp.SyncConfig{
-		EngineRoot:   config.EngineRoot,
-		ContentRoot:  config.ContentRoot,
-		BridgeOrigin: "http://" + DefaultAddress,
-		BridgeToken:  s.token,
-		DevtoAPIKey:  config.DevtoAPIKey,
-		ToolPaths:    config.ToolPaths,
+		EngineRoot:     config.EngineRoot,
+		ContentRoot:    config.ContentRoot,
+		PublishingJSON: publishingJSON,
+		BridgeOrigin:   "http://" + DefaultAddress,
+		BridgeToken:    s.token,
+		DevtoAPIKey:    config.DevtoAPIKey,
+		ToolPaths:      config.ToolPaths,
 	}
 	if configPath, err := ConfigPath(); err == nil {
 		applicationConfig.ConfigPath = configPath
