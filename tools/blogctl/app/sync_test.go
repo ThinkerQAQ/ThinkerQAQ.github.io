@@ -50,8 +50,8 @@ func compiledTestOutput(args []string) string {
 					"title": "Compiled " + article, "description": "Description",
 					"markdown": "Body", "html": "<p>Body</p>", "language": "zh-CN",
 					"canonicalUrl": "https://thinkerqaq.github.io/articles/" + article + "/",
-					"contentHash": "hash-" + article + "-" + platform,
-					"sourceDir": "/tmp/articles",
+					"contentHash":  "hash-" + article + "-" + platform,
+					"sourceDir":    "/tmp/articles",
 				},
 			})
 			output.Write(payload)
