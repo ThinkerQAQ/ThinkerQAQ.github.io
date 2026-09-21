@@ -34,3 +34,18 @@ func TestNativeAdapterRegistryFailsClosedForUnknownPlatform(t *testing.T) {
 		t.Fatalf("error = %v, want not-implemented", err)
 	}
 }
+
+
+func TestNativeAdapterRegistryIncludesDEVTo(t *testing.T) {
+	adapter, err := newAdapter("devto", http.DefaultClient, Session{APIKey: "test-key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if adapter.ID() != "devto" {
+		t.Fatalf("adapter ID = %q", adapter.ID())
+	}
+	auth, err := adapter.CheckAuth(t.Context())
+	if err != nil || !auth.Authenticated {
+		t.Fatalf("auth = %#v, err = %v", auth, err)
+	}
+}
