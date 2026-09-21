@@ -46,6 +46,7 @@ type DraftInput struct {
 	CoverImageURL      string
 	NativeCanonicalURL string
 	Published          bool
+	ChangedOnly        bool
 }
 
 type DraftRef struct {
