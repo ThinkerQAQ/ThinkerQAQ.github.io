@@ -1,3 +1,5 @@
+import path from "node:path";
+import { preparePublishingAssetList } from "../tools/blogctl/assets/node/assets.mjs";
 import { buildMediumDraft, writeMediumCopyHtml } from "./medium.mjs";
 
 function configuredBridge() {
@@ -74,6 +76,8 @@ export async function runMediumSyndication(loadedArticles, {
         canonicalUrl: item.draft.canonicalUrl,
         blocks: item.draft.deltas.length,
         warnings: item.draft.warnings,
+        publishingAssets: item.draft.publishingAssets.length,
+        requiresHtmlFallback: item.draft.requiresHtmlFallback,
         fallbackPath: item.fallbackPath,
       });
     }
@@ -92,9 +96,16 @@ export async function runMediumSyndication(loadedArticles, {
     throw new Error("Medium draft sync currently requires exactly one explicit --article selection. Use --dry-run for batch preparation.");
   }
 
+  const item = prepared[0];
+  await preparePublishingAssetList(item.draft.publishingAssets, {
+    cacheRoot: path.resolve(outputRoot, "..", "assets"),
+  });
+  if (item.draft.requiresHtmlFallback) {
+    throw new Error("Medium live draft adapter cannot safely insert body images yet. Use the generated copy/paste fallback: " + item.fallbackPath);
+  }
+
   const bridge = configuredBridge();
   await waitForMediumSession(bridge, onEvent);
-  const item = prepared[0];
   const result = await bridgeRequest(bridge, "/v1/platforms/medium/drafts", {
     method: "POST",
     body: JSON.stringify(item.draft),
