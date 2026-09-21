@@ -357,9 +357,9 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		{
 			Name: "devto-api", DisplayName: "DEV.to API", Kind: "publishing", Required: false,
 			Description: "DEV.to 使用官方 API 发布；API Key 仅保存在本机 BlogCTL 配置中，不返回给 Extension。",
-			Health: devtoAPIHealth(config),
+			Health:      devtoAPIHealth(config),
 			Config: toolConfigView{
-				Scope: "bridge",
+				Scope:  "bridge",
 				Values: map[string]any{},
 				Schema: []toolField{{
 					Key: "apiKey", Label: "API Key", Type: "secret",
