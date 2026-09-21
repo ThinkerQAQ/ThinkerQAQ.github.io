@@ -12,12 +12,21 @@ function positiveNumber(value, fallback) {
 
 export function loadBlogctlPublishingRuntimeConfig(env = process.env) {
   let stored = {};
-  const configFile = String(env.BLOGCTL_CONFIG_FILE || "").trim();
-  if (configFile) {
+  const resolved = String(env.BLOGCTL_PUBLISHING_JSON || "").trim();
+  if (resolved) {
     try {
-      stored = JSON.parse(readFileSync(configFile, "utf8"))?.publishing ?? {};
-    } catch {
-      stored = {};
+      stored = JSON.parse(resolved) ?? {};
+    } catch (error) {
+      throw new Error("Invalid BLOGCTL_PUBLISHING_JSON: " + error.message);
+    }
+  } else {
+    const configFile = String(env.BLOGCTL_CONFIG_FILE || "").trim();
+    if (configFile) {
+      try {
+        stored = JSON.parse(readFileSync(configFile, "utf8"))?.publishing ?? {};
+      } catch {
+        stored = {};
+      }
     }
   }
 
