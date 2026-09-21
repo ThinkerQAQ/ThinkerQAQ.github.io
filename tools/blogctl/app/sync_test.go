@@ -117,20 +117,17 @@ func TestBuildSyncPlanRoutesAllChinesePlatformsNatively(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := BuildSyncPlan(request)
-	if len(plan) != 3 {
-		t.Fatalf("got %d plan entries, want 3", len(plan))
+	if len(plan) != 2 {
+		t.Fatalf("got %d plan entries, want 2", len(plan))
 	}
-	if plan[0].Group != "native-china" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, []string{"juejin", "csdn"}) {
+	if plan[0].Group != "native-publishing" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, []string{"juejin", "csdn", "devto"}) {
 		t.Fatalf("native plan = %#v", plan[0])
 	}
-	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn", "--dry-run"}) {
+	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn,devto", "--dry-run"}) {
 		t.Fatalf("native args = %#v", plan[0].Args)
 	}
-	if plan[1].Group != "international-devto" || !reflect.DeepEqual(plan[1].Platforms, []string{"devto"}) {
-		t.Fatalf("DEV.to plan = %#v", plan[1])
-	}
-	if plan[2].Group != "international-medium" || !reflect.DeepEqual(plan[2].Platforms, []string{"medium"}) {
-		t.Fatalf("Medium plan = %#v", plan[2])
+	if plan[1].Group != "scripted-medium" || !reflect.DeepEqual(plan[1].Platforms, []string{"medium"}) {
+		t.Fatalf("Medium plan = %#v", plan[1])
 	}
 }
 
@@ -194,8 +191,8 @@ func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runner.commands) != 2 {
-		t.Fatalf("got %d commands, want 2", len(runner.commands))
+	if len(runner.commands) != 1 {
+		t.Fatalf("got %d commands, want 1 unified compiler invocation", len(runner.commands))
 	}
 	for _, command := range runner.commands {
 		if command.Name != node {
@@ -214,7 +211,7 @@ func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
 			t.Fatalf("unexpected publishing invocation: %#v", command.Args)
 		}
 	}
-	if !strings.Contains(output, "\"operation\":\"blogctl-compile\"") || !strings.Contains(output, "ok\n") {
+	if !strings.Contains(output, "\"operation\":\"blogctl-compile\"") {
 		t.Fatalf("output = %q", output)
 	}
 }
@@ -254,8 +251,8 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	}
 	want := []SyncEvent{
 		{Platform: "juejin", State: "running"},
-		{Platform: "juejin", State: "completed", Result: "dry-run"},
 		{Platform: "devto", State: "running"},
+		{Platform: "juejin", State: "completed", Result: "dry-run"},
 		{Platform: "devto", State: "completed", Result: "dry-run"},
 		{Platform: "medium", State: "running"},
 		{Platform: "medium", State: "completed", Result: "dry-run", URL: "C:/tmp/example.html"},
@@ -408,11 +405,14 @@ func TestSyncServiceRequiresBridgeForLiveMedium(t *testing.T) {
 type isolatedFailureRunner struct{}
 
 func (isolatedFailureRunner) Run(_ context.Context, _ string, args []string, _ string, _ []string) (string, error) {
-	joined := strings.Join(args, " ")
-	if strings.Contains(joined, "--platforms devto") {
-		return `{"operation":"syndication","status":"failed","exception":{"message":"DEVTO_API_KEY is required"}}` + "\n", errors.New("exit status 1")
+	if len(args) == 0 {
+		return "", nil
 	}
-	if strings.Contains(joined, "--platforms medium") {
+	script := filepath.ToSlash(args[0])
+	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
+		return compiledTestOutput(args[1:]), nil
+	}
+	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") && strings.Contains(strings.Join(args, " "), "--platforms medium") {
 		return `{"operation":"syndication-medium","status":"dry-run","draftUrl":"C:/tmp/medium.html"}` + "\n", nil
 	}
 	return "ok\n", nil
@@ -434,14 +434,20 @@ func TestSyncServiceIsolatesInternationalFailuresAndSurfacesScriptMessage(t *tes
 
 	var events []SyncEvent
 	service := SyncService{
-		Runner:  isolatedFailureRunner{},
+		Runner: isolatedFailureRunner{},
+		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
+			if request.Platform == "devto" {
+				return NativeDraftResult{}, errors.New("DEVTO_API_KEY is required")
+			}
+			return NativeDraftResult{}, nil
+		}},
 		OnEvent: func(event SyncEvent) { events = append(events, event) },
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
 		EngineRoot: engineRoot, ContentRoot: contentRoot, BridgeOrigin: "http://127.0.0.1",
 		BridgeToken: "token", ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
-		Articles: []string{"example"}, Platforms: []string{"devto", "medium"}, DryRun: true,
+		Articles: []string{"example"}, Platforms: []string{"devto", "medium"}, Draft: true,
 	})
 	if err == nil || !strings.Contains(err.Error(), "DEVTO_API_KEY is required") {
 		t.Fatalf("error = %v", err)
