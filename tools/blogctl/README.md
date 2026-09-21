@@ -101,6 +101,8 @@ Compiler and asset policy is stored under `publishing.compiler` and `publishing.
 
 See [UNIFIED_PUBLISHING_PIPELINE.md](./UNIFIED_PUBLISHING_PIPELINE.md).
 
+The target-aware workflow for searching and binding multiple remote articles, preparing content without changing public pages, and publishing only after review is specified in [MULTI_TARGET_PREPARE_PUBLISH_DESIGN.md](./MULTI_TARGET_PREPARE_PUBLISH_DESIGN.md).
+
 ## Search discovery control plane
 
 BlogCTL also owns standards/API-based search discovery. The generated Astro sitemap chain remains the source of truth for indexable routes; BlogCTL derives a flat `/sitemap-all.txt` from that same inventory and never maintains a second Chinese/English URL list.
