@@ -105,7 +105,6 @@ func TestReadManifestRejectsUnknownVersion(t *testing.T) {
 	}
 }
 
-
 func TestPublicationStateIsCreatedAndOwnedByGo(t *testing.T) {
 	root := t.TempDir()
 	state, manifestPath, err := LoadPublicationState(root, "example", "juejin")
