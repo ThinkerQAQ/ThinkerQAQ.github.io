@@ -1,5 +1,6 @@
 ---
 import AskBlog from "../components/AskBlogSession.astro";
+import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
 import MermaidRuntime from "../components/MermaidRuntime.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
@@ -154,6 +155,8 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
         data-website-id={umamiWebsiteId}
         data-domains={umamiDomain}
         data-host-url={umamiProxyOrigin}
+        data-exclude-hash="true"
+        data-performance="true"
       ></script>
     )}
     <slot name="head" />
@@ -166,6 +169,7 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     </main>
     <SiteFooter locale={locale} />
     <AskBlog locale={locale} />
+    <ContentAnalyticsRuntime />
     <MermaidRuntime />
   </body>
 </html>

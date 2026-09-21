@@ -103,7 +103,14 @@ const schema = {
     <ReadingExperience locale={locale} />
     <MobileReadingNavigation collection={mobileCollection} collectionTabLabel={ui.noteOutline} headings={headings} locale={locale} />
     <NoteCollectionIndex navigation={collectionNavigation} locale={locale} />
-    <article class="note" data-pagefind-body lang={LOCALES[data.language].htmlLang}>
+    <article
+      class="note"
+      data-pagefind-body
+      lang={LOCALES[data.language].htmlLang}
+      data-analytics-content-type="note"
+      data-analytics-lang={locale}
+      data-analytics-category={data.category}
+    >
       <nav class="breadcrumb" aria-label={ui.breadcrumb}>
         <a href={localizePath(locale, "/notes/")}>{ui.notesTitle}</a>
         <span aria-hidden="true">/</span>
