@@ -6,6 +6,7 @@ import {
   syncExports,
 } from "./distribute.mjs";
 import { loadPublishingConfig } from "./publishing-config.mjs";
+import { preparePublishingAssetList } from "./publishing/assets.mjs";
 
 function log(severity, operation, status, details = {}) {
   console.log(JSON.stringify({
@@ -75,6 +76,16 @@ export async function runBlogctlDistribution(argv, env = process.env) {
 
   let synced = 0;
   if (options.sync) {
+    if (!options.dryRun) {
+      const assets = result.exported.flatMap((item) => item.publishingAssets || []);
+      const assetSummary = await preparePublishingAssetList(assets, {
+        cacheRoot: path.join(contentRoot, ".distribution", "assets"),
+        env,
+      });
+      if (assetSummary.assets > 0) {
+        log("info", "publishing-assets", "completed", assetSummary);
+      }
+    }
     synced = await syncExports({
       ...result,
       changedOnly: options.changedOnly,
