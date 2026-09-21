@@ -5,6 +5,7 @@ import {
   parseArguments,
 } from "./distribute.mjs";
 import { loadPublishingConfig } from "./publishing-config.mjs";
+import { preparePublishingAssetList } from "../tools/blogctl/assets/node/assets.mjs";
 
 function log(severity, operation, status, details = {}) {
   console.log(JSON.stringify({
@@ -59,6 +60,16 @@ export async function runBlogctlDistribution(argv, env = process.env) {
     result.exported.push(...platformResult.exported);
     result.manifest = platformResult.manifest;
     result.manifestPath = platformResult.manifestPath;
+  }
+
+  const publishingAssets = result.exported.flatMap((item) => item.publishingAssets || []);
+  const assetSummary = await preparePublishingAssetList(publishingAssets, {
+    dryRun: options.dryRun,
+    cacheRoot: path.join(contentRoot, ".distribution", "assets"),
+    env,
+  });
+  if (assetSummary.assets > 0) {
+    log("info", "publishing-assets", "completed", assetSummary);
   }
 
   for (const item of result.exported) {
