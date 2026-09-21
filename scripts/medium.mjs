@@ -197,6 +197,7 @@ function isBlockStart(line) {
     || /^>/u.test(value)
     || /^[-*+]\s+/u.test(value)
     || /^\d+[.)]\s+/u.test(value)
+    || /^!\[[^\]]*\]\(/u.test(value)
     || /^---+$/u.test(value);
 }
 
