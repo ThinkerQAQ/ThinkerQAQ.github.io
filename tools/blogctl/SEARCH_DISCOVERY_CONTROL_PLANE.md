@@ -1,6 +1,6 @@
 # BlogCTL Search Discovery Control Plane
 
-Status: implementation plan  
+Status: implemented; validation pending  
 Date: 2026-09-21  
 Target branch: `feat/blogctl-native-juejin-20260918` / PR #34
 
