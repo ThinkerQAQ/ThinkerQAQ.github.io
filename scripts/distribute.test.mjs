@@ -286,6 +286,7 @@ test("parseArguments validates native renderer scope", () => {
       platforms: ["juejin", "cnblogs"],
       requestedSlugs: ["a"],
       outputRoot: ".distribution",
+      dryRun: false,
       help: false,
     },
   );
@@ -295,6 +296,7 @@ test("parseArguments validates native renderer scope", () => {
       platforms: ["juejin", "csdn", "cnblogs"],
       requestedSlugs: [],
       outputRoot: ".distribution",
+      dryRun: false,
       help: false,
     },
   );
@@ -303,5 +305,13 @@ test("parseArguments validates native renderer scope", () => {
   assert.throws(() => parseArguments(["--platforms"]), /at least one platform/u);
   assert.throws(() => parseArguments(["--sync"]), /Unknown option/u);
   assert.throws(() => parseArguments(["--changed"]), /Unknown option/u);
-  assert.throws(() => parseArguments(["--dry-run"]), /Unknown option/u);
+  assert.equal(parseArguments(["--dry-run"]).dryRun, true);
+});
+
+test("buildPlatformMarkdown compiles Mermaid to BlogCTL R2 image Markdown", () => {
+  const fence = String.fromCharCode(96).repeat(3);
+  const article = parseArticle(ARTICLE + "\n" + fence + "mermaid\nflowchart LR\n  accTitle: Mutex path\n  A --> B\n" + fence + "\n");
+  const output = buildPlatformMarkdown(article, { platform: "juejin", slug: "concurrency/test" });
+  assert.doesNotMatch(output, /flowchart LR/u);
+  assert.match(output, /!\[Mutex path\]\(https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png\)/u);
 });
