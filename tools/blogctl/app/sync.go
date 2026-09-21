@@ -413,6 +413,19 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 				failures = append(failures, message)
 				continue
 			}
+			for _, article := range request.Articles {
+				for _, platform := range entry.Platforms {
+					if _, err := compiledArticleFor(compiledArticles, article, platform); err != nil {
+						message := entry.Group + ": " + err.Error()
+						s.emit(SyncEvent{Platform: platform, State: "failed", Message: err.Error()})
+						terminal[platform] = true
+						failures = append(failures, message)
+					}
+				}
+			}
+			if len(failures) > 0 {
+				continue
+			}
 			if request.DryRun {
 				for _, platform := range entry.Platforms {
 					s.emit(SyncEvent{Platform: platform, State: "completed", Result: "dry-run"})
