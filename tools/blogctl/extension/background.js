@@ -8,6 +8,17 @@ const BRIDGE_CACHE_MS = 30000;
 let bridgeSession = null;
 const pendingCNBlogsCookieCaptures = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
+const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
+
+if (chrome.sidePanel?.setPanelBehavior) {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => {
+    console.error("BlogCTL side panel setup failed:", errorMessage(error));
+    chrome.action.onClicked.addListener(openControlTab);
+  });
+} else {
+  console.warn("BlogCTL side panel API is unavailable in this browser");
+  chrome.action.onClicked.addListener(openControlTab);
+}
 
 chrome.webRequest.onSendHeaders.addListener((details) => {
   const pending = pendingCNBlogsCookieCaptures.get(details.url);

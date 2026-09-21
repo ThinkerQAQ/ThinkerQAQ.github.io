@@ -4,7 +4,7 @@
   const NATIVE_BROWSER_PLATFORMS = new Set([
     "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
   ]);
-  const state = { initialized: false, active: false, articles: [], selectedSlug: "", status: null, publishing: [], tools: [], cnblogsBindings: [], bindingLoading: false, bindingError: false, matches: {}, matchKey: "", refreshSerial: 0 };
+  const state = { initialized: false, active: false, articles: [], selectedSlug: "", selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)), status: null, publishing: [], tools: [], cnblogsBindings: [], bindingLoading: false, bindingError: false, matches: {}, matchKey: "", cachedMatchTime: 0, refreshSerial: 0 };
   let articlePicker, articleOptions, articleMeta, platformsContainer, startButton, updatePublishedButton, message;
   let refreshMatchesButton;
 
@@ -67,7 +67,7 @@
   }
 
   function renderPlatforms() {
-    const previous = new Set(selectedPlatforms());
+    const previous = platformsContainer.querySelector('input[data-platform]') ? new Set(selectedPlatforms()) : state.selectedPlatformIDs;
     const currentKey = matchSelectionKey();
     const article = selectedArticle();
     platformsContainer.replaceChildren();
@@ -82,7 +82,11 @@
       checkbox.dataset.platform = platform.id;
       checkbox.checked = previous.has(platform.id) && availability.available;
       checkbox.disabled = !availability.available;
-      checkbox.addEventListener("change", updateStartButton);
+      checkbox.addEventListener("change", () => {
+        state.selectedPlatformIDs = new Set(selectedPlatforms());
+        BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
+        updateStartButton();
+      });
       const text = document.createElement("span");
       text.className = "platform-choice-text";
       const name = document.createElement("strong");
@@ -117,7 +121,7 @@
       if (match && state.matchKey === currentKey) {
         const result = document.createElement("div");
         result.className = "article-match";
-        result.textContent = match.text;
+        result.textContent = state.cachedMatchTime ? `上次刷新 ${new Date(state.cachedMatchTime).toLocaleString()} · ${match.text}` : match.text;
         for (const item of match.items ?? []) {
           const row = document.createElement("div");
           row.className = "article-match-row";
@@ -187,6 +191,8 @@
   function clearMatches() {
     state.matches = {};
     state.matchKey = "";
+    state.cachedMatchTime = 0;
+    BlogCTLSyncState.clearMatches(localStorage);
     state.refreshSerial++;
     platformsContainer.querySelectorAll(".article-match").forEach((element) => element.remove());
   }
@@ -195,9 +201,11 @@
     const article = state.selectedSlug;
     const platforms = (state.status?.platforms ?? []).map((platform) => platform.id);
     if (!article || !platforms.length) return;
+    const started = performance.now();
     const key = matchSelectionKey();
     const serial = ++state.refreshSerial;
     state.matchKey = key;
+    state.cachedMatchTime = 0;
     state.matches = Object.fromEntries(platforms.map((platform) => [platform, { text: "正在检测文章关联…" }]));
     renderPlatforms();
     refreshMatchesButton.disabled = true;
@@ -211,6 +219,8 @@
     }));
     if (serial !== state.refreshSerial || key !== matchSelectionKey()) return;
     state.matches = Object.fromEntries(results);
+    BlogCTLSyncState.saveMatches(localStorage, article, state.matches);
+    console.info("BlogCTL article matches refreshed", { platformCount: platforms.length, resultCount: results.filter(([, match]) => (match.items ?? []).length > 0).length, durationMs: Math.round(performance.now() - started) });
     renderPlatforms();
   }
 
@@ -275,6 +285,15 @@
         const selected = selectedArticle();
         articlePicker.value = `${selected.title} · ${selected.slug}`;
       } else { state.selectedSlug = ""; }
+      if (state.selectedSlug && state.matchKey !== state.selectedSlug) {
+        const cached = BlogCTLSyncState.loadMatches(localStorage, state.selectedSlug);
+        if (cached) {
+          state.matches = cached.matches;
+          state.matchKey = state.selectedSlug;
+          state.cachedMatchTime = cached.savedAt;
+          console.info("BlogCTL article matches restored", { platformCount: Object.keys(cached.matches).length, ageMs: Date.now() - cached.savedAt });
+        }
+      }
       renderArticles(); renderPlatforms();
       if (state.selectedSlug) loadSyncBinding();
     } catch (error) {
