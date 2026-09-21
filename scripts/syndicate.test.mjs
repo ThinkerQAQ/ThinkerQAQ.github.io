@@ -66,6 +66,22 @@ test("builds DEV.to payload with canonical and absolute root links", () => {
   assert.equal(payload.main_image, "https://thinkerqaq.github.io/media/articles/test/cover.png");
 });
 
+
+test("DEV.to payload replaces Mermaid with a portable R2 image", () => {
+  const fence = String.fromCharCode(96).repeat(3);
+  const payload = buildDevtoArticle({
+    title: "Test",
+    description: "Description",
+    status: "published",
+    tags: ["Go"],
+    body: fence + "mermaid\nflowchart LR\n  accTitle: Runtime path\n  A --> B\n" + fence,
+    coverImage: "/media/articles/test/cover.png",
+    coverImageAlt: "Test cover",
+  }, { slug: "test" });
+  assert.doesNotMatch(payload.body_markdown, /flowchart LR/u);
+  assert.match(payload.body_markdown, /!\[Runtime path\]\(https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png\)/u);
+});
+
 test("DEV.to publishing profile controls footer tracking and native canonical", () => {
   const article = {
     title: "Test",
