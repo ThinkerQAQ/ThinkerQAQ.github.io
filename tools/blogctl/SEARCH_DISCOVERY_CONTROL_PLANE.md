@@ -476,7 +476,7 @@ Do not schedule a full-site audit automatically.
 
 Provider support for `--urls-file` is implemented now.
 
-The current deployment may continue using the full inventory until the content/build pipeline emits a reliable route-level change manifest. Once that manifest exists, CI should switch normal content deployments to changed-only mode and reserve `--all` for migrations or broad engine changes.
+The deployment derives a route-level change manifest from `content_before_sha..content_sha`. It resolves both revisions so additions, edits, deletions, language changes, and renamed routes can all notify IndexNow without resubmitting the full sitemap inventory. Engine-only deployments and content deployments without a reliable base skip IndexNow instead of silently falling back to all URLs.
 
 ### Phase F — compatibility cleanup
 
@@ -548,6 +548,7 @@ Implemented on PR #34 on 2026-09-21:
 - `sitemap-all.txt` is generated during the normal production build;
 - `robots.txt` advertises both XML and text sitemaps;
 - IndexNow provider code lives under BlogCTL and supports full or URL-file scopes;
+- normal deployment creates an incremental URL file from the private content Git diff and submits only those URLs;
 - the old root IndexNow script is reduced to a compatibility wrapper;
 - Google service-account OAuth, sitemap submission, and bounded URL Inspection audit are implemented;
 - `blogctl search build|inventory|submit|audit` is available;
@@ -557,4 +558,4 @@ Validation is green in GitHub Actions run `35565501437`: BlogCTL formatting/test
 
 Operational setup still required for Google: grant the service-account email access to the Search Console property and add its credential JSON as the `GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON` GitHub Actions secret.
 
-Future optimization: once the content/deployment pipeline emits a reliable route-level change manifest, switch normal IndexNow deployment from full-site payload preparation to `--urls-file`; keep `--all` for bootstrap/migrations and broad routing changes.
+Full-site IndexNow submission remains an explicit `--all` operation for bootstrap or deliberate migrations; normal deployment does not use it.

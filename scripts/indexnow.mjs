@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   extractLocations,
   loadSearchInventory,
+  readUrlFile,
 } from "../tools/blogctl/search/node/inventory.mjs";
 import {
   DEFAULT_INDEXNOW_KEY,
@@ -33,20 +34,21 @@ function log(severity, operation, status, details = {}) {
 export async function preparePayload({
   distRoot = "dist",
   publicRoot = "public",
+  urlsFile = "",
   env = process.env,
 } = {}) {
   const startedAt = Date.now();
-  const inventory = await loadSearchInventory({
-    distRoot,
-    expectedOrigin: SITE_ORIGIN,
-  });
+  const inventory = urlsFile ? null : await loadSearchInventory({ distRoot, expectedOrigin: SITE_ORIGIN });
+  const urls = urlsFile ? await readUrlFile(urlsFile, { expectedOrigin: SITE_ORIGIN }) : inventory.urlList;
   const config = await resolveIndexNowConfig({
-    origin: inventory.origin,
+    origin: inventory?.origin ?? SITE_ORIGIN,
     publicRoot,
     env,
     verifyKeyFile: true,
   });
-  const payload = prepareIndexNowPayload(inventory.urlList, config);
+  const payload = urls.length > 0
+    ? prepareIndexNowPayload(urls, config)
+    : { host: config.host, key: config.key, keyLocation: config.keyLocation, urlList: [] };
   log("info", "indexnow-prepare", "completed", {
     urlCount: payload.urlList.length,
     durationMs: Date.now() - startedAt,
@@ -61,6 +63,10 @@ export async function submitPayload(payload, {
   batchSize,
   sleep,
 } = {}) {
+  if (!Array.isArray(payload?.urlList) || payload.urlList.length === 0) {
+    log("info", "indexnow-submit", "skipped", { reason: "no changed URLs" });
+    return { skipped: true, urlCount: 0, batchCount: 0, results: [] };
+  }
   return submitPreparedPayload(payload, {
     endpoint,
     fetchImpl,
@@ -82,6 +88,7 @@ async function main() {
     const payload = await preparePayload({
       distRoot: optionValue("--dist", "dist"),
       publicRoot: optionValue("--public", "public"),
+      urlsFile: optionValue("--urls-file", ""),
     });
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
@@ -97,7 +104,7 @@ async function main() {
   }
 
   throw new Error(
-    "Usage: node scripts/indexnow.mjs <prepare|submit> [--dist path] [--public path] [--output path] [--input path]",
+    "Usage: node scripts/indexnow.mjs <prepare|submit> [--dist path] [--public path] [--urls-file path] [--output path] [--input path]",
   );
 }
 

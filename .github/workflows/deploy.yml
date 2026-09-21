@@ -142,10 +142,32 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Prepare incremental IndexNow URL manifest
+        continue-on-error: true
+        working-directory: engine
+        env:
+          CONTENT_SHA: ${{ inputs.content_sha || '' }}
+          CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
+        run: |
+          urls="$RUNNER_TEMP/indexnow-changed-urls.txt"
+          : > "$urls"
+          if [ -z "$CONTENT_SHA" ]; then
+            echo "Engine-only deployment: no content URLs need IndexNow notification."
+          elif [ -z "$CONTENT_BEFORE_SHA" ] || [[ "$CONTENT_BEFORE_SHA" =~ ^0+$ ]]; then
+            echo "No reliable content_before_sha; skipping IndexNow instead of submitting the full sitemap inventory."
+          else
+            git -C ../content-source fetch --no-tags --depth=1 origin "$CONTENT_BEFORE_SHA"
+            node tools/blogctl/search/node/content-changes.mjs \
+              --repository ../content-source \
+              --before "$CONTENT_BEFORE_SHA" \
+              --after "$CONTENT_SHA" \
+              --output "$urls"
+          fi
+
       - name: Prepare IndexNow payload
         continue-on-error: true
         working-directory: engine
-        run: node scripts/indexnow.mjs prepare --output "$RUNNER_TEMP/indexnow-payload.json"
+        run: node scripts/indexnow.mjs prepare --urls-file "$RUNNER_TEMP/indexnow-changed-urls.txt" --output "$RUNNER_TEMP/indexnow-payload.json"
 
       - name: Upload IndexNow payload
         continue-on-error: true

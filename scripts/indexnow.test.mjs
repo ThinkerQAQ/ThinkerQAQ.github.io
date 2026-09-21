@@ -49,6 +49,26 @@ test("preparePayload builds a validated payload from generated sitemaps", async 
   }
 });
 
+test("preparePayload accepts an incremental URL file and permits an empty deployment", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "indexnow-incremental-test-"));
+  const publicRoot = path.join(root, "public");
+  const urlsFile = path.join(root, "changed-urls.txt");
+  try {
+    await mkdir(publicRoot);
+    await writeFile(path.join(publicRoot, `${INDEXNOW_KEY}.txt`), `${INDEXNOW_KEY}\n`);
+    await writeFile(urlsFile, "https://thinkerqaq.github.io/articles/example/\n");
+    const changed = await preparePayload({ publicRoot, urlsFile });
+    assert.deepEqual(changed.urlList, ["https://thinkerqaq.github.io/articles/example/"]);
+
+    await writeFile(urlsFile, "");
+    const empty = await preparePayload({ publicRoot, urlsFile });
+    assert.deepEqual(empty.urlList, []);
+    assert.deepEqual(await submitPayload(empty), { skipped: true, urlCount: 0, batchCount: 0, results: [] });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("submitPayload accepts an IndexNow 202 response", async () => {
   const calls = [];
   await submitPayload(
