@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -30,8 +31,12 @@ type CompiledArticle struct {
 	Tags               []string `json:"tags,omitempty"`
 	CoverImageURL      string   `json:"coverImageUrl,omitempty"`
 	NativeCanonicalURL string   `json:"nativeCanonicalUrl,omitempty"`
-	Published          bool     `json:"published"`
-	Assets             []Asset  `json:"assets,omitempty"`
+	Published          bool            `json:"published"`
+	Payload            json.RawMessage `json:"payload,omitempty"`
+	FallbackHTML       string          `json:"fallbackHtml,omitempty"`
+	RequiresFallback   bool            `json:"requiresFallback,omitempty"`
+	Warnings           []string        `json:"warnings,omitempty"`
+	Assets             []Asset         `json:"assets,omitempty"`
 }
 
 func (article CompiledArticle) Validate() error {
