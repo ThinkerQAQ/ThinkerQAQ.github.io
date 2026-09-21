@@ -25,9 +25,13 @@ type CompiledArticle struct {
 	HTML         string  `json:"html"`
 	Language     string  `json:"language"`
 	CanonicalURL string  `json:"canonicalUrl"`
-	ContentHash  string  `json:"contentHash"`
-	SourceDir    string  `json:"sourceDir"`
-	Assets       []Asset `json:"assets,omitempty"`
+	ContentHash        string   `json:"contentHash"`
+	SourceDir          string   `json:"sourceDir"`
+	Tags               []string `json:"tags,omitempty"`
+	CoverImageURL      string   `json:"coverImageUrl,omitempty"`
+	NativeCanonicalURL string   `json:"nativeCanonicalUrl,omitempty"`
+	Published          bool     `json:"published"`
+	Assets             []Asset  `json:"assets,omitempty"`
 }
 
 func (article CompiledArticle) Validate() error {
