@@ -36,7 +36,6 @@ func TestNativeAdapterRegistryFailsClosedForUnknownPlatform(t *testing.T) {
 	}
 }
 
-
 func TestNativeAdapterRegistryIncludesDEVTo(t *testing.T) {
 	adapter, err := newAdapter("devto", http.DefaultClient, Session{APIKey: "test-key"})
 	if err != nil {
