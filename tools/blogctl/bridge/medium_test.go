@@ -107,7 +107,7 @@ func TestMediumCreateDraftUsesCurrentNewStoryFlow(t *testing.T) {
 		},
 		UserAgent: "BlogCTL-Test-UA",
 	}, mediumDraft{
-		Title: "Title",
+		Title:  "Title",
 		Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "Body"}}},
 	})
 	if err != nil {
@@ -153,7 +153,6 @@ func TestMediumPrimesMissingXSRFBeforeWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
 
 func TestMediumDraftCoverImageJSON(t *testing.T) {
 	draft := mediumDraft{
