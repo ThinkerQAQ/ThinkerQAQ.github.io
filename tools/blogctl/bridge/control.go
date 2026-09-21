@@ -18,6 +18,7 @@ import (
 	"time"
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
@@ -518,6 +519,14 @@ type bridgeNativePublisher struct {
 	server *Server
 }
 
+func draftInputFromCompiled(article blogcompiler.CompiledArticle) publisher.DraftInput {
+	return publisher.DraftInput{
+		Slug: article.Slug, Title: article.Title, Description: article.Description,
+		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
+		ContentHash: article.ContentHash, SourceDir: article.SourceDir,
+	}
+}
+
 func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Session, *http.Client, error) {
 	p.server.mu.Lock()
 	session, ok := p.server.sessions[platform]
@@ -548,8 +557,8 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 		return blogapp.NativeDraftResult{}, err
 	}
 	service := publisher.Service{HTTPClient: httpClient}
-	result, err := service.CreateOrUpdateDraft(
-		ctx, request.Platform, session, request.ContentRoot, request.Article, request.ChangedOnly,
+	result, err := service.CreateOrUpdateDraftInput(
+		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled), request.ChangedOnly,
 	)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
@@ -570,7 +579,7 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 		return blogapp.NativePublishResult{}, err
 	}
 	service := publisher.Service{HTTPClient: httpClient}
-	result, err := service.PublishDraft(ctx, request.Platform, session, request.ContentRoot, request.Article)
+	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled))
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
 	}
@@ -608,7 +617,27 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
 			return output, err
 		}
-		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublished(ctx, session, config.ContentRoot, request.Article)
+		compiledArticles, compileErr := blogapp.ParseCompiledArticles(output)
+		if compileErr != nil {
+			slog.Warn("cnblogs published update compile result invalid", "operation", "update-published", "slug", request.Article, "error", compileErr)
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return output, compileErr
+		}
+		compiled, compileErr := func() (blogcompiler.CompiledArticle, error) {
+			for _, article := range compiledArticles {
+				if article.Slug == request.Article && article.Platform == "cnblogs" {
+					return article, nil
+				}
+			}
+			return blogcompiler.CompiledArticle{}, errors.New("publishing compiler returned no CNBlogs article")
+		}()
+		if compileErr != nil {
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return output, compileErr
+		}
+		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublishedInput(
+			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled),
+		)
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
