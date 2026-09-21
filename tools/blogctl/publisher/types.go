@@ -31,16 +31,16 @@ type AuthResult struct {
 }
 
 type DraftInput struct {
-	Slug          string
-	Title         string
-	Description   string
-	Markdown      string
-	HTML          string
-	Language      string
-	ContentHash   string
-	DraftHash     string
-	RemoteDraftID string
-	DraftURL      string
+	Slug               string
+	Title              string
+	Description        string
+	Markdown           string
+	HTML               string
+	Language           string
+	ContentHash        string
+	DraftHash          string
+	RemoteDraftID      string
+	DraftURL           string
 	SourceDir          string
 	Tags               []string
 	CoverImageURL      string
