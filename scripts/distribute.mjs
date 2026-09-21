@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectPublishingAssets, compilePublishingMarkdown } from "./publishing/compiler.mjs";
 import {
   defaultPlatformPublishingConfig,
   defaultPublishingConfig,
@@ -145,12 +146,6 @@ function yamlList(name, values) {
   return [name + ":", ...values.map((value) => `  - ${JSON.stringify(value)}`)];
 }
 
-function makeExternalLinksAbsolute(body) {
-  return body
-    .replace(/(\]\()\/(?!\/)/gu, `$1${SITE_ORIGIN}/`)
-    .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${SITE_ORIGIN}/`);
-}
-
 export function buildPlatformMarkdown(article, {
 	platform,
 	slug,
@@ -177,7 +172,7 @@ export function buildPlatformMarkdown(article, {
 		`sourcePlatform: ${JSON.stringify(contentLanguage === "en" ? "ThinkerQAQ personal blog" : "ThinkerQAQ 个人博客")}`,
 		"---",
 	].join("\n");
-	const body = makeExternalLinksAbsolute(article.body);
+	const body = compilePublishingMarkdown(article.body, { platform, siteOrigin: SITE_ORIGIN }).markdown;
 	const footer = renderPublishingFooter(profile, {
 		canonicalUrl,
 		title: article.title,
@@ -268,6 +263,7 @@ export async function exportArticles({
     seenRequested.add(slug);
 
     const canonicalUrl = buildArticleCanonicalUrl(slug, language);
+    const publishingAssets = collectPublishingAssets(article.body);
     const articleState = manifest.articles[slug] ?? {
       source: path.relative(process.cwd(), sourceFile).split(path.sep).join("/"),
       canonicalUrl,
@@ -311,6 +307,7 @@ export async function exportArticles({
         pending: previous.lastSyncedHash !== contentHash,
         tagCount: article.tags.length,
         exportedTagCount: platform === "cnblogs" ? article.tags.length : Math.min(5, article.tags.length),
+        publishingAssets,
       });
     }
     manifest.articles[slug] = articleState;
