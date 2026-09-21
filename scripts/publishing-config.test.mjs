@@ -113,3 +113,24 @@ test("loader reads new publishing.platforms schema", async () => {
   assert.equal(config.medium.canonical.mode, "native");
   assert.equal(config.medium.tracking.enabled, false);
 });
+
+
+test("BlogCTL resolved publishing JSON bypasses Node default merging", async () => {
+  const resolved = {
+    platforms: {
+      devto: {
+        language: "zh-CN",
+        changedOnly: true,
+        footer: { enabled: false, template: "resolved" },
+        canonical: { mode: "none" },
+        tracking: { enabled: false, source: "resolved", medium: "x", campaign: "y" },
+      },
+    },
+  };
+  const loaded = await loadPublishingConfig({
+    BLOGCTL_PUBLISHING_JSON: JSON.stringify(resolved),
+    BLOGCTL_CONFIG_FILE: "/ignored.json",
+  });
+  assert.deepEqual(loaded, resolved.platforms);
+  assert.equal(loaded.cnblogs, undefined);
+});
