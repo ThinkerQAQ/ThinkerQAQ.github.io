@@ -14,9 +14,9 @@ func devtoTestInput() DraftInput {
 	return DraftInput{
 		Slug: "example", Title: "Example", Description: "Description",
 		Markdown: "Body\n", ContentHash: "hash-1", Tags: []string{"Go", "Concurrency"},
-		CoverImageURL: "https://thinkerqaq.github.io/media/cover.png",
+		CoverImageURL:      "https://thinkerqaq.github.io/media/cover.png",
 		NativeCanonicalURL: "https://thinkerqaq.github.io/en/articles/example/",
-		Published: false,
+		Published:          false,
 	}
 }
 
@@ -36,13 +36,13 @@ func TestDEVToCreateDiscoversCanonicalArticleAndUpdatesInsteadOfDuplicating(t *t
 			_ = json.NewEncoder(w).Encode([]devtoArticle{{
 				ID: 42, Title: "Example",
 				CanonicalURL: "https://thinkerqaq.github.io/en/articles/example/?utm_source=old#fragment",
-				URL: "https://dev.to/thinker/example-42",
+				URL:          "https://dev.to/thinker/example-42",
 			}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/articles/42":
 			_ = json.NewEncoder(w).Encode(devtoArticle{
 				ID: 42, Title: "Example", Description: "Old", BodyMarkdown: "Old body",
 				CanonicalURL: "https://thinkerqaq.github.io/en/articles/example/",
-				TagList: []string{"go"}, URL: "https://dev.to/thinker/example-42",
+				TagList:      []string{"go"}, URL: "https://dev.to/thinker/example-42",
 			})
 		case r.Method == http.MethodPut && r.URL.Path == "/api/articles/42":
 			var body struct {
@@ -90,7 +90,7 @@ func TestDEVToSkipsUnchangedChangedOnlyDraft(t *testing.T) {
 			_ = json.NewEncoder(w).Encode([]devtoArticle{{
 				ID: 42, Title: "Example", Description: "Description", BodyMarkdown: "Body",
 				CanonicalURL: "https://thinkerqaq.github.io/en/articles/example/",
-				TagList: []string{"go", "concurrency"}, URL: "https://dev.to/thinker/example-42",
+				TagList:      []string{"go", "concurrency"}, URL: "https://dev.to/thinker/example-42",
 			}})
 		default:
 			http.Error(w, "unexpected mutation", http.StatusInternalServerError)
