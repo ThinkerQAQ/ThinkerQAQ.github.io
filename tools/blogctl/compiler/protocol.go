@@ -16,15 +16,15 @@ type Asset struct {
 }
 
 type CompiledArticle struct {
-	Version      int     `json:"version"`
-	Slug         string  `json:"slug"`
-	Platform     string  `json:"platform"`
-	Title        string  `json:"title"`
-	Description  string  `json:"description"`
-	Markdown     string  `json:"markdown"`
-	HTML         string  `json:"html"`
-	Language     string  `json:"language"`
-	CanonicalURL string  `json:"canonicalUrl"`
+	Version            int      `json:"version"`
+	Slug               string   `json:"slug"`
+	Platform           string   `json:"platform"`
+	Title              string   `json:"title"`
+	Description        string   `json:"description"`
+	Markdown           string   `json:"markdown"`
+	HTML               string   `json:"html"`
+	Language           string   `json:"language"`
+	CanonicalURL       string   `json:"canonicalUrl"`
 	ContentHash        string   `json:"contentHash"`
 	SourceDir          string   `json:"sourceDir"`
 	Tags               []string `json:"tags,omitempty"`
