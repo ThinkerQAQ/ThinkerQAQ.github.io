@@ -43,8 +43,9 @@ type SyncRequest struct {
 type SyncConfig struct {
 	EngineRoot   string
 	ContentRoot  string
-	ConfigPath   string
-	BridgeOrigin string
+	ConfigPath     string
+	PublishingJSON string
+	BridgeOrigin   string
 	BridgeToken  string
 	DevtoAPIKey  string
 	ToolPaths    map[string]string
@@ -655,6 +656,9 @@ func syncEnvironment(config SyncConfig) []string {
 	env = setEnvironment(env, "BLOGCTL_ENGINE_ROOT", config.EngineRoot)
 	if config.ConfigPath != "" {
 		env = setEnvironment(env, "BLOGCTL_CONFIG_FILE", config.ConfigPath)
+	}
+	if strings.TrimSpace(config.PublishingJSON) != "" {
+		env = setEnvironment(env, "BLOGCTL_PUBLISHING_JSON", strings.TrimSpace(config.PublishingJSON))
 	}
 	if config.BridgeOrigin != "" {
 		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN", config.BridgeOrigin)
