@@ -236,7 +236,6 @@ func TestBridgeConfigMigratesLegacyPublishingProfiles(t *testing.T) {
 	}
 }
 
-
 func TestBridgeConfigPublishingCompilerAndAssetsDefaults(t *testing.T) {
 	config, err := normalizeBridgeConfig(bridgeConfig{})
 	if err != nil {
