@@ -70,11 +70,11 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
-	ContentRoot  string            `json:"contentRoot"`
-	EngineRoot   string            `json:"engineRoot"`
-	ToolPaths    map[string]string `json:"toolPaths"`
-	DevtoAPIKey  string            `json:"devtoApiKey,omitempty"`
-	Publishing   publishingConfig  `json:"publishing"`
+	ContentRoot string            `json:"contentRoot"`
+	EngineRoot  string            `json:"engineRoot"`
+	ToolPaths   map[string]string `json:"toolPaths"`
+	DevtoAPIKey string            `json:"devtoApiKey,omitempty"`
+	Publishing  publishingConfig  `json:"publishing"`
 }
 
 var publishingPlatformOrder = []string{
