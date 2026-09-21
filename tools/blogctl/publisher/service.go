@@ -47,10 +47,29 @@ func (s Service) CreateOrUpdateDraft(
 	slug string,
 	changedOnly bool,
 ) (DraftResult, error) {
-	input, manifestPath, err := LoadDraftInput(contentRoot, platform, slug)
+	input, _, err := LoadDraftInput(contentRoot, platform, slug)
 	if err != nil {
 		return DraftResult{}, err
 	}
+	return s.CreateOrUpdateDraftInput(ctx, platform, session, contentRoot, input, changedOnly)
+}
+
+func (s Service) CreateOrUpdateDraftInput(
+	ctx context.Context,
+	platform string,
+	session Session,
+	contentRoot string,
+	input DraftInput,
+	changedOnly bool,
+) (DraftResult, error) {
+	slug := input.Slug
+	state, manifestPath, err := LoadPublicationState(contentRoot, slug, platform)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	input.RemoteDraftID = state.RemoteDraftID
+	input.DraftURL = state.DraftURL
+	input.DraftHash = state.DraftHash
 	var binding CNBlogsBinding
 	var bound bool
 	if platform == "cnblogs" {
@@ -157,10 +176,28 @@ func (s Service) PublishDraft(
 	contentRoot string,
 	slug string,
 ) (PublishResult, error) {
-	input, manifestPath, err := LoadDraftInput(contentRoot, platform, slug)
+	input, _, err := LoadDraftInput(contentRoot, platform, slug)
 	if err != nil {
 		return PublishResult{}, err
 	}
+	return s.PublishDraftInput(ctx, platform, session, contentRoot, input)
+}
+
+func (s Service) PublishDraftInput(
+	ctx context.Context,
+	platform string,
+	session Session,
+	contentRoot string,
+	input DraftInput,
+) (PublishResult, error) {
+	slug := input.Slug
+	state, manifestPath, err := LoadPublicationState(contentRoot, slug, platform)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	input.RemoteDraftID = state.RemoteDraftID
+	input.DraftURL = state.DraftURL
+	input.DraftHash = state.DraftHash
 	if platform == "cnblogs" {
 		binding, bound, bindingErr := LoadCNBlogsBindingState(contentRoot, slug, "draft")
 		if bindingErr != nil {
@@ -228,7 +265,16 @@ func (s Service) PublishDraft(
 
 // UpdateCNBlogsPublished is an explicit operation; the draft path never changes a public post.
 func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, contentRoot, slug string) (PublishResult, bool, error) {
-	input, manifestPath, err := LoadDraftInput(contentRoot, "cnblogs", slug)
+	input, _, err := LoadDraftInput(contentRoot, "cnblogs", slug)
+	if err != nil {
+		return PublishResult{}, false, err
+	}
+	return s.UpdateCNBlogsPublishedInput(ctx, session, contentRoot, input)
+}
+
+func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Session, contentRoot string, input DraftInput) (PublishResult, bool, error) {
+	slug := input.Slug
+	_, manifestPath, err := LoadPublicationState(contentRoot, slug, "cnblogs")
 	if err != nil {
 		return PublishResult{}, false, err
 	}
