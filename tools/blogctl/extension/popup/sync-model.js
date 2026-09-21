@@ -26,6 +26,10 @@
     return { available: true, reason: "" };
   }
 
+  function canUpdateCNBlogsPublished(slug, platforms, bridgeRunning) {
+    return Boolean(slug) && Boolean(bridgeRunning) && platforms.length === 1 && platforms[0] === "cnblogs";
+  }
+
   const resultLabels = {
     completed: "完成",
     created: "已创建",
@@ -76,5 +80,5 @@
     });
   }
 
-  root.BlogCTLSyncModel = { deliveryToolAvailability, platformRows, statePresentation, platformAvailability };
+  root.BlogCTLSyncModel = { deliveryToolAvailability, platformRows, statePresentation, platformAvailability, canUpdateCNBlogsPublished };
 })(globalThis);

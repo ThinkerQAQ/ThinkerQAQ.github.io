@@ -101,10 +101,15 @@ func cnBlogsPublishedFixture(t *testing.T) string {
 	return root
 }
 
-func TestCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing.T) {
+func testCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing.T, withDraft bool) {
 	root := cnBlogsPublishedFixture(t)
 	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", Account: "ThinkerQAQ", PostID: "42", State: "published", PublicURL: "https://www.cnblogs.com/ThinkerQAQ/p/42", RemoteUpdatedAt: "before", LastPushedHash: "old-hash"}); err != nil {
 		t.Fatal(err)
+	}
+	if withDraft {
+		if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", Account: "ThinkerQAQ", PostID: "52", State: "draft"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	posted := false
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -124,7 +129,7 @@ func TestCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing
 			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
-			if body["isPublished"] != true || body["isDraft"] != false || body["blogId"] != float64(824919) || body["postBody"] != "New body" {
+			if body["id"] != float64(42) || body["isPublished"] != true || body["isDraft"] != false || body["blogId"] != float64(824919) || body["postBody"] != "New body" {
 				t.Fatalf("unsafe update payload: %#v", body)
 			}
 			posted = true
@@ -141,6 +146,22 @@ func TestCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing
 	binding, _, err := LoadCNBlogsBinding(root, "example")
 	if err != nil || binding.RemoteUpdatedAt != "after" || binding.LastPushedHash != "new-hash" {
 		t.Fatalf("updated binding = %#v, %v", binding, err)
+	}
+	draft, found, err := LoadCNBlogsBindingState(root, "example", "draft")
+	if err != nil || found != withDraft || (withDraft && (draft.PostID != "52" || draft.State != "draft")) {
+		t.Fatalf("draft binding changed = %#v, %v, %v", draft, found, err)
+	}
+}
+
+func TestCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing.T) {
+	for _, withDraft := range []bool{false, true} {
+		name := "published-only"
+		if withDraft {
+			name = "published-and-draft"
+		}
+		t.Run(name, func(t *testing.T) {
+			testCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t, withDraft)
+		})
 	}
 }
 

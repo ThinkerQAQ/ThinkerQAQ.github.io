@@ -28,9 +28,8 @@
     startButton.disabled = !ready || (selectedPlatforms().includes("cnblogs") && (state.bindingLoading || state.bindingError));
     refreshMatchesButton.disabled = !state.selectedSlug || !state.status?.bridge?.running;
     startButton.textContent = ready ? `创建／更新 ${count} 个平台草稿` : "选择文章和平台后创建草稿";
-    const published = state.cnblogsBindings.some((binding) => binding.state === "published");
-    updatePublishedButton.disabled = !ready || !published || selectedPlatforms().some((platform) => platform !== "cnblogs") || state.bindingLoading || state.bindingError;
-    updatePublishedButton.title = !published ? "先刷新关联并绑定已发布的博客园文章" : selectedPlatforms().some((platform) => platform !== "cnblogs") ? "当前仅博客园支持更新已发布文章，请只勾选博客园" : "";
+    updatePublishedButton.disabled = !BlogCTLSyncModel.canUpdateCNBlogsPublished(state.selectedSlug, selectedPlatforms(), state.status?.bridge?.running);
+    updatePublishedButton.title = selectedPlatforms().some((platform) => platform !== "cnblogs") ? "当前仅博客园支持更新已发布文章，请只勾选博客园" : "更新前会由 Bridge 校验已发布文章绑定和远端状态";
   }
 
   function renderArticleMeta() {
@@ -327,12 +326,17 @@
   async function updatePublished() {
     if (updatePublishedButton.disabled || !state.selectedSlug) return;
     if (!confirm("将本地内容更新到已绑定的博客园已发布文章。继续吗？")) return;
+    const article = state.selectedSlug;
+    const started = performance.now();
     updatePublishedButton.disabled = true;
     BlogCTLPopup.setMessage(message, "正在启动已发布文章更新任务…");
     try {
-      const response = await BlogCTLPopup.send("blogctl.cnblogs.update", { article: state.selectedSlug });
+      console.info("BlogCTL published update requested", { platform: "cnblogs", article });
+      const response = await BlogCTLPopup.send("blogctl.cnblogs.update", { article });
+      console.info("BlogCTL published update started", { platform: "cnblogs", article, jobId: response.job?.id || "", durationMs: Math.round(performance.now() - started) });
       BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动，可在“任务”页查看进度。`, "ok");
     } catch (error) {
+      console.warn("BlogCTL published update rejected", { platform: "cnblogs", article, code: error.code || "", status: error.status || 0, durationMs: Math.round(performance.now() - started) });
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally { updateStartButton(); }
   }
