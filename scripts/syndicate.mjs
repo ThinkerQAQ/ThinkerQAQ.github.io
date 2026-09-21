@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArticle } from "./distribute.mjs";
+import { parseArticle, resolveArticleAssetUrl } from "./distribute.mjs";
 import { preparePublishingAssetList } from "../tools/blogctl/assets/node/assets.mjs";
 import {
   collectPublishingAssets,
@@ -106,6 +106,7 @@ export function buildDevtoArticle(article, {
     canonical_url: nativeCanonicalUrl(canonicalUrl, publishingConfig),
     description: truncate(article.description, MAX_DEVTO_DESCRIPTION),
     tags: normalizeDevtoTags(article.tags).join(","),
+    main_image: resolveArticleAssetUrl(article.coverImage),
   };
 }
 
