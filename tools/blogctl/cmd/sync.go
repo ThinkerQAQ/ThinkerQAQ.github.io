@@ -96,6 +96,9 @@ func (a app) runSync(args []string) error {
 	if configPath, configErr := bridge.ConfigPath(); configErr == nil {
 		config.ConfigPath = configPath
 	}
+	if publishingJSON, publishingErr := bridge.ResolvedPublishingJSON(); publishingErr == nil {
+		config.PublishingJSON = publishingJSON
+	}
 	if slices.Contains(options.platforms, "medium") && !options.dryRun {
 		state, bridgeErr := ensureBridgeProcess()
 		if bridgeErr != nil {

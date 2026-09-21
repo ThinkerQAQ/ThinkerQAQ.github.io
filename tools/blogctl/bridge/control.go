@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +18,8 @@ import (
 	"time"
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 var supportedSyncPlatforms = map[string]struct{}{
@@ -39,11 +43,13 @@ type articleSummary struct {
 }
 
 type syncRequest struct {
-	Article   string   `json:"article"`
-	Platforms []string `json:"platforms"`
-	DryRun    bool     `json:"dryRun"`
-	Changed   bool     `json:"changed"`
-	Draft     bool     `json:"draft"`
+	Article                string   `json:"article"`
+	Platforms              []string `json:"platforms"`
+	DryRun                 bool     `json:"dryRun"`
+	Changed                bool     `json:"changed"`
+	UsePlatformChangedOnly bool     `json:"usePlatformChangedOnly,omitempty"`
+	Draft                  bool     `json:"draft"`
+	Operation              string   `json:"operation,omitempty"`
 }
 
 type syncPlatformResult struct {
@@ -67,6 +73,7 @@ type syncJob struct {
 	ID         string                        `json:"id"`
 	Article    string                        `json:"article"`
 	Platforms  []string                      `json:"platforms"`
+	Operation  string                        `json:"operation"`
 	Request    syncRequest                   `json:"-"`
 	Results    map[string]syncPlatformResult `json:"results"`
 	Events     []syncJobEvent                `json:"events,omitempty"`
@@ -134,12 +141,13 @@ type toolConfigRequest struct {
 }
 
 type publishingPlatformView struct {
-	ID        string                    `json:"id"`
-	Label     string                    `json:"label"`
-	Language  string                    `json:"language"`
-	Footer    publishingFooterConfig    `json:"footer"`
-	Canonical publishingCanonicalConfig `json:"canonical"`
-	Tracking  publishingTrackingConfig  `json:"tracking"`
+	ID          string                    `json:"id"`
+	Label       string                    `json:"label"`
+	Language    string                    `json:"language"`
+	ChangedOnly bool                      `json:"changedOnly"`
+	Footer      publishingFooterConfig    `json:"footer"`
+	Canonical   publishingCanonicalConfig `json:"canonical"`
+	Tracking    publishingTrackingConfig  `json:"tracking"`
 }
 
 func readFrontmatterScalar(path, name string) string {
@@ -278,32 +286,25 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
 }
 
-func wechatsyncTokenConfigured(config bridgeConfig) bool {
-	return strings.TrimSpace(config.WechatsyncToken) != "" || strings.TrimSpace(os.Getenv("WECHATSYNC_TOKEN")) != ""
+func devtoAPIKey(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.DevtoAPIKey); configured != "" {
+		return configured
+	}
+	return strings.TrimSpace(os.Getenv("DEVTO_API_KEY"))
 }
 
-func wechatsyncTokenPlaceholder(config bridgeConfig) string {
-	if wechatsyncTokenConfigured(config) {
-		return "已配置；留空保持现有 Token"
+func devtoAPIHealth(config bridgeConfig) toolHealth {
+	if devtoAPIKey(config) == "" {
+		return toolHealth{Status: "missing", Summary: "API Key 未配置"}
 	}
-	return "从 Wechatsync 扩展复制 Token"
+	return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
 }
 
-func wechatsyncHealth(config bridgeConfig) toolHealth {
-	path, err := configuredExecutable(config, "wechatsync")
-	if err != nil {
-		return toolHealth{Status: "missing", Summary: "未检测到", Detail: err.Error()}
+func devtoAPIPlaceholder(config bridgeConfig) string {
+	if devtoAPIKey(config) != "" {
+		return "已配置；留空保存时保持不变"
 	}
-	if !wechatsyncTokenConfigured(config) {
-		return toolHealth{
-			Status: "error", Summary: "Token 未配置", Path: path,
-			Detail: "需要与 Wechatsync Chrome 扩展“同步桥接 / MCP 连接”的 Token 一致",
-		}
-	}
-	return toolHealth{
-		OK: true, Status: "ok", Summary: "已配置", Path: path,
-		Detail: fmt.Sprintf("Token 已配置 · WebSocket 端口 %d · 同步前自动预检", config.WechatsyncPort),
-	}
+	return "DEV.to API Key"
 }
 
 func toolRegistry(config bridgeConfig) []toolDescriptor {
@@ -355,6 +356,20 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "devto-api", DisplayName: "DEV.to API", Kind: "publishing", Required: false,
+			Description: "DEV.to 使用官方 API 发布；API Key 仅保存在本机 BlogCTL 配置中，不返回给 Extension。",
+			Health:      devtoAPIHealth(config),
+			Config: toolConfigView{
+				Scope:  "bridge",
+				Values: map[string]any{},
+				Schema: []toolField{{
+					Key: "apiKey", Label: "API Key", Type: "secret",
+					Placeholder: devtoAPIPlaceholder(config),
+					Description: "在 DEV.to Settings → Extensions 中生成。留空保存不会清除已有 Key。",
+				}},
+			},
+		},
+		{
 			Name: "node", DisplayName: "Node.js", Kind: "dependency", Required: true,
 			Description: "执行 BlogCTL publishing scripts。", Health: executableHealth(config, "node"),
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["node"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 node")},
@@ -368,20 +383,6 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Name: "git", DisplayName: "Git", Kind: "dependency", Required: true,
 			Description: "BlogCTL developer workflow dependency。", Health: executableHealth(config, "git"),
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
-		},
-		{
-			Name: "wechatsync", DisplayName: "Wechatsync", Kind: "dependency", Required: false,
-			Description: "中文平台发布 adapter；CLI 通过本机 WebSocket 与 Wechatsync Chrome 扩展连接。",
-			Health:      wechatsyncHealth(config),
-			Config: toolConfigView{
-				Scope:  "bridge",
-				Values: map[string]any{"path": config.ToolPaths["wechatsync"], "port": config.WechatsyncPort},
-				Schema: []toolField{
-					{Key: "path", Label: "Executable", Type: "file", Description: "留空时从 PATH 自动检测 wechatsync"},
-					{Key: "token", Label: "Bridge Token", Type: "secret", Placeholder: wechatsyncTokenPlaceholder(config), Description: "必须与 Wechatsync 扩展中的“同步桥接 / MCP 连接” Token 一致"},
-					{Key: "port", Label: "WebSocket Port", Type: "integer", Placeholder: "9527", Min: 1, Max: 65535, Description: "默认 9527；必须与 Wechatsync 扩展服务器地址一致"},
-				},
-			},
 		},
 	}
 }
@@ -417,22 +418,15 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		config.ProxyEnabled = boolConfig(values, "proxyEnabled")
 		config.ProxyHost = stringConfig(values, "proxyHost")
 		config.ProxyPort = intConfig(values, "proxyPort")
+	case "devto-api":
+		if key := stringConfig(values, "apiKey"); key != "" {
+			config.DevtoAPIKey = key
+		}
 	case "node", "npm", "git":
 		if config.ToolPaths == nil {
 			config.ToolPaths = map[string]string{}
 		}
 		config.ToolPaths[name] = stringConfig(values, "path")
-	case "wechatsync":
-		if config.ToolPaths == nil {
-			config.ToolPaths = map[string]string{}
-		}
-		config.ToolPaths[name] = stringConfig(values, "path")
-		if token := stringConfig(values, "token"); token != "" {
-			config.WechatsyncToken = token
-		}
-		if port := intConfig(values, "port"); port != 0 {
-			config.WechatsyncPort = port
-		}
 	default:
 		return config, fmt.Errorf("tool configuration is not supported: %s", name)
 	}
@@ -444,7 +438,7 @@ func publishingViews(config bridgeConfig) []publishingPlatformView {
 	for _, id := range publishingPlatformOrder {
 		value := config.Publishing.Platforms[id]
 		views = append(views, publishingPlatformView{
-			ID: id, Label: platformLabels[id], Language: value.Language, Footer: value.Footer,
+			ID: id, Label: platformLabels[id], Language: value.Language, ChangedOnly: value.ChangedOnly, Footer: value.Footer,
 			Canonical: value.Canonical, Tracking: value.Tracking,
 		})
 	}
@@ -459,8 +453,11 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 		if _, ok := supportedSyncPlatforms[view.ID]; !ok {
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
+		if view.ID == "medium" && view.ChangedOnly {
+			return config, errors.New("Medium currently cannot update an existing draft")
+		}
 		config.Publishing.Platforms[view.ID] = publishingPlatformConfig{
-			Language: view.Language, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
+			Language: view.Language, ChangedOnly: view.ChangedOnly, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
 		}
 	}
 	return normalizeBridgeConfig(config)
@@ -473,12 +470,14 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 		DryRun:    request.DryRun,
 		Changed:   request.Changed,
 		Draft:     request.Draft,
+		Operation: request.Operation,
 	})
 	if err != nil {
 		return request, err
 	}
 	request.Article = normalized.Articles[0]
 	request.Platforms = normalized.Platforms
+	request.Operation = normalized.Operation
 	return request, nil
 }
 
@@ -492,7 +491,7 @@ func newJobID() string {
 
 type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
 
-func usesWechatsyncPlatform(platforms []string) bool {
+func usesChinaPublishingPlatform(platforms []string) bool {
 	for _, platform := range platforms {
 		switch platform {
 		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
@@ -502,32 +501,206 @@ func usesWechatsyncPlatform(platforms []string) bool {
 	return false
 }
 
+func allNativeChinaPlatforms(platforms []string) bool {
+	if len(platforms) == 0 {
+		return false
+	}
+	for _, platform := range platforms {
+		switch platform {
+		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+type bridgeNativePublisher struct {
+	server *Server
+}
+
+func draftInputFromCompiled(article blogcompiler.CompiledArticle) publisher.DraftInput {
+	return publisher.DraftInput{
+		Slug: article.Slug, Title: article.Title, Description: article.Description,
+		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
+		ContentHash: article.ContentHash, SourceDir: article.SourceDir,
+		Tags: append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
+		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
+	}
+}
+
+func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Session, *http.Client, error) {
+	p.server.mu.Lock()
+	if platform == "devto" {
+		apiKey := devtoAPIKey(p.server.config)
+		httpClient := p.server.httpClient
+		p.server.mu.Unlock()
+		if apiKey == "" {
+			return publisher.Session{}, nil, errors.New("DEV.to API key is required")
+		}
+		return publisher.Session{APIKey: apiKey}, httpClient, nil
+	}
+	session, ok := p.server.sessions[platform]
+	if ok && !session.ExpiresAt.After(p.server.now()) {
+		delete(p.server.sessions, platform)
+		ok = false
+	}
+	httpClient := p.server.httpClient
+	p.server.mu.Unlock()
+	if !ok {
+		return publisher.Session{}, nil, fmt.Errorf("%s browser session is required", platform)
+	}
+
+	cookies := make([]publisher.BrowserCookie, 0, len(session.BrowserCookies))
+	for _, cookie := range session.BrowserCookies {
+		cookies = append(cookies, publisher.BrowserCookie{
+			Name: cookie.Name, Value: cookie.Value, Domain: cookie.Domain, Path: cookie.Path,
+			Secure: cookie.Secure, HTTPOnly: cookie.HTTPOnly, HostOnly: cookie.HostOnly,
+			SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
+		})
+	}
+	return publisher.Session{Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader}, httpClient, nil
+}
+
+func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
+	session, httpClient, err := p.publisherSession(request.Platform)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	service := publisher.Service{HTTPClient: httpClient}
+	result, err := service.CreateOrUpdateDraftInput(
+		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled), request.ChangedOnly,
+	)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	resultName := "draft-created"
+	if request.Platform == "devto" {
+		resultName = "created"
+	}
+	if result.Updated {
+		resultName = "updated"
+	}
+	if result.Skipped {
+		resultName = "skipped"
+	}
+	return blogapp.NativeDraftResult{Result: resultName, URL: result.URL}, nil
+}
+
+func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp.NativePublishRequest) (blogapp.NativePublishResult, error) {
+	session, httpClient, err := p.publisherSession(request.Platform)
+	if err != nil {
+		return blogapp.NativePublishResult{}, err
+	}
+	service := publisher.Service{HTTPClient: httpClient}
+	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled))
+	if err != nil {
+		return blogapp.NativePublishResult{}, err
+	}
+	return blogapp.NativePublishResult{Result: "published", URL: result.URL}, nil
+}
+
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
+	publishingJSON, publishingErr := resolvedPublishingJSON(config)
+	if publishingErr != nil {
+		return "", publishingErr
+	}
 	applicationConfig := blogapp.SyncConfig{
-		EngineRoot:      config.EngineRoot,
-		ContentRoot:     config.ContentRoot,
-		BridgeOrigin:    "http://" + DefaultAddress,
-		BridgeToken:     s.token,
-		ToolPaths:       config.ToolPaths,
-		WechatsyncToken: config.WechatsyncToken,
-		WechatsyncPort:  config.WechatsyncPort,
+		EngineRoot:     config.EngineRoot,
+		ContentRoot:    config.ContentRoot,
+		PublishingJSON: publishingJSON,
+		BridgeOrigin:   "http://" + DefaultAddress,
+		BridgeToken:    s.token,
+		DevtoAPIKey:    config.DevtoAPIKey,
+		ToolPaths:      config.ToolPaths,
 	}
 	if configPath, err := ConfigPath(); err == nil {
 		applicationConfig.ConfigPath = configPath
 	}
+	if request.Operation == "update-published" {
+		started := time.Now()
+		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
+		s.distributionMu.Lock()
+		defer s.distributionMu.Unlock()
+		output, err := blogapp.NewSyncService().Run(ctx, applicationConfig, blogapp.SyncRequest{
+			Articles: []string{request.Article}, Platforms: []string{"cnblogs"}, DryRun: true, Draft: true, Operation: "draft",
+		})
+		if err != nil {
+			slog.Warn("cnblogs published update export failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
+			return output, err
+		}
+		session, client, err := (bridgeNativePublisher{server: s}).publisherSession("cnblogs")
+		if err != nil {
+			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
+			return output, err
+		}
+		compiledArticles, compileErr := blogapp.ParseCompiledArticles(output)
+		if compileErr != nil {
+			slog.Warn("cnblogs published update compile result invalid", "operation", "update-published", "slug", request.Article, "error", compileErr)
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return output, compileErr
+		}
+		compiled, compileErr := func() (blogcompiler.CompiledArticle, error) {
+			for _, article := range compiledArticles {
+				if article.Slug == request.Article && article.Platform == "cnblogs" {
+					return article, nil
+				}
+			}
+			return blogcompiler.CompiledArticle{}, errors.New("publishing compiler returned no CNBlogs article")
+		}()
+		if compileErr != nil {
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return output, compileErr
+		}
+		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublishedInput(
+			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled),
+		)
+		if err != nil {
+			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
+			return output, err
+		}
+		resultName := "published-updated"
+		if skipped {
+			resultName = "skipped"
+		}
+		onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "completed", Result: resultName, URL: result.URL})
+		slog.Info("cnblogs published update completed", "operation", "update-published", "slug", request.Article, "result", resultName, "durationMs", time.Since(started).Milliseconds())
+		return output, nil
+	}
 	service := blogapp.NewSyncService()
+	service.NativePublisher = bridgeNativePublisher{server: s}
 	service.OnEvent = onEvent
-	if usesWechatsyncPlatform(request.Platforms) {
-		s.wechatsyncMu.Lock()
-		defer s.wechatsyncMu.Unlock()
+	if usesChinaPublishingPlatform(request.Platforms) {
+		s.distributionMu.Lock()
+		defer s.distributionMu.Unlock()
+	}
+	changedByPlatform := changedPoliciesForRequest(config, request)
+	for platform, enabled := range changedByPlatform {
+		slog.Info("draft changed-only policy selected", "operation", "draft-policy", "platform", platform, "enabled", enabled)
 	}
 	return service.Run(ctx, applicationConfig, blogapp.SyncRequest{
-		Articles:  []string{request.Article},
-		Platforms: append([]string{}, request.Platforms...),
-		DryRun:    request.DryRun,
-		Changed:   request.Changed,
-		Draft:     request.Draft,
+		Articles:          []string{request.Article},
+		Platforms:         append([]string{}, request.Platforms...),
+		DryRun:            request.DryRun,
+		Changed:           request.Changed,
+		ChangedByPlatform: changedByPlatform,
+		Draft:             request.Draft,
+		Operation:         request.Operation,
 	})
+}
+
+func changedPoliciesForRequest(config bridgeConfig, request syncRequest) map[string]bool {
+	if !request.UsePlatformChangedOnly || request.Operation != "draft" {
+		return nil
+	}
+	policies := make(map[string]bool, len(request.Platforms))
+	for _, platform := range request.Platforms {
+		policies[platform] = config.Publishing.Platforms[platform].ChangedOnly
+	}
+	return policies
 }
 
 func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
@@ -582,7 +755,7 @@ func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
 	}
 	return &syncJob{
 		ID: id, Article: request.Article, Platforms: append([]string{}, request.Platforms...),
-		Request: request, Results: results, Events: events, State: "running",
+		Operation: request.Operation, Request: request, Results: results, Events: events, State: "running",
 		StartedAt: startedAt.Format(time.RFC3339), DryRun: request.DryRun,
 	}
 }
@@ -745,4 +918,38 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 
 	s.launchSyncJob(id, request, config)
 	return response, nil
+}
+
+func (s *Server) publishSyncJob(id string) (*syncJob, error) {
+	s.mu.Lock()
+	source := s.jobs[id]
+	if source == nil {
+		s.mu.Unlock()
+		return nil, errors.New("sync job not found")
+	}
+	if source.State != "completed" {
+		s.mu.Unlock()
+		return nil, errors.New("sync job is not completed")
+	}
+	if source.Request.Operation == "publish" {
+		s.mu.Unlock()
+		return nil, errors.New("publish jobs cannot be published again")
+	}
+	if source.Request.Operation != "draft" {
+		s.mu.Unlock()
+		return nil, errors.New("only draft jobs can be published")
+	}
+	if !allNativeChinaPlatforms(source.Platforms) {
+		s.mu.Unlock()
+		return nil, errors.New("confirm publish is currently available only for native Chinese platforms")
+	}
+	request := source.Request
+	request.Operation = "publish"
+	request.DryRun = false
+	request.Changed = false
+	request.UsePlatformChangedOnly = false
+	request.Draft = false
+	s.mu.Unlock()
+
+	return s.startSyncJob(request), nil
 }

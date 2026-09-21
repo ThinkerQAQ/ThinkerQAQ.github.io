@@ -41,13 +41,13 @@ The popup exposes the state that matters for browser-session platforms:
 
 The popup does not send cookies automatically. The user must explicitly click **Sync Medium Session** while a live `blogctl sync` command is waiting. This keeps the browser-to-local handoff visible and deliberate.
 
-Medium is the first native browser-session adapter. Chinese destinations still use the existing Wechatsync subprocess during this migration branch; their platform adapters are not copied into this MIT repository because the current Wechatsync implementation is GPL-licensed. Live Chinese sync therefore keeps the existing Wechatsync environment until those adapters are migrated through a clean boundary.
+Medium is the first native browser-session adapter. Chinese destinations (CNBlogs, Juejin, CSDN, SegmentFault, Zhihu, 51CTO, OSChina and Toutiao) now also publish through native Go adapter implementations over the same BlogCTL bridge, without the legacy Wechatsync compatibility adapter.
 
 ## Platform routing
 
 | Platform | Current route | Publish behavior |
 | --- | --- | --- |
-| CNBlogs / Juejin / CSDN / SegmentFault / Zhihu / 51CTO / OSChina / Toutiao | `blogctl` → existing distribution script → Wechatsync compatibility adapter | explicit sync only |
+| CNBlogs / Juejin / CSDN / SegmentFault / Zhihu / 51CTO / OSChina / Toutiao | `blogctl` → Go bridge → native publisher adapters | draft + explicit confirm-publish |
 | DEV.to | `blogctl` → official DEV API implementation | explicit command/workflow only |
 | Medium | `blogctl` → Go bridge → BlogCTL Extension → Medium draft API | draft only |
 

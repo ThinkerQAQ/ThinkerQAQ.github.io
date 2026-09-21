@@ -2,6 +2,12 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArticle, resolveArticleAssetUrl } from "./distribute.mjs";
+import { preparePublishingAssetList } from "../tools/blogctl/assets/node/assets.mjs";
+import {
+  collectPublishingAssets,
+  compilePublishingMarkdown,
+  makeExternalLinksAbsolute as compileExternalLinks,
+} from "../tools/blogctl/compiler/node/compiler.mjs";
 import {
   defaultPlatformPublishingConfig,
   nativeCanonicalUrl,
@@ -61,9 +67,7 @@ export function normalizeDevtoTags(tags = []) {
 }
 
 export function makeExternalLinksAbsolute(body) {
-  return body
-    .replace(/(\]\()\/(?!\/)/gu, `$1${SITE_ORIGIN}/`)
-    .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${SITE_ORIGIN}/`);
+  return compileExternalLinks(body, { siteOrigin: SITE_ORIGIN });
 }
 
 export function buildCanonicalUrl(slug, language = "en") {
@@ -85,7 +89,10 @@ export function buildDevtoArticle(article, {
 } = {}) {
   const contentLanguage = language || publishingConfig?.language || "en";
   const canonicalUrl = buildCanonicalUrl(slug, contentLanguage);
-  const body = makeExternalLinksAbsolute(article.body).trim();
+  const body = compilePublishingMarkdown(article.body, {
+    platform: "devto",
+    siteOrigin: SITE_ORIGIN,
+  }).markdown.trim();
   const footer = renderPublishingFooter(publishingConfig, {
     canonicalUrl,
     title: article.title,
@@ -181,6 +188,7 @@ export async function upsertDevtoArticle(desired, {
   remoteArticles,
   apiOrigin = DEVTO_API_ORIGIN,
   fetchImpl = fetch,
+  skipUnchanged = true,
 } = {}) {
   const existing = remoteArticles.find((article) => (
     desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
@@ -210,7 +218,7 @@ export async function upsertDevtoArticle(desired, {
       fetchImpl,
     );
   }
-  if (devtoArticleMatches(fullExisting, desired)) {
+  if (skipUnchanged && devtoArticleMatches(fullExisting, desired)) {
     return { action: "skipped", article: fullExisting };
   }
 
@@ -319,6 +327,12 @@ export async function runSyndication({
     payload: buildDevtoArticle(article, { slug, published: !draft, publishingConfig, language: contentLanguage }),
   }));
 
+  const publishingAssets = loaded.flatMap(({ article }) => collectPublishingAssets(article.body));
+  await preparePublishingAssetList(publishingAssets, {
+    dryRun,
+    cacheRoot: path.join(process.env.BLOG_CONTENT_ROOT || process.cwd(), ".distribution", "assets"),
+  });
+
   if (dryRun) {
     for (const item of desiredArticles) {
       log("info", "syndication-devto", "dry-run", {
@@ -342,6 +356,7 @@ export async function runSyndication({
       remoteArticles,
       apiOrigin,
       fetchImpl,
+      skipUnchanged: !draft || publishingConfig.changedOnly === true,
     });
     summary[result.action] += 1;
     log("info", "syndication-devto", result.action, {

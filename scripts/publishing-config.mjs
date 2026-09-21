@@ -41,6 +41,7 @@ export function defaultPlatformPublishingConfig(platform) {
   const language = defaultPublishingLanguage(platform);
   return {
     language,
+    changedOnly: false,
     footer: {
       enabled: true,
       template: defaultFooterTemplate(language),
@@ -84,6 +85,7 @@ function mergePlatformPublishingConfig(platform, current = {}) {
   const tracking = current.tracking ?? null;
   return {
     language,
+    changedOnly: current.changedOnly === true,
     footer: {
       enabled: footer.enabled ?? current.footerEnabled ?? defaults.footer.enabled,
       template: String(footer.template || current.footerTemplate || defaultFooterTemplate(language)),
@@ -111,6 +113,20 @@ export function mergePublishingConfig(config = {}) {
 }
 
 export async function loadPublishingConfig(env = process.env) {
+  const resolved = String(env.BLOGCTL_PUBLISHING_JSON || "").trim();
+  if (resolved) {
+    let parsed;
+    try {
+      parsed = JSON.parse(resolved);
+    } catch (error) {
+      throw new Error("Invalid BLOGCTL_PUBLISHING_JSON: " + error.message);
+    }
+    if (!parsed?.platforms || typeof parsed.platforms !== "object") {
+      throw new Error("BLOGCTL_PUBLISHING_JSON is missing platforms");
+    }
+    return parsed.platforms;
+  }
+
   const configFile = String(env.BLOGCTL_CONFIG_FILE || "").trim();
   if (!configFile) return defaultPublishingConfig();
   try {

@@ -49,84 +49,58 @@ func TestBridgeConfigRetainsProxyAddressWhileDisabled(t *testing.T) {
 	}
 }
 
-func TestBridgeConfigDefaultsWechatsyncPortAndPersistsToken(t *testing.T) {
+func TestToolRegistryDoesNotExposeLegacyWechatsyncDependency(t *testing.T) {
+	config := defaultBridgeConfig()
+	for _, tool := range toolRegistry(config) {
+		if tool.Name == "wechatsync" {
+			t.Fatalf("legacy Wechatsync tool is still exposed: %#v", tool)
+		}
+	}
+}
+
+func TestDevtoAPIKeyPersistsAndToolRegistryMasksSecret(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	t.Setenv("DEVTO_API_KEY", "")
 
-	config, err := normalizeBridgeConfig(bridgeConfig{
-		WechatsyncToken: " token-123 ",
-	})
+	config, err := normalizeBridgeConfig(bridgeConfig{DevtoAPIKey: " secret-key "})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.WechatsyncToken != "token-123" || config.WechatsyncPort != 9527 {
-		t.Fatalf("wechatsync config = token:%q port:%d", config.WechatsyncToken, config.WechatsyncPort)
+	if config.DevtoAPIKey != "secret-key" {
+		t.Fatalf("normalized key = %q", config.DevtoAPIKey)
 	}
 	if err := saveBridgeConfig(config); err != nil {
 		t.Fatal(err)
 	}
-	loaded := loadBridgeConfig()
-	if loaded.WechatsyncToken != "token-123" || loaded.WechatsyncPort != 9527 {
-		t.Fatalf("loaded wechatsync config = token:%q port:%d", loaded.WechatsyncToken, loaded.WechatsyncPort)
+	reloaded := loadBridgeConfig()
+	if reloaded.DevtoAPIKey != "secret-key" {
+		t.Fatalf("reloaded key = %q", reloaded.DevtoAPIKey)
 	}
-}
 
-func TestUpdateWechatsyncToolKeepsConfiguredTokenWhenSecretFieldIsBlank(t *testing.T) {
-	config := defaultBridgeConfig()
-	config.WechatsyncToken = "existing-token"
-	updated, err := updateToolConfig(config, "wechatsync", map[string]any{
-		"path":  "",
-		"token": "",
-		"port":  float64(9600),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.WechatsyncToken != "existing-token" {
-		t.Fatalf("token = %q", updated.WechatsyncToken)
-	}
-	if updated.WechatsyncPort != 9600 {
-		t.Fatalf("port = %d", updated.WechatsyncPort)
-	}
-}
-
-func TestBridgeConfigRejectsInvalidWechatsyncPort(t *testing.T) {
-	if _, err := normalizeBridgeConfig(bridgeConfig{WechatsyncPort: 70000}); err == nil {
-		t.Fatal("invalid Wechatsync port unexpectedly succeeded")
-	}
-}
-
-func TestWechatsyncToolNeverExposesStoredToken(t *testing.T) {
-	t.Setenv("WECHATSYNC_TOKEN", "")
-	executable := filepath.Join(t.TempDir(), "wechatsync")
-	if err := os.WriteFile(executable, []byte("test"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	config := defaultBridgeConfig()
-	config.ToolPaths["wechatsync"] = executable
-	config.WechatsyncToken = "secret-token"
-	tools := toolRegistry(config)
-	var wechatsync toolDescriptor
-	for _, tool := range tools {
-		if tool.Name == "wechatsync" {
-			wechatsync = tool
+	var devto toolDescriptor
+	for _, tool := range toolRegistry(reloaded) {
+		if tool.Name == "devto-api" {
+			devto = tool
 			break
 		}
 	}
-	if !wechatsync.Health.OK {
-		t.Fatalf("health = %#v", wechatsync.Health)
+	if !devto.Health.OK || devto.Health.Summary != "已配置" {
+		t.Fatalf("DEV.to health = %#v", devto.Health)
 	}
-	if _, exposed := wechatsync.Config.Values["token"]; exposed {
-		t.Fatal("stored Wechatsync token was exposed through tool registry")
+	if _, exposed := devto.Config.Values["apiKey"]; exposed {
+		t.Fatalf("DEV.to API key was exposed: %#v", devto.Config.Values)
 	}
-	foundSecret := false
-	for _, field := range wechatsync.Config.Schema {
-		if field.Key == "token" {
-			foundSecret = field.Type == "secret"
-		}
+	if len(devto.Config.Schema) != 1 || devto.Config.Schema[0].Type != "secret" {
+		t.Fatalf("DEV.to schema = %#v", devto.Config.Schema)
 	}
-	if !foundSecret {
-		t.Fatalf("token secret field missing: %#v", wechatsync.Config.Schema)
+
+	unchanged, err := updateToolConfig(reloaded, "devto-api", map[string]any{"apiKey": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.DevtoAPIKey != "secret-key" {
+		t.Fatalf("blank secret save cleared key: %q", unchanged.DevtoAPIKey)
 	}
 }
 
@@ -150,6 +124,25 @@ func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 	}
 	if updated.Publishing.Platforms["medium"].Language != "zh-CN" {
 		t.Fatalf("updated medium language = %q", updated.Publishing.Platforms["medium"].Language)
+	}
+	var juejin publishingPlatformView
+	for _, view := range publishingViews(updated) {
+		if view.ID == "juejin" {
+			juejin = view
+			break
+		}
+	}
+	juejin.ChangedOnly = true
+	updated, err = updatePublishing(updated, []publishingPlatformView{juejin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.Publishing.Platforms["juejin"].ChangedOnly || updated.Publishing.Platforms["cnblogs"].ChangedOnly {
+		t.Fatalf("changed-only policy leaked across platforms: %#v", updated.Publishing.Platforms)
+	}
+	medium.ChangedOnly = true
+	if _, err := updatePublishing(updated, []publishingPlatformView{medium}); err == nil {
+		t.Fatal("Medium must reject an unsupported changed-only policy")
 	}
 }
 
@@ -240,5 +233,43 @@ func TestBridgeConfigMigratesLegacyPublishingProfiles(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"platforms"`) || strings.Contains(string(data), `"trackingQuery"`) {
 		t.Fatalf("migrated config = %s", data)
+	}
+}
+
+func TestBridgeConfigPublishingCompilerAndAssetsDefaults(t *testing.T) {
+	config, err := normalizeBridgeConfig(bridgeConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Publishing.Compiler.Mermaid.Format != "png" ||
+		config.Publishing.Compiler.Mermaid.Width != 1200 ||
+		config.Publishing.Compiler.Mermaid.Scale != 2 {
+		t.Fatalf("mermaid compiler config = %#v", config.Publishing.Compiler.Mermaid)
+	}
+	if config.Publishing.Assets.Store != "r2" {
+		t.Fatalf("asset store = %q", config.Publishing.Assets.Store)
+	}
+	if config.Publishing.Assets.R2.PublicBaseURL != "https://pub-366a15b6733345039775c083a1fffb3e.r2.dev/" {
+		t.Fatalf("R2 public base URL = %q", config.Publishing.Assets.R2.PublicBaseURL)
+	}
+}
+
+func TestBridgeConfigRejectsInvalidPublishingCompilerPolicy(t *testing.T) {
+	config := defaultBridgeConfig()
+	config.Publishing.Compiler.Mermaid.Format = "svg"
+	if _, err := normalizeBridgeConfig(config); err == nil || !strings.Contains(err.Error(), "Mermaid format must be png") {
+		t.Fatalf("unexpected Mermaid format validation error: %v", err)
+	}
+
+	config = defaultBridgeConfig()
+	config.Publishing.Assets.Store = "filesystem"
+	if _, err := normalizeBridgeConfig(config); err == nil || !strings.Contains(err.Error(), "asset store must be r2") {
+		t.Fatalf("unexpected asset store validation error: %v", err)
+	}
+
+	config = defaultBridgeConfig()
+	config.Publishing.Assets.R2.PublicBaseURL = "http://assets.example.com/"
+	if _, err := normalizeBridgeConfig(config); err == nil || !strings.Contains(err.Error(), "publicBaseUrl must be an HTTPS URL") {
+		t.Fatalf("unexpected R2 URL validation error: %v", err)
 	}
 }

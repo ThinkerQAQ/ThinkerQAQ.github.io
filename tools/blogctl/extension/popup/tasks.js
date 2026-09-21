@@ -12,6 +12,10 @@
     pollTimer: null,
   };
 
+  const NATIVE_CHINA_PLATFORMS = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
+  ]);
+
   let list, refreshButton, clearButton, message;
 
   function stateLabel(job) {
@@ -55,7 +59,7 @@
         link.href = row.url;
         link.target = "_blank";
         link.rel = "noreferrer noopener";
-        link.textContent = "打开草稿";
+        link.textContent = job.operation === "publish" || job.operation === "update-published" ? "打开已发布文章" : "打开草稿";
         item.append(link);
       }
       container.append(item);
@@ -115,6 +119,28 @@
     }
   }
 
+  function canConfirmPublish(job) {
+    return job.operation === "draft"
+      && job.state === "completed"
+      && (job.platforms ?? []).length > 0
+      && (job.platforms ?? []).every((platform) => NATIVE_CHINA_PLATFORMS.has(platform))
+      && (job.platforms ?? []).every((platform) => job.results?.[platform]?.state === "completed");
+  }
+
+  async function publishJob(job, button) {
+    button.disabled = true;
+    BlogCTLPopup.setMessage(message, `正在确认发布任务 ${job.id} 的草稿…`);
+    try {
+      const response = await BlogCTLPopup.send("blogctl.job.publish", { id: job.id });
+      if (response.job?.id) state.ui.setJobExpanded(response.job.id, true);
+      BlogCTLPopup.setMessage(message, "发布任务已启动。", "ok");
+      await refresh();
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+      button.disabled = false;
+    }
+  }
+
   function renderActions(job, card) {
     if (job.state === "running") return;
     const actions = document.createElement("div");
@@ -123,6 +149,11 @@
       let retry;
       retry = actionButton("重试", "secondary compact", () => retryJob(job, retry));
       actions.append(retry);
+    }
+    if (canConfirmPublish(job)) {
+      let publish;
+      publish = actionButton("确定发布", "primary inline-primary compact", () => publishJob(job, publish));
+      actions.append(publish);
     }
     let remove;
     remove = actionButton("删除", "secondary compact danger-action", () => deleteJob(job, remove));
@@ -180,6 +211,7 @@
       meta.textContent = [
         started ? `开始 ${started}` : "",
         finished ? `结束 ${finished}` : "",
+        job.operation ? (job.operation === "publish" ? "发布" : "草稿") : "",
         job.id ? `ID ${job.id}` : "",
       ].filter(Boolean).join(" · ");
       card.append(meta);

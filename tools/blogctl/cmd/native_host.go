@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -51,6 +52,18 @@ func bridgeStatePath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, "BlogCTL", "bridge.json"), nil
+}
+
+func openBridgeLog() (*os.File, error) {
+	statePath, err := bridgeStatePath()
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.Dir(statePath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	return os.OpenFile(filepath.Join(dir, "bridge.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 }
 
 func writeBridgeState(state bridgeState) error {
@@ -150,6 +163,13 @@ func ensureBridgeProcess() (bridgeState, error) {
 }
 
 func runBridgeProcess() error {
+	logFile, err := openBridgeLog()
+	if err != nil {
+		return fmt.Errorf("open bridge log: %w", err)
+	}
+	defer logFile.Close()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(logFile, nil)))
+	slog.Info("bridge starting", "operation", "startup", "pid", os.Getpid())
 	token, err := randomToken()
 	if err != nil {
 		return err
@@ -167,6 +187,7 @@ func runBridgeProcess() error {
 		_ = listener.Close()
 		return err
 	}
+	slog.Info("bridge ready", "operation", "startup", "address", bridge.DefaultAddress, "pid", state.PID)
 
 	restartRequested := make(chan struct{}, 1)
 	server.SetRestart(func() {
@@ -176,6 +197,7 @@ func runBridgeProcess() error {
 		}
 	})
 	<-restartRequested
+	slog.Info("bridge restarting", "operation", "restart", "pid", state.PID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

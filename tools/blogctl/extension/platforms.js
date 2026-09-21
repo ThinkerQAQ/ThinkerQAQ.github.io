@@ -3,9 +3,9 @@ export const PLATFORM_AUTH = Object.freeze([
     id: "cnblogs",
     label: "博客园",
     probe: {
-      kind: "html",
-      url: "https://home.cnblogs.com/user/CurrentUserInfo",
-      match: "href=[\"']\/u\/[^\/\"']+\/[\"']",
+      kind: "json",
+      url: "https://i.cnblogs.com/api/user",
+      path: "loginName",
     },
   },
   {
@@ -94,8 +94,61 @@ export const PLATFORM_AUTH = Object.freeze([
 ]);
 
 export const PLATFORM_SESSIONS = Object.freeze({
+  cnblogs: {
+    cookieDomains: ["cnblogs.com"],
+    // Chrome cookies.getAll defaults to unpartitioned cookies. CNBlogs can also
+    // have cookies scoped to its top-level site partition.
+    cookiePartitionKeys: [{ topLevelSite: "https://cnblogs.com" }],
+    cookieUrls: [
+      "https://www.cnblogs.com/",
+      "https://i.cnblogs.com/",
+      "https://i.cnblogs.com/api/user",
+      "https://i.cnblogs.com/api/posts",
+      "https://i.cnblogs.com/posts/edit",
+      "https://home.cnblogs.com/",
+      "https://account.cnblogs.com/",
+      "https://upload.cnblogs.com/v2/images/cors-upload",
+    ],
+    requiredCookieNames: [],
+  },
+  juejin: {
+    cookieDomains: ["juejin.cn"],
+    cookieUrls: ["https://juejin.cn/", "https://api.juejin.cn/"],
+    requiredCookieNames: [],
+  },
+  csdn: {
+    cookieDomains: ["csdn.net"],
+    cookieUrls: ["https://www.csdn.net/", "https://editor.csdn.net/", "https://bizapi.csdn.net/"],
+    requiredCookieNames: [],
+  },
+  segmentfault: {
+    cookieDomains: ["segmentfault.com"],
+    cookieUrls: ["https://segmentfault.com/"],
+    requiredCookieNames: [],
+  },
+  zhihu: {
+    cookieDomains: ["zhihu.com"],
+    cookieUrls: ["https://www.zhihu.com/", "https://zhuanlan.zhihu.com/"],
+    requiredCookieNames: [],
+  },
+  "51cto": {
+    cookieDomains: ["51cto.com"],
+    cookieUrls: ["https://blog.51cto.com/"],
+    requiredCookieNames: [],
+  },
+  oschina: {
+    cookieDomains: ["oschina.net"],
+    cookieUrls: ["https://my.oschina.net/", "https://apiv1.oschina.net/"],
+    requiredCookieNames: [],
+  },
+  toutiao: {
+    cookieDomains: ["toutiao.com"],
+    cookieUrls: ["https://mp.toutiao.com/"],
+    requiredCookieNames: [],
+  },
   medium: {
-    cookieUrl: "https://medium.com/",
+    cookieDomains: ["medium.com"],
+    cookieUrls: ["https://medium.com/"],
     cookieNames: ["sid", "uid", "xsrf", "cf_clearance"],
     requiredCookieNames: ["sid"],
   },

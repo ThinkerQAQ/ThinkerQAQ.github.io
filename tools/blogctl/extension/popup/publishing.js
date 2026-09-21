@@ -2,7 +2,7 @@
 
 (function (root) {
   const state = { initialized: false, active: false, platforms: [] };
-  let platformSelect, languageSelect, footerEnabled, footerTemplate, canonicalMode;
+  let platformSelect, languageSelect, changedOnly, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
   let preview, saveButton, resetButton, message;
 
@@ -20,6 +20,7 @@
     const english = platform === "devto" || platform === "medium";
     return {
       language: english ? "en" : "zh-CN",
+      changedOnly: false,
       footer: {
         enabled: true,
         template: defaultFooterTemplate(english ? "en" : "zh-CN"),
@@ -76,6 +77,9 @@
     const profile = platform || {};
     const fallback = defaultsFor(profile.id || "cnblogs");
     languageSelect.value = profile.language || fallback.language;
+    changedOnly.checked = profile.id !== "medium" && Boolean(profile.changedOnly);
+    changedOnly.disabled = profile.id === "medium";
+    changedOnly.title = changedOnly.disabled ? "Medium 当前只创建新草稿，尚不能更新已有草稿。" : "";
     const footer = profile.footer || fallback.footer;
     const canonical = profile.canonical || fallback.canonical;
     const tracking = profile.tracking || fallback.tracking;
@@ -96,6 +100,7 @@
       id: platform.id,
       label: platform.label,
       language: languageSelect.value,
+      changedOnly: changedOnly.checked,
       footer: {
         enabled: footerEnabled.checked,
         template: footerTemplate.value.trim(),
@@ -175,6 +180,7 @@
     if (state.initialized) return;
     platformSelect = document.getElementById("publishingPlatform");
     languageSelect = document.getElementById("publishingLanguage");
+    changedOnly = document.getElementById("publishingChangedOnly");
     footerEnabled = document.getElementById("footerEnabled");
     footerTemplate = document.getElementById("footerTemplate");
     canonicalMode = document.getElementById("canonicalMode");

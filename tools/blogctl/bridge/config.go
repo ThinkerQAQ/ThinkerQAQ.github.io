@@ -26,13 +26,36 @@ type publishingTrackingConfig struct {
 }
 
 type publishingPlatformConfig struct {
-	Language  string                    `json:"language"`
-	Footer    publishingFooterConfig    `json:"footer"`
-	Canonical publishingCanonicalConfig `json:"canonical"`
-	Tracking  publishingTrackingConfig  `json:"tracking"`
+	Language    string                    `json:"language"`
+	ChangedOnly bool                      `json:"changedOnly"`
+	Footer      publishingFooterConfig    `json:"footer"`
+	Canonical   publishingCanonicalConfig `json:"canonical"`
+	Tracking    publishingTrackingConfig  `json:"tracking"`
+}
+
+type publishingMermaidConfig struct {
+	Format string  `json:"format"`
+	Width  int     `json:"width"`
+	Scale  float64 `json:"scale"`
+}
+
+type publishingCompilerConfig struct {
+	Mermaid publishingMermaidConfig `json:"mermaid"`
+}
+
+type publishingR2Config struct {
+	Bucket        string `json:"bucket,omitempty"`
+	PublicBaseURL string `json:"publicBaseUrl"`
+}
+
+type publishingAssetsConfig struct {
+	Store string             `json:"store"`
+	R2    publishingR2Config `json:"r2"`
 }
 
 type publishingConfig struct {
+	Compiler  publishingCompilerConfig            `json:"compiler"`
+	Assets    publishingAssetsConfig              `json:"assets"`
 	Platforms map[string]publishingPlatformConfig `json:"platforms"`
 }
 
@@ -47,12 +70,11 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
-	ContentRoot     string            `json:"contentRoot"`
-	EngineRoot      string            `json:"engineRoot"`
-	ToolPaths       map[string]string `json:"toolPaths"`
-	WechatsyncToken string            `json:"wechatsyncToken,omitempty"`
-	WechatsyncPort  int               `json:"wechatsyncPort"`
-	Publishing      publishingConfig  `json:"publishing"`
+	ContentRoot string            `json:"contentRoot"`
+	EngineRoot  string            `json:"engineRoot"`
+	ToolPaths   map[string]string `json:"toolPaths"`
+	DevtoAPIKey string            `json:"devtoApiKey,omitempty"`
+	Publishing  publishingConfig  `json:"publishing"`
 }
 
 var publishingPlatformOrder = []string{
@@ -99,7 +121,18 @@ func defaultPlatformPublishingConfig(platform string) publishingPlatformConfig {
 }
 
 func defaultPublishingConfig() publishingConfig {
-	result := publishingConfig{Platforms: make(map[string]publishingPlatformConfig)}
+	result := publishingConfig{
+		Compiler: publishingCompilerConfig{
+			Mermaid: publishingMermaidConfig{Format: "png", Width: 1200, Scale: 2},
+		},
+		Assets: publishingAssetsConfig{
+			Store: "r2",
+			R2: publishingR2Config{
+				PublicBaseURL: "https://pub-366a15b6733345039775c083a1fffb3e.r2.dev/",
+			},
+		},
+		Platforms: make(map[string]publishingPlatformConfig),
+	}
 	for _, platform := range publishingPlatformOrder {
 		result.Platforms[platform] = defaultPlatformPublishingConfig(platform)
 	}
@@ -108,10 +141,21 @@ func defaultPublishingConfig() publishingConfig {
 
 func defaultBridgeConfig() bridgeConfig {
 	return bridgeConfig{
-		ToolPaths:      map[string]string{},
-		WechatsyncPort: 9527,
-		Publishing:     defaultPublishingConfig(),
+		ToolPaths:  map[string]string{},
+		Publishing: defaultPublishingConfig(),
 	}
+}
+
+func resolvedPublishingJSON(config bridgeConfig) (string, error) {
+	payload, err := json.Marshal(config.Publishing)
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
+}
+
+func ResolvedPublishingJSON() (string, error) {
+	return resolvedPublishingJSON(loadBridgeConfig())
 }
 
 func ConfigPath() (string, error) {
@@ -137,14 +181,26 @@ func normalizeStoredPath(value string) string {
 
 func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	defaults := defaultBridgeConfig()
+	if config.Publishing.Compiler.Mermaid.Format == "" {
+		config.Publishing.Compiler.Mermaid.Format = defaults.Publishing.Compiler.Mermaid.Format
+	}
+	if config.Publishing.Compiler.Mermaid.Width <= 0 {
+		config.Publishing.Compiler.Mermaid.Width = defaults.Publishing.Compiler.Mermaid.Width
+	}
+	if config.Publishing.Compiler.Mermaid.Scale <= 0 {
+		config.Publishing.Compiler.Mermaid.Scale = defaults.Publishing.Compiler.Mermaid.Scale
+	}
+	if config.Publishing.Assets.Store == "" {
+		config.Publishing.Assets.Store = defaults.Publishing.Assets.Store
+	}
+	if config.Publishing.Assets.R2.PublicBaseURL == "" {
+		config.Publishing.Assets.R2.PublicBaseURL = defaults.Publishing.Assets.R2.PublicBaseURL
+	}
 	if config.ToolPaths == nil {
 		config.ToolPaths = map[string]string{}
 	}
 	if config.Publishing.Platforms == nil {
 		config.Publishing.Platforms = map[string]publishingPlatformConfig{}
-	}
-	if config.WechatsyncPort == 0 {
-		config.WechatsyncPort = defaults.WechatsyncPort
 	}
 	for platform, value := range defaults.Publishing.Platforms {
 		configured, ok := config.Publishing.Platforms[platform]
@@ -179,10 +235,7 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config = mergeConfigDefaults(config)
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
-	config.WechatsyncToken = strings.TrimSpace(config.WechatsyncToken)
-	if config.WechatsyncPort < 1 || config.WechatsyncPort > 65535 {
-		return config, errors.New("Wechatsync port must be between 1 and 65535")
-	}
+	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
@@ -196,6 +249,26 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.ProxyPort = port
 	if config.ProxyEnabled && config.ProxyHost == "" {
 		return config, errors.New("启用代理前请填写代理主机和端口")
+	}
+	config.Publishing.Compiler.Mermaid.Format = strings.ToLower(strings.TrimSpace(config.Publishing.Compiler.Mermaid.Format))
+	if config.Publishing.Compiler.Mermaid.Format != "png" {
+		return config, errors.New("publishing compiler Mermaid format must be png")
+	}
+	if config.Publishing.Compiler.Mermaid.Width <= 0 || config.Publishing.Compiler.Mermaid.Scale <= 0 {
+		return config, errors.New("publishing compiler Mermaid width and scale must be positive")
+	}
+	config.Publishing.Assets.Store = strings.ToLower(strings.TrimSpace(config.Publishing.Assets.Store))
+	if config.Publishing.Assets.Store != "r2" {
+		return config, errors.New("publishing asset store must be r2")
+	}
+	config.Publishing.Assets.R2.Bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
+	config.Publishing.Assets.R2.PublicBaseURL = strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL)
+	if config.Publishing.Assets.R2.PublicBaseURL == "" {
+		return config, errors.New("publishing R2 publicBaseUrl is required")
+	}
+	publicBase, err := url.Parse(config.Publishing.Assets.R2.PublicBaseURL)
+	if err != nil || publicBase.Scheme != "https" || publicBase.Host == "" {
+		return config, errors.New("publishing R2 publicBaseUrl must be an HTTPS URL")
 	}
 	for platform, value := range config.Publishing.Platforms {
 		switch strings.ToLower(strings.TrimSpace(value.Language)) {

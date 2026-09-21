@@ -27,9 +27,13 @@ func TestBlogCTLVersionMatchesExtension(t *testing.T) {
 		t.Fatal(err)
 	}
 	var manifest struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
-		Action  struct {
+		Name        string   `json:"name"`
+		Version     string   `json:"version"`
+		Permissions []string `json:"permissions"`
+		SidePanel   struct {
+			DefaultPath string `json:"default_path"`
+		} `json:"side_panel"`
+		Action struct {
 			DefaultPopup string `json:"default_popup"`
 		} `json:"action"`
 	}
@@ -43,10 +47,19 @@ func TestBlogCTLVersionMatchesExtension(t *testing.T) {
 	if manifest.Version != version {
 		t.Fatalf("extension version = %q, blogctl version = %q", manifest.Version, version)
 	}
-	if manifest.Action.DefaultPopup != "popup/popup.html" {
-		t.Fatalf("extension default popup = %q, want %q", manifest.Action.DefaultPopup, "popup/popup.html")
+	if manifest.SidePanel.DefaultPath != "popup/popup.html" || manifest.Action.DefaultPopup != "" {
+		t.Fatalf("extension sidebar = %q, popup = %q", manifest.SidePanel.DefaultPath, manifest.Action.DefaultPopup)
 	}
-	if _, err := os.Stat(filepath.Join(root, "extension", filepath.FromSlash(manifest.Action.DefaultPopup))); err != nil {
-		t.Fatalf("extension popup missing: %v", err)
+	permissionFound := false
+	for _, permission := range manifest.Permissions {
+		if permission == "sidePanel" {
+			permissionFound = true
+		}
+	}
+	if !permissionFound {
+		t.Fatal("sidePanel permission is missing")
+	}
+	if _, err := os.Stat(filepath.Join(root, "extension", filepath.FromSlash(manifest.SidePanel.DefaultPath))); err != nil {
+		t.Fatalf("extension sidebar missing: %v", err)
 	}
 }

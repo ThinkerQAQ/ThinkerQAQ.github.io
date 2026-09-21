@@ -1,21 +1,20 @@
 "use strict";
 
 (function (root) {
-  const WECHATSYNC_PLATFORMS = new Set(["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao"]);
-
   function deliveryToolAvailability(platformId, tools = []) {
-    if (!WECHATSYNC_PLATFORMS.has(platformId)) return { available: true, reason: "" };
-    const tool = tools.find((item) => item.name === "wechatsync");
-    if (!tool) return { available: false, reason: "Wechatsync 状态未知" };
+    if (platformId !== "devto") return { available: true, reason: "" };
+    const tool = tools.find((item) => item.name === "devto-api");
+    if (!tool) return { available: false, reason: "DEV.to API 状态未知" };
     if (tool.health?.ok) return { available: true, reason: "" };
-    return {
-      available: false,
-      reason: tool.health?.summary ? `Wechatsync：${tool.health.summary}` : "Wechatsync 不可用",
-    };
+    return { available: false, reason: tool.health?.summary || "DEV.to API Key 未配置" };
   }
 
+  const PUBLISHER_AUTH_PLATFORMS = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto",
+  ]);
+
   function platformAvailability(article, platform, publishingProfile = {}) {
-    if (platform && typeof platform === "object") {
+    if (platform && typeof platform === "object" && !PUBLISHER_AUTH_PLATFORMS.has(platform.id)) {
       if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
       if (!platform.loggedIn) return { available: false, reason: "未登录" };
     }
@@ -27,6 +26,10 @@
     return { available: true, reason: "" };
   }
 
+  function canUpdateCNBlogsPublished(slug, platforms, bridgeRunning) {
+    return Boolean(slug) && Boolean(bridgeRunning) && platforms.length === 1 && platforms[0] === "cnblogs";
+  }
+
   const resultLabels = {
     completed: "完成",
     created: "已创建",
@@ -34,6 +37,7 @@
     skipped: "无变化",
     "dry-run": "Dry Run 完成",
     "draft-created": "草稿已创建",
+    published: "已发布",
     "waiting-for-session": "等待 Session",
     "rate-limit-retry": "等待限流重试",
   };
@@ -76,5 +80,5 @@
     });
   }
 
-  root.BlogCTLSyncModel = { deliveryToolAvailability, platformRows, statePresentation, platformAvailability };
+  root.BlogCTLSyncModel = { deliveryToolAvailability, platformRows, statePresentation, platformAvailability, canUpdateCNBlogsPublished };
 })(globalThis);

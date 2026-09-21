@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -19,20 +20,67 @@ const (
 	maxBodyBytes   = 2 * 1024 * 1024
 )
 
+type browserPartitionKey struct {
+	TopLevelSite string `json:"topLevelSite"`
+}
+
 type browserCookie struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+	Name           string               `json:"name"`
+	Value          string               `json:"value"`
+	StoreID        string               `json:"storeId,omitempty"`
+	PartitionKey   *browserPartitionKey `json:"partitionKey,omitempty"`
+	Domain         string               `json:"domain,omitempty"`
+	Path           string               `json:"path,omitempty"`
+	Secure         bool                 `json:"secure,omitempty"`
+	HTTPOnly       bool                 `json:"httpOnly,omitempty"`
+	HostOnly       bool                 `json:"hostOnly,omitempty"`
+	SameSite       string               `json:"sameSite,omitempty"`
+	ExpirationDate *float64             `json:"expirationDate,omitempty"`
 }
 
 type sessionRequest struct {
-	Cookies   []browserCookie `json:"cookies"`
-	UserAgent string          `json:"userAgent"`
+	Cookies             []browserCookie         `json:"cookies"`
+	UserAgent           string                  `json:"userAgent"`
+	CookieQueries       []cookieQueryDiagnostic `json:"cookieQueries,omitempty"`
+	CookieStores        []cookieStoreDiagnostic `json:"cookieStores,omitempty"`
+	RequestCookieHeader string                  `json:"requestCookieHeader,omitempty"`
+}
+
+type cookieQueryDiagnostic struct {
+	Target      string   `json:"target"`
+	Partitioned bool     `json:"partitioned"`
+	Count       int      `json:"count"`
+	Names       []string `json:"names"`
+}
+
+type cookieStoreDiagnostic struct {
+	StoreID         string `json:"storeId"`
+	CNBlogsTabCount int    `json:"cnBlogsTabCount"`
+	Error           string `json:"error,omitempty"`
+}
+
+func cookieHeaderNames(header string) []string {
+	names := []string{}
+	for _, pair := range strings.Split(header, ";") {
+		name, _, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if ok && name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 type platformSession struct {
-	Cookies   map[string]string
-	UserAgent string
-	ExpiresAt time.Time
+	Cookies             map[string]string
+	BrowserCookies      []browserCookie
+	RequestCookieHeader string
+	UserAgent           string
+	ExpiresAt           time.Time
+}
+
+var browserSessionPlatforms = map[string]struct{}{
+	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "medium": {},
 }
 
 type Server struct {
@@ -43,11 +91,11 @@ type Server struct {
 	restart    func()
 	syncRunner syncRunner
 
-	mu           sync.Mutex
-	wechatsyncMu sync.Mutex
-	sessions     map[string]platformSession
-	jobs         map[string]*syncJob
-	jobOrder     []string
+	mu             sync.Mutex
+	distributionMu sync.Mutex
+	sessions       map[string]platformSession
+	jobs           map[string]*syncJob
+	jobOrder       []string
 }
 
 func New(token string) (*Server, error) {
@@ -101,6 +149,42 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
+	if path == "v1/cnblogs/binding" && request.Method == http.MethodGet {
+		s.handleCNBlogsBindingGet(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding/migrate" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingMigrate(response, request)
+		return
+	}
+	if path == "v1/cnblogs/binding/search" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingSearch(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/devto/articles/search" && request.Method == http.MethodPost {
+		s.handleDevtoArticleSearch(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/article-links" && request.Method == http.MethodGet {
+		s.handleArticleLinks(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding/verify" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingVerify(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding" && request.Method == http.MethodPost {
+		s.handleCNBlogsBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding" && request.Method == http.MethodDelete {
+		s.handleCNBlogsBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/cnblogs/binding/update" && request.Method == http.MethodPost {
+		s.handleCNBlogsPublishedUpdate(response, request, request.URL.Query().Get("article"))
+		return
+	}
 
 	if path == "v1/health" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {
@@ -197,6 +281,11 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && parts[4] == "publish" && request.Method == http.MethodPost {
+		s.handleSyncJobPublish(response, request, parts[3])
+		return
+	}
+
 	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "sessions" && parts[3] == "status" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {
 			return
@@ -257,12 +346,17 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 	response.WriteHeader(http.StatusNoContent)
 }
 
+func publicBridgeConfig(config bridgeConfig) bridgeConfig {
+	config.DevtoAPIKey = ""
+	return config
+}
+
 func (s *Server) handleConfigGet(response http.ResponseWriter) {
 	s.mu.Lock()
 	config := s.config
 	s.mu.Unlock()
 	writeJSON(response, http.StatusOK, map[string]any{
-		"ok": true, "config": config, "networkMode": proxySummary(config),
+		"ok": true, "config": publicBridgeConfig(config), "networkMode": proxySummary(config),
 	})
 }
 
@@ -304,7 +398,7 @@ func (s *Server) handleConfigPut(response http.ResponseWriter, request *http.Req
 	s.httpClient = client
 	s.mu.Unlock()
 	writeJSON(response, http.StatusOK, map[string]any{
-		"ok": true, "config": normalized, "networkMode": proxySummary(normalized),
+		"ok": true, "config": publicBridgeConfig(normalized), "networkMode": proxySummary(normalized),
 	})
 }
 
@@ -494,24 +588,60 @@ func (s *Server) handleSyncJobRetry(response http.ResponseWriter, request *http.
 	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
 }
 
+func (s *Server) handleSyncJobPublish(response http.ResponseWriter, request *http.Request, id string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	job, err := s.publishSyncJob(id)
+	if err != nil {
+		switch err.Error() {
+		case "sync job not found":
+			writeAPIError(response, http.StatusNotFound, "sync_job_not_found", err.Error(), map[string]any{"id": id})
+		case "sync job is not completed":
+			writeAPIError(response, http.StatusConflict, "sync_job_not_completed", err.Error(), map[string]any{"id": id})
+		default:
+			writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), map[string]any{"id": id})
+		}
+		return
+	}
+	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
+}
+
 func (s *Server) handleSession(response http.ResponseWriter, request *http.Request, platform string) {
 	origin, ok := allowExtensionWrite(response, request)
 	if !ok {
 		return
 	}
-	if platform != "medium" {
+	if _, supported := browserSessionPlatforms[platform]; !supported {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", platform+" does not use browser-session auth", map[string]any{"platform": platform})
 		return
 	}
 	var body sessionRequest
-	if err := readJSON(request, 64*1024, &body); err != nil {
+	if err := readJSON(request, 256*1024, &body); err != nil {
 		writeError(response, err)
 		return
 	}
-	cookies := filterMediumCookies(body.Cookies)
-	if cookies["sid"] == "" {
-		writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+	if len(body.Cookies) == 0 && !(platform == "cnblogs" && body.RequestCookieHeader != "") {
+		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
 		return
+	}
+	if len(body.RequestCookieHeader) > 32768 || strings.ContainsAny(body.RequestCookieHeader, "\r\n") {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", "invalid browser Cookie header", nil)
+		return
+	}
+	cookies := map[string]string{}
+	if platform == "medium" {
+		cookies = filterMediumCookies(body.Cookies)
+		if cookies["sid"] == "" {
+			writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+			return
+		}
+	} else {
+		for _, cookie := range body.Cookies {
+			if cookie.Name != "" && cookie.Value != "" {
+				cookies[cookie.Name] = cookie.Value
+			}
+		}
 	}
 	userAgent := strings.TrimSpace(body.UserAgent)
 	if userAgent == "" {
@@ -521,8 +651,21 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		userAgent = userAgent[:512]
 	}
 	s.mu.Lock()
-	s.sessions[platform] = platformSession{Cookies: cookies, UserAgent: userAgent, ExpiresAt: s.now().Add(sessionTTL)}
+	s.sessions[platform] = platformSession{
+		Cookies:             cookies,
+		BrowserCookies:      append([]browserCookie{}, body.Cookies...),
+		RequestCookieHeader: body.RequestCookieHeader,
+		UserAgent:           userAgent,
+		ExpiresAt:           s.now().Add(sessionTTL),
+	}
 	s.mu.Unlock()
+	if platform == "cnblogs" {
+		cookieNames := make([]string, 0, len(body.Cookies))
+		for _, cookie := range body.Cookies {
+			cookieNames = append(cookieNames, cookie.Name)
+		}
+		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "requestCookieNames", cookieHeaderNames(body.RequestCookieHeader), "cookieQueries", body.CookieQueries, "cookieStores", body.CookieStores)
+	}
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
 		"ok": true, "platform": platform, "expiresInSeconds": int(sessionTTL.Seconds()),
@@ -530,7 +673,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 }
 
 func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
-	if platform != "medium" {
+	if _, supported := browserSessionPlatforms[platform]; !supported {
 		writeAPIError(response, http.StatusBadRequest, "unsupported_platform", "Unsupported platform: "+platform, map[string]any{"platform": platform})
 		return
 	}
@@ -545,9 +688,24 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 	if ok {
 		seconds = max(0, int(session.ExpiresAt.Sub(s.now()).Seconds()))
 	}
-	writeJSON(response, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"platform": platform, "authenticated": ok, "expiresInSeconds": seconds,
-	})
+	}
+	if ok {
+		cookies := make([]map[string]any, 0, len(session.BrowserCookies))
+		for _, cookie := range session.BrowserCookies {
+			cookies = append(cookies, map[string]any{
+				"name": cookie.Name, "domain": cookie.Domain, "path": cookie.Path,
+				"secure": cookie.Secure, "httpOnly": cookie.HTTPOnly, "hostOnly": cookie.HostOnly,
+				"storeId": cookie.StoreID, "partitioned": cookie.PartitionKey != nil,
+			})
+		}
+		payload["cookies"] = cookies
+		if platform == "cnblogs" {
+			payload["requestCookieNames"] = cookieHeaderNames(session.RequestCookieHeader)
+		}
+	}
+	writeJSON(response, http.StatusOK, payload)
 }
 
 func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request, platform string) {

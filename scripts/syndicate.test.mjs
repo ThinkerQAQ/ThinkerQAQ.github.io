@@ -66,6 +66,19 @@ test("builds DEV.to payload with canonical and absolute root links", () => {
   assert.equal(payload.main_image, "https://thinkerqaq.github.io/media/articles/test/cover.png");
 });
 
+test("DEV.to payload compiles Mermaid through BlogCTL compiler", () => {
+  const fence = String.fromCharCode(96).repeat(3);
+  const payload = buildDevtoArticle({
+    title: "Test",
+    description: "Description",
+    status: "published",
+    tags: ["Go"],
+    body: fence + "mermaid\nflowchart LR\n  accTitle: Runtime path\n  A --> B\n" + fence,
+  }, { slug: "test" });
+  assert.doesNotMatch(payload.body_markdown, /flowchart LR/u);
+  assert.match(payload.body_markdown, /!\[Runtime path\]\(https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png\)/u);
+});
+
 test("DEV.to publishing profile controls footer tracking and native canonical", () => {
   const article = {
     title: "Test",
@@ -196,6 +209,21 @@ test("skips an unchanged remote article after fetching its full body", async () 
   assert.equal(result.action, "skipped");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].init.method, "GET");
+});
+
+test("updates an unchanged DEV.to draft when changed-only is disabled", async () => {
+  const desired = buildDevtoArticle({
+    title: "Test", description: "Description", tags: ["Go"], body: "Body", status: "published",
+  }, { slug: "test", published: false });
+  const methods = [];
+  const fetchImpl = async (_url, init) => {
+    methods.push(init.method);
+    return new Response(JSON.stringify({ id: 10, url: "https://dev.to/user/test", tag_list: ["go"], ...desired }), { status: 200 });
+  };
+  const remoteArticles = [{ id: 10, canonical_url: desired.canonical_url }];
+  const result = await upsertDevtoArticle(desired, { apiKey: "key", remoteArticles, fetchImpl, skipUnchanged: false });
+  assert.equal(result.action, "updated");
+  assert.deepEqual(methods, ["GET", "PUT"]);
 });
 
 test("updates a changed remote article", async () => {
