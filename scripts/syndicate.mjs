@@ -2,6 +2,12 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArticle } from "./distribute.mjs";
+import { preparePublishingAssetList } from "../tools/blogctl/assets/node/assets.mjs";
+import {
+  collectPublishingAssets,
+  compilePublishingMarkdown,
+  makeExternalLinksAbsolute as compileExternalLinks,
+} from "../tools/blogctl/compiler/node/compiler.mjs";
 import {
   defaultPlatformPublishingConfig,
   nativeCanonicalUrl,
@@ -61,9 +67,7 @@ export function normalizeDevtoTags(tags = []) {
 }
 
 export function makeExternalLinksAbsolute(body) {
-  return body
-    .replace(/(\]\()\/(?!\/)/gu, `$1${SITE_ORIGIN}/`)
-    .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${SITE_ORIGIN}/`);
+  return compileExternalLinks(body, { siteOrigin: SITE_ORIGIN });
 }
 
 export function buildCanonicalUrl(slug, language = "en") {
@@ -85,7 +89,10 @@ export function buildDevtoArticle(article, {
 } = {}) {
   const contentLanguage = language || publishingConfig?.language || "en";
   const canonicalUrl = buildCanonicalUrl(slug, contentLanguage);
-  const body = makeExternalLinksAbsolute(article.body).trim();
+  const body = compilePublishingMarkdown(article.body, {
+    platform: "devto",
+    siteOrigin: SITE_ORIGIN,
+  }).markdown.trim();
   const footer = renderPublishingFooter(publishingConfig, {
     canonicalUrl,
     title: article.title,
@@ -318,6 +325,12 @@ export async function runSyndication({
     slug,
     payload: buildDevtoArticle(article, { slug, published: !draft, publishingConfig, language: contentLanguage }),
   }));
+
+  const publishingAssets = loaded.flatMap(({ article }) => collectPublishingAssets(article.body));
+  await preparePublishingAssetList(publishingAssets, {
+    dryRun,
+    cacheRoot: path.join(process.env.BLOG_CONTENT_ROOT || process.cwd(), ".distribution", "assets"),
+  });
 
   if (dryRun) {
     for (const item of desiredArticles) {
