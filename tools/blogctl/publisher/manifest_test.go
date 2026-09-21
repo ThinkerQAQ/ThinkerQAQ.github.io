@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestReadManifestMigratesAllLegacyPlatformDraftState(t *testing.T) {
@@ -102,4 +103,36 @@ func TestReadManifestRejectsUnknownVersion(t *testing.T) {
 	if _, err := readManifest(path); err == nil {
 		t.Fatal("unsupported manifest version unexpectedly succeeded")
 	}
+}
+
+
+func TestPublicationStateIsCreatedAndOwnedByGo(t *testing.T) {
+	root := t.TempDir()
+	state, manifestPath, err := LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != (PublicationState{}) {
+		t.Fatalf("initial state = %#v", state)
+	}
+	if _, err := os.Stat(manifestPath); !os.IsNotExist(err) {
+		t.Fatalf("state read unexpectedly created manifest: %v", err)
+	}
+
+	if err := SaveDraftResult(manifestPath, "example", "juejin", "hash-1", DraftResult{
+		ID: "draft-1", URL: "https://juejin.cn/editor/drafts/draft-1", Created: true,
+	}, testTime()); err != nil {
+		t.Fatal(err)
+	}
+	state, _, err = LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.RemoteDraftID != "draft-1" || state.DraftHash != "hash-1" {
+		t.Fatalf("saved state = %#v", state)
+	}
+}
+
+func testTime() time.Time {
+	return time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
 }
