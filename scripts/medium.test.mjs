@@ -12,6 +12,8 @@ const article = {
   title: "Concurrency Programming (0): The Problem Space and Scope",
   description: "desc",
   tags: ["Concurrency", "Java", "Go", "Python", "Extra"],
+  coverImage: "/media/articles/concurrency-series-00/cover.png",
+  coverImageAlt: "Concurrency series cover",
   body: `## Table of Contents
 
 - [Start](#start)
@@ -60,6 +62,10 @@ test("builds a Medium draft with canonical footer matching DEV.to wording", () =
   const draft = buildMediumDraft(article, { slug: "concurrency-series-00" });
   assert.equal(draft.canonicalUrl, "https://thinkerqaq.github.io/en/articles/concurrency-series-00/");
   assert.equal(draft.tags.length, 5);
+  assert.deepEqual(draft.coverImage, {
+    url: "https://thinkerqaq.github.io/media/articles/concurrency-series-00/cover.png",
+    alt: "Concurrency series cover",
+  });
   const footer = draft.deltas.at(-1).paragraph;
   assert.equal(footer.type, 9);
   assert.match(footer.text, /This article was first published on ThinkerQAQ's personal blog and syndicated here by the author/u);
@@ -122,6 +128,7 @@ test("builds a copy/paste HTML fallback without TOC and with copy button", () =>
   assert.match(output, /Copy for Medium/u);
   assert.doesNotMatch(output, /Table of Contents/u);
   assert.match(output, /<pre><code>Thread A                    Thread B/u);
+  assert.match(output, /<img src="https:\/\/thinkerqaq\.github\.io\/media\/articles\/concurrency-series-00\/cover\.png" alt="Concurrency series cover">/u);
   assert.match(output, /ThinkerQAQ's personal blog/u);
 });
 
