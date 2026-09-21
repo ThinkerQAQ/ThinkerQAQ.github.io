@@ -93,7 +93,7 @@ func (s Service) CreateOrUpdateDraftInput(
 			input.RemoteDraftID, input.DraftURL, input.DraftHash = "", "", ""
 		}
 	}
-	if platform != "cnblogs" && changedOnly && input.ContentHash == input.DraftHash && input.RemoteDraftID != "" {
+	if platform != "cnblogs" && platform != "devto" && changedOnly && input.ContentHash == input.DraftHash && input.RemoteDraftID != "" {
 		return DraftResult{
 			ID: input.RemoteDraftID, URL: input.DraftURL, Skipped: true,
 		}, nil
