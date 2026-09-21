@@ -165,6 +165,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleDevtoArticleSearch(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/juejin/articles/search" && request.Method == http.MethodPost {
+		s.handleJuejinArticleSearch(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/article-links" && request.Method == http.MethodGet {
 		s.handleArticleLinks(response, request, request.URL.Query().Get("article"))
 		return

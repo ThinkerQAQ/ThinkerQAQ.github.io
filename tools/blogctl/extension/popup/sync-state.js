@@ -33,6 +33,7 @@
         text: match.text,
         items: (match.items ?? []).map((item) => ({
           title: item.title, id: item.id, published: item.published, url: item.url,
+          category: item.category, tags: Array.isArray(item.tags) ? item.tags.filter((tag) => typeof tag === "string") : undefined,
           bound: item.bound, bindingState: item.bindingState, unverified: item.unverified, localOnly: item.localOnly,
         })),
       };

@@ -124,8 +124,9 @@
         for (const item of match.items ?? []) {
           const row = document.createElement("div");
           row.className = "article-match-row";
-          row.textContent = `${item.localOnly ? "本地记录 · " : item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}${item.bound && item.bindingState && item.bindingState !== (item.published ? "published" : "draft") ? " · 远端状态已变化" : ""}`;
-          if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|dev\.to)\//.test(item.url)) {
+          const metadata = `${item.category ? ` · 分类 ${item.category}` : ""}${item.tags?.length ? ` · 标签 ${item.tags.join("、")}` : ""}`;
+          row.textContent = `${item.localOnly ? "本地记录 · " : item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}${metadata}${item.bound && item.bindingState && item.bindingState !== (item.published ? "published" : "draft") ? " · 远端状态已变化" : ""}`;
+          if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|juejin\.cn|dev\.to)\//.test(item.url)) {
             const link = document.createElement("a");
             link.textContent = "查看文章";
             link.href = item.url;

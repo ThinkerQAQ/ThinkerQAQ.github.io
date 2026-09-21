@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -187,7 +188,7 @@ func truncateRunes(value string, maximum int) string {
 	return string(runes[:maximum])
 }
 
-func (j *juejinAdapter) draftPayload(ctx context.Context, input DraftInput, id string) (map[string]any, error) {
+func (j *juejinAdapter) draftPayload(ctx context.Context, input DraftInput, id string, existing *juejinArticleDraft) (map[string]any, error) {
 	markdown, err := j.prepareMarkdown(ctx, input)
 	if err != nil {
 		return nil, err
@@ -206,11 +207,32 @@ func (j *juejinAdapter) draftPayload(ctx context.Context, input DraftInput, id s
 	if id != "" {
 		payload["id"] = id
 	}
+	if existing != nil {
+		payload["category_id"] = existing.CategoryID
+		payload["cover_image"] = existing.CoverImage
+		payload["is_gfw"] = existing.IsGFW
+		payload["is_english"] = existing.IsEnglish
+		payload["is_original"] = existing.IsOriginal
+		payload["link_url"] = existing.LinkURL
+		payload["pics"] = existing.Pics
+		payload["tag_ids"] = existing.TagIDs.Strings()
+		payload["theme_ids"] = existing.ThemeIDs.Strings()
+	}
 	return payload, nil
 }
 
 func (j *juejinAdapter) mutateDraft(ctx context.Context, path, operation string, input DraftInput, id string) (DraftResult, error) {
-	payload, err := j.draftPayload(ctx, input, id)
+	started := time.Now()
+	var existing *juejinArticleDraft
+	if id != "" {
+		detail, err := j.draftDetail(ctx, id)
+		if err != nil {
+			return DraftResult{}, err
+		}
+		existing = &detail.Data.ArticleDraft
+		slog.Info("juejin draft metadata loaded", "operation", operation, "draftId", id, "hasPublishedArticle", existing.ArticleID != "", "categoryConfigured", existing.CategoryID != "" && existing.CategoryID != "0", "tagCount", len(existing.TagIDs))
+	}
+	payload, err := j.draftPayload(ctx, input, id, existing)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -266,12 +288,14 @@ func (j *juejinAdapter) mutateDraft(ctx context.Context, path, operation string,
 	if draftID == "" {
 		return DraftResult{}, platformError(ErrUpstream, "juejin", operation, response.StatusCode, "response did not contain a draft id", false)
 	}
-	return DraftResult{
+	result := DraftResult{
 		ID:      draftID,
 		URL:     juejinOrigin + "/editor/drafts/" + url.PathEscape(draftID),
 		Created: operation == "create-draft",
 		Updated: operation == "update-draft",
-	}, nil
+	}
+	slog.Info("juejin draft mutation completed", "operation", operation, "draftId", draftID, "durationMs", time.Since(started).Milliseconds())
+	return result, nil
 }
 
 func (j *juejinAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
@@ -287,16 +311,40 @@ func (j *juejinAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dra
 
 type juejinDraftDetail struct {
 	Data struct {
-		ID          string `json:"id"`
-		ArticleID   string `json:"article_id"`
-		ArticleInfo struct {
-			ArticleID  string `json:"article_id"`
-			CategoryID string `json:"category_id"`
-			TagIDs     []any  `json:"tag_ids"`
-		} `json:"article_info"`
+		DraftID      string             `json:"draft_id"`
+		ArticleDraft juejinArticleDraft `json:"article_draft"`
+		Columns      []struct {
+			ColumnID string `json:"column_id"`
+		} `json:"columns"`
 	} `json:"data"`
 	ErrNo  int    `json:"err_no"`
 	ErrMsg string `json:"err_msg"`
+}
+
+type juejinIDs []json.Number
+
+func (ids juejinIDs) Strings() []string {
+	values := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if value := strings.TrimSpace(id.String()); value != "" && value != "0" {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+type juejinArticleDraft struct {
+	ID         string           `json:"id"`
+	ArticleID  string           `json:"article_id"`
+	CategoryID string           `json:"category_id"`
+	TagIDs     juejinIDs        `json:"tag_ids"`
+	LinkURL    string           `json:"link_url"`
+	CoverImage string           `json:"cover_image"`
+	IsGFW      int              `json:"is_gfw"`
+	IsEnglish  int              `json:"is_english"`
+	IsOriginal int              `json:"is_original"`
+	ThemeIDs   juejinIDs        `json:"theme_ids"`
+	Pics       []map[string]any `json:"pics"`
 }
 
 func (j *juejinAdapter) draftDetail(ctx context.Context, draftID string) (juejinDraftDetail, error) {
@@ -345,15 +393,9 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 	if err != nil {
 		return PublishResult{}, err
 	}
-	articleID := detail.Data.ArticleID
-	if articleID == "" {
-		articleID = detail.Data.ArticleInfo.ArticleID
-	}
-	if articleID != "" {
-		return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
-	}
-	categoryID := strings.TrimSpace(detail.Data.ArticleInfo.CategoryID)
-	if categoryID == "" || categoryID == "0" || len(detail.Data.ArticleInfo.TagIDs) == 0 {
+	articleID := detail.Data.ArticleDraft.ArticleID
+	categoryID := strings.TrimSpace(detail.Data.ArticleDraft.CategoryID)
+	if categoryID == "" || categoryID == "0" || len(detail.Data.ArticleDraft.TagIDs) == 0 {
 		return PublishResult{}, platformError(
 			ErrValidation, "juejin", "publish-draft", 0,
 			"the previewed Juejin draft still needs a category and at least one tag; set them in the draft editor, then confirm publish again",
@@ -361,33 +403,67 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 		)
 	}
 
+	columnIDs := make([]string, 0, len(detail.Data.Columns))
+	for _, column := range detail.Data.Columns {
+		if id := strings.TrimSpace(column.ColumnID); id != "" && id != "0" {
+			columnIDs = append(columnIDs, id)
+		}
+	}
 	body, _ := json.Marshal(map[string]any{
 		"draft_id":    ref.ID,
 		"sync_to_org": false,
-		"column_ids":  []string{},
-		"theme_ids":   []string{},
+		"column_ids":  columnIDs,
+		"theme_ids":   detail.Data.ArticleDraft.ThemeIDs.Strings(),
 	})
+	started := time.Now()
+	slog.Info("juejin publish started", "operation", "publish-draft", "draftId", ref.ID, "updatesPublishedArticle", articleID != "", "columnCount", len(columnIDs), "themeCount", len(detail.Data.ArticleDraft.ThemeIDs))
+	for attempt := 1; attempt <= 2; attempt++ {
+		publishedID, retry, publishErr := j.publishDraftOnce(ctx, body)
+		if publishErr == nil {
+			articleID = publishedID
+			break
+		}
+		if !retry || attempt == 2 {
+			return PublishResult{}, publishErr
+		}
+		slog.Warn("juejin publish returned transient upstream error", "operation", "publish-draft", "attempt", attempt, "draftId", ref.ID)
+	}
+	if articleID == "" {
+		verified, verifyErr := j.draftDetail(ctx, ref.ID)
+		if verifyErr == nil {
+			articleID = verified.Data.ArticleDraft.ArticleID
+		}
+	}
+	if articleID == "" {
+		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", 0, "publish response did not contain an article id", false)
+	}
+	_ = input
+	slog.Info("juejin publish completed", "operation", "publish-draft", "draftId", ref.ID, "articleId", articleID, "durationMs", time.Since(started).Milliseconds())
+	return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
+}
+
+func (j *juejinAdapter) publishDraftOnce(ctx context.Context, body []byte) (string, bool, error) {
 	req, err := j.request(ctx, http.MethodPost, j.apiBase+"/content_api/v1/article/publish", bytes.NewReader(body))
 	if err != nil {
-		return PublishResult{}, err
+		return "", false, err
 	}
 	req.Header.Set("content-type", "application/json")
 	csrf, err := j.csrf(ctx)
 	if err != nil {
-		return PublishResult{}, err
+		return "", false, err
 	}
 	req.Header.Set("x-secsdk-csrf-token", csrf)
 	response, err := j.client.Do(req)
 	if err != nil {
-		return PublishResult{}, err
+		return "", false, err
 	}
 	defer response.Body.Close()
 	raw, err := readBounded(response, 2<<20)
 	if err != nil {
-		return PublishResult{}, err
+		return "", false, err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return PublishResult{}, classifyHTTP("juejin", "publish-draft", response.StatusCode, string(raw))
+		return "", false, classifyHTTP("juejin", "publish-draft", response.StatusCode, string(raw))
 	}
 	var decoded struct {
 		Data struct {
@@ -397,26 +473,14 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 		ErrMsg string `json:"err_msg"`
 	}
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, "invalid JSON response", false)
+		return "", false, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, "invalid JSON response", false)
 	}
 	if decoded.ErrNo != 0 {
-		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, decoded.ErrMsg, false)
+		message := strings.TrimSpace(decoded.ErrMsg)
+		retry := decoded.ErrNo == 1 && strings.Contains(message, "内部错误")
+		return "", retry, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, message, retry)
 	}
-	articleID = decoded.Data.ArticleID
-	if articleID == "" {
-		verified, verifyErr := j.draftDetail(ctx, ref.ID)
-		if verifyErr == nil {
-			articleID = verified.Data.ArticleID
-			if articleID == "" {
-				articleID = verified.Data.ArticleInfo.ArticleID
-			}
-		}
-	}
-	if articleID == "" {
-		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, "publish response did not contain an article id", false)
-	}
-	_ = input
-	return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
+	return decoded.Data.ArticleID, false, nil
 }
 
 func shouldKeepJuejinImage(source string) bool {

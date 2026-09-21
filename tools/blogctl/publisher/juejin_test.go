@@ -107,6 +107,8 @@ func TestJuejinUpdateDraftReusesRemoteID(t *testing.T) {
 		switch request.URL.Path {
 		case "/user_api/v1/sys/token":
 			return jsonResponse(request, 200, "", map[string]string{"x-ware-csrf-token": "0,csrf,1,success,x"}), nil
+		case "/content_api/v1/article_draft/detail":
+			return jsonResponse(request, 200, `{"err_no":0,"data":{"draft_id":"existing","article_draft":{"id":"existing","article_id":"published-1","category_id":"category-1","tag_ids":[6809640408797167623],"link_url":"https://example.com/original","cover_image":"https://example.com/cover.png","is_gfw":0,"is_english":0,"is_original":1,"theme_ids":[7275231252674773028],"pics":[{"pic_url":"https://example.com/pic.png"}]}}}`, nil), nil
 		case "/content_api/v1/article_draft/update":
 			if err := json.NewDecoder(request.Body).Decode(&updateBody); err != nil {
 				t.Fatal(err)
@@ -132,6 +134,86 @@ func TestJuejinUpdateDraftReusesRemoteID(t *testing.T) {
 	}
 	if updateBody["id"] != "existing" {
 		t.Fatalf("update body = %#v", updateBody)
+	}
+	if updateBody["category_id"] != "category-1" || updateBody["link_url"] != "https://example.com/original" || updateBody["is_original"] != float64(1) {
+		t.Fatalf("update did not preserve remote metadata: %#v", updateBody)
+	}
+	tags, _ := updateBody["tag_ids"].([]any)
+	themes, _ := updateBody["theme_ids"].([]any)
+	pics, _ := updateBody["pics"].([]any)
+	if len(tags) != 1 || tags[0] != "6809640408797167623" || len(themes) != 1 || themes[0] != "7275231252674773028" || len(pics) != 1 {
+		t.Fatalf("preserved collections = tags %#v, themes %#v, pics %#v", tags, themes, pics)
+	}
+}
+
+func TestJuejinPublishUpdatesExistingArticleAndRetriesTransientError(t *testing.T) {
+	publishCalls := 0
+	var publishBody map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/user_api/v1/sys/token":
+			return jsonResponse(request, 200, "", map[string]string{"x-ware-csrf-token": "0,csrf,1,success,x"}), nil
+		case "/content_api/v1/article_draft/detail":
+			return jsonResponse(request, 200, `{"err_no":0,"data":{"draft_id":"draft-1","article_draft":{"id":"draft-1","article_id":"article-1","category_id":"category-1","tag_ids":[6809640408797167623],"theme_ids":[7275231252674773028]},"columns":[{"column_id":"column-1"}]}}`, nil), nil
+		case "/content_api/v1/article/publish":
+			publishCalls++
+			if err := json.NewDecoder(request.Body).Decode(&publishBody); err != nil {
+				t.Fatal(err)
+			}
+			if publishCalls == 1 {
+				return jsonResponse(request, 200, `{"err_no":1,"err_msg":"后端内部错误"}`, nil), nil
+			}
+			return jsonResponse(request, 200, `{"err_no":0,"data":{"article_id":"article-1"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s", request.URL.String())
+			return nil, nil
+		}
+	})}
+	adapter, err := NewJuejinAdapter(client, juejinSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adapter.PublishDraft(context.Background(), DraftRef{ID: "draft-1"}, DraftInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if publishCalls != 2 || result.URL != "https://juejin.cn/post/article-1" {
+		t.Fatalf("publish calls/result = %d/%#v", publishCalls, result)
+	}
+	columns, _ := publishBody["column_ids"].([]any)
+	themes, _ := publishBody["theme_ids"].([]any)
+	if len(columns) != 1 || columns[0] != "column-1" || len(themes) != 1 || themes[0] != "7275231252674773028" {
+		t.Fatalf("publish body = %#v", publishBody)
+	}
+}
+
+func TestJuejinSearchArticlesUsesAuthenticatedAccount(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/user_api/v1/user/get":
+			return jsonResponse(request, 200, `{"data":{"user_id":"user-1","user_name":"tester"}}`, nil), nil
+		case "/user_api/v1/sys/token":
+			return jsonResponse(request, 200, "", map[string]string{"x-ware-csrf-token": "0,csrf,1,success,x"}), nil
+		case "/search_api/v1/user/content":
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["user_id"] != "user-1" || body["key_word"] != "Example" || request.Header.Get("x-secsdk-csrf-token") != "csrf" {
+				t.Fatalf("search request = body %#v, csrf %q", body, request.Header.Get("x-secsdk-csrf-token"))
+			}
+			return jsonResponse(request, 200, `{"err_no":0,"data":[{"article_info":{"article_id":"article-1","title":"<em>Example</em>"},"category":{"category_name":"后端"},"tags":[{"tag_name":"Java"}]}]}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s", request.URL.String())
+			return nil, nil
+		}
+	})}
+	auth, candidates, err := JuejinSearchArticles(context.Background(), client, juejinSession(), "Example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auth.UserID != "user-1" || len(candidates) != 1 || candidates[0].Title != "Example" || candidates[0].Category != "后端" || candidates[0].URL != "https://juejin.cn/post/article-1" {
+		t.Fatalf("auth/candidates = %#v / %#v", auth, candidates)
 	}
 }
 
@@ -221,6 +303,7 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	detailCalls := 0
 	updateCalls := 0
 	createCalls := 0
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -231,9 +314,13 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 			return jsonResponse(request, 200, "", map[string]string{
 				"x-ware-csrf-token": "0,csrf,1,success,x",
 			}), nil
+		case "/content_api/v1/article_draft/detail":
+			detailCalls++
+			return jsonResponse(request, http.StatusNotFound, `{"err_no":404,"err_msg":"draft not found"}`, nil), nil
 		case "/content_api/v1/article_draft/update":
 			updateCalls++
-			return jsonResponse(request, http.StatusNotFound, `{"err_no":404,"err_msg":"draft not found"}`, nil), nil
+			t.Fatal("update must not run after detail reports a missing draft")
+			return nil, nil
 		case "/content_api/v1/article_draft/create":
 			createCalls++
 			return jsonResponse(request, 200, `{"err_no":0,"data":{"id":"replacement"}}`, nil), nil
@@ -251,8 +338,8 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updateCalls != 1 || createCalls != 1 {
-		t.Fatalf("update/create calls = %d/%d", updateCalls, createCalls)
+	if detailCalls != 1 || updateCalls != 0 || createCalls != 1 {
+		t.Fatalf("detail/update/create calls = %d/%d/%d", detailCalls, updateCalls, createCalls)
 	}
 	if result.ID != "replacement" || !result.Created {
 		t.Fatalf("result = %#v", result)

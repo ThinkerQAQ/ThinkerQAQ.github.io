@@ -391,6 +391,15 @@ async function handleMessage(message) {
           items: candidates.map((post) => ({ title: post.title, id: post.id, published: post.published, url: post.url || "" })),
         } };
       }
+      if (platform === "juejin") {
+        await syncPlatformSession("juejin");
+        const result = await fetchJSON(`/v1/juejin/articles/search?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length ? `远端找到 ${candidates.length} 篇已发布候选文章。` : "远端未找到已发布候选文章。",
+          items: candidates.map((post) => ({ title: post.title, id: post.id, published: true, url: post.url || "", category: post.category || "", tags: post.tags ?? [] })),
+        } };
+      }
       const result = await fetchJSON(`/v1/article-links?article=${article}`);
       const link = result.links?.[platform];
       const reference = link?.remoteId || link?.publishedUrl || link?.draftUrl;
