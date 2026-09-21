@@ -5,11 +5,15 @@
 ```text
 tools/blogctl/
 ├── cmd/        # Go CLI and orchestration
+├── app/        # control-plane workflows
+├── compiler/   # deterministic publishing compiler (Node runtime is internal)
+├── assets/     # generated publishing assets: Mermaid, R2
+├── publisher/  # remote platform adapters and draft/publish transport
 ├── bridge/     # loopback bridge between the CLI and browser
 └── extension/  # BlogCTL Extension
 ```
 
-The root `scripts/` directory also stays in the public engine. Those scripts are Astro/Node implementation details; `blogctl` is the user-facing control plane and calls them when needed.
+The root `scripts/` directory also stays in the public engine for Astro and compatibility wrappers. Publishing-specific compiler and generated-asset capabilities belong under `tools/blogctl/`; `blogctl` is the single user-facing control plane and calls its internal Node runtime when Markdown/HTML transformation is required.
 
 ## Repository model
 
@@ -77,6 +81,24 @@ go build -o blogctl ./tools/blogctl/cmd
 ```
 
 The released binary removes the need to install Go for normal use. Astro/site and syndication operations still require the public engine repository's Node.js dependencies, and PlantUML rendering still requires Java when a new diagram must be rendered.
+
+## Publishing control plane
+
+BlogCTL owns the publishing pipeline end to end:
+
+```text
+canonical article
+  -> BlogCTL compiler
+  -> generated asset preparation (for example Mermaid -> PNG -> R2)
+  -> platform publisher
+  -> draft / explicit publish state
+```
+
+The personal site is separate: Mermaid source is rendered by Mermaid.js in the browser and does not require publishing PNGs.
+
+Compiler and asset policy is stored under `publishing.compiler` and `publishing.assets` in the BlogCTL config. R2 access credentials remain environment secrets; they are not written to content or distribution artifacts.
+
+See [UNIFIED_PUBLISHING_PIPELINE.md](./UNIFIED_PUBLISHING_PIPELINE.md).
 
 ## Syndication
 
