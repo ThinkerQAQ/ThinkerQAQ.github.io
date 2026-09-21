@@ -127,7 +127,7 @@ export async function runSubmit(argv = [], {
     indexNowScope = { full, urlsFile };
   }
 
-  if (providers.includes("google") {
+  if (providers.includes("google")) {
     const accessToken = await googleAccessTokenOrSkip({
       env,
       optional: hasFlag(argv, "--optional-google"),

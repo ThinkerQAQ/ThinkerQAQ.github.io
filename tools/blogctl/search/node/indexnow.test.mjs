@@ -63,16 +63,38 @@ test("submitIndexNowUrls accepts 202 and batches requests", async () => {
   assert.equal(calls[1].body.urlList.length, 1);
 });
 
-test("submitIndexNowU\›È™]šY\ÈŽH[™[ˆÝXØÙYYÈ‹\Þ[˜È
+test("submitIndexNowUrls retries 429 and then succeeds", async () => {
+  let calls = 0;
+  const result = await submitIndexNowUrls([
+    "https://thinkerqaq.github.io/a/",
+  ], {
+    config,
+    maxAttempts: 2,
+    sleep: async () => {},
+    fetchImpl: async () => {
+      calls += 1;
+      return calls === 1
+        ? new Response("slow down", { status: 429 })
+        : new Response("", { status: 200 });
+    },
+  });
+  assert.equal(result.urlCount, 1);
+  assert.equal(calls, 2);
+});
 
-HOˆÂˆ]Ø[ÈHÂˆÛÛœÝ™\Ý[H]ØZ]ÝX›Z][™^›ÝÕ\›ÊÂˆšÎ‹ËÝ[šÙ\œX\K™Ú]X‹š[ËØKÈ‹ˆKÂˆÛÛ™šYËˆX^][\Îˆ‹ˆÛY\ˆ\Þ[˜È
-
-HOˆßKˆ™]Ú[\ˆ\Þ[˜È
-
-HOˆÂˆØ[È
-ÏHNÂˆ™]\›ˆØ[ÈOOHBˆÈ™]È™\ÜÛœÙJœÛÝÈÝÛˆ‹ÈÝ]\ÎˆŽHJBˆˆ™]È™\ÜÛœÙJˆ‹ÈÝ]\ÎˆŒJNÂˆKˆJNÂˆ\ÜÙ\™\]X[
-™\Ý[\›ÛÝ[JNÂˆ\ÜÙ\™\]X[
-Ø[ËŠNÂŸJNÂ‚\Ý
-œÝX›Z][™^›ÝÕ\›ÈÙ\È›Ý™]žH\›X[™[‹\Þ[˜È
-
-HOˆÂˆ]Ø[ÈHÂˆ]ØZ]\ÜÙ\œ™Z™XÝÊˆÝX›Z][™^›ÝÕW&Ç2…²&‡GG3¢ò÷F†–æ¶W'æv—F‡V"æ–òöò%ÒÂ°¢6öæf–rÀ¢Ö„GFV×G3¢2À¢6ÆVW¢7–æ2‚’Óâ·ÒÀ¢fWF6„–×Ã¢7–æ2‚’Óâ°¢6ÆÇ2³Ò°¢&WGW&âæWr&W7öç6R‚&&B&WVW7B"Â²7FGW3¢CÒ“°¢ÒÀ¢Ò’À¢ô…EEC÷RÀ¢“°¢76W'BæWVÂ†6ÆÇ2Â“°§Ò“° 
+test("submitIndexNowUrls does not retry permanent 4xx", async () => {
+  let calls = 0;
+  await assert.rejects(
+    submitIndexNowUrls(["https://thinkerqaq.github.io/a/"], {
+      config,
+      maxAttempts: 3,
+      sleep: async () => {},
+      fetchImpl: async () => {
+        calls += 1;
+        return new Response("bad request", { status: 400 });
+      },
+    }),
+    /HTTP 400/u,
+  );
+  assert.equal(calls, 1);
+});
