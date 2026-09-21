@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 )
 
 var chinaPlatforms = map[string]struct{}{
@@ -61,6 +63,7 @@ type NativeDraftRequest struct {
 	Platform    string
 	ContentRoot string
 	ChangedOnly bool
+	Compiled    blogcompiler.CompiledArticle
 }
 
 func changedOnlyForPlatform(request SyncRequest, platform string) bool {
@@ -80,6 +83,7 @@ type NativePublishRequest struct {
 	Article     string
 	Platform    string
 	ContentRoot string
+	Compiled    blogcompiler.CompiledArticle
 }
 
 type NativePublishResult struct {
@@ -220,7 +224,7 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 			args = append(args, "--dry-run")
 		}
 		plan = append(plan, SyncPlan{
-			Group: "native-china", Script: "scripts/blogctl-distribute.mjs", Args: args,
+			Group: "native-china", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
 			Platforms: append([]string{}, nativeChina...), Native: true,
 		})
 	}
@@ -242,6 +246,54 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		})
 	}
 	return plan
+}
+
+func ParseCompiledArticles(output string) ([]blogcompiler.CompiledArticle, error) {
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	buffer := make([]byte, 0, 64*1024)
+	scanner.Buffer(buffer, 16*1024*1024)
+	articles := []blogcompiler.CompiledArticle{}
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var envelope struct {
+			Operation string                       `json:"operation"`
+			Status    string                       `json:"status"`
+			Message   string                       `json:"message"`
+			Article   blogcompiler.CompiledArticle `json:"article"`
+		}
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil || envelope.Operation != "blogctl-compile" {
+			continue
+		}
+		if envelope.Status == "failed" {
+			if strings.TrimSpace(envelope.Message) == "" {
+				envelope.Message = "publishing compiler failed"
+			}
+			return nil, errors.New(envelope.Message)
+		}
+		if envelope.Status != "completed" {
+			continue
+		}
+		if err := envelope.Article.Validate(); err != nil {
+			return nil, err
+		}
+		articles = append(articles, envelope.Article)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return articles, nil
+}
+
+func compiledArticleFor(articles []blogcompiler.CompiledArticle, slug, platform string) (blogcompiler.CompiledArticle, error) {
+	for _, article := range articles {
+		if article.Slug == slug && article.Platform == platform {
+			return article, nil
+		}
+	}
+	return blogcompiler.CompiledArticle{}, fmt.Errorf("publishing compiler returned no article for %s/%s", platform, slug)
 }
 
 func scriptFailureMessage(output string) string {
@@ -349,6 +401,18 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 			continue
 		}
 		if entry.Native {
+			compiledArticles, compileErr := ParseCompiledArticles(commandOutput)
+			if compileErr != nil {
+				message := entry.Group + ": " + compileErr.Error()
+				for _, platform := range entry.Platforms {
+					if !terminal[platform] {
+						s.emit(SyncEvent{Platform: platform, State: "failed", Message: compileErr.Error()})
+						terminal[platform] = true
+					}
+				}
+				failures = append(failures, message)
+				continue
+			}
 			if request.DryRun {
 				for _, platform := range entry.Platforms {
 					s.emit(SyncEvent{Platform: platform, State: "completed", Result: "dry-run"})
@@ -366,9 +430,17 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 				}
 				for _, article := range request.Articles {
 					for _, platform := range entry.Platforms {
+						compiled, compileErr := compiledArticleFor(compiledArticles, article, platform)
+						if compileErr != nil {
+							message := platform + ": " + compileErr.Error()
+							s.emit(SyncEvent{Platform: platform, State: "failed", Message: compileErr.Error()})
+							terminal[platform] = true
+							failures = append(failures, message)
+							continue
+						}
 						if request.Operation == "publish" {
 							result, publishErr := s.NativePublisher.PublishDraft(ctx, NativePublishRequest{
-								Article: article, Platform: platform, ContentRoot: config.ContentRoot,
+								Article: article, Platform: platform, ContentRoot: config.ContentRoot, Compiled: compiled,
 							})
 							if publishErr != nil {
 								message := platform + ": " + publishErr.Error()
@@ -386,7 +458,7 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 						}
 						result, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
 							Article: article, Platform: platform, ContentRoot: config.ContentRoot,
-							ChangedOnly: changedOnlyForPlatform(request, platform),
+							ChangedOnly: changedOnlyForPlatform(request, platform), Compiled: compiled,
 						})
 						if publishErr != nil {
 							message := platform + ": " + publishErr.Error()
