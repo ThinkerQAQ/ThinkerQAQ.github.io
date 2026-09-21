@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -21,8 +22,50 @@ type recordingRunner struct {
 	commands []recordedCommand
 }
 
+func compiledTestOutput(args []string) string {
+	articles := []string{}
+	platforms := []string{}
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--article":
+			if index+1 < len(args) {
+				articles = append(articles, args[index+1])
+				index++
+			}
+		case "--platforms":
+			if index+1 < len(args) {
+				platforms = append(platforms, strings.Split(args[index+1], ",")...)
+				index++
+			}
+		}
+	}
+	var output strings.Builder
+	for _, article := range articles {
+		for _, platform := range platforms {
+			payload, _ := json.Marshal(map[string]any{
+				"operation": "blogctl-compile",
+				"status":    "completed",
+				"article": map[string]any{
+					"version": 1, "slug": article, "platform": platform,
+					"title": "Compiled " + article, "description": "Description",
+					"markdown": "Body", "html": "<p>Body</p>", "language": "zh-CN",
+					"canonicalUrl": "https://thinkerqaq.github.io/articles/" + article + "/",
+					"contentHash": "hash-" + article + "-" + platform,
+					"sourceDir": "/tmp/articles",
+				},
+			})
+			output.Write(payload)
+			output.WriteByte('\n')
+		}
+	}
+	return output.String()
+}
+
 func (r *recordingRunner) Run(_ context.Context, name string, args []string, dir string, env []string) (string, error) {
 	r.commands = append(r.commands, recordedCommand{Name: name, Args: append([]string{}, args...), Dir: dir, Env: append([]string{}, env...)})
+	if len(args) > 0 && strings.HasSuffix(filepath.ToSlash(args[0]), "/tools/blogctl/compiler/node/index.mjs") {
+		return compiledTestOutput(args[1:]), nil
+	}
 	return "ok\n", nil
 }
 
@@ -52,8 +95,8 @@ func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ s
 		return "", nil
 	}
 	script := filepath.ToSlash(args[0])
-	if strings.HasSuffix(script, "/scripts/blogctl-distribute.mjs") {
-		return `{"operation":"distribution-export","status":"completed","articles":1,"outputs":1}` + "\n", nil
+	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
+		return compiledTestOutput(args[1:]), nil
 	}
 	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") {
 		return strings.Join([]string{
@@ -161,11 +204,17 @@ func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
 		if command.Dir != engineRoot {
 			t.Fatalf("command dir = %q, want %q", command.Dir, engineRoot)
 		}
-		if len(command.Args) == 0 || !strings.HasPrefix(filepath.ToSlash(command.Args[0]), filepath.ToSlash(engineRoot)+"/scripts/") {
-			t.Fatalf("unexpected direct script invocation: %#v", command.Args)
+		if len(command.Args) == 0 {
+			t.Fatalf("missing command args: %#v", command.Args)
+		}
+		script := filepath.ToSlash(command.Args[0])
+		engine := filepath.ToSlash(engineRoot)
+		if !strings.HasPrefix(script, engine+"/scripts/") &&
+			!strings.HasPrefix(script, engine+"/tools/blogctl/compiler/node/") {
+			t.Fatalf("unexpected publishing invocation: %#v", command.Args)
 		}
 	}
-	if output != "ok\nok\n" {
+	if !strings.Contains(output, "\"operation\":\"blogctl-compile\"") || !strings.Contains(output, "ok\n") {
 		t.Fatalf("output = %q", output)
 	}
 }
@@ -257,7 +306,8 @@ func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	if strings.Contains(strings.Join(runner.commands[0].Args, " "), "--sync") {
 		t.Fatalf("native renderer unexpectedly invoked legacy sync: %#v", runner.commands[0].Args)
 	}
-	if len(calls) != 1 || calls[0].Platform != "juejin" || calls[0].Article != "example" || !calls[0].ChangedOnly {
+	if len(calls) != 1 || calls[0].Platform != "juejin" || calls[0].Article != "example" || !calls[0].ChangedOnly ||
+		calls[0].Compiled.ContentHash != "hash-example-juejin" || calls[0].Compiled.Markdown != "Body" {
 		t.Fatalf("native calls = %#v", calls)
 	}
 	if len(events) != 2 || events[1].Result != "draft-created" || events[1].URL == "" {
