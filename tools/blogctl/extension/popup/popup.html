@@ -38,10 +38,6 @@
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
 
-      <section class="status-card compact-options">
-        <label class="checkbox-row"><input id="changedOnly" type="checkbox"><span>仅更新内容有变化的平台草稿</span></label>
-      </section>
-
       <button id="startSync" class="primary" type="button" disabled>选择文章和平台后创建草稿</button>
       <p id="syncMessage" class="message" role="status"></p>
 
@@ -77,6 +73,8 @@
       </section>
       <section class="status-card">
         <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
+
+        <label class="switch-row" for="publishingChangedOnly"><span><strong>仅更新内容有变化的草稿</strong><small>此平台已有草稿且内容未变时跳过；Medium 暂不支持更新已有草稿。</small></span><input id="publishingChangedOnly" type="checkbox"></label>
 
         <label class="field"><span>内容语言</span><select id="publishingLanguage"><option value="zh-CN">中文</option><option value="en">English</option></select></label>
 

@@ -5,7 +5,7 @@
     "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
   ]);
   const state = { initialized: false, active: false, articles: [], status: null, publishing: [], tools: [], cnblogsBinding: null, bindingLoading: false, bindingError: false, matches: {}, matchKey: "", refreshSerial: 0 };
-  let articleFilter, articleSelect, articleMeta, platformsContainer, changedOnly, startButton, message;
+  let articleFilter, articleSelect, articleMeta, platformsContainer, startButton, message;
   let refreshMatchesButton;
 
   function selectedPlatforms() {
@@ -113,8 +113,8 @@
         result.textContent = match.text;
         for (const item of match.items ?? []) {
           const row = document.createElement("div");
-          row.textContent = `${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}`;
-          if (item.url && /^https:\/\/www\.cnblogs\.com\//.test(item.url)) {
+          row.textContent = `${item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}`;
+          if (item.url && /^https:\/\/(?:www\.cnblogs\.com|dev\.to)\//.test(item.url)) {
             const link = document.createElement("a");
             link.textContent = "查看文章";
             link.href = item.url;
@@ -174,7 +174,7 @@
     BlogCTLPopup.setMessage(message, "正在创建同步任务…");
     try {
       const response = await BlogCTLPopup.send("blogctl.job.start", {
-        request: { article, platforms, dryRun: false, changed: changedOnly.checked, draft: true, operation: "draft" },
+        request: { article, platforms, dryRun: false, usePlatformChangedOnly: true, draft: true, operation: "draft" },
       });
       BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动，可在“任务”页查看进度。`, "ok");
     } catch (error) {
@@ -231,7 +231,7 @@
 
   function init() {
     if (state.initialized) return;
-    articleFilter = document.getElementById("articleFilter"); articleSelect = document.getElementById("articleSelect"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); changedOnly = document.getElementById("changedOnly"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage"); refreshMatchesButton = document.getElementById("refreshArticleMatches");
+    articleFilter = document.getElementById("articleFilter"); articleSelect = document.getElementById("articleSelect"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage"); refreshMatchesButton = document.getElementById("refreshArticleMatches");
     articleFilter.addEventListener("input", () => {
       const previous = articleSelect.value;
       renderArticles(); renderPlatforms();

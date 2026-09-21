@@ -195,6 +195,21 @@ test("skips an unchanged remote article after fetching its full body", async () 
   assert.equal(calls[0].init.method, "GET");
 });
 
+test("updates an unchanged DEV.to draft when changed-only is disabled", async () => {
+  const desired = buildDevtoArticle({
+    title: "Test", description: "Description", tags: ["Go"], body: "Body", status: "published",
+  }, { slug: "test", published: false });
+  const methods = [];
+  const fetchImpl = async (_url, init) => {
+    methods.push(init.method);
+    return new Response(JSON.stringify({ id: 10, url: "https://dev.to/user/test", tag_list: ["go"], ...desired }), { status: 200 });
+  };
+  const remoteArticles = [{ id: 10, canonical_url: desired.canonical_url }];
+  const result = await upsertDevtoArticle(desired, { apiKey: "key", remoteArticles, fetchImpl, skipUnchanged: false });
+  assert.equal(result.action, "updated");
+  assert.deepEqual(methods, ["GET", "PUT"]);
+});
+
 test("updates a changed remote article", async () => {
   const desired = buildDevtoArticle({
     title: "Test", description: "Description", tags: ["Go"], body: "New body", status: "published",

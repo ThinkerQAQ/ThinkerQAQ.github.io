@@ -272,6 +272,13 @@ func TestNormalizeSyncRequestRejectsAllForNativeJuejin(t *testing.T) {
 	}
 }
 
+func TestChangedOnlyForPlatformOverridesLegacyRequest(t *testing.T) {
+	request := SyncRequest{Changed: true, ChangedByPlatform: map[string]bool{"cnblogs": false, "juejin": true}}
+	if changedOnlyForPlatform(request, "cnblogs") || !changedOnlyForPlatform(request, "juejin") || !changedOnlyForPlatform(request, "csdn") {
+		t.Fatalf("incorrect per-platform changed-only policy: %#v", request)
+	}
+}
+
 func TestSyncServicePublishesNativeDraft(t *testing.T) {
 	engineRoot := t.TempDir()
 	contentRoot := t.TempDir()

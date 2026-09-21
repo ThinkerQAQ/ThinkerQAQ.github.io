@@ -42,12 +42,13 @@ type articleSummary struct {
 }
 
 type syncRequest struct {
-	Article   string   `json:"article"`
-	Platforms []string `json:"platforms"`
-	DryRun    bool     `json:"dryRun"`
-	Changed   bool     `json:"changed"`
-	Draft     bool     `json:"draft"`
-	Operation string   `json:"operation,omitempty"`
+	Article                string   `json:"article"`
+	Platforms              []string `json:"platforms"`
+	DryRun                 bool     `json:"dryRun"`
+	Changed                bool     `json:"changed"`
+	UsePlatformChangedOnly bool     `json:"usePlatformChangedOnly,omitempty"`
+	Draft                  bool     `json:"draft"`
+	Operation              string   `json:"operation,omitempty"`
 }
 
 type syncPlatformResult struct {
@@ -139,12 +140,13 @@ type toolConfigRequest struct {
 }
 
 type publishingPlatformView struct {
-	ID        string                    `json:"id"`
-	Label     string                    `json:"label"`
-	Language  string                    `json:"language"`
-	Footer    publishingFooterConfig    `json:"footer"`
-	Canonical publishingCanonicalConfig `json:"canonical"`
-	Tracking  publishingTrackingConfig  `json:"tracking"`
+	ID          string                    `json:"id"`
+	Label       string                    `json:"label"`
+	Language    string                    `json:"language"`
+	ChangedOnly bool                      `json:"changedOnly"`
+	Footer      publishingFooterConfig    `json:"footer"`
+	Canonical   publishingCanonicalConfig `json:"canonical"`
+	Tracking    publishingTrackingConfig  `json:"tracking"`
 }
 
 func readFrontmatterScalar(path, name string) string {
@@ -435,7 +437,7 @@ func publishingViews(config bridgeConfig) []publishingPlatformView {
 	for _, id := range publishingPlatformOrder {
 		value := config.Publishing.Platforms[id]
 		views = append(views, publishingPlatformView{
-			ID: id, Label: platformLabels[id], Language: value.Language, Footer: value.Footer,
+			ID: id, Label: platformLabels[id], Language: value.Language, ChangedOnly: value.ChangedOnly, Footer: value.Footer,
 			Canonical: value.Canonical, Tracking: value.Tracking,
 		})
 	}
@@ -450,8 +452,11 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 		if _, ok := supportedSyncPlatforms[view.ID]; !ok {
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
+		if view.ID == "medium" && view.ChangedOnly {
+			return config, errors.New("Medium currently cannot update an existing draft")
+		}
 		config.Publishing.Platforms[view.ID] = publishingPlatformConfig{
-			Language: view.Language, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
+			Language: view.Language, ChangedOnly: view.ChangedOnly, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
 		}
 	}
 	return normalizeBridgeConfig(config)
@@ -624,14 +629,30 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		s.distributionMu.Lock()
 		defer s.distributionMu.Unlock()
 	}
+	changedByPlatform := changedPoliciesForRequest(config, request)
+	for platform, enabled := range changedByPlatform {
+		slog.Info("draft changed-only policy selected", "operation", "draft-policy", "platform", platform, "enabled", enabled)
+	}
 	return service.Run(ctx, applicationConfig, blogapp.SyncRequest{
-		Articles:  []string{request.Article},
-		Platforms: append([]string{}, request.Platforms...),
-		DryRun:    request.DryRun,
-		Changed:   request.Changed,
-		Draft:     request.Draft,
-		Operation: request.Operation,
+		Articles:          []string{request.Article},
+		Platforms:         append([]string{}, request.Platforms...),
+		DryRun:            request.DryRun,
+		Changed:           request.Changed,
+		ChangedByPlatform: changedByPlatform,
+		Draft:             request.Draft,
+		Operation:         request.Operation,
 	})
+}
+
+func changedPoliciesForRequest(config bridgeConfig, request syncRequest) map[string]bool {
+	if !request.UsePlatformChangedOnly || request.Operation != "draft" {
+		return nil
+	}
+	policies := make(map[string]bool, len(request.Platforms))
+	for _, platform := range request.Platforms {
+		policies[platform] = config.Publishing.Platforms[platform].ChangedOnly
+	}
+	return policies
 }
 
 func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
@@ -878,6 +899,7 @@ func (s *Server) publishSyncJob(id string) (*syncJob, error) {
 	request.Operation = "publish"
 	request.DryRun = false
 	request.Changed = false
+	request.UsePlatformChangedOnly = false
 	request.Draft = false
 	s.mu.Unlock()
 

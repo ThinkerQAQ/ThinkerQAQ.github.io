@@ -174,6 +174,27 @@ func TestRetrySyncJobReusesIDAndReplacesFailedAttempt(t *testing.T) {
 	}
 }
 
+func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
+	config := defaultBridgeConfig()
+	profile := config.Publishing.Platforms["cnblogs"]
+	profile.ChangedOnly = true
+	config.Publishing.Platforms["cnblogs"] = profile
+	request := syncRequest{Platforms: []string{"cnblogs", "juejin"}, Operation: "draft", UsePlatformChangedOnly: true}
+	policies := changedPoliciesForRequest(config, request)
+	if len(policies) != 2 || !policies["cnblogs"] || policies["juejin"] {
+		t.Fatalf("policies = %#v", policies)
+	}
+	request.UsePlatformChangedOnly = false
+	if changedPoliciesForRequest(config, request) != nil {
+		t.Fatal("legacy request must keep its global changed flag")
+	}
+	request.UsePlatformChangedOnly = true
+	request.Operation = "publish"
+	if changedPoliciesForRequest(config, request) != nil {
+		t.Fatal("publish operation must ignore draft policy")
+	}
+}
+
 func TestPublishSyncJobCreatesIndependentPublishAttempt(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
@@ -187,7 +208,7 @@ func TestPublishSyncJobCreatesIndependentPublishAttempt(t *testing.T) {
 	}
 	sourceRequest := syncRequest{
 		Article: "example", Platforms: []string{"juejin", "csdn"},
-		Changed: true, Draft: true, Operation: "draft",
+		Changed: true, UsePlatformChangedOnly: true, Draft: true, Operation: "draft",
 	}
 	server.jobs["draft-job"] = &syncJob{
 		ID: "draft-job", Article: "example", Platforms: append([]string{}, sourceRequest.Platforms...),
@@ -209,7 +230,7 @@ func TestPublishSyncJobCreatesIndependentPublishAttempt(t *testing.T) {
 	if publishJob.Operation != "publish" || publishJob.Request.Operation != "publish" {
 		t.Fatalf("publish operation = %#v", publishJob)
 	}
-	if publishJob.Request.DryRun || publishJob.Request.Changed || publishJob.Request.Draft {
+	if publishJob.Request.DryRun || publishJob.Request.Changed || publishJob.Request.UsePlatformChangedOnly || publishJob.Request.Draft {
 		t.Fatalf("publish request retained draft-only flags: %#v", publishJob.Request)
 	}
 	if !reflect.DeepEqual(publishJob.Platforms, []string{"juejin", "csdn"}) {

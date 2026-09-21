@@ -32,6 +32,12 @@ test("publishing language can be overridden per platform", () => {
   assert.match(cnblogs.footer.template, /This article was first published/u);
 });
 
+test("changed-only draft policy is stored per platform", () => {
+  const profiles = mergePublishingConfig({ juejin: { changedOnly: true } });
+  assert.equal(profiles.juejin.changedOnly, true);
+  assert.equal(profiles.cnblogs.changedOnly, false);
+});
+
 test("tracking can be disabled without changing footer policy", () => {
   const profile = mergePublishingConfig({
     cnblogs: {

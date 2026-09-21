@@ -125,6 +125,25 @@ func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 	if updated.Publishing.Platforms["medium"].Language != "zh-CN" {
 		t.Fatalf("updated medium language = %q", updated.Publishing.Platforms["medium"].Language)
 	}
+	var juejin publishingPlatformView
+	for _, view := range publishingViews(updated) {
+		if view.ID == "juejin" {
+			juejin = view
+			break
+		}
+	}
+	juejin.ChangedOnly = true
+	updated, err = updatePublishing(updated, []publishingPlatformView{juejin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.Publishing.Platforms["juejin"].ChangedOnly || updated.Publishing.Platforms["cnblogs"].ChangedOnly {
+		t.Fatalf("changed-only policy leaked across platforms: %#v", updated.Publishing.Platforms)
+	}
+	medium.ChangedOnly = true
+	if _, err := updatePublishing(updated, []publishingPlatformView{medium}); err == nil {
+		t.Fatal("Medium must reject an unsupported changed-only policy")
+	}
 }
 
 func TestBridgeConfigDefaultFooterFollowsConfiguredLanguage(t *testing.T) {

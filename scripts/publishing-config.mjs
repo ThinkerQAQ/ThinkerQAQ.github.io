@@ -41,6 +41,7 @@ export function defaultPlatformPublishingConfig(platform) {
   const language = defaultPublishingLanguage(platform);
   return {
     language,
+    changedOnly: false,
     footer: {
       enabled: true,
       template: defaultFooterTemplate(language),
@@ -84,6 +85,7 @@ function mergePlatformPublishingConfig(platform, current = {}) {
   const tracking = current.tracking ?? null;
   return {
     language,
+    changedOnly: current.changedOnly === true,
     footer: {
       enabled: footer.enabled ?? current.footerEnabled ?? defaults.footer.enabled,
       template: String(footer.template || current.footerTemplate || defaultFooterTemplate(language)),

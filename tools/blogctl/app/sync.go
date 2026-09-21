@@ -28,13 +28,14 @@ var nativeChinaPlatforms = map[string]struct{}{
 }
 
 type SyncRequest struct {
-	Articles  []string
-	All       bool
-	Platforms []string
-	DryRun    bool
-	Changed   bool
-	Draft     bool
-	Operation string
+	Articles          []string
+	All               bool
+	Platforms         []string
+	DryRun            bool
+	Changed           bool
+	ChangedByPlatform map[string]bool
+	Draft             bool
+	Operation         string
 }
 
 type SyncConfig struct {
@@ -60,6 +61,13 @@ type NativeDraftRequest struct {
 	Platform    string
 	ContentRoot string
 	ChangedOnly bool
+}
+
+func changedOnlyForPlatform(request SyncRequest, platform string) bool {
+	if value, ok := request.ChangedByPlatform[platform]; ok {
+		return value
+	}
+	return request.Changed
 }
 
 type NativeDraftResult struct {
@@ -375,7 +383,7 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 						}
 						result, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
 							Article: article, Platform: platform, ContentRoot: config.ContentRoot,
-							ChangedOnly: request.Changed,
+							ChangedOnly: changedOnlyForPlatform(request, platform),
 						})
 						if publishErr != nil {
 							message := platform + ": " + publishErr.Error()

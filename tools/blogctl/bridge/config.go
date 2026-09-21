@@ -26,10 +26,11 @@ type publishingTrackingConfig struct {
 }
 
 type publishingPlatformConfig struct {
-	Language  string                    `json:"language"`
-	Footer    publishingFooterConfig    `json:"footer"`
-	Canonical publishingCanonicalConfig `json:"canonical"`
-	Tracking  publishingTrackingConfig  `json:"tracking"`
+	Language    string                    `json:"language"`
+	ChangedOnly bool                      `json:"changedOnly"`
+	Footer      publishingFooterConfig    `json:"footer"`
+	Canonical   publishingCanonicalConfig `json:"canonical"`
+	Tracking    publishingTrackingConfig  `json:"tracking"`
 }
 
 type publishingConfig struct {

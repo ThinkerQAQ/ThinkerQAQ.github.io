@@ -180,6 +180,7 @@ export async function upsertDevtoArticle(desired, {
   remoteArticles,
   apiOrigin = DEVTO_API_ORIGIN,
   fetchImpl = fetch,
+  skipUnchanged = true,
 } = {}) {
   const existing = remoteArticles.find((article) => (
     desired.canonical_url && canonicalUrlsEqual(article.canonical_url, desired.canonical_url)
@@ -209,7 +210,7 @@ export async function upsertDevtoArticle(desired, {
       fetchImpl,
     );
   }
-  if (devtoArticleMatches(fullExisting, desired)) {
+  if (skipUnchanged && devtoArticleMatches(fullExisting, desired)) {
     return { action: "skipped", article: fullExisting };
   }
 
@@ -341,6 +342,7 @@ export async function runSyndication({
       remoteArticles,
       apiOrigin,
       fetchImpl,
+      skipUnchanged: !draft || publishingConfig.changedOnly === true,
     });
     summary[result.action] += 1;
     log("info", "syndication-devto", result.action, {
