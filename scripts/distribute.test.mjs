@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -160,10 +160,10 @@ test("exportArticles exports published articles and leaves drafts out", async ()
     const juejinOutput = await readFile(path.join(outputRoot, "juejin", "published.md"), "utf8");
     assert.match(juejinOutput, /本文首发于/u);
     assert.match(juejinOutput, /utm_source=juejin/u);
-    const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
-    assert.equal(manifest.version, 2);
-    assert.equal(typeof manifest.articles.published.platforms.juejin.contentHash, "string");
-    assert.equal(manifest.articles.draft, undefined);
+    await assert.rejects(
+      () => access(path.join(outputRoot, "manifest.json")),
+      /ENOENT/u,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -185,76 +185,45 @@ test("exportArticles records language-specific canonical metadata", async () => 
     });
     assert.equal(result.exported[0].language, "en");
     assert.equal(result.exported[0].canonicalUrl, "https://thinkerqaq.github.io/en/articles/example/");
-    const state = result.manifest.articles.example.platforms.juejin;
-    assert.equal(state.language, "en");
-    assert.equal(state.canonicalUrl, "https://thinkerqaq.github.io/en/articles/example/");
+    assert.equal(result.exported[0].language, "en");
+    assert.equal(result.exported[0].canonicalUrl, "https://thinkerqaq.github.io/en/articles/example/");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("exportArticles migrates v1 draft state into manifest v2", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-migrate-test-"));
+test("exportArticles never mutates publication state", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "distribution-state-test-"));
   const articleRoot = path.join(root, "articles");
   const outputRoot = path.join(root, "output");
   try {
     await mkdir(articleRoot);
     await mkdir(outputRoot);
     await writeFile(path.join(articleRoot, "example.md"), ARTICLE);
-    await writeFile(path.join(outputRoot, "manifest.json"), JSON.stringify({
-      version: 1,
+    const manifestPath = path.join(outputRoot, "manifest.json");
+    const existing = JSON.stringify({
+      version: 2,
       articles: {
         example: {
           platforms: {
             juejin: {
-              lastSyncedHash: "old-hash",
-              lastSyncedAt: "2026-09-01T00:00:00.000Z",
-              draftUrl: "https://juejin.cn/editor/drafts/juejin-id",
-            },
-            zhihu: {
-              draftUrl: "https://zhuanlan.zhihu.com/p/zhihu-id/edit",
-            },
-            "51cto": {
-              draftUrl: "https://blog.51cto.com/blogger/draft/51cto-id",
-            },
-            oschina: {
-              draftUrl: "https://my.oschina.net/u/42/blog/ai-write/draft/oschina-id",
-            },
-            csdn: {
-              draftUrl: "https://editor.csdn.net/md?articleId=csdn-id",
-            },
-            segmentfault: {
-              draftUrl: "https://segmentfault.com/write?draftId=segmentfault-id",
-            },
-            toutiao: {
-              draftUrl: "https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=toutiao-id",
-            },
-            cnblogs: {
-              draftUrl: "https://i.cnblogs.com/articles/edit;postId=cnblogs-id",
+              remoteDraftId: "remote-1",
+              draftHash: "published-state-owned-by-go",
             },
           },
         },
       },
-    }));
+    }, null, 2) + "\n";
+    await writeFile(manifestPath, existing);
 
-    const result = await exportArticles({
+    await exportArticles({
       articleRoot,
       outputRoot,
       platforms: ["juejin"],
       requestedSlugs: ["example"],
     });
-    assert.equal(result.manifest.version, 2);
-    const state = result.manifest.articles.example.platforms;
-    assert.equal(state.juejin.draftHash, "old-hash");
-    assert.equal(state.juejin.draftSyncedAt, "2026-09-01T00:00:00.000Z");
-    assert.equal(state.juejin.remoteDraftId, "juejin-id");
-    assert.equal(state.zhihu.remoteDraftId, "zhihu-id");
-    assert.equal(state["51cto"].remoteDraftId, "51cto-id");
-    assert.equal(state.oschina.remoteDraftId, "oschina-id");
-    assert.equal(state.csdn.remoteDraftId, "csdn-id");
-    assert.equal(state.segmentfault.remoteDraftId, "segmentfault-id");
-    assert.equal(state.toutiao.remoteDraftId, "toutiao-id");
-    assert.equal(state.cnblogs.remoteDraftId, "cnblogs-id");
+
+    assert.equal(await readFile(manifestPath, "utf8"), existing);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
