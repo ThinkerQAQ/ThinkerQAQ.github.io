@@ -16,6 +16,10 @@ import {
   renderPublishingFooter,
 } from "../../../../scripts/publishing-config.mjs";
 import {
+  buildMediumCopyHtml,
+  buildMediumDraft,
+} from "../../../../scripts/medium.mjs";
+import {
   collectPublishingAssets,
   compilePublishingMarkdown,
 } from "./compiler.mjs";
@@ -157,6 +161,39 @@ export async function compileArticle({
       coverImageUrl: compiled.coverImageUrl,
       published: compiled.published,
     });
+  } else if (platform === "medium") {
+    const mediumDraft = buildMediumDraft(article, { slug, publishingConfig: profile });
+    const portable = compilePublishingMarkdown(article.body, {
+      platform: "medium",
+      siteOrigin: "https://thinkerqaq.github.io",
+    }).markdown.trim();
+    const fallbackHTML = buildMediumCopyHtml(article, { slug, publishingConfig: profile });
+    compiled = {
+      title: article.title,
+      description: article.description,
+      markdown: portable,
+      html: fallbackHTML,
+      canonicalUrl: buildArticleCanonicalUrl(slug, language),
+      nativeCanonicalUrl: mediumDraft.canonicalUrl,
+      tags: mediumDraft.tags,
+      coverImageUrl: mediumDraft.coverImage?.url || "",
+      published: false,
+      payload: {
+        title: mediumDraft.title,
+        deltas: mediumDraft.deltas,
+        canonicalUrl: mediumDraft.canonicalUrl,
+        tags: mediumDraft.tags,
+        coverImage: mediumDraft.coverImage,
+      },
+      fallbackHTML,
+      requiresFallback: mediumDraft.requiresHtmlFallback,
+      warnings: mediumDraft.warnings,
+    };
+    hashSource = JSON.stringify({
+      payload: compiled.payload,
+      fallbackHTML,
+      requiresFallback: compiled.requiresFallback,
+    });
   } else {
     const generated = buildPlatformMarkdown(article, {
       platform,
@@ -200,6 +237,10 @@ export async function compileArticle({
     tags: compiled.tags,
     coverImageUrl: compiled.coverImageUrl,
     published: compiled.published,
+    payload: compiled.payload,
+    fallbackHtml: compiled.fallbackHTML,
+    requiresFallback: compiled.requiresFallback,
+    warnings: compiled.warnings,
     contentHash: sha256(hashSource),
     sourceDir: path.dirname(sourceFile),
     assets: assets.map(({ kind, id, objectKey, publicUrl, alt }) => ({
