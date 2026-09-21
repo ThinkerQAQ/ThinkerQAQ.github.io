@@ -158,6 +158,11 @@ func (s Service) CreateOrUpdateDraftInput(
 	if err := SaveDraftResult(manifestPath, slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return DraftResult{}, err
 	}
+	if platform == "devto" && input.Published {
+		if err := SavePublishResult(manifestPath, slug, platform, input.ContentHash, PublishResult{URL: result.URL}, s.now()); err != nil {
+			return DraftResult{}, err
+		}
+	}
 	if platform == "cnblogs" {
 		account := adapter.(*cnBlogsAdapter).username
 		if err := SaveCNBlogsBinding(contentRoot, CNBlogsBinding{
