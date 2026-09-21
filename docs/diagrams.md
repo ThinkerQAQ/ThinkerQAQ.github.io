@@ -21,6 +21,12 @@ flowchart LR
 
 如果浏览器无法加载 renderer，原始 Mermaid 源码会继续保留在页面中作为降级内容。
 
+### 外部分发
+
+站内渲染和外部分发是两条独立链路。站内仍由 Mermaid.js 在浏览器中生成 SVG；BlogCTL 向外部平台发布时，会由 [Publishing Compiler](./publishing-compiler.md) 将 Mermaid fence 编译为 PNG、上传 Cloudflare R2，再把 fence 替换成普通图片链接。
+
+因此文章作者只维护 Mermaid 源码，正常博客构建不会运行 Mermaid CLI 或上传 R2。
+
 
 ## draw.io 工作流
 
