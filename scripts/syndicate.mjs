@@ -2,6 +2,8 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArticle, resolveArticleAssetUrl } from "./distribute.mjs";
+import { preparePublishingAssetList } from "./publishing/assets.mjs";
+import { collectPublishingAssets, compilePublishingMarkdown, makeExternalLinksAbsolute as compileExternalLinks } from "./publishing/compiler.mjs";
 import {
   defaultPlatformPublishingConfig,
   nativeCanonicalUrl,
@@ -61,9 +63,7 @@ export function normalizeDevtoTags(tags = []) {
 }
 
 export function makeExternalLinksAbsolute(body) {
-  return body
-    .replace(/(\]\()\/(?!\/)/gu, `$1${SITE_ORIGIN}/`)
-    .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${SITE_ORIGIN}/`);
+  return compileExternalLinks(body, { siteOrigin: SITE_ORIGIN });
 }
 
 export function buildCanonicalUrl(slug, language = "en") {
@@ -85,7 +85,7 @@ export function buildDevtoArticle(article, {
 } = {}) {
   const contentLanguage = language || publishingConfig?.language || "en";
   const canonicalUrl = buildCanonicalUrl(slug, contentLanguage);
-  const body = makeExternalLinksAbsolute(article.body).trim();
+  const body = compilePublishingMarkdown(article.body, { platform: "devto", siteOrigin: SITE_ORIGIN }).markdown.trim();
   const footer = renderPublishingFooter(publishingConfig, {
     canonicalUrl,
     title: article.title,
@@ -332,6 +332,9 @@ export async function runSyndication({
     return { total: desiredArticles.length, created: 0, updated: 0, skipped: 0, dryRun: true };
   }
   if (!apiKey) throw new Error("DEVTO_API_KEY is required unless --dry-run is used");
+
+  const publishingAssets = loaded.flatMap(({ article }) => collectPublishingAssets(article.body));
+  await preparePublishingAssetList(publishingAssets);
 
   const remoteArticles = await listDevtoArticles({ apiKey, apiOrigin, fetchImpl });
   const summary = { total: desiredArticles.length, created: 0, updated: 0, skipped: 0, dryRun: false };
