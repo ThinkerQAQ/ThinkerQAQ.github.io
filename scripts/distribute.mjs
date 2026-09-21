@@ -4,6 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { micromark } from "micromark";
 import {
+  collectPublishingAssets,
+  compilePublishingMarkdown,
+} from "../tools/blogctl/compiler/node/compiler.mjs";
+import {
   defaultPlatformPublishingConfig,
   defaultPublishingConfig,
   renderPublishingFooter,
@@ -128,12 +132,6 @@ function yamlList(name, values) {
   return [name + ":", ...values.map((value) => `  - ${JSON.stringify(value)}`)];
 }
 
-function makeExternalLinksAbsolute(body) {
-  return body
-    .replace(/(\]\()\/(?!\/)/gu, `$1${SITE_ORIGIN}/`)
-    .replace(/((?:href|src)=["'])\/(?!\/)/giu, `$1${SITE_ORIGIN}/`);
-}
-
 export function buildPlatformMarkdown(article, {
 	platform,
 	slug,
@@ -160,7 +158,10 @@ export function buildPlatformMarkdown(article, {
 		`sourcePlatform: ${JSON.stringify(contentLanguage === "en" ? "ThinkerQAQ personal blog" : "ThinkerQAQ 个人博客")}`,
 		"---",
 	].join("\n");
-	const body = makeExternalLinksAbsolute(article.body);
+	const body = compilePublishingMarkdown(article.body, {
+		platform,
+		siteOrigin: SITE_ORIGIN,
+	}).markdown;
 	const footer = renderPublishingFooter(profile, {
 		canonicalUrl,
 		title: article.title,
@@ -406,6 +407,7 @@ export async function exportArticles({
     seenRequested.add(slug);
 
     const canonicalUrl = buildArticleCanonicalUrl(slug, language);
+    const publishingAssets = collectPublishingAssets(article.body);
     const articleState = manifest.articles[slug] ?? {
       source: path.relative(process.cwd(), sourceFile).split(path.sep).join("/"),
       canonicalUrl,
@@ -456,6 +458,7 @@ export async function exportArticles({
         pending: (previous.draftHash ?? previous.lastSyncedHash) !== contentHash,
         tagCount: article.tags.length,
         exportedTagCount: platform === "cnblogs" ? article.tags.length : Math.min(5, article.tags.length),
+        publishingAssets,
       });
     }
     manifest.articles[slug] = articleState;
@@ -481,6 +484,7 @@ export function parseArguments(argv) {
     platforms: [...SUPPORTED_PLATFORMS],
     requestedSlugs: [],
     outputRoot: DEFAULT_OUTPUT_ROOT,
+    dryRun: false,
     help: false,
   };
 
@@ -504,6 +508,8 @@ export function parseArguments(argv) {
     } else if (argument === "--output") {
       options.outputRoot = requireValue(argument, index);
       index += 1;
+    } else if (argument === "--dry-run") {
+      options.dryRun = true;
     } else if (argument === "--help" || argument === "-h") {
       options.help = true;
     } else {
@@ -527,6 +533,7 @@ Options:
   --article <slug>       Export one article; may be repeated
   --platforms <list>     Comma- or space-separated: cnblogs,juejin,csdn,segmentfault,zhihu,51cto,oschina,toutiao
   --output <directory>   Output directory (default: .distribution)
+  --dry-run              Compile without publishing generated assets
   -h, --help             Show this help`);
 }
 
