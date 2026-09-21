@@ -532,7 +532,7 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle) publisher.Draf
 func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Session, *http.Client, error) {
 	p.server.mu.Lock()
 	if platform == "devto" {
-		apiKey := strings.TrimSpace(p.server.config.DevtoAPIKey)
+		apiKey := devtoAPIKey(p.server.config)
 		httpClient := p.server.httpClient
 		p.server.mu.Unlock()
 		if apiKey == "" {
@@ -575,6 +575,9 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 		return blogapp.NativeDraftResult{}, err
 	}
 	resultName := "draft-created"
+	if request.Platform == "devto" {
+		resultName = "created"
+	}
 	if result.Updated {
 		resultName = "updated"
 	}
