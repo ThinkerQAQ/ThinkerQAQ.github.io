@@ -505,3 +505,45 @@ func TestBridgeRestartEndpointRejectsRunningSyncJob(t *testing.T) {
 	case <-time.After(250 * time.Millisecond):
 	}
 }
+
+func TestTargetRoutePermissionMatrix(t *testing.T) {
+	_, handler := newTargetServer(t)
+
+	readPaths := []struct {
+		method, path string
+	}{
+		{http.MethodGet, "/v1/articles/hello/targets"},
+		{http.MethodGet, "/v1/articles/hello/prepared"},
+	}
+	writePaths := []struct {
+		method, path, body string
+	}{
+		{http.MethodPost, "/v1/articles/hello/targets/search", `{"platforms":["fake"]}`},
+		{http.MethodPost, "/v1/articles/hello/targets/verify", `{"platform":"fake","reference":"123"}`},
+		{http.MethodPut, "/v1/articles/hello/targets/tgt_1", `{"platform":"fake"}`},
+		{http.MethodDelete, "/v1/articles/hello/targets/tgt_1", ""},
+	}
+
+	for _, tc := range readPaths {
+		request := httptest.NewRequest(tc.method, tc.path, nil)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s %s without origin = %d, want 200", tc.method, tc.path, response.Code)
+		}
+	}
+
+	for _, tc := range writePaths {
+		for _, origin := range []string{"", "https://example.com"} {
+			request := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			if origin != "" {
+				request.Header.Set("origin", origin)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("%s %s origin %q = %d, want 403", tc.method, tc.path, origin, response.Code)
+			}
+		}
+	}
+}

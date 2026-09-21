@@ -7,75 +7,75 @@ import "fmt"
 // exist. A capability must be backed by a capture-backed fixture and a regression
 // test before it is flipped to true.
 type PlatformCapabilities struct {
-	SearchDrafts          bool
-	SearchPublished       bool
-	VerifyReference       bool
-	CreateDraft           bool
-	UpdateDraft           bool
-	PreparePublishedEdit  bool
-	PublishPrepared       bool
-	DirectPublishedUpdate bool
-	MultiTarget           bool
+	SearchDrafts          bool `json:"searchDrafts"`
+	SearchPublished       bool `json:"searchPublished"`
+	VerifyReference       bool `json:"verifyReference"`
+	CreateDraft           bool `json:"createDraft"`
+	UpdateDraft           bool `json:"updateDraft"`
+	PreparePublishedEdit  bool `json:"preparePublishedEdit"`
+	PublishPrepared       bool `json:"publishPrepared"`
+	DirectPublishedUpdate bool `json:"directPublishedUpdate"`
+	MultiTarget           bool `json:"multiTarget"`
 }
 
 // SearchQuery is the local article context a platform uses to find remote targets.
 type SearchQuery struct {
-	Slug         string
-	Title        string
-	CanonicalURL string
+	Slug         string `json:"slug"`
+	Title        string `json:"title"`
+	CanonicalURL string `json:"canonicalUrl,omitempty"`
 }
 
 // RemoteCandidate is a normalized remote object a user can bind to a local article.
 type RemoteCandidate struct {
-	RemoteArticleID string
-	RemoteDraftID   string
-	Title           string
-	RemoteState     string // draft | published | unknown
-	EditURL         string
-	PublicURL       string
-	UpdatedAt       string
-	MatchReasons    []string
-	BoundTargetID   string
+	RemoteArticleID string   `json:"remoteArticleId,omitempty"`
+	RemoteDraftID   string   `json:"remoteDraftId,omitempty"`
+	Title           string   `json:"title,omitempty"`
+	RemoteState     string   `json:"remoteState,omitempty"` // draft | published | unknown
+	EditURL         string   `json:"editUrl,omitempty"`
+	PublicURL       string   `json:"publicUrl,omitempty"`
+	UpdatedAt       string   `json:"updatedAt,omitempty"`
+	MatchReasons    []string `json:"matchReasons,omitempty"`
+	BoundTargetID   string   `json:"boundTargetId,omitempty"`
 }
 
 // RemoteReference is the raw manual input (numeric ID or HTTPS URL) a user hands
 // to the platform for verification before binding.
 type RemoteReference struct {
-	Raw         string
-	RemoteState string
+	Raw         string `json:"raw"`
+	RemoteState string `json:"remoteState,omitempty"`
 }
 
 // RemoteTarget is the durable, normalized identity of one remote object.
 type RemoteTarget struct {
-	TargetID        string
-	Platform        string
-	AccountKey      string
-	RemoteArticleID string
-	RemoteDraftID   string
-	RemoteState     string // draft | published | unknown
-	EditURL         string
-	PublicURL       string
-	RemoteVersion   string
-	RemoteUpdatedAt string
+	TargetID        string `json:"targetId,omitempty"`
+	Platform        string `json:"platform,omitempty"`
+	AccountKey      string `json:"accountKey,omitempty"`
+	RemoteArticleID string `json:"remoteArticleId,omitempty"`
+	RemoteDraftID   string `json:"remoteDraftId,omitempty"`
+	RemoteState     string `json:"remoteState,omitempty"` // draft | published | unknown
+	EditURL         string `json:"editUrl,omitempty"`
+	PublicURL       string `json:"publicUrl,omitempty"`
+	RemoteVersion   string `json:"remoteVersion,omitempty"`
+	RemoteUpdatedAt string `json:"remoteUpdatedAt,omitempty"`
 }
 
 // RemoteSnapshot is a point-in-time view of a remote object's fields, used for
 // verification, remote version checks, and post-timeout result confirmation.
 type RemoteSnapshot struct {
 	RemoteTarget
-	Fields map[string]any
+	Fields map[string]any `json:"fields,omitempty"`
 }
 
 // PrepareResult records what the prepare phase produced for one target.
 type PrepareResult struct {
-	RemoteDraftID   string
-	EditURL         string
-	RemoteUpdatedAt string
-	RemoteVersion   string
-	PreparedHash    string
-	PreviewURL      string
-	PrepareMode     string // remote-draft | local-preview
-	RemoteState     string
+	RemoteDraftID   string `json:"remoteDraftId,omitempty"`
+	EditURL         string `json:"editUrl,omitempty"`
+	RemoteUpdatedAt string `json:"remoteUpdatedAt,omitempty"`
+	RemoteVersion   string `json:"remoteVersion,omitempty"`
+	PreparedHash    string `json:"preparedHash,omitempty"`
+	PreviewURL      string `json:"previewUrl,omitempty"`
+	PrepareMode     string `json:"prepareMode,omitempty"` // remote-draft | local-preview
+	RemoteState     string `json:"remoteState,omitempty"`
 }
 
 // validateAdapter asserts that a platform's declared capabilities are backed by

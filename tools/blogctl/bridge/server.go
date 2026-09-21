@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 const (
@@ -84,12 +86,13 @@ var browserSessionPlatforms = map[string]struct{}{
 }
 
 type Server struct {
-	token      string
-	now        func() time.Time
-	httpClient *http.Client
-	config     bridgeConfig
-	restart    func()
-	syncRunner syncRunner
+	token           string
+	now             func() time.Time
+	httpClient      *http.Client
+	config          bridgeConfig
+	restart         func()
+	syncRunner      syncRunner
+	adapterRegistry *publisher.AdapterRegistry
 
 	mu             sync.Mutex
 	distributionMu sync.Mutex
@@ -107,14 +110,20 @@ func New(token string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
+	server := &Server{
 		token:      token,
 		now:        time.Now,
 		httpClient: client,
 		config:     config,
 		sessions:   make(map[string]platformSession),
 		jobs:       make(map[string]*syncJob),
-	}, nil
+	}
+	if config.ContentRoot != "" {
+		if _, err := publisher.OpenPublications(config.ContentRoot).MigrateOnce(); err != nil {
+			slog.Warn("publications migration skipped", "operation", "publications-migrate", "error", err)
+		}
+	}
+	return server, nil
 }
 
 func (s *Server) Handler() http.Handler { return http.HandlerFunc(s.serveHTTP) }
@@ -188,6 +197,34 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	if path == "v1/cnblogs/binding/update" && request.Method == http.MethodPost {
 		s.handleCNBlogsPublishedUpdate(response, request, request.URL.Query().Get("article"))
 		return
+	}
+
+	if len(parts) >= 4 && parts[0] == "v1" && parts[1] == "articles" {
+		slug := parts[2]
+		if len(parts) == 4 && parts[3] == "targets" && request.Method == http.MethodGet {
+			s.handleTargetList(response, request, slug)
+			return
+		}
+		if len(parts) == 4 && parts[3] == "prepared" && request.Method == http.MethodGet {
+			s.handleTargetPreparedGet(response, request, slug)
+			return
+		}
+		if len(parts) == 5 && parts[3] == "targets" && parts[4] == "search" && request.Method == http.MethodPost {
+			s.handleTargetSearch(response, request, slug)
+			return
+		}
+		if len(parts) == 5 && parts[3] == "targets" && parts[4] == "verify" && request.Method == http.MethodPost {
+			s.handleTargetVerify(response, request, slug)
+			return
+		}
+		if len(parts) == 5 && parts[3] == "targets" && request.Method == http.MethodPut {
+			s.handleTargetPut(response, request, slug, parts[4])
+			return
+		}
+		if len(parts) == 5 && parts[3] == "targets" && request.Method == http.MethodDelete {
+			s.handleTargetDelete(response, request, slug, parts[4])
+			return
+		}
 	}
 
 	if path == "v1/health" && request.Method == http.MethodGet {
@@ -791,6 +828,15 @@ func (s *Server) SetHTTPClient(client *http.Client) {
 	}
 	s.mu.Lock()
 	s.httpClient = client
+	s.mu.Unlock()
+}
+
+func (s *Server) SetAdapterRegistry(registry *publisher.AdapterRegistry) {
+	if registry == nil {
+		return
+	}
+	s.mu.Lock()
+	s.adapterRegistry = registry
 	s.mu.Unlock()
 }
 

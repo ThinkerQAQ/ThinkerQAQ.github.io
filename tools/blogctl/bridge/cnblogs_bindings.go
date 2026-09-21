@@ -2,7 +2,6 @@ package bridge
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,19 +12,7 @@ import (
 )
 
 func (s *Server) cnBlogsArticle(slug string) (articleSummary, string, error) {
-	s.mu.Lock()
-	contentRoot := s.config.ContentRoot
-	s.mu.Unlock()
-	articles, err := listArticles(contentRoot)
-	if err != nil {
-		return articleSummary{}, "", err
-	}
-	for _, article := range articles {
-		if article.Slug == slug {
-			return article, contentRoot, nil
-		}
-	}
-	return articleSummary{}, "", errors.New("local article not found")
+	return s.articleBySlug(slug)
 }
 
 func (s *Server) handleCNBlogsBindingGet(response http.ResponseWriter, request *http.Request, slug string) {

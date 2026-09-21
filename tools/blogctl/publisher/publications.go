@@ -160,6 +160,55 @@ func (s *PublicationsStore) DeleteTarget(slug, platform, targetID string) error 
 	return errors.New("target not found")
 }
 
+// FindTargetByID returns the platform and stored target for a stable targetId
+// across all platforms of one article.
+func (s *PublicationsStore) FindTargetByID(slug, targetID string) (string, PublicationTarget, bool) {
+	publicationsLock.Lock()
+	defer publicationsLock.Unlock()
+	pub, err := s.loadLocked()
+	if err != nil {
+		return "", PublicationTarget{}, false
+	}
+	article, ok := pub.Articles[slug]
+	if !ok {
+		return "", PublicationTarget{}, false
+	}
+	for platform, platformTargets := range article.Platforms {
+		for _, target := range platformTargets.Targets {
+			if target.TargetID == targetID {
+				return platform, target, true
+			}
+		}
+	}
+	return "", PublicationTarget{}, false
+}
+
+// DeleteTargetByID unlinks a target by its stable targetId across all platforms.
+// It never touches the remote object.
+func (s *PublicationsStore) DeleteTargetByID(slug, targetID string) error {
+	publicationsLock.Lock()
+	defer publicationsLock.Unlock()
+	pub, err := s.loadLocked()
+	if err != nil {
+		return err
+	}
+	article, ok := pub.Articles[slug]
+	if !ok {
+		return errors.New("target not found")
+	}
+	for platform, platformTargets := range article.Platforms {
+		for index, target := range platformTargets.Targets {
+			if target.TargetID == targetID {
+				platformTargets.Targets = append(platformTargets.Targets[:index], platformTargets.Targets[index+1:]...)
+				article.Platforms[platform] = platformTargets
+				pub.Articles[slug] = article
+				return s.writeLocked(pub)
+			}
+		}
+	}
+	return errors.New("target not found")
+}
+
 func (s *PublicationsStore) loadLocked() (Publications, error) {
 	empty := Publications{Version: publicationsVersion, Articles: map[string]ArticleTargets{}}
 	raw, err := os.ReadFile(s.path())

@@ -120,6 +120,24 @@ func LoadPublicationState(contentRoot, slug, platform string) (PublicationState,
 	}, manifestPath, nil
 }
 
+// LoadContentHash returns the current compiled content hash for a platform
+// without reading the generated markdown bodies.
+func LoadContentHash(contentRoot, slug, platform string) (string, error) {
+	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
+	if err != nil {
+		return "", err
+	}
+	state, err := platformState(manifest, slug, platform)
+	if err != nil {
+		return "", err
+	}
+	hash := stringValue(state["contentHash"])
+	if hash == "" {
+		return "", errors.New("distribution state is missing contentHash")
+	}
+	return hash, nil
+}
+
 func ensurePlatformState(manifest map[string]any, slug, platform string) map[string]any {
 	articles := objectValue(manifest["articles"])
 	if articles == nil {
