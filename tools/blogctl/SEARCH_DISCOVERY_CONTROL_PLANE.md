@@ -1,6 +1,6 @@
 # BlogCTL Search Discovery Control Plane
 
-Status: implemented; validation pending  
+Status: implemented and validated  
 Date: 2026-09-21  
 Target branch: `feat/blogctl-native-juejin-20260918` / PR #34
 
@@ -552,6 +552,8 @@ Implemented on PR #34 on 2026-09-21:
 - Google service-account OAuth, sitemap submission, and bounded URL Inspection audit are implemented;
 - `blogctl search build|inventory|submit|audit` is available;
 - post-deploy notification remains non-blocking and Google submission skips cleanly until credentials are configured.
+
+Validation is green in GitHub Actions run `35565501437`: BlogCTL formatting/tests/build, Node engine tests including search discovery, Astro check, and the production static build all passed. The fixture production build generated `dist/sitemap-all.txt` from the Astro sitemap inventory.
 
 Operational setup still required for Google: grant the service-account email access to the Search Console property and add its credential JSON as the `GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON` GitHub Actions secret.
 
