@@ -26,8 +26,6 @@ export const SUPPORTED_PLATFORMS = [
   "toutiao",
 ];
 export const DEFAULT_OUTPUT_ROOT = ".distribution";
-export const MANIFEST_FILE = "manifest.json";
-export const MANIFEST_VERSION = 2;
 
 export function resolveArticleAssetUrl(value) {
   const raw = String(value || "").trim();
@@ -312,85 +310,6 @@ async function walkMarkdown(directory, { excludedDirectories = new Set() } = {})
   return files.sort();
 }
 
-function draftIdFromUrl(platform, draftUrl) {
-  const trimmed = typeof draftUrl === "string" ? draftUrl.trim() : "";
-  if (!trimmed) return "";
-  let parsed;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return "";
-  }
-  const pathId = () => {
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    return segments.length ? segments[segments.length - 1] : "";
-  };
-  switch (platform) {
-    case "juejin":
-    case "51cto":
-    case "oschina":
-      return pathId();
-    case "zhihu": {
-      // 草稿/编辑链接为 /p/<id>/edit，公开链接为 /p/<id>；兼容旧的 /write/<id>。
-      const segments = parsed.pathname.split("/").filter(Boolean);
-      if (segments[0] === "p" && segments[1]) return segments[1];
-      return pathId();
-    }
-    case "csdn":
-      return parsed.searchParams.get("articleId") ?? "";
-    case "segmentfault":
-      return parsed.searchParams.get("draftId") ?? "";
-    case "toutiao":
-      return parsed.searchParams.get("pgc_id") ?? "";
-    case "cnblogs":
-      return trimmed.match(/postId=([^&?#]+)/u)?.[1] ?? "";
-    default:
-      return "";
-  }
-}
-
-function migrateManifest(manifest) {
-  if (!manifest || typeof manifest.articles !== "object") {
-    return { version: MANIFEST_VERSION, articles: {} };
-  }
-  if (manifest.version === MANIFEST_VERSION) return manifest;
-  if (manifest.version !== 1) {
-    throw new Error(`Unsupported distribution manifest version: ${manifest.version}`);
-  }
-  for (const article of Object.values(manifest.articles)) {
-    for (const [platform, state] of Object.entries(article?.platforms ?? {})) {
-      if (!state || typeof state !== "object") continue;
-      if (!state.draftHash && state.lastSyncedHash) state.draftHash = state.lastSyncedHash;
-      if (!state.draftSyncedAt && state.lastSyncedAt) state.draftSyncedAt = state.lastSyncedAt;
-      if (!state.remoteDraftId) {
-        const id = draftIdFromUrl(platform, state.draftUrl);
-        if (id) state.remoteDraftId = id;
-      }
-    }
-  }
-  manifest.version = MANIFEST_VERSION;
-  return manifest;
-}
-
-async function readManifest(manifestPath) {
-  if (!(await exists(manifestPath))) return { version: MANIFEST_VERSION, articles: {} };
-  const manifest = migrateManifest(JSON.parse(await readFile(manifestPath, "utf8")));
-  if (typeof manifest.articles !== "object") {
-    throw new Error(`Unsupported distribution manifest: ${manifestPath}`);
-  }
-  return manifest;
-}
-
-async function writeManifest(manifestPath, manifest) {
-  await mkdir(path.dirname(manifestPath), { recursive: true });
-  const output = {
-    ...manifest,
-    version: MANIFEST_VERSION,
-    generatedAt: new Date().toISOString(),
-  };
-  await writeFile(manifestPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
-}
-
 export async function exportArticles({
   articleRoot,
   outputRoot,
@@ -402,8 +321,6 @@ export async function exportArticles({
   const startedAt = Date.now();
   const resolvedArticleRoot = path.resolve(articleRoot);
   const resolvedOutputRoot = path.resolve(outputRoot);
-  const manifestPath = path.join(resolvedOutputRoot, MANIFEST_FILE);
-  const manifest = await readManifest(manifestPath);
   const requested = new Set(requestedSlugs);
   const seenRequested = new Set();
   const exported = [];
@@ -426,15 +343,6 @@ export async function exportArticles({
 
     const canonicalUrl = buildArticleCanonicalUrl(slug, language);
     const publishingAssets = collectPublishingAssets(article.body);
-    const articleState = manifest.articles[slug] ?? {
-      source: path.relative(process.cwd(), sourceFile).split(path.sep).join("/"),
-      canonicalUrl,
-      platforms: {},
-    };
-    articleState.title = article.title;
-    articleState.source = path.relative(process.cwd(), sourceFile).split(path.sep).join("/");
-    articleState.canonicalUrl = canonicalUrl;
-    articleState.platforms ??= {};
 
     for (const platform of platforms) {
       const generated = buildPlatformMarkdown(article, {
@@ -456,15 +364,6 @@ export async function exportArticles({
         || await readFile(htmlOutputFile, "utf8") !== renderedHtml;
       if (htmlOutputChanged) await writeFile(htmlOutputFile, renderedHtml, "utf8");
 
-      const previous = articleState.platforms[platform] ?? {};
-      articleState.platforms[platform] = {
-        ...previous,
-        output: path.relative(process.cwd(), outputFile).split(path.sep).join("/"),
-        htmlOutput: path.relative(process.cwd(), htmlOutputFile).split(path.sep).join("/"),
-        language,
-        canonicalUrl,
-        contentHash,
-      };
       exported.push({
         slug,
         platform,
@@ -473,28 +372,24 @@ export async function exportArticles({
         canonicalUrl,
         outputFile,
         contentHash,
-        pending: (previous.draftHash ?? previous.lastSyncedHash) !== contentHash,
         tagCount: article.tags.length,
         exportedTagCount: platform === "cnblogs" ? article.tags.length : Math.min(5, article.tags.length),
         publishingAssets,
       });
     }
-    manifest.articles[slug] = articleState;
   }
 
   const missing = [...requested].filter((slug) => !seenRequested.has(slug));
   if (missing.length > 0) throw new Error(`Unknown article slug: ${missing.join(", ")}`);
 
-  await writeManifest(manifestPath, manifest);
   log("info", "distribution-export", "completed", {
     articles: new Set(exported.map((item) => item.slug)).size,
     outputs: exported.length,
-    pending: exported.filter((item) => item.pending).length,
     skippedDrafts,
     outputRoot: resolvedOutputRoot,
     durationMs: Date.now() - startedAt,
   });
-  return { exported, manifest, manifestPath };
+  return { exported };
 }
 
 export function parseArguments(argv) {
