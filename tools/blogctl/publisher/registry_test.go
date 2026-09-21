@@ -1,6 +1,7 @@
 package publisher
 
 import (
+	"context"
 	"net/http"
 	"testing"
 )
@@ -44,7 +45,7 @@ func TestNativeAdapterRegistryIncludesDEVTo(t *testing.T) {
 	if adapter.ID() != "devto" {
 		t.Fatalf("adapter ID = %q", adapter.ID())
 	}
-	auth, err := adapter.CheckAuth(t.Context())
+	auth, err := adapter.CheckAuth(context.Background())
 	if err != nil || !auth.Authenticated {
 		t.Fatalf("auth = %#v, err = %v", auth, err)
 	}
