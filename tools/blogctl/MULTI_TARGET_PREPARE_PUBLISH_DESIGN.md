@@ -277,7 +277,20 @@ BlogCTL 的发布交互拆成两个业务阶段：
 
 ## 7. 平台能力与适配器契约
 
-不要直接破坏现有 `publisher.Adapter`。先新增目标感知接口和兼容适配层：
+### 7.1 设计决定：工厂统一创建，能力接口按职责拆分
+
+采用工厂模式，但不要求每个平台实现一个包含所有操作的巨型接口。
+
+原因：
+
+- 抓包清单中的“远端冲突”和“发布超时”是验证场景，不是平台运行时方法。
+- Medium 当前不能更新已有草稿，DEV.to 不使用浏览器 Cookie；强制实现全部方法只会产生空实现或伪实现。
+- 当前 `Adapter` 已经把 `CreateDraft/UpdateDraft/PublishDraft` 强制在一起，导致“方法存在”和“平台语义已验证”被混淆。
+- 小接口允许 Go 编译器和 capability 校验共同阻止误调用。
+
+Bridge 和业务层仍只面对一个统一的 `PlatformService` 门面。平台差异被封装在工厂注册的 adapter 和 capability 中，Extension 不写平台专用业务分支。
+
+### 7.2 核心类型
 
 ```go
 type PlatformCapabilities struct {
@@ -305,17 +318,124 @@ type RemoteTarget struct {
     RemoteUpdatedAt string
 }
 
-type TargetAdapter interface {
+type PlatformAdapter interface {
     ID() string
     Capabilities() PlatformCapabilities
+    CheckAuth(context.Context) (AuthResult, error)
+}
+
+type TargetSearcher interface {
     SearchTargets(context.Context, SearchQuery) ([]RemoteCandidate, error)
+}
+
+type TargetVerifier interface {
     VerifyTarget(context.Context, RemoteReference) (RemoteTarget, error)
+}
+
+type TargetInspector interface {
+    InspectTarget(context.Context, RemoteTarget) (RemoteSnapshot, error)
+}
+
+type ContentPreparer interface {
     Prepare(context.Context, RemoteTarget, DraftInput) (PrepareResult, error)
+}
+
+type PreparedPublisher interface {
     PublishPrepared(context.Context, RemoteTarget, DraftInput) (PublishResult, error)
 }
 ```
 
-兼容层把旧 `CreateDraft/UpdateDraft/PublishDraft` 映射到单目标操作。只有抓包和测试确认语义后，capability 才设置为 `true`。
+`TargetInspector` 同时服务于手动引用核验、发布前远端版本检查和超时后的结果确认，不需要为“冲突测试”或“超时测试”增加生产接口。
+
+### 7.3 工厂与注册表
+
+每个平台提供一个工厂并注册到统一 registry：
+
+```go
+type AdapterDependencies struct {
+    HTTPClient *http.Client
+    Logger     *slog.Logger
+    Clock      func() time.Time
+}
+
+type AdapterFactory interface {
+    PlatformID() string
+    New(AdapterDependencies, Session) (PlatformAdapter, error)
+}
+
+type AdapterRegistry struct {
+    factories map[string]AdapterFactory
+}
+
+func (r *AdapterRegistry) Register(factory AdapterFactory) error
+func (r *AdapterRegistry) New(
+    platform string,
+    dependencies AdapterDependencies,
+    session Session,
+) (PlatformAdapter, error)
+```
+
+建议用显式注册替代 `registry.go` 中不断增长的 `switch`：
+
+```go
+registry := NewAdapterRegistry(
+    NewCNBlogsFactory(),
+    NewJuejinFactory(),
+    NewCSDNFactory(),
+    NewSegmentFaultFactory(),
+    NewZhihuFactory(),
+    New51CTOFactory(),
+    NewOSChinaFactory(),
+    NewToutiaoFactory(),
+    NewDEVToFactory(),
+    NewMediumFactory(),
+)
+```
+
+注册或创建 adapter 时必须校验 capability 与接口实现一致。例如：
+
+```go
+func validateAdapter(adapter PlatformAdapter) error {
+    capabilities := adapter.Capabilities()
+    if (capabilities.SearchDrafts || capabilities.SearchPublished) {
+        if _, ok := adapter.(TargetSearcher); !ok {
+            return fmt.Errorf("%s declares search capability without TargetSearcher", adapter.ID())
+        }
+    }
+    if capabilities.VerifyReference {
+        if _, ok := adapter.(TargetVerifier); !ok {
+            return fmt.Errorf("%s declares verify capability without TargetVerifier", adapter.ID())
+        }
+    }
+    if capabilities.CreateDraft || capabilities.UpdateDraft || capabilities.PreparePublishedEdit {
+        if _, ok := adapter.(ContentPreparer); !ok {
+            return fmt.Errorf("%s declares prepare capability without ContentPreparer", adapter.ID())
+        }
+    }
+    if capabilities.PublishPrepared || capabilities.DirectPublishedUpdate {
+        if _, ok := adapter.(PreparedPublisher); !ok {
+            return fmt.Errorf("%s declares publish capability without PreparedPublisher", adapter.ID())
+        }
+    }
+    return nil
+}
+```
+
+### 7.4 统一门面
+
+`PlatformService` 对 Bridge 暴露统一操作；它先检查 capability，再断言对应小接口。能力不支持时返回结构化 `ErrCapabilityUnsupported`，而不是调用平台空实现。
+
+```go
+type PlatformService interface {
+    Capabilities(context.Context, string, Session) (PlatformCapabilities, error)
+    SearchTargets(context.Context, string, Session, SearchQuery) ([]RemoteCandidate, error)
+    VerifyTarget(context.Context, string, Session, RemoteReference) (RemoteTarget, error)
+    Prepare(context.Context, string, Session, RemoteTarget, DraftInput) (PrepareResult, error)
+    PublishPrepared(context.Context, string, Session, RemoteTarget, DraftInput) (PublishResult, error)
+}
+```
+
+这满足“所有平台走同一调用入口”，同时保留平台能力差异。兼容层把旧 `CreateDraft/UpdateDraft/PublishDraft` 映射到单目标操作。只有抓包和测试确认语义后，capability 才设置为 `true`。
 
 对已发布文章的准备必须先读取远端详情并合并平台维护的字段，例如分类、标签、专栏、封面、原始 URL、发布时间和平台版本。禁止用零值覆盖未由 BlogCTL 管理的元数据。
 
@@ -479,22 +599,112 @@ sequenceDiagram
 
 ## 11. 抓包驱动的平台契约
 
-每个平台缺失能力由用户在浏览器执行真实动作，PFlow/HAR 记录请求。一次完整 capture pack 应覆盖：
+每个平台缺失能力由用户在浏览器执行真实动作，PFlow/HAR 记录请求。不要因为其他平台存在同名操作而推断契约相同。
 
-1. 登录态探针。
-2. 草稿列表或搜索，以及分页。
-3. 已发布文章列表或搜索，以及分页。
-4. 草稿详情。
-5. 已发布文章详情。
-6. 新建草稿。
-7. 更新已有草稿。
-8. 编辑已发布文章时，平台是否创建/复用编辑草稿。
-9. 发布新文章。
-10. 发布对已有文章的更新。
-11. 分类、标签、专栏、封面、摘要、canonical、发布时间等平台字段的读取和保留。
-12. 冲突、重复提交、限流和认证失效响应。
+### 11.1 命名和文件保存
 
-### 11.1 安全与 fixture 规则
+统一使用：
+
+```text
+<platform>-<序号>-<动作>
+```
+
+平台名固定为：
+
+```text
+cnblogs
+juejin
+csdn
+segmentfault
+zhihu
+51cto
+oschina
+toutiao
+devto
+medium
+```
+
+示例：
+
+```text
+cnblogs-02-list-drafts
+juejin-11-save-published-without-publish
+csdn-13-publish-new-draft
+```
+
+如果 PFlow 支持修改流程显示名称，直接使用上述名称。如果只能生成 `wf-*.json`，保留原文件，再复制一个带语义的副本：
+
+```text
+juejin-11-save-published-without-publish--wf-20260921180916-9.json
+```
+
+建议只把原始抓包放在本机：
+
+```text
+%USERPROFILE%\.pflow\capture\
+├── cnblogs\
+├── juejin\
+├── csdn\
+├── segmentfault\
+├── zhihu\
+├── 51cto\
+├── oschina\
+├── toutiao\
+├── devto\
+└── medium\
+```
+
+### 11.2 标准 capture TODO
+
+| 序号 | To-do 后缀 | 浏览器操作 | 必须确认的契约 | 修改公开内容 |
+| --- | --- | --- | --- | --- |
+| 01 | `auth-profile` | 打开平台创作中心并等待加载完成 | 当前用户 ID、用户名或账户接口 | 否 |
+| 02 | `list-drafts` | 打开草稿箱 | 列表、分页、draft ID、标题、更新时间 | 否 |
+| 03 | `search-drafts` | 搜索测试文章标题 | 搜索参数和结果；无搜索时记录分页 | 否 |
+| 04 | `draft-detail` | 打开已有草稿 | 草稿详情、版本和平台元数据 | 否 |
+| 05 | `create-draft` | 创建测试文章并保存为草稿 | 创建请求、draft ID、edit URL | 否 |
+| 06 | `update-draft` | 修改标题或正文并再次保存 | 更新请求、draft ID、版本字段 | 否 |
+| 07 | `list-published` | 打开已发布文章管理列表 | article ID、标题、URL、更新时间、分页 | 否 |
+| 08 | `search-published` | 搜索已发布测试文章 | 搜索参数和结果 | 否 |
+| 09 | `published-detail` | 打开已发布文章管理详情 | article ID、状态和完整非敏感元数据 | 否 |
+| 10 | `open-published-editor` | 点击编辑一篇已发布文章 | article ID 与编辑 draft ID 的关系 | 否 |
+| 11 | `save-published-without-publish` | 修改后只保存或等待自动保存，不点击发布 | 是否产生编辑草稿；公开页面是否保持不变 | 否 |
+| 12 | `load-save-metadata` | 设置分类、标签、专栏、封面等并保存 | 元数据查询接口、ID 和保存字段 | 否 |
+| 13 | `publish-new-draft` | 发布一个新建测试草稿 | 发布请求、article ID、public URL | 是 |
+| 14 | `publish-existing-update` | 发布对既有文章的更新 | draft/article ID 映射、更新接口、最终 URL | 是 |
+| 15 | `remote-conflict` | 准备后再次修改远端内容，再尝试同步 | 更新时间、版本号或冲突依据 | 可能 |
+| 16 | `publish-timeout-check` | 在测试环境模拟发布超时，随后刷新后台 | 查询结果和幂等依据 | 是，有重复风险 |
+
+第一轮执行 `01–12`，不主动修改公开内容。`13–16` 单独放在第二轮，使用明确允许公开的测试文章。
+
+每个 flow 开始前清空网络面板，一次只执行表中的一个动作；请求稳定后立即结束 capture。记录操作前状态、关键点击、响应后的 ID/URL/状态，以及公开页面是否变化。
+
+### 11.3 每个平台当前状态与具体 TODO
+
+| 平台 | 当前代码/抓包状态 | 第一轮现在抓 | 第二轮公开或异常场景 |
+| --- | --- | --- | --- |
+| 博客园 `cnblogs` | 登录、创建/更新草稿、发布、候选查找和专用绑定已实现；当前已发布更新是直接公开更新 | `cnblogs-02-list-drafts`<br>`cnblogs-03-search-drafts`<br>`cnblogs-04-draft-detail`<br>`cnblogs-07-list-published`<br>`cnblogs-08-search-published`<br>`cnblogs-09-published-detail`<br>`cnblogs-10-open-published-editor`<br>`cnblogs-11-save-published-without-publish`<br>`cnblogs-12-load-save-metadata` | `cnblogs-14-publish-existing-update`<br>`cnblogs-15-remote-conflict`<br>`cnblogs-16-publish-timeout-check` |
+| 掘金 `juejin` | `wf-20260921180916-9.json` 已覆盖更新草稿、发布及部分搜索/分类；当前代码只搜索已发布文章 | `juejin-01-auth-profile`<br>`juejin-02-list-drafts`<br>`juejin-03-search-drafts`<br>`juejin-04-draft-detail`<br>`juejin-05-create-draft`<br>`juejin-07-list-published`<br>`juejin-09-published-detail`<br>`juejin-10-open-published-editor`<br>`juejin-11-save-published-without-publish` | `juejin-15-remote-conflict`<br>`juejin-16-publish-timeout-check` |
+| CSDN `csdn` | 登录、创建、更新和发布代码存在；查找、绑定及已发布编辑关系未实现 | `csdn-01-auth-profile`<br>`csdn-02-list-drafts`<br>`csdn-03-search-drafts`<br>`csdn-04-draft-detail`<br>`csdn-05-create-draft`<br>`csdn-06-update-draft`<br>`csdn-07-list-published`<br>`csdn-08-search-published`<br>`csdn-09-published-detail`<br>`csdn-10-open-published-editor`<br>`csdn-11-save-published-without-publish`<br>`csdn-12-load-save-metadata` | `csdn-13-publish-new-draft`<br>`csdn-14-publish-existing-update`<br>`csdn-15-remote-conflict`<br>`csdn-16-publish-timeout-check` |
+| 思否 `segmentfault` | 登录、创建、更新代码存在；发布请求携带 `draftId`；已发布文章再次编辑时的 ID 关系未知 | `segmentfault-01-auth-profile`<br>`segmentfault-02-list-drafts`<br>`segmentfault-03-search-drafts`<br>`segmentfault-04-draft-detail`<br>`segmentfault-05-create-draft`<br>`segmentfault-06-update-draft`<br>`segmentfault-07-list-published`<br>`segmentfault-08-search-published`<br>`segmentfault-09-published-detail`<br>`segmentfault-10-open-published-editor`<br>`segmentfault-11-save-published-without-publish`<br>`segmentfault-12-load-save-metadata` | `segmentfault-13-publish-new-draft`<br>`segmentfault-14-publish-existing-update`<br>`segmentfault-15-remote-conflict`<br>`segmentfault-16-publish-timeout-check` |
+| 知乎 `zhihu` | 创建、更新和发布同一 article ID 的代码存在；查找、绑定和已发布编辑关系未知 | `zhihu-01-auth-profile`<br>`zhihu-02-list-drafts`<br>`zhihu-03-search-drafts`<br>`zhihu-04-draft-detail`<br>`zhihu-05-create-draft`<br>`zhihu-06-update-draft`<br>`zhihu-07-list-published`<br>`zhihu-08-search-published`<br>`zhihu-09-published-detail`<br>`zhihu-10-open-published-editor`<br>`zhihu-11-save-published-without-publish`<br>`zhihu-12-load-save-metadata` | `zhihu-13-publish-new-draft`<br>`zhihu-14-publish-existing-update`<br>`zhihu-15-remote-conflict`<br>`zhihu-16-publish-timeout-check` |
+| 51CTO `51cto` | 创建、更新代码存在；发布请求使用 `did`；`did/blog_id/work_id` 关系未知 | `51cto-01-auth-profile`<br>`51cto-02-list-drafts`<br>`51cto-03-search-drafts`<br>`51cto-04-draft-detail`<br>`51cto-05-create-draft`<br>`51cto-06-update-draft`<br>`51cto-07-list-published`<br>`51cto-08-search-published`<br>`51cto-09-published-detail`<br>`51cto-10-open-published-editor`<br>`51cto-11-save-published-without-publish`<br>`51cto-12-load-save-metadata` | `51cto-13-publish-new-draft`<br>`51cto-14-publish-existing-update`<br>`51cto-15-remote-conflict`<br>`51cto-16-publish-timeout-check` |
+| 开源中国 `oschina` | 草稿代码存在；当前发布实现没有使用传入 draft ref，存在另建公开文章风险 | `oschina-01-auth-profile`<br>`oschina-02-list-drafts`<br>`oschina-03-search-drafts`<br>`oschina-04-draft-detail`<br>`oschina-05-create-draft`<br>`oschina-06-update-draft`<br>`oschina-07-list-published`<br>`oschina-08-search-published`<br>`oschina-09-published-detail`<br>`oschina-10-open-published-editor`<br>`oschina-11-save-published-without-publish`<br>`oschina-12-load-save-metadata` | 必须完成后才能启用发布：<br>`oschina-13-publish-new-draft`<br>`oschina-14-publish-existing-update`<br>`oschina-15-remote-conflict`<br>`oschina-16-publish-timeout-check` |
+| 今日头条 `toutiao` | 创建、更新和发布使用 `pgc_id`；草稿与公开文章 ID 是否始终相同未知 | `toutiao-01-auth-profile`<br>`toutiao-02-list-drafts`<br>`toutiao-03-search-drafts`<br>`toutiao-04-draft-detail`<br>`toutiao-05-create-draft`<br>`toutiao-06-update-draft`<br>`toutiao-07-list-published`<br>`toutiao-08-search-published`<br>`toutiao-09-published-detail`<br>`toutiao-10-open-published-editor`<br>`toutiao-11-save-published-without-publish`<br>`toutiao-12-load-save-metadata` | `toutiao-13-publish-new-draft`<br>`toutiao-14-publish-existing-update`<br>`toutiao-15-remote-conflict`<br>`toutiao-16-publish-timeout-check` |
+| DEV.to `devto` | API Key 路径已有查找和 upsert；`PublishDraft` 未实现；浏览器 UI 请求不等同于 BlogCTL API | 不要求 PFlow。由 Agent 建立 API fixture：<br>`devto-05-create-draft`<br>`devto-06-update-draft`<br>`devto-07-list-published`<br>`devto-08-search-published`<br>`devto-11-save-published-without-publish` | API 测试：<br>`devto-13-publish-new-draft`<br>`devto-14-publish-existing-update` |
+| Medium `medium` | 浏览器 Cookie 创建新草稿已实现；查找、更新已有草稿、发布和已发布编辑均未实现 | `medium-01-auth-profile`<br>`medium-02-list-drafts`<br>`medium-03-search-drafts`<br>`medium-04-draft-detail`<br>`medium-05-create-draft`<br>`medium-06-update-draft`<br>`medium-07-list-published`<br>`medium-08-search-published`<br>`medium-09-published-detail`<br>`medium-10-open-published-editor`<br>`medium-11-save-published-without-publish`<br>`medium-12-load-save-metadata` | `medium-13-publish-new-draft`<br>`medium-14-publish-existing-update`<br>`medium-15-remote-conflict`<br>`medium-16-publish-timeout-check` |
+
+建议执行顺序：掘金已有 flow 整理 → 博客园 → 开源中国 → CSDN → 思否 → 知乎 → 51CTO → 今日头条 → Medium → DEV.to API 测试。
+
+掘金现有 flow 的语义副本名建议为：
+
+```text
+juejin-existing-update-publish-search-metadata--wf-20260921180916-9.json
+```
+
+现有 flow 已清楚覆盖的任务不要重抓。
+
+### 11.4 安全与 fixture 规则
 
 - 原始抓包只用于本地分析，不直接提交仓库。
 - fixture 必须删除 Cookie value、Authorization、API key、CSRF token、用户私密字段和请求签名。
@@ -529,7 +739,9 @@ sequenceDiagram
 
 ### 阶段 2：目标适配接口
 
-- 新增 `TargetAdapter` 和 `PlatformCapabilities`。
+- 新增 `PlatformAdapter`、职责小接口和 `PlatformCapabilities`。
+- 新增 `AdapterFactory` 与显式注册表，替换平台构造 `switch`。
+- 注册时校验 capability 与实际接口实现一致。
 - 为旧 Adapter 提供兼容 shim。
 - 不改变已工作的 cookie/session 传输链路。
 
@@ -571,7 +783,8 @@ sequenceDiagram
 
 | 区域 | 建议改动 |
 | --- | --- |
-| `publisher/types.go` | 新增 capability、RemoteTarget、PrepareResult、TargetAdapter |
+| `publisher/types.go` | 新增 capability、RemoteTarget、PrepareResult 和职责小接口 |
+| `publisher/registry.go` | 改为 `AdapterFactory` 显式注册表，并校验 capability/接口一致性 |
 | `publisher/bindings.go` | 升级为通用 publications v2；迁移博客园 v1 |
 | `publisher/manifest.go` | 保留编译缓存职责和旧字段兼容，不再承担多目标权威身份 |
 | `publisher/service.go` | 增加 target-aware prepare/publish；统一哈希、账户、版本校验 |
