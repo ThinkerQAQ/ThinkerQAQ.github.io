@@ -21,11 +21,17 @@ type mediumClient struct {
 	httpClient *http.Client
 }
 
+type mediumCoverImage struct {
+	URL string `json:"url"`
+	Alt string `json:"alt"`
+}
+
 type mediumDraft struct {
-	Title        string           `json:"title"`
-	Deltas       []map[string]any `json:"deltas"`
-	CanonicalURL string           `json:"canonicalUrl"`
-	Tags         []string         `json:"tags"`
+	Title        string            `json:"title"`
+	Deltas       []map[string]any  `json:"deltas"`
+	CanonicalURL string            `json:"canonicalUrl"`
+	Tags         []string          `json:"tags"`
+	CoverImage   *mediumCoverImage `json:"coverImage,omitempty"`
 }
 
 func filterMediumCookies(cookies []browserCookie) map[string]string {
@@ -189,14 +195,20 @@ func (c mediumClient) createDraft(ctx context.Context, session platformSession, 
 		encoded, _ := json.Marshal(deltaResult)
 		return nil, fmt.Errorf("Medium delta write failed (%d): %s", response.StatusCode, truncate(string(encoded), 500))
 	}
-	return map[string]any{
-		"postId":           postID,
-		"draftUrl":         mediumOrigin + "/p/" + postID + "/edit",
-		"mediumUrl":        nullString(mediumURL),
-		"canonicalUrl":     nullString(draft.CanonicalURL),
-		"canonicalPending": strings.TrimSpace(draft.CanonicalURL) != "",
-		"tagsPending":      len(draft.Tags) > 0,
-	}, nil
+	result := map[string]any{
+		"postId":            postID,
+		"draftUrl":          mediumOrigin + "/p/" + postID + "/edit",
+		"mediumUrl":         nullString(mediumURL),
+		"canonicalUrl":      nullString(draft.CanonicalURL),
+		"canonicalPending":  strings.TrimSpace(draft.CanonicalURL) != "",
+		"tagsPending":       len(draft.Tags) > 0,
+		"coverImagePending": draft.CoverImage != nil && strings.TrimSpace(draft.CoverImage.URL) != "",
+	}
+	if draft.CoverImage != nil {
+		result["coverImageUrl"] = nullString(strings.TrimSpace(draft.CoverImage.URL))
+		result["coverImageAlt"] = nullString(strings.TrimSpace(draft.CoverImage.Alt))
+	}
+	return result, nil
 }
 
 func setMediumHeaders(req *http.Request, session platformSession, referer string) {
