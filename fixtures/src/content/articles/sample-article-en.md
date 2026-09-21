@@ -6,6 +6,8 @@ language: en
 tags:
   - fixture
 status: published
+coverImage: "/media/articles/sample-article/cover.png"
+coverImageAlt: "Synthetic article cover used by the public engine fixture"
 translationOf: sample-article
 ---
 

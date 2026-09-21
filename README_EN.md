@@ -4,102 +4,179 @@
 
 Live site: <https://thinkerqaq.github.io/>
 
-A bilingual personal technical blog and digital garden built with [Astro](https://astro.build/), organized around **Articles / Notes / Series / Projects**.
+## Introduction
 
-This repository is the blog's **Public Engine**. It contains the website implementation, content schema, validation logic, build and deployment pipeline, and public tooling. The real blog content lives in a separate private content repository and is injected only at build time; it is not committed here.
+This is a bilingual personal technical blog and digital garden built with [Astro](https://astro.build/).
 
-## Architecture
+The blog is split into two parts:
 
 ```text
-Private Content Repository
+blog-content
 Articles / Notes / Series / Projects / Media
-                 │
-                 │ build-time checkout
-                 ▼
+        │
+        ▼
 ThinkerQAQ.github.io
-Astro / Schema / Validation / Search / Tooling / CI
-                 │
-                 ▼
-           GitHub Pages
-                 │
-                 ▼
-      https://thinkerqaq.github.io/
+Astro / Search / SEO / BlogCTL / CI
+        │
+        ▼
+GitHub Pages
 ```
 
-The repository boundary follows one simple rule:
+This repository contains the public site engine. The real content lives in a separate Content Repository and is injected at build time.
 
-```text
-Private Content = DATA
-Public Engine   = CODE + SCHEMA + VALIDATION + BUILD + DEPLOY
-```
+Main capabilities:
 
-Production content is never committed to this public repository. Pull requests and local infrastructure validation use synthetic content from `fixtures/`.
+- Articles / Notes / Series / Projects
+- Chinese site and English site under `/en/`
+- Pagefind full-text search
+- Cloudflare AI Search / Workers
+- utterances comments
+- Umami analytics
+- canonical URLs, Open Graph, JSON-LD, `hreflang`, RSS, sitemap, and IndexNow
+- BlogCTL and multi-platform article distribution
+- GitHub Actions + GitHub Pages deployment
 
-## Content model
+## Tutorial
 
-| Type | Purpose |
-| --- | --- |
-| Articles | Long-form published articles |
-| Notes | Learning notes and historical knowledge records |
-| Series | Continuous reading paths across related content |
-| Projects | Projects and their related articles, series, and knowledge content |
+### 1. Clone
 
-## Main capabilities
-
-- **Astro** for static site generation and content rendering
-- **Bilingual site** with Chinese as the default language and English under `/en/`
-- **Pagefind** for static full-text search
-- **Cloudflare** for AI Search, Workers, and related online capabilities
-- **Umami** for privacy-friendly analytics
-- **utterances** for GitHub Issues-based comments
-- **SEO** with canonical URLs, Open Graph, JSON-LD, `hreflang`, RSS, sitemap, robots.txt, and IndexNow
-- **GitHub Actions + GitHub Pages** for automated builds and publishing
-- **BlogCTL** under `tools/blogctl/` for cross-platform blog maintenance tooling
-
-## Local Public Engine validation
-
-The public repository does not contain real production content, so engine validation uses fixtures by default:
+To work on the Public Engine only:
 
 ```bash
+git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
+```
+
+To run it with a complete sample Content Repository:
+
+```bash
+mkdir thinkerqaq-blog
+cd thinkerqaq-blog
+
+git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
+git clone https://github.com/ThinkerQAQ/blog-content-template.git blog-content
+```
+
+Keep the repositories as siblings:
+
+```text
+thinkerqaq-blog/
+├── ThinkerQAQ.github.io/
+└── blog-content/
+```
+
+`blog-content-template` is sample content only. It is not part of the production deployment of this site.
+
+### 2. Run locally
+
+Enter the Public Engine:
+
+```bash
+cd ThinkerQAQ.github.io
 npm ci
+node scripts/validate-content-source.mjs ../blog-content
+node scripts/assemble-content.mjs ../blog-content
+npm run dev:site
+```
+
+Open:
+
+```text
+http://localhost:4321
+```
+
+To validate the Public Engine without a Content Repository:
+
+```bash
 npm run assemble:fixtures
 npm run check
 npm run build
 ```
 
-This validates the public engine without copying private content into Git history.
+### 3. Add content
 
-## Production build
+Content belongs in `blog-content`:
 
-For a production deployment, GitHub Actions:
+```text
+src/content/
+├── articles/
+│   └── en/
+├── notes/
+├── note-translations/
+│   └── en/
+├── projects/
+└── series/
 
-1. checks out the Public Engine;
-2. checks out a specific private content commit;
-3. validates the content-source contract;
-4. assembles content into the build workspace;
-5. runs tests, Astro check, and the static build;
-6. deploys the site to GitHub Pages;
-7. runs post-deployment search and search-engine notification tasks.
+public/media/
+```
 
-The Public Engine accepts a `content_sha`, allowing a deployment to be pinned to an exact content version for traceability.
+You can copy and edit the examples from [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template).
 
-## Repository boundary
+See [`src/content.config.ts`](src/content.config.ts) for the complete schema.
 
-This repository should contain:
+### 4. Deploy
 
-- the Astro website implementation;
-- content schemas and relationship models;
-- content-source validation and assembly logic;
-- public infrastructure for search, SEO, Workers, and related services;
-- BlogCTL and public development tools;
-- CI/CD and GitHub Pages deployment logic;
-- test fixtures that contain no real private content.
+The production pipeline for this site is:
 
-This repository should not contain:
+```text
+ThinkerQAQ/blog-content
+        │
+        │ push master
+        ▼
+trigger-public-engine.yml
+        │
+        ▼
+ThinkerQAQ.github.io / deploy.yml
+        │
+        ├── checkout the selected content commit
+        ├── validate + assemble
+        ├── test + build
+        └── deploy to GitHub Pages
+```
 
-- the private VNote source knowledge base;
-- drafts or unpublished private content;
-- production content or media copied from the private repository;
-- generated build output such as `dist/`.
+The Public Engine uses `CONTENT_REPOSITORY` to select the content repository. A private Content Repository is read through `BLOG_CONTENT_DEPLOY_KEY`.
 
-The boundary is enforced by `.gitignore` and repository validation scripts.
+To deploy your own fork, also update the repository guards in `.github/workflows/deploy.yml` that currently target `ThinkerQAQ/ThinkerQAQ.github.io`, then configure your own `CONTENT_REPOSITORY`, GitHub Pages, and required Secrets.
+
+The Content Template intentionally does not include an automatic deployment trigger workflow, so it is not tied to a specific account, token, or repository name.
+
+## Documentation
+
+### Main components
+
+| Capability | Implementation |
+| --- | --- |
+| Site | Astro + Markdown + Content Collections |
+| Content | Separate Content Repository |
+| Search | Pagefind |
+| AI Search | Cloudflare Workers + AI Search |
+| Comments | utterances |
+| Analytics | Umami |
+| SEO | canonical / Open Graph / JSON-LD / hreflang / RSS / sitemap / IndexNow |
+| Diagrams | PlantUML / Graphviz / draw.io |
+| Tooling | BlogCTL |
+| CI/CD | GitHub Actions |
+| Deployment | GitHub Pages |
+
+### Repository layout
+
+```text
+src/                  Astro pages, components, and content schema
+scripts/              Build, search, distribution, and maintenance scripts
+workers/              Cloudflare Workers
+tools/blogctl/         BlogCTL
+docs/                  Detailed documentation
+fixtures/              Public Engine test content
+.github/workflows/     CI / CD
+```
+
+### Detailed documentation
+
+- [BlogCTL](tools/blogctl/README.md)
+- [Diagrams](docs/diagrams.md)
+- [Analytics](docs/analytics.md)
+- [International Syndication](docs/international-syndication.md)
+- [Publishing Language](tools/blogctl/PUBLISHING_LANGUAGE.md)
+
+## License
+
+This repository is licensed under the [MIT License](LICENSE).

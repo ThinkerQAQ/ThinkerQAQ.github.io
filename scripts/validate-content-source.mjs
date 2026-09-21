@@ -15,18 +15,67 @@ async function exists(target) {
   }
 }
 
-async function countMarkdownFiles(dir) {
+async function countMarkdownFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
   let count = 0;
-  const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
-    const target = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      count += await countMarkdownFiles(target);
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
-      count += 1;
-    }
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) count += await countMarkdownFiles(target);
+    else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) count += 1;
   }
   return count;
+}
+
+async function walkMarkdown(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await walkMarkdown(target));
+    else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) files.push(target);
+  }
+  return files;
+}
+
+function frontmatterScalar(markdown, name) {
+  const normalized = String(markdown).replaceAll("\r\n", "\n");
+  const match = normalized.match(/^---\n([\s\S]*?)\n---(?:\n|$)/u);
+  if (!match) return "";
+  const field = match[1].match(new RegExp(`^${name}:\\s*(.*?)\\s*$`, "mu"));
+  if (!field) return "";
+  const value = field[1].trim();
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+async function validatePublishedArticleCovers(articleRoot) {
+  const failures = [];
+  let published = 0;
+  for (const file of await walkMarkdown(articleRoot)) {
+    const markdown = await readFile(file, "utf8");
+    if ((frontmatterScalar(markdown, "status") || "draft") !== "published") continue;
+    published += 1;
+    const coverImage = frontmatterScalar(markdown, "coverImage");
+    const coverImageAlt = frontmatterScalar(markdown, "coverImageAlt");
+    const relative = path.relative(root, file).split(path.sep).join("/");
+    if (!coverImage) failures.push(`${relative}: published article is missing coverImage`);
+    if (!coverImageAlt) failures.push(`${relative}: published article is missing coverImageAlt`);
+    if (coverImage) {
+      const isAbsoluteUrl = /^https?:\/\//i.test(coverImage);
+      if (!isAbsoluteUrl && !coverImage.startsWith("/media/")) {
+        failures.push(`${relative}: coverImage must be rooted under /media/ or be an absolute URL`);
+      } else if (!isAbsoluteUrl) {
+        const asset = path.join(root, "public", ...coverImage.replace(/^\/+/, "").split("/"));
+        if (!(await exists(asset))) failures.push(`${relative}: coverImage does not exist: ${coverImage}`);
+      }
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(`Article cover validation failed:\n- ${failures.join("\n- ")}`);
+  }
+  return published;
 }
 
 if (!(await exists(contentRoot))) {
@@ -52,6 +101,8 @@ for (const requiredNonEmpty of ["articles", "notes", "projects", "series"]) {
   }
 }
 
+const publishedArticleCovers = await validatePublishedArticleCovers(path.join(contentRoot, "articles"));
+
 const manifestPath = path.join(root, "src", "data", "content-manifest.json");
 let manifestEntries = null;
 if (await exists(manifestPath)) {
@@ -69,6 +120,7 @@ console.log(JSON.stringify({
   operation: "validate-content-source",
   root,
   collectionCounts,
+  publishedArticleCovers,
   manifestEntries,
   mediaPresent,
 }));

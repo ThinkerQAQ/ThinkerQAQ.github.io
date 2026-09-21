@@ -7,6 +7,8 @@ tags:
   - fixture
 status: published
 featured: true
+coverImage: "/media/articles/sample-article/cover.png"
+coverImageAlt: "Synthetic article cover used by the public engine fixture"
 project: sample-project
 relatedNotes:
   - sample-note

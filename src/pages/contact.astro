@@ -1,0 +1,31 @@
+---
+import CollectionHeader from "../components/CollectionHeader.astro";
+import { SITE } from "../config/site";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="联系"
+  description="联系 ThinkerQAQ：技术讨论、文章反馈或合作相关信息。"
+  canonicalPath="/contact/"
+>
+  <div class="shell page narrow collection-page">
+    <CollectionHeader
+      title="联系"
+      description="如果你想讨论技术、反馈文章问题，或者有合作相关的事情，可以通过下面的方式联系我。"
+    />
+
+    <div class="prose">
+      <h2>邮箱</h2>
+      <p><a href={SITE.contact}>zhangshengkunz@gmail.com</a></p>
+      <p>技术讨论、文章反馈或合作相关的信息，都可以通过邮件联系。</p>
+
+      <h2>GitHub</h2>
+      <p>
+        如果是具体的代码或项目问题，也可以通过
+        <a href={SITE.github}>GitHub</a>
+        联系我。
+      </p>
+    </div>
+  </div>
+</BaseLayout>

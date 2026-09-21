@@ -231,73 +231,23 @@ function fallbackTopicLabel(id: string): string {
   return id.replaceAll("_", " ");
 }
 
-function sameTopicId(left: string, right: string): boolean {
-  return left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
-}
-
-function computerNetworkSourceTopicPath(note: NoteEntry): NoteTopicSegment[] | undefined {
-  if (note.data.category !== "computer-network") return undefined;
-
+function sourceTopicPath(note: NoteEntry): NoteTopicSegment[] {
   const sourceSegments = note.data.sourcePath
     .replaceAll("\\", "/")
     .split("/")
     .filter(Boolean);
-  if (sourceSegments[0] !== "Computer_Network") return undefined;
 
-  return sourceSegments.slice(1, -1).map((id) => ({ id, label: id }));
+  // VNote's directory tree is the taxonomy. The first segment is the VNote
+  // collection/category and the last segment is the Markdown file itself.
+  return sourceSegments.slice(1, -1).map((id) => ({
+    id,
+    label: fallbackTopicLabel(id),
+  }));
 }
 
 export function getNoteTopicPath(note: NoteEntry): NoteTopicSegment[] {
-  // Computer_Network keeps the original Windows/VNote directory tree as the
-  // public taxonomy. The source path is authoritative for IDs and depth. A
-  // localized in-memory topicPath may only replace labels for those same IDs.
-  const sourceTopicPath = computerNetworkSourceTopicPath(note);
-  if (sourceTopicPath) {
-    const localizedTopicPath = note.data.topicPath;
-    const sameSourcePath = localizedTopicPath?.length === sourceTopicPath.length
-      && localizedTopicPath.every((segment, index) =>
-        sameTopicId(segment.id, sourceTopicPath[index]!.id),
-      );
-    if (sameSourcePath) {
-      return sourceTopicPath.map((segment, index) => ({
-        ...segment,
-        label: localizedTopicPath[index]?.label ?? segment.label,
-      }));
-    }
-    return sourceTopicPath;
-  }
-
-  if (note.data.topicPath?.length) {
-    return note.data.topicPath.map((segment) => ({
-      id: segment.id,
-      label: segment.label ?? fallbackTopicLabel(segment.id),
-    }));
-  }
-
-  if (!note.data.topic) return [];
-
-  const firstSegment: NoteTopicSegment = {
-    id: note.data.topic,
-    label: note.data.topicLabel ?? fallbackTopicLabel(note.data.topic),
-  };
-  const sourceDirectories = note.data.sourcePath
-    .replaceAll("\\", "/")
-    .split("/")
-    .filter(Boolean)
-    .slice(0, -1);
-  const topicIndex = sourceDirectories.findIndex((segment) => sameTopicId(segment, note.data.topic!));
-
-  if (topicIndex === -1) return [firstSegment];
-
-  return [
-    firstSegment,
-    ...sourceDirectories.slice(topicIndex + 1).map((id) => ({
-      id,
-      label: fallbackTopicLabel(id),
-    })),
-  ];
+  return sourceTopicPath(note);
 }
-
 function topicPathKey(path: NoteTopicSegment[]): string {
   return path.map((segment) => segment.id).join("\u001f");
 }
@@ -312,7 +262,7 @@ export function groupNotesByTopic(notes: NoteEntry[]): NoteTopicGroup[] {
       const topic = topics.get(key) ?? {
         // Root-level source notes stay at the category root instead of being
         // placed in an artificial "Other" folder that does not exist in VNote.
-        label: entry.data.category === "computer-network" || entry.data.category === "database" ? "" : "其他",
+        label: "",
         path: [],
         depth: 0,
         notes: [],

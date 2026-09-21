@@ -32,6 +32,9 @@ export async function getStaticPaths() {
     return notes.map((note, index) => {
       const localizedNote = localizedNotes[index]!;
       const translation = noteTranslationFor(note, translations, locale);
+      if (!translation) {
+        throw new Error(`Note ${note.id}: missing ${locale} translation`);
+      }
       const translatedLocales = translations
         .filter((candidate) => candidate.data.translationOf === note.id)
         .map((candidate) => candidate.data.language);
@@ -68,7 +71,7 @@ export async function getStaticPaths() {
 interface Props {
   locale: Locale;
   note: CollectionEntry<"notes">;
-  translation?: NoteTranslationEntry;
+  translation: NoteTranslationEntry;
   collectionNavigation: NoteCollectionNavigation;
   relatedArticles: CollectionEntry<"articles">[];
   languageAlternatives: LocaleAlternative[];
@@ -84,7 +87,7 @@ const {
   languageAlternatives,
   languageSwitcherAlternatives,
 } = Astro.props;
-const rendered = translation ? await render(translation) : await render(note);
+const rendered = await render(translation);
 const { Content, headings, remarkPluginFrontmatter } = rendered;
 const rawReadingMinutes = Number(remarkPluginFrontmatter.readingMinutes);
 const readingMinutes = Number.isFinite(rawReadingMinutes) && rawReadingMinutes > 0

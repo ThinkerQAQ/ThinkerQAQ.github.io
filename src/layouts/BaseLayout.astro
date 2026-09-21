@@ -1,5 +1,7 @@
 ---
 import AskBlog from "../components/AskBlogSession.astro";
+import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
+import MermaidRuntime from "../components/MermaidRuntime.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import {
@@ -25,6 +27,8 @@ interface Props {
   languageAlternatives?: LocaleAlternative[];
   languageSwitcherAlternatives?: LocaleAlternative[];
   analytics?: boolean;
+  image?: string;
+  imageAlt?: string;
 }
 
 const {
@@ -38,6 +42,8 @@ const {
   languageAlternatives: providedLanguageAlternatives,
   languageSwitcherAlternatives: providedLanguageSwitcherAlternatives,
   analytics = true,
+  image,
+  imageAlt,
 } = Astro.props;
 
 // The language switcher belongs to the global navigation, so it must remain
@@ -51,6 +57,7 @@ const localizedSeoShellPaths = new Set([
   "/series/",
   "/projects/",
   "/about/",
+  "/contact/",
 ]);
 const logicalPath = unlocalizePath(Astro.url.pathname);
 const normalizedLogicalPath =
@@ -89,6 +96,7 @@ const pageTitle =
       ? title
       : `${title} · ${SITE.title}`;
 const canonical = new URL(canonicalPath, SITE.url);
+const socialImage = image ? new URL(image, SITE.url).toString() : undefined;
 const defaultAlternative = languageAlternatives.find(
   (alternative) => alternative.locale === DEFAULT_LOCALE,
 );
@@ -134,7 +142,11 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.title} />
     <meta property="og:locale" content={language.replace("-", "_")} />
-    <meta name="twitter:card" content="summary" />
+    {socialImage && <meta property="og:image" content={socialImage} />}
+    {socialImage && imageAlt && <meta property="og:image:alt" content={imageAlt} />}
+    <meta name="twitter:card" content={socialImage ? "summary_large_image" : "summary"} />
+    {socialImage && <meta name="twitter:image" content={socialImage} />}
+    {socialImage && imageAlt && <meta name="twitter:image:alt" content={imageAlt} />}
     {analytics && umamiWebsiteId && umamiProxyOrigin && (
       <script
         is:inline
@@ -143,6 +155,8 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
         data-website-id={umamiWebsiteId}
         data-domains={umamiDomain}
         data-host-url={umamiProxyOrigin}
+        data-exclude-hash="true"
+        data-performance="true"
       ></script>
     )}
     <slot name="head" />
@@ -153,7 +167,9 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <main id="main-content">
       <slot />
     </main>
-    <SiteFooter />
+    <SiteFooter locale={locale} />
     <AskBlog locale={locale} />
+    <ContentAnalyticsRuntime />
+    <MermaidRuntime />
   </body>
 </html>

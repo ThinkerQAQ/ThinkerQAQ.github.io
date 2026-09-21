@@ -75,3 +75,10 @@ For routine review, use:
 - Attribution report: connect an earlier campaign/referrer touchpoint to a later article pageview when the reader navigates internally.
 
 Google Search Console remains the source of truth for Google search queries, impressions, clicks, CTR, and ranking position. Umami is used for on-site traffic and referral attribution.
+
+
+## Content engagement
+
+Pageviews, referrers, and UTM attribution answer how readers arrive. Content-reading quality is measured separately with sparse Umami events for visible reading time, reading progress, meaningful reads, deep reads, content navigation, language switching, and outbound domains.
+
+The design, industry research, event schema, thresholds, lifecycle rules, validation checklist, and Umami Goals/Funnel setup are documented in [Content engagement analytics](./content-engagement-analytics.md).

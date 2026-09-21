@@ -1,0 +1,282 @@
+---
+---
+
+<script>
+  import {
+    ACTIVE_TICK_INTERVAL_MS,
+    MAX_VISIBLE_TICK_MS,
+    PROGRESS_MILESTONES_PERCENT,
+    TIME_MILESTONES_SECONDS,
+    computeReadingProgress,
+    qualifiesForDeepRead,
+    qualifiesForEngagedRead,
+  } from "../lib/content-analytics.mjs";
+
+  type EventData = Record<string, string | number | boolean>;
+
+  interface UmamiRuntimeWindow extends Window {
+    umami?: {
+      track: (eventName: string, data?: EventData) => unknown;
+    };
+    __thinkerContentAnalyticsPageCleanup?: () => void;
+    __thinkerContentAnalyticsBootstrapCleanup?: () => void;
+  }
+
+  const runtimeWindow = window as UmamiRuntimeWindow;
+
+  runtimeWindow.__thinkerContentAnalyticsBootstrapCleanup?.();
+
+  let activeMarker: HTMLElement | null = null;
+
+  const initializePageAnalytics = () => {
+    const marker = document.querySelector<HTMLElement>("[data-analytics-content-type]");
+    if (marker && marker === activeMarker && runtimeWindow.__thinkerContentAnalyticsPageCleanup) return;
+
+    runtimeWindow.__thinkerContentAnalyticsPageCleanup?.();
+    delete runtimeWindow.__thinkerContentAnalyticsPageCleanup;
+    activeMarker = null;
+    const readingContent = document.querySelector<HTMLElement>("[data-reading-content]");
+    const readingStart = document.getElementById("reading-start");
+    const readingEnd = document.getElementById("reading-end");
+
+    if (!marker || !readingContent || !readingStart || !readingEnd) return;
+
+    try {
+      if (localStorage.getItem("umami.disabled") === "1") return;
+    } catch {
+      // The Umami tracker already handles storage failures. Continue without a local override.
+    }
+
+    activeMarker = marker;
+
+    const metadata: EventData = {
+      content_type: marker.dataset.analyticsContentType || "unknown",
+      lang: marker.dataset.analyticsLang || document.documentElement.lang || "unknown",
+    };
+
+    if (marker.dataset.analyticsSeries) {
+      metadata.series = marker.dataset.analyticsSeries;
+    }
+    if (marker.dataset.analyticsCategory) {
+      metadata.category = marker.dataset.analyticsCategory;
+    }
+
+    const pendingEvents: Array<{ name: string; data: EventData }> = [];
+    const firedTimeMilestones = new Set<number>();
+    const firedProgressMilestones = new Set<number>();
+    let engagedReadSent = false;
+    let deepReadSent = false;
+    let activeMilliseconds = 0;
+    let maxProgressPercent = 0;
+    let lastTickAt = performance.now();
+    let wasVisible = document.visibilityState === "visible";
+    let animationFrame = 0;
+
+    const sendNow = (name: string, data: EventData) => {
+      if (runtimeWindow.umami?.track) {
+        runtimeWindow.umami.track(name, data);
+        return true;
+      }
+      return false;
+    };
+
+    const track = (name: string, data: EventData) => {
+      const payload = { ...metadata, ...data };
+      if (!sendNow(name, payload) && pendingEvents.length < 20) {
+        pendingEvents.push({ name, data: payload });
+      }
+    };
+
+    const flushPendingEvents = () => {
+      if (!runtimeWindow.umami?.track || pendingEvents.length === 0) return;
+      const events = pendingEvents.splice(0, pendingEvents.length);
+      events.forEach(({ name, data }) => sendNow(name, data));
+    };
+
+    const trackerReadyInterval = window.setInterval(flushPendingEvents, 250);
+    const trackerReadyTimeout = window.setTimeout(() => {
+      window.clearInterval(trackerReadyInterval);
+      pendingEvents.length = 0;
+    }, 10_000);
+
+    const readHeaderHeight = () =>
+      Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--site-header-height"),
+      ) || 64;
+
+    const measureProgress = () => {
+      const scrollY = window.scrollY;
+      const startY = readingStart.getBoundingClientRect().top + scrollY;
+      const endY = readingEnd.getBoundingClientRect().top + scrollY;
+
+      return computeReadingProgress({
+        scrollY,
+        startY,
+        endY,
+        viewportHeight: window.innerHeight,
+        headerHeight: readHeaderHeight(),
+      });
+    };
+
+    const evaluateMilestones = () => {
+      const activeSeconds = activeMilliseconds / 1000;
+
+      TIME_MILESTONES_SECONDS.forEach((seconds) => {
+        if (activeSeconds >= seconds && !firedTimeMilestones.has(seconds)) {
+          firedTimeMilestones.add(seconds);
+          track("read_milestone", { metric: "time", value: seconds });
+        }
+      });
+
+      PROGRESS_MILESTONES_PERCENT.forEach((percent) => {
+        if (maxProgressPercent >= percent && !firedProgressMilestones.has(percent)) {
+          firedProgressMilestones.add(percent);
+          track("read_milestone", { metric: "progress", value: percent });
+        }
+      });
+
+      if (
+        !engagedReadSent
+        && qualifiesForEngagedRead(activeMilliseconds, maxProgressPercent)
+      ) {
+        engagedReadSent = true;
+        track("engaged_read", {
+          active_seconds: Math.floor(activeSeconds),
+          progress_percent: maxProgressPercent,
+        });
+      }
+
+      if (
+        !deepReadSent
+        && qualifiesForDeepRead(activeMilliseconds, maxProgressPercent)
+      ) {
+        deepReadSent = true;
+        track("deep_read", {
+          active_seconds: Math.floor(activeSeconds),
+          progress_percent: maxProgressPercent,
+        });
+      }
+    };
+
+    const advanceActiveTime = (now: number) => {
+      const elapsed = Math.max(0, now - lastTickAt);
+      if (wasVisible) {
+        activeMilliseconds += Math.min(elapsed, MAX_VISIBLE_TICK_MS);
+      }
+      lastTickAt = now;
+      wasVisible = document.visibilityState === "visible";
+    };
+
+    const sampleProgress = () => {
+      animationFrame = 0;
+      maxProgressPercent = Math.max(maxProgressPercent, measureProgress());
+      evaluateMilestones();
+    };
+
+    const scheduleProgressSample = () => {
+      if (!animationFrame) {
+        animationFrame = window.requestAnimationFrame(sampleProgress);
+      }
+    };
+
+    const tick = () => {
+      advanceActiveTime(performance.now());
+      evaluateMilestones();
+      flushPendingEvents();
+    };
+
+    const onVisibilityChange = () => {
+      advanceActiveTime(performance.now());
+      evaluateMilestones();
+      flushPendingEvents();
+    };
+
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor) return;
+
+      const navigationKind =
+        metadata.content_type === "article" ? "series" : "note_collection";
+
+      if (anchor.closest(".series-navigation")) {
+        const direction = anchor.rel === "prev" ? "previous" : anchor.rel === "next" ? "next" : "";
+        if (direction) {
+          track("content_nav", { kind: navigationKind, direction });
+        }
+      } else if (
+        !anchor.matches('[aria-current="page"]')
+        && (
+          anchor.closest("[data-series-index]")
+          || anchor.closest('[data-mobile-reading-nav-panel="collection"]')
+        )
+      ) {
+        track("content_nav", { kind: navigationKind, direction: "index" });
+      }
+
+      let destination: URL;
+      try {
+        destination = new URL(anchor.href, window.location.href);
+      } catch {
+        return;
+      }
+
+      if (
+        (destination.protocol === "http:" || destination.protocol === "https:")
+        && destination.origin !== window.location.origin
+        && !anchor.hasAttribute("data-umami-event")
+      ) {
+        track("outbound_click", { target_domain: destination.hostname });
+      }
+    };
+
+    const activeTimer = window.setInterval(tick, ACTIVE_TICK_INTERVAL_MS);
+
+    window.addEventListener("scroll", scheduleProgressSample, { passive: true });
+    window.addEventListener("resize", scheduleProgressSample);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("click", onDocumentClick, true);
+
+    const resizeObserver = "ResizeObserver" in window
+      ? new ResizeObserver(scheduleProgressSample)
+      : undefined;
+    resizeObserver?.observe(readingContent);
+
+    scheduleProgressSample();
+
+    runtimeWindow.__thinkerContentAnalyticsPageCleanup = () => {
+      advanceActiveTime(performance.now());
+      evaluateMilestones();
+      flushPendingEvents();
+
+      window.clearInterval(activeTimer);
+      window.clearInterval(trackerReadyInterval);
+      window.clearTimeout(trackerReadyTimeout);
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+
+      window.removeEventListener("scroll", scheduleProgressSample);
+      window.removeEventListener("resize", scheduleProgressSample);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("click", onDocumentClick, true);
+      activeMarker = null;
+    };
+  };
+
+  const onPageLoad = () => initializePageAnalytics();
+  const onBeforeSwap = () => runtimeWindow.__thinkerContentAnalyticsPageCleanup?.();
+
+  document.addEventListener("astro:page-load", onPageLoad);
+  document.addEventListener("astro:before-swap", onBeforeSwap);
+
+  initializePageAnalytics();
+
+  runtimeWindow.__thinkerContentAnalyticsBootstrapCleanup = () => {
+    runtimeWindow.__thinkerContentAnalyticsPageCleanup?.();
+    delete runtimeWindow.__thinkerContentAnalyticsPageCleanup;
+    document.removeEventListener("astro:page-load", onPageLoad);
+    document.removeEventListener("astro:before-swap", onBeforeSwap);
+  };
+</script>

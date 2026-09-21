@@ -82,6 +82,16 @@ const articles = defineCollection({
     translationOf: z.string().optional(),
     sourceNote: z.string().optional(),
     relatedNotes: z.array(reference("notes")).default([]),
+    coverImage: z.string().optional(),
+    coverImageAlt: z.string().optional(),
+  }).superRefine((article, ctx) => {
+    if (article.status !== "published") return;
+    if (!article.coverImage?.trim()) {
+      ctx.addIssue({ code: "custom", path: ["coverImage"], message: "Published articles require coverImage" });
+    }
+    if (!article.coverImageAlt?.trim()) {
+      ctx.addIssue({ code: "custom", path: ["coverImageAlt"], message: "Published articles require coverImageAlt" });
+    }
   }),
 });
 
