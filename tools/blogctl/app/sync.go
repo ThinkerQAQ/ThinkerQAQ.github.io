@@ -216,6 +216,9 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 	if len(nativeChina) > 0 {
 		args := append([]string{}, articleArgs...)
 		args = append(args, "--platforms", strings.Join(nativeChina, ","))
+		if request.DryRun {
+			args = append(args, "--dry-run")
+		}
 		plan = append(plan, SyncPlan{
 			Group: "native-china", Script: "scripts/blogctl-distribute.mjs", Args: args,
 			Platforms: append([]string{}, nativeChina...), Native: true,
