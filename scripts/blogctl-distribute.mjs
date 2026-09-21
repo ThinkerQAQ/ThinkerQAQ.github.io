@@ -44,7 +44,7 @@ export async function runBlogctlDistribution(argv, env = process.env) {
   const contentRoot = resolveBlogContentRoot(env);
   const publishingConfig = await loadPublishingConfig(env);
   const outputRoot = resolveDistributionOutputRoot(contentRoot, options.outputRoot);
-  const result = { exported: [], manifest: null, manifestPath: "" };
+  const result = { exported: [] };
 
   for (const platform of options.platforms) {
     const profile = publishingConfig[platform];
@@ -58,8 +58,6 @@ export async function runBlogctlDistribution(argv, env = process.env) {
       language,
     });
     result.exported.push(...platformResult.exported);
-    result.manifest = platformResult.manifest;
-    result.manifestPath = platformResult.manifestPath;
   }
 
   const publishingAssets = result.exported.flatMap((item) => item.publishingAssets || []);
