@@ -539,3 +539,20 @@ The implementation is complete for this phase when:
 8. search/provider failures are covered by tests.
 9. PR validation remains green.
 10. site deployment remains independent of provider notification success.
+
+## 18. Implementation status
+
+Implemented on PR #34 on 2026-09-21:
+
+- canonical search inventory is derived from Astro's generated sitemap chain;
+- `sitemap-all.txt` is generated during the normal production build;
+- `robots.txt` advertises both XML and text sitemaps;
+- IndexNow provider code lives under BlogCTL and supports full or URL-file scopes;
+- the old root IndexNow script is reduced to a compatibility wrapper;
+- Google service-account OAuth, sitemap submission, and bounded URL Inspection audit are implemented;
+- `blogctl search build|inventory|submit|audit` is available;
+- post-deploy notification remains non-blocking and Google submission skips cleanly until credentials are configured.
+
+Operational setup still required for Google: grant the service-account email access to the Search Console property and add its credential JSON as the `GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON` GitHub Actions secret.
+
+Future optimization: once the content/deployment pipeline emits a reliable route-level change manifest, switch normal IndexNow deployment from full-site payload preparation to `--urls-file`; keep `--all` for bootstrap/migrations and broad routing changes.

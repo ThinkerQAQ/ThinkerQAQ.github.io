@@ -2,10 +2,23 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  extractLocations,
+  loadSearchInventory,
+} from "../tools/blogctl/search/node/inventory.mjs";
+import {
+  DEFAULT_INDEXNOW_KEY,
+  INDEXNOW_ENDPOINT,
+  prepareIndexNowPayload,
+  resolveIndexNowConfig,
+  submitPreparedPayload,
+} from "../tools/blogctl/search/node/indexnow.mjs";
+
+export const INDEXNOW_KEY = DEFAULT_INDEXNOW_KEY;
+export { INDEXNOW_ENDPOINT };
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
-export const INDEXNOW_KEY = "fb26fca3ba9449c6816b6d79b0a41cec";
-export const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
 export const INDEXNOW_KEY_LOCATION = `${SITE_ORIGIN}/${INDEXNOW_KEY}.txt`;
+export { extractLocations };
 
 function log(severity, operation, status, details = {}) {
   console.log(JSON.stringify({
@@ -17,73 +30,23 @@ function log(severity, operation, status, details = {}) {
   }));
 }
 
-function decodeXml(value) {
-  return value
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'");
-}
-
-export function extractLocations(xml) {
-  return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gu)]
-    .map((match) => decodeXml(match[1].trim()));
-}
-
-function assertSiteUrl(rawUrl, label) {
-  const url = new URL(rawUrl);
-  if (url.origin !== SITE_ORIGIN) {
-    throw new Error(`${label} must use ${SITE_ORIGIN}: ${rawUrl}`);
-  }
-  return url;
-}
-
 export async function preparePayload({
   distRoot = "dist",
   publicRoot = "public",
+  env = process.env,
 } = {}) {
   const startedAt = Date.now();
-  const resolvedDistRoot = path.resolve(distRoot);
-  const resolvedPublicRoot = path.resolve(publicRoot);
-  log("info", "indexnow-prepare", "started", { distRoot: resolvedDistRoot });
-
-  const keyFile = path.join(resolvedPublicRoot, `${INDEXNOW_KEY}.txt`);
-  const hostedKey = (await readFile(keyFile, "utf8")).trim();
-  if (hostedKey !== INDEXNOW_KEY) {
-    throw new Error(`IndexNow key file does not match configured key: ${keyFile}`);
-  }
-
-  const sitemapIndex = await readFile(path.join(resolvedDistRoot, "sitemap-index.xml"), "utf8");
-  const sitemapUrls = extractLocations(sitemapIndex);
-  if (sitemapUrls.length === 0) {
-    throw new Error("No child sitemaps were found in sitemap-index.xml");
-  }
-
-  const urlList = new Set();
-  for (const sitemapUrl of sitemapUrls) {
-    const parsedSitemapUrl = assertSiteUrl(sitemapUrl, "Sitemap URL");
-    const sitemapFile = path.join(
-      resolvedDistRoot,
-      decodeURIComponent(parsedSitemapUrl.pathname).replace(/^\/+/, ""),
-    );
-    const sitemap = await readFile(sitemapFile, "utf8");
-    for (const pageUrl of extractLocations(sitemap)) {
-      assertSiteUrl(pageUrl, "Page URL");
-      urlList.add(pageUrl);
-    }
-  }
-
-  if (urlList.size === 0) {
-    throw new Error("No page URLs were found in the generated sitemaps");
-  }
-
-  const payload = {
-    host: new URL(SITE_ORIGIN).host,
-    key: INDEXNOW_KEY,
-    keyLocation: INDEXNOW_KEY_LOCATION,
-    urlList: [...urlList].sort(),
-  };
+  const inventory = await loadSearchInventory({
+    distRoot,
+    expectedOrigin: SITE_ORIGIN,
+  });
+  const config = await resolveIndexNowConfig({
+    origin: inventory.origin,
+    publicRoot,
+    env,
+    verifyKeyFile: true,
+  });
+  const payload = prepareIndexNowPayload(inventory.urlList, config);
   log("info", "indexnow-prepare", "completed", {
     urlCount: payload.urlList.length,
     durationMs: Date.now() - startedAt,
@@ -95,57 +58,16 @@ export async function submitPayload(payload, {
   endpoint = INDEXNOW_ENDPOINT,
   fetchImpl = fetch,
   maxAttempts = 3,
+  batchSize,
+  sleep,
 } = {}) {
-  const startedAt = Date.now();
-  for (const pageUrl of payload.urlList ?? []) {
-    assertSiteUrl(pageUrl, "Submitted page URL");
-  }
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    log("info", "indexnow-submit", "started", {
-      attempt,
-      endpoint,
-      urlCount: payload.urlList.length,
-    });
-    try {
-      const response = await fetchImpl(endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json; charset=utf-8" },
-        body: JSON.stringify(payload),
-      });
-      const responseText = await response.text();
-      if (response.status === 200 || response.status === 202) {
-        log("info", "indexnow-submit", "completed", {
-          attempt,
-          httpStatus: response.status,
-          urlCount: payload.urlList.length,
-          durationMs: Date.now() - startedAt,
-        });
-        return;
-      }
-
-      const retryable = response.status === 429 || response.status >= 500;
-      log("error", "indexnow-submit", retryable ? "retryable-failure" : "failed", {
-        attempt,
-        httpStatus: response.status,
-        response: responseText.slice(0, 500),
-        durationMs: Date.now() - startedAt,
-      });
-      if (!retryable || attempt === maxAttempts) {
-        throw new Error(`IndexNow rejected the payload with HTTP ${response.status}`);
-      }
-    } catch (error) {
-      if (attempt === maxAttempts || error.message.startsWith("IndexNow rejected")) {
-        throw error;
-      }
-      log("error", "indexnow-submit", "retryable-exception", {
-        attempt,
-        exception: { name: error.name, message: error.message },
-        durationMs: Date.now() - startedAt,
-      });
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
-  }
+  return submitPreparedPayload(payload, {
+    endpoint,
+    fetchImpl,
+    maxAttempts,
+    batchSize,
+    sleep,
+  });
 }
 
 function optionValue(name, fallback) {
@@ -174,7 +96,9 @@ async function main() {
     return;
   }
 
-  throw new Error("Usage: node scripts/indexnow.mjs <prepare|submit> [--dist path] [--public path] [--output path] [--input path]");
+  throw new Error(
+    "Usage: node scripts/indexnow.mjs <prepare|submit> [--dist path] [--public path] [--output path] [--input path]",
+  );
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";

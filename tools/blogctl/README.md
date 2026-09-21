@@ -9,6 +9,7 @@ tools/blogctl/
 ├── compiler/   # deterministic publishing compiler (Node runtime is internal)
 ├── assets/     # generated publishing assets: Mermaid, R2
 ├── publisher/  # remote platform adapters and draft/publish transport
+├── search/     # search discovery inventory, Google Search Console, IndexNow
 ├── bridge/     # loopback bridge between the CLI and browser
 └── extension/  # BlogCTL Extension
 ```
@@ -99,6 +100,27 @@ The personal site is separate: Mermaid source is rendered by Mermaid.js in the b
 Compiler and asset policy is stored under `publishing.compiler` and `publishing.assets` in the BlogCTL config. R2 access credentials remain environment secrets; they are not written to content or distribution artifacts.
 
 See [UNIFIED_PUBLISHING_PIPELINE.md](./UNIFIED_PUBLISHING_PIPELINE.md).
+
+## Search discovery control plane
+
+BlogCTL also owns standards/API-based search discovery. The generated Astro sitemap chain remains the source of truth for indexable routes; BlogCTL derives a flat `/sitemap-all.txt` from that same inventory and never maintains a second Chinese/English URL list.
+
+Useful commands:
+
+```bash
+blogctl search inventory
+blogctl search build
+blogctl search submit --providers indexnow --all
+blogctl search submit --providers indexnow --urls-file changed-urls.txt
+blogctl search submit --providers google
+blogctl search audit --provider google --limit 500 --output .search/google-audit.json
+```
+
+Google Search Console authentication uses the `GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON` secret. The service-account identity must be granted access to the Search Console property. Override the property with `GOOGLE_SEARCH_CONSOLE_SITE_URL` when needed; the default is `https://thinkerqaq.github.io/`.
+
+Google integration intentionally supports sitemap submission and URL Inspection audit only. It does not use Google's restricted Indexing API as a bulk-indexing workaround for ordinary blog pages. IndexNow supports both explicit full-site bootstrap (`--all`) and incremental URL-file submission. The legacy `blogctl indexnow` command remains a compatibility wrapper while CI and local usage migrate.
+
+See [SEARCH_DISCOVERY_CONTROL_PLANE.md](./SEARCH_DISCOVERY_CONTROL_PLANE.md).
 
 ## Syndication
 

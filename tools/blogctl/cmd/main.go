@@ -81,6 +81,8 @@ func (a app) run(args []string) error {
 		return a.runNotes(args)
 	case "diagrams":
 		return a.runDiagrams(args)
+	case "search":
+		return a.runSearch(args)
 	case "indexnow":
 		return a.runIndexNow(args)
 	case "distribute":
@@ -129,7 +131,8 @@ Usage:
   blogctl dev | stop | build | check | test
   blogctl notes <sync|check|timestamps>
   blogctl diagrams [plantuml|drawio]
-  blogctl indexnow <prepare|submit> [args...]
+  blogctl search <build|inventory|submit|audit> [options]
+  blogctl indexnow <prepare|submit> [args...]  # compatibility
   blogctl distribute [args...]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
