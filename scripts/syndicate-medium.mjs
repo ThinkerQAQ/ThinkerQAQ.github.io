@@ -117,8 +117,13 @@ export async function runMediumSyndication(loadedArticles, {
     canonicalUrl: item.draft.canonicalUrl,
     canonicalPending: result.canonicalPending,
     tagsPending: result.tagsPending,
+    coverImagePending: Boolean(result.coverImagePending),
+    coverImageUrl: result.coverImageUrl || undefined,
     warnings: item.draft.warnings,
     fallbackPath: item.fallbackPath,
+    message: result.coverImagePending
+      ? "Medium draft created; the cover is present in the generated copy/paste fallback but still needs insertion in the live Medium editor."
+      : undefined,
   });
   return {
     total: 1,
@@ -130,6 +135,8 @@ export async function runMediumSyndication(loadedArticles, {
     draftUrl: result.draftUrl,
     canonicalPending: result.canonicalPending,
     tagsPending: result.tagsPending,
+    coverImagePending: Boolean(result.coverImagePending),
+    coverImageUrl: result.coverImageUrl || undefined,
     fallbackPaths: [item.fallbackPath],
   };
 }
