@@ -18,6 +18,27 @@ func (f reconciliationTransport) RoundTrip(request *http.Request) (*http.Respons
 	return f(request)
 }
 
+func TestLocalPublicationRecordStateUsesLatestLifecycleEvent(t *testing.T) {
+	base := publisher.PublicationRecord{
+		Article: "example", Platform: "cnblogs", RemoteID: "draft-1",
+		DraftURL: "https://i.cnblogs.com/articles/edit;postId=draft-1",
+		PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/published-1.html",
+		DraftSyncedAt: "2026-09-22T10:00:00Z",
+		PublishedAt: "2026-09-22T11:00:00Z",
+	}
+	if got := localPublicationRecordState(base); got != "published" {
+		t.Fatalf("published lifecycle state = %q", got)
+	}
+	base.DraftSyncedAt = "2026-09-22T12:00:00Z"
+	if got := localPublicationRecordState(base); got != "draft" {
+		t.Fatalf("newer draft lifecycle state = %q", got)
+	}
+	base.PublishedSyncedAt = "2026-09-22T13:00:00Z"
+	if got := localPublicationRecordState(base); got != "published" {
+		t.Fatalf("newer published update state = %q", got)
+	}
+}
+
 func TestPublicationReconciliationStatus(t *testing.T) {
 	cases := []struct {
 		local   string
