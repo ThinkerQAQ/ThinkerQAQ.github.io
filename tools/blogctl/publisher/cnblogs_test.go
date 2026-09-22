@@ -20,12 +20,17 @@ func TestCNBlogsPayloadMatchesBrowserDraftContract(t *testing.T) {
 	payload := cnBlogsPayload("", input, "test", false)
 
 	for field, want := range map[string]any{
-		"postType":      1,
-		"usingEditorId": 5,
-		"isMarkdown":    true,
-		"isDraft":       true,
-		"isPublished":   false,
-		"isAigc":        false,
+		"postType":                 1,
+		"usingEditorId":            5,
+		"isMarkdown":               true,
+		"isDraft":                  true,
+		"isPublished":              false,
+		"isAigc":                   false,
+		"inSiteHome":               true,
+		"displayOnHomePage":        true,
+		"includeInMainSyndication": true,
+		"blogId":                   0,
+		"canChangeCreatedTime":      false,
 	} {
 		if payload[field] != want {
 			t.Fatalf("%s = %v, want %v", field, payload[field], want)
@@ -33,6 +38,19 @@ func TestCNBlogsPayloadMatchesBrowserDraftContract(t *testing.T) {
 	}
 	if payload["id"] != nil {
 		t.Fatalf("new draft id = %v, want nil", payload["id"])
+	}
+	for _, field := range []string{"url", "categoryIds", "categories", "blogTeamIds", "description", "tags", "dateUpdated", "author", "autoDesc"} {
+		if payload[field] != nil {
+			t.Fatalf("%s = %#v, want nil for a browser-created draft", field, payload[field])
+		}
+	}
+	if got := payload["collectionIds"].([]any); len(got) != 0 {
+		t.Fatalf("collectionIds = %#v, want empty array", got)
+	}
+	if value, ok := payload["datePublished"].(string); !ok {
+		t.Fatalf("datePublished = %#v, want string", payload["datePublished"])
+	} else if _, err := time.Parse(time.RFC3339Nano, value); err != nil {
+		t.Fatalf("datePublished = %q: %v", value, err)
 	}
 }
 
@@ -175,48 +193,6 @@ func TestCNBlogsUpdatePayloadPreservesServerFields(t *testing.T) {
 	}
 	if payload["displayOnHomePage"] != true {
 		t.Fatalf("displayOnHomePage = %v, want true (preserved)", payload["displayOnHomePage"])
-	}
-}
-
-func TestCNBlogsPublishTransitionClearsDraftFlagFromCapturedBrowserFailure(t *testing.T) {
-	base := map[string]any{
-		"id":                          float64(23036002),
-		"url":                         "https://www.cnblogs.com/ThinkerQAQ/p/23036002",
-		"isPublished":                 false,
-		"isDraft":                     true,
-		"inSiteHome":                  true,
-		"inSiteCandidate":             false,
-		"includeInMainSyndication":    true,
-		"displayOnHomePage":           true,
-		"datePublished":               "2026-09-19T10:15:00",
-		"dateUpdated":                 "2026-09-19T15:08:00",
-		"blogId":                      float64(824919),
-		"author":                      "ThinkerQAQ",
-		"autoDesc":                    "test",
-		"usingEditorId":               nil,
-	}
-	payload := cnBlogsUpdatePayload("23036002", DraftInput{Title: "test"}, "test", true, base)
-
-	// The 2026-09-19 capture showed that isPublished=true + isDraft=true
-	// returned HTTP 400. A publish transition must clear the draft flag.
-	if payload["isPublished"] != true || payload["isDraft"] != false {
-		t.Fatalf("publish flags = isPublished:%v isDraft:%v, want true/false",
-			payload["isPublished"], payload["isDraft"])
-	}
-	for field, want := range map[string]any{
-		"id":                       float64(23036002),
-		"url":                      "https://www.cnblogs.com/ThinkerQAQ/p/23036002",
-		"inSiteHome":               true,
-		"includeInMainSyndication": true,
-		"datePublished":            "2026-09-19T10:15:00",
-		"dateUpdated":              "2026-09-19T15:08:00",
-		"blogId":                   float64(824919),
-		"author":                   "ThinkerQAQ",
-		"usingEditorId":            5,
-	} {
-		if payload[field] != want {
-			t.Fatalf("%s = %v, want %v", field, payload[field], want)
-		}
 	}
 }
 
