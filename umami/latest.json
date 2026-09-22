@@ -1,27 +1,27 @@
 {
-  "generatedAt": "2026-09-22T21:41:11.967Z",
+  "generatedAt": "2026-09-22T23:52:13.960Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790109671967,
-    "endAt": 1790113271967,
+    "startAt": 1790117533960,
+    "endAt": 1790121133960,
     "stats": {
-      "pageviews": 1,
+      "pageviews": 2,
       "visitors": 1,
       "visits": 1,
-      "bounces": 1,
-      "totaltime": 0
+      "bounces": 0,
+      "totaltime": 8
     },
     "warnings": [],
     "paths": [
       {
-        "name": "/notes/computer-architecture-assembly/缓存/",
+        "name": "/en/articles/concurrency-series-03-mutex/",
         "count": 1
       }
     ],
     "entryPages": [
       {
-        "name": "/notes/computer-architecture-assembly/缓存/",
+        "name": "/en/articles/concurrency-series-03-mutex/",
         "count": 1
       }
     ],
@@ -50,8 +50,8 @@
     "utmSources": []
   },
   "previous": {
-    "startAt": 1790106071966,
-    "endAt": 1790109671966,
+    "startAt": 1790113933959,
+    "endAt": 1790117533959,
     "stats": {
       "pageviews": 0,
       "visitors": 0,
@@ -72,21 +72,21 @@
   },
   "delta": {
     "stats": {
-      "pageviews": 1,
+      "pageviews": 2,
       "visitors": 1,
       "visits": 1,
-      "bounces": 1,
-      "totaltime": 0
+      "bounces": 0,
+      "totaltime": 8
     },
     "newPaths": [
       {
-        "name": "/notes/computer-architecture-assembly/缓存/",
+        "name": "/en/articles/concurrency-series-03-mutex/",
         "count": 1
       }
     ],
     "changedPaths": [
       {
-        "name": "/notes/computer-architecture-assembly/缓存/",
+        "name": "/en/articles/concurrency-series-03-mutex/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
@@ -94,13 +94,13 @@
     ],
     "newEntryPages": [
       {
-        "name": "/notes/computer-architecture-assembly/缓存/",
+        "name": "/en/articles/concurrency-series-03-mutex/",
         "count": 1
       }
     ],
     "changedEntryPages": [
       {
-        "name": "/notes/computer-architecture-assembly/缓存/",
+        "name": "/en/articles/concurrency-series-03-mutex/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
