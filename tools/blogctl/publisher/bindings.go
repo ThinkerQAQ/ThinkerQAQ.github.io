@@ -109,11 +109,46 @@ func SavePublicationPendingFields(contentRoot, slug, platform string, fields []s
 		return err
 	}
 	if !found {
-		binding = PublicationBinding{Slug: slug, Platform: platform}
+		return errors.New("publication binding not found")
 	}
 	binding.PendingFields = normalizePendingFields(fields)
 	upsertPublicationBinding(&bindings, binding)
 	return writeBindings(contentRoot, bindings)
+}
+
+func ResolvePublicationPendingFields(contentRoot, slug, platform string, resolved []string) ([]string, error) {
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return nil, err
+	}
+	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errors.New("publication binding not found")
+	}
+	resolved = normalizePendingFields(resolved)
+	if len(resolved) == 0 {
+		binding.PendingFields = nil
+	} else {
+		resolvedSet := map[string]struct{}{}
+		for _, field := range resolved {
+			resolvedSet[field] = struct{}{}
+		}
+		remaining := make([]string, 0, len(binding.PendingFields))
+		for _, field := range binding.PendingFields {
+			if _, ok := resolvedSet[field]; !ok {
+				remaining = append(remaining, field)
+			}
+		}
+		binding.PendingFields = remaining
+	}
+	upsertPublicationBinding(&bindings, binding)
+	if err := writeBindings(contentRoot, bindings); err != nil {
+		return nil, err
+	}
+	return append([]string{}, binding.PendingFields...), nil
 }
 
 func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string, result DraftResult, now time.Time) error {
