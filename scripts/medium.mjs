@@ -12,7 +12,6 @@ export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const MEDIUM_MAX_TAGS = 5;
 
 const PARAGRAPH = 1;
-const H1 = 2;
 const H2 = 3;
 const H3 = 8;
 const BLOCKQUOTE = 9;
@@ -174,8 +173,46 @@ export function stripMediumToc(markdown) {
 }
 
 function splitTableRow(line) {
-  const trimmed = line.trim().replace(/^\|/u, "").replace(/\|$/u, "");
-  return trimmed.split("|").map((cell) => cell.trim());
+  let text = String(line).trim();
+  if (text.startsWith("|")) text = text.slice(1);
+  if (text.endsWith("|")) text = text.slice(0, -1);
+
+  const cells = [];
+  let current = "";
+  let escaped = false;
+  let codeTicks = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      current += char;
+      escaped = true;
+      continue;
+    }
+    if (char === "`") {
+      let run = 1;
+      while (text[index + run] === "`") run += 1;
+      const token = "`".repeat(run);
+      current += token;
+      index += run - 1;
+      codeTicks = codeTicks === run ? 0 : (codeTicks === 0 ? run : codeTicks);
+      continue;
+    }
+    if (char === "|" && codeTicks === 0) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  cells.push(current.trim());
+  return cells;
 }
 
 function isTableSeparator(line) {
