@@ -1,0 +1,79 @@
+{
+  "generatedAt": "2026-09-22T02:19:05.292Z",
+  "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
+  "windowHours": 1,
+  "current": {
+    "startAt": 1790039945292,
+    "endAt": 1790043545292,
+    "stats": {
+      "pageviews": 0,
+      "visitors": 0,
+      "visits": 0,
+      "bounces": 0,
+      "totaltime": 0
+    },
+    "warnings": [],
+    "paths": [],
+    "entryPages": [],
+    "referrers": [],
+    "channels": [],
+    "countries": [],
+    "regions": [],
+    "cities": [],
+    "events": [],
+    "utmSources": []
+  },
+  "previous": {
+    "startAt": 1790036345291,
+    "endAt": 1790039945291,
+    "stats": {
+      "pageviews": 0,
+      "visitors": 0,
+      "visits": 0,
+      "bounces": 0,
+      "totaltime": 0
+    },
+    "warnings": [],
+    "paths": [],
+    "entryPages": [],
+    "referrers": [],
+    "channels": [
+      {
+        "name": "direct",
+        "count": 1
+      }
+    ],
+    "countries": [],
+    "regions": [],
+    "cities": [],
+    "events": [],
+    "utmSources": []
+  },
+  "delta": {
+    "stats": {
+      "pageviews": 0,
+      "visitors": 0,
+      "visits": 0,
+      "bounces": 0,
+      "totaltime": 0
+    },
+    "newPaths": [],
+    "changedPaths": [],
+    "newEntryPages": [],
+    "changedEntryPages": [],
+    "newReferrers": [],
+    "changedReferrers": [],
+    "newChannels": [],
+    "changedChannels": [],
+    "newCountries": [],
+    "changedCountries": [],
+    "newRegions": [],
+    "changedRegions": [],
+    "newCities": [],
+    "changedCities": [],
+    "newEvents": [],
+    "changedEvents": [],
+    "newUtmSources": [],
+    "changedUtmSources": []
+  }
+}
