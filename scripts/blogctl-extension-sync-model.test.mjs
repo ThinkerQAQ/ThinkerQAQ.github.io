@@ -15,14 +15,15 @@ test("maps structured sync results to platform rows", () => {
     },
   }, {
     platforms: [
-      { id: "devto", label: "DEV.to" },
-      { id: "medium", label: "Medium" },
+      { id: "devto", label: "DEV.to", capabilities: { apiKey: true } },
+      { id: "medium", label: "Medium", capabilities: { browserSession: true, draftCreate: true } },
     ],
   });
 
   assert.deepEqual(rows[0], {
     id: "devto",
     label: "DEV.to",
+    capabilities: { apiKey: true },
     state: "completed",
     result: "updated",
     url: "https://dev.to/example",
@@ -52,7 +53,7 @@ test("falls back to the overall failed job state for legacy jobs", () => {
 });
 
 test("gates source availability by configured content language", () => {
-  const loggedIn = { id: "medium", known: true, loggedIn: true };
+  const loggedIn = { id: "medium", known: true, loggedIn: true, capabilities: { browserSession: true } };
   const withoutMirror = { slug: "only-cn", englishMirror: false };
   assert.deepEqual(
     model.platformAvailability(withoutMirror, loggedIn, { language: "en" }),
@@ -63,7 +64,7 @@ test("gates source availability by configured content language", () => {
     { available: true, reason: "" },
   );
 
-  const chinesePlatform = { id: "cnblogs", known: true, loggedIn: true };
+  const chinesePlatform = { id: "cnblogs", known: true, loggedIn: true, capabilities: { browserSession: true } };
   assert.deepEqual(
     model.platformAvailability(withoutMirror, chinesePlatform, { language: "en" }),
     { available: false, reason: "缺少英文版本" },
@@ -80,16 +81,16 @@ test("gates source availability by configured content language", () => {
 test("native platforms defer authoritative login checks to the publisher", () => {
   const article = { slug: "with-en", englishMirror: true };
   assert.deepEqual(
-    model.platformAvailability(article, { id: "csdn", known: true, loggedIn: false }),
+    model.platformAvailability(article, { id: "csdn", known: true, loggedIn: false, capabilities: { browserSession: true } }),
     { available: true, reason: "" },
   );
   assert.deepEqual(
-    model.platformAvailability(article, { id: "juejin", known: false, loggedIn: false }),
+    model.platformAvailability(article, { id: "juejin", known: false, loggedIn: false, capabilities: { browserSession: true } }),
     { available: true, reason: "" },
   );
   assert.deepEqual(
-    model.platformAvailability(article, { id: "medium", known: true, loggedIn: false }),
-    { available: false, reason: "未登录" },
+    model.platformAvailability(article, { id: "medium", known: true, loggedIn: false, capabilities: { browserSession: true } }),
+    { available: true, reason: "" },
   );
 });
 
@@ -118,4 +119,30 @@ test("falls back to a plain HTTP error when no structured payload exists", () =>
   const error = toError({}, 500);
   assert.equal(error.message, "bridge HTTP 500");
   assert.equal(error.code, "");
+});
+
+
+test("uses backend capabilities for published-update actions", () => {
+  const status = {
+    platforms: [
+      { id: "cnblogs", capabilities: { publishedUpdate: true } },
+      { id: "juejin", capabilities: { publishedUpdate: false } },
+    ],
+  };
+  assert.equal(model.canUpdatePublished("example", ["cnblogs"], true, status), true);
+  assert.equal(model.canUpdatePublished("example", ["juejin"], true, status), false);
+  assert.equal(model.canUpdatePublished("example", ["cnblogs", "juejin"], true, status), false);
+  assert.equal(model.canUpdatePublished("example", ["cnblogs"], false, status), false);
+});
+
+test("uses backend API-key capability for delivery tool requirements", () => {
+  const devto = { id: "devto", capabilities: { apiKey: true } };
+  assert.deepEqual(
+    model.deliveryToolAvailability(devto, [{ name: "devto-api", health: { ok: true } }]),
+    { available: true, reason: "" },
+  );
+  assert.deepEqual(
+    model.deliveryToolAvailability(devto, [{ name: "devto-api", health: { ok: false, summary: "未配置" } }]),
+    { available: false, reason: "未配置" },
+  );
 });
