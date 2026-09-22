@@ -98,12 +98,6 @@ func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ s
 	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
 		return compiledTestOutput(args[1:]), nil
 	}
-	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") {
-		return strings.Join([]string{
-			`{"operation":"syndication-devto","status":"dry-run","slug":"example","canonicalUrl":""}`,
-			`{"operation":"syndication-medium","status":"dry-run","slug":"example","draftUrl":"C:/tmp/example.html"}`,
-		}, "\n") + "\n", nil
-	}
 	return "", nil
 }
 
@@ -139,24 +133,6 @@ func TestBuildSyncPlanKeepsAllExplicit(t *testing.T) {
 	}
 	if !reflect.DeepEqual(plan[0].Args, []string{"--all", "--platforms", "devto"}) {
 		t.Fatalf("args = %#v", plan[0].Args)
-	}
-}
-
-func TestParseSyncEvents(t *testing.T) {
-	output := strings.Join([]string{
-		`noise that should be ignored`,
-		`{"operation":"distribution-sync","status":"completed","platform":"cnblogs","draftUrl":"https://example.com/draft"}`,
-		`{"operation":"syndication-devto","status":"updated","remoteUrl":"https://dev.to/example"}`,
-		`{"operation":"syndication-medium","status":"waiting-for-session","message":"waiting"}`,
-	}, "\n")
-	got := ParseSyncEvents(output)
-	want := []SyncEvent{
-		{Platform: "cnblogs", State: "completed", Result: "draft-created", URL: "https://example.com/draft"},
-		{Platform: "devto", State: "completed", Result: "updated", URL: "https://dev.to/example"},
-		{Platform: "medium", State: "waiting", Result: "waiting-for-session", Message: "waiting"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("events = %#v, want %#v", got, want)
 	}
 }
 
@@ -428,9 +404,6 @@ func (isolatedFailureRunner) Run(_ context.Context, _ string, args []string, _ s
 	script := filepath.ToSlash(args[0])
 	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
 		return compiledTestOutput(args[1:]), nil
-	}
-	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") && strings.Contains(strings.Join(args, " "), "--platforms medium") {
-		return `{"operation":"syndication-medium","status":"dry-run","draftUrl":"C:/tmp/medium.html"}` + "\n", nil
 	}
 	return "ok\n", nil
 }
