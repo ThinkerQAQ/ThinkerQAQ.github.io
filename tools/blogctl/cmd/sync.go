@@ -236,11 +236,11 @@ func (a app) runLiveSyncViaBridge(ctx context.Context, options syncOptions) erro
 	}
 	for _, article := range articles {
 		body := map[string]any{
-			"article": article,
+			"article":   article,
 			"platforms": append([]string{}, options.platforms...),
-			"dryRun": false,
-			"changed": options.changed,
-			"draft": options.draft,
+			"dryRun":    false,
+			"changed":   options.changed,
+			"draft":     options.draft,
 			"operation": "draft",
 		}
 		var response struct {
