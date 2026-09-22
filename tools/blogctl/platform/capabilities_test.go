@@ -37,7 +37,7 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	}
 
 	juejin := For("juejin")
-	if !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
+	if !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || !juejin.PublishedUpdate || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
 		t.Fatalf("Juejin capabilities = %#v", juejin)
 	}
 }
