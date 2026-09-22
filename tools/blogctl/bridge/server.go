@@ -153,10 +153,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleCNBlogsBindingGet(response, request, request.URL.Query().Get("article"))
 		return
 	}
-	if path == "v1/cnblogs/binding/migrate" && request.Method == http.MethodPost {
-		s.handleCNBlogsBindingMigrate(response, request)
-		return
-	}
 	if path == "v1/cnblogs/binding/search" && request.Method == http.MethodPost {
 		s.handleCNBlogsBindingSearch(response, request, request.URL.Query().Get("article"))
 		return
