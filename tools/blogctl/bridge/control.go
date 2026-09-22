@@ -20,19 +20,9 @@ import (
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
-
-var supportedSyncPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {}, "zhihu": {},
-	"51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
-}
-
-var platformLabels = map[string]string{
-	"cnblogs": "博客园", "juejin": "掘金", "csdn": "CSDN", "segmentfault": "思否",
-	"zhihu": "知乎", "51cto": "51CTO", "oschina": "开源中国", "toutiao": "今日头条",
-	"devto": "DEV.to", "medium": "Medium",
-}
 
 type articleSummary struct {
 	Slug          string `json:"slug"`
@@ -440,7 +430,7 @@ func publishingViews(config bridgeConfig) []publishingPlatformView {
 	for _, id := range publishingPlatformOrder {
 		value := config.Publishing.Platforms[id]
 		views = append(views, publishingPlatformView{
-			ID: id, Label: platformLabels[id], Language: value.Language, ChangedOnly: value.ChangedOnly,
+			ID: id, Label: blogplatform.Label(id), Language: value.Language, ChangedOnly: value.ChangedOnly,
 			Capabilities: publisher.PlatformCapabilitiesFor(id), Footer: value.Footer,
 			Canonical: value.Canonical, Tracking: value.Tracking,
 		})
@@ -453,7 +443,7 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 		config.Publishing = defaultPublishingConfig()
 	}
 	for _, view := range views {
-		if _, ok := supportedSyncPlatforms[view.ID]; !ok {
+		if !blogplatform.Supported(view.ID) {
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
 		if view.ChangedOnly && !publisher.PlatformCapabilitiesFor(view.ID).DraftUpdate {
