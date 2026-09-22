@@ -195,7 +195,7 @@ func (id *juejinID) UnmarshalJSON(raw []byte) error {
 		*id = ""
 		return nil
 	}
-	if strings.HasPrefix(value, """) {
+	if strings.HasPrefix(value, "\"") {
 		var text string
 		if err := json.Unmarshal(raw, &text); err != nil {
 			return err
