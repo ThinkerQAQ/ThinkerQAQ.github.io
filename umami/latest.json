@@ -1,31 +1,57 @@
 {
-  "generatedAt": "2026-09-22T18:19:48.794Z",
+  "generatedAt": "2026-09-22T21:41:11.967Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790097588794,
-    "endAt": 1790101188794,
+    "startAt": 1790109671967,
+    "endAt": 1790113271967,
     "stats": {
-      "pageviews": 0,
-      "visitors": 0,
-      "visits": 0,
-      "bounces": 0,
+      "pageviews": 1,
+      "visitors": 1,
+      "visits": 1,
+      "bounces": 1,
       "totaltime": 0
     },
     "warnings": [],
-    "paths": [],
-    "entryPages": [],
+    "paths": [
+      {
+        "name": "/notes/computer-architecture-assembly/缓存/",
+        "count": 1
+      }
+    ],
+    "entryPages": [
+      {
+        "name": "/notes/computer-architecture-assembly/缓存/",
+        "count": 1
+      }
+    ],
     "referrers": [],
-    "channels": [],
-    "countries": [],
+    "channels": [
+      {
+        "name": "direct",
+        "count": 1
+      }
+    ],
+    "countries": [
+      {
+        "name": "SG",
+        "count": 1
+      }
+    ],
     "regions": [],
-    "cities": [],
+    "cities": [
+      {
+        "name": "Singapore",
+        "count": 1,
+        "country": "SG"
+      }
+    ],
     "events": [],
     "utmSources": []
   },
   "previous": {
-    "startAt": 1790093988793,
-    "endAt": 1790097588793,
+    "startAt": 1790106071966,
+    "endAt": 1790109671966,
     "stats": {
       "pageviews": 0,
       "visitors": 0,
@@ -46,26 +72,88 @@
   },
   "delta": {
     "stats": {
-      "pageviews": 0,
-      "visitors": 0,
-      "visits": 0,
-      "bounces": 0,
+      "pageviews": 1,
+      "visitors": 1,
+      "visits": 1,
+      "bounces": 1,
       "totaltime": 0
     },
-    "newPaths": [],
-    "changedPaths": [],
-    "newEntryPages": [],
-    "changedEntryPages": [],
+    "newPaths": [
+      {
+        "name": "/notes/computer-architecture-assembly/缓存/",
+        "count": 1
+      }
+    ],
+    "changedPaths": [
+      {
+        "name": "/notes/computer-architecture-assembly/缓存/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      }
+    ],
+    "newEntryPages": [
+      {
+        "name": "/notes/computer-architecture-assembly/缓存/",
+        "count": 1
+      }
+    ],
+    "changedEntryPages": [
+      {
+        "name": "/notes/computer-architecture-assembly/缓存/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      }
+    ],
     "newReferrers": [],
     "changedReferrers": [],
-    "newChannels": [],
-    "changedChannels": [],
-    "newCountries": [],
-    "changedCountries": [],
+    "newChannels": [
+      {
+        "name": "direct",
+        "count": 1
+      }
+    ],
+    "changedChannels": [
+      {
+        "name": "direct",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      }
+    ],
+    "newCountries": [
+      {
+        "name": "SG",
+        "count": 1
+      }
+    ],
+    "changedCountries": [
+      {
+        "name": "SG",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      }
+    ],
     "newRegions": [],
     "changedRegions": [],
-    "newCities": [],
-    "changedCities": [],
+    "newCities": [
+      {
+        "name": "Singapore",
+        "count": 1,
+        "country": "SG"
+      }
+    ],
+    "changedCities": [
+      {
+        "name": "Singapore",
+        "count": 1,
+        "country": "SG",
+        "previousCount": 0,
+        "delta": 1
+      }
+    ],
     "newEvents": [],
     "changedEvents": [],
     "newUtmSources": [],
