@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -453,9 +454,6 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 		if _, ok := supportedSyncPlatforms[view.ID]; !ok {
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
-		if view.ID == "medium" && view.ChangedOnly {
-			return config, errors.New("Medium currently cannot update an existing draft")
-		}
 		config.Publishing.Platforms[view.ID] = publishingPlatformConfig{
 			Language: view.Language, ChangedOnly: view.ChangedOnly, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
 		}
@@ -562,10 +560,122 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 	return publisher.Session{Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader}, httpClient, nil
 }
 
+func mediumFallbackPath(contentRoot, slug string) (string, error) {
+	relative := filepath.Clean(filepath.FromSlash(strings.TrimSpace(slug)))
+	if relative == "." || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		return "", errors.New("invalid Medium article slug")
+	}
+	return filepath.Join(contentRoot, ".distribution", "medium", relative+".html"), nil
+}
+
+func writeMediumFallback(contentRoot string, article blogcompiler.CompiledArticle) (string, error) {
+	if strings.TrimSpace(article.FallbackHTML) == "" {
+		return "", nil
+	}
+	path, err := mediumFallbackPath(contentRoot, article.Slug)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(article.FallbackHTML), 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func mediumPlatformSession(session publisher.Session) platformSession {
+	cookies := map[string]string{}
+	for _, cookie := range session.Cookies {
+		if strings.TrimSpace(cookie.Name) != "" && cookie.Value != "" {
+			cookies[cookie.Name] = cookie.Value
+		}
+	}
+	return platformSession{Cookies: cookies, UserAgent: session.UserAgent}
+}
+
+func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, request blogapp.NativeDraftRequest, session publisher.Session, httpClient *http.Client) (blogapp.NativeDraftResult, error) {
+	state, manifestPath, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	if request.ChangedOnly && state.DraftHash == request.Compiled.ContentHash && state.DraftURL != "" {
+		return blogapp.NativeDraftResult{
+			Result: "skipped", URL: state.DraftURL,
+			Message: "Medium draft is unchanged; keeping the existing draft.",
+		}, nil
+	}
+
+	fallbackPath, err := writeMediumFallback(request.ContentRoot, request.Compiled)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	if request.Compiled.RequiresFallback {
+		message := "Medium live draft cannot safely insert body images yet."
+		if fallbackPath != "" {
+			message += " Copy/paste fallback generated at " + fallbackPath
+		}
+		return blogapp.NativeDraftResult{}, errors.New(message)
+	}
+	if len(request.Compiled.Payload) == 0 {
+		return blogapp.NativeDraftResult{}, errors.New("compiled Medium article is missing transport payload")
+	}
+
+	var draft mediumDraft
+	if err := json.Unmarshal(request.Compiled.Payload, &draft); err != nil {
+		return blogapp.NativeDraftResult{}, fmt.Errorf("invalid compiled Medium payload: %w", err)
+	}
+	result, err := (mediumClient{httpClient: httpClient}).createDraft(ctx, mediumPlatformSession(session), draft)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	postID, _ := result["postId"].(string)
+	draftURL, _ := result["draftUrl"].(string)
+	if strings.TrimSpace(postID) == "" || strings.TrimSpace(draftURL) == "" {
+		return blogapp.NativeDraftResult{}, errors.New("Medium draft response is missing post id or draft URL")
+	}
+	if err := publisher.SaveDraftResult(
+		manifestPath,
+		request.Article,
+		"medium",
+		request.Compiled.ContentHash,
+		publisher.DraftResult{ID: postID, URL: draftURL, Created: true},
+		p.server.now(),
+	); err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+
+	pending := []string{}
+	if value, _ := result["canonicalPending"].(bool); value {
+		pending = append(pending, "canonical")
+	}
+	if value, _ := result["tagsPending"].(bool); value {
+		pending = append(pending, "tags")
+	}
+	if value, _ := result["coverImagePending"].(bool); value {
+		pending = append(pending, "cover image")
+	}
+	message := ""
+	if len(pending) > 0 {
+		message = "Medium draft created; pending editor fields: " + strings.Join(pending, ", ")
+	}
+	if fallbackPath != "" {
+		if message != "" {
+			message += ". "
+		}
+		message += "Fallback saved to " + fallbackPath
+	}
+	return blogapp.NativeDraftResult{Result: "draft-created", URL: draftURL, Message: message}, nil
+}
+
 func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
 	session, httpClient, err := p.publisherSession(request.Platform)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
+	}
+	if request.Platform == "medium" {
+		return p.createOrUpdateMediumDraft(ctx, request, session, httpClient)
 	}
 	service := publisher.Service{HTTPClient: httpClient}
 	result, err := service.CreateOrUpdateDraftInput(
