@@ -142,13 +142,14 @@ type toolConfigRequest struct {
 }
 
 type publishingPlatformView struct {
-	ID          string                    `json:"id"`
-	Label       string                    `json:"label"`
-	Language    string                    `json:"language"`
-	ChangedOnly bool                      `json:"changedOnly"`
-	Footer      publishingFooterConfig    `json:"footer"`
-	Canonical   publishingCanonicalConfig `json:"canonical"`
-	Tracking    publishingTrackingConfig  `json:"tracking"`
+	ID           string                         `json:"id"`
+	Label        string                         `json:"label"`
+	Language     string                         `json:"language"`
+	ChangedOnly  bool                           `json:"changedOnly"`
+	Capabilities publisher.PlatformCapabilities `json:"capabilities"`
+	Footer       publishingFooterConfig         `json:"footer"`
+	Canonical    publishingCanonicalConfig      `json:"canonical"`
+	Tracking     publishingTrackingConfig       `json:"tracking"`
 }
 
 func readFrontmatterScalar(path, name string) string {
@@ -439,7 +440,8 @@ func publishingViews(config bridgeConfig) []publishingPlatformView {
 	for _, id := range publishingPlatformOrder {
 		value := config.Publishing.Platforms[id]
 		views = append(views, publishingPlatformView{
-			ID: id, Label: platformLabels[id], Language: value.Language, ChangedOnly: value.ChangedOnly, Footer: value.Footer,
+			ID: id, Label: platformLabels[id], Language: value.Language, ChangedOnly: value.ChangedOnly,
+			Capabilities: publisher.PlatformCapabilitiesFor(id), Footer: value.Footer,
 			Canonical: value.Canonical, Tracking: value.Tracking,
 		})
 	}
