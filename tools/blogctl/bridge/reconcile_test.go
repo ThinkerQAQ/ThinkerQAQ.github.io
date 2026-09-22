@@ -115,9 +115,9 @@ func TestDEVToPublicationReconciliationDetectsPublishedStateDrift(t *testing.T) 
 		body := `{"id":42,"title":"Example","url":"https://dev.to/user/example","published":false}`
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body: io.NopCloser(bytes.NewBufferString(body)),
-			Header: make(http.Header),
-			Request: request,
+			Body:       io.NopCloser(bytes.NewBufferString(body)),
+			Header:     make(http.Header),
+			Request:    request,
 		}, nil
 	})}
 
