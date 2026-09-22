@@ -9,18 +9,18 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 	}{
 		{"cnblogs", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
-				value.PublishedUpdate && value.RemoteList && value.BodyImages
+				value.PublishedUpdate && value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
 		{"devto", func(value PlatformCapabilities) bool {
-			return value.APIKey && value.DraftCreate && value.DraftUpdate && value.RemoteList && value.BodyImages &&
+			return value.APIKey && value.DraftCreate && value.DraftUpdate && value.RemoteList && value.BodyImages && !value.BodyImageRehost &&
 				!value.BrowserSession && !value.ExplicitPublish
 		}},
 		{"medium", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.DraftCreate && !value.DraftUpdate && !value.ExplicitPublish &&
-				!value.PublishedUpdate && !value.RemoteList && !value.BodyImages
+				!value.PublishedUpdate && !value.RemoteList && !value.BodyImages && !value.BodyImageRehost
 		}},
 		{"toutiao", func(value PlatformCapabilities) bool {
-			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish && value.BodyImages
+			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish && value.BodyImages && value.BodyImageRehost
 		}},
 	}
 	for _, tc := range cases {
