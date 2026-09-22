@@ -195,8 +195,9 @@ type PublicationRecord struct {
 	PublishedURL      string `json:"publishedUrl,omitempty"`
 	DraftSyncedAt     string `json:"draftSyncedAt,omitempty"`
 	PublishedAt       string `json:"publishedAt,omitempty"`
-	PublishedSyncedAt string `json:"publishedSyncedAt,omitempty"`
-	UpdatedAt         string `json:"updatedAt,omitempty"`
+	PublishedSyncedAt string   `json:"publishedSyncedAt,omitempty"`
+	PendingFields     []string `json:"pendingFields,omitempty"`
+	UpdatedAt         string   `json:"updatedAt,omitempty"`
 }
 
 func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord {
@@ -205,6 +206,7 @@ func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord 
 		DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
 		DraftSyncedAt: binding.DraftSyncedAt, PublishedAt: binding.PublishedAt,
 		PublishedSyncedAt: binding.PublishedSyncedAt,
+		PendingFields:     append([]string{}, binding.PendingFields...),
 	}
 	for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
 		if candidate > record.UpdatedAt {
