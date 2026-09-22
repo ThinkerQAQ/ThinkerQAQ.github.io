@@ -1,9 +1,11 @@
 import app from "./chat.js";
+import { handleUmamiShareReport } from "./umami-share-report.js";
 
 const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
 const UMAMI_COLLECT_URL = "https://gateway.umami.is/api/send";
 const UMAMI_SCRIPT_PATH = "/u.js";
 const UMAMI_COLLECT_PATH = "/api/send";
+const UMAMI_HOURLY_REPORT_PATH = "/analytics/hourly";
 const UMAMI_REQUEST_HEADERS = [
   "content-type",
   "x-umami-website-id",
@@ -101,6 +103,13 @@ async function proxyAnalyticsRequest(request, origin) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname === UMAMI_HOURLY_REPORT_PATH) {
+      if (request.method !== "GET") {
+        return new Response("Method not allowed", { status: 405 });
+      }
+      return handleUmamiShareReport(request);
+    }
 
     if (url.pathname === UMAMI_SCRIPT_PATH) {
       if (request.method !== "GET") {
