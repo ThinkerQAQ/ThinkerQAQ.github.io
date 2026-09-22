@@ -390,6 +390,62 @@ func TestBridgeProxyConfigWriteRequiresExtensionOrigin(t *testing.T) {
 	}
 }
 
+
+func TestSyncStartAllowsBridgeTokenWithoutExtensionOrigin(t *testing.T) {
+	server, _ := New("token")
+	server.syncRunner = func(_ context.Context, _ bridgeConfig, request syncRequest, emit func(blogapp.SyncEvent)) (string, error) {
+		for _, platform := range request.Platforms {
+			emit(blogapp.SyncEvent{Platform: platform, State: "completed", Result: "draft-created"})
+		}
+		return "ok", nil
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sync/jobs",
+		bytes.NewBufferString(`{"article":"example","platforms":["devto"],"draft":true,"operation":"draft"}`))
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("x-thinkerqaq-token", "token")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", response.StatusCode)
+	}
+	var payload struct {
+		Job struct {
+			ID string `json:"id"`
+		} `json:"job"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Job.ID == "" {
+		t.Fatal("sync job id is empty")
+	}
+}
+
+func TestSyncStartRejectsInvalidBridgeTokenWithoutExtensionOrigin(t *testing.T) {
+	server, _ := New("token")
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sync/jobs",
+		bytes.NewBufferString(`{"article":"example","platforms":["devto"],"draft":true,"operation":"draft"}`))
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("x-thinkerqaq-token", "wrong")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.StatusCode)
+	}
+}
+
 func TestSyncJobNotFoundReturnsStructuredError(t *testing.T) {
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
