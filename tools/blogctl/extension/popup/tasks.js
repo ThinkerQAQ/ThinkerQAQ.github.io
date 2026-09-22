@@ -12,10 +12,6 @@
     pollTimer: null,
   };
 
-  const NATIVE_CHINA_PLATFORMS = new Set([
-    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
-  ]);
-
   let list, refreshButton, clearButton, message;
 
   function stateLabel(job) {
@@ -120,11 +116,13 @@
   }
 
   function canConfirmPublish(job) {
+    const platforms = job.platforms ?? [];
+    const platformStatus = new Map((state.status?.platforms ?? []).map((platform) => [platform.id, platform]));
     return job.operation === "draft"
       && job.state === "completed"
-      && (job.platforms ?? []).length > 0
-      && (job.platforms ?? []).every((platform) => NATIVE_CHINA_PLATFORMS.has(platform))
-      && (job.platforms ?? []).every((platform) => job.results?.[platform]?.state === "completed");
+      && platforms.length > 0
+      && platforms.every((platform) => platformStatus.get(platform)?.capabilities?.explicitPublish === true)
+      && platforms.every((platform) => job.results?.[platform]?.state === "completed");
   }
 
   async function publishJob(job, button) {
