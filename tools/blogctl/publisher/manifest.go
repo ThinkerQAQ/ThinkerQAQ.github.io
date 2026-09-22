@@ -89,6 +89,12 @@ type PublicationState struct {
 }
 
 func LoadPublicationState(contentRoot, slug, platform string) (PublicationState, string, error) {
+	if binding, found, err := loadPublicationBinding(contentRoot, slug, platform); err != nil {
+		return PublicationState{}, "", err
+	} else if found {
+		return publicationBindingState(binding), bindingPath(contentRoot), nil
+	}
+
 	manifestPath := filepath.Join(contentRoot, ".distribution", "manifest.json")
 	manifest, err := readOrCreateManifest(manifestPath)
 	if err != nil {
@@ -193,47 +199,82 @@ type PublicationRecord struct {
 	UpdatedAt         string `json:"updatedAt,omitempty"`
 }
 
-func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
-	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return []PublicationRecord{}, nil
+func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord {
+	record := PublicationRecord{
+		Article: binding.Slug, Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
+		DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
+		DraftSyncedAt: binding.DraftSyncedAt, PublishedAt: binding.PublishedAt,
+		PublishedSyncedAt: binding.PublishedSyncedAt,
 	}
+	for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
+		if candidate > record.UpdatedAt {
+			record.UpdatedAt = candidate
+		}
+	}
+	return record
+}
+
+func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
+	recordsByKey := map[string]PublicationRecord{}
+	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return nil, err
 	}
-	records := []PublicationRecord{}
-	for slug, articleValue := range objectValue(manifest["articles"]) {
-		article := objectValue(articleValue)
-		for platform, stateValue := range objectValue(article["platforms"]) {
-			state := objectValue(stateValue)
-			if state == nil {
-				continue
-			}
-			draftURL := stringValue(state["draftUrl"])
-			remoteID := stringValue(state["remoteDraftId"])
-			if remoteID == "" {
-				remoteID = draftIDFromURL(platform, draftURL)
-			}
-			record := PublicationRecord{
-				Article: slug, Platform: platform, RemoteID: remoteID,
-				DraftURL: draftURL, PublishedURL: stringValue(state["publishedUrl"]),
-				DraftSyncedAt:     stringValue(state["draftSyncedAt"]),
-				PublishedAt:       stringValue(state["publishedAt"]),
-				PublishedSyncedAt: stringValue(state["publishedSyncedAt"]),
-			}
-			if record.DraftSyncedAt == "" {
-				record.DraftSyncedAt = stringValue(state["lastSyncedAt"])
-			}
-			for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
-				if candidate > record.UpdatedAt {
-					record.UpdatedAt = candidate
-				}
-			}
-			if record.RemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
-				continue
-			}
-			records = append(records, record)
+	for _, binding := range bindings.Publications {
+		record := publicationRecordFromBinding(binding)
+		if record.RemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
+			continue
 		}
+		recordsByKey[binding.Slug+"\x00"+binding.Platform] = record
+	}
+
+	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if err == nil {
+		for slug, articleValue := range objectValue(manifest["articles"]) {
+			article := objectValue(articleValue)
+			for platform, stateValue := range objectValue(article["platforms"]) {
+				key := slug + "\x00" + platform
+				if _, exists := recordsByKey[key]; exists {
+					continue
+				}
+				state := objectValue(stateValue)
+				if state == nil {
+					continue
+				}
+				draftURL := stringValue(state["draftUrl"])
+				remoteID := stringValue(state["remoteDraftId"])
+				if remoteID == "" {
+					remoteID = draftIDFromURL(platform, draftURL)
+				}
+				record := PublicationRecord{
+					Article: slug, Platform: platform, RemoteID: remoteID,
+					DraftURL: draftURL, PublishedURL: stringValue(state["publishedUrl"]),
+					DraftSyncedAt: stringValue(state["draftSyncedAt"]),
+					PublishedAt: stringValue(state["publishedAt"]),
+					PublishedSyncedAt: stringValue(state["publishedSyncedAt"]),
+				}
+				if record.DraftSyncedAt == "" {
+					record.DraftSyncedAt = stringValue(state["lastSyncedAt"])
+				}
+				for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
+					if candidate > record.UpdatedAt {
+						record.UpdatedAt = candidate
+					}
+				}
+				if record.RemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
+					continue
+				}
+				recordsByKey[key] = record
+			}
+		}
+	}
+
+	records := make([]PublicationRecord, 0, len(recordsByKey))
+	for _, record := range recordsByKey {
+		records = append(records, record)
 	}
 	sort.Slice(records, func(i, j int) bool {
 		if records[i].UpdatedAt != records[j].UpdatedAt {
@@ -249,16 +290,39 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 
 // LoadArticleLinks reads locally recorded remote references without contacting a platform.
 func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) {
+	result := map[string]ArticleLink{}
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return nil, err
+	}
+	for _, binding := range bindings.Publications {
+		if binding.Slug != slug {
+			continue
+		}
+		link := ArticleLink{
+			Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
+			DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
+		}
+		if link.RemoteID == "" {
+			link.RemoteID = draftIDFromURL(binding.Platform, link.DraftURL)
+		}
+		if link.RemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
+			result[binding.Platform] = link
+		}
+	}
+
 	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
 	if errors.Is(err, os.ErrNotExist) {
-		return map[string]ArticleLink{}, nil
+		return result, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 	article := objectValue(objectValue(manifest["articles"])[slug])
-	result := map[string]ArticleLink{}
 	for platform, raw := range objectValue(article["platforms"]) {
+		if _, exists := result[platform]; exists {
+			continue
+		}
 		state := objectValue(raw)
 		link := ArticleLink{Platform: platform, RemoteID: stringValue(state["remoteDraftId"]), DraftURL: stringValue(state["draftUrl"]), PublishedURL: stringValue(state["publishedUrl"])}
 		if link.RemoteID == "" {
