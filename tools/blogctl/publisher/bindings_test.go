@@ -412,3 +412,48 @@ func TestPublicationMigrationDoesNotOverwriteDurableState(t *testing.T) {
 		t.Fatalf("durable state overwritten: %#v", state)
 	}
 }
+
+
+func TestPublicationPendingFieldsSurviveGeneratedOutputRemoval(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 9, 22, 11, 0, 0, 0, time.UTC)
+	if err := SavePublicationDraftResult(root, "example", "medium", "hash-medium", DraftResult{
+		ID: "post-1", URL: "https://medium.com/p/post-1/edit", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationPendingFields(root, "example", "medium", []string{"canonical", "tags", "coverImage", "tags", ""}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(root, ".distribution")); err != nil {
+		t.Fatal(err)
+	}
+
+	records, err := ListPublicationRecords(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("records = %#v", records)
+	}
+	record := records[0]
+	if record.RemoteID != "post-1" || record.DraftURL != "https://medium.com/p/post-1/edit" {
+		t.Fatalf("record = %#v", record)
+	}
+	if got := strings.Join(record.PendingFields, ","); got != "canonical,tags,coverImage" {
+		t.Fatalf("pending fields = %q", got)
+	}
+
+	if err := SavePublicationDraftResult(root, "example", "medium", "hash-medium-2", DraftResult{
+		ID: "post-2", URL: "https://medium.com/p/post-2/edit", Created: true,
+	}, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	records, err = ListPublicationRecords(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || len(records[0].PendingFields) != 0 {
+		t.Fatalf("new draft did not clear stale pending fields: %#v", records)
+	}
+}
