@@ -9,6 +9,7 @@
     platforms: [],
     reconciliations: {},
     reconciling: new Set(),
+    resolvingPending: new Set(),
   };
   let queryInput, platformSelect, statusSelect, summary, list, message;
 
@@ -94,6 +95,28 @@
     }
   }
 
+  async function resolvePending(record) {
+    const key = recordKey(record);
+    if (state.resolvingPending.has(key)) return;
+    state.resolvingPending.add(key);
+    render();
+    BlogCTLPopup.setMessage(message, "正在更新本地待办状态…");
+    try {
+      const response = await BlogCTLPopup.send("blogctl.publication.pending.resolve", {
+        article: record.article,
+        platform: record.platform,
+        fields: [],
+      });
+      record.pendingFields = response.pendingFields ?? [];
+      BlogCTLPopup.setMessage(message, "已清除本地待办标记；此操作不会修改远端平台。", "ok");
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, `更新待办状态失败：${BlogCTLPopup.errorMessage(error)}`, "error");
+    } finally {
+      state.resolvingPending.delete(key);
+      render();
+    }
+  }
+
   function render() {
     const records = filteredRecords();
     const drafts = state.records.filter((record) => !record.publishedUrl && record.draftUrl).length;
@@ -169,10 +192,20 @@
       }
 
       if ((record.pendingFields ?? []).length > 0) {
+        const pendingRow = document.createElement("div");
+        pendingRow.className = "job-platform-main";
         const pending = document.createElement("small");
         pending.className = "job-platform-message";
         pending.textContent = `待手动设置：${record.pendingFields.map(pendingFieldLabel).join("、")}`;
-        card.append(pending);
+        const resolve = document.createElement("button");
+        resolve.type = "button";
+        resolve.className = "secondary compact";
+        resolve.textContent = "标记已处理";
+        resolve.title = "只清除 BlogCTL 本地待办标记，不会修改远端平台";
+        resolve.disabled = state.resolvingPending.has(key);
+        resolve.addEventListener("click", () => resolvePending(record));
+        pendingRow.append(pending, resolve);
+        card.append(pendingRow);
       }
 
       const updated = record.updatedAt || record.publishedSyncedAt || record.publishedAt || record.draftSyncedAt;
@@ -217,6 +250,7 @@
       state.platforms = publishing.platforms ?? [];
       state.reconciliations = {};
       state.reconciling.clear();
+      state.resolvingPending.clear();
       renderPlatformOptions();
       render();
       await BlogCTLPopup.refreshBridgeIndicator();
