@@ -437,22 +437,13 @@ func shouldKeepJuejinImage(source string) bool {
 }
 
 func (j *juejinAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		if shouldKeepJuejinImage(source) {
-			continue
-		}
-		payload, contentType, err := loadImage(j.client, source, input.SourceDir)
-		if err != nil {
-			return "", platformError(ErrUpload, "juejin", "download-image", 0, err.Error(), true)
-		}
-		target, err := j.uploadImage(ctx, payload, contentType)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	return replaceImages(input.Markdown, replacements), nil
+	return rehostMarkdownImages(ctx, j.client, input, ImageRehostOptions{
+		Platform:       j.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted:  shouldKeepJuejinImage,
+	}, func(ctx context.Context, image RehostImage) (string, error) {
+		return j.uploadImage(ctx, image.Payload, image.ContentType)
+	})
 }
 
 func (j *juejinAdapter) imageToken(ctx context.Context) (imageXToken, error) {
