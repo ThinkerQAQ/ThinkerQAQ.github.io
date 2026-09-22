@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCNBlogsBindingMigratesAndSurvivesGeneratedOutputRemoval(t *testing.T) {
@@ -302,5 +303,113 @@ func TestCNBlogsCreatedDraftWritesDurableBinding(t *testing.T) {
 	binding, found, err := LoadCNBlogsBinding(root, "example")
 	if err != nil || !found || binding.PostID != "52" || binding.Account != "ThinkerQAQ" || binding.LastPushedHash != "new-hash" {
 		t.Fatalf("created binding = %#v, %v, %v", binding, found, err)
+	}
+}
+
+
+func TestPublicationStateMigratesAndSurvivesDistributionCleanup(t *testing.T) {
+	root := t.TempDir()
+	generated := filepath.Join(root, ".distribution")
+	if err := os.MkdirAll(generated, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"version":2,"articles":{"example":{"platforms":{"juejin":{"remoteDraftId":"draft-42","draftUrl":"https://juejin.cn/editor/drafts/draft-42","draftHash":"hash-1","draftSyncedAt":"2026-09-20T01:00:00Z","publishedUrl":"https://juejin.cn/post/post-42","publishedHash":"hash-1","publishedAt":"2026-09-20T02:00:00Z"},"devto":{"remoteDraftId":"9001","draftUrl":"https://dev.to/example","draftHash":"hash-dev","draftSyncedAt":"2026-09-20T03:00:00Z"}}}}}`
+	if err := os.WriteFile(filepath.Join(generated, "manifest.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := MigratePublicationStates(root)
+	if err != nil || count != 2 {
+		t.Fatalf("migration = %d, %v", count, err)
+	}
+	if err := os.RemoveAll(generated); err != nil {
+		t.Fatal(err)
+	}
+
+	state, _, err := LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.RemoteDraftID != "draft-42" || state.DraftHash != "hash-1" || state.PublishedURL != "https://juejin.cn/post/post-42" {
+		t.Fatalf("durable state = %#v", state)
+	}
+	records, err := ListPublicationRecords(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("records = %#v", records)
+	}
+	links, err := LoadArticleLinks(root, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if links["juejin"].RemoteID != "draft-42" || links["devto"].DraftURL != "https://dev.to/example" {
+		t.Fatalf("links = %#v", links)
+	}
+}
+
+func TestDurablePublicationWritesPreserveCNBlogsBindings(t *testing.T) {
+	root := t.TempDir()
+	if err := SaveCNBlogsBinding(root, CNBlogsBinding{
+		Slug: "example", PostID: "42", State: "published", Source: "manual",
+		PublicURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC)
+	if err := SavePublicationDraftResult(root, "example", "juejin", "hash-1", DraftResult{
+		ID: "draft-1", URL: "https://juejin.cn/editor/drafts/draft-1", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationPublishResult(root, "example", "juejin", "hash-1", PublishResult{
+		URL: "https://juejin.cn/post/post-1",
+	}, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	binding, found, err := LoadCNBlogsBindingState(root, "example", "published")
+	if err != nil || !found || binding.PostID != "42" {
+		t.Fatalf("CNBlogs binding = %#v, %v, %v", binding, found, err)
+	}
+	state, _, err := LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.RemoteDraftID != "draft-1" || state.PublishedURL != "https://juejin.cn/post/post-1" || state.PublishedHash != "hash-1" {
+		t.Fatalf("publication state = %#v", state)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".distribution", "manifest.json")); !os.IsNotExist(err) {
+		t.Fatalf("durable publisher unexpectedly created distribution manifest: %v", err)
+	}
+}
+
+func TestPublicationMigrationDoesNotOverwriteDurableState(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC)
+	if err := SavePublicationDraftResult(root, "example", "juejin", "new-hash", DraftResult{
+		ID: "new-draft", URL: "https://juejin.cn/editor/drafts/new-draft", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	generated := filepath.Join(root, ".distribution")
+	if err := os.MkdirAll(generated, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `{"version":2,"articles":{"example":{"platforms":{"juejin":{"remoteDraftId":"old-draft","draftUrl":"https://juejin.cn/editor/drafts/old-draft","draftHash":"old-hash"}}}}}`
+	if err := os.WriteFile(filepath.Join(generated, "manifest.json"), []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	count, err := MigratePublicationStates(root)
+	if err != nil || count != 0 {
+		t.Fatalf("migration = %d, %v", count, err)
+	}
+	state, _, err := LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.RemoteDraftID != "new-draft" || state.DraftHash != "new-hash" {
+		t.Fatalf("durable state overwritten: %#v", state)
 	}
 }
