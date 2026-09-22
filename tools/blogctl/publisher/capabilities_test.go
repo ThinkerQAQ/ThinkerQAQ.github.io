@@ -1,0 +1,36 @@
+package publisher
+
+import "testing"
+
+func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
+	cases := []struct {
+		platform string
+		check    func(PlatformCapabilities) bool
+	}{
+		{"cnblogs", func(value PlatformCapabilities) bool {
+			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
+				value.PublishedUpdate && value.RemoteList && value.BodyImages
+		}},
+		{"devto", func(value PlatformCapabilities) bool {
+			return value.APIKey && value.DraftCreate && value.DraftUpdate && value.RemoteList && value.BodyImages &&
+				!value.BrowserSession && !value.ExplicitPublish
+		}},
+		{"medium", func(value PlatformCapabilities) bool {
+			return value.BrowserSession && value.DraftCreate && !value.DraftUpdate && !value.ExplicitPublish &&
+				!value.PublishedUpdate && !value.RemoteList && !value.BodyImages
+		}},
+		{"toutiao", func(value PlatformCapabilities) bool {
+			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish && value.BodyImages
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.platform, func(t *testing.T) {
+			if value := PlatformCapabilitiesFor(tc.platform); !tc.check(value) {
+				t.Fatalf("capabilities = %#v", value)
+			}
+		})
+	}
+	if value := PlatformCapabilitiesFor("unknown"); value != (PlatformCapabilities{}) {
+		t.Fatalf("unknown capabilities = %#v", value)
+	}
+}
