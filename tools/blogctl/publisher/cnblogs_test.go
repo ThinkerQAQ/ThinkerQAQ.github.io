@@ -308,7 +308,7 @@ func TestCNBlogsImageUploadUsesV2BrowserContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), source, DraftInput{})
+	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), RehostImage{Source: source, Payload: []byte("png-bytes"), ContentType: "image/png"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +349,7 @@ func TestCNBlogsImageUploadFallsBackToLegacyEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), source, DraftInput{})
+	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), RehostImage{Source: source, Payload: []byte("png-bytes"), ContentType: "image/png"})
 	if err != nil {
 		t.Fatal(err)
 	}
