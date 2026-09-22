@@ -34,7 +34,8 @@ type PublicationBinding struct {
 	PublishedURL      string `json:"publishedUrl,omitempty"`
 	PublishedHash     string `json:"publishedHash,omitempty"`
 	PublishedAt       string `json:"publishedAt,omitempty"`
-	PublishedSyncedAt string `json:"publishedSyncedAt,omitempty"`
+	PublishedSyncedAt string   `json:"publishedSyncedAt,omitempty"`
+	PendingFields     []string `json:"pendingFields,omitempty"`
 }
 
 type bindingFile struct {
@@ -81,6 +82,40 @@ func upsertPublicationBinding(bindings *bindingFile, binding PublicationBinding)
 	bindings.Publications = append(bindings.Publications, binding)
 }
 
+func normalizePendingFields(fields []string) []string {
+	result := make([]string, 0, len(fields))
+	seen := map[string]struct{}{}
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		if _, exists := seen[field]; exists {
+			continue
+		}
+		seen[field] = struct{}{}
+		result = append(result, field)
+	}
+	return result
+}
+
+func SavePublicationPendingFields(contentRoot, slug, platform string, fields []string) error {
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
+	if err != nil {
+		return err
+	}
+	if !found {
+		binding = PublicationBinding{Slug: slug, Platform: platform}
+	}
+	binding.PendingFields = normalizePendingFields(fields)
+	upsertPublicationBinding(&bindings, binding)
+	return writeBindings(contentRoot, bindings)
+}
+
 func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string, result DraftResult, now time.Time) error {
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
@@ -97,6 +132,7 @@ func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string,
 	binding.DraftURL = result.URL
 	binding.DraftHash = contentHash
 	binding.DraftSyncedAt = now.UTC().Format(time.RFC3339)
+	binding.PendingFields = nil
 	upsertPublicationBinding(&bindings, binding)
 	return writeBindings(contentRoot, bindings)
 }
