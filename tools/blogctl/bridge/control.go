@@ -504,14 +504,12 @@ func usesChinaPublishingPlatform(platforms []string) bool {
 	return false
 }
 
-func allNativeChinaPlatforms(platforms []string) bool {
+func allExplicitPublishPlatforms(platforms []string) bool {
 	if len(platforms) == 0 {
 		return false
 	}
 	for _, platform := range platforms {
-		switch platform {
-		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
-		default:
+		if !publisher.PlatformCapabilitiesFor(platform).ExplicitPublish {
 			return false
 		}
 	}
@@ -1060,9 +1058,9 @@ func (s *Server) publishSyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("only draft jobs can be published")
 	}
-	if !allNativeChinaPlatforms(source.Platforms) {
+	if !allExplicitPublishPlatforms(source.Platforms) {
 		s.mu.Unlock()
-		return nil, errors.New("confirm publish is currently available only for native Chinese platforms")
+		return nil, errors.New("confirm publish is not supported by one or more selected platforms")
 	}
 	request := source.Request
 	request.Operation = "publish"
