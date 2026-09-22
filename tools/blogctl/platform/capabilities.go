@@ -14,43 +14,78 @@ type Capabilities struct {
 	Tags            bool `json:"tags"`
 }
 
-var registry = map[string]Capabilities{
-	"cnblogs": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true,
-		PublishedUpdate: true, RemoteList: true, BodyImages: true,
+type Definition struct {
+	ID              string
+	Label           string
+	DefaultLanguage string
+	Capabilities    Capabilities
+}
+
+var definitions = []Definition{
+	{
+		ID: "cnblogs", Label: "博客园", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{
+			BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true,
+			PublishedUpdate: true, RemoteList: true, BodyImages: true,
+		},
 	},
-	"juejin": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true,
+	{
+		ID: "juejin", Label: "掘金", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true},
 	},
-	"csdn": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true,
+	{
+		ID: "csdn", Label: "CSDN", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true},
 	},
-	"segmentfault": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true,
+	{
+		ID: "segmentfault", Label: "思否", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true},
 	},
-	"zhihu": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true,
+	{
+		ID: "zhihu", Label: "知乎", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true},
 	},
-	"51cto": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true,
+	{
+		ID: "51cto", Label: "51CTO", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true},
 	},
-	"oschina": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true,
+	{
+		ID: "oschina", Label: "开源中国", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true},
 	},
-	"toutiao": {
-		BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true,
+	{
+		ID: "toutiao", Label: "今日头条", DefaultLanguage: "zh-CN",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true},
 	},
-	"devto": {
-		APIKey: true, DraftCreate: true, DraftUpdate: true, RemoteList: true, BodyImages: true,
-		CoverImage: true, NativeCanonical: true, Tags: true,
+	{
+		ID: "devto", Label: "DEV.to", DefaultLanguage: "en",
+		Capabilities: Capabilities{
+			APIKey: true, DraftCreate: true, DraftUpdate: true, RemoteList: true, BodyImages: true,
+			CoverImage: true, NativeCanonical: true, Tags: true,
+		},
 	},
-	"medium": {
-		BrowserSession: true, DraftCreate: true,
+	{
+		ID: "medium", Label: "Medium", DefaultLanguage: "en",
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true},
 	},
 }
 
+var registry = func() map[string]Definition {
+	result := make(map[string]Definition, len(definitions))
+	for _, definition := range definitions {
+		result[definition.ID] = definition
+	}
+	return result
+}()
+
+func DefinitionFor(id string) (Definition, bool) {
+	definition, ok := registry[id]
+	return definition, ok
+}
+
 func For(id string) Capabilities {
-	return registry[id]
+	definition, _ := DefinitionFor(id)
+	return definition.Capabilities
 }
 
 func Supported(id string) bool {
@@ -58,9 +93,20 @@ func Supported(id string) bool {
 	return ok
 }
 
+func Label(id string) string {
+	definition, _ := DefinitionFor(id)
+	return definition.Label
+}
+
+func DefaultLanguage(id string) string {
+	definition, _ := DefinitionFor(id)
+	return definition.DefaultLanguage
+}
+
 func IDs() []string {
-	return []string{
-		"cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
-		"51cto", "oschina", "toutiao", "devto", "medium",
+	result := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		result = append(result, definition.ID)
 	}
+	return result
 }
