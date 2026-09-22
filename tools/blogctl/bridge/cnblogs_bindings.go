@@ -114,26 +114,6 @@ func (s *Server) handleCNBlogsBindingVerify(response http.ResponseWriter, reques
 	writeJSON(response, http.StatusOK, map[string]any{"found": true, "binding": binding, "post": post, "account": account})
 }
 
-func (s *Server) handleCNBlogsBindingMigrate(response http.ResponseWriter, request *http.Request) {
-	if _, ok := allowExtensionWrite(response, request); !ok {
-		return
-	}
-	s.distributionMu.Lock()
-	defer s.distributionMu.Unlock()
-	s.mu.Lock()
-	root := s.config.ContentRoot
-	s.mu.Unlock()
-	count, err := publisher.MigrateCNBlogsBindings(root)
-	if err != nil {
-		writeAPIError(response, http.StatusInternalServerError, "binding_migration_failed", err.Error(), nil)
-		return
-	}
-	if count > 0 {
-		slog.Info("cnblogs bindings migrated", "operation", "binding-migrate", "count", count)
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"migrated": count})
-}
-
 func (s *Server) handleCNBlogsBindingSearch(response http.ResponseWriter, request *http.Request, slug string) {
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
