@@ -331,7 +331,6 @@ func TestBridgeNativePublisherWritesMediumFallbackBeforeImageSafetyFailure(t *te
 	}
 }
 
-
 func TestBridgeNativePublisherRejectsChangedExistingMediumDraft(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
