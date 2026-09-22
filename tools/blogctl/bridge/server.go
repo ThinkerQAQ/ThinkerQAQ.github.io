@@ -539,8 +539,25 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 	writeJSON(response, http.StatusOK, payload)
 }
 
+func (s *Server) refreshSyncConfig() error {
+	config := loadBridgeConfig()
+	client, err := httpClientForConfig(config)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.config = config
+	s.httpClient = client
+	s.mu.Unlock()
+	return nil
+}
+
 func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Request) {
 	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
+	if err := s.refreshSyncConfig(); err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_config", err.Error(), nil)
 		return
 	}
 	var body syncRequest
