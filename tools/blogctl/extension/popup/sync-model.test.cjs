@@ -5,12 +5,24 @@ const { runInNewContext } = require("node:vm");
 
 const context = {};
 runInNewContext(readFileSync(__dirname + "/sync-model.js", "utf8"), context);
-const { canUpdateCNBlogsPublished } = context.BlogCTLSyncModel;
+const { canUpdatePublished, canUpdateCNBlogsPublished } = context.BlogCTLSyncModel;
 
-test("已选文章和博客园时允许请求更新已发布文章，绑定由 Bridge 校验", () => {
+test("published update follows platform capabilities", () => {
+  const status = {
+    platforms: [
+      { id: "cnblogs", capabilities: { publishedUpdate: true } },
+      { id: "juejin", capabilities: { publishedUpdate: false } },
+    ],
+  };
+  assert.equal(canUpdatePublished("example", ["cnblogs"], true, status), true);
+  assert.equal(canUpdatePublished("", ["cnblogs"], true, status), false);
+  assert.equal(canUpdatePublished("example", [], true, status), false);
+  assert.equal(canUpdatePublished("example", ["cnblogs", "juejin"], true, status), false);
+  assert.equal(canUpdatePublished("example", ["juejin"], true, status), false);
+  assert.equal(canUpdatePublished("example", ["cnblogs"], false, status), false);
+});
+
+test("legacy CNBlogs helper remains compatible during extension transition", () => {
   assert.equal(canUpdateCNBlogsPublished("example", ["cnblogs"], true), true);
-  assert.equal(canUpdateCNBlogsPublished("", ["cnblogs"], true), false);
-  assert.equal(canUpdateCNBlogsPublished("example", [], true), false);
-  assert.equal(canUpdateCNBlogsPublished("example", ["cnblogs", "juejin"], true), false);
-  assert.equal(canUpdateCNBlogsPublished("example", ["cnblogs"], false), false);
+  assert.equal(canUpdateCNBlogsPublished("example", ["juejin"], true), false);
 });
