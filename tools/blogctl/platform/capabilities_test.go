@@ -25,19 +25,19 @@ func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 
 func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	devto := For("devto")
-	if !devto.APIKey || !devto.DraftUpdate || !devto.RemoteList || !devto.BodyImages ||
+	if !devto.APIKey || !devto.DraftUpdate || !devto.RemoteList || !devto.BodyImages || devto.BodyImageRehost ||
 		!devto.CoverImage || !devto.NativeCanonical || !devto.Tags {
 		t.Fatalf("DEV.to capabilities = %#v", devto)
 	}
 
 	medium := For("medium")
 	if !medium.BrowserSession || !medium.DraftCreate || medium.DraftUpdate || medium.BodyImages ||
-		medium.CoverImage || medium.NativeCanonical || medium.Tags || medium.ExplicitPublish {
+		medium.BodyImageRehost || medium.CoverImage || medium.NativeCanonical || medium.Tags || medium.ExplicitPublish {
 		t.Fatalf("Medium capabilities = %#v", medium)
 	}
 
 	juejin := For("juejin")
-	if !juejin.BodyImages || !juejin.ExplicitPublish || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
+	if !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
 		t.Fatalf("Juejin capabilities = %#v", juejin)
 	}
 }
