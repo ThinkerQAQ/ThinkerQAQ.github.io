@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-09-22T04:23:45.106Z",
+  "generatedAt": "2026-09-22T09:29:53.922Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790047425106,
-    "endAt": 1790051025106,
+    "startAt": 1790065793922,
+    "endAt": 1790069393922,
     "stats": {
       "pageviews": 0,
       "visitors": 0,
@@ -19,7 +19,7 @@
     "channels": [
       {
         "name": "direct",
-        "count": 3
+        "count": 2
       }
     ],
     "countries": [],
@@ -29,8 +29,8 @@
     "utmSources": []
   },
   "previous": {
-    "startAt": 1790043825105,
-    "endAt": 1790047425105,
+    "startAt": 1790062193921,
+    "endAt": 1790065793921,
     "stats": {
       "pageviews": 3,
       "visitors": 3,
@@ -41,29 +41,29 @@
     "warnings": [],
     "paths": [
       {
-        "name": "/articles/concurrency-series-07-volatile/",
+        "name": "/articles/concurrency-series-05-atomic-cas/",
         "count": 1
       },
       {
-        "name": "/en/about/",
+        "name": "/contact/",
         "count": 1
       },
       {
-        "name": "/en/projects/",
+        "name": "/en/series/",
         "count": 1
       }
     ],
     "entryPages": [
       {
-        "name": "/articles/concurrency-series-07-volatile/",
+        "name": "/articles/concurrency-series-05-atomic-cas/",
         "count": 1
       },
       {
-        "name": "/en/about/",
+        "name": "/contact/",
         "count": 1
       },
       {
-        "name": "/en/projects/",
+        "name": "/en/series/",
         "count": 1
       }
     ],
@@ -71,11 +71,7 @@
     "channels": [
       {
         "name": "direct",
-        "count": 1
-      },
-      {
-        "name": "referral",
-        "count": 1
+        "count": 3
       }
     ],
     "countries": [
@@ -113,9 +109,9 @@
     "changedChannels": [
       {
         "name": "direct",
-        "count": 3,
-        "previousCount": 1,
-        "delta": 2
+        "count": 2,
+        "previousCount": 3,
+        "delta": -1
       }
     ],
     "newCountries": [],
