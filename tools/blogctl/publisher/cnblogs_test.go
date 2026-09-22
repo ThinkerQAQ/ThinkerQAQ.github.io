@@ -269,6 +269,34 @@ func TestCNBlogsPublishedUpdateMatchesCapturedRepublishContract(t *testing.T) {
 
 // TestCNBlogsUpdateDraftFetchesThenPostsServerFields verifies the update path
 // GETs the existing post and echoes server fields into the save request.
+func TestCNBlogsSaveUsesCapturedEditorSessionHeader(t *testing.T) {
+	var sessionID string
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/posts/edit":
+			return jsonResponse(request, 200, "", nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/posts":
+			sessionID = request.Header.Get("sessionId")
+			return jsonResponse(request, 200, `{"id":23070000}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.CreateDraft(context.Background(), DraftInput{Title: "new draft", Markdown: "body"}); err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(sessionID, "-")
+	if len(parts) != 5 || len(parts[0]) != 8 || len(parts[1]) != 4 || len(parts[2]) != 4 || len(parts[3]) != 4 || len(parts[4]) != 12 {
+		t.Fatalf("sessionId = %q, want UUID-shaped editor session id", sessionID)
+	}
+}
+
 func TestCNBlogsUpdateDraftFetchesThenPostsServerFields(t *testing.T) {
 	var posted map[string]any
 	fetchCalled := false
