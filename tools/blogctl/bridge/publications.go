@@ -13,13 +13,16 @@ func (s *Server) handlePublications(response http.ResponseWriter) {
 	contentRoot := s.config.ContentRoot
 	s.mu.Unlock()
 
-	if _, err := publisher.MigratePublicationStates(contentRoot); err != nil {
-		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	s.distributionMu.Lock()
+	_, migrateErr := publisher.MigratePublicationStates(contentRoot)
+	records, listErr := publisher.ListPublicationRecords(contentRoot)
+	s.distributionMu.Unlock()
+	if migrateErr != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", migrateErr.Error(), nil)
 		return
 	}
-	records, err := publisher.ListPublicationRecords(contentRoot)
-	if err != nil {
-		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	if listErr != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", listErr.Error(), nil)
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"records": records})
