@@ -26,6 +26,14 @@ const MARKUP_LINK = 3;
 const MARKUP_CODE = 10;
 const MARKUP_STRIKE = 11;
 
+const ADMONITION_LABELS = {
+  NOTE: "Note",
+  TIP: "Tip",
+  IMPORTANT: "Important",
+  WARNING: "Warning",
+  CAUTION: "Caution",
+};
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -130,10 +138,39 @@ export function parseInline(source, warnings = []) {
 }
 
 export function stripMediumToc(markdown) {
-  const source = String(markdown).replaceAll("\r\n", "\n");
-  const match = source.match(/(^|\n)## Table of Contents\s*\n[\s\S]*?\n---\s*(?=\n|$)/u);
-  if (!match) return source;
-  return `${source.slice(0, match.index)}${match[1] || "\n"}${source.slice(match.index + match[0].length)}`.trim();
+  const lines = String(markdown).replaceAll("\r\n", "\n").split("\n");
+  const tocHeading = /^#{1,3}\s+(?:table\s+of\s+contents|contents|目录)\s*$/iu;
+  const output = [];
+
+  for (let index = 0; index < lines.length;) {
+    if (!tocHeading.test(lines[index].trim())) {
+      output.push(lines[index]);
+      index += 1;
+      continue;
+    }
+
+    index += 1;
+    while (index < lines.length && !lines[index].trim()) index += 1;
+    while (index < lines.length) {
+      const value = lines[index].trim();
+      if (!value) {
+        index += 1;
+        continue;
+      }
+      if (/^---+$/u.test(value)) {
+        index += 1;
+        break;
+      }
+      if (/^#{1,6}\s+/u.test(value)) break;
+      if (/^(?:[-*+]\s+|\d+[.)]\s+)/u.test(value)) {
+        index += 1;
+        continue;
+      }
+      break;
+    }
+  }
+
+  return output.join("\n").replace(/^\s+|\s+$/gu, "");
 }
 
 function splitTableRow(line) {
@@ -153,7 +190,7 @@ export function flattenMarkdownTables(markdown) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    if (/^\s*```/u.test(line)) {
+    if (/^\s*\x60\x60\x60/u.test(line)) {
       inFence = !inFence;
       out.push(line);
       continue;
@@ -164,17 +201,17 @@ export function flattenMarkdownTables(markdown) {
       index += 2;
       while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
         const cells = splitTableRow(lines[index]);
+        const rowTitle = cells[0] || headers[0] || "Row";
         if (cells.length === 2) {
-          out.push(`**${cells[0]}**`);
-          out.push("");
-          out.push(cells[1]);
+          out.push(`**${rowTitle}** — ${cells[1] || ""}`);
           out.push("");
         } else {
-          const parts = cells.map((cell, cellIndex) => {
-            const header = headers[cellIndex] || `Column ${cellIndex + 1}`;
+          out.push(`**${rowTitle}**`);
+          const details = cells.slice(1).map((cell, cellIndex) => {
+            const header = headers[cellIndex + 1] || `Column ${cellIndex + 2}`;
             return `**${header}:** ${cell}`;
           });
-          out.push(parts.join("  "));
+          if (details.length) out.push(details.join(" · "));
           out.push("");
         }
         index += 1;
@@ -192,7 +229,7 @@ export function flattenMarkdownTables(markdown) {
 function isBlockStart(line) {
   const value = line.trim();
   return !value
-    || /^```/u.test(value)
+    || /^\x60\x60\x60/u.test(value)
     || /^#{1,6}\s+/u.test(value)
     || /^>/u.test(value)
     || /^[-*+]\s+/u.test(value)
@@ -201,6 +238,37 @@ function isBlockStart(line) {
     || /^---+$/u.test(value);
 }
 
+function listDepth(line, markerPattern) {
+  const match = String(line).match(markerPattern);
+  if (!match) return 0;
+  const indent = match[1].replaceAll("\t", "    ").length;
+  return Math.max(0, Math.floor(indent / 2));
+}
+
+function decorateListInline(inline, depth) {
+  if (depth <= 0) return inline;
+  const prefix = "↳ ".repeat(depth);
+  return {
+    text: prefix + inline.text,
+    html: escapeHtml(prefix) + inline.html,
+    markups: shiftMarkups(inline.markups, prefix.length),
+  };
+}
+
+function normalizeTaskListText(value) {
+  return String(value)
+    .replace(/^\[\s\]\s+/u, "☐ ")
+    .replace(/^\[[xX]\]\s+/u, "☑ ");
+}
+
+function normalizeAdmonition(values) {
+  if (!values.length) return values;
+  const marker = values[0].trim().match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/iu);
+  if (!marker) return values;
+  const label = ADMONITION_LABELS[marker[1].toUpperCase()] || marker[1];
+  const first = marker[2] ? `**${label}.** ${marker[2]}` : `**${label}.**`;
+  return [first, ...values.slice(1)];
+}
 
 function standaloneImage(line) {
   const match = String(line).trim().match(/^!\[([^\]]*)\]\((\S+)(?:\s+["']([^"']*)["'])?\)$/u);
@@ -228,7 +296,19 @@ export function parseMediumBlocks(markdown) {
   for (let index = 0; index < lines.length;) {
     const line = lines[index];
     const trimmed = line.trim();
-    if (!trimmed || /^---+$/u.test(trimmed)) {
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (/^---+$/u.test(trimmed)) {
+      blocks.push({
+        kind: "separator",
+        paragraphType: PARAGRAPH,
+        text: "• • •",
+        markups: [],
+        html: "<hr>",
+      });
       index += 1;
       continue;
     }
@@ -258,7 +338,10 @@ export function parseMediumBlocks(markdown) {
     if (heading) {
       const level = heading[1].length;
       const inline = parseInline(heading[2], warnings);
-      const paragraphType = level === 1 ? H1 : level === 2 ? H2 : H3;
+      // Medium already receives the article title as a dedicated title block.
+      // Body H1/H2 therefore share the section-heading style to avoid a second
+      // title-sized heading inside the story.
+      const paragraphType = level <= 2 ? H2 : H3;
       blocks.push({ kind: "heading", level, paragraphType, ...inline });
       index += 1;
       continue;
@@ -270,23 +353,25 @@ export function parseMediumBlocks(markdown) {
         values.push(lines[index].replace(/^\s*>\s?/u, ""));
         index += 1;
       }
-      const inline = parseInline(values.join("\n"), warnings);
+      const inline = parseInline(normalizeAdmonition(values).join("\n"), warnings);
       blocks.push({ kind: "blockquote", paragraphType: BLOCKQUOTE, ...inline });
       continue;
     }
 
     const unordered = line.match(/^\s*[-*+]\s+(.*)$/u);
     if (unordered) {
-      const inline = parseInline(unordered[1], warnings);
-      blocks.push({ kind: "uli", paragraphType: ULI, ...inline });
+      const depth = listDepth(line, /^(\s*)[-*+]\s+/u);
+      const inline = decorateListInline(parseInline(normalizeTaskListText(unordered[1]), warnings), depth);
+      blocks.push({ kind: "uli", paragraphType: ULI, depth, ...inline });
       index += 1;
       continue;
     }
 
     const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/u);
     if (ordered) {
-      const inline = parseInline(ordered[1], warnings);
-      blocks.push({ kind: "oli", paragraphType: OLI, ...inline });
+      const depth = listDepth(line, /^(\s*)\d+[.)]\s+/u);
+      const inline = decorateListInline(parseInline(ordered[1], warnings), depth);
+      blocks.push({ kind: "oli", paragraphType: OLI, depth, ...inline });
       index += 1;
       continue;
     }
@@ -386,14 +471,18 @@ function renderBlocks(blocks) {
     }
     closeList();
 
-    if (block.kind === "image") {
-      out.push('<figure class="body-image"><img src="' + escapeHtml(block.url) + '" alt="' + escapeHtml(block.alt) + '"></figure>');
+    if (block.kind === "separator") {
+      out.push("<hr>");
+    } else if (block.kind === "image") {
+      const caption = block.alt ? '<figcaption>' + escapeHtml(block.alt) + '</figcaption>' : "";
+      out.push('<figure class="body-image"><img src="' + escapeHtml(block.url) + '" alt="' + escapeHtml(block.alt) + '">' + caption + '</figure>');
     } else if (block.kind === "pre") {
-      out.push(`<pre><code>${escapeHtml(block.text)}</code></pre>`);
+      const language = block.language ? ' class="language-' + escapeHtml(block.language) + '"' : "";
+      out.push(`<pre><code${language}>${escapeHtml(block.text)}</code></pre>`);
     } else if (block.kind === "blockquote") {
       out.push(`<blockquote><p>${block.html.replaceAll("\n", "<br>")}</p></blockquote>`);
     } else if (block.kind === "heading") {
-      const level = Math.min(Math.max(block.level, 2), 3);
+      const level = block.level <= 2 ? 2 : 3;
       out.push(`<h${level}>${block.html}</h${level}>`);
     } else {
       out.push(`<p>${block.html}</p>`);
@@ -432,7 +521,7 @@ body{font-family:Georgia,"Times New Roman",serif;max-width:760px;margin:40px aut
 button{font:inherit;padding:9px 14px;cursor:pointer}.cover{margin:0 0 32px}.cover img{display:block;width:100%;height:auto}h1{font-size:2.35rem;line-height:1.15}h2{font-size:1.7rem;margin-top:2.1em}h3{font-size:1.3rem;margin-top:1.7em}
 code{font-family:Consolas,"SFMono-Regular",Menlo,monospace}p code,li code{background:#f2f2f2;padding:.08em .28em;border-radius:3px}
 pre{font-family:Consolas,"SFMono-Regular",Menlo,monospace;white-space:pre;overflow-x:auto;background:#f7f7f7;padding:16px;border-radius:4px;line-height:1.5}pre code{background:transparent;padding:0}
-blockquote{border-left:3px solid #242424;margin-left:0;padding-left:18px}.body-image{margin:2em 0}.body-image img{display:block;max-width:100%;height:auto;margin:0 auto}hr{border:0;border-top:1px solid #ddd;margin:2em 0}
+blockquote{border-left:3px solid #242424;margin-left:0;padding-left:18px}.body-image{margin:2em 0}.body-image img{display:block;max-width:100%;height:auto;margin:0 auto}.body-image figcaption{text-align:center;color:#757575;font-size:.9rem;margin-top:.6em}ul,ol{padding-left:1.4em}li{margin:.35em 0}hr{border:0;border-top:1px solid #ddd;margin:2em 0}
 </style>
 </head>
 <body>
