@@ -31,7 +31,7 @@ var nativeChinaPlatforms = map[string]struct{}{
 
 var nativePublishingPlatforms = map[string]struct{}{
 	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
 }
 
 type SyncRequest struct {
@@ -207,57 +207,34 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 }
 
 func BuildSyncPlan(request SyncRequest) []SyncPlan {
-	native := []string{}
-	scripted := []string{}
+	platforms := make([]string, 0, len(request.Platforms))
 	for _, platform := range request.Platforms {
 		if _, ok := nativePublishingPlatforms[platform]; ok {
-			native = append(native, platform)
-			continue
+			platforms = append(platforms, platform)
 		}
-		scripted = append(scripted, platform)
+	}
+	if len(platforms) == 0 {
+		return nil
 	}
 
-	articleArgs := make([]string, 0, len(request.Articles)*2)
+	args := make([]string, 0, len(request.Articles)*2+5)
 	for _, article := range request.Articles {
-		articleArgs = append(articleArgs, "--article", article)
+		args = append(args, "--article", article)
 	}
-
-	plan := make([]SyncPlan, 0, 1+len(scripted))
-	if len(native) > 0 {
-		args := append([]string{}, articleArgs...)
-		if request.All {
-			args = append(args, "--all")
-		}
-		args = append(args, "--platforms", strings.Join(native, ","))
-		if request.DryRun {
-			args = append(args, "--dry-run")
-		}
-		if request.Draft {
-			args = append(args, "--draft")
-		}
-		plan = append(plan, SyncPlan{
-			Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
-			Platforms: append([]string{}, native...), Native: true,
-		})
+	if request.All {
+		args = append(args, "--all")
 	}
-	for _, platform := range scripted {
-		args := append([]string{}, articleArgs...)
-		if request.All {
-			args = append(args, "--all")
-		}
-		args = append(args, "--platforms", platform)
-		if request.DryRun {
-			args = append(args, "--dry-run")
-		}
-		if request.Draft {
-			args = append(args, "--draft")
-		}
-		plan = append(plan, SyncPlan{
-			Group: "scripted-" + platform, Script: "scripts/blogctl-syndicate.mjs", Args: args,
-			Platforms: []string{platform},
-		})
+	args = append(args, "--platforms", strings.Join(platforms, ","))
+	if request.DryRun {
+		args = append(args, "--dry-run")
 	}
-	return plan
+	if request.Draft {
+		args = append(args, "--draft")
+	}
+	return []SyncPlan{{
+		Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
+		Platforms: append([]string{}, platforms...), Native: true,
+	}}
 }
 
 func ParseCompiledArticles(output string) ([]blogcompiler.CompiledArticle, error) {
@@ -344,12 +321,6 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 	if err := validateSyncWorkspaces(config); err != nil {
 		return "", err
 	}
-	if usesPlatform(request.Platforms, "medium") && !request.DryRun {
-		if strings.TrimSpace(config.BridgeOrigin) == "" || strings.TrimSpace(config.BridgeToken) == "" {
-			return "", errors.New("Medium publishing requires an active BlogCTL Bridge")
-		}
-	}
-
 	runner := s.Runner
 	if runner == nil {
 		runner = OSCommandRunner{}
