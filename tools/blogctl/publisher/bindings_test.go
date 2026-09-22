@@ -474,3 +474,93 @@ func TestPublicationPendingFieldsSurviveGeneratedOutputRemoval(t *testing.T) {
 		t.Fatalf("new draft did not clear stale pending fields: %#v", records)
 	}
 }
+
+
+func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".blogctl")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{
+  "version": 2,
+  "cnblogs": [],
+  "publications": [
+    {
+      "slug": "example",
+      "platform": "juejin",
+      "remoteDraftId": "draft-2",
+      "draftUrl": "https://juejin.cn/editor/drafts/draft-2",
+      "draftHash": "hash-2",
+      "publishedUrl": "https://juejin.cn/post/post-2",
+      "publishedHash": "hash-2"
+    }
+  ]
+}`
+	if err := os.WriteFile(filepath.Join(dir, "publications.json"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	state, source, err := LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source != filepath.Join(dir, "publications.json") {
+		t.Fatalf("source = %q", source)
+	}
+	if state.RemoteDraftID != "draft-2" || state.DraftHash != "hash-2" ||
+		state.PublishedURL != "https://juejin.cn/post/post-2" || state.PublishedHash != "hash-2" {
+		t.Fatalf("state = %#v", state)
+	}
+}
+
+func TestBindingsV1UpgradesToV2WithoutLosingCNBlogsIdentity(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".blogctl")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{
+  "version": 1,
+  "cnblogs": [
+    {
+      "slug": "example",
+      "account": "ThinkerQAQ",
+      "postId": "42",
+      "state": "published",
+      "publicUrl": "https://www.cnblogs.com/ThinkerQAQ/p/42",
+      "source": "manual"
+    }
+  ]
+}`
+	path := filepath.Join(dir, "publications.json")
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Date(2026, 9, 22, 14, 30, 0, 0, time.UTC)
+	if err := SavePublicationDraftResult(root, "example", "juejin", "hash-2", DraftResult{
+		ID: "draft-2", URL: "https://juejin.cn/editor/drafts/draft-2", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded bindingFile
+	if err := json.Unmarshal(updated, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Version != bindingFileVersion {
+		t.Fatalf("version = %d, want %d", decoded.Version, bindingFileVersion)
+	}
+	if len(decoded.CNBlogs) != 1 || decoded.CNBlogs[0].PostID != "42" ||
+		decoded.CNBlogs[0].PublicURL != "https://www.cnblogs.com/ThinkerQAQ/p/42" {
+		t.Fatalf("CNBlogs bindings = %#v", decoded.CNBlogs)
+	}
+	if len(decoded.Publications) != 1 || decoded.Publications[0].RemoteDraftID != "draft-2" {
+		t.Fatalf("publications = %#v", decoded.Publications)
+	}
+}
