@@ -113,9 +113,10 @@
     const profile = platform || {};
     const fallback = defaultsFor(profile.id || "cnblogs");
     languageSelect.value = profile.language || fallback.language;
-    changedOnly.checked = profile.id !== "medium" && Boolean(profile.changedOnly);
-    changedOnly.disabled = profile.id === "medium";
-    changedOnly.title = changedOnly.disabled ? "Medium 当前只创建新草稿，尚不能更新已有草稿。" : "";
+    const canUpdateDraft = profile.capabilities?.draftUpdate !== false;
+    changedOnly.checked = canUpdateDraft && Boolean(profile.changedOnly);
+    changedOnly.disabled = !canUpdateDraft;
+    changedOnly.title = changedOnly.disabled ? "当前平台尚未验证安全更新已有草稿。" : "";
     const footer = profile.footer || fallback.footer;
     const canonical = profile.canonical || fallback.canonical;
     const tracking = profile.tracking || fallback.tracking;
