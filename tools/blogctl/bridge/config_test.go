@@ -117,6 +117,9 @@ func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 	if medium.Language != "en" {
 		t.Fatalf("medium view language = %q", medium.Language)
 	}
+	if !medium.Capabilities.BrowserSession || !medium.Capabilities.DraftCreate || medium.Capabilities.DraftUpdate {
+		t.Fatalf("medium capabilities = %#v", medium.Capabilities)
+	}
 	medium.Language = "zh-CN"
 	updated, err := updatePublishing(config, []publishingPlatformView{medium})
 	if err != nil {
