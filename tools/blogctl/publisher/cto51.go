@@ -160,17 +160,13 @@ func (c *cto51Adapter) uploadConfig(ctx context.Context, sign, contentType, file
 	return decoded.Data, nil
 }
 
-func (c *cto51Adapter) uploadImage(ctx context.Context, source string, input DraftInput) (string, error) {
-	payload, contentType, err := loadImage(c.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, c.ID(), "download-image", 0, err.Error(), true)
-	}
-	filename := inferImageFilename(source, contentType)
+func (c *cto51Adapter) uploadImage(ctx context.Context, image RehostImage) (string, error) {
+	filename := inferImageFilename(image.Source, image.ContentType)
 	sign, err := c.uploadSign(ctx)
 	if err != nil {
 		return "", err
 	}
-	config, err := c.uploadConfig(ctx, sign, contentType, filename)
+	config, err := c.uploadConfig(ctx, sign, image.ContentType, filename)
 	if err != nil {
 		return "", err
 	}
@@ -181,9 +177,9 @@ func (c *cto51Adapter) uploadImage(ctx context.Context, source string, input Dra
 		"x-amz-signature":  config.Fields.Signature,
 		"x-amz-credential": config.Fields.Credential,
 		"X-Amz-Date":       config.Fields.Date,
-		"Content-Type":     contentType,
+		"Content-Type":     image.ContentType,
 	}
-	body, bodyType, err := multipartBody(fields, "file", filename, contentType, payload)
+	body, bodyType, err := multipartBody(fields, "file", filename, image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -208,18 +204,13 @@ func (c *cto51Adapter) uploadImage(ctx context.Context, source string, input Dra
 }
 
 func (c *cto51Adapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	markdown := input.Markdown
-	for _, source := range imageSources(input.Markdown) {
-		if strings.Contains(strings.ToLower(source), "51cto.com") {
-			continue
-		}
-		target, err := c.uploadImage(ctx, source, input)
-		if err != nil {
-			return "", err
-		}
-		markdown = strings.ReplaceAll(markdown, source, target)
-	}
-	return markdown, nil
+	return rehostMarkdownImages(ctx, c.client, input, ImageRehostOptions{
+		Platform:       c.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			return strings.Contains(strings.ToLower(source), "51cto.com")
+		},
+	}, c.uploadImage)
 }
 
 func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input DraftInput) (url.Values, error) {
