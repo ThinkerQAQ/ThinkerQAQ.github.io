@@ -22,6 +22,8 @@ The browser does not contact `cloud.umami.is` or `gateway.umami.is` directly. In
 - `POST <blog-worker-origin>/api/send` proxies collection to `https://gateway.umami.is/api/send`.
 - `data-host-url` points the tracker at the Worker origin so both the script and collection path avoid direct Umami hosts that are commonly blocked.
 - The collection proxy only accepts requests whose `Origin` is `https://thinkerqaq.github.io`.
+- The Worker copies Cloudflare's edge-derived `request.cf.country`, `request.cf.regionCode`, and `request.cf.city` into Umami Cloud's `x-umami-client-country`, `x-umami-client-region`, and `x-umami-client-city` headers. This preserves visitor geography across the proxy hop without forwarding the visitor IP.
+- Client-supplied `x-umami-client-*` headers are never trusted or forwarded; the values are derived only from Cloudflare's request metadata.
 
 The Umami website ID is public by design because it is embedded in the generated HTML. Do not store API tokens or account credentials in this variable.
 
