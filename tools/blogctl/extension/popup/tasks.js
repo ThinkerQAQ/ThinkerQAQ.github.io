@@ -116,13 +116,7 @@
   }
 
   function canConfirmPublish(job) {
-    const platforms = job.platforms ?? [];
-    const platformStatus = new Map((state.status?.platforms ?? []).map((platform) => [platform.id, platform]));
-    return job.operation === "draft"
-      && job.state === "completed"
-      && platforms.length > 0
-      && platforms.every((platform) => platformStatus.get(platform)?.capabilities?.explicitPublish === true)
-      && platforms.every((platform) => job.results?.[platform]?.state === "completed");
+    return BlogCTLSyncModel.canConfirmPublish(job, state.status);
   }
 
   async function publishJob(job, button) {
