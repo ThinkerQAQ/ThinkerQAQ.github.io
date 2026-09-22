@@ -268,7 +268,7 @@ func scriptFailureMessage(output string) string {
 		if line == "" || !strings.HasPrefix(line, "{") {
 			continue
 		}
-		var raw scriptLogEvent
+		var raw scriptFailureEvent
 		if err := json.Unmarshal([]byte(line), &raw); err != nil {
 			continue
 		}
@@ -332,15 +332,6 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 		script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
 		commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
 		appendOutput(&output, commandOutput)
-		for _, event := range ParseSyncEvents(commandOutput) {
-			if !containsPlatform(entry.Platforms, event.Platform) {
-				continue
-			}
-			s.emit(event)
-			if event.State == "completed" || event.State == "failed" {
-				terminal[event.Platform] = true
-			}
-		}
 		if runErr != nil {
 			detail := scriptFailureMessage(commandOutput)
 			if detail == "" {
@@ -475,114 +466,12 @@ func (s SyncService) emit(event SyncEvent) {
 	}
 }
 
-func containsPlatform(platforms []string, target string) bool {
-	for _, platform := range platforms {
-		if platform == target {
-			return true
-		}
-	}
-	return false
-}
-
-type scriptLogEvent struct {
-	Operation string `json:"operation"`
+type scriptFailureEvent struct {
 	Status    string `json:"status"`
-	Platform  string `json:"platform"`
-	DraftURL  string `json:"draftUrl"`
-	RemoteURL string `json:"remoteUrl"`
 	Message   string `json:"message"`
 	Exception struct {
 		Message string `json:"message"`
 	} `json:"exception"`
-}
-
-func ParseSyncEvents(output string) []SyncEvent {
-	events := []SyncEvent{}
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	buffer := make([]byte, 0, 64*1024)
-	scanner.Buffer(buffer, 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || !strings.HasPrefix(line, "{") {
-			continue
-		}
-		var raw scriptLogEvent
-		if err := json.Unmarshal([]byte(line), &raw); err != nil {
-			continue
-		}
-		if event, ok := syncEventFromLog(raw); ok {
-			events = append(events, event)
-		}
-	}
-	return events
-}
-
-func syncEventFromLog(raw scriptLogEvent) (SyncEvent, bool) {
-	message := strings.TrimSpace(raw.Message)
-	if message == "" {
-		message = strings.TrimSpace(raw.Exception.Message)
-	}
-	switch raw.Operation {
-	case "distribution-sync":
-		if raw.Platform == "" {
-			return SyncEvent{}, false
-		}
-		event := SyncEvent{Platform: raw.Platform, Message: message}
-		switch raw.Status {
-		case "started":
-			event.State = "running"
-		case "rate-limit-retry-wait":
-			event.State = "waiting"
-			event.Result = "rate-limit-retry"
-		case "dry-run-completed":
-			event.State = "completed"
-			event.Result = "dry-run"
-			event.URL = raw.DraftURL
-		case "completed":
-			event.State = "completed"
-			event.Result = "completed"
-			if raw.DraftURL != "" {
-				event.Result = "draft-created"
-				event.URL = raw.DraftURL
-			}
-		case "failed":
-			event.State = "failed"
-		default:
-			return SyncEvent{}, false
-		}
-		return event, true
-	case "syndication-devto":
-		event := SyncEvent{Platform: "devto", Message: message, URL: raw.RemoteURL}
-		switch raw.Status {
-		case "dry-run":
-			event.State = "completed"
-			event.Result = "dry-run"
-		case "created", "updated", "skipped":
-			event.State = "completed"
-			event.Result = raw.Status
-		default:
-			return SyncEvent{}, false
-		}
-		return event, true
-	case "syndication-medium":
-		event := SyncEvent{Platform: "medium", Message: message, URL: raw.DraftURL}
-		switch raw.Status {
-		case "waiting-for-session":
-			event.State = "waiting"
-			event.Result = "waiting-for-session"
-		case "dry-run":
-			event.State = "completed"
-			event.Result = "dry-run"
-		case "draft-created":
-			event.State = "completed"
-			event.Result = "draft-created"
-		default:
-			return SyncEvent{}, false
-		}
-		return event, true
-	default:
-		return SyncEvent{}, false
-	}
 }
 
 func validateSyncWorkspaces(config SyncConfig) error {
