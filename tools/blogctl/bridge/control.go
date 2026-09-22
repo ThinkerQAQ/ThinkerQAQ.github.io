@@ -621,6 +621,17 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	if strings.TrimSpace(postID) == "" || strings.TrimSpace(draftURL) == "" {
 		return blogapp.NativeDraftResult{}, errors.New("Medium draft response is missing post id or draft URL")
 	}
+	pending := []string{}
+	if value, _ := result["canonicalPending"].(bool); value {
+		pending = append(pending, "canonical")
+	}
+	if value, _ := result["tagsPending"].(bool); value {
+		pending = append(pending, "tags")
+	}
+	if value, _ := result["coverImagePending"].(bool); value {
+		pending = append(pending, "coverImage")
+	}
+
 	if err := publisher.SavePublicationDraftResult(
 		request.ContentRoot,
 		request.Article,
@@ -631,20 +642,22 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	); err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
+	if err := publisher.SavePublicationPendingFields(request.ContentRoot, request.Article, "medium", pending); err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
 
-	pending := []string{}
-	if value, _ := result["canonicalPending"].(bool); value {
-		pending = append(pending, "canonical")
-	}
-	if value, _ := result["tagsPending"].(bool); value {
-		pending = append(pending, "tags")
-	}
-	if value, _ := result["coverImagePending"].(bool); value {
-		pending = append(pending, "cover image")
+	pendingLabels := make([]string, 0, len(pending))
+	for _, field := range pending {
+		switch field {
+		case "coverImage":
+			pendingLabels = append(pendingLabels, "cover image")
+		default:
+			pendingLabels = append(pendingLabels, field)
+		}
 	}
 	message := ""
-	if len(pending) > 0 {
-		message = "Medium draft created; pending editor fields: " + strings.Join(pending, ", ")
+	if len(pendingLabels) > 0 {
+		message = "Medium draft created; pending editor fields: " + strings.Join(pendingLabels, ", ")
 	}
 	if fallbackPath != "" {
 		if message != "" {
