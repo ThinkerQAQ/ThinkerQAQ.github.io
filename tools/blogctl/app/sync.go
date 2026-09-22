@@ -171,15 +171,8 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 	}
 	if request.Operation == "publish" {
 		for _, platform := range request.Platforms {
-			if _, native := nativeChinaPlatforms[platform]; !native {
+			if !blogplatform.For(platform).ExplicitPublish {
 				return request, fmt.Errorf("confirm publish is not implemented for %s", platform)
-			}
-		}
-	}
-	if request.All {
-		for _, platform := range request.Platforms {
-			if _, native := nativeChinaPlatforms[platform]; native {
-				return request, fmt.Errorf("%s native publishing requires explicit article selection", platform)
 			}
 		}
 	}
