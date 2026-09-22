@@ -84,3 +84,34 @@ Google Search Console remains the source of truth for Google search queries, imp
 Pageviews, referrers, and UTM attribution answer how readers arrive. Content-reading quality is measured separately with sparse Umami events for visible reading time, reading progress, meaningful reads, deep reads, content navigation, language switching, and outbound domains.
 
 The design, industry research, event schema, thresholds, lifecycle rules, validation checklist, and Umami Goals/Funnel setup are documented in [Content engagement analytics](./content-engagement-analytics.md).
+
+
+## Hourly automation without a Pro API key
+
+Umami Cloud API keys require a Pro plan. The blog does not need to upgrade only for hourly monitoring because a public website share already exposes a scoped read-only token.
+
+The blog Worker provides:
+
+```text
+GET /analytics/hourly?share=<umami-share-slug>&hours=1
+```
+
+The endpoint:
+
+1. Resolves the public share slug through Umami Cloud's `/api/share/{slug}` endpoint.
+2. Uses the short-lived/scoped share token returned by Umami.
+3. Reads only aggregate website analytics through the same read-only APIs used by the shared dashboard.
+4. Compares the most recent window with the immediately preceding window.
+5. Returns aggregate JSON only; it does not return session IDs, distinct IDs, IP addresses, or individual visitor records.
+
+The response contains:
+
+- pageviews, visitors, visits, bounces, total time;
+- paths and entry pages;
+- referrers and channels;
+- countries;
+- custom events such as `read_milestone`, `engaged_read`, `deep_read`, and `content_nav`;
+- UTM sources;
+- new values that appeared in the current window compared with the previous window.
+
+The share slug is supplied by the caller and is not committed into the public repository. A share slug is already a public-read capability; regenerate or disable the Umami Share URL to revoke access.
