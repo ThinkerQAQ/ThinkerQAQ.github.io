@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -202,25 +201,21 @@ func (c *cnBlogsAdapter) uploadImageRequest(ctx context.Context, endpoint string
 	return "", platformError(ErrUpload, c.ID(), "image-upload", 0, "image URL missing", false)
 }
 
-func (c *cnBlogsAdapter) uploadImage(ctx context.Context, source string, input DraftInput) (string, error) {
+func (c *cnBlogsAdapter) uploadImage(ctx context.Context, image RehostImage) (string, error) {
 	token, err := c.xsrfToken(ctx)
 	if err != nil {
 		return "", err
 	}
-	payload, contentType, err := loadImage(c.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, c.ID(), "download-image", 0, err.Error(), true)
-	}
-	filename := inferImageFilename(source, contentType)
+	filename := inferImageFilename(image.Source, image.ContentType)
 
 	target, currentErr := c.uploadImageRequest(
 		ctx,
 		"https://upload.cnblogs.com/v2/images/cors-upload",
 		nil,
 		"image",
-		payload,
+		image.Payload,
 		filename,
-		contentType,
+		image.ContentType,
 		token,
 	)
 	if currentErr == nil {
@@ -234,9 +229,9 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, source string, input D
 		"https://upload.cnblogs.com/imageuploader/CorsUpload",
 		map[string]string{"host": "www.cnblogs.com", "uploadType": "Paste"},
 		"imageFile",
-		payload,
+		image.Payload,
 		filename,
-		contentType,
+		image.ContentType,
 		token,
 	)
 	if legacyErr == nil {
@@ -252,32 +247,14 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, source string, input D
 	)
 }
 
-func isRemoteHTTPImage(source string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(source))
-	return err == nil && (parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.Host != ""
-}
-
 func (c *cnBlogsAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		lower := strings.ToLower(source)
-		if strings.Contains(lower, "cnblogs.com") {
-			continue
-		}
-		target, err := c.uploadImage(ctx, source, input)
-		if err != nil {
-			// Mermaid assets have already been materialized to an HTTPS R2 URL by
-			// BlogCTL. If CNBlogs' private image endpoint changes temporarily, keep
-			// that remote URL so the article draft still saves with a working image.
-			if isRemoteHTTPImage(source) {
-				slog.Warn("cnblogs image upload failed; keeping remote image URL", "operation", "image-upload", "source", source, "error", err)
-				continue
-			}
-			return "", err
-		}
-		replacements[source] = target
-	}
-	return replaceImages(input.Markdown, replacements), nil
+	return rehostMarkdownImages(ctx, c.client, input, ImageRehostOptions{
+		Platform:       c.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			return strings.Contains(strings.ToLower(source), "cnblogs.com")
+		},
+	}, c.uploadImage)
 }
 
 func cnBlogsPayload(id string, input DraftInput, body string, publish bool) map[string]any {
