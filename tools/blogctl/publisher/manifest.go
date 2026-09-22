@@ -188,13 +188,13 @@ type ArticleLink struct {
 }
 
 type PublicationRecord struct {
-	Article           string `json:"article"`
-	Platform          string `json:"platform"`
-	RemoteID          string `json:"remoteId,omitempty"`
-	DraftURL          string `json:"draftUrl,omitempty"`
-	PublishedURL      string `json:"publishedUrl,omitempty"`
-	DraftSyncedAt     string `json:"draftSyncedAt,omitempty"`
-	PublishedAt       string `json:"publishedAt,omitempty"`
+	Article           string   `json:"article"`
+	Platform          string   `json:"platform"`
+	RemoteID          string   `json:"remoteId,omitempty"`
+	DraftURL          string   `json:"draftUrl,omitempty"`
+	PublishedURL      string   `json:"publishedUrl,omitempty"`
+	DraftSyncedAt     string   `json:"draftSyncedAt,omitempty"`
+	PublishedAt       string   `json:"publishedAt,omitempty"`
 	PublishedSyncedAt string   `json:"publishedSyncedAt,omitempty"`
 	PendingFields     []string `json:"pendingFields,omitempty"`
 	UpdatedAt         string   `json:"updatedAt,omitempty"`
