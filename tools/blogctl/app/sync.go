@@ -13,26 +13,8 @@ import (
 	"strings"
 
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 )
-
-var chinaPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {},
-}
-
-var internationalPlatforms = map[string]struct{}{
-	"devto": {}, "medium": {},
-}
-
-var nativeChinaPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {},
-}
-
-var nativePublishingPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
-}
 
 type SyncRequest struct {
 	Articles          []string
@@ -165,10 +147,8 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 		if platform == "" {
 			continue
 		}
-		if _, ok := chinaPlatforms[platform]; !ok {
-			if _, ok := internationalPlatforms[platform]; !ok {
-				return request, fmt.Errorf("unsupported platform: %s", platform)
-			}
+		if !blogplatform.Supported(platform) {
+			return request, fmt.Errorf("unsupported platform: %s", platform)
 		}
 		if _, exists := seenPlatforms[platform]; exists {
 			continue
@@ -209,7 +189,7 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 func BuildSyncPlan(request SyncRequest) []SyncPlan {
 	platforms := make([]string, 0, len(request.Platforms))
 	for _, platform := range request.Platforms {
-		if _, ok := nativePublishingPlatforms[platform]; ok {
+		if blogplatform.For(platform).DraftCreate {
 			platforms = append(platforms, platform)
 		}
 	}
