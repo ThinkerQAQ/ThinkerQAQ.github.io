@@ -306,7 +306,6 @@ func TestCNBlogsCreatedDraftWritesDurableBinding(t *testing.T) {
 	}
 }
 
-
 func TestPublicationStateMigratesAndSurvivesDistributionCleanup(t *testing.T) {
 	root := t.TempDir()
 	generated := filepath.Join(root, ".distribution")
