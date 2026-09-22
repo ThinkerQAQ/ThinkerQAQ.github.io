@@ -125,12 +125,8 @@ func csdnImageSuffix(source, contentType string) string {
 	}
 }
 
-func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input DraftInput) (string, error) {
-	payload, contentType, err := loadImage(c.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, c.ID(), "download-image", 0, err.Error(), true)
-	}
-	suffix := csdnImageSuffix(source, contentType)
+func (c *csdnAdapter) uploadImage(ctx context.Context, image RehostImage) (string, error) {
+	suffix := csdnImageSuffix(image.Source, image.ContentType)
 	path := "/resource-api/v1/image/direct/upload/signature"
 	body, _ := json.Marshal(map[string]any{
 		"imageTemplate": "",
@@ -174,7 +170,7 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input Draf
 	for key, value := range signed.Data.CustomParam {
 		fields["x:"+key] = valueString(value)
 	}
-	multipart, multipartType, err := multipartBody(fields, "file", "image."+suffix, contentType, payload)
+	multipart, multipartType, err := multipartBody(fields, "file", "image."+suffix, image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -200,19 +196,14 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input Draf
 }
 
 func (c *csdnAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		lower := strings.ToLower(source)
-		if strings.Contains(lower, "csdnimg.cn") || strings.Contains(lower, "csdn.net") {
-			continue
-		}
-		target, err := c.uploadImage(ctx, source, input)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	return replaceImages(input.Markdown, replacements), nil
+	return rehostMarkdownImages(ctx, c.client, input, ImageRehostOptions{
+		Platform:       c.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			lower := strings.ToLower(source)
+			return strings.Contains(lower, "csdnimg.cn") || strings.Contains(lower, "csdn.net")
+		},
+	}, c.uploadImage)
 }
 
 func (c *csdnAdapter) save(ctx context.Context, refID string, input DraftInput, publish bool) (map[string]any, error) {
