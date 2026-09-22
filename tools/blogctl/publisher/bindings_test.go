@@ -443,6 +443,24 @@ func TestPublicationPendingFieldsSurviveGeneratedOutputRemoval(t *testing.T) {
 		t.Fatalf("pending fields = %q", got)
 	}
 
+	remaining, err := ResolvePublicationPendingFields(root, "example", "medium", []string{"tags"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(remaining, ","); got != "canonical,coverImage" {
+		t.Fatalf("remaining pending fields = %q", got)
+	}
+	remaining, err = ResolvePublicationPendingFields(root, "example", "medium", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("pending fields were not cleared: %#v", remaining)
+	}
+	if err := SavePublicationPendingFields(root, "example", "medium", []string{"canonical"}); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := SavePublicationDraftResult(root, "example", "medium", "hash-medium-2", DraftResult{
 		ID: "post-2", URL: "https://medium.com/p/post-2/edit", Created: true,
 	}, now.Add(time.Hour)); err != nil {
