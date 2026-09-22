@@ -254,6 +254,16 @@ func TestBridgeNativePublisherCreatesMediumDraftAndRecordsState(t *testing.T) {
 	if state.RemoteDraftID != "post-unified" || state.DraftURL != result.URL || state.DraftHash != "hash-medium" {
 		t.Fatalf("state = %#v", state)
 	}
+	records, err := publisher.ListPublicationRecords(contentRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || strings.Join(records[0].PendingFields, ",") != "canonical,tags" {
+		t.Fatalf("publication inventory = %#v", records)
+	}
+	if !strings.Contains(result.Message, "canonical") || !strings.Contains(result.Message, "tags") {
+		t.Fatalf("result message = %q", result.Message)
+	}
 
 	fallbackPath, err := mediumFallbackPath(contentRoot, "example")
 	if err != nil {
