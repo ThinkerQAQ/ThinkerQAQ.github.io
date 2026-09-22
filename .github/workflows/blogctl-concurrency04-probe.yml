@@ -61,7 +61,9 @@ jobs:
           MERMAID_PUPPETEER_CONFIG_FILE: ${{ runner.temp }}/blogctl-mermaid-puppeteer.json
         run: |
           set -euo pipefail
-          printf '%s\\n' '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > "$MERMAID_PUPPETEER_CONFIG_FILE"
+          cat > "$MERMAID_PUPPETEER_CONFIG_FILE" <<'JSON'
+          {"args":["--no-sandbox","--disable-setuid-sandbox"]}
+          JSON
           test -n "$R2_ACCOUNT_ID"
           test -n "$R2_ACCESS_KEY_ID"
           test -n "$R2_SECRET_ACCESS_KEY"
