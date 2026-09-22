@@ -263,6 +263,10 @@ func cnBlogsPayload(id string, input DraftInput, body string, publish bool) map[
 	if strings.TrimSpace(id) != "" {
 		idValue = id
 	}
+	var description any
+	if strings.TrimSpace(input.Description) != "" {
+		description = input.Description
+	}
 	return map[string]any{
 		"id":                                  idValue,
 		"postType":                            1,
@@ -274,24 +278,24 @@ func cnBlogsPayload(id string, input DraftInput, body string, publish bool) map[
 		"categories":                          nil,
 		"collectionIds":                       []any{},
 		"inSiteCandidate":                     false,
-		"inSiteHome":                          false,
+		"inSiteHome":                          true,
 		"siteCategoryId":                      nil,
-		"blogTeamIds":                         []any{},
+		"blogTeamIds":                         nil,
 		"isPublished":                         publish,
-		"displayOnHomePage":                   publish,
+		"displayOnHomePage":                   true,
 		"isAllowComments":                     true,
-		"includeInMainSyndication":            false,
+		"includeInMainSyndication":            true,
 		"isPinned":                            false,
 		"showBodyWhenPinned":                  false,
 		"isOnlyForRegisterUser":               false,
 		"isUpdateDateAdded":                   false,
 		"entryName":                           nil,
-		"description":                         input.Description,
+		"description":                         description,
 		"featuredImage":                       nil,
 		"tags":                                nil,
 		"password":                            nil,
 		"publishAt":                           nil,
-		"datePublished":                       time.Now().UTC().Format(time.RFC3339),
+		"datePublished":                       time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		"dateUpdated":                         nil,
 		"isMarkdown":                          true,
 		"isDraft":                             !publish,
