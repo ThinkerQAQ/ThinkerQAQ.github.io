@@ -18,6 +18,15 @@
   const platformProfile = (id) => state.platforms.find((item) => item.id === id) || {};
   const recordKey = (record) => `${record.article}\u0000${record.platform}`;
 
+  function pendingFieldLabel(field) {
+    switch (field) {
+      case "canonical": return "Canonical";
+      case "tags": return "Tags";
+      case "coverImage": return "封面图";
+      default: return field;
+    }
+  }
+
   function reconciliationPresentation(reconciliation) {
     switch (reconciliation?.status) {
       case "remote-draft": return { kind: "ok", label: "远端草稿" };
@@ -46,6 +55,7 @@
         record.platform,
         labelForPlatform(record.platform),
         record.remoteId,
+        ...(record.pendingFields ?? []).map(pendingFieldLabel),
       ].join(" ").toLowerCase();
       return haystack.includes(query);
     });
@@ -87,7 +97,8 @@
     const records = filteredRecords();
     const drafts = state.records.filter((record) => !record.publishedUrl && record.draftUrl).length;
     const published = state.records.filter((record) => Boolean(record.publishedUrl)).length;
-    summary.textContent = `共 ${state.records.length} 条平台记录 · 草稿 ${drafts} · 已发布 ${published} · 当前显示 ${records.length}`;
+    const pending = state.records.filter((record) => (record.pendingFields ?? []).length > 0).length;
+    summary.textContent = `共 ${state.records.length} 条平台记录 · 草稿 ${drafts} · 已发布 ${published} · 待手动处理 ${pending} · 当前显示 ${records.length}`;
     list.replaceChildren();
 
     if (!records.length) {
@@ -154,6 +165,13 @@
         localOnly.className = "job-platform-message";
         localOnly.textContent = "仅本地记录 · 当前平台尚未接入稳定的远端核验接口";
         card.append(localOnly);
+      }
+
+      if ((record.pendingFields ?? []).length > 0) {
+        const pending = document.createElement("small");
+        pending.className = "job-platform-message";
+        pending.textContent = `待手动设置：${record.pendingFields.map(pendingFieldLabel).join("、")}`;
+        card.append(pending);
       }
 
       const updated = record.updatedAt || record.publishedSyncedAt || record.publishedAt || record.draftSyncedAt;
