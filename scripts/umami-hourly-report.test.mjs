@@ -91,8 +91,8 @@ test("builds two adjacent hourly windows from the Umami share APIs", async () =>
       { name: "GD", count: 1, country: "CN" },
     ]);
     assert.deepEqual(report.delta.newEvents, [
-      { name: "engaged_read", count: 1 },
       { name: "read_milestone", count: 2 },
+      { name: "engaged_read", count: 1 },
     ]);
     assert.deepEqual(report.delta.newUtmSources, [
       { name: "csdn", count: 1 },
