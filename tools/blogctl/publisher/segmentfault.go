@@ -134,12 +134,8 @@ func parseSegmentFaultID(raw []byte) (string, error) {
 	return "", fmt.Errorf("response did not contain a draft id")
 }
 
-func (s *segmentFaultAdapter) uploadImage(ctx context.Context, source string, input DraftInput, token string) (string, error) {
-	payload, contentType, err := loadImage(s.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, s.ID(), "download-image", 0, err.Error(), true)
-	}
-	body, bodyType, err := multipartBody(nil, "image", inferImageFilename(source, contentType), contentType, payload)
+func (s *segmentFaultAdapter) uploadImage(ctx context.Context, image RehostImage, token string) (string, error) {
+	body, bodyType, err := multipartBody(nil, "image", inferImageFilename(image.Source, image.ContentType), image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -182,18 +178,15 @@ func (s *segmentFaultAdapter) uploadImage(ctx context.Context, source string, in
 }
 
 func (s *segmentFaultAdapter) prepareMarkdown(ctx context.Context, input DraftInput, token string) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		if strings.Contains(strings.ToLower(source), "segmentfault.com") {
-			continue
-		}
-		target, err := s.uploadImage(ctx, source, input, token)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	return replaceImages(input.Markdown, replacements), nil
+	return rehostMarkdownImages(ctx, s.client, input, ImageRehostOptions{
+		Platform:       s.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			return strings.Contains(strings.ToLower(source), "segmentfault.com")
+		},
+	}, func(ctx context.Context, image RehostImage) (string, error) {
+		return s.uploadImage(ctx, image, token)
+	})
 }
 
 func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input DraftInput) (DraftResult, error) {
