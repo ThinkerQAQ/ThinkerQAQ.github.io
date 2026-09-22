@@ -302,7 +302,7 @@ func TestBridgeNativePublisherSkipsUnchangedMediumDraft(t *testing.T) {
 
 	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
 		Article: "example", Platform: "medium", ContentRoot: contentRoot,
-		ChangedOnly: true, Compiled: compiledMediumArticle(t, "same-hash"),
+		ChangedOnly: false, Compiled: compiledMediumArticle(t, "same-hash"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -365,7 +365,7 @@ func TestBridgeNativePublisherRejectsChangedExistingMediumDraft(t *testing.T) {
 
 	_, err = (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
 		Article: "example", Platform: "medium", ContentRoot: contentRoot,
-		ChangedOnly: true, Compiled: compiledMediumArticle(t, "new-hash"),
+		ChangedOnly: false, Compiled: compiledMediumArticle(t, "new-hash"),
 	})
 	if err == nil || !strings.Contains(err.Error(), "updating an existing Medium draft is not verified") {
 		t.Fatalf("error = %v", err)
