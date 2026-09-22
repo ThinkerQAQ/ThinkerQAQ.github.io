@@ -649,15 +649,9 @@ The next work should follow control-plane value rather than add isolated UI feat
 
 ### P0 — unified live publishing path
 
-**Status:** compiler/publisher convergence is complete inside the Bridge; CLI live publishing still has a split.
+**Status:** implemented.
 
-Current issue:
-
-- Extension live jobs run inside the Bridge and receive browser sessions plus the native publisher.
-- direct `blogctl sync` creates a `SyncService` without a native publisher;
-- therefore non-dry-run native publishing from the CLI does not have the same complete execution context as Extension jobs.
-
-Target:
+Live publishing now has one execution path:
 
 ```text
 Extension ----\
@@ -665,7 +659,12 @@ Extension ----\
 CLI ----------/
 ```
 
-Dry-run may continue to invoke the compiler locally because it needs no browser session or remote mutation. Live sync should delegate to the persistent Bridge so CLI and Extension cannot diverge.
+- Extension jobs already execute inside the persistent Bridge with browser sessions and native publishers.
+- non-dry-run `blogctl sync` starts/reuses the Bridge, submits `/v1/sync/jobs`, waits for terminal job state, and prints the same per-platform result model used by the Extension.
+- `--all` is expanded from the Bridge article inventory and still creates explicit per-article live jobs.
+- dry-run remains local compiler execution because it needs neither browser session nor remote mutation.
+
+The CLI and Extension therefore no longer maintain separate live publishing implementations.
 
 ### P1 — durable publication state
 
