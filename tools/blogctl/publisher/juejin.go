@@ -187,10 +187,31 @@ func truncateRunes(value string, maximum int) string {
 	return string(runes[:maximum])
 }
 
-func juejinStringIDs(values []any) []string {
+type juejinID string
+
+func (id *juejinID) UnmarshalJSON(raw []byte) error {
+	value := strings.TrimSpace(string(raw))
+	if value == "" || value == "null" {
+		*id = ""
+		return nil
+	}
+	if strings.HasPrefix(value, """) {
+		var text string
+		if err := json.Unmarshal(raw, &text); err != nil {
+			return err
+		}
+		*id = juejinID(text)
+		return nil
+	}
+	*id = juejinID(value)
+	return nil
+}
+
+func juejinStringIDs(values []juejinID) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
-		if id := valueString(value); id != "" && id != "0" {
+		id := strings.TrimSpace(string(value))
+		if id != "" && id != "0" {
 			result = append(result, id)
 		}
 	}
@@ -320,14 +341,14 @@ type juejinDraftArticle struct {
 	ID         string           `json:"id"`
 	ArticleID  string           `json:"article_id"`
 	CategoryID string           `json:"category_id"`
-	TagIDs     []any            `json:"tag_ids"`
+	TagIDs     []juejinID       `json:"tag_ids"`
 	LinkURL    string           `json:"link_url"`
 	CoverImage string           `json:"cover_image"`
 	IsGFW      int              `json:"is_gfw"`
 	IsEnglish  int              `json:"is_english"`
 	IsOriginal int              `json:"is_original"`
 	EditType   int              `json:"edit_type"`
-	ThemeIDs   []any            `json:"theme_ids"`
+	ThemeIDs   []juejinID       `json:"theme_ids"`
 	Pics       []map[string]any `json:"pics"`
 }
 
