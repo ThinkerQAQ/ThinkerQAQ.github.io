@@ -753,7 +753,8 @@ The **草稿与发布** tab now:
 - shows draft and published links from `.blogctl/publications.json`;
 - exposes capability-aware remote verification only for platforms with a verified remote lookup transport;
 - distinguishes local-only records, verified remote drafts, verified remote publications, remote state changes and missing remote objects;
-- shows Medium pending manual fields such as Canonical, Tags and cover image directly on the publication record;
+- shows Medium pending manual fields such as Canonical, Tags and cover image directly on the publication record, with a pending-only filter;
+- lets the user mark manual fields as handled by clearing only the local durable todo marker; this never mutates or claims to verify the remote platform;
 - keeps task logs as diagnostics rather than the authoritative publication state.
 
 Medium editor completeness itself remains P3 and stays fail-closed until additional browser captures verify safe body-image insertion, canonical, tags, cover-image and existing-draft update transports.
