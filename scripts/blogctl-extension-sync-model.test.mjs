@@ -146,3 +146,26 @@ test("uses backend API-key capability for delivery tool requirements", () => {
     { available: false, reason: "未配置" },
   );
 });
+
+
+test("uses explicit-publish capability for task confirmation", () => {
+  const status = {
+    platforms: [
+      { id: "cnblogs", capabilities: { explicitPublish: true } },
+      { id: "juejin", capabilities: { explicitPublish: true } },
+      { id: "medium", capabilities: { explicitPublish: false } },
+    ],
+  };
+  const completed = {
+    operation: "draft",
+    state: "completed",
+    platforms: ["cnblogs", "juejin"],
+    results: {
+      cnblogs: { state: "completed" },
+      juejin: { state: "completed" },
+    },
+  };
+  assert.equal(model.canConfirmPublish(completed, status), true);
+  assert.equal(model.canConfirmPublish({ ...completed, platforms: ["medium"], results: { medium: { state: "completed" } } }, status), false);
+  assert.equal(model.canConfirmPublish({ ...completed, results: { cnblogs: { state: "failed" }, juejin: { state: "completed" } } }, status), false);
+});
