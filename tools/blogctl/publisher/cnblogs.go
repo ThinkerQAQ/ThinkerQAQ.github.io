@@ -2,6 +2,8 @@ package publisher
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -31,6 +33,17 @@ func NewCNBlogsAdapter(base *http.Client, session Session) (Adapter, error) {
 }
 
 func (c *cnBlogsAdapter) ID() string { return "cnblogs" }
+
+func cnBlogsEditorSessionID() string {
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "00000000-0000-4000-8000-000000000000"
+	}
+	raw[6] = (raw[6] & 0x0f) | 0x40
+	raw[8] = (raw[8] & 0x3f) | 0x80
+	hexed := hex.EncodeToString(raw)
+	return hexed[:8] + "-" + hexed[8:12] + "-" + hexed[12:16] + "-" + hexed[16:20] + "-" + hexed[20:32]
+}
 
 func (c *cnBlogsAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
 	req, err := browserRequest(ctx, method, rawURL, cnBlogsOrigin, cnBlogsOrigin+"/", c.userAgent, body)
@@ -381,6 +394,7 @@ func (c *cnBlogsAdapter) save(ctx context.Context, refID string, input DraftInpu
 	}
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("x-xsrf-token", token)
+	req.Header.Set("sessionId", cnBlogsEditorSessionID())
 	var decoded map[string]any
 	if err := doJSON(c.client, req, c.ID(), map[bool]string{true: "publish-draft", false: "save-draft"}[publish], &decoded); err != nil {
 		return nil, err
