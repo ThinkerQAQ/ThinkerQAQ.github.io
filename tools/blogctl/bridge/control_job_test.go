@@ -277,7 +277,7 @@ func TestPublishSyncJobFailsClosedForInvalidSourceJobs(t *testing.T) {
 				ID: "medium", State: "completed", Platforms: []string{"medium"},
 				Request: syncRequest{Operation: "draft", Platforms: []string{"medium"}},
 			},
-			want: "only for native Chinese platforms",
+			want: "not supported by one or more selected platforms",
 		},
 	}
 	for _, tc := range cases {
