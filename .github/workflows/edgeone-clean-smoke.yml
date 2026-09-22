@@ -1,0 +1,91 @@
+name: EdgeOne clean-project smoke test
+
+on:
+  push:
+    branches: [debug/edgeone-clean-project]
+
+permissions:
+  contents: read
+
+env:
+  ASTRO_TELEMETRY_DISABLED: 1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      PUBLIC_ASK_BLOG_WORKER_URL: ${{ vars.PUBLIC_ASK_BLOG_WORKER_URL || 'https://thinkerqaq-blog-ai.blog-ai.workers.dev/chat' }}
+      PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY: ${{ vars.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY }}
+      PUBLIC_REACTION_WORKER_URL: ${{ vars.PUBLIC_REACTION_WORKER_URL }}
+      PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.PUBLIC_UMAMI_WEBSITE_ID }}
+      CONTENT_REPOSITORY: ThinkerQAQ/blog-content
+    steps:
+      - name: Checkout public engine
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: engine
+          fetch-depth: 2
+
+      - name: Checkout private content
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.CONTENT_REPOSITORY }}
+          ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
+          path: content-source
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+
+      - name: Install engine dependencies
+        working-directory: engine
+        run: npm ci
+
+      - name: Validate private content source contract
+        working-directory: engine
+        run: node scripts/validate-content-source.mjs ../content-source
+
+      - name: Setup Java for PlantUML
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install diagram layout and Chinese fonts
+        run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
+
+      - name: Assemble private content into public engine
+        working-directory: engine
+        run: node scripts/assemble-content.mjs ../content-source
+
+      - name: Test public engine
+        working-directory: engine
+        run: npm run test:engine
+
+      - name: Astro check
+        working-directory: engine
+        run: npm run check
+
+      - name: Build static site
+        working-directory: engine
+        run: npm run build
+
+      - name: Verify representative static assets exist
+        working-directory: engine
+        run: |
+          test -f dist/index.html
+          test -f dist/avatar.svg
+          test -f dist/brand-mark.svg
+          test -n "$(find dist/_astro -maxdepth 1 -name 'BaseLayout.*.css' -print -quit)"
+          echo "dist files: $(find dist -type f | wc -l)"
+
+      - name: Deploy full dist to a fresh EdgeOne Makers project
+        working-directory: engine
+        env:
+          EDGEONE_API_TOKEN: ${{ secrets.EDGEONE_API_TOKEN }}
+        run: npx edgeone@1.6.41 makers deploy ./dist -n thinkerqaq-blog-static -t "$EDGEONE_API_TOKEN" -e production
