@@ -252,8 +252,8 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 				record := PublicationRecord{
 					Article: slug, Platform: platform, RemoteID: remoteID,
 					DraftURL: draftURL, PublishedURL: stringValue(state["publishedUrl"]),
-					DraftSyncedAt: stringValue(state["draftSyncedAt"]),
-					PublishedAt: stringValue(state["publishedAt"]),
+					DraftSyncedAt:     stringValue(state["draftSyncedAt"]),
+					PublishedAt:       stringValue(state["publishedAt"]),
 					PublishedSyncedAt: stringValue(state["publishedSyncedAt"]),
 				}
 				if record.DraftSyncedAt == "" {
