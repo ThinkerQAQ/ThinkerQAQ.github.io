@@ -317,18 +317,18 @@ func (j *juejinAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dra
 }
 
 type juejinDraftArticle struct {
-	ID           string           `json:"id"`
-	ArticleID    string           `json:"article_id"`
-	CategoryID   string           `json:"category_id"`
-	TagIDs       []any            `json:"tag_ids"`
-	LinkURL      string           `json:"link_url"`
-	CoverImage   string           `json:"cover_image"`
-	IsGFW        int              `json:"is_gfw"`
-	IsEnglish    int              `json:"is_english"`
-	IsOriginal   int              `json:"is_original"`
-	EditType     int              `json:"edit_type"`
-	ThemeIDs     []any            `json:"theme_ids"`
-	Pics         []map[string]any `json:"pics"`
+	ID         string           `json:"id"`
+	ArticleID  string           `json:"article_id"`
+	CategoryID string           `json:"category_id"`
+	TagIDs     []any            `json:"tag_ids"`
+	LinkURL    string           `json:"link_url"`
+	CoverImage string           `json:"cover_image"`
+	IsGFW      int              `json:"is_gfw"`
+	IsEnglish  int              `json:"is_english"`
+	IsOriginal int              `json:"is_original"`
+	EditType   int              `json:"edit_type"`
+	ThemeIDs   []any            `json:"theme_ids"`
+	Pics       []map[string]any `json:"pics"`
 }
 
 type juejinDraftDetail struct {
