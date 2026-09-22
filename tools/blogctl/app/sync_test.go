@@ -309,10 +309,13 @@ func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	}
 }
 
-func TestNormalizeSyncRequestRejectsAllForNativeJuejin(t *testing.T) {
-	_, err := NormalizeSyncRequest(SyncRequest{All: true, Platforms: []string{"juejin"}})
-	if err == nil || !strings.Contains(err.Error(), "explicit article") {
-		t.Fatalf("error = %v", err)
+func TestNormalizeSyncRequestAllowsExplicitAllForJuejin(t *testing.T) {
+	request, err := NormalizeSyncRequest(SyncRequest{All: true, Platforms: []string{"juejin"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !request.All || !reflect.DeepEqual(request.Platforms, []string{"juejin"}) {
+		t.Fatalf("request = %#v", request)
 	}
 }
 
