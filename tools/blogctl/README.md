@@ -134,7 +134,7 @@ The source article is loaded from `BLOG_CONTENT_ROOT/src/content/articles/**`; E
 
 BlogCTL Extension independently reports browser login status for the publishing platforms it knows how to inspect: 博客园, 掘金, CSDN, 思否, 知乎, 51CTO, 开源中国, 今日头条, DEV.to, and Medium. A failed probe is isolated to that platform and does not make the other platform or Bridge states unknown.
 
-The extension contacts the registered Native Messaging Host whenever Bridge access is required. The host reuses an existing healthy Bridge or starts `blogctl --bridge` in the background, then returns the current loopback endpoint. Live `blogctl sync --platforms medium` uses the same persistent Bridge state instead of creating a second per-command Bridge.
+The extension contacts the registered Native Messaging Host whenever Bridge access is required. The host reuses an existing healthy Bridge or starts `blogctl --bridge` in the background, then returns the current loopback endpoint. All live `blogctl sync` commands now submit jobs to that same persistent Bridge; dry-run stays local because it performs no browser-session or remote mutation. `--all` expands into one Bridge job per published local article so every live mutation keeps explicit article-level task state.
 
 Platforms that publish through browser-authenticated native adapters use a short-lived browser-session handoff internally. This is an implementation detail and is not exposed as a separate Session control in the popup; users only see the normal platform login state.
 
@@ -161,9 +161,10 @@ blogctl sync --article concurrency-series-01-hardware --platforms medium
 
 Current routing uses one BlogCTL control plane:
 
-- DEV.to keeps the official API implementation.
-- Medium uses the persistent BlogCTL Bridge plus BlogCTL Extension and remains draft-oriented.
+- DEV.to uses the official Forem API through the Go publisher adapter.
+- Medium consumes the same `CompiledArticle` protocol and runs through the persistent Bridge; it remains draft-oriented and fails closed when body-image insertion or existing-draft update is not verified.
 - 博客园、掘金、CSDN、思否、知乎、51CTO、开源中国、今日头条 use BlogCTL's native Go publisher adapters. They do not require the Wechatsync CLI or Wechatsync browser extension.
+- CLI and Extension live publishing both execute through Bridge jobs, so they share workspace config, browser sessions, publisher state, retry behavior, and publication inventory.
 - Native Chinese publishing follows two explicit phases: first create or update the remote draft and return its preview URL; after preview, use **确定发布** from the task page. BlogCTL refuses confirmation when the source content hash no longer matches the reviewed draft.
 
 The browser extension is therefore the only browser-side component required by BlogCTL publishing.
