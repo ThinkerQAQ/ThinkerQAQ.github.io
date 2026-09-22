@@ -454,6 +454,9 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 		if _, ok := supportedSyncPlatforms[view.ID]; !ok {
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
+		if view.ID == "medium" && view.ChangedOnly {
+			return config, errors.New("Medium currently cannot update an existing draft")
+		}
 		config.Publishing.Platforms[view.ID] = publishingPlatformConfig{
 			Language: view.Language, ChangedOnly: view.ChangedOnly, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
 		}
