@@ -181,7 +181,6 @@ func TestMediumDraftCoverImageJSON(t *testing.T) {
 	}
 }
 
-
 func installMediumBridgeSession(server *Server) {
 	server.sessions["medium"] = platformSession{
 		Cookies: map[string]string{
@@ -200,10 +199,10 @@ func installMediumBridgeSession(server *Server) {
 func compiledMediumArticle(t *testing.T, hash string) blogcompiler.CompiledArticle {
 	t.Helper()
 	payload, err := json.Marshal(mediumDraft{
-		Title:  "Medium title",
-		Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "Body"}}},
+		Title:        "Medium title",
+		Deltas:       []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "Body"}}},
 		CanonicalURL: "https://thinkerqaq.github.io/articles/example/",
-		Tags: []string{"go", "concurrency"},
+		Tags:         []string{"go", "concurrency"},
 	})
 	if err != nil {
 		t.Fatal(err)
