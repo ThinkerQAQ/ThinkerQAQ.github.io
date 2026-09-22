@@ -141,12 +141,8 @@ func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 		t.Fatalf("changed-only policy leaked across platforms: %#v", updated.Publishing.Platforms)
 	}
 	medium.ChangedOnly = true
-	updated, err = updatePublishing(updated, []publishingPlatformView{medium})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !updated.Publishing.Platforms["medium"].ChangedOnly {
-		t.Fatal("Medium changed-only policy was not persisted")
+	if _, err := updatePublishing(updated, []publishingPlatformView{medium}); err == nil {
+		t.Fatal("Medium must reject an unsupported changed-only policy")
 	}
 }
 
