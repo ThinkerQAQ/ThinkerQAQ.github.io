@@ -623,7 +623,7 @@ As of 2026-09-22, the publishing control plane is substantially converged:
 - 博客园、掘金、CSDN、思否、知乎、51CTO、开源中国、今日头条 and DEV.to publish through the Go publisher/task flow.
 - Medium now uses the same `CompiledArticle` compiler output and Bridge task flow instead of the historical `scripts/blogctl-syndicate.mjs` control-plane route.
 - Medium draft results are recorded by the same Go publication-state writer and therefore appear in the publication inventory.
-- Mermaid assets follow one path: compiler detection -> PNG render -> R2 -> platform adapter. Platform-specific adapters may re-upload the R2 image to their own CDN.
+- Mermaid assets follow one path: compiler detection -> PNG render -> R2 -> platform adapter.\n- For adapters with `BodyImageRehost=true`, BlogCTL downloads the R2/HTTPS source, uploads the bytes to the platform CDN, and rewrites the article body to the platform URL. Remote upload failures keep the working source URL; local-only image failures remain fatal.\n- `BodyImages=true` only means the platform can render body images. It does not imply that BlogCTL has a verified platform-CDN upload transport.
 - BlogCTL Extension exposes sync, task, publishing configuration, tool configuration, and publication inventory from the same local Bridge.
 
 The old root publishing scripts remain only as compatibility/development entry points. They are no longer the desired control-plane boundary.
@@ -702,6 +702,7 @@ type Capabilities struct {
     PublishedUpdate  bool
     RemoteList       bool
     BodyImages       bool
+    BodyImageRehost  bool
     CoverImage       bool
     NativeCanonical  bool
     Tags              bool
