@@ -448,6 +448,54 @@ func TestSyncStartRejectsInvalidBridgeTokenWithoutExtensionOrigin(t *testing.T) 
 	}
 }
 
+
+
+func TestSyncStartReloadsPersistedWorkspaceRoots(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	configSeen := make(chan bridgeConfig, 1)
+	server.syncRunner = func(_ context.Context, config bridgeConfig, request syncRequest, emit func(blogapp.SyncEvent)) (string, error) {
+		configSeen <- config
+		for _, platform := range request.Platforms {
+			emit(blogapp.SyncEvent{Platform: platform, State: "completed", Result: "draft-created"})
+		}
+		return "ok", nil
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	contentRoot := t.TempDir()
+	engineRoot := t.TempDir()
+	if err := UpdateWorkspaceRoots(contentRoot, engineRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sync/jobs",
+		bytes.NewBufferString(`{"article":"example","platforms":["devto"],"draft":true,"operation":"draft"}`))
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("x-thinkerqaq-token", "token")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", response.StatusCode)
+	}
+
+	select {
+	case config := <-configSeen:
+		if config.ContentRoot != contentRoot || config.EngineRoot != engineRoot {
+			t.Fatalf("sync config roots = %q / %q", config.ContentRoot, config.EngineRoot)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("sync runner did not receive refreshed config")
+	}
+}
+
 func TestSyncJobNotFoundReturnsStructuredError(t *testing.T) {
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
