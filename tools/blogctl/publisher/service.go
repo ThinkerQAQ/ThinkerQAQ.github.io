@@ -39,42 +39,6 @@ func retryableAuthError(err error) bool {
 	return IsKind(err, ErrAuthExpired) || IsKind(err, ErrCSRF)
 }
 
-func csdnPublishedDraftGuard(state PublicationState, input DraftInput) (DraftResult, bool, error) {
-	if strings.TrimSpace(state.PublishedURL) == "" {
-		return DraftResult{}, false, nil
-	}
-	if state.PublishedHash != "" && state.PublishedHash == input.ContentHash {
-		return DraftResult{
-			ID: state.RemoteDraftID, URL: state.PublishedURL, Skipped: true,
-		}, true, nil
-	}
-	return DraftResult{}, true, platformError(
-		ErrValidation,
-		"csdn",
-		"update-draft",
-		0,
-		"CSDN does not expose a save-only edit state for an already published article; use republish after the published-update request is verified",
-		false,
-	)
-}
-
-func csdnPublishedRepublishGuard(state PublicationState, input DraftInput) (PublishResult, bool, error) {
-	if strings.TrimSpace(state.PublishedURL) == "" {
-		return PublishResult{}, false, nil
-	}
-	if state.PublishedHash != "" && state.PublishedHash == input.ContentHash {
-		return PublishResult{URL: state.PublishedURL}, true, nil
-	}
-	return PublishResult{}, true, platformError(
-		ErrValidation,
-		"csdn",
-		"republish",
-		0,
-		"CSDN published-article changes must be submitted with the editor's republish request; that request payload is not verified yet",
-		false,
-	)
-}
-
 func (s Service) CreateOrUpdateDraft(
 	ctx context.Context,
 	platform string,
@@ -103,11 +67,6 @@ func (s Service) CreateOrUpdateDraftInput(
 	state, _, err := LoadPublicationState(contentRoot, slug, platform)
 	if err != nil {
 		return DraftResult{}, err
-	}
-	if platform == "csdn" {
-		if result, handled, guardErr := csdnPublishedDraftGuard(state, input); handled {
-			return result, guardErr
-		}
 	}
 	input.RemoteDraftID = state.RemoteDraftID
 	input.DraftURL = state.DraftURL
@@ -241,11 +200,6 @@ func (s Service) PublishDraftInput(
 	state, _, err := LoadPublicationState(contentRoot, slug, platform)
 	if err != nil {
 		return PublishResult{}, err
-	}
-	if platform == "csdn" {
-		if result, handled, guardErr := csdnPublishedRepublishGuard(state, input); handled {
-			return result, guardErr
-		}
 	}
 	input.RemoteDraftID = state.RemoteDraftID
 	input.DraftURL = state.DraftURL
