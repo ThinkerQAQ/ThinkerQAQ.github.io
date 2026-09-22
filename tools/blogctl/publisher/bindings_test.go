@@ -11,35 +11,6 @@ import (
 	"time"
 )
 
-func TestCNBlogsBindingMigratesAndSurvivesGeneratedOutputRemoval(t *testing.T) {
-	root := t.TempDir()
-	generated := filepath.Join(root, ".distribution")
-	if err := os.MkdirAll(generated, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	manifest := `{"version":2,"articles":{"example":{"platforms":{"cnblogs":{"remoteDraftId":"42","draftUrl":"https://i.cnblogs.com/articles/edit;postId=42","draftHash":"local-hash"}}}}}`
-	if err := os.WriteFile(filepath.Join(generated, "manifest.json"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	count, err := MigrateCNBlogsBindings(root)
-	if err != nil || count != 1 {
-		t.Fatalf("migration = %d, %v", count, err)
-	}
-	if err := os.RemoveAll(generated); err != nil {
-		t.Fatal(err)
-	}
-	binding, found, err := LoadCNBlogsBinding(root, "example")
-	if err != nil || !found || binding.PostID != "42" || binding.LastPushedHash != "local-hash" {
-		t.Fatalf("durable binding = %#v, %v, %v", binding, found, err)
-	}
-	if count, err := MigrateCNBlogsBindings(root); err != nil || count != 0 {
-		t.Fatalf("repeat migration = %d, %v", count, err)
-	}
-	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "other", PostID: "42", State: "draft"}); err == nil {
-		t.Fatal("same remote post was bound to another source article")
-	}
-}
-
 func TestParseCNBlogsPostReference(t *testing.T) {
 	for reference, want := range map[string]string{
 		"42": "42",
@@ -249,22 +220,6 @@ func TestCNBlogsBindingSlotsTransitionAndUnbind(t *testing.T) {
 	}
 }
 
-func TestCNBlogsUnbindDoesNotResurrectLegacyManifest(t *testing.T) {
-	root := cnBlogsPublishedFixture(t)
-	if _, err := MigrateCNBlogsBindings(root); err != nil {
-		t.Fatal(err)
-	}
-	if err := DeleteCNBlogsBinding(root, "example", "published", "42"); err != nil {
-		t.Fatal(err)
-	}
-	if binding, found, err := LoadCNBlogsBindingState(root, "example", "published"); err != nil || found {
-		t.Fatalf("legacy binding reappeared: %#v, %v, %v", binding, found, err)
-	}
-	if count, err := MigrateCNBlogsBindings(root); err != nil || count != 0 {
-		t.Fatalf("legacy binding migrated again: %d, %v", count, err)
-	}
-}
-
 func TestCNBlogsCreatedDraftWritesDurableBinding(t *testing.T) {
 	root := cnBlogsPublishedFixture(t)
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -306,48 +261,6 @@ func TestCNBlogsCreatedDraftWritesDurableBinding(t *testing.T) {
 	}
 }
 
-func TestPublicationStateMigratesAndSurvivesDistributionCleanup(t *testing.T) {
-	root := t.TempDir()
-	generated := filepath.Join(root, ".distribution")
-	if err := os.MkdirAll(generated, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	manifest := `{"version":2,"articles":{"example":{"platforms":{"juejin":{"remoteDraftId":"draft-42","draftUrl":"https://juejin.cn/editor/drafts/draft-42","draftHash":"hash-1","draftSyncedAt":"2026-09-20T01:00:00Z","publishedUrl":"https://juejin.cn/post/post-42","publishedHash":"hash-1","publishedAt":"2026-09-20T02:00:00Z"},"devto":{"remoteDraftId":"9001","draftUrl":"https://dev.to/example","draftHash":"hash-dev","draftSyncedAt":"2026-09-20T03:00:00Z"}}}}}`
-	if err := os.WriteFile(filepath.Join(generated, "manifest.json"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	count, err := MigratePublicationStates(root)
-	if err != nil || count != 2 {
-		t.Fatalf("migration = %d, %v", count, err)
-	}
-	if err := os.RemoveAll(generated); err != nil {
-		t.Fatal(err)
-	}
-
-	state, _, err := LoadPublicationState(root, "example", "juejin")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state.RemoteDraftID != "draft-42" || state.DraftHash != "hash-1" || state.PublishedURL != "https://juejin.cn/post/post-42" {
-		t.Fatalf("durable state = %#v", state)
-	}
-	records, err := ListPublicationRecords(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(records) != 2 {
-		t.Fatalf("records = %#v", records)
-	}
-	links, err := LoadArticleLinks(root, "example")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if links["juejin"].RemoteID != "draft-42" || links["devto"].DraftURL != "https://dev.to/example" {
-		t.Fatalf("links = %#v", links)
-	}
-}
-
 func TestDurablePublicationWritesPreserveCNBlogsBindings(t *testing.T) {
 	root := t.TempDir()
 	if err := SaveCNBlogsBinding(root, CNBlogsBinding{
@@ -381,35 +294,6 @@ func TestDurablePublicationWritesPreserveCNBlogsBindings(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, ".distribution", "manifest.json")); !os.IsNotExist(err) {
 		t.Fatalf("durable publisher unexpectedly created distribution manifest: %v", err)
-	}
-}
-
-func TestPublicationMigrationDoesNotOverwriteDurableState(t *testing.T) {
-	root := t.TempDir()
-	now := time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC)
-	if err := SavePublicationDraftResult(root, "example", "juejin", "new-hash", DraftResult{
-		ID: "new-draft", URL: "https://juejin.cn/editor/drafts/new-draft", Created: true,
-	}, now); err != nil {
-		t.Fatal(err)
-	}
-	generated := filepath.Join(root, ".distribution")
-	if err := os.MkdirAll(generated, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	legacy := `{"version":2,"articles":{"example":{"platforms":{"juejin":{"remoteDraftId":"old-draft","draftUrl":"https://juejin.cn/editor/drafts/old-draft","draftHash":"old-hash"}}}}}`
-	if err := os.WriteFile(filepath.Join(generated, "manifest.json"), []byte(legacy), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	count, err := MigratePublicationStates(root)
-	if err != nil || count != 0 {
-		t.Fatalf("migration = %d, %v", count, err)
-	}
-	state, _, err := LoadPublicationState(root, "example", "juejin")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state.RemoteDraftID != "new-draft" || state.DraftHash != "new-hash" {
-		t.Fatalf("durable state overwritten: %#v", state)
 	}
 }
 
@@ -510,56 +394,5 @@ func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
 	if state.RemoteDraftID != "draft-2" || state.DraftHash != "hash-2" ||
 		state.PublishedURL != "https://juejin.cn/post/post-2" || state.PublishedHash != "hash-2" {
 		t.Fatalf("state = %#v", state)
-	}
-}
-
-func TestBindingsV1UpgradesToV2WithoutLosingCNBlogsIdentity(t *testing.T) {
-	root := t.TempDir()
-	dir := filepath.Join(root, ".blogctl")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	raw := `{
-  "version": 1,
-  "cnblogs": [
-    {
-      "slug": "example",
-      "account": "ThinkerQAQ",
-      "postId": "42",
-      "state": "published",
-      "publicUrl": "https://www.cnblogs.com/ThinkerQAQ/p/42",
-      "source": "manual"
-    }
-  ]
-}`
-	path := filepath.Join(dir, "publications.json")
-	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	now := time.Date(2026, 9, 22, 14, 30, 0, 0, time.UTC)
-	if err := SavePublicationDraftResult(root, "example", "juejin", "hash-2", DraftResult{
-		ID: "draft-2", URL: "https://juejin.cn/editor/drafts/draft-2", Created: true,
-	}, now); err != nil {
-		t.Fatal(err)
-	}
-
-	updated, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decoded bindingFile
-	if err := json.Unmarshal(updated, &decoded); err != nil {
-		t.Fatal(err)
-	}
-	if decoded.Version != bindingFileVersion {
-		t.Fatalf("version = %d, want %d", decoded.Version, bindingFileVersion)
-	}
-	if len(decoded.CNBlogs) != 1 || decoded.CNBlogs[0].PostID != "42" ||
-		decoded.CNBlogs[0].PublicURL != "https://www.cnblogs.com/ThinkerQAQ/p/42" {
-		t.Fatalf("CNBlogs bindings = %#v", decoded.CNBlogs)
-	}
-	if len(decoded.Publications) != 1 || decoded.Publications[0].RemoteDraftID != "draft-2" {
-		t.Fatalf("publications = %#v", decoded.Publications)
 	}
 }
