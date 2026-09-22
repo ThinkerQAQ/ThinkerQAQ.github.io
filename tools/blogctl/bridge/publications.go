@@ -14,13 +14,8 @@ func (s *Server) handlePublications(response http.ResponseWriter) {
 	s.mu.Unlock()
 
 	s.distributionMu.Lock()
-	_, migrateErr := publisher.MigratePublicationStates(contentRoot)
 	records, listErr := publisher.ListPublicationRecords(contentRoot)
 	s.distributionMu.Unlock()
-	if migrateErr != nil {
-		writeAPIError(response, http.StatusBadRequest, "invalid_request", migrateErr.Error(), nil)
-		return
-	}
 	if listErr != nil {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", listErr.Error(), nil)
 		return
