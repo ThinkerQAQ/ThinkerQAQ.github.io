@@ -1,0 +1,92 @@
+name: Upload China economy images to R2
+
+on:
+  push:
+    branches:
+      - ops/upload-china-economy-r2
+    paths:
+      - .github/workflows/upload-china-economy-r2.yml
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload and verify original images
+        shell: bash
+        run: |
+          set -euo pipefail
+          export R2_BUCKET="${R2_BUCKET:-thinkerqaq-assets}"
+          export R2_PUBLIC_BASE_URL="${R2_PUBLIC_BASE_URL:-https://pub-366a15b6733345039775c083a1fffb3e.r2.dev}"
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { uploadR2Object } from "./tools/blogctl/assets/node/r2.mjs";
+
+          const required = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "R2_PUBLIC_BASE_URL"];
+          for (const key of required) {
+            if (!String(process.env[key] || "").trim()) throw new Error("Missing " + key);
+          }
+
+          const names = [
+            "1726668514_20240916120627952_3133.png",
+            "1608046723_20201215233758671_21376.png",
+            "1608305534_20201218232754028_26158.png",
+            "1644212133_20220207133529315_15989.png",
+            "1726668459_20240915212836148_26921.png",
+          ];
+
+          const config = {
+            accountId: process.env.R2_ACCOUNT_ID,
+            accessKeyId: process.env.R2_ACCESS_KEY_ID,
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+            bucket: process.env.R2_BUCKET,
+            endpoint: "https://" + process.env.R2_ACCOUNT_ID + ".r2.cloudflarestorage.com",
+            publicBaseUrl: process.env.R2_PUBLIC_BASE_URL,
+          };
+
+          const sha = (buf) => createHash("sha256").update(buf).digest("hex");
+
+          for (const name of names) {
+            const sourceUrl = "https://raw.githubusercontent.com/TDoct/images/master/" + name;
+            const sourceResp = await fetch(sourceUrl);
+            if (!sourceResp.ok) throw new Error("Source download failed " + sourceResp.status + ": " + sourceUrl);
+            const source = Buffer.from(await sourceResp.arrayBuffer());
+            if (!source.length) throw new Error("Empty source: " + name);
+
+            const objectKey = "tdoc/original/" + name;
+            const uploaded = await uploadR2Object({
+              objectKey,
+              body: source,
+              contentType: "image/png",
+              config,
+            });
+
+            let publicBody = null;
+            let status = 0;
+            for (let attempt = 1; attempt <= 10; attempt++) {
+              const publicResp = await fetch(uploaded.publicUrl, { cache: "no-store" });
+              status = publicResp.status;
+              if (publicResp.ok) {
+                publicBody = Buffer.from(await publicResp.arrayBuffer());
+                break;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+            }
+            if (!publicBody) throw new Error("Public URL failed (" + status + "): " + uploaded.publicUrl);
+            if (sha(publicBody) !== sha(source)) {
+              throw new Error("SHA-256 mismatch: " + uploaded.publicUrl);
+            }
+
+            console.log("OK", source.length, sha(source), uploaded.publicUrl);
+          }
+          NODE
