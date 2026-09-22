@@ -38,6 +38,8 @@ type PublicationBinding struct {
 	PendingFields     []string `json:"pendingFields,omitempty"`
 }
 
+const bindingFileVersion = 2
+
 type bindingFile struct {
 	Version      int                  `json:"version"`
 	CNBlogs      []CNBlogsBinding     `json:"cnblogs"`
@@ -285,7 +287,7 @@ func MigratePublicationStates(contentRoot string) (int, error) {
 }
 
 func readBindings(contentRoot string) (bindingFile, error) {
-	result := bindingFile{Version: 1, CNBlogs: []CNBlogsBinding{}, Publications: []PublicationBinding{}}
+	result := bindingFile{Version: bindingFileVersion, CNBlogs: []CNBlogsBinding{}, Publications: []PublicationBinding{}}
 	if strings.TrimSpace(contentRoot) == "" {
 		return result, errors.New("content repository path is not configured")
 	}
@@ -299,8 +301,19 @@ func readBindings(contentRoot string) (bindingFile, error) {
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return result, fmt.Errorf("decode CNBlogs bindings: %w", err)
 	}
-	if result.Version != 1 {
+	switch result.Version {
+	case 1:
+		// v1 stored CNBlogs bindings only. The current struct remains backward
+		// compatible, and the next durable write upgrades the file to v2.
+	case bindingFileVersion:
+	default:
 		return result, fmt.Errorf("unsupported bindings version: %d", result.Version)
+	}
+	if result.CNBlogs == nil {
+		result.CNBlogs = []CNBlogsBinding{}
+	}
+	if result.Publications == nil {
+		result.Publications = []PublicationBinding{}
 	}
 	return result, nil
 }
@@ -458,6 +471,13 @@ func DeleteCNBlogsBinding(contentRoot, slug, state, postID string) error {
 }
 
 func writeBindings(contentRoot string, bindings bindingFile) error {
+	bindings.Version = bindingFileVersion
+	if bindings.CNBlogs == nil {
+		bindings.CNBlogs = []CNBlogsBinding{}
+	}
+	if bindings.Publications == nil {
+		bindings.Publications = []PublicationBinding{}
+	}
 	path := bindingPath(contentRoot)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
