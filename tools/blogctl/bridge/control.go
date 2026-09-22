@@ -599,7 +599,7 @@ func mediumPlatformSession(session publisher.Session) platformSession {
 }
 
 func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, request blogapp.NativeDraftRequest, session publisher.Session, httpClient *http.Client) (blogapp.NativeDraftResult, error) {
-	state, manifestPath, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
+	state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
@@ -641,8 +641,8 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	if strings.TrimSpace(postID) == "" || strings.TrimSpace(draftURL) == "" {
 		return blogapp.NativeDraftResult{}, errors.New("Medium draft response is missing post id or draft URL")
 	}
-	if err := publisher.SaveDraftResult(
-		manifestPath,
+	if err := publisher.SavePublicationDraftResult(
+		request.ContentRoot,
 		request.Article,
 		"medium",
 		request.Compiled.ContentHash,
@@ -717,6 +717,9 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 }
 
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
+	if _, err := publisher.MigratePublicationStates(config.ContentRoot); err != nil {
+		return "", err
+	}
 	publishingJSON, publishingErr := resolvedPublishingJSON(config)
 	if publishingErr != nil {
 		return "", publishingErr
