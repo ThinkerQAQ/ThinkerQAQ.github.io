@@ -737,20 +737,26 @@ The copy/paste fallback remains mandatory until body images are verified.
 
 ### P4 — compatibility cleanup
 
-After CLI live delegation and durable-state migration:
+**Status:** implemented for the obsolete control-plane compatibility layer.
 
-- reduce `scripts/blogctl-distribute.mjs` and `scripts/blogctl-syndicate.mjs` to thin developer wrappers or remove them;
-- remove legacy syndication event parsing that is no longer reachable from the control plane;
-- delete duplicated publishing defaults that are no longer authoritative;
-- keep generic Astro/build scripts that have independent engine value.
+- `scripts/blogctl-distribute.mjs` and `scripts/blogctl-syndicate.mjs` are now compatibility stubs that direct live work to `blogctl sync`;
+- unreachable `distribution-sync`, `syndication-devto`, and `syndication-medium` event parsing has been removed from the Go control plane;
+- supported-platform metadata, labels, default languages and capabilities now come from one shared platform registry;
+- generic modules still used by the compiler, including `scripts/distribute.mjs`, `scripts/medium.mjs`, rendering helpers and their tests, remain intact.
 
 ### P5 — control-plane UX
 
-Once capabilities and reconciliation are backend-driven:
+**Status:** implemented for the current verified platform capabilities.
 
-- publication inventory should show capability-aware actions;
-- distinguish local record, verified remote draft, published article, stale binding, and missing remote object;
-- expose pending manual fields such as Medium canonical/tags/cover;
-- keep task logs as diagnostics, not as the primary source of publication state.
+The **草稿与发布** tab now:
+
+- reads durable publication state rather than task logs;
+- shows draft and published links from `.blogctl/publications.json`;
+- exposes capability-aware remote verification only for platforms with a verified remote lookup transport;
+- distinguishes local-only records, verified remote drafts, verified remote publications, remote state changes and missing remote objects;
+- shows Medium pending manual fields such as Canonical, Tags and cover image directly on the publication record;
+- keeps task logs as diagnostics rather than the authoritative publication state.
+
+Medium editor completeness itself remains P3 and stays fail-closed until additional browser captures verify safe body-image insertion, canonical, tags, cover-image and existing-draft update transports.
 
 This ordering keeps the architecture stable: one compiler, one state owner, one live execution path, one capability model, then richer UI.
