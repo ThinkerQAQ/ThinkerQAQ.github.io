@@ -88,30 +88,18 @@ The design, industry research, event schema, thresholds, lifecycle rules, valida
 
 ## Hourly automation without a Pro API key
 
-Umami Cloud API keys require a Pro plan. The blog does not need to upgrade only for hourly monitoring because a public website share already exposes a scoped read-only token.
+Umami Cloud API keys require a Pro plan. Hourly monitoring instead runs in GitHub Actions, which can reach the public Umami Share APIs directly.
 
-The blog Worker provides:
+The workflow `.github/workflows/umami-hourly-report.yml` runs every hour and:
 
-```text
-GET /analytics/hourly?share=<umami-share-slug>&hours=1
-```
+1. Resolves the public Umami Share slug through `/api/share/{slug}`.
+2. Uses Umami's scoped read-only share token.
+3. Reads aggregate stats and metrics directly from Umami Cloud.
+4. Compares the most recent hour with the immediately preceding hour.
+5. Writes only aggregate JSON to the dedicated `analytics-data` branch as `umami/latest.json`.
 
-The endpoint:
+The snapshot includes traffic totals, paths, entry pages, referrers, channels, countries, regions, cities, custom events, UTM sources, and hour-over-hour deltas.
 
-1. Resolves the public share slug through Umami Cloud's `/api/share/{slug}` endpoint.
-2. Uses the short-lived/scoped share token returned by Umami.
-3. Reads only aggregate website analytics through the same read-only APIs used by the shared dashboard.
-4. Compares the most recent window with the immediately preceding window.
-5. Returns aggregate JSON only; it does not return session IDs, distinct IDs, IP addresses, or individual visitor records.
+The `analytics-data` branch is intentionally separate from `main` so hourly snapshots do not trigger site or Worker deployments. No IP address, session ID, distinct ID, or individual visitor trajectory is stored.
 
-The response contains:
-
-- pageviews, visitors, visits, bounces, total time;
-- paths and entry pages;
-- referrers and channels;
-- countries;
-- custom events such as `read_milestone`, `engaged_read`, `deep_read`, and `content_nav`;
-- UTM sources;
-- new values that appeared in the current window compared with the previous window.
-
-The share slug is supplied by the caller and is not committed into the public repository. A share slug is already a public-read capability; regenerate or disable the Umami Share URL to revoke access.
+ChatGPT automation reads the generated snapshot from GitHub instead of contacting Umami Cloud or the Cloudflare Worker directly.
