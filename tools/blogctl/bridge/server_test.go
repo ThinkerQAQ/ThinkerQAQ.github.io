@@ -392,7 +392,6 @@ func TestBridgeProxyConfigWriteRequiresExtensionOrigin(t *testing.T) {
 	}
 }
 
-
 func TestSyncStartAllowsBridgeTokenWithoutExtensionOrigin(t *testing.T) {
 	server, _ := New("token")
 	server.syncRunner = func(_ context.Context, _ bridgeConfig, request syncRequest, emit func(blogapp.SyncEvent)) (string, error) {
@@ -447,8 +446,6 @@ func TestSyncStartRejectsInvalidBridgeTokenWithoutExtensionOrigin(t *testing.T) 
 		t.Fatalf("status = %d, want 403", response.StatusCode)
 	}
 }
-
-
 
 func TestSyncStartReloadsPersistedWorkspaceRoots(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
