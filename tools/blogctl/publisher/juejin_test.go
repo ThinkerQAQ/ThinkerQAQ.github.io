@@ -258,6 +258,14 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 
+	state, _, err := LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.RemoteDraftID != "replacement" || state.DraftHash != "new" {
+		t.Fatalf("durable state = %#v", state)
+	}
+
 	rawManifest, err := os.ReadFile(filepath.Join(root, ".distribution", "manifest.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -266,10 +274,9 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	if err := json.Unmarshal(rawManifest, &saved); err != nil {
 		t.Fatal(err)
 	}
-	state := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
-	savedState := objectValue(state)
-	if stringValue(savedState["remoteDraftId"]) != "replacement" || stringValue(savedState["draftHash"]) != "new" {
-		t.Fatalf("saved state = %#v", savedState)
+	legacyState := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
+	if stringValue(objectValue(legacyState)["remoteDraftId"]) != "missing" {
+		t.Fatalf("legacy manifest was unexpectedly mutated: %#v", objectValue(legacyState))
 	}
 }
 
