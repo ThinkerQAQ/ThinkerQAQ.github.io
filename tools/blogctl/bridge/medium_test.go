@@ -5,8 +5,14 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
+	"time"
+
+	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 type mediumRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -172,5 +178,156 @@ func TestMediumDraftCoverImageJSON(t *testing.T) {
 	}
 	if !strings.Contains(string(payload), "cover.png") {
 		t.Fatalf("expected cover URL in JSON: %s", payload)
+	}
+}
+
+
+func installMediumBridgeSession(server *Server) {
+	server.sessions["medium"] = platformSession{
+		Cookies: map[string]string{
+			"sid": "sid-value", "uid": "uid-value", "xsrf": "xsrf-value",
+		},
+		BrowserCookies: []browserCookie{
+			{Name: "sid", Value: "sid-value", Domain: ".medium.com", Path: "/"},
+			{Name: "uid", Value: "uid-value", Domain: ".medium.com", Path: "/"},
+			{Name: "xsrf", Value: "xsrf-value", Domain: ".medium.com", Path: "/"},
+		},
+		UserAgent: "BlogCTL-Test-UA",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+}
+
+func compiledMediumArticle(t *testing.T, hash string) blogcompiler.CompiledArticle {
+	t.Helper()
+	payload, err := json.Marshal(mediumDraft{
+		Title:  "Medium title",
+		Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "Body"}}},
+		CanonicalURL: "https://thinkerqaq.github.io/articles/example/",
+		Tags: []string{"go", "concurrency"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return blogcompiler.CompiledArticle{
+		Version: 1, Slug: "example", Platform: "medium",
+		Title: "Medium title", Markdown: "Body", HTML: "<p>Body</p>",
+		Language: "en", ContentHash: hash, SourceDir: "/tmp/articles",
+		Payload: payload, FallbackHTML: "<p>Fallback body</p>",
+	}
+}
+
+func TestBridgeNativePublisherCreatesMediumDraftAndRecordsState(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installMediumBridgeSession(server)
+	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/new-story":
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"id":"post-unified","mediumUrl":""}}}`, nil), nil
+		case "/p/post-unified/deltas":
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true}`, nil), nil
+		default:
+			t.Fatalf("unexpected Medium request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	contentRoot := t.TempDir()
+	compiled := compiledMediumArticle(t, "hash-medium")
+	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiled,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Result != "draft-created" || result.URL != "https://medium.com/p/post-unified/edit" {
+		t.Fatalf("result = %#v", result)
+	}
+
+	state, _, err := publisher.LoadPublicationState(contentRoot, "example", "medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.RemoteDraftID != "post-unified" || state.DraftURL != result.URL || state.DraftHash != "hash-medium" {
+		t.Fatalf("state = %#v", state)
+	}
+
+	fallbackPath, err := mediumFallbackPath(contentRoot, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(fallbackPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != compiled.FallbackHTML {
+		t.Fatalf("fallback = %q", raw)
+	}
+}
+
+func TestBridgeNativePublisherSkipsUnchangedMediumDraft(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installMediumBridgeSession(server)
+	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		t.Fatalf("unchanged Medium draft should not call network: %s", request.URL.String())
+		return nil, nil
+	})}
+
+	contentRoot := t.TempDir()
+	_, manifestPath, err := publisher.LoadPublicationState(contentRoot, "example", "medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := publisher.SaveDraftResult(manifestPath, "example", "medium", "same-hash", publisher.DraftResult{
+		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
+	}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
+		Article: "example", Platform: "medium", ContentRoot: contentRoot,
+		ChangedOnly: true, Compiled: compiledMediumArticle(t, "same-hash"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Result != "skipped" || result.URL != "https://medium.com/p/post-existing/edit" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestBridgeNativePublisherWritesMediumFallbackBeforeImageSafetyFailure(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installMediumBridgeSession(server)
+	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		t.Fatalf("fallback-required Medium article should not call network: %s", request.URL.String())
+		return nil, nil
+	})}
+
+	contentRoot := t.TempDir()
+	compiled := compiledMediumArticle(t, "image-hash")
+	compiled.RequiresFallback = true
+	_, err = (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiled,
+	})
+	if err == nil || !strings.Contains(err.Error(), "cannot safely insert body images") {
+		t.Fatalf("error = %v", err)
+	}
+	fallbackPath, pathErr := mediumFallbackPath(contentRoot, "example")
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	if _, statErr := os.Stat(fallbackPath); statErr != nil {
+		t.Fatalf("fallback was not written: %v", statErr)
 	}
 }
