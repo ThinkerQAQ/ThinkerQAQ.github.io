@@ -222,13 +222,27 @@ async function platformSessionStatus(platform, bridge) {
 
 async function getStatus() {
   const [bridge, platforms] = await Promise.all([bridgeStatus(), allPlatformLoginStatuses()]);
+  let publishingPlatforms = [];
+  if (bridge.running) {
+    try {
+      const publishing = await fetchJSON("/v1/publishing");
+      publishingPlatforms = publishing?.platforms ?? [];
+    } catch (error) {
+      console.warn("BlogCTL platform capabilities unavailable:", errorMessage(error));
+    }
+  }
+  const publishingByID = new Map(publishingPlatforms.map((item) => [item.id, item]));
+  const enrichedPlatforms = platforms.map((platform) => ({
+    ...platform,
+    capabilities: publishingByID.get(platform.id)?.capabilities ?? {},
+  }));
   const sessionEntries = await Promise.all(
     Object.keys(PLATFORM_SESSIONS).map(async (platform) => [
       platform,
       await platformSessionStatus(platform, bridge),
     ]),
   );
-  return { bridge, platforms, sessions: Object.fromEntries(sessionEntries) };
+  return { bridge, platforms: enrichedPlatforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
 async function saveBridgeConfig(config) {
