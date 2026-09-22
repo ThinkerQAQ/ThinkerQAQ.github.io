@@ -721,6 +721,14 @@ The **草稿与发布** tab exposes this as an explicit **远端核验** action 
 
 Do not guess undocumented list/update endpoints. Add them only from verified API/browser captures.
 
+Juejin capture verification:
+
+- draft detail is read from `data.article_draft`, with columns in `data.columns` and activity themes in `data.theme_list`;
+- updating an existing draft preserves the captured category, tags, cover, original/English flags, theme ids and picture metadata instead of resetting them;
+- publishing preserves the draft's selected column and theme ids;
+- an existing non-zero `article_id` does not mean the publish step can be skipped: the captured editor updated the draft and called `/content_api/v1/article/publish` again for the same published article id;
+- the capture included `encrypted_word_count` and `origin_word_count`, but BlogCTL does not synthesize those opaque client-computed values until their algorithm is verified.
+
 ### P3 — Medium editor completeness
 
 **Formatting normalization is implemented.** Medium output now uses a dedicated Medium-safe transformation layer rather than sending raw Markdown semantics directly into the editor transport:
