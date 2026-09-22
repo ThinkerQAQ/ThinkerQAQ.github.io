@@ -47,7 +47,8 @@
     const status = statusSelect.value;
     return state.records.filter((record) => {
       if (platform && record.platform !== platform) return false;
-      if (status && recordState(record) !== status) return false;
+      if (status === "pending" && (record.pendingFields ?? []).length === 0) return false;
+      if (status && status !== "pending" && recordState(record) !== status) return false;
       if (!query) return true;
       const haystack = [
         record.article,
