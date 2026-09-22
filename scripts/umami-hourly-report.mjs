@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-const UMAMI_CLOUD_ORIGIN = "https://cloud.umami.is";
+const UMAMI_API_ORIGIN = "https://api.umami.is/v1";
 const DEFAULT_HOURS = 1;
 const MAX_HOURS = 24;
 const METRIC_LIMIT = 100;
@@ -63,7 +63,7 @@ export async function resolveShare(slug) {
   }
 
   const data = await fetchJson(
-    `${UMAMI_CLOUD_ORIGIN}/api/share/${encodeURIComponent(slug)}`,
+    `${UMAMI_API_ORIGIN}/share/${encodeURIComponent(slug)}`,
     { headers: { accept: "application/json" } },
   );
 
@@ -88,7 +88,7 @@ function shareHeaders(token) {
 
 function analyticsUrl(websiteId, resource, startAt, endAt, extra = {}) {
   const url = new URL(
-    `${UMAMI_CLOUD_ORIGIN}/api/websites/${encodeURIComponent(websiteId)}/${resource}`,
+    `${UMAMI_API_ORIGIN}/websites/${encodeURIComponent(websiteId)}/${resource}`,
   );
   url.searchParams.set("startAt", String(startAt));
   url.searchParams.set("endAt", String(endAt));
