@@ -677,7 +677,7 @@ Remote platform state now lives in:
 .distribution/               generated compiler/assets/debug cache only
 ```
 
-The durable file keeps the existing CNBlogs verified bindings and adds generic cross-platform publication records. Reads prefer durable state; legacy `.distribution/manifest.json` records are migrated once and remain read-compatible during the transition. New draft/publish/update writes no longer mutate the generated manifest.
+The durable file is the only publication/binding source of truth. BlogCTL now accepts the current bindings schema version only; legacy v1 bindings and `.distribution/manifest.json` publication state are not migrated or read as binding fallbacks. New draft/publish/update writes mutate only `.blogctl/publications.json`.
 
 Regression coverage verifies that:
 
