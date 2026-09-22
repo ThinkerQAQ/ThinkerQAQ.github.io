@@ -395,7 +395,6 @@ async function handleMessage(message) {
       const platform = String(message.platform || "");
       if (!article || !platform) throw new Error("article and platform are required");
       if (platform === "cnblogs") {
-        await fetchJSON("/v1/cnblogs/binding/migrate", { method: "POST" });
         const current = await fetchJSON(`/v1/cnblogs/binding?article=${article}`);
         await syncPlatformSession("cnblogs");
         const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });
@@ -442,7 +441,6 @@ async function handleMessage(message) {
     }
     case "blogctl.cnblogs.binding": {
       const article = encodeURIComponent(String(message.article || ""));
-      await fetchJSON("/v1/cnblogs/binding/migrate", { method: "POST" });
       return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`)) };
     }
     case "blogctl.cnblogs.search": {
