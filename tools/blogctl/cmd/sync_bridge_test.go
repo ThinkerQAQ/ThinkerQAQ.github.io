@@ -65,9 +65,9 @@ func TestWaitBridgeSyncJobReturnsCompletedJob(t *testing.T) {
 				"state":   state,
 				"results": map[string]any{
 					"devto": map[string]any{
-						"state": state,
+						"state":  state,
 						"result": result,
-						"url": url,
+						"url":    url,
 					},
 				},
 			},
