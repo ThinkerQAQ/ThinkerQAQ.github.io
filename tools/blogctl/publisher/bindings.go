@@ -24,18 +24,203 @@ type CNBlogsBinding struct {
 	VerifiedAt      string `json:"verifiedAt,omitempty"`
 }
 
+type PublicationBinding struct {
+	Slug              string `json:"slug"`
+	Platform          string `json:"platform"`
+	RemoteDraftID     string `json:"remoteDraftId,omitempty"`
+	DraftURL          string `json:"draftUrl,omitempty"`
+	DraftHash         string `json:"draftHash,omitempty"`
+	DraftSyncedAt     string `json:"draftSyncedAt,omitempty"`
+	PublishedURL      string `json:"publishedUrl,omitempty"`
+	PublishedHash     string `json:"publishedHash,omitempty"`
+	PublishedAt       string `json:"publishedAt,omitempty"`
+	PublishedSyncedAt string `json:"publishedSyncedAt,omitempty"`
+}
+
 type bindingFile struct {
-	Version int              `json:"version"`
-	CNBlogs []CNBlogsBinding `json:"cnblogs"`
-	Unbound []string         `json:"unbound,omitempty"`
+	Version      int                  `json:"version"`
+	CNBlogs      []CNBlogsBinding     `json:"cnblogs"`
+	Publications []PublicationBinding `json:"publications,omitempty"`
+	Unbound      []string             `json:"unbound,omitempty"`
 }
 
 func bindingPath(contentRoot string) string {
 	return filepath.Join(contentRoot, ".blogctl", "publications.json")
 }
 
+func publicationBindingState(binding PublicationBinding) PublicationState {
+	return PublicationState{
+		RemoteDraftID: binding.RemoteDraftID,
+		DraftURL:      binding.DraftURL,
+		DraftHash:     binding.DraftHash,
+		PublishedURL:  binding.PublishedURL,
+		PublishedHash: binding.PublishedHash,
+	}
+}
+
+func loadPublicationBinding(contentRoot, slug, platform string) (PublicationBinding, bool, error) {
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return PublicationBinding{}, false, err
+	}
+	for _, binding := range bindings.Publications {
+		if binding.Slug == slug && binding.Platform == platform {
+			return binding, true, nil
+		}
+	}
+	return PublicationBinding{}, false, nil
+}
+
+func upsertPublicationBinding(bindings *bindingFile, binding PublicationBinding) {
+	for index := range bindings.Publications {
+		if bindings.Publications[index].Slug == binding.Slug && bindings.Publications[index].Platform == binding.Platform {
+			bindings.Publications[index] = binding
+			return
+		}
+	}
+	bindings.Publications = append(bindings.Publications, binding)
+}
+
+func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string, result DraftResult, now time.Time) error {
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
+	if err != nil {
+		return err
+	}
+	if !found {
+		binding = PublicationBinding{Slug: slug, Platform: platform}
+	}
+	binding.RemoteDraftID = result.ID
+	binding.DraftURL = result.URL
+	binding.DraftHash = contentHash
+	binding.DraftSyncedAt = now.UTC().Format(time.RFC3339)
+	upsertPublicationBinding(&bindings, binding)
+	return writeBindings(contentRoot, bindings)
+}
+
+func SavePublicationPublishResult(contentRoot, slug, platform, contentHash string, result PublishResult, now time.Time) error {
+	state, _, err := LoadPublicationState(contentRoot, slug, platform)
+	if err != nil {
+		return err
+	}
+	if state.DraftHash != contentHash {
+		return errors.New("refusing to record publication for a stale draft")
+	}
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
+	if err != nil {
+		return err
+	}
+	if !found {
+		binding = PublicationBinding{
+			Slug: slug, Platform: platform,
+			RemoteDraftID: state.RemoteDraftID, DraftURL: state.DraftURL, DraftHash: state.DraftHash,
+		}
+	}
+	binding.PublishedURL = result.URL
+	binding.PublishedHash = contentHash
+	binding.PublishedAt = now.UTC().Format(time.RFC3339)
+	upsertPublicationBinding(&bindings, binding)
+	return writeBindings(contentRoot, bindings)
+}
+
+func SavePublicationPublishedUpdateResult(contentRoot, slug, platform, contentHash string, now time.Time) error {
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
+	if err != nil {
+		return err
+	}
+	if !found {
+		state, _, loadErr := LoadPublicationState(contentRoot, slug, platform)
+		if loadErr != nil {
+			return loadErr
+		}
+		binding = PublicationBinding{
+			Slug: slug, Platform: platform,
+			RemoteDraftID: state.RemoteDraftID, DraftURL: state.DraftURL, DraftHash: state.DraftHash,
+			PublishedURL: state.PublishedURL,
+		}
+	}
+	binding.PublishedHash = contentHash
+	binding.PublishedSyncedAt = now.UTC().Format(time.RFC3339)
+	upsertPublicationBinding(&bindings, binding)
+	return writeBindings(contentRoot, bindings)
+}
+
+func MigratePublicationStates(contentRoot string) (int, error) {
+	if strings.TrimSpace(contentRoot) == "" {
+		return 0, errors.New("content repository path is not configured")
+	}
+	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return 0, err
+	}
+	existing := map[string]struct{}{}
+	for _, binding := range bindings.Publications {
+		existing[binding.Slug+"\x00"+binding.Platform] = struct{}{}
+	}
+	count := 0
+	for slug, articleValue := range objectValue(manifest["articles"]) {
+		article := objectValue(articleValue)
+		for platform, stateValue := range objectValue(article["platforms"]) {
+			key := slug + "\x00" + platform
+			if _, ok := existing[key]; ok {
+				continue
+			}
+			state := objectValue(stateValue)
+			if state == nil {
+				continue
+			}
+			draftURL := stringValue(state["draftUrl"])
+			remoteID := stringValue(state["remoteDraftId"])
+			if remoteID == "" {
+				remoteID = draftIDFromURL(platform, draftURL)
+			}
+			publishedURL := stringValue(state["publishedUrl"])
+			if remoteID == "" && draftURL == "" && publishedURL == "" {
+				continue
+			}
+			binding := PublicationBinding{
+				Slug: slug, Platform: platform, RemoteDraftID: remoteID, DraftURL: draftURL,
+				DraftHash: stringValue(state["draftHash"]), DraftSyncedAt: stringValue(state["draftSyncedAt"]),
+				PublishedURL: publishedURL, PublishedHash: stringValue(state["publishedHash"]),
+				PublishedAt: stringValue(state["publishedAt"]), PublishedSyncedAt: stringValue(state["publishedSyncedAt"]),
+			}
+			if binding.DraftHash == "" {
+				binding.DraftHash = stringValue(state["lastSyncedHash"])
+			}
+			if binding.DraftSyncedAt == "" {
+				binding.DraftSyncedAt = stringValue(state["lastSyncedAt"])
+			}
+			bindings.Publications = append(bindings.Publications, binding)
+			existing[key] = struct{}{}
+			count++
+		}
+	}
+	if count == 0 {
+		return 0, nil
+	}
+	return count, writeBindings(contentRoot, bindings)
+}
+
 func readBindings(contentRoot string) (bindingFile, error) {
-	result := bindingFile{Version: 1, CNBlogs: []CNBlogsBinding{}}
+	result := bindingFile{Version: 1, CNBlogs: []CNBlogsBinding{}, Publications: []PublicationBinding{}}
 	if strings.TrimSpace(contentRoot) == "" {
 		return result, errors.New("content repository path is not configured")
 	}
