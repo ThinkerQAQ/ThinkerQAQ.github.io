@@ -228,7 +228,6 @@ func TestCNBlogsUpdateDraftFetchesThenPostsServerFields(t *testing.T) {
 	}
 }
 
-
 func imageResponse(request *http.Request, status int, contentType string, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
@@ -386,4 +385,3 @@ func TestCNBlogsKeepsRemoteR2ImageWhenCNBlogsUploadIsUnavailable(t *testing.T) {
 		t.Fatalf("markdown changed despite upload outage:\n%s", got)
 	}
 }
-
