@@ -8,6 +8,7 @@ import (
 	"time"
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 func TestApplySyncEventToJobUpdatesStructuredResult(t *testing.T) {
@@ -30,6 +31,29 @@ func TestApplySyncEventToJobUpdatesStructuredResult(t *testing.T) {
 		t.Fatalf("result = %#v", got)
 	}
 	if len(job.Events) != 1 || job.Events[0].At != "2026-09-17T12:00:00Z" {
+		t.Fatalf("events = %#v", job.Events)
+	}
+}
+
+func TestTargetPreparedForCurrentHashGuardsPublish(t *testing.T) {
+	if !targetPreparedForCurrentHash(publisher.PublicationTarget{PreparedHash: "h1"}, "h1") {
+		t.Fatal("fresh prepared hash should allow target publish")
+	}
+	if targetPreparedForCurrentHash(publisher.PublicationTarget{PreparedHash: "h1"}, "h2") {
+		t.Fatal("stale prepared hash should block target publish")
+	}
+	if targetPreparedForCurrentHash(publisher.PublicationTarget{}, "h1") {
+		t.Fatal("missing prepared hash should block target publish")
+	}
+}
+
+func TestApplySyncEventToJobUsesTargetIDWhenPresent(t *testing.T) {
+	job := &syncJob{ID: "job-1", Results: map[string]syncPlatformResult{"tgt_a": {State: "queued"}, "tgt_b": {State: "queued"}}}
+	applySyncEventToJob(job, blogapp.SyncEvent{Platform: "cnblogs", TargetID: "tgt_b", State: "completed", Result: "remote-draft"}, time.Date(2026, 9, 17, 12, 0, 0, 0, time.UTC))
+	if job.Results["tgt_a"].State != "queued" || job.Results["tgt_b"].State != "completed" {
+		t.Fatalf("results = %#v", job.Results)
+	}
+	if len(job.Events) != 1 || job.Events[0].TargetID != "tgt_b" || job.Events[0].Platform != "cnblogs" {
 		t.Fatalf("events = %#v", job.Events)
 	}
 }

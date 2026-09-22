@@ -45,6 +45,8 @@ type articleSummary struct {
 type syncRequest struct {
 	Article                string   `json:"article"`
 	Platforms              []string `json:"platforms"`
+	TargetIDs              []string `json:"targetIds,omitempty"`
+	SourceHash             string   `json:"sourceHash,omitempty"`
 	DryRun                 bool     `json:"dryRun"`
 	Changed                bool     `json:"changed"`
 	UsePlatformChangedOnly bool     `json:"usePlatformChangedOnly,omitempty"`
@@ -63,6 +65,7 @@ type syncPlatformResult struct {
 type syncJobEvent struct {
 	At       string `json:"at"`
 	Platform string `json:"platform"`
+	TargetID string `json:"targetId,omitempty"`
 	State    string `json:"state"`
 	Result   string `json:"result,omitempty"`
 	URL      string `json:"url,omitempty"`
@@ -73,6 +76,7 @@ type syncJob struct {
 	ID         string                        `json:"id"`
 	Article    string                        `json:"article"`
 	Platforms  []string                      `json:"platforms"`
+	Targets    []string                      `json:"targets,omitempty"`
 	Operation  string                        `json:"operation"`
 	Request    syncRequest                   `json:"-"`
 	Results    map[string]syncPlatformResult `json:"results"`
@@ -463,7 +467,48 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 	return normalizeBridgeConfig(config)
 }
 
+func normalizeTargetSyncRequest(request syncRequest) (syncRequest, error) {
+	request.Article = strings.TrimSpace(request.Article)
+	if request.Article == "" {
+		return request, errors.New("explicit article selection is required")
+	}
+	request.Operation = strings.ToLower(strings.TrimSpace(request.Operation))
+	if request.Operation == "" {
+		request.Operation = "prepare"
+	}
+	switch request.Operation {
+	case "prepare", "publish":
+	default:
+		return request, fmt.Errorf("unsupported target operation: %s", request.Operation)
+	}
+	seen := map[string]struct{}{}
+	targets := make([]string, 0, len(request.TargetIDs))
+	for _, targetID := range request.TargetIDs {
+		targetID = strings.TrimSpace(targetID)
+		if targetID == "" {
+			continue
+		}
+		if _, exists := seen[targetID]; exists {
+			continue
+		}
+		seen[targetID] = struct{}{}
+		targets = append(targets, targetID)
+	}
+	if len(targets) == 0 {
+		return request, errors.New("explicit targetIds selection is required")
+	}
+	request.TargetIDs = targets
+	request.Platforms = nil
+	request.Changed = false
+	request.UsePlatformChangedOnly = false
+	request.Draft = request.Operation == "prepare"
+	return request, nil
+}
+
 func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
+	if len(request.TargetIDs) > 0 {
+		return normalizeTargetSyncRequest(request)
+	}
 	normalized, err := blogapp.NormalizeSyncRequest(blogapp.SyncRequest{
 		Articles:  []string{request.Article},
 		Platforms: request.Platforms,
@@ -600,7 +645,187 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 	return blogapp.NativePublishResult{Result: "published", URL: result.URL}, nil
 }
 
+func (s *Server) targetCompiledArticle(output, slug, platform string) (blogcompiler.CompiledArticle, error) {
+	compiledArticles, err := blogapp.ParseCompiledArticles(output)
+	if err != nil {
+		return blogcompiler.CompiledArticle{}, err
+	}
+	for _, article := range compiledArticles {
+		if article.Slug == slug && article.Platform == platform {
+			return article, nil
+		}
+	}
+	return blogcompiler.CompiledArticle{}, fmt.Errorf("publishing compiler returned no article for %s/%s", platform, slug)
+}
+
+func publicationTargetToRemoteTarget(platform string, target publisher.PublicationTarget) publisher.RemoteTarget {
+	return publisher.RemoteTarget{
+		TargetID: target.TargetID, Platform: platform, AccountKey: target.AccountKey,
+		RemoteArticleID: target.RemoteArticleID, RemoteDraftID: target.RemoteDraftID, RemoteState: target.RemoteState,
+		EditURL: target.EditURL, PublicURL: target.PublicURL, RemoteVersion: target.RemoteVersion, RemoteUpdatedAt: target.RemoteUpdatedAt,
+	}
+}
+
+func mergePreparedTarget(stored publisher.PublicationTarget, result publisher.PrepareResult, input publisher.DraftInput) publisher.PublicationTarget {
+	stored.LastError = ""
+	stored.PreparedHash = result.PreparedHash
+	if stored.PreparedHash == "" {
+		stored.PreparedHash = input.ContentHash
+	}
+	stored.PreparedAt = time.Now().UTC().Format(time.RFC3339)
+	stored.PrepareMode = result.PrepareMode
+	if result.RemoteState != "" {
+		stored.RemoteState = result.RemoteState
+	}
+	if result.RemoteDraftID != "" {
+		stored.RemoteDraftID = result.RemoteDraftID
+	}
+	if result.EditURL != "" {
+		stored.EditURL = result.EditURL
+	}
+	if result.RemoteUpdatedAt != "" {
+		stored.RemoteUpdatedAt = result.RemoteUpdatedAt
+	}
+	if result.RemoteVersion != "" {
+		stored.RemoteVersion = result.RemoteVersion
+	}
+	return stored
+}
+
+func mergePublishedTarget(stored publisher.PublicationTarget, result publisher.PublishResult, input publisher.DraftInput) publisher.PublicationTarget {
+	stored.LastError = ""
+	stored.RemoteState = "published"
+	if stored.RemoteArticleID == "" && stored.RemoteDraftID != "" {
+		stored.RemoteArticleID = stored.RemoteDraftID
+	}
+	stored.PublishedHash = input.ContentHash
+	stored.PublishedAt = time.Now().UTC().Format(time.RFC3339)
+	if result.URL != "" {
+		stored.PublicURL = result.URL
+	}
+	return stored
+}
+
+func targetPreparedForCurrentHash(target publisher.PublicationTarget, currentHash string) bool {
+	return target.PreparedHash != "" && target.PreparedHash == currentHash
+}
+
+func (s *Server) runSyncTargetApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
+	publishingJSON, publishingErr := resolvedPublishingJSON(config)
+	if publishingErr != nil {
+		return "", publishingErr
+	}
+	applicationConfig := blogapp.SyncConfig{
+		EngineRoot:     config.EngineRoot,
+		ContentRoot:    config.ContentRoot,
+		PublishingJSON: publishingJSON,
+		BridgeOrigin:   "http://" + DefaultAddress,
+		BridgeToken:    s.token,
+		DevtoAPIKey:    config.DevtoAPIKey,
+		ToolPaths:      config.ToolPaths,
+	}
+	if configPath, err := ConfigPath(); err == nil {
+		applicationConfig.ConfigPath = configPath
+	}
+
+	platformSet := map[string]struct{}{}
+	targets := make(map[string]struct {
+		Platform string
+		Target   publisher.PublicationTarget
+	}, len(request.TargetIDs))
+	store := publisher.OpenPublications(config.ContentRoot)
+	for _, targetID := range request.TargetIDs {
+		platform, target, found := store.FindTargetByID(request.Article, targetID)
+		if !found {
+			return "", fmt.Errorf("target not found: %s", targetID)
+		}
+		targets[targetID] = struct {
+			Platform string
+			Target   publisher.PublicationTarget
+		}{Platform: platform, Target: target}
+		platformSet[platform] = struct{}{}
+	}
+	platforms := make([]string, 0, len(platformSet))
+	for platform := range platformSet {
+		platforms = append(platforms, platform)
+	}
+	sort.Strings(platforms)
+
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
+	output, err := blogapp.NewSyncService().Run(ctx, applicationConfig, blogapp.SyncRequest{
+		Articles: []string{request.Article}, Platforms: platforms, DryRun: true, Draft: true, Operation: "draft",
+	})
+	if err != nil {
+		return output, err
+	}
+
+	service := publisher.PlatformService{HTTPClient: s.httpClient, Registry: s.registry()}
+	failures := []string{}
+	for _, targetID := range request.TargetIDs {
+		entry := targets[targetID]
+		onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "running"})
+		compiled, compileErr := s.targetCompiledArticle(output, request.Article, entry.Platform)
+		if compileErr != nil {
+			onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "failed", Message: compileErr.Error()})
+			failures = append(failures, compileErr.Error())
+			continue
+		}
+		input := draftInputFromCompiled(compiled)
+		if request.Operation == "publish" && !targetPreparedForCurrentHash(entry.Target, input.ContentHash) {
+			message := "source changed after the target was prepared; prepare and preview again"
+			onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "failed", Message: message})
+			failures = append(failures, message)
+			continue
+		}
+		session, client, sessionErr := (bridgeNativePublisher{server: s}).publisherSession(entry.Platform)
+		if sessionErr != nil {
+			onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "failed", Message: sessionErr.Error()})
+			failures = append(failures, sessionErr.Error())
+			continue
+		}
+		service.HTTPClient = client
+		remote := publicationTargetToRemoteTarget(entry.Platform, entry.Target)
+		if request.Operation == "publish" {
+			result, publishErr := service.PublishPrepared(ctx, entry.Platform, session, remote, input)
+			if publishErr != nil {
+				onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "failed", Message: publishErr.Error()})
+				failures = append(failures, publishErr.Error())
+				continue
+			}
+			updated := mergePublishedTarget(entry.Target, result, input)
+			if err := store.UpsertTarget(request.Article, entry.Platform, updated); err != nil {
+				onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "failed", Message: err.Error()})
+				failures = append(failures, err.Error())
+				continue
+			}
+			onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "completed", Result: "published", URL: result.URL})
+			continue
+		}
+		result, prepareErr := service.Prepare(ctx, entry.Platform, session, remote, input)
+		if prepareErr != nil {
+			onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "failed", Message: prepareErr.Error()})
+			failures = append(failures, prepareErr.Error())
+			continue
+		}
+		updated := mergePreparedTarget(entry.Target, result, input)
+		if err := store.UpsertTarget(request.Article, entry.Platform, updated); err != nil {
+			onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "failed", Message: err.Error()})
+			failures = append(failures, err.Error())
+			continue
+		}
+		onEvent(blogapp.SyncEvent{Platform: entry.Platform, TargetID: targetID, State: "completed", Result: result.PrepareMode, URL: result.EditURL})
+	}
+	if len(failures) > 0 {
+		return output, errors.New(strings.Join(failures, "; "))
+	}
+	return output, nil
+}
+
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
+	if len(request.TargetIDs) > 0 {
+		return s.runSyncTargetApplication(ctx, config, request, onEvent)
+	}
 	publishingJSON, publishingErr := resolvedPublishingJSON(config)
 	if publishingErr != nil {
 		return "", publishingErr
@@ -703,14 +928,22 @@ func changedPoliciesForRequest(config bridgeConfig, request syncRequest) map[str
 	return policies
 }
 
+func syncResultKey(event blogapp.SyncEvent) string {
+	if event.TargetID != "" {
+		return event.TargetID
+	}
+	return event.Platform
+}
+
 func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
-	if job == nil || event.Platform == "" {
+	key := syncResultKey(event)
+	if job == nil || key == "" {
 		return
 	}
 	if job.Results == nil {
 		job.Results = map[string]syncPlatformResult{}
 	}
-	result := job.Results[event.Platform]
+	result := job.Results[key]
 	result.State = event.State
 	result.Result = event.Result
 	result.URL = event.URL
@@ -720,9 +953,9 @@ func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
 	} else {
 		result.Error = ""
 	}
-	job.Results[event.Platform] = result
+	job.Results[key] = result
 	job.Events = append(job.Events, syncJobEvent{
-		At: at.UTC().Format(time.RFC3339), Platform: event.Platform, State: event.State,
+		At: at.UTC().Format(time.RFC3339), Platform: event.Platform, TargetID: event.TargetID, State: event.State,
 		Result: event.Result, URL: event.URL, Message: event.Message,
 	})
 }
@@ -744,17 +977,32 @@ func moveJobToFront(order []string, id string) []string {
 	return result
 }
 
+func jobResultKeys(request syncRequest) []string {
+	if len(request.TargetIDs) > 0 {
+		return append([]string{}, request.TargetIDs...)
+	}
+	return append([]string{}, request.Platforms...)
+}
+
 func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
-	results := make(map[string]syncPlatformResult, len(request.Platforms))
-	events := make([]syncJobEvent, 0, len(request.Platforms))
-	for _, platform := range request.Platforms {
-		results[platform] = syncPlatformResult{State: "queued"}
-		events = append(events, syncJobEvent{
-			At: startedAt.Format(time.RFC3339), Platform: platform, State: "queued",
-		})
+	keys := jobResultKeys(request)
+	results := make(map[string]syncPlatformResult, len(keys))
+	events := make([]syncJobEvent, 0, len(keys))
+	for index, key := range keys {
+		results[key] = syncPlatformResult{State: "queued"}
+		event := syncJobEvent{At: startedAt.Format(time.RFC3339), State: "queued"}
+		if len(request.TargetIDs) > 0 {
+			event.TargetID = key
+			if index < len(request.Platforms) {
+				event.Platform = request.Platforms[index]
+			}
+		} else {
+			event.Platform = key
+		}
+		events = append(events, event)
 	}
 	return &syncJob{
-		ID: id, Article: request.Article, Platforms: append([]string{}, request.Platforms...),
+		ID: id, Article: request.Article, Platforms: append([]string{}, request.Platforms...), Targets: append([]string{}, request.TargetIDs...),
 		Operation: request.Operation, Request: request, Results: results, Events: events, State: "running",
 		StartedAt: startedAt.Format(time.RFC3339), DryRun: request.DryRun,
 	}
@@ -780,14 +1028,18 @@ func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeC
 		if err != nil {
 			stored.State = "failed"
 			stored.Error = err.Error()
-			for _, platform := range stored.Platforms {
-				result := stored.Results[platform]
+			for _, key := range jobResultKeys(stored.Request) {
+				result := stored.Results[key]
 				if result.State == "completed" || result.State == "failed" {
 					continue
 				}
-				applySyncEventToJob(stored, blogapp.SyncEvent{
-					Platform: platform, State: "failed", Message: err.Error(),
-				}, s.now())
+				event := blogapp.SyncEvent{State: "failed", Message: err.Error()}
+				if len(stored.Request.TargetIDs) > 0 {
+					event.TargetID = key
+				} else {
+					event.Platform = key
+				}
+				applySyncEventToJob(stored, event, s.now())
 			}
 			return
 		}
@@ -825,6 +1077,7 @@ func cloneSyncJob(job *syncJob) *syncJob {
 	}
 	clone := *job
 	clone.Platforms = append([]string{}, job.Platforms...)
+	clone.Targets = append([]string{}, job.Targets...)
 	clone.Events = append([]syncJobEvent{}, job.Events...)
 	clone.Results = make(map[string]syncPlatformResult, len(job.Results))
 	for platform, result := range job.Results {

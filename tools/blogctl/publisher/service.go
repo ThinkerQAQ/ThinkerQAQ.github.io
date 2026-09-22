@@ -299,50 +299,28 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 	if binding.Account != "" && !strings.EqualFold(binding.Account, adapter.username) {
 		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "binding", 0, "binding belongs to a different CNBlogs account", false)
 	}
-	base, err := adapter.fetchPost(ctx, binding.PostID)
+	target := RemoteTarget{
+		Platform: "cnblogs", AccountKey: "cnblogs:" + binding.Account,
+		RemoteArticleID: binding.PostID, RemoteState: "published", EditURL: binding.EditURL,
+		PublicURL: binding.PublicURL, RemoteUpdatedAt: binding.RemoteUpdatedAt,
+	}
+	result, updated, skipped, err := cnBlogsPublishPublished(ctx, adapter, target, input, binding.LastPushedHash)
 	if err != nil {
 		return PublishResult{}, false, err
-	}
-	if author := valueString(base["author"]); author != "" && !strings.EqualFold(author, adapter.username) {
-		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "binding", 0, "post belongs to a different CNBlogs account", false)
-	}
-	if published, _ := base["isPublished"].(bool); !published {
-		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "update-published", 0, "remote post is no longer published", false)
-	}
-	remoteUpdatedAt := valueString(base["dateUpdated"])
-	if binding.RemoteUpdatedAt == "" || remoteUpdatedAt == "" || binding.RemoteUpdatedAt != remoteUpdatedAt {
-		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "update-published", 0, "remote post changed or has no verified baseline; verify the binding again", false)
-	}
-	if binding.LastPushedHash != "" && binding.LastPushedHash == input.ContentHash {
-		return PublishResult{URL: binding.PublicURL}, true, nil
-	}
-	decoded, err := adapter.save(ctx, binding.PostID, input, true, true)
-	if err != nil {
-		return PublishResult{}, false, err
-	}
-	if returned := valueString(decoded["id"]); returned != "" && returned != binding.PostID {
-		return PublishResult{}, false, platformError(ErrUpstream, "cnblogs", "update-published", 0, "CNBlogs returned a different post ID", false)
-	}
-	updated, err := adapter.fetchPost(ctx, binding.PostID)
-	if err != nil {
-		return PublishResult{}, false, err
-	}
-	if published, _ := updated["isPublished"].(bool); !published {
-		return PublishResult{}, false, platformError(ErrUpstream, "cnblogs", "update-published", 0, "post update was not published", false)
 	}
 	binding.Account = adapter.username
-	binding.PublicURL = valueString(updated["url"])
-	if binding.PublicURL == "" {
-		binding.PublicURL = valueString(base["url"])
-	}
+	binding.PublicURL = updated.PublicURL
+	binding.EditURL = updated.EditURL
 	binding.LastPushedHash = input.ContentHash
-	binding.RemoteUpdatedAt = valueString(updated["dateUpdated"])
+	binding.RemoteUpdatedAt = updated.RemoteUpdatedAt
 	binding.VerifiedAt = verifiedAt(s.now())
 	if err := SaveCNBlogsBinding(contentRoot, binding); err != nil {
 		return PublishResult{}, false, err
 	}
-	if err := SavePublishedUpdateResult(manifestPath, slug, "cnblogs", input.ContentHash, s.now()); err != nil {
-		return PublishResult{}, false, err
+	if !skipped {
+		if err := SavePublishedUpdateResult(manifestPath, slug, "cnblogs", input.ContentHash, s.now()); err != nil {
+			return PublishResult{}, false, err
+		}
 	}
-	return PublishResult{URL: binding.PublicURL}, false, nil
+	return result, skipped, nil
 }

@@ -84,7 +84,7 @@ func DefaultAdapterRegistry() *AdapterRegistry {
 		newLegacyAdapterFactory("juejin", NewJuejinAdapter),
 		newLegacyAdapterFactory("segmentfault", NewSegmentFaultAdapter),
 		newLegacyAdapterFactory("oschina", NewOSChinaAdapter),
-		newLegacyAdapterFactory("cnblogs", NewCNBlogsAdapter),
+		cnBlogsAdapterFactory{},
 		newLegacyAdapterFactory("csdn", NewCSDNAdapter),
 		newLegacyAdapterFactory("51cto", New51CTOAdapter),
 		newLegacyAdapterFactory("zhihu", NewZhihuAdapter),

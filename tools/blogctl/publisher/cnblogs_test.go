@@ -225,3 +225,189 @@ func TestCNBlogsUpdateDraftFetchesThenPostsServerFields(t *testing.T) {
 		t.Fatalf("post title/body = %v/%v, want updated", posted["title"], posted["postBody"])
 	}
 }
+
+func TestCNBlogsSearchPostsUsesDraftSearchContract(t *testing.T) {
+	seenList := false
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/user":
+			return jsonResponse(request, http.StatusOK, `{"loginName":"ThinkerQAQ"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/posts/list":
+			seenList = true
+			if request.URL.Query().Get("cfg") != "0" || request.URL.Query().Get("cfgs") != "512" || request.URL.Query().Get("search") != "Hello" {
+				t.Fatalf("query = %s, want cfg=0&cfgs=512&search=Hello", request.URL.RawQuery)
+			}
+			return jsonResponse(request, http.StatusOK, `{"postList":[{"id":23060028,"title":"Hello","isPublished":false,"isDraft":true,"dateUpdated":"2026-09-21T00:00:00"}],"postsCount":1}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	_, posts, err := CNBlogsSearchPosts(context.Background(), client, cnBlogsSession(), "Hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !seenList || len(posts) != 1 || posts[0].RemoteState != "draft" || posts[0].ID != "23060028" {
+		t.Fatalf("posts = %#v", posts)
+	}
+}
+
+func TestCNBlogsTargetSearchUsesDraftAndPublishedContracts(t *testing.T) {
+	queries := []string{}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/user":
+			return jsonResponse(request, http.StatusOK, `{"loginName":"ThinkerQAQ"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/posts/list":
+			queries = append(queries, request.URL.RawQuery)
+			if request.URL.Query().Get("cfgs") == "512" {
+				return jsonResponse(request, http.StatusOK, `{"postList":[{"id":23060028,"title":"Draft","isPublished":false,"isDraft":true}],"postsCount":1}`, nil), nil
+			}
+			if request.URL.Query().Get("cfgs") == "1" {
+				return jsonResponse(request, http.StatusOK, `{"postList":[{"id":22954074,"title":"Published","url":"https://www.cnblogs.com/ThinkerQAQ/p/22954074.html","isPublished":true,"isDraft":false}],"postsCount":1}`, nil), nil
+			}
+			t.Fatalf("unexpected query = %s", request.URL.RawQuery)
+			return nil, nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	adapterValue, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := adapterValue.(*cnBlogsAdapter)
+	if _, err := adapter.CheckAuth(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := adapter.SearchTargets(context.Background(), SearchQuery{Title: "Hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 2 || candidates[0].RemoteState != "draft" || candidates[0].RemoteDraftID != "23060028" || candidates[1].RemoteState != "published" || candidates[1].RemoteArticleID != "22954074" {
+		t.Fatalf("candidates = %#v", candidates)
+	}
+	if len(queries) != 2 {
+		t.Fatalf("queries = %#v", queries)
+	}
+}
+
+func TestCNBlogsVerifyTargetResolvesManualReference(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/user":
+			return jsonResponse(request, http.StatusOK, `{"loginName":"ThinkerQAQ"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/posts/22954074":
+			return jsonResponse(request, http.StatusOK, `{"blogPost":{"id":22954074,"title":"Published","url":"https://www.cnblogs.com/ThinkerQAQ/p/22954074.html","author":"ThinkerQAQ","isPublished":true,"isDraft":false,"dateUpdated":"2026-09-21T00:00:00"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	adapterValue, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := adapterValue.(*cnBlogsAdapter)
+	if _, err := adapter.CheckAuth(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	target, err := adapter.VerifyTarget(context.Background(), RemoteReference{Raw: "https://www.cnblogs.com/ThinkerQAQ/p/22954074.html", RemoteState: "published"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target.RemoteArticleID != "22954074" || target.RemoteState != "published" || target.AccountKey != "cnblogs:ThinkerQAQ" {
+		t.Fatalf("target = %#v", target)
+	}
+}
+
+func TestCNBlogsPublishedPrepareDoesNotPost(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method == http.MethodPost && request.URL.Path == "/api/posts" {
+			t.Fatal("published prepare must not POST /api/posts")
+		}
+		return jsonResponse(request, http.StatusOK, `{}`, nil), nil
+	})}
+	adapterValue, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := adapterValue.(*cnBlogsAdapter)
+	result, err := adapter.Prepare(context.Background(), RemoteTarget{RemoteArticleID: "22954074", RemoteState: "published", PublicURL: "https://example.com/post", RemoteUpdatedAt: "v1"}, DraftInput{ContentHash: "h1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PrepareMode != "local-preview" || result.PreparedHash != "h1" || result.RemoteState != "published" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestCNBlogsPublishPreparedPublishedUsesPublishedPayload(t *testing.T) {
+	var posted map[string]any
+	fetchCount := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/user":
+			return jsonResponse(request, http.StatusOK, `{"loginName":"ThinkerQAQ"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/posts/edit":
+			return jsonResponse(request, http.StatusOK, "", nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/posts/22954074":
+			fetchCount++
+			return jsonResponse(request, http.StatusOK, `{"blogPost":{"id":22954074,"title":"Old","postBody":"old","url":"https://www.cnblogs.com/ThinkerQAQ/p/22954074.html","author":"ThinkerQAQ","isPublished":true,"isDraft":false,"dateUpdated":"2026-09-21T00:00:00"}}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/posts":
+			if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, http.StatusOK, `{"id":22954074}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	adapterValue, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := adapterValue.(*cnBlogsAdapter)
+	if _, err := adapter.CheckAuth(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, err = adapter.PublishPrepared(context.Background(), RemoteTarget{RemoteArticleID: "22954074", RemoteState: "published", RemoteUpdatedAt: "2026-09-21T00:00:00"}, DraftInput{Title: "New", Markdown: "new", ContentHash: "h2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fetchCount < 2 {
+		t.Fatalf("fetchCount = %d, want pre and post update fetches", fetchCount)
+	}
+	if posted["isPublished"] != true || posted["isDraft"] != false {
+		t.Fatalf("posted state = published:%v draft:%v", posted["isPublished"], posted["isDraft"])
+	}
+}
+
+func TestCNBlogsPublishPreparedRejectsRemoteConflict(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/user":
+			return jsonResponse(request, http.StatusOK, `{"loginName":"ThinkerQAQ"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/posts/22954074":
+			return jsonResponse(request, http.StatusOK, `{"blogPost":{"id":22954074,"author":"ThinkerQAQ","isPublished":true,"isDraft":false,"dateUpdated":"newer"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	adapterValue, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := adapterValue.(*cnBlogsAdapter)
+	if _, err := adapter.CheckAuth(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, err = adapter.PublishPrepared(context.Background(), RemoteTarget{RemoteArticleID: "22954074", RemoteState: "published", RemoteUpdatedAt: "older"}, DraftInput{ContentHash: "h2"})
+	if err == nil || !IsKind(err, ErrValidation) {
+		t.Fatalf("err = %v, want validation conflict", err)
+	}
+}
