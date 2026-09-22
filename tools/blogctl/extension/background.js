@@ -380,6 +380,16 @@ async function handleMessage(message) {
       const result = await fetchJSON(`/v1/publications/reconcile?${query.toString()}`, { method: "POST" });
       return { ok: true, reconciliation: result?.reconciliation ?? null };
     }
+    case "blogctl.publication.pending.resolve": {
+      const article = String(message.article || "").trim();
+      const platform = String(message.platform || "").trim();
+      if (!article || !platform) throw new Error("article and platform are required");
+      const query = new URLSearchParams({ article, platform });
+      const result = await fetchJSON(`/v1/publications/pending/resolve?${query.toString()}`, jsonOptions("POST", {
+        fields: Array.isArray(message.fields) ? message.fields : [],
+      }));
+      return { ok: true, pendingFields: result?.pendingFields ?? [] };
+    }
     case "blogctl.article.match": {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");
