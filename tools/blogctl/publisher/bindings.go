@@ -59,17 +59,22 @@ func publicationBindingState(binding PublicationBinding) PublicationState {
 	}
 }
 
+func publicationBindingFromFile(bindings bindingFile, slug, platform string) (PublicationBinding, bool) {
+	for _, binding := range bindings.Publications {
+		if binding.Slug == slug && binding.Platform == platform {
+			return binding, true
+		}
+	}
+	return PublicationBinding{}, false
+}
+
 func loadPublicationBinding(contentRoot, slug, platform string) (PublicationBinding, bool, error) {
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return PublicationBinding{}, false, err
 	}
-	for _, binding := range bindings.Publications {
-		if binding.Slug == slug && binding.Platform == platform {
-			return binding, true, nil
-		}
-	}
-	return PublicationBinding{}, false, nil
+	binding, found := publicationBindingFromFile(bindings, slug, platform)
+	return binding, found, nil
 }
 
 func upsertPublicationBinding(bindings *bindingFile, binding PublicationBinding) {
@@ -104,10 +109,7 @@ func SavePublicationPendingFields(contentRoot, slug, platform string, fields []s
 	if err != nil {
 		return err
 	}
-	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
-	if err != nil {
-		return err
-	}
+	binding, found := publicationBindingFromFile(bindings, slug, platform)
 	if !found {
 		return errors.New("publication binding not found")
 	}
@@ -121,10 +123,7 @@ func ResolvePublicationPendingFields(contentRoot, slug, platform string, resolve
 	if err != nil {
 		return nil, err
 	}
-	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
-	if err != nil {
-		return nil, err
-	}
+	binding, found := publicationBindingFromFile(bindings, slug, platform)
 	if !found {
 		return nil, errors.New("publication binding not found")
 	}
@@ -156,10 +155,7 @@ func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string,
 	if err != nil {
 		return err
 	}
-	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
-	if err != nil {
-		return err
-	}
+	binding, found := publicationBindingFromFile(bindings, slug, platform)
 	if !found {
 		binding = PublicationBinding{Slug: slug, Platform: platform}
 	}
@@ -173,22 +169,23 @@ func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string,
 }
 
 func SavePublicationPublishResult(contentRoot, slug, platform, contentHash string, result PublishResult, now time.Time) error {
-	state, _, err := LoadPublicationState(contentRoot, slug, platform)
-	if err != nil {
-		return err
-	}
-	if state.DraftHash != contentHash {
-		return errors.New("refusing to record publication for a stale draft")
-	}
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return err
 	}
-	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
-	if err != nil {
-		return err
-	}
-	if !found {
+	binding, found := publicationBindingFromFile(bindings, slug, platform)
+	if found {
+		if binding.DraftHash != contentHash {
+			return errors.New("refusing to record publication for a stale draft")
+		}
+	} else {
+		state, _, loadErr := LoadPublicationState(contentRoot, slug, platform)
+		if loadErr != nil {
+			return loadErr
+		}
+		if state.DraftHash != contentHash {
+			return errors.New("refusing to record publication for a stale draft")
+		}
 		binding = PublicationBinding{
 			Slug: slug, Platform: platform,
 			RemoteDraftID: state.RemoteDraftID, DraftURL: state.DraftURL, DraftHash: state.DraftHash,
@@ -206,10 +203,7 @@ func SavePublicationPublishedUpdateResult(contentRoot, slug, platform, contentHa
 	if err != nil {
 		return err
 	}
-	binding, found, err := loadPublicationBinding(contentRoot, slug, platform)
-	if err != nil {
-		return err
-	}
+	binding, found := publicationBindingFromFile(bindings, slug, platform)
 	if !found {
 		state, _, loadErr := LoadPublicationState(contentRoot, slug, platform)
 		if loadErr != nil {
