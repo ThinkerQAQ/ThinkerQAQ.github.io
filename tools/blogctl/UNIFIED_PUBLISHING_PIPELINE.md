@@ -669,23 +669,23 @@ Dry-run may continue to invoke the compiler locally because it needs no browser 
 
 ### P1 — durable publication state
 
-`.distribution/manifest.json` is now single-writer, but it is still a generated-workspace location.
+**Status:** implemented.
 
-Target:
+Remote platform state now lives in:
 
 ```text
 .blogctl/publications.json   durable platform bindings + hashes + remote URLs
 .distribution/               generated compiler/assets/debug cache only
 ```
 
-Migration rules:
+The durable file keeps the existing CNBlogs verified bindings and adds generic cross-platform publication records. Reads prefer durable state; legacy `.distribution/manifest.json` records are migrated once and remain read-compatible during the transition. New draft/publish/update writes no longer mutate the generated manifest.
 
-1. read durable state first;
-2. migrate existing manifest platform records once;
-3. keep backward-compatible manifest reads during one transition release;
-4. stop treating `.distribution` as the authoritative remote-state database.
+Regression coverage verifies that:
 
-CNBlogs durable bindings already demonstrate this pattern; generalize it to every platform instead of creating another state format.
+1. legacy state migrates without overwriting newer durable state;
+2. deleting `.distribution/` does not lose remote draft/published identity;
+3. generic publication writes preserve CNBlogs verified bindings;
+4. inventory and article-link views continue to work after generated-output cleanup.
 
 ### P2 — platform capabilities and reconciliation
 
