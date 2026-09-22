@@ -178,6 +178,119 @@ func TestCNBlogsUpdatePayloadPreservesServerFields(t *testing.T) {
 	}
 }
 
+func TestCNBlogsPublishTransitionClearsDraftFlagFromCapturedBrowserFailure(t *testing.T) {
+	base := map[string]any{
+		"id":                          float64(23036002),
+		"url":                         "https://www.cnblogs.com/ThinkerQAQ/p/23036002",
+		"isPublished":                 false,
+		"isDraft":                     true,
+		"inSiteHome":                  true,
+		"inSiteCandidate":             false,
+		"includeInMainSyndication":    true,
+		"displayOnHomePage":           true,
+		"datePublished":               "2026-09-19T10:15:00",
+		"dateUpdated":                 "2026-09-19T15:08:00",
+		"blogId":                      float64(824919),
+		"author":                      "ThinkerQAQ",
+		"autoDesc":                    "test",
+		"usingEditorId":               nil,
+	}
+	payload := cnBlogsUpdatePayload("23036002", DraftInput{Title: "test"}, "test", true, base)
+
+	// The 2026-09-19 capture showed that isPublished=true + isDraft=true
+	// returned HTTP 400. A publish transition must clear the draft flag.
+	if payload["isPublished"] != true || payload["isDraft"] != false {
+		t.Fatalf("publish flags = isPublished:%v isDraft:%v, want true/false",
+			payload["isPublished"], payload["isDraft"])
+	}
+	for field, want := range map[string]any{
+		"id":                       float64(23036002),
+		"url":                      "https://www.cnblogs.com/ThinkerQAQ/p/23036002",
+		"inSiteHome":               true,
+		"includeInMainSyndication": true,
+		"datePublished":            "2026-09-19T10:15:00",
+		"dateUpdated":              "2026-09-19T15:08:00",
+		"blogId":                   float64(824919),
+		"author":                   "ThinkerQAQ",
+		"usingEditorId":            5,
+	} {
+		if payload[field] != want {
+			t.Fatalf("%s = %v, want %v", field, payload[field], want)
+		}
+	}
+}
+
+func TestCNBlogsPublishedUpdateMatchesCapturedRepublishContract(t *testing.T) {
+	base := map[string]any{
+		"id":                          float64(23039631),
+		"postType":                    float64(1),
+		"accessPermission":            float64(0),
+		"title":                       "并发编程（三）",
+		"url":                         "https://www.cnblogs.com/ThinkerQAQ/p/23039631",
+		"postBody":                    "old body",
+		"categoryIds":                 []any{},
+		"categories":                  nil,
+		"collectionIds":               []any{float64(44484)},
+		"inSiteCandidate":             false,
+		"inSiteHome":                  true,
+		"siteCategoryId":              float64(106876),
+		"blogTeamIds":                 []any{},
+		"isPublished":                 true,
+		"displayOnHomePage":           true,
+		"isAllowComments":             true,
+		"includeInMainSyndication":    false,
+		"isPinned":                    false,
+		"showBodyWhenPinned":          false,
+		"isOnlyForRegisterUser":       false,
+		"isUpdateDateAdded":           false,
+		"description":                 "",
+		"featuredImage":               nil,
+		"tags":                        []any{},
+		"publishAt":                   nil,
+		"datePublished":               "2026-09-19T12:08:00.000Z",
+		"dateUpdated":                 "2026-09-19T20:10:00",
+		"isMarkdown":                  true,
+		"isDraft":                     false,
+		"isAigc":                      false,
+		"autoDesc":                    "existing auto description",
+		"blogId":                      float64(824919),
+		"author":                      "ThinkerQAQ",
+		"usingEditorId":               nil,
+		"sourceUrl":                   nil,
+	}
+	input := DraftInput{
+		Title:       "并发编程（三）：互斥锁——语言层的原子性、可见性与有序性 · ThinkerQAQ",
+		Description: "",
+	}
+	payload := cnBlogsUpdatePayload("23039631", input, "updated body", true, base)
+
+	// The 2026-09-21 capture successfully updated an already-published post
+	// by POSTing the same id with isPublished=true and isDraft=false.
+	for field, want := range map[string]any{
+		"id":                       float64(23039631),
+		"url":                      "https://www.cnblogs.com/ThinkerQAQ/p/23039631",
+		"isPublished":              true,
+		"isDraft":                  false,
+		"inSiteHome":               true,
+		"includeInMainSyndication": false,
+		"datePublished":            "2026-09-19T12:08:00.000Z",
+		"dateUpdated":              "2026-09-19T20:10:00",
+		"blogId":                   float64(824919),
+		"author":                   "ThinkerQAQ",
+		"usingEditorId":            5,
+	} {
+		if payload[field] != want {
+			t.Fatalf("%s = %v, want %v", field, payload[field], want)
+		}
+	}
+	if payload["title"] != input.Title || payload["postBody"] != "updated body" {
+		t.Fatalf("updated title/body = %v / %v", payload["title"], payload["postBody"])
+	}
+	if got := payload["collectionIds"].([]any); len(got) != 1 || got[0] != float64(44484) {
+		t.Fatalf("collectionIds = %#v, want preserved capture value", got)
+	}
+}
+
 // TestCNBlogsUpdateDraftFetchesThenPostsServerFields verifies the update path
 // GETs the existing post and echoes server fields into the save request.
 func TestCNBlogsUpdateDraftFetchesThenPostsServerFields(t *testing.T) {
