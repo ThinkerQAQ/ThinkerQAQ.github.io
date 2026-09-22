@@ -14,13 +14,8 @@ import (
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
+	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 )
-
-var chinaPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {},
-}
-var internationalPlatforms = map[string]struct{}{"devto": {}, "medium": {}}
 
 type syncOptions struct {
 	articles  []string
@@ -74,13 +69,9 @@ func parseSyncArgs(args []string) (syncOptions, error) {
 		return options, errors.New("explicit platform selection is required: use --platforms <list>")
 	}
 	for _, platform := range options.platforms {
-		if _, ok := chinaPlatforms[platform]; ok {
-			continue
+		if !blogplatform.Supported(platform) {
+			return options, fmt.Errorf("unsupported platform: %s", platform)
 		}
-		if _, ok := internationalPlatforms[platform]; ok {
-			continue
-		}
-		return options, fmt.Errorf("unsupported platform: %s", platform)
 	}
 	return options, nil
 }
