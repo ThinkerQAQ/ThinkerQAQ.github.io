@@ -189,7 +189,7 @@ jobs:
       - name: Deploy to EdgeOne Makers
         env:
           EDGEONE_API_TOKEN: ${{ secrets.EDGEONE_API_TOKEN }}
-        run: npx edgeone makers deploy ./dist -n thinkerqaq-blog -t "$EDGEONE_API_TOKEN" -e production
+        run: npx edgeone makers deploy ./dist -n thinkerqaq-blog-static -t "$EDGEONE_API_TOKEN" -e production
 
   deploy:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
