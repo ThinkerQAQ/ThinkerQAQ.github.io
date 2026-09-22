@@ -19,7 +19,6 @@ jobs:
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_BUCKET: ${{ vars.R2_BUCKET || 'thinkerqaq-assets' }}
       R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL || 'https://pub-366a15b6733345039775c083a1fffb3e.r2.dev' }}
-      MERMAID_PUPPETEER_CONFIG_FILE: ${{ runner.temp }}/blogctl-mermaid-puppeteer.json
     steps:
       - name: Checkout engine
         uses: actions/checkout@v6
@@ -58,6 +57,8 @@ jobs:
       - name: Probe Concurrency 04 Mermaid -> R2 -> GET -> SHA-256
         working-directory: engine
         shell: bash
+        env:
+          MERMAID_PUPPETEER_CONFIG_FILE: ${{ runner.temp }}/blogctl-mermaid-puppeteer.json
         run: |
           set -euo pipefail
           printf '%s\\n' '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > "$MERMAID_PUPPETEER_CONFIG_FILE"
