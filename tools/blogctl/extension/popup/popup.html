@@ -21,6 +21,7 @@
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
       <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="sync">同步发布</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">草稿与发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">发布配置</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">工具与配置</button>
@@ -43,6 +44,21 @@
 
     </section>
 
+    <section class="panel" role="tabpanel" data-panel="publications">
+      <section class="status-card">
+        <div class="section-title">草稿与发布</div>
+        <p class="card-hint">集中查看 BlogCTL 已记录的平台草稿与公开文章。这里读取本地发布状态，不会在刷新时批量访问各平台。</p>
+        <label class="field"><span>搜索</span><input id="publicationQuery" type="search" placeholder="文章标题、slug、平台或远端 ID" autocomplete="off"></label>
+        <div class="publication-filters">
+          <label class="field"><span>平台</span><select id="publicationPlatform"><option value="">全部平台</option></select></label>
+          <label class="field"><span>状态</span><select id="publicationStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="published">已发布</option></select></label>
+        </div>
+        <p id="publicationSummary" class="card-hint"></p>
+        <div id="publicationList" class="publication-list"><div class="platform-loading">正在读取发布记录…</div></div>
+      </section>
+      <p id="publicationsMessage" class="message" role="status"></p>
+    </section>
+
     <section class="panel" role="tabpanel" data-panel="tasks">
       <section class="status-card">
         <div class="status-row">
@@ -63,6 +79,17 @@
     <section class="panel" role="tabpanel" data-panel="publishing">
       <section class="status-card">
         <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
+
+        <div class="section-title">Mermaid 与图片资产</div>
+        <div class="status-row"><span>R2 上传状态</span><strong id="assetStatus" class="status checking">检测中</strong></div>
+        <p id="assetStatusDetail" class="card-hint">Mermaid 会先渲染为 PNG 上传到 R2，再由需要的平台适配器上传到平台图床。</p>
+        <div class="publication-filters">
+          <label class="field"><span>PNG 宽度</span><input id="mermaidWidth" type="number" min="1" step="1"></label>
+          <label class="field"><span>渲染倍数</span><input id="mermaidScale" type="number" min="0.1" step="0.1"></label>
+        </div>
+        <label class="field"><span>R2 Bucket</span><input id="r2Bucket" type="text" placeholder="thinkerqaq-asset"></label>
+        <label class="field"><span>R2 Public Base URL</span><input id="r2PublicBaseUrl" type="url" placeholder="https://assets.example.com/"></label>
+        <p class="card-hint">敏感凭据不写入 BlogCTL 配置；Bridge 进程需提供 <code>R2_ACCESS_KEY_ID</code>、<code>R2_SECRET_ACCESS_KEY</code>，以及 <code>R2_ACCOUNT_ID</code> 或 <code>R2_ENDPOINT</code>。</p>
 
         <label class="switch-row" for="publishingChangedOnly"><span><strong>仅更新内容有变化的草稿</strong><small>此平台已有草稿且内容未变时跳过；Medium 暂不支持更新已有草稿。</small></span><input id="publishingChangedOnly" type="checkbox"></label>
 
@@ -99,6 +126,7 @@
   <script src="sync-model.js"></script>
   <script src="sync-state.js"></script>
   <script src="sync.js"></script>
+  <script src="publications.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
   <script src="publishing.js"></script>
