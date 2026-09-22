@@ -42,7 +42,7 @@ test("builds two adjacent hourly windows from the Umami share APIs", async () =>
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(String(input));
 
-    if (url.pathname === `/api/share/${SHARE}`) {
+    if (url.pathname === `/v1/share/${SHARE}`) {
       return Response.json({
         websiteId: WEBSITE_ID,
         token: "share-token",
@@ -56,7 +56,7 @@ test("builds two adjacent hourly windows from the Umami share APIs", async () =>
     const startAt = Number(url.searchParams.get("startAt"));
     const recent = startAt >= 3_600_000;
 
-    if (url.pathname === `/api/websites/${WEBSITE_ID}/stats`) {
+    if (url.pathname === `/v1/websites/${WEBSITE_ID}/stats`) {
       return Response.json(
         recent
           ? { pageviews: 3, visitors: 2, visits: 2, bounces: 1, totaltime: 40 }
@@ -64,7 +64,7 @@ test("builds two adjacent hourly windows from the Umami share APIs", async () =>
       );
     }
 
-    if (url.pathname === `/api/websites/${WEBSITE_ID}/metrics`) {
+    if (url.pathname === `/v1/websites/${WEBSITE_ID}/metrics`) {
       return Response.json(metricRows(url.searchParams.get("type"), recent));
     }
 
