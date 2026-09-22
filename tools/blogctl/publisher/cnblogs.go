@@ -37,6 +37,7 @@ func (c *cnBlogsAdapter) request(ctx context.Context, method, rawURL string, bod
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("accept", "application/json, text/plain, */*")
 	if req.URL.Hostname() == "i.cnblogs.com" && c.session.RequestCookieHeader != "" {
 		req.Header.Set("Cookie", c.session.RequestCookieHeader)
 	}
@@ -95,10 +96,37 @@ func (c *cnBlogsAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	return AuthResult{Authenticated: true, UserID: decoded.LoginName, Username: username}, nil
 }
 
+func cnBlogsCookieHeaderValue(header, name string) string {
+	for _, pair := range strings.Split(header, ";") {
+		key, value, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if ok && strings.EqualFold(strings.TrimSpace(key), name) {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func decodeCNBlogsXSRF(token string) string {
+	token = strings.TrimSpace(token)
+	if decoded, err := url.QueryUnescape(token); err == nil && decoded != "" {
+		return strings.TrimSpace(decoded)
+	}
+	return token
+}
+
 func (c *cnBlogsAdapter) xsrfToken(ctx context.Context) (string, error) {
 	if c.xsrf != "" {
 		return c.xsrf, nil
 	}
+	token := cookieValue(c.session, "XSRF-TOKEN")
+	if token == "" {
+		token = cnBlogsCookieHeaderValue(c.session.RequestCookieHeader, "XSRF-TOKEN")
+	}
+	if token = decodeCNBlogsXSRF(token); token != "" {
+		c.xsrf = token
+		return token, nil
+	}
+
 	req, err := c.request(ctx, http.MethodGet, cnBlogsOrigin+"/posts/edit", nil)
 	if err != nil {
 		return "", err
@@ -112,23 +140,66 @@ func (c *cnBlogsAdapter) xsrfToken(ctx context.Context) (string, error) {
 	if response.StatusCode < 200 || response.StatusCode >= 400 {
 		return "", classifyHTTP(c.ID(), "xsrf", response.StatusCode, "")
 	}
-	token := cookieValue(c.session, "XSRF-TOKEN")
-	if response.Cookies() != nil {
-		for _, cookie := range response.Cookies() {
-			if cookie.Name == "XSRF-TOKEN" {
-				token = cookie.Value
-				break
-			}
+	for _, cookie := range response.Cookies() {
+		if cookie.Name == "XSRF-TOKEN" {
+			token = decodeCNBlogsXSRF(cookie.Value)
+			break
 		}
 	}
-	if decoded, err := url.QueryUnescape(token); err == nil && decoded != "" {
-		token = decoded
-	}
-	if strings.TrimSpace(token) == "" {
+	if token == "" {
 		return "", platformError(ErrCSRF, c.ID(), "xsrf", response.StatusCode, "XSRF-TOKEN cookie is missing", false)
 	}
 	c.xsrf = token
 	return token, nil
+}
+
+func cnBlogsUploadedImageURL(value any) string {
+	switch typed := value.(type) {
+	case string:
+		candidate := strings.TrimSpace(typed)
+		parsed, err := url.Parse(candidate)
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+			return ""
+		}
+		host := strings.ToLower(parsed.Hostname())
+		if host == "cnblogs.com" || strings.HasSuffix(host, ".cnblogs.com") {
+			return candidate
+		}
+	case map[string]any:
+		for _, key := range []string{"url", "imageUrl", "imgUrl", "src", "message", "data", "result"} {
+			if target := cnBlogsUploadedImageURL(typed[key]); target != "" {
+				return target
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if target := cnBlogsUploadedImageURL(item); target != "" {
+				return target
+			}
+		}
+	}
+	return ""
+}
+
+func (c *cnBlogsAdapter) uploadImageRequest(ctx context.Context, endpoint string, fields map[string]string, fileField string, payload []byte, filename, contentType, token string) (string, error) {
+	body, bodyType, err := multipartBody(fields, fileField, filename, contentType, payload)
+	if err != nil {
+		return "", err
+	}
+	req, err := c.request(ctx, http.MethodPost, endpoint, body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("content-type", bodyType)
+	req.Header.Set("x-xsrf-token", token)
+	var decoded any
+	if err := doJSON(c.client, req, c.ID(), "image-upload", &decoded); err != nil {
+		return "", err
+	}
+	if target := cnBlogsUploadedImageURL(decoded); target != "" {
+		return target, nil
+	}
+	return "", platformError(ErrUpload, c.ID(), "image-upload", 0, "image URL missing", false)
 }
 
 func (c *cnBlogsAdapter) uploadImage(ctx context.Context, source string, input DraftInput) (string, error) {
@@ -140,26 +211,50 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, source string, input D
 	if err != nil {
 		return "", platformError(ErrUpload, c.ID(), "download-image", 0, err.Error(), true)
 	}
-	body, bodyType, err := multipartBody(map[string]string{"app": "blog", "uploadType": "Select"}, "image", inferImageFilename(source, contentType), contentType, payload)
-	if err != nil {
-		return "", err
+	filename := inferImageFilename(source, contentType)
+
+	target, currentErr := c.uploadImageRequest(
+		ctx,
+		"https://upload.cnblogs.com/v2/images/cors-upload",
+		nil,
+		"image",
+		payload,
+		filename,
+		contentType,
+		token,
+	)
+	if currentErr == nil {
+		return target, nil
 	}
-	req, err := c.request(ctx, http.MethodPost, "https://upload.cnblogs.com/v2/images/cors-upload", body)
-	if err != nil {
-		return "", err
+
+	// Legacy endpoint fallback. Keeping this path makes BlogCTL tolerant of
+	// CNBlogs switching traffic between the old and v2 upload handlers.
+	target, legacyErr := c.uploadImageRequest(
+		ctx,
+		"https://upload.cnblogs.com/imageuploader/CorsUpload",
+		map[string]string{"host": "www.cnblogs.com", "uploadType": "Paste"},
+		"imageFile",
+		payload,
+		filename,
+		contentType,
+		token,
+	)
+	if legacyErr == nil {
+		return target, nil
 	}
-	req.Header.Set("content-type", bodyType)
-	req.Header.Set("x-xsrf-token", token)
-	var decoded map[string]any
-	if err := doJSON(c.client, req, c.ID(), "image-upload", &decoded); err != nil {
-		return "", err
-	}
-	for _, key := range []string{"data", "url", "imageUrl", "src"} {
-		if target := valueString(decoded[key]); target != "" {
-			return target, nil
-		}
-	}
-	return "", platformError(ErrUpload, c.ID(), "image-upload", 0, "image URL missing", false)
+	return "", platformError(
+		ErrUpload,
+		c.ID(),
+		"image-upload",
+		0,
+		"v2 upload failed: "+currentErr.Error()+"; legacy upload failed: "+legacyErr.Error(),
+		true,
+	)
+}
+
+func isRemoteHTTPImage(source string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(source))
+	return err == nil && (parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.Host != ""
 }
 
 func (c *cnBlogsAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
@@ -171,6 +266,13 @@ func (c *cnBlogsAdapter) prepareMarkdown(ctx context.Context, input DraftInput) 
 		}
 		target, err := c.uploadImage(ctx, source, input)
 		if err != nil {
+			// Mermaid assets have already been materialized to an HTTPS R2 URL by
+			// BlogCTL. If CNBlogs' private image endpoint changes temporarily, keep
+			// that remote URL so the article draft still saves with a working image.
+			if isRemoteHTTPImage(source) {
+				slog.Warn("cnblogs image upload failed; keeping remote image URL", "operation", "image-upload", "source", source, "error", err)
+				continue
+			}
 			return "", err
 		}
 		replacements[source] = target
