@@ -349,6 +349,10 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/articles");
       return { ok: true, articles: result?.articles ?? [] };
     }
+    case "blogctl.publications": {
+      const result = await fetchJSON("/v1/publications");
+      return { ok: true, records: result?.records ?? [] };
+    }
     case "blogctl.article.match": {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");
@@ -444,11 +448,27 @@ async function handleMessage(message) {
     }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");
-      return { ok: true, platforms: result?.platforms ?? [] };
+      return {
+        ok: true,
+        platforms: result?.platforms ?? [],
+        compiler: result?.compiler ?? {},
+        assets: result?.assets ?? {},
+        assetStatus: result?.assetStatus ?? {},
+      };
     }
     case "blogctl.publishing.save": {
-      const result = await fetchJSON("/v1/publishing", jsonOptions("PUT", { platforms: message.platforms ?? [] }));
-      return { ok: true, platforms: result?.platforms ?? [] };
+      const result = await fetchJSON("/v1/publishing", jsonOptions("PUT", {
+        platforms: message.platforms ?? [],
+        compiler: message.compiler,
+        assets: message.assets,
+      }));
+      return {
+        ok: true,
+        platforms: result?.platforms ?? [],
+        compiler: result?.compiler ?? {},
+        assets: result?.assets ?? {},
+        assetStatus: result?.assetStatus ?? {},
+      };
     }
     case "blogctl.jobs": {
       const result = await fetchJSON("/v1/sync/jobs");
