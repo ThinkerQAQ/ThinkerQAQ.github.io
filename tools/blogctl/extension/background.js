@@ -367,6 +367,19 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/publications");
       return { ok: true, records: result?.records ?? [] };
     }
+    case "blogctl.publication.reconcile": {
+      const article = String(message.article || "").trim();
+      const platform = String(message.platform || "").trim();
+      if (!article || !platform) throw new Error("article and platform are required");
+      const publishing = await fetchJSON("/v1/publishing");
+      const profile = (publishing?.platforms ?? []).find((item) => item.id === platform);
+      if (profile?.capabilities?.browserSession === true) {
+        await syncPlatformSession(platform);
+      }
+      const query = new URLSearchParams({ article, platform });
+      const result = await fetchJSON(`/v1/publications/reconcile?${query.toString()}`, { method: "POST" });
+      return { ok: true, reconciliation: result?.reconciliation ?? null };
+    }
     case "blogctl.article.match": {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");
