@@ -690,15 +690,6 @@ func usesPlatform(platforms []string, target string) bool {
 	return false
 }
 
-func usesChinaPlatform(platforms []string) bool {
-	for _, platform := range platforms {
-		if _, ok := chinaPlatforms[platform]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 func filePresent(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
