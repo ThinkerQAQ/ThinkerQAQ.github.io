@@ -342,6 +342,14 @@ func allowExtensionWrite(response http.ResponseWriter, request *http.Request) (s
 	return origin, true
 }
 
+func (s *Server) allowSyncControlWrite(response http.ResponseWriter, request *http.Request) bool {
+	if request.Header.Get("x-thinkerqaq-token") == s.token {
+		return true
+	}
+	_, ok := allowExtensionWrite(response, request)
+	return ok
+}
+
 func (s *Server) handleOptions(response http.ResponseWriter, request *http.Request) {
 	origin := request.Header.Get("origin")
 	if !validBrowserExtensionOrigin(origin) {
@@ -532,7 +540,7 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 }
 
 func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Request) {
-	if _, ok := allowExtensionWrite(response, request); !ok {
+	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
 	var body syncRequest
