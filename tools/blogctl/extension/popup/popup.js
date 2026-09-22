@@ -2,6 +2,7 @@
 
 const modules = {
   sync: BlogCTLSync,
+  publications: BlogCTLPublications,
   tasks: BlogCTLTasks,
   publishing: BlogCTLPublishing,
   environment: BlogCTLEnvironment,
