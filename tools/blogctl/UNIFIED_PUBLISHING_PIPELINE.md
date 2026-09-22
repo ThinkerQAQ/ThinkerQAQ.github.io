@@ -721,14 +721,6 @@ The **草稿与发布** tab exposes this as an explicit **远端核验** action 
 
 Do not guess undocumented list/update endpoints. Add them only from verified API/browser captures.
 
-CSDN lifecycle note:
-
-- an unpublished CSDN article may be created and updated as a draft;
-- once the durable publication record has a published URL, BlogCTL no longer treats the same article ID as a saveable draft;
-- unchanged published content is skipped;
-- changed published content fails closed instead of sending `pubStatus=draft` to an already published article;
-- CSDN published-article republish remains disabled until a capture of the actual editor "再次发布" request verifies the request body and update semantics. `PublishedUpdate` therefore remains false.
-
 ### P3 — Medium editor completeness
 
 **Formatting normalization is implemented.** Medium output now uses a dedicated Medium-safe transformation layer rather than sending raw Markdown semantics directly into the editor transport:
