@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -178,6 +179,72 @@ type ArticleLink struct {
 	RemoteID     string `json:"remoteId,omitempty"`
 	DraftURL     string `json:"draftUrl,omitempty"`
 	PublishedURL string `json:"publishedUrl,omitempty"`
+}
+
+type PublicationRecord struct {
+	Article           string `json:"article"`
+	Platform          string `json:"platform"`
+	RemoteID          string `json:"remoteId,omitempty"`
+	DraftURL          string `json:"draftUrl,omitempty"`
+	PublishedURL      string `json:"publishedUrl,omitempty"`
+	DraftSyncedAt     string `json:"draftSyncedAt,omitempty"`
+	PublishedAt       string `json:"publishedAt,omitempty"`
+	PublishedSyncedAt string `json:"publishedSyncedAt,omitempty"`
+	UpdatedAt         string `json:"updatedAt,omitempty"`
+}
+
+func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
+	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return []PublicationRecord{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	records := []PublicationRecord{}
+	for slug, articleValue := range objectValue(manifest["articles"]) {
+		article := objectValue(articleValue)
+		for platform, stateValue := range objectValue(article["platforms"]) {
+			state := objectValue(stateValue)
+			if state == nil {
+				continue
+			}
+			draftURL := stringValue(state["draftUrl"])
+			remoteID := stringValue(state["remoteDraftId"])
+			if remoteID == "" {
+				remoteID = draftIDFromURL(platform, draftURL)
+			}
+			record := PublicationRecord{
+				Article: slug, Platform: platform, RemoteID: remoteID,
+				DraftURL: draftURL, PublishedURL: stringValue(state["publishedUrl"]),
+				DraftSyncedAt: stringValue(state["draftSyncedAt"]),
+				PublishedAt: stringValue(state["publishedAt"]),
+				PublishedSyncedAt: stringValue(state["publishedSyncedAt"]),
+			}
+			if record.DraftSyncedAt == "" {
+				record.DraftSyncedAt = stringValue(state["lastSyncedAt"])
+			}
+			for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
+				if candidate > record.UpdatedAt {
+					record.UpdatedAt = candidate
+				}
+			}
+			if record.RemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
+				continue
+			}
+			records = append(records, record)
+		}
+	}
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].UpdatedAt != records[j].UpdatedAt {
+			return records[i].UpdatedAt > records[j].UpdatedAt
+		}
+		if records[i].Article != records[j].Article {
+			return records[i].Article < records[j].Article
+		}
+		return records[i].Platform < records[j].Platform
+	})
+	return records, nil
 }
 
 // LoadArticleLinks reads locally recorded remote references without contacting a platform.
