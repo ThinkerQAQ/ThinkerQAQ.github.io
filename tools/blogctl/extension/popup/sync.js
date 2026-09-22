@@ -1,9 +1,6 @@
 "use strict";
 
 (function (root) {
-  const NATIVE_BROWSER_PLATFORMS = new Set([
-    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
-  ]);
   const state = { initialized: false, active: false, articles: [], selectedSlug: "", selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)), status: null, publishing: [], tools: [], cnblogsBindings: [], bindingLoading: false, bindingError: false, matches: {}, matchKey: "", cachedMatchTime: 0, refreshSerial: 0 };
   let articlePicker, articleOptions, articleMeta, platformsContainer, startButton, updatePublishedButton, message;
   let refreshMatchesButton;
@@ -28,8 +25,14 @@
     startButton.disabled = !ready || (selectedPlatforms().includes("cnblogs") && (state.bindingLoading || state.bindingError));
     refreshMatchesButton.disabled = !state.selectedSlug || !state.status?.bridge?.running;
     startButton.textContent = ready ? `创建／更新 ${count} 个平台草稿` : "选择文章和平台后创建草稿";
-    updatePublishedButton.disabled = !BlogCTLSyncModel.canUpdateCNBlogsPublished(state.selectedSlug, selectedPlatforms(), state.status?.bridge?.running);
-    updatePublishedButton.title = selectedPlatforms().some((platform) => platform !== "cnblogs") ? "当前仅博客园支持更新已发布文章，请只勾选博客园" : "更新前会由 Bridge 校验已发布文章绑定和远端状态";
+    const selected = selectedPlatforms();
+    updatePublishedButton.disabled = !BlogCTLSyncModel.canUpdatePublished(
+      state.selectedSlug, selected, state.status?.bridge?.running, state.status,
+    );
+    const selectedStatus = (state.status?.platforms ?? []).find((platform) => platform.id === selected[0]);
+    updatePublishedButton.title = selected.length === 1 && selectedStatus?.capabilities?.publishedUpdate
+      ? "更新前会由 Bridge 校验已发布文章绑定和远端状态"
+      : "所选平台暂不支持安全更新已发布文章";
   }
 
   function renderArticleMeta() {
@@ -72,7 +75,7 @@
     platformsContainer.replaceChildren();
     for (const platform of state.status?.platforms ?? []) {
       const sourceAvailability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
-      const toolAvailability = BlogCTLSyncModel.deliveryToolAvailability(platform.id, state.tools);
+      const toolAvailability = BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
       const availability = sourceAvailability.available ? toolAvailability : sourceAvailability;
       const label = document.createElement("label");
       label.className = "platform-choice";
@@ -91,8 +94,8 @@
       const name = document.createElement("strong");
       name.textContent = platform.label || platform.id;
       const detail = document.createElement("small");
-      const nativeBrowserPlatform = NATIVE_BROWSER_PLATFORMS.has(platform.id);
-      const apiPlatform = platform.id === "devto";
+      const nativeBrowserPlatform = platform.capabilities?.browserSession === true;
+      const apiPlatform = platform.capabilities?.apiKey === true;
       detail.textContent = !availability.available
         ? availability.reason
         : apiPlatform
