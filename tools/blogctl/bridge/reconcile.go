@@ -28,14 +28,26 @@ type publicationReconciliation struct {
 	Message     string `json:"message,omitempty"`
 }
 
-func localPublicationState(state publisher.PublicationState) string {
-	if strings.TrimSpace(state.PublishedURL) != "" {
+func localPublicationRecordState(record publisher.PublicationRecord) string {
+	hasDraft := strings.TrimSpace(record.RemoteID) != "" || strings.TrimSpace(record.DraftURL) != ""
+	hasPublished := strings.TrimSpace(record.PublishedURL) != ""
+	if !hasPublished {
+		if hasDraft {
+			return "draft"
+		}
+		return ""
+	}
+	if !hasDraft {
 		return "published"
 	}
-	if strings.TrimSpace(state.RemoteDraftID) != "" || strings.TrimSpace(state.DraftURL) != "" {
+	latestPublished := record.PublishedAt
+	if record.PublishedSyncedAt > latestPublished {
+		latestPublished = record.PublishedSyncedAt
+	}
+	if record.DraftSyncedAt != "" && record.DraftSyncedAt > latestPublished {
 		return "draft"
 	}
-	return ""
+	return "published"
 }
 
 func publicationReconciliationStatus(localState, remoteState string, changed bool) string {
@@ -102,15 +114,32 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 	client := s.httpClient
 	s.mu.Unlock()
 
-	state, _, err := publisher.LoadPublicationState(contentRoot, slug, platformID)
+	if _, err := publisher.MigratePublicationStates(contentRoot); err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "publication_migration_failed", err.Error(), nil)
+		return
+	}
+	records, err := publisher.ListPublicationRecords(contentRoot)
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "publication_read_failed", err.Error(), nil)
 		return
 	}
-	localState := localPublicationState(state)
+	var record publisher.PublicationRecord
+	found := false
+	for _, candidate := range records {
+		if candidate.Article == slug && candidate.Platform == platformID {
+			record = candidate
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeAPIError(response, http.StatusNotFound, "publication_not_found", "local publication record not found", nil)
+		return
+	}
+	localState := localPublicationRecordState(record)
 	result := publicationReconciliation{
 		Article: slug, Platform: platformID, Status: "local-only", LocalState: localState,
-		RemoteID: state.RemoteDraftID,
+		RemoteID: record.RemoteID,
 	}
 
 	capabilities := blogplatform.For(platformID)
@@ -119,7 +148,7 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 		writeJSON(response, http.StatusOK, map[string]any{"reconciliation": result})
 		return
 	}
-	if strings.TrimSpace(state.RemoteDraftID) == "" {
+	if strings.TrimSpace(record.RemoteID) == "" {
 		result.Message = "本地没有可用于远端核验的文章 ID。"
 		writeJSON(response, http.StatusOK, map[string]any{"reconciliation": result})
 		return
@@ -136,7 +165,7 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 			writeAPIError(response, http.StatusBadRequest, "session_required", sessionErr.Error(), nil)
 			return
 		}
-		_, post, lookupErr := publisher.CNBlogsGetPost(ctx, sessionClient, session, state.RemoteDraftID)
+		_, post, lookupErr := publisher.CNBlogsGetPost(ctx, sessionClient, session, record.RemoteID)
 		if lookupErr != nil {
 			if publisher.IsKind(lookupErr, publisher.ErrRemoteDraftMissing) {
 				result.RemoteState = "missing"
@@ -173,7 +202,7 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 			writeAPIError(response, http.StatusBadRequest, "api_key_required", "DEV.to API Key is not configured", nil)
 			return
 		}
-		article, missing, lookupErr := devtoArticleByID(ctx, client, key, state.RemoteDraftID)
+		article, missing, lookupErr := devtoArticleByID(ctx, client, key, record.RemoteID)
 		if lookupErr != nil {
 			writeAPIError(response, http.StatusBadGateway, "verification_failed", lookupErr.Error(), nil)
 			return
