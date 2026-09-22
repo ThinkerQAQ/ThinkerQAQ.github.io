@@ -603,11 +603,14 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
-	if request.ChangedOnly && state.DraftHash == request.Compiled.ContentHash && state.DraftURL != "" {
-		return blogapp.NativeDraftResult{
-			Result: "skipped", URL: state.DraftURL,
-			Message: "Medium draft is unchanged; keeping the existing draft.",
-		}, nil
+	if request.ChangedOnly && state.DraftURL != "" {
+		if state.DraftHash == request.Compiled.ContentHash {
+			return blogapp.NativeDraftResult{
+				Result: "skipped", URL: state.DraftURL,
+				Message: "Medium draft is unchanged; keeping the existing draft.",
+			}, nil
+		}
+		return blogapp.NativeDraftResult{}, errors.New("Medium draft changed, but updating an existing Medium draft is not verified yet")
 	}
 
 	fallbackPath, err := writeMediumFallback(request.ContentRoot, request.Compiled)
