@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-09-22T14:12:10.557Z",
+  "generatedAt": "2026-09-22T18:19:48.794Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790082730557,
-    "endAt": 1790086330557,
+    "startAt": 1790097588794,
+    "endAt": 1790101188794,
     "stats": {
       "pageviews": 0,
       "visitors": 0,
@@ -24,8 +24,8 @@
     "utmSources": []
   },
   "previous": {
-    "startAt": 1790079130556,
-    "endAt": 1790082730556,
+    "startAt": 1790093988793,
+    "endAt": 1790097588793,
     "stats": {
       "pageviews": 0,
       "visitors": 0,
