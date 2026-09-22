@@ -177,20 +177,18 @@ func transformZhihuHTML(html string) string {
 }
 
 func (z *zhihuAdapter) prepareHTML(ctx context.Context, input DraftInput) (string, error) {
-	html := htmlFor(input)
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		if isZhihuImage(source) {
-			continue
+	html, err := rehostHTMLImages(ctx, z.client, input, htmlFor(input), ImageRehostOptions{
+		Platform:       z.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted:  isZhihuImage,
+	}, func(ctx context.Context, image RehostImage) (string, error) {
+		if !isRemoteHTTPImage(image.Source) {
+			return "", platformError(ErrUpload, z.ID(), "image-upload", 0, "Zhihu image import requires an HTTP(S) source URL", false)
 		}
-		target, err := z.uploadImage(ctx, source)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	for source, target := range replacements {
-		html = strings.ReplaceAll(html, source, target)
+		return z.uploadImage(ctx, image.Source)
+	})
+	if err != nil {
+		return "", err
 	}
 	return transformZhihuHTML(html), nil
 }
