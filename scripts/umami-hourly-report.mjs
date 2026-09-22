@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-const UMAMI_API_ORIGIN = "https://api.umami.is/v1";
+const UMAMI_API_ORIGIN = "https://gateway-us.umami.is/api";
 const DEFAULT_HOURS = 1;
 const MAX_HOURS = 24;
 const METRIC_LIMIT = 100;
