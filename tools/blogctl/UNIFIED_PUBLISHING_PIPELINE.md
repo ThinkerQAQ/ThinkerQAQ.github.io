@@ -723,9 +723,22 @@ Do not guess undocumented list/update endpoints. Add them only from verified API
 
 ### P3 — Medium editor completeness
 
-Keep the current fail-closed image behavior until a verified Medium browser request proves a safe image insertion transport.
+**Formatting normalization is implemented.** Medium output now uses a dedicated Medium-safe transformation layer rather than sending raw Markdown semantics directly into the editor transport:
 
-Priorities:
+- removes redundant local Table of Contents / Contents / 目录 sections;
+- maps body H1/H2 to Medium section headings so the dedicated story title is not duplicated;
+- keeps deeper headings as subheadings;
+- preserves fenced-code whitespace and language metadata in the copy/paste fallback;
+- converts Markdown tables into compact readable row summaries, including code spans containing pipe characters;
+- flattens nested lists into stable visible hierarchy and normalizes task-list markers;
+- converts GitHub admonitions into readable Medium quote blocks;
+- preserves separators with a transport-safe textual representation instead of guessing an undocumented delta type;
+- adds image captions in the copy/paste fallback;
+- keeps Mermaid on the shared PNG/R2 asset path.
+
+This formatting work does not require browser captures because it is deterministic content transformation.
+
+Keep the current fail-closed image behavior until a verified Medium browser request proves a safe image insertion transport. Browser captures are still required before enabling private editor mutations for:
 
 1. body-image upload/insertion;
 2. canonical URL;
