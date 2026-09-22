@@ -715,9 +715,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
 
-	if _, err := publisher.MigratePublicationStates(config.ContentRoot); err != nil {
-		return "", err
-	}
 	publishingJSON, publishingErr := resolvedPublishingJSON(config)
 	if publishingErr != nil {
 		return "", publishingErr
