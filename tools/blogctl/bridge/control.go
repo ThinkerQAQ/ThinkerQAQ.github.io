@@ -494,16 +494,6 @@ func newJobID() string {
 
 type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
 
-func usesChinaPublishingPlatform(platforms []string) bool {
-	for _, platform := range platforms {
-		switch platform {
-		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
-			return true
-		}
-	}
-	return false
-}
-
 func allExplicitPublishPlatforms(platforms []string) bool {
 	if len(platforms) == 0 {
 		return false
@@ -717,6 +707,11 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 }
 
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
+	// Compiler outputs, asset cache and durable publication state share one content workspace.
+	// Serialize live jobs so independent platform tasks cannot lose each other's state updates.
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
+
 	if _, err := publisher.MigratePublicationStates(config.ContentRoot); err != nil {
 		return "", err
 	}
@@ -739,8 +734,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	if request.Operation == "update-published" {
 		started := time.Now()
 		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
-		s.distributionMu.Lock()
-		defer s.distributionMu.Unlock()
 		output, err := blogapp.NewSyncService().Run(ctx, applicationConfig, blogapp.SyncRequest{
 			Articles: []string{request.Article}, Platforms: []string{"cnblogs"}, DryRun: true, Draft: true, Operation: "draft",
 		})
@@ -792,10 +785,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	service := blogapp.NewSyncService()
 	service.NativePublisher = bridgeNativePublisher{server: s}
 	service.OnEvent = onEvent
-	if usesChinaPublishingPlatform(request.Platforms) {
-		s.distributionMu.Lock()
-		defer s.distributionMu.Unlock()
-	}
 	changedByPlatform := changedPoliciesForRequest(config, request)
 	for platform, enabled := range changedByPlatform {
 		slog.Info("draft changed-only policy selected", "operation", "draft-policy", "platform", platform, "enabled", enabled)
