@@ -130,7 +130,7 @@ Article and platform scopes are always explicit:
 blogctl sync --article concurrency-series-00 --platforms devto,medium --dry-run
 ```
 
-The source article is loaded from `BLOG_CONTENT_ROOT/src/content/articles/**`; English syndication reads `BLOG_CONTENT_ROOT/src/content/articles/en/**`. Generated publishing artifacts are written to `BLOG_CONTENT_ROOT/.distribution/**`, so content-derived outputs stay with the content workspace instead of polluting the public engine checkout. `.distribution/` is local-only and should remain ignored by Git.
+The source article is loaded from `BLOG_CONTENT_ROOT/src/content/articles/**`; English syndication reads `BLOG_CONTENT_ROOT/src/content/articles/en/**`. Generated publishing artifacts are written to `BLOG_CONTENT_ROOT/.distribution/**`, so content-derived outputs stay with the content workspace instead of polluting the public engine checkout. `.distribution/` is local-only and should remain ignored by Git. Remote draft/published identity, hashes, URLs, and sync timestamps live in `BLOG_CONTENT_ROOT/.blogctl/publications.json`; that durable file survives generated-output cleanup and should be retained with the content repository.
 
 BlogCTL Extension independently reports browser login status for the publishing platforms it knows how to inspect: 博客园, 掘金, CSDN, 思否, 知乎, 51CTO, 开源中国, 今日头条, DEV.to, and Medium. A failed probe is isolated to that platform and does not make the other platform or Bridge states unknown.
 
