@@ -216,6 +216,14 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if path == "v1/publications" && request.Method == http.MethodGet {
+		if !allowReadOnlyBridgeStatus(response, request) {
+			return
+		}
+		s.handlePublications(response)
+		return
+	}
+
 	if path == "v1/tools" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {
 			return
@@ -482,7 +490,7 @@ func (s *Server) handlePublishingGet(response http.ResponseWriter) {
 	s.mu.Lock()
 	config := s.config
 	s.mu.Unlock()
-	writeJSON(response, http.StatusOK, map[string]any{"platforms": publishingViews(config)})
+	writeJSON(response, http.StatusOK, publishingControlPayload(config))
 }
 
 func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http.Request) {
@@ -490,7 +498,9 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 		return
 	}
 	var body struct {
-		Platforms []publishingPlatformView `json:"platforms"`
+		Platforms []publishingPlatformView  `json:"platforms"`
+		Compiler  *publishingCompilerConfig `json:"compiler,omitempty"`
+		Assets    *publishingAssetsConfig   `json:"assets,omitempty"`
 	}
 	if err := readJSON(request, 512*1024, &body); err != nil {
 		writeError(response, err)
@@ -504,6 +514,11 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
+	normalized, err = applyPublishingRuntimeConfig(normalized, body.Compiler, body.Assets)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
 	if err := saveBridgeConfig(normalized); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法保存发布配置", nil)
 		return
@@ -511,7 +526,9 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 	s.mu.Lock()
 	s.config = normalized
 	s.mu.Unlock()
-	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "platforms": publishingViews(normalized)})
+	payload := publishingControlPayload(normalized)
+	payload["ok"] = true
+	writeJSON(response, http.StatusOK, payload)
 }
 
 func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Request) {
