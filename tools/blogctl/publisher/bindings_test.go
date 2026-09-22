@@ -413,7 +413,6 @@ func TestPublicationMigrationDoesNotOverwriteDurableState(t *testing.T) {
 	}
 }
 
-
 func TestPublicationPendingFieldsSurviveGeneratedOutputRemoval(t *testing.T) {
 	root := t.TempDir()
 	now := time.Date(2026, 9, 22, 11, 0, 0, 0, time.UTC)
