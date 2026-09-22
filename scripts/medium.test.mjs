@@ -170,7 +170,7 @@ test("builds a copy/paste HTML fallback without TOC and with copy button", () =>
   const output = buildMediumCopyHtml(article, { slug: "concurrency-series-00" });
   assert.match(output, /Copy for Medium/u);
   assert.doesNotMatch(output, /Table of Contents/u);
-  assert.match(output, /<pre><code>Thread A                    Thread B/u);
+  assert.match(output, /<pre><code class="language-text">Thread A                    Thread B/u);
   assert.match(output, /<img src="https:\/\/thinkerqaq\.github\.io\/media\/articles\/concurrency-series-00\/cover\.png" alt="Concurrency series cover">/u);
   assert.match(output, /ThinkerQAQ's personal blog/u);
 });
@@ -189,7 +189,7 @@ test("Medium compiles Mermaid to an image fallback", () => {
 
   const output = buildMediumCopyHtml(withMermaid, { slug: "concurrency-series-00" });
   assert.doesNotMatch(output, /flowchart LR/u);
-  assert.match(output, /<figure class="body-image"><img src="https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png" alt="Mutex path"><\/figure>/u);
+  assert.match(output, /<figure class="body-image"><img src="https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png" alt="Mutex path"><figcaption>Mutex path<\/figcaption><\/figure>/u);
 });
 
 
