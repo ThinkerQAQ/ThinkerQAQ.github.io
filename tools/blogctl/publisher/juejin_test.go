@@ -325,6 +325,7 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	detailCalls := 0
 	updateCalls := 0
 	createCalls := 0
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -335,9 +336,13 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 			return jsonResponse(request, 200, "", map[string]string{
 				"x-ware-csrf-token": "0,csrf,1,success,x",
 			}), nil
+		case "/content_api/v1/article_draft/detail":
+			detailCalls++
+			return jsonResponse(request, http.StatusNotFound, `{"err_no":404,"err_msg":"draft not found"}`, nil), nil
 		case "/content_api/v1/article_draft/update":
 			updateCalls++
-			return jsonResponse(request, http.StatusNotFound, `{"err_no":404,"err_msg":"draft not found"}`, nil), nil
+			t.Fatal("update should not run after detail already proved the draft is missing")
+			return nil, nil
 		case "/content_api/v1/article_draft/create":
 			createCalls++
 			return jsonResponse(request, 200, `{"err_no":0,"data":{"id":"replacement"}}`, nil), nil
@@ -355,8 +360,8 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updateCalls != 1 || createCalls != 1 {
-		t.Fatalf("update/create calls = %d/%d", updateCalls, createCalls)
+	if detailCalls != 1 || updateCalls != 0 || createCalls != 1 {
+		t.Fatalf("detail/update/create calls = %d/%d/%d", detailCalls, updateCalls, createCalls)
 	}
 	if result.ID != "replacement" || !result.Created {
 		t.Fatalf("result = %#v", result)
