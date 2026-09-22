@@ -197,7 +197,7 @@ func (s Service) PublishDraftInput(
 	input DraftInput,
 ) (PublishResult, error) {
 	slug := input.Slug
-	state, manifestPath, err := LoadPublicationState(contentRoot, slug, platform)
+	state, _, err := LoadPublicationState(contentRoot, slug, platform)
 	if err != nil {
 		return PublishResult{}, err
 	}
