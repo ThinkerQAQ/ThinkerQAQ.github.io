@@ -475,7 +475,6 @@ func TestPublicationPendingFieldsSurviveGeneratedOutputRemoval(t *testing.T) {
 	}
 }
 
-
 func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, ".blogctl")
