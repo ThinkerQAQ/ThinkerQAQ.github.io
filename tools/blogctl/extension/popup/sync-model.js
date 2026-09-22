@@ -60,6 +60,15 @@
     return Boolean(slug) && Boolean(bridgeRunning) && platforms.length === 1 && platforms[0] === "cnblogs";
   }
 
+  function canConfirmPublish(job, status) {
+    const platforms = job?.platforms ?? [];
+    return job?.operation === "draft"
+      && job?.state === "completed"
+      && platforms.length > 0
+      && platforms.every((platform) => statusPlatform(status, platform)?.capabilities?.explicitPublish === true)
+      && platforms.every((platform) => job?.results?.[platform]?.state === "completed");
+  }
+
   const resultLabels = {
     completed: "完成",
     created: "已创建",
@@ -119,5 +128,6 @@
     platformAvailability,
     canUpdatePublished,
     canUpdateCNBlogsPublished,
+    canConfirmPublish,
   };
 })(globalThis);
