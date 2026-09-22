@@ -55,7 +55,7 @@ jobs:
             git switch --force-create analytics-data origin/analytics-data
           else
             git switch --orphan analytics-data
-            git rm -rf .
+            git rm -rf --ignore-unmatch .
           fi
 
           mkdir -p umami
