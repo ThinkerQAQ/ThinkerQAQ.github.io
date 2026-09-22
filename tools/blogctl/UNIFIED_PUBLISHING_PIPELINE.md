@@ -689,31 +689,35 @@ Regression coverage verifies that:
 
 ### P2 — platform capabilities and reconciliation
 
-Add explicit capabilities to the platform registry instead of hard-coding UI/platform exceptions:
+**Status:** capability model implemented; remote reconciliation implemented where a stable endpoint is verified.
+
+All platform metadata now comes from one shared registry used by App, CLI, Bridge and Extension. The registry currently exposes:
 
 ```go
-type PlatformCapabilities struct {
-    DraftCreate       bool
-    DraftUpdate       bool
-    ExplicitPublish   bool
-    PublishedUpdate   bool
-    RemoteList        bool
-    BodyImages        bool
-    CoverImage        bool
-    NativeCanonical   bool
+type Capabilities struct {
+    BrowserSession  bool
+    APIKey           bool
+    DraftCreate      bool
+    DraftUpdate      bool
+    ExplicitPublish  bool
+    PublishedUpdate  bool
+    RemoteList       bool
+    BodyImages       bool
+    CoverImage       bool
+    NativeCanonical  bool
     Tags              bool
 }
 ```
 
-Use these capabilities in Bridge responses and Extension controls.
+The Extension no longer decides draft-update, explicit-publish, published-update or auth behavior from platform-name conditionals. Advanced capabilities stay fail-closed until the adapter actually implements them; for example DEV.to advertises native cover/canonical/tags, while Medium does not.
 
-Then add remote reconciliation per platform where a stable endpoint is known:
+Remote reconciliation is currently enabled only for verified transports:
 
-- local-only;
-- remote draft exists;
-- remote published article exists;
-- remote state changed since last verification;
-- stale/missing remote object.
+- CNBlogs: exact post lookup through the authenticated editor API; detects draft/published state, missing posts and remote changes against the stored verification baseline without accepting those changes automatically.
+- DEV.to: exact article lookup through the official Forem API; detects draft/published state, state drift and missing remote articles.
+- Other platforms: explicitly remain `local-only` until a stable list/get endpoint is proven from official API behavior or browser captures.
+
+The **草稿与发布** tab exposes this as an explicit **远端核验** action only when `RemoteList=true`.
 
 Do not guess undocumented list/update endpoints. Add them only from verified API/browser captures.
 
