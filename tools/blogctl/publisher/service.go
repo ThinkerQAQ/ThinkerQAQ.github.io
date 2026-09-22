@@ -64,7 +64,7 @@ func (s Service) CreateOrUpdateDraftInput(
 ) (DraftResult, error) {
 	slug := input.Slug
 	input.ChangedOnly = changedOnly
-	state, manifestPath, err := LoadPublicationState(contentRoot, slug, platform)
+	state, _, err := LoadPublicationState(contentRoot, slug, platform)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -155,11 +155,11 @@ func (s Service) CreateOrUpdateDraftInput(
 	if result.ID == "" || result.URL == "" {
 		return DraftResult{}, fmt.Errorf("%s adapter returned an incomplete draft result", platform)
 	}
-	if err := SaveDraftResult(manifestPath, slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationDraftResult(contentRoot, slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return DraftResult{}, err
 	}
 	if platform == "devto" && input.Published {
-		if err := SavePublishResult(manifestPath, slug, platform, input.ContentHash, PublishResult{URL: result.URL}, s.now()); err != nil {
+		if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, PublishResult{URL: result.URL}, s.now()); err != nil {
 			return DraftResult{}, err
 		}
 	}
@@ -249,7 +249,7 @@ func (s Service) PublishDraftInput(
 	if result.URL == "" {
 		return PublishResult{}, fmt.Errorf("%s adapter returned an incomplete publish result", platform)
 	}
-	if err := SavePublishResult(manifestPath, slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return PublishResult{}, err
 	}
 	if platform == "cnblogs" {
@@ -280,7 +280,7 @@ func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, co
 
 func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Session, contentRoot string, input DraftInput) (PublishResult, bool, error) {
 	slug := input.Slug
-	_, manifestPath, err := LoadPublicationState(contentRoot, slug, "cnblogs")
+	_, _, err := LoadPublicationState(contentRoot, slug, "cnblogs")
 	if err != nil {
 		return PublishResult{}, false, err
 	}
@@ -341,7 +341,7 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 	if err := SaveCNBlogsBinding(contentRoot, binding); err != nil {
 		return PublishResult{}, false, err
 	}
-	if err := SavePublishedUpdateResult(manifestPath, slug, "cnblogs", input.ContentHash, s.now()); err != nil {
+	if err := SavePublicationPublishedUpdateResult(contentRoot, slug, "cnblogs", input.ContentHash, s.now()); err != nil {
 		return PublishResult{}, false, err
 	}
 	return PublishResult{URL: binding.PublicURL}, false, nil
