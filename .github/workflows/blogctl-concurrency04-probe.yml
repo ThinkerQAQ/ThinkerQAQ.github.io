@@ -1,0 +1,117 @@
+name: Temporary BlogCTL Concurrency 04 asset probe
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/blogctl-concurrency04-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ vars.R2_BUCKET || 'thinkerqaq-assets' }}
+      R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL || 'https://pub-366a15b6733345039775c083a1fffb3e.r2.dev' }}
+    steps:
+      - name: Checkout engine
+        uses: actions/checkout@v6
+        with:
+          path: engine
+
+      - name: Checkout private content
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/blog-content
+          ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
+          path: content-source
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: engine/tools/blogctl/go.mod
+          cache: false
+
+      - name: Test shared image rehost pipeline
+        working-directory: engine/tools/blogctl
+        run: go test ./publisher -run 'TestRehostMarkdownImages' -v
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+
+      - name: Install dependencies
+        working-directory: engine
+        run: npm ci
+
+      - name: Probe Concurrency 04 Mermaid -> R2 -> GET -> SHA-256
+        working-directory: engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$R2_ACCOUNT_ID"
+          test -n "$R2_ACCESS_KEY_ID"
+          test -n "$R2_SECRET_ACCESS_KEY"
+          node --input-type=module <<'NODE'
+          import { readFile, stat } from "node:fs/promises";
+          import { createHash } from "node:crypto";
+          import {
+            collectPublishingAssets,
+          } from "./tools/blogctl/compiler/node/compiler.mjs";
+          import {
+            preparePublishingAssetList,
+          } from "./tools/blogctl/assets/node/assets.mjs";
+          import {
+            assetCacheFile,
+            readRenderedAsset,
+          } from "./tools/blogctl/assets/node/mermaid-assets.mjs";
+
+          const article = await readFile(
+            "../content-source/src/content/articles/concurrency-series-04-mutex-implementation.md",
+            "utf8",
+          );
+          const assets = collectPublishingAssets(article);
+          if (assets.length !== 4) {
+            throw new Error(`expected 4 Mermaid assets, got ${assets.length}`);
+          }
+
+          const cacheRoot = ".distribution/probe-concurrency04";
+          const result = await preparePublishingAssetList(assets, {
+            cacheRoot,
+            env: process.env,
+          });
+          console.log("prepare result", result);
+
+          for (const asset of assets) {
+            const file = assetCacheFile(cacheRoot, asset);
+            const local = await readRenderedAsset(file);
+            const localSha = createHash("sha256").update(local).digest("hex");
+            const response = await fetch(asset.publicUrl, { cache: "no-store" });
+            if (!response.ok) {
+              throw new Error(`${asset.publicUrl} returned HTTP ${response.status}`);
+            }
+            const remote = Buffer.from(await response.arrayBuffer());
+            const remoteSha = createHash("sha256").update(remote).digest("hex");
+            if (localSha !== remoteSha) {
+              throw new Error(`SHA-256 mismatch for ${asset.publicUrl}: ${localSha} != ${remoteSha}`);
+            }
+            console.log(JSON.stringify({
+              id: asset.id,
+              objectKey: asset.objectKey,
+              publicUrl: asset.publicUrl,
+              bytes: (await stat(file)).size,
+              sha256: localSha,
+              http: response.status,
+            }));
+          }
+          NODE
