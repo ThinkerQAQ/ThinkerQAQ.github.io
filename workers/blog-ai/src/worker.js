@@ -29,6 +29,17 @@ function analyticsCorsHeaders(origin) {
   };
 }
 
+
+function setAnalyticsGeoHeaders(headers, request) {
+  const country = request.cf?.country;
+  const region = request.cf?.regionCode;
+  const city = request.cf?.city;
+
+  if (country) headers.set("x-umami-client-country", String(country));
+  if (region) headers.set("x-umami-client-region", String(region));
+  if (city) headers.set("x-umami-client-city", encodeURIComponent(String(city)));
+}
+
 async function proxyTrackerScript() {
   const upstream = await fetch(UMAMI_SCRIPT_URL, {
     headers: {
@@ -65,6 +76,7 @@ async function proxyAnalyticsRequest(request, origin) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  setAnalyticsGeoHeaders(headers, request);
   headers.set("origin", origin);
 
   const upstream = await fetch(UMAMI_COLLECT_URL, {
