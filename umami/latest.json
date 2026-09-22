@@ -1,31 +1,10 @@
 {
-  "generatedAt": "2026-09-22T02:19:05.292Z",
+  "generatedAt": "2026-09-22T04:23:45.106Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790039945292,
-    "endAt": 1790043545292,
-    "stats": {
-      "pageviews": 0,
-      "visitors": 0,
-      "visits": 0,
-      "bounces": 0,
-      "totaltime": 0
-    },
-    "warnings": [],
-    "paths": [],
-    "entryPages": [],
-    "referrers": [],
-    "channels": [],
-    "countries": [],
-    "regions": [],
-    "cities": [],
-    "events": [],
-    "utmSources": []
-  },
-  "previous": {
-    "startAt": 1790036345291,
-    "endAt": 1790039945291,
+    "startAt": 1790047425106,
+    "endAt": 1790051025106,
     "stats": {
       "pageviews": 0,
       "visitors": 0,
@@ -40,7 +19,7 @@
     "channels": [
       {
         "name": "direct",
-        "count": 1
+        "count": 3
       }
     ],
     "countries": [],
@@ -49,12 +28,79 @@
     "events": [],
     "utmSources": []
   },
+  "previous": {
+    "startAt": 1790043825105,
+    "endAt": 1790047425105,
+    "stats": {
+      "pageviews": 3,
+      "visitors": 3,
+      "visits": 3,
+      "bounces": 3,
+      "totaltime": 0
+    },
+    "warnings": [],
+    "paths": [
+      {
+        "name": "/articles/concurrency-series-07-volatile/",
+        "count": 1
+      },
+      {
+        "name": "/en/about/",
+        "count": 1
+      },
+      {
+        "name": "/en/projects/",
+        "count": 1
+      }
+    ],
+    "entryPages": [
+      {
+        "name": "/articles/concurrency-series-07-volatile/",
+        "count": 1
+      },
+      {
+        "name": "/en/about/",
+        "count": 1
+      },
+      {
+        "name": "/en/projects/",
+        "count": 1
+      }
+    ],
+    "referrers": [],
+    "channels": [
+      {
+        "name": "direct",
+        "count": 1
+      },
+      {
+        "name": "referral",
+        "count": 1
+      }
+    ],
+    "countries": [
+      {
+        "name": "SG",
+        "count": 3
+      }
+    ],
+    "regions": [],
+    "cities": [
+      {
+        "name": "Singapore",
+        "count": 3,
+        "country": "SG"
+      }
+    ],
+    "events": [],
+    "utmSources": []
+  },
   "delta": {
     "stats": {
-      "pageviews": 0,
-      "visitors": 0,
-      "visits": 0,
-      "bounces": 0,
+      "pageviews": -3,
+      "visitors": -3,
+      "visits": -3,
+      "bounces": -3,
       "totaltime": 0
     },
     "newPaths": [],
@@ -64,7 +110,14 @@
     "newReferrers": [],
     "changedReferrers": [],
     "newChannels": [],
-    "changedChannels": [],
+    "changedChannels": [
+      {
+        "name": "direct",
+        "count": 3,
+        "previousCount": 1,
+        "delta": 2
+      }
+    ],
     "newCountries": [],
     "changedCountries": [],
     "newRegions": [],
