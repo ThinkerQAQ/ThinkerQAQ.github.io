@@ -4,6 +4,7 @@ const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
 const UMAMI_COLLECT_URL = "https://gateway.umami.is/api/send";
 const UMAMI_SCRIPT_PATH = "/u.js";
 const UMAMI_COLLECT_PATH = "/api/send";
+const GEO_DEBUG_PATH = "/debug/geo";
 const UMAMI_REQUEST_HEADERS = [
   "content-type",
   "x-umami-website-id",
@@ -29,6 +30,29 @@ function analyticsCorsHeaders(origin) {
   };
 }
 
+
+function geoDebugResponse(request) {
+  const cf = request.cf || {};
+  const body = {
+    country: cf.country ?? null,
+    region: cf.regionCode ?? null,
+    city: cf.city ?? null,
+    colo: cf.colo ?? null,
+    asn: cf.asn ?? null,
+    asOrganization: cf.asOrganization ?? null,
+    timezone: cf.timezone ?? null,
+    httpProtocol: cf.httpProtocol ?? null,
+    tlsVersion: cf.tlsVersion ?? null,
+    userAgent: request.headers.get("user-agent") || null,
+  };
+
+  return Response.json(body, {
+    headers: {
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+    },
+  });
+}
 
 function setAnalyticsGeoHeaders(headers, request) {
   const country = request.cf?.country;
@@ -101,6 +125,13 @@ async function proxyAnalyticsRequest(request, origin) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname === GEO_DEBUG_PATH) {
+      if (request.method !== "GET") {
+        return new Response("Method not allowed", { status: 405 });
+      }
+      return geoDebugResponse(request);
+    }
 
     if (url.pathname === UMAMI_SCRIPT_PATH) {
       if (request.method !== "GET") {
