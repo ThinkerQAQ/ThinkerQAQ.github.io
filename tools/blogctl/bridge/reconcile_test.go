@@ -21,10 +21,10 @@ func (f reconciliationTransport) RoundTrip(request *http.Request) (*http.Respons
 func TestLocalPublicationRecordStateUsesLatestLifecycleEvent(t *testing.T) {
 	base := publisher.PublicationRecord{
 		Article: "example", Platform: "cnblogs", RemoteID: "draft-1",
-		DraftURL: "https://i.cnblogs.com/articles/edit;postId=draft-1",
-		PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/published-1.html",
+		DraftURL:      "https://i.cnblogs.com/articles/edit;postId=draft-1",
+		PublishedURL:  "https://www.cnblogs.com/ThinkerQAQ/p/published-1.html",
 		DraftSyncedAt: "2026-09-22T10:00:00Z",
-		PublishedAt: "2026-09-22T11:00:00Z",
+		PublishedAt:   "2026-09-22T11:00:00Z",
 	}
 	if got := localPublicationRecordState(base); got != "published" {
 		t.Fatalf("published lifecycle state = %q", got)
