@@ -115,13 +115,8 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 	s.mu.Unlock()
 
 	s.distributionMu.Lock()
-	_, migrateErr := publisher.MigratePublicationStates(contentRoot)
 	records, listErr := publisher.ListPublicationRecords(contentRoot)
 	s.distributionMu.Unlock()
-	if migrateErr != nil {
-		writeAPIError(response, http.StatusInternalServerError, "publication_migration_failed", migrateErr.Error(), nil)
-		return
-	}
 	if listErr != nil {
 		writeAPIError(response, http.StatusInternalServerError, "publication_read_failed", listErr.Error(), nil)
 		return
