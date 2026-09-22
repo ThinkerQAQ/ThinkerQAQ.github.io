@@ -11,6 +11,10 @@ func (s *Server) handlePublications(response http.ResponseWriter) {
 	contentRoot := s.config.ContentRoot
 	s.mu.Unlock()
 
+	if _, err := publisher.MigratePublicationStates(contentRoot); err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
 	records, err := publisher.ListPublicationRecords(contentRoot)
 	if err != nil {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
