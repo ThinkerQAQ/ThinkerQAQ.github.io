@@ -3,7 +3,10 @@ package publisher
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -225,3 +228,164 @@ func TestCNBlogsUpdateDraftFetchesThenPostsServerFields(t *testing.T) {
 		t.Fatalf("post title/body = %v/%v, want updated", posted["title"], posted["postBody"])
 	}
 }
+
+
+func imageResponse(request *http.Request, status int, contentType string, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{contentType}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    request,
+	}
+}
+
+func multipartFileField(t *testing.T, request *http.Request) (string, string, []byte) {
+	t.Helper()
+	reader, err := request.MultipartReader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := io.ReadAll(part)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if part.FileName() != "" {
+			return part.FormName(), part.FileName(), payload
+		}
+	}
+	t.Fatal("multipart request did not contain a file")
+	return "", "", nil
+}
+
+func TestCNBlogsImageUploadUsesV2BrowserContract(t *testing.T) {
+	const source = "https://assets.example.com/diagram.png"
+	const uploaded = "https://img2024.cnblogs.com/blog/3466743/202609/diagram.png"
+	const xsrf = "capture-token"
+	v2Called := false
+
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Hostname() {
+		case "assets.example.com":
+			return imageResponse(request, http.StatusOK, "image/png", "png-bytes"), nil
+		case "upload.cnblogs.com":
+			if request.URL.Path != "/v2/images/cors-upload" {
+				t.Fatalf("unexpected upload path: %s", request.URL.Path)
+			}
+			v2Called = true
+			if request.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST", request.Method)
+			}
+			if request.Header.Get("accept") != "application/json, text/plain, */*" {
+				t.Fatalf("accept = %q", request.Header.Get("accept"))
+			}
+			if request.Header.Get("origin") != cnBlogsOrigin || request.Header.Get("referer") != cnBlogsOrigin+"/" {
+				t.Fatalf("origin/referer = %q/%q", request.Header.Get("origin"), request.Header.Get("referer"))
+			}
+			if request.Header.Get("x-xsrf-token") != xsrf {
+				t.Fatalf("x-xsrf-token = %q, want capture token", request.Header.Get("x-xsrf-token"))
+			}
+			field, filename, payload := multipartFileField(t, request)
+			if field != "image" || filename != "image.png" || string(payload) != "png-bytes" {
+				t.Fatalf("multipart file = %q %q %q", field, filename, string(payload))
+			}
+			return jsonResponse(request, http.StatusOK, `{"success":true,"message":"`+uploaded+`"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	session := cnBlogsSession()
+	session.Cookies = session.Cookies[1:]
+	session.RequestCookieHeader = "XSRF-TOKEN=" + xsrf + "; .CNBlogsCookie=login"
+	adapter, err := NewCNBlogsAdapter(client, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), source, DraftInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v2Called || target != uploaded {
+		t.Fatalf("target = %q, called = %v", target, v2Called)
+	}
+}
+
+func TestCNBlogsImageUploadFallsBackToLegacyEndpoint(t *testing.T) {
+	const source = "https://assets.example.com/diagram.png"
+	const uploaded = "https://img2024.cnblogs.com/blog/3466743/202609/legacy.png"
+	legacyCalled := false
+
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Hostname() {
+		case "assets.example.com":
+			return imageResponse(request, http.StatusOK, "image/png", "png-bytes"), nil
+		case "upload.cnblogs.com":
+			switch request.URL.Path {
+			case "/v2/images/cors-upload":
+				return jsonResponse(request, http.StatusNotFound, `{"message":"not found"}`, nil), nil
+			case "/imageuploader/CorsUpload":
+				legacyCalled = true
+				field, _, _ := multipartFileField(t, request)
+				if field != "imageFile" {
+					t.Fatalf("legacy file field = %q, want imageFile", field)
+				}
+				return jsonResponse(request, http.StatusOK, `{"success":true,"message":"`+uploaded+`"}`, nil), nil
+			default:
+				t.Fatalf("unexpected upload path: %s", request.URL.Path)
+			}
+		}
+		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), source, DraftInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !legacyCalled || target != uploaded {
+		t.Fatalf("target = %q, legacy called = %v", target, legacyCalled)
+	}
+}
+
+func TestCNBlogsKeepsRemoteR2ImageWhenCNBlogsUploadIsUnavailable(t *testing.T) {
+	const source = "https://pub-example.r2.dev/publishing/mermaid/diagram.png"
+	markdown := "before\n\n![diagram](" + source + ")\n\nafter"
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Hostname() {
+		case "pub-example.r2.dev":
+			return imageResponse(request, http.StatusOK, "image/png", "png-bytes"), nil
+		case "upload.cnblogs.com":
+			return jsonResponse(request, http.StatusServiceUnavailable, `{"message":"temporary unavailable"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := adapter.(*cnBlogsAdapter).prepareMarkdown(context.Background(), DraftInput{Markdown: markdown})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != markdown {
+		t.Fatalf("markdown changed despite upload outage:\n%s", got)
+	}
+}
+
+var _ *multipart.Reader
