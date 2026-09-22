@@ -25,15 +25,15 @@ type CNBlogsBinding struct {
 }
 
 type PublicationBinding struct {
-	Slug              string `json:"slug"`
-	Platform          string `json:"platform"`
-	RemoteDraftID     string `json:"remoteDraftId,omitempty"`
-	DraftURL          string `json:"draftUrl,omitempty"`
-	DraftHash         string `json:"draftHash,omitempty"`
-	DraftSyncedAt     string `json:"draftSyncedAt,omitempty"`
-	PublishedURL      string `json:"publishedUrl,omitempty"`
-	PublishedHash     string `json:"publishedHash,omitempty"`
-	PublishedAt       string `json:"publishedAt,omitempty"`
+	Slug              string   `json:"slug"`
+	Platform          string   `json:"platform"`
+	RemoteDraftID     string   `json:"remoteDraftId,omitempty"`
+	DraftURL          string   `json:"draftUrl,omitempty"`
+	DraftHash         string   `json:"draftHash,omitempty"`
+	DraftSyncedAt     string   `json:"draftSyncedAt,omitempty"`
+	PublishedURL      string   `json:"publishedUrl,omitempty"`
+	PublishedHash     string   `json:"publishedHash,omitempty"`
+	PublishedAt       string   `json:"publishedAt,omitempty"`
 	PublishedSyncedAt string   `json:"publishedSyncedAt,omitempty"`
 	PendingFields     []string `json:"pendingFields,omitempty"`
 }
