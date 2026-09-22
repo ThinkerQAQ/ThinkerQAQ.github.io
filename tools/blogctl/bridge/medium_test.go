@@ -330,3 +330,35 @@ func TestBridgeNativePublisherWritesMediumFallbackBeforeImageSafetyFailure(t *te
 		t.Fatalf("fallback was not written: %v", statErr)
 	}
 }
+
+
+func TestBridgeNativePublisherRejectsChangedExistingMediumDraft(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installMediumBridgeSession(server)
+	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		t.Fatalf("changed-only Medium draft must fail before network: %s", request.URL.String())
+		return nil, nil
+	})}
+
+	contentRoot := t.TempDir()
+	_, manifestPath, err := publisher.LoadPublicationState(contentRoot, "example", "medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := publisher.SaveDraftResult(manifestPath, "example", "medium", "old-hash", publisher.DraftResult{
+		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
+	}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
+		Article: "example", Platform: "medium", ContentRoot: contentRoot,
+		ChangedOnly: true, Compiled: compiledMediumArticle(t, "new-hash"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "updating an existing Medium draft is not verified") {
+		t.Fatalf("error = %v", err)
+	}
+}
