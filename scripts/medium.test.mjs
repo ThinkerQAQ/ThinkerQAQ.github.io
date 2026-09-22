@@ -43,11 +43,54 @@ test("removes the article table of contents", () => {
   assert.match(result, /## Start/u);
 });
 
-test("flattens markdown tables to Medium-safe paragraphs", () => {
+test("flattens markdown tables to compact Medium-safe row summaries", () => {
   const result = flattenMarkdownTables("| Question | Meaning |\n| --- | --- |\n| Atomicity | `read` |\n");
-  assert.match(result, /\*\*Atomicity\*\*/u);
-  assert.match(result, /`read`/u);
+  assert.match(result, /\*\*Atomicity\*\* — `read`/u);
   assert.doesNotMatch(result, /\| --- \|/u);
+});
+
+test("Medium table conversion does not split pipes inside code spans", () => {
+  const result = flattenMarkdownTables("| Expression | Meaning |\n| --- | --- |\n| `a | b` | bitwise OR |\n");
+  assert.match(result, /\*\*`a \| b`\*\* — bitwise OR/u);
+});
+
+test("removes localized contents sections without requiring a separator", () => {
+  const result = stripMediumToc("## 目录\n\n- [第一节](#first)\n  - [子节](#child)\n\n## 第一节\n\n正文");
+  assert.doesNotMatch(result, /目录|\[第一节\]\(#first\)/u);
+  assert.match(result, /^## 第一节/u);
+});
+
+test("maps body H1/H2 to Medium section headings and deeper headings to subheadings", () => {
+  const { blocks } = parseMediumBlocks("# Duplicate title\n\n## Section\n\n### Detail");
+  const headings = blocks.filter((block) => block.kind === "heading");
+  assert.deepEqual(headings.map((block) => block.paragraphType), [3, 3, 8]);
+});
+
+test("preserves separators without guessing an undocumented Medium delta type", () => {
+  const { blocks } = parseMediumBlocks("First\n\n---\n\nSecond");
+  assert.equal(blocks[1].kind, "separator");
+  assert.equal(blocks[1].paragraphType, 1);
+  assert.equal(blocks[1].text, "• • •");
+});
+
+test("makes nested and task lists stable in Medium's flat list transport", () => {
+  const { blocks } = parseMediumBlocks("- parent\n  - child\n    - [x] done\n- [ ] todo");
+  const items = blocks.filter((block) => block.kind === "uli");
+  assert.deepEqual(items.map((block) => block.text), [
+    "parent",
+    "↳ child",
+    "↳ ↳ ☑ done",
+    "☐ todo",
+  ]);
+});
+
+test("converts GitHub admonitions into readable Medium quote blocks", () => {
+  const { blocks } = parseMediumBlocks("> [!NOTE]\n> Locks establish ordering.");
+  const quote = blocks.find((block) => block.kind === "blockquote");
+  assert.ok(quote);
+  assert.equal(quote.text, "Note.\nLocks establish ordering.");
+  const bold = quote.markups.find((markup) => markup.type === 1);
+  assert.deepEqual({ start: bold.start, end: bold.end }, { start: 0, end: 5 });
 });
 
 test("preserves whitespace-sensitive text fences as PRE deltas", () => {
@@ -147,4 +190,15 @@ test("Medium compiles Mermaid to an image fallback", () => {
   const output = buildMediumCopyHtml(withMermaid, { slug: "concurrency-series-00" });
   assert.doesNotMatch(output, /flowchart LR/u);
   assert.match(output, /<figure class="body-image"><img src="https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png" alt="Mutex path"><\/figure>/u);
+});
+
+
+test("Medium copy fallback renders separators and image captions", () => {
+  const withImage = {
+    ...article,
+    body: "## Start\n\n---\n\n![Mutex path](https://example.com/mutex.png)",
+  };
+  const output = buildMediumCopyHtml(withImage, { slug: "medium-formatting" });
+  assert.match(output, /<hr>/u);
+  assert.match(output, /<figcaption>Mutex path<\/figcaption>/u);
 });
