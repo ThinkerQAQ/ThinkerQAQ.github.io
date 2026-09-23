@@ -7,7 +7,7 @@ import { loadR2Config, uploadR2Object } from "./r2.mjs";
 export function dedupePublishingAssets(groups) {
   const assets = new Map();
   for (const group of groups || []) {
-    for (const asset of group || []) assets.set(asset.id, asset);
+    for (const asset of group || []) assets.set(asset.kind + ":" + asset.id, asset);
   }
   return [...assets.values()];
 }
