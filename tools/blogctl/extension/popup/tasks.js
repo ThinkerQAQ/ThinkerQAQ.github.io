@@ -51,16 +51,26 @@
       }
 
       if (row.state === "completed") {
-        const publication = document.createElement("button");
-        publication.type = "button";
-        publication.className = "task-publication-link";
-        publication.textContent = "查看发布记录";
-        publication.addEventListener("click", () => {
-          document.dispatchEvent(new CustomEvent("blogctl:navigate-publication", {
-            detail: { article: job.article, platform: row.id },
-          }));
-        });
-        item.append(publication);
+        if (job.operation === "publish" && row.url) {
+          const article = document.createElement("a");
+          article.className = "task-publication-link";
+          article.href = row.url;
+          article.target = "_blank";
+          article.rel = "noreferrer noopener";
+          article.textContent = "查看文章";
+          item.append(article);
+        } else if (job.operation !== "publish") {
+          const publication = document.createElement("button");
+          publication.type = "button";
+          publication.className = "task-publication-link";
+          publication.textContent = "进入发布";
+          publication.addEventListener("click", () => {
+            document.dispatchEvent(new CustomEvent("blogctl:navigate-publication", {
+              detail: { article: job.article, platform: row.id },
+            }));
+          });
+          item.append(publication);
+        }
       }
 
       container.append(item);
