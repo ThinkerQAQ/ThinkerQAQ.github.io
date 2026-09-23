@@ -1,57 +1,31 @@
 {
-  "generatedAt": "2026-09-22T23:52:13.960Z",
+  "generatedAt": "2026-09-23T05:15:22.386Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790117533960,
-    "endAt": 1790121133960,
+    "startAt": 1790136922386,
+    "endAt": 1790140522386,
     "stats": {
-      "pageviews": 2,
-      "visitors": 1,
-      "visits": 1,
+      "pageviews": 0,
+      "visitors": 0,
+      "visits": 0,
       "bounces": 0,
-      "totaltime": 8
+      "totaltime": 0
     },
     "warnings": [],
-    "paths": [
-      {
-        "name": "/en/articles/concurrency-series-03-mutex/",
-        "count": 1
-      }
-    ],
-    "entryPages": [
-      {
-        "name": "/en/articles/concurrency-series-03-mutex/",
-        "count": 1
-      }
-    ],
+    "paths": [],
+    "entryPages": [],
     "referrers": [],
-    "channels": [
-      {
-        "name": "direct",
-        "count": 1
-      }
-    ],
-    "countries": [
-      {
-        "name": "SG",
-        "count": 1
-      }
-    ],
+    "channels": [],
+    "countries": [],
     "regions": [],
-    "cities": [
-      {
-        "name": "Singapore",
-        "count": 1,
-        "country": "SG"
-      }
-    ],
+    "cities": [],
     "events": [],
     "utmSources": []
   },
   "previous": {
-    "startAt": 1790113933959,
-    "endAt": 1790117533959,
+    "startAt": 1790133322385,
+    "endAt": 1790136922385,
     "stats": {
       "pageviews": 0,
       "visitors": 0,
@@ -72,88 +46,26 @@
   },
   "delta": {
     "stats": {
-      "pageviews": 2,
-      "visitors": 1,
-      "visits": 1,
+      "pageviews": 0,
+      "visitors": 0,
+      "visits": 0,
       "bounces": 0,
-      "totaltime": 8
+      "totaltime": 0
     },
-    "newPaths": [
-      {
-        "name": "/en/articles/concurrency-series-03-mutex/",
-        "count": 1
-      }
-    ],
-    "changedPaths": [
-      {
-        "name": "/en/articles/concurrency-series-03-mutex/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      }
-    ],
-    "newEntryPages": [
-      {
-        "name": "/en/articles/concurrency-series-03-mutex/",
-        "count": 1
-      }
-    ],
-    "changedEntryPages": [
-      {
-        "name": "/en/articles/concurrency-series-03-mutex/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      }
-    ],
+    "newPaths": [],
+    "changedPaths": [],
+    "newEntryPages": [],
+    "changedEntryPages": [],
     "newReferrers": [],
     "changedReferrers": [],
-    "newChannels": [
-      {
-        "name": "direct",
-        "count": 1
-      }
-    ],
-    "changedChannels": [
-      {
-        "name": "direct",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      }
-    ],
-    "newCountries": [
-      {
-        "name": "SG",
-        "count": 1
-      }
-    ],
-    "changedCountries": [
-      {
-        "name": "SG",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      }
-    ],
+    "newChannels": [],
+    "changedChannels": [],
+    "newCountries": [],
+    "changedCountries": [],
     "newRegions": [],
     "changedRegions": [],
-    "newCities": [
-      {
-        "name": "Singapore",
-        "count": 1,
-        "country": "SG"
-      }
-    ],
-    "changedCities": [
-      {
-        "name": "Singapore",
-        "count": 1,
-        "country": "SG",
-        "previousCount": 0,
-        "delta": 1
-      }
-    ],
+    "newCities": [],
+    "changedCities": [],
     "newEvents": [],
     "changedEvents": [],
     "newUtmSources": [],
