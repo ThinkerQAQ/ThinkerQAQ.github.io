@@ -5,7 +5,19 @@ import path from "node:path";
 import test from "node:test";
 
 import { mermaidAssetForSource } from "../../compiler/node/compiler.mjs";
-import { renderMermaidAsset } from "./mermaid-assets.mjs";
+import { mermaidCliInvocation, renderMermaidAsset } from "./mermaid-assets.mjs";
+
+test("runs npx through node on Windows instead of spawning a cmd shim", () => {
+  const execPath = "C:\\node\\node.exe";
+  const npxCli = "C:\\node\\node_modules\\npm\\bin\\npx-cli.js";
+  const invocation = mermaidCliInvocation({
+    platform: "win32",
+    execPath,
+    npmExecPath: "",
+    exists: (candidate) => candidate === npxCli,
+  });
+  assert.deepEqual(invocation, { command: execPath, prefixArgs: [npxCli] });
+});
 
 test("renders Mermaid to an absolute cached PNG path", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "blogctl-mermaid-test-"));

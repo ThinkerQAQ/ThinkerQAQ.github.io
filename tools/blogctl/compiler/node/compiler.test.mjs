@@ -95,6 +95,32 @@ test("accepts diagram and uml fence aliases when the payload is Mermaid", () => 
   }
 });
 
+test("infers Mermaid from text, plaintext, and unlabelled fences", () => {
+  for (const language of ["text", "plaintext", ""]) {
+    const markdown = [
+      fence + language,
+      "sequenceDiagram",
+      "  A->>B: call",
+      fence,
+    ].join("\n");
+    const result = compilePublishingMarkdown(markdown, { platform: "cnblogs" });
+    assert.equal(result.assets.length, 1, language || "unlabelled");
+    assert.doesNotMatch(result.markdown, /sequenceDiagram/u, language || "unlabelled");
+    assert.match(result.markdown, /generated\/mermaid\/[a-f0-9]{24}\.png/u, language || "unlabelled");
+  }
+});
+
+test("keeps ordinary text fences as code", () => {
+  const markdown = [
+    fence + "text",
+    "Java Code -> JVM Bytecode -> Runtime",
+    fence,
+  ].join("\n");
+  const result = compilePublishingMarkdown(markdown, { platform: "cnblogs" });
+  assert.equal(result.assets.length, 0);
+  assert.equal(result.markdown, markdown);
+});
+
 test("compiles PlantUML fences to content-addressed PNG assets for every publishing platform", () => {
   const platforms = [
     "cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
@@ -130,6 +156,22 @@ test("accepts uml and diagram aliases when the payload is PlantUML", () => {
     assert.equal(result.assets.length, 1, language);
     assert.equal(result.assets[0].kind, "plantuml", language);
     assert.doesNotMatch(result.markdown, /@startuml/u, language);
+  }
+});
+
+test("infers PlantUML from text, plaintext, and unlabelled fences", () => {
+  for (const language of ["text", "plaintext", ""]) {
+    const markdown = [
+      fence + language,
+      "@startuml",
+      "Alice -> Bob: hello",
+      "@enduml",
+      fence,
+    ].join("\n");
+    const result = compilePublishingMarkdown(markdown, { platform: "cnblogs" });
+    assert.equal(result.assets.length, 1, language || "unlabelled");
+    assert.equal(result.assets[0].kind, "plantuml", language || "unlabelled");
+    assert.doesNotMatch(result.markdown, /@startuml/u, language || "unlabelled");
   }
 });
 

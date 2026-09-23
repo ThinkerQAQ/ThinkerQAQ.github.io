@@ -33,6 +33,7 @@ function fenceLanguage(info) {
 
 const MERMAID_FENCE_LANGUAGES = new Set(["mermaid", "diagram", "uml"]);
 const PLANTUML_FENCE_LANGUAGES = new Set(["puml", "plantuml", "uml", "diagram"]);
+const INFERRED_DIAGRAM_FENCE_LANGUAGES = new Set(["", "text", "plaintext"]);
 
 function looksLikeMermaid(source) {
   const first = normalizeNewlines(source)
@@ -48,12 +49,14 @@ function looksLikePlantUML(source) {
 
 function isMermaidFence(language, source) {
   if (language === "mermaid") return true;
-  return MERMAID_FENCE_LANGUAGES.has(language) && looksLikeMermaid(source);
+  return (MERMAID_FENCE_LANGUAGES.has(language) || INFERRED_DIAGRAM_FENCE_LANGUAGES.has(language))
+    && looksLikeMermaid(source);
 }
 
 function isPlantUMLFence(language, source) {
   if (language === "puml" || language === "plantuml") return true;
-  return PLANTUML_FENCE_LANGUAGES.has(language) && looksLikePlantUML(source);
+  return (PLANTUML_FENCE_LANGUAGES.has(language) || INFERRED_DIAGRAM_FENCE_LANGUAGES.has(language))
+    && looksLikePlantUML(source);
 }
 
 function normalizeAssetBaseUrl(value) {
