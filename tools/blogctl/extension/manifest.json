@@ -8,7 +8,8 @@
     "cookies",
     "webRequest",
     "nativeMessaging",
-    "sidePanel"
+    "sidePanel",
+    "scripting"
   ],
   "host_permissions": [
     "https://*.cnblogs.com/*",
