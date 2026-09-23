@@ -49,6 +49,19 @@
         item.append(detail);
       }
 
+      if (row.state === "completed") {
+        const publication = document.createElement("button");
+        publication.type = "button";
+        publication.className = "task-publication-link";
+        publication.textContent = "查看发布记录";
+        publication.addEventListener("click", () => {
+          document.dispatchEvent(new CustomEvent("blogctl:navigate-publication", {
+            detail: { article: job.article, platform: row.id },
+          }));
+        });
+        item.append(publication);
+      }
+
       container.append(item);
     }
     card.append(container);
