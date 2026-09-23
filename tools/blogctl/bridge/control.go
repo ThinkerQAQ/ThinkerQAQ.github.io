@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -19,19 +20,9 @@ import (
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
-
-var supportedSyncPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {}, "zhihu": {},
-	"51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
-}
-
-var platformLabels = map[string]string{
-	"cnblogs": "博客园", "juejin": "掘金", "csdn": "CSDN", "segmentfault": "思否",
-	"zhihu": "知乎", "51cto": "51CTO", "oschina": "开源中国", "toutiao": "今日头条",
-	"devto": "DEV.to", "medium": "Medium",
-}
 
 type articleSummary struct {
 	Slug          string `json:"slug"`
@@ -141,13 +132,14 @@ type toolConfigRequest struct {
 }
 
 type publishingPlatformView struct {
-	ID          string                    `json:"id"`
-	Label       string                    `json:"label"`
-	Language    string                    `json:"language"`
-	ChangedOnly bool                      `json:"changedOnly"`
-	Footer      publishingFooterConfig    `json:"footer"`
-	Canonical   publishingCanonicalConfig `json:"canonical"`
-	Tracking    publishingTrackingConfig  `json:"tracking"`
+	ID           string                         `json:"id"`
+	Label        string                         `json:"label"`
+	Language     string                         `json:"language"`
+	ChangedOnly  bool                           `json:"changedOnly"`
+	Capabilities publisher.PlatformCapabilities `json:"capabilities"`
+	Footer       publishingFooterConfig         `json:"footer"`
+	Canonical    publishingCanonicalConfig      `json:"canonical"`
+	Tracking     publishingTrackingConfig       `json:"tracking"`
 }
 
 func readFrontmatterScalar(path, name string) string {
@@ -357,7 +349,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "devto-api", DisplayName: "DEV.to API", Kind: "publishing", Required: false,
-			Description: "DEV.to 使用官方 API 发布；API Key 仅保存在本机 BlogCTL 配置中，不返回给 Extension。",
+			Description: "DEV.to 文章生命周期使用官方 API；图片优先通过浏览器会话上传到 DEV.to，失败时回退 R2。API Key 仅保存在本机 BlogCTL 配置中。",
 			Health:      devtoAPIHealth(config),
 			Config: toolConfigView{
 				Scope:  "bridge",
@@ -383,6 +375,12 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Name: "git", DisplayName: "Git", Kind: "dependency", Required: true,
 			Description: "BlogCTL developer workflow dependency。", Health: executableHealth(config, "git"),
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
+		},
+		{
+			Name: "java", DisplayName: "Java", Kind: "dependency", Required: false,
+			Description: "仅在发布文章包含 PlantUML（puml / plantuml / UML）时用于编译图表。",
+			Health:      executableHealth(config, "java"),
+			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
 		},
 	}
 }
@@ -422,7 +420,7 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
 		}
-	case "node", "npm", "git":
+	case "node", "npm", "git", "java":
 		if config.ToolPaths == nil {
 			config.ToolPaths = map[string]string{}
 		}
@@ -438,7 +436,8 @@ func publishingViews(config bridgeConfig) []publishingPlatformView {
 	for _, id := range publishingPlatformOrder {
 		value := config.Publishing.Platforms[id]
 		views = append(views, publishingPlatformView{
-			ID: id, Label: platformLabels[id], Language: value.Language, ChangedOnly: value.ChangedOnly, Footer: value.Footer,
+			ID: id, Label: blogplatform.Label(id), Language: value.Language, ChangedOnly: value.ChangedOnly,
+			Capabilities: publisher.PlatformCapabilitiesFor(id), Footer: value.Footer,
 			Canonical: value.Canonical, Tracking: value.Tracking,
 		})
 	}
@@ -450,11 +449,11 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 		config.Publishing = defaultPublishingConfig()
 	}
 	for _, view := range views {
-		if _, ok := supportedSyncPlatforms[view.ID]; !ok {
+		if !blogplatform.Supported(view.ID) {
 			return config, fmt.Errorf("unsupported publishing platform: %s", view.ID)
 		}
-		if view.ID == "medium" && view.ChangedOnly {
-			return config, errors.New("Medium currently cannot update an existing draft")
+		if view.ChangedOnly && !publisher.PlatformCapabilitiesFor(view.ID).DraftUpdate {
+			return config, fmt.Errorf("%s cannot safely update an existing draft", view.ID)
 		}
 		config.Publishing.Platforms[view.ID] = publishingPlatformConfig{
 			Language: view.Language, ChangedOnly: view.ChangedOnly, Footer: view.Footer, Canonical: view.Canonical, Tracking: view.Tracking,
@@ -481,6 +480,21 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 	return request, nil
 }
 
+func numberValue(value any) float64 {
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case float32:
+		return float64(typed)
+	case int:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	default:
+		return 0
+	}
+}
+
 func newJobID() string {
 	value := make([]byte, 8)
 	if _, err := rand.Read(value); err == nil {
@@ -491,24 +505,12 @@ func newJobID() string {
 
 type syncRunner func(context.Context, bridgeConfig, syncRequest, func(blogapp.SyncEvent)) (string, error)
 
-func usesChinaPublishingPlatform(platforms []string) bool {
-	for _, platform := range platforms {
-		switch platform {
-		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
-			return true
-		}
-	}
-	return false
-}
-
-func allNativeChinaPlatforms(platforms []string) bool {
+func allExplicitPublishPlatforms(platforms []string) bool {
 	if len(platforms) == 0 {
 		return false
 	}
 	for _, platform := range platforms {
-		switch platform {
-		case "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao":
-		default:
+		if !publisher.PlatformCapabilitiesFor(platform).ExplicitPublish {
 			return false
 		}
 	}
@@ -519,14 +521,54 @@ type bridgeNativePublisher struct {
 	server *Server
 }
 
-func draftInputFromCompiled(article blogcompiler.CompiledArticle) publisher.DraftInput {
+func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot string, config bridgeConfig) publisher.DraftInput {
+	assets := make([]publisher.PublishingAsset, 0, len(article.Assets))
+	for _, asset := range article.Assets {
+		assets = append(assets, publisher.PublishingAsset{
+			Kind: asset.Kind, ID: asset.ID, ObjectKey: asset.ObjectKey,
+			PublicURL: asset.PublicURL, Source: asset.Source,
+		})
+	}
+	bucket := strings.TrimSpace(os.Getenv("R2_BUCKET"))
+	if bucket == "" {
+		bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
+	}
+	publicBaseURL := strings.TrimSpace(os.Getenv("R2_PUBLIC_BASE_URL"))
+	if publicBaseURL == "" {
+		publicBaseURL = strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL)
+	}
 	return publisher.DraftInput{
 		Slug: article.Slug, Title: article.Title, Description: article.Description,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
-		ContentHash: article.ContentHash, SourceDir: article.SourceDir,
+		ContentHash: article.ContentHash, SourceDir: article.SourceDir, ContentRoot: contentRoot,
 		Tags: append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
+		Assets: assets,
+		R2Fallback: publisher.R2FallbackConfig{
+			AccessKeyID:     strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
+			SecretAccessKey: strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
+			AccountID:       strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")),
+			Endpoint:        strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
+			Bucket:          bucket,
+			PublicBaseURL:   publicBaseURL,
+		},
 	}
+}
+
+var platformCookieHostSuffixes = map[string][]string{
+	"juejin":       {"juejin.cn"},
+	"csdn":         {"csdn.net"},
+	"segmentfault": {"segmentfault.com"},
+	"zhihu":        {"zhihu.com"},
+	"51cto":        {"51cto.com"},
+	"oschina":      {"oschina.net"},
+	"toutiao":      {"toutiao.com"},
+	"devto":        {"dev.to"},
+	"medium":       {"medium.com"},
+}
+
+func publisherCookieHostSuffixes(platform string) []string {
+	return append([]string{}, platformCookieHostSuffixes[platform]...)
 }
 
 func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Session, *http.Client, error) {
@@ -534,11 +576,30 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 	if platform == "devto" {
 		apiKey := devtoAPIKey(p.server.config)
 		httpClient := p.server.httpClient
+		session, ok := p.server.sessions[platform]
+		if ok && !session.ExpiresAt.After(p.server.now()) {
+			delete(p.server.sessions, platform)
+			ok = false
+		}
 		p.server.mu.Unlock()
 		if apiKey == "" {
 			return publisher.Session{}, nil, errors.New("DEV.to API key is required")
 		}
-		return publisher.Session{APIKey: apiKey}, httpClient, nil
+		result := publisher.Session{APIKey: apiKey}
+		if ok {
+			result.UserAgent = session.UserAgent
+			result.RequestCookieHeader = session.RequestCookieHeader
+			result.CookieHostSuffixes = publisherCookieHostSuffixes(platform)
+			result.Cookies = make([]publisher.BrowserCookie, 0, len(session.BrowserCookies))
+			for _, cookie := range session.BrowserCookies {
+				result.Cookies = append(result.Cookies, publisher.BrowserCookie{
+					Name: cookie.Name, Value: cookie.Value, Domain: cookie.Domain, Path: cookie.Path,
+					Secure: cookie.Secure, HTTPOnly: cookie.HTTPOnly, HostOnly: cookie.HostOnly,
+					SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
+				})
+			}
+		}
+		return result, httpClient, nil
 	}
 	session, ok := p.server.sessions[platform]
 	if ok && !session.ExpiresAt.After(p.server.now()) {
@@ -559,7 +620,160 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 			SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
 		})
 	}
-	return publisher.Session{Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader}, httpClient, nil
+	return publisher.Session{
+		Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader,
+		CookieHostSuffixes: publisherCookieHostSuffixes(platform),
+	}, httpClient, nil
+}
+
+func mediumFallbackPath(contentRoot, slug string) (string, error) {
+	relative := filepath.Clean(filepath.FromSlash(strings.TrimSpace(slug)))
+	if relative == "." || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		return "", errors.New("invalid Medium article slug")
+	}
+	return filepath.Join(contentRoot, ".distribution", "medium", relative+".html"), nil
+}
+
+func writeMediumFallback(contentRoot string, article blogcompiler.CompiledArticle) (string, error) {
+	if strings.TrimSpace(article.FallbackHTML) == "" {
+		return "", nil
+	}
+	path, err := mediumFallbackPath(contentRoot, article.Slug)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(article.FallbackHTML), 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func mediumPlatformSession(session publisher.Session) platformSession {
+	cookies := map[string]string{}
+	for _, cookie := range session.Cookies {
+		if strings.TrimSpace(cookie.Name) != "" && cookie.Value != "" {
+			cookies[cookie.Name] = cookie.Value
+		}
+	}
+	return platformSession{
+		Cookies: cookies, UserAgent: session.UserAgent,
+		RequestCookieHeader: session.RequestCookieHeader,
+	}
+}
+
+func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, request blogapp.NativeDraftRequest, session publisher.Session, httpClient *http.Client) (blogapp.NativeDraftResult, error) {
+	state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	targetID := strings.TrimSpace(state.RemoteDraftID)
+	targetURL := strings.TrimSpace(state.DraftURL)
+	if targetID == "" && (strings.TrimSpace(state.PublishedRemoteID) != "" || strings.TrimSpace(state.PublishedURL) != "") {
+		return blogapp.NativeDraftResult{}, errors.New("Medium story is already published; safe published-article updates are not supported yet")
+	}
+	if targetID != "" && state.DraftHash == request.Compiled.ContentHash {
+		return blogapp.NativeDraftResult{
+			Result: "skipped", URL: targetURL,
+			Message: "Medium draft is unchanged; keeping the existing draft.",
+		}, nil
+	}
+
+	fallbackPath, err := writeMediumFallback(request.ContentRoot, request.Compiled)
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	if len(request.Compiled.Payload) == 0 {
+		return blogapp.NativeDraftResult{}, errors.New("compiled Medium article is missing transport payload")
+	}
+
+	var draft mediumDraft
+	if err := json.Unmarshal(request.Compiled.Payload, &draft); err != nil {
+		return blogapp.NativeDraftResult{}, fmt.Errorf("invalid compiled Medium payload: %w", err)
+	}
+	input := draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config)
+	client := mediumClient{httpClient: httpClient}
+	var result map[string]any
+	if targetID == "" {
+		result, err = client.createDraft(ctx, mediumPlatformSession(session), draft, input)
+	} else {
+		result, err = client.updateDraft(ctx, mediumPlatformSession(session), targetID, draft, input)
+	}
+	if err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+
+	postID, _ := result["postId"].(string)
+	draftURL, _ := result["draftUrl"].(string)
+	if strings.TrimSpace(postID) == "" || strings.TrimSpace(draftURL) == "" {
+		return blogapp.NativeDraftResult{}, errors.New("Medium draft response is missing post id or draft URL")
+	}
+	created, _ := result["created"].(bool)
+	updated, _ := result["updated"].(bool)
+	if !created && !updated {
+		created = targetID == ""
+		updated = targetID != ""
+	}
+
+	pending := []string{}
+	if value, _ := result["canonicalPending"].(bool); value {
+		pending = append(pending, "canonical")
+	}
+	if value, _ := result["tagsPending"].(bool); value {
+		pending = append(pending, "tags")
+	}
+	if value, _ := result["coverImagePending"].(bool); value {
+		pending = append(pending, "coverImage")
+	}
+
+	if err := publisher.SavePublicationDraftResult(
+		request.ContentRoot,
+		request.Article,
+		"medium",
+		request.Compiled.ContentHash,
+		publisher.DraftResult{ID: postID, URL: draftURL, Created: created, Updated: updated},
+		p.server.now(),
+	); err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+	if err := publisher.SavePublicationPendingFields(request.ContentRoot, request.Article, "medium", pending); err != nil {
+		return blogapp.NativeDraftResult{}, err
+	}
+
+	pendingLabels := make([]string, 0, len(pending))
+	for _, field := range pending {
+		switch field {
+		case "coverImage":
+			pendingLabels = append(pendingLabels, "cover image")
+		default:
+			pendingLabels = append(pendingLabels, field)
+		}
+	}
+	action := "created"
+	resultName := "draft-created"
+	if updated {
+		action = "updated"
+		resultName = "updated"
+	}
+	message := ""
+	if len(pendingLabels) > 0 {
+		message = "Medium draft " + action + "; pending editor fields: " + strings.Join(pendingLabels, ", ")
+	}
+	if fallbackCount := int(numberValue(result["imageFallbacks"])); fallbackCount > 0 {
+		if message != "" {
+			message += ". "
+		}
+		message += fmt.Sprintf("%d image(s) used R2 fallback links after Medium upload failed", fallbackCount)
+	}
+	if fallbackPath != "" {
+		if message != "" {
+			message += ". "
+		}
+		message += "Fallback saved to " + fallbackPath
+	}
+	return blogapp.NativeDraftResult{Result: resultName, URL: draftURL, Message: message}, nil
 }
 
 func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
@@ -567,9 +781,12 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
+	if request.Platform == "medium" {
+		return p.createOrUpdateMediumDraft(ctx, request, session, httpClient)
+	}
 	service := publisher.Service{HTTPClient: httpClient}
 	result, err := service.CreateOrUpdateDraftInput(
-		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled), request.ChangedOnly,
+		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config), request.ChangedOnly,
 	)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
@@ -592,8 +809,46 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
 	}
+	if request.Platform == "medium" {
+		state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
+		if err != nil {
+			return blogapp.NativePublishResult{}, err
+		}
+		postID := strings.TrimSpace(state.RemoteDraftID)
+		if postID == "" {
+			postID = strings.TrimSpace(state.PublishedRemoteID)
+		}
+		if postID == "" {
+			return blogapp.NativePublishResult{}, errors.New("Medium remote draft id is missing; save the article first")
+		}
+		if state.DraftHash == "" || state.DraftHash != request.Compiled.ContentHash {
+			return blogapp.NativePublishResult{}, errors.New("Medium source changed after the remote draft was prepared; save the draft again before publishing")
+		}
+		result, err := (mediumClient{httpClient: httpClient}).publishDraft(
+			ctx, mediumPlatformSession(session), postID, request.Compiled.Title, request.Compiled.Description,
+		)
+		if err != nil {
+			return blogapp.NativePublishResult{}, err
+		}
+		publishedID, _ := result["postId"].(string)
+		publishedURL, _ := result["url"].(string)
+		if strings.TrimSpace(publishedID) == "" || strings.TrimSpace(publishedURL) == "" {
+			return blogapp.NativePublishResult{}, errors.New("Medium publish response is missing article id or URL")
+		}
+		if err := publisher.SavePublicationPublishResult(
+			request.ContentRoot,
+			request.Article,
+			"medium",
+			request.Compiled.ContentHash,
+			publisher.PublishResult{ID: publishedID, URL: publishedURL},
+			p.server.now(),
+		); err != nil {
+			return blogapp.NativePublishResult{}, err
+		}
+		return blogapp.NativePublishResult{Result: "published", URL: publishedURL}, nil
+	}
 	service := publisher.Service{HTTPClient: httpClient}
-	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled))
+	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config))
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
 	}
@@ -601,6 +856,11 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 }
 
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
+	// Compiler outputs, asset cache and durable publication state share one content workspace.
+	// Serialize live jobs so independent platform tasks cannot lose each other's state updates.
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
+
 	publishingJSON, publishingErr := resolvedPublishingJSON(config)
 	if publishingErr != nil {
 		return "", publishingErr
@@ -620,8 +880,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	if request.Operation == "update-published" {
 		started := time.Now()
 		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
-		s.distributionMu.Lock()
-		defer s.distributionMu.Unlock()
 		output, err := blogapp.NewSyncService().Run(ctx, applicationConfig, blogapp.SyncRequest{
 			Articles: []string{request.Article}, Platforms: []string{"cnblogs"}, DryRun: true, Draft: true, Operation: "draft",
 		})
@@ -655,7 +913,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 			return output, compileErr
 		}
 		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublishedInput(
-			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled),
+			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config),
 		)
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
@@ -673,10 +931,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	service := blogapp.NewSyncService()
 	service.NativePublisher = bridgeNativePublisher{server: s}
 	service.OnEvent = onEvent
-	if usesChinaPublishingPlatform(request.Platforms) {
-		s.distributionMu.Lock()
-		defer s.distributionMu.Unlock()
-	}
 	changedByPlatform := changedPoliciesForRequest(config, request)
 	for platform, enabled := range changedByPlatform {
 		slog.Info("draft changed-only policy selected", "operation", "draft-policy", "platform", platform, "enabled", enabled)
@@ -760,6 +1014,22 @@ func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
 	}
 }
 
+func (s *Server) pruneSyncJobHistoryLocked(limit int) {
+	if limit < 1 || len(s.jobOrder) <= limit {
+		return
+	}
+	kept := make([]string, 0, len(s.jobOrder))
+	for _, id := range s.jobOrder {
+		job := s.jobs[id]
+		if len(kept) < limit || (job != nil && job.State == "running") {
+			kept = append(kept, id)
+			continue
+		}
+		delete(s.jobs, id)
+	}
+	s.jobOrder = kept
+}
+
 func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeConfig) {
 	runner := s.syncRunner
 	if runner == nil {
@@ -789,9 +1059,11 @@ func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeC
 					Platform: platform, State: "failed", Message: err.Error(),
 				}, s.now())
 			}
+			s.pruneSyncJobHistoryLocked(20)
 			return
 		}
 		stored.State = "completed"
+		s.pruneSyncJobHistoryLocked(20)
 	}()
 }
 
@@ -805,12 +1077,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	}
 	s.jobs[job.ID] = job
 	s.jobOrder = append([]string{job.ID}, s.jobOrder...)
-	if len(s.jobOrder) > 20 {
-		for _, id := range s.jobOrder[20:] {
-			delete(s.jobs, id)
-		}
-		s.jobOrder = s.jobOrder[:20]
-	}
+	s.pruneSyncJobHistoryLocked(20)
 	config := s.config
 	response := cloneSyncJob(job)
 	s.mu.Unlock()
@@ -908,6 +1175,10 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
+	if job.Operation == "publish" || job.Request.Operation == "publish" {
+		s.mu.Unlock()
+		return nil, errors.New("publish jobs cannot be retried safely; verify the remote publication before taking another action")
+	}
 	request := job.Request
 	replacement := newSyncJob(id, request, startedAt)
 	s.jobs[id] = replacement
@@ -939,9 +1210,15 @@ func (s *Server) publishSyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("only draft jobs can be published")
 	}
-	if !allNativeChinaPlatforms(source.Platforms) {
+	if !allExplicitPublishPlatforms(source.Platforms) {
 		s.mu.Unlock()
-		return nil, errors.New("confirm publish is currently available only for native Chinese platforms")
+		return nil, errors.New("confirm publish is not supported by one or more selected platforms")
+	}
+	for _, platform := range source.Platforms {
+		if source.Results[platform].State != "completed" {
+			s.mu.Unlock()
+			return nil, errors.New("all selected draft platforms must complete successfully before publish")
+		}
 	}
 	request := source.Request
 	request.Operation = "publish"

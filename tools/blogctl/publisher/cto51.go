@@ -160,17 +160,13 @@ func (c *cto51Adapter) uploadConfig(ctx context.Context, sign, contentType, file
 	return decoded.Data, nil
 }
 
-func (c *cto51Adapter) uploadImage(ctx context.Context, source string, input DraftInput) (string, error) {
-	payload, contentType, err := loadImage(c.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, c.ID(), "download-image", 0, err.Error(), true)
-	}
-	filename := inferImageFilename(source, contentType)
+func (c *cto51Adapter) uploadImage(ctx context.Context, image RehostImage) (string, error) {
+	filename := inferImageFilename(image.Source, image.ContentType)
 	sign, err := c.uploadSign(ctx)
 	if err != nil {
 		return "", err
 	}
-	config, err := c.uploadConfig(ctx, sign, contentType, filename)
+	config, err := c.uploadConfig(ctx, sign, image.ContentType, filename)
 	if err != nil {
 		return "", err
 	}
@@ -181,9 +177,9 @@ func (c *cto51Adapter) uploadImage(ctx context.Context, source string, input Dra
 		"x-amz-signature":  config.Fields.Signature,
 		"x-amz-credential": config.Fields.Credential,
 		"X-Amz-Date":       config.Fields.Date,
-		"Content-Type":     contentType,
+		"Content-Type":     image.ContentType,
 	}
-	body, bodyType, err := multipartBody(fields, "file", filename, contentType, payload)
+	body, bodyType, err := multipartBody(fields, "file", filename, image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -208,18 +204,23 @@ func (c *cto51Adapter) uploadImage(ctx context.Context, source string, input Dra
 }
 
 func (c *cto51Adapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	markdown := input.Markdown
-	for _, source := range imageSources(input.Markdown) {
-		if strings.Contains(strings.ToLower(source), "51cto.com") {
+	return rehostMarkdownImages(ctx, c.client, input, ImageRehostOptions{
+		Platform:       c.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			return strings.Contains(strings.ToLower(source), "51cto.com")
+		},
+	}, c.uploadImage)
+}
+
+func cto51AppendImageURLs(values url.Values, content string) {
+	for _, source := range imageSources(content) {
+		parsed, err := url.Parse(strings.TrimSpace(source))
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
 			continue
 		}
-		target, err := c.uploadImage(ctx, source, input)
-		if err != nil {
-			return "", err
-		}
-		markdown = strings.ReplaceAll(markdown, source, target)
+		values.Add("img_urls[]", source)
 	}
-	return markdown, nil
 }
 
 func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input DraftInput) (url.Values, error) {
@@ -255,6 +256,7 @@ func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input Draf
 	values.Set("raffle", "")
 	values.Set("orig", "")
 	values.Set("_csrf", c.csrf)
+	cto51AppendImageURLs(values, content)
 	return values, nil
 }
 
@@ -319,7 +321,10 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if err := c.ensureAuth(ctx); err != nil {
 		return PublishResult{}, err
 	}
-	content := htmlFor(input)
+	content, err := c.prepareMarkdown(ctx, input)
+	if err != nil {
+		return PublishResult{}, err
+	}
 	values := url.Values{}
 	values.Set("title", input.Title)
 	values.Set("content", content)
@@ -328,7 +333,6 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values.Set("tag", truncateRunes(input.Title, 20))
 	values.Set("abstract", truncateRunes(input.Description, 200))
 	values.Set("banner_type", "0")
-	values.Set("img_urls", "[]")
 	values.Set("blog_type", "1")
 	values.Set("copy_code", "1")
 	values.Set("is_hide", "0")
@@ -338,6 +342,7 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values.Set("work_id", "")
 	values.Set("_csrf", c.csrf)
 	values.Set("check", "1")
+	cto51AppendImageURLs(values, content)
 
 	req, err := c.request(ctx, http.MethodPost, cto51Origin+"/blogger/publish", strings.NewReader(values.Encode()))
 	if err != nil {
@@ -363,5 +368,5 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if blogID == "" {
 		return PublishResult{}, platformError(ErrUpstream, c.ID(), "publish-draft", 0, "response did not contain a public article id", false)
 	}
-	return PublishResult{URL: cto51Origin + "/" + url.PathEscape(c.username) + "/" + url.PathEscape(blogID)}, nil
+	return PublishResult{ID: blogID, URL: cto51Origin + "/" + url.PathEscape(c.username) + "/" + url.PathEscape(blogID)}, nil
 }

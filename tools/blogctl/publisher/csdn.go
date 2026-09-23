@@ -125,12 +125,8 @@ func csdnImageSuffix(source, contentType string) string {
 	}
 }
 
-func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input DraftInput) (string, error) {
-	payload, contentType, err := loadImage(c.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, c.ID(), "download-image", 0, err.Error(), true)
-	}
-	suffix := csdnImageSuffix(source, contentType)
+func (c *csdnAdapter) uploadImage(ctx context.Context, image RehostImage) (string, error) {
+	suffix := csdnImageSuffix(image.Source, image.ContentType)
 	path := "/resource-api/v1/image/direct/upload/signature"
 	body, _ := json.Marshal(map[string]any{
 		"imageTemplate": "",
@@ -174,7 +170,7 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input Draf
 	for key, value := range signed.Data.CustomParam {
 		fields["x:"+key] = valueString(value)
 	}
-	multipart, multipartType, err := multipartBody(fields, "file", "image."+suffix, contentType, payload)
+	multipart, multipartType, err := multipartBody(fields, "file", "image."+suffix, image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -199,34 +195,34 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, source string, input Draf
 	return uploaded.Data.ImageURL, nil
 }
 
-func (c *csdnAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		lower := strings.ToLower(source)
-		if strings.Contains(lower, "csdnimg.cn") || strings.Contains(lower, "csdn.net") {
-			continue
-		}
-		target, err := c.uploadImage(ctx, source, input)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
+func (c *csdnAdapter) prepareContent(ctx context.Context, input DraftInput) (string, string, error) {
+	options := ImageRehostOptions{
+		Platform:       c.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			lower := strings.ToLower(source)
+			return strings.Contains(lower, "csdnimg.cn") || strings.Contains(lower, "csdn.net")
+		},
 	}
-	return replaceImages(input.Markdown, replacements), nil
+	replacements, err := rehostImageReplacements(ctx, c.client, input, input.Markdown, options, c.uploadImage)
+	if err != nil {
+		return "", "", err
+	}
+	return replaceImages(input.Markdown, replacements), replaceImages(htmlFor(input), replacements), nil
 }
 
 func (c *csdnAdapter) save(ctx context.Context, refID string, input DraftInput, publish bool) (map[string]any, error) {
-	markdown, err := c.prepareMarkdown(ctx, input)
+	markdown, html, err := c.prepareContent(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 	payload := map[string]any{
 		"title":             input.Title,
 		"markdowncontent":   markdown,
-		"content":           htmlFor(input),
+		"content":           html,
 		"readType":          "public",
 		"level":             0,
-		"tags":              "",
+		"tags":              strings.Join(input.Tags, ","),
 		"status":            2,
 		"categories":        "",
 		"type":              "original",
@@ -308,7 +304,7 @@ func (c *csdnAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Draf
 	id := csdnSavedID(decoded, ref.ID)
 	if data, ok := decoded["data"].(map[string]any); ok {
 		if target := valueString(data["url"]); target != "" {
-			return PublishResult{URL: target}, nil
+			return PublishResult{ID: id, URL: target}, nil
 		}
 	}
 	if c.userID == "" {
@@ -317,5 +313,5 @@ func (c *csdnAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Draf
 	if c.userID == "" {
 		return PublishResult{}, platformError(ErrUpstream, c.ID(), "publish-draft", 0, "published response did not include a public URL", false)
 	}
-	return PublishResult{URL: "https://blog.csdn.net/" + url.PathEscape(c.userID) + "/article/details/" + url.PathEscape(id)}, nil
+	return PublishResult{ID: id, URL: "https://blog.csdn.net/" + url.PathEscape(c.userID) + "/article/details/" + url.PathEscape(id)}, nil
 }

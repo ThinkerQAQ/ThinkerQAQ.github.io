@@ -7,6 +7,7 @@ const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
 let bridgeSession = null;
 const pendingCNBlogsCookieCaptures = new Map();
+const pendingPlatformCookieCaptures = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -26,6 +27,22 @@ chrome.webRequest.onSendHeaders.addListener((details) => {
   const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
   if (header !== null) pending.resolve(header);
 }, { urls: ["https://i.cnblogs.com/api/user*"] }, ["requestHeaders", "extraHeaders"]);
+
+const platformSessionRequestPatterns = [...new Set(
+  Object.values(PLATFORM_SESSIONS).flatMap((definition) =>
+    (definition.cookieDomains ?? []).flatMap((domain) => [
+      `https://${domain}/*`,
+      `https://*.${domain}/*`,
+    ]),
+  ),
+)];
+
+chrome.webRequest.onSendHeaders.addListener((details) => {
+  const pending = pendingPlatformCookieCaptures.get(details.url);
+  if (!pending) return;
+  const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
+  if (header !== null) pending.resolve(header);
+}, { urls: platformSessionRequestPatterns }, ["requestHeaders", "extraHeaders"]);
 
 async function setBadge(text, color) {
   await chrome.action.setBadgeText({ text });
@@ -152,15 +169,15 @@ async function platformLoginStatus(definition) {
     }
     if (definition.id !== "cnblogs" && await platformHasSessionCookies(definition.id)) {
       return {
-        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
-        warning: "Login probe did not match, but browser session cookies are available.",
+        id: definition.id, label: definition.label, known: false, loggedIn: false, inferred: true,
+        warning: "Browser cookies exist, but the login probe did not verify the session.",
       };
     }
     return { id: definition.id, label: definition.label, known: true, loggedIn: false, inferred: false };
   } catch (error) {
     if (definition.id !== "cnblogs" && await platformHasSessionCookies(definition.id)) {
       return {
-        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
+        id: definition.id, label: definition.label, known: false, loggedIn: false, inferred: true,
         warning: `Login probe failed: ${errorMessage(error)}`,
       };
     }
@@ -175,7 +192,9 @@ async function allPlatformLoginStatuses() {
 async function fetchJSON(pathname, options = {}, retry = true) {
   const bridge = await ensureBridge(false);
   try {
-    const response = await fetch(`${bridge.baseUrl}${pathname}`, options);
+    const headers = new Headers(options.headers ?? {});
+    headers.set("x-thinkerqaq-token", bridge.token);
+    const response = await fetch(`${bridge.baseUrl}${pathname}`, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw toError(payload, response.status);
     return payload;
@@ -222,13 +241,27 @@ async function platformSessionStatus(platform, bridge) {
 
 async function getStatus() {
   const [bridge, platforms] = await Promise.all([bridgeStatus(), allPlatformLoginStatuses()]);
+  let publishingPlatforms = [];
+  if (bridge.running) {
+    try {
+      const publishing = await fetchJSON("/v1/publishing");
+      publishingPlatforms = publishing?.platforms ?? [];
+    } catch (error) {
+      console.warn("BlogCTL platform capabilities unavailable:", errorMessage(error));
+    }
+  }
+  const publishingByID = new Map(publishingPlatforms.map((item) => [item.id, item]));
+  const enrichedPlatforms = platforms.map((platform) => ({
+    ...platform,
+    capabilities: publishingByID.get(platform.id)?.capabilities ?? {},
+  }));
   const sessionEntries = await Promise.all(
     Object.keys(PLATFORM_SESSIONS).map(async (platform) => [
       platform,
       await platformSessionStatus(platform, bridge),
     ]),
   );
-  return { bridge, platforms, sessions: Object.fromEntries(sessionEntries) };
+  return { bridge, platforms: enrichedPlatforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
 async function saveBridgeConfig(config) {
@@ -278,11 +311,74 @@ async function captureCNBlogsRequestCookieHeader() {
   }
 }
 
+async function capturePlatformRequestCookieHeader(platform) {
+  const definition = PLATFORM_SESSIONS[platform];
+  const rawURL = String(definition?.sessionProbeUrl || "").trim();
+  if (!rawURL) return "";
+
+  const url = new URL(rawURL);
+  url.searchParams.set("blogctl_cookie_probe", crypto.randomUUID());
+  const expectedURL = url.toString();
+  let resolveCapture;
+  const captured = new Promise((resolve) => { resolveCapture = resolve; });
+  pendingPlatformCookieCaptures.set(expectedURL, { url: expectedURL, resolve: resolveCapture });
+  try {
+    void fetchWithTimeout(expectedURL, { cache: "no-store" }).catch(() => null);
+    const header = await Promise.race([
+      captured,
+      delay(1500).then(() => ""),
+    ]);
+    return String(header || "");
+  } finally {
+    pendingPlatformCookieCaptures.delete(expectedURL);
+  }
+}
+
+async function capturePlatformNavigationCookieHeader(platform) {
+  const definition = PLATFORM_SESSIONS[platform];
+  const rawURL = String(definition?.sessionProbeUrl || "").trim();
+  if (!rawURL || !chrome.tabs?.create || !chrome.tabs?.remove) return "";
+
+  const url = new URL(rawURL);
+  url.searchParams.set("blogctl_cookie_probe", crypto.randomUUID());
+  const expectedURL = url.toString();
+  let resolveCapture;
+  const captured = new Promise((resolve) => { resolveCapture = resolve; });
+  pendingPlatformCookieCaptures.set(expectedURL, { url: expectedURL, resolve: resolveCapture });
+  let tabId = null;
+  try {
+    const tab = await chrome.tabs.create({ url: expectedURL, active: false });
+    tabId = tab?.id ?? null;
+    const header = await Promise.race([
+      captured,
+      delay(2500).then(() => ""),
+    ]);
+    return String(header || "");
+  } catch {
+    return "";
+  } finally {
+    pendingPlatformCookieCaptures.delete(expectedURL);
+    if (tabId !== null) {
+      await chrome.tabs.remove(tabId).catch(() => {});
+    }
+  }
+}
+
 async function selectedPlatformCookies(platform, diagnostics) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
   const batches = await collectPlatformCookieBatches(definition, diagnostics);
   return selectBrowserSessionCookies(definition, batches);
+}
+
+function cookieQuerySummary(diagnostics = []) {
+  return diagnostics
+    .filter((item) => item && item.target)
+    .map((item) => {
+      const names = Array.isArray(item.names) && item.names.length ? item.names.join(",") : "none";
+      return `${item.target}[${names}]`;
+    })
+    .join("; ");
 }
 
 async function platformHasSessionCookies(platform) {
@@ -301,12 +397,22 @@ async function syncPlatformSession(platform) {
   let selected;
   const cookieQueries = [];
   const cookieStores = platform === "cnblogs" ? await cnBlogsCookieStores() : [];
-  const requestCookieHeader = platform === "cnblogs" ? await captureCNBlogsRequestCookieHeader() : "";
+  let requestCookieHeader = platform === "cnblogs"
+    ? await captureCNBlogsRequestCookieHeader()
+    : await capturePlatformRequestCookieHeader(platform);
+  if (platform !== "cnblogs" && !requestCookieHeader) {
+    requestCookieHeader = await capturePlatformNavigationCookieHeader(platform);
+  }
   try {
-    selected = await selectedPlatformCookies(platform, platform === "cnblogs" ? cookieQueries : undefined);
+    selected = await selectedPlatformCookies(platform, cookieQueries);
   } catch (error) {
-    if (platform === "cnblogs" && errorMessage(error) === "no browser cookies were available") selected = [];
-    else throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
+    if (requestCookieHeader) {
+      selected = [];
+    } else {
+      const summary = cookieQuerySummary(cookieQueries);
+      const detail = summary ? ` Cookie keys seen: ${summary}.` : "";
+      throw new Error(`${platform}: ${errorMessage(error)}.${detail} Sign in first.`);
+    }
   }
 
   return fetchJSON(
@@ -326,8 +432,17 @@ async function syncBrowserSession(platform) {
 async function syncSessionsForPlatforms(platforms = []) {
   const unique = [...new Set(platforms.map((platform) => String(platform || "").trim()).filter(Boolean))];
   for (const platform of unique) {
-    if (!PLATFORM_SESSIONS[platform]) continue;
-    await syncPlatformSession(platform);
+    const definition = PLATFORM_SESSIONS[platform];
+    if (!definition) continue;
+    try {
+      await syncPlatformSession(platform);
+    } catch (error) {
+      if (definition.optional === true) {
+        console.warn(`${platform}: optional browser session unavailable; platform-native image upload may fall back.`, errorMessage(error));
+        continue;
+      }
+      throw error;
+    }
   }
 }
 
@@ -349,12 +464,38 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/articles");
       return { ok: true, articles: result?.articles ?? [] };
     }
+    case "blogctl.publications": {
+      const result = await fetchJSON("/v1/publications");
+      return { ok: true, records: result?.records ?? [] };
+    }
+    case "blogctl.publication.reconcile": {
+      const article = String(message.article || "").trim();
+      const platform = String(message.platform || "").trim();
+      if (!article || !platform) throw new Error("article and platform are required");
+      const publishing = await fetchJSON("/v1/publishing");
+      const profile = (publishing?.platforms ?? []).find((item) => item.id === platform);
+      if (profile?.capabilities?.browserSession === true) {
+        await syncPlatformSession(platform);
+      }
+      const query = new URLSearchParams({ article, platform });
+      const result = await fetchJSON(`/v1/publications/reconcile?${query.toString()}`, { method: "POST" });
+      return { ok: true, reconciliation: result?.reconciliation ?? null };
+    }
+    case "blogctl.publication.pending.resolve": {
+      const article = String(message.article || "").trim();
+      const platform = String(message.platform || "").trim();
+      if (!article || !platform) throw new Error("article and platform are required");
+      const query = new URLSearchParams({ article, platform });
+      const result = await fetchJSON(`/v1/publications/pending/resolve?${query.toString()}`, jsonOptions("POST", {
+        fields: Array.isArray(message.fields) ? message.fields : [],
+      }));
+      return { ok: true, pendingFields: result?.pendingFields ?? [] };
+    }
     case "blogctl.article.match": {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");
       if (!article || !platform) throw new Error("article and platform are required");
       if (platform === "cnblogs") {
-        await fetchJSON("/v1/cnblogs/binding/migrate", { method: "POST" });
         const current = await fetchJSON(`/v1/cnblogs/binding?article=${article}`);
         await syncPlatformSession("cnblogs");
         const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });
@@ -381,14 +522,117 @@ async function handleMessage(message) {
         }
         return { ok: true, match: { text: `远端找到 ${candidates.length} 篇候选。${warnings.join("；")}`, items, bindings } };
       }
+      if (platform === "segmentfault") {
+        await syncPlatformSession("segmentfault");
+        const result = await fetchJSON(`/v1/segmentfault/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从草稿列表和文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取思否草稿列表和文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
+      if (platform === "zhihu") {
+        await syncPlatformSession("zhihu");
+        const result = await fetchJSON(`/v1/zhihu/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从知乎草稿列表和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取知乎草稿列表和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
+      if (platform === "oschina") {
+        await syncPlatformSession("oschina");
+        const result = await fetchJSON(`/v1/oschina/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从开源中国草稿列表和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取开源中国草稿列表和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
+      if (platform === "medium") {
+        await syncPlatformSession("medium");
+        const result = await fetchJSON(`/v1/medium/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从 Medium 草稿和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取 Medium 草稿和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
       if (platform === "devto") {
         const result = await fetchJSON(`/v1/devto/articles/search?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `远端找到 ${candidates.length} 篇候选文章${result.truncated ? "；仅检索了前 500 篇" : ""}。DEV.to 当前仅支持查找，尚不支持手动绑定。`
-            : result.truncated ? "前 500 篇中未找到候选文章，结果尚不完整。DEV.to 暂不支持手动绑定。" : "远端未找到候选文章。DEV.to 暂不支持手动绑定。",
-          items: candidates.map((post) => ({ title: post.title, id: post.id, published: post.published, url: post.url || "" })),
+            ? `从 DEV.to 全部文章列表本地匹配到 ${candidates.length} 条候选${result.truncated ? "；仅检索了前 500 篇" : ""}。`
+            : result.truncated ? "前 500 篇中未匹配到候选，结果尚不完整。" : "已读取 DEV.to 全部文章列表，本地未匹配到对应文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
+      if (platform === "csdn") {
+        await syncPlatformSession("csdn");
+        const result = await fetchJSON(`/v1/csdn/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从 CSDN 已发布文章列表本地匹配到 ${candidates.length} 条候选；已绑定草稿会按 ID 单独核验。`
+            : "已读取 CSDN 已发布文章列表；未匹配到同名文章。历史草稿可用文章 ID／编辑链接手动绑定。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
         } };
       }
       const result = await fetchJSON(`/v1/article-links?article=${article}`);
@@ -401,7 +645,6 @@ async function handleMessage(message) {
     }
     case "blogctl.cnblogs.binding": {
       const article = encodeURIComponent(String(message.article || ""));
-      await fetchJSON("/v1/cnblogs/binding/migrate", { method: "POST" });
       return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`)) };
     }
     case "blogctl.cnblogs.search": {
@@ -417,6 +660,101 @@ async function handleMessage(message) {
     case "blogctl.cnblogs.unbind": {
       const article = encodeURIComponent(String(message.article || ""));
       return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("DELETE", { state: message.state, postId: message.postId }))) };
+    }
+    case "blogctl.segmentfault.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("segmentfault");
+      return { ok: true, ...(await fetchJSON(`/v1/segmentfault/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.segmentfault.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/segmentfault/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.zhihu.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("zhihu");
+      return { ok: true, ...(await fetchJSON(`/v1/zhihu/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.zhihu.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/zhihu/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.oschina.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("oschina");
+      return { ok: true, ...(await fetchJSON(`/v1/oschina/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.oschina.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/oschina/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.devto.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/devto/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.devto.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/devto/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.csdn.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("csdn");
+      return { ok: true, ...(await fetchJSON(`/v1/csdn/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.csdn.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/csdn/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.medium.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("medium");
+      return { ok: true, ...(await fetchJSON(`/v1/medium/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.medium.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/medium/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
     }
     case "blogctl.cnblogs.update": {
       const article = encodeURIComponent(String(message.article || ""));
@@ -444,11 +782,27 @@ async function handleMessage(message) {
     }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");
-      return { ok: true, platforms: result?.platforms ?? [] };
+      return {
+        ok: true,
+        platforms: result?.platforms ?? [],
+        compiler: result?.compiler ?? {},
+        assets: result?.assets ?? {},
+        assetStatus: result?.assetStatus ?? {},
+      };
     }
     case "blogctl.publishing.save": {
-      const result = await fetchJSON("/v1/publishing", jsonOptions("PUT", { platforms: message.platforms ?? [] }));
-      return { ok: true, platforms: result?.platforms ?? [] };
+      const result = await fetchJSON("/v1/publishing", jsonOptions("PUT", {
+        platforms: message.platforms ?? [],
+        compiler: message.compiler,
+        assets: message.assets,
+      }));
+      return {
+        ok: true,
+        platforms: result?.platforms ?? [],
+        compiler: result?.compiler ?? {},
+        assets: result?.assets ?? {},
+        assetStatus: result?.assetStatus ?? {},
+      };
     }
     case "blogctl.jobs": {
       const result = await fetchJSON("/v1/sync/jobs");

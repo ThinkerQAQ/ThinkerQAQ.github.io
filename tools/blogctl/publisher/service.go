@@ -39,6 +39,14 @@ func retryableAuthError(err error) bool {
 	return IsKind(err, ErrAuthExpired) || IsKind(err, ErrCSRF)
 }
 
+func publicationHasPublishedState(state PublicationState) bool {
+	return strings.TrimSpace(state.PublishedRemoteID) != "" || strings.TrimSpace(state.PublishedURL) != ""
+}
+
+func mayRecreateMissingDraft(platform string, state PublicationState) bool {
+	return !publicationHasPublishedState(state) || PlatformCapabilitiesFor(platform).PublishedUpdate
+}
+
 func (s Service) CreateOrUpdateDraft(
 	ctx context.Context,
 	platform string,
@@ -64,36 +72,22 @@ func (s Service) CreateOrUpdateDraftInput(
 ) (DraftResult, error) {
 	slug := input.Slug
 	input.ChangedOnly = changedOnly
-	state, manifestPath, err := LoadPublicationState(contentRoot, slug, platform)
+	state, _, err := LoadPublicationState(contentRoot, slug, platform)
 	if err != nil {
 		return DraftResult{}, err
 	}
 	input.RemoteDraftID = state.RemoteDraftID
 	input.DraftURL = state.DraftURL
 	input.DraftHash = state.DraftHash
-	var binding CNBlogsBinding
-	var bound bool
-	if platform == "cnblogs" {
-		legacyPublished, legacyFound, lookupErr := LoadCNBlogsBindingState(contentRoot, slug, "published")
-		if lookupErr != nil {
-			return DraftResult{}, lookupErr
-		}
-		if legacyFound && legacyPublished.Source == "legacy" {
-			if err := SaveCNBlogsBinding(contentRoot, legacyPublished); err != nil {
-				return DraftResult{}, err
-			}
-		}
-		binding, bound, err = LoadCNBlogsBindingState(contentRoot, slug, "draft")
-		if err != nil {
-			return DraftResult{}, err
-		}
-		if bound {
-			input.RemoteDraftID, input.DraftURL, input.DraftHash = binding.PostID, binding.EditURL, binding.LastPushedHash
-		} else {
-			input.RemoteDraftID, input.DraftURL, input.DraftHash = "", "", ""
-		}
+	if input.RemoteDraftID == "" && (state.PublishedRemoteID != "" || state.PublishedURL != "") &&
+		!PlatformCapabilitiesFor(platform).PublishedUpdate {
+		return DraftResult{}, platformError(
+			ErrValidation, platform, "save-draft", 0,
+			"the article is already published; safe published-article updates are not supported for this platform yet",
+			false,
+		)
 	}
-	if platform != "cnblogs" && platform != "devto" && changedOnly && input.ContentHash == input.DraftHash && input.RemoteDraftID != "" {
+	if platform != "devto" && changedOnly && input.ContentHash == input.DraftHash && input.RemoteDraftID != "" {
 		return DraftResult{
 			ID: input.RemoteDraftID, URL: input.DraftURL, Skipped: true,
 		}, nil
@@ -104,7 +98,14 @@ func (s Service) CreateOrUpdateDraftInput(
 		var operationErr error
 		if input.RemoteDraftID != "" {
 			result, operationErr = adapter.UpdateDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
-			if operationErr != nil && IsKind(operationErr, ErrRemoteDraftMissing) && platform != "cnblogs" {
+			if operationErr != nil && IsKind(operationErr, ErrRemoteDraftMissing) {
+				if !mayRecreateMissingDraft(platform, state) {
+					return platformError(
+						ErrValidation, platform, "save-draft", 0,
+						"the recorded draft no longer exists and a published article is already bound; refusing to create a duplicate draft",
+						false,
+					)
+				}
 				result, operationErr = adapter.CreateDraft(ctx, input)
 			}
 		} else {
@@ -119,26 +120,14 @@ func (s Service) CreateOrUpdateDraftInput(
 	}
 	if platform == "cnblogs" {
 		cnblogs := adapter.(*cnBlogsAdapter)
-		if bound && binding.Account != "" && !strings.EqualFold(binding.Account, cnblogs.username) {
-			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "binding belongs to a different CNBlogs account", false)
+		if state.Account != "" && !strings.EqualFold(state.Account, cnblogs.username) {
+			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CNBlogs account", false)
 		}
-		if bound && binding.Account == "" {
-			post, lookupErr := cnblogs.fetchPost(ctx, binding.PostID)
-			if lookupErr != nil {
-				return DraftResult{}, lookupErr
-			}
-			if author := valueString(post["author"]); author != "" && !strings.EqualFold(author, cnblogs.username) {
-				return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "legacy post belongs to a different account", false)
-			}
-			binding.Account = cnblogs.username
-			binding.RemoteUpdatedAt = valueString(post["dateUpdated"])
-			binding.VerifiedAt = verifiedAt(s.now())
-			if err := SaveCNBlogsBinding(contentRoot, binding); err != nil {
-				return DraftResult{}, err
-			}
-		}
-		if changedOnly && input.ContentHash == input.DraftHash && input.RemoteDraftID != "" {
-			return DraftResult{ID: input.RemoteDraftID, URL: input.DraftURL, Skipped: true}, nil
+	}
+	if platform == "csdn" {
+		csdn := adapter.(*csdnAdapter)
+		if state.Account != "" && !strings.EqualFold(state.Account, csdn.userID) {
+			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CSDN account", false)
 		}
 	}
 	err = run(adapter)
@@ -155,21 +144,44 @@ func (s Service) CreateOrUpdateDraftInput(
 	if result.ID == "" || result.URL == "" {
 		return DraftResult{}, fmt.Errorf("%s adapter returned an incomplete draft result", platform)
 	}
-	if err := SaveDraftResult(manifestPath, slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationDraftResult(contentRoot, slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return DraftResult{}, err
 	}
 	if platform == "devto" && input.Published {
-		if err := SavePublishResult(manifestPath, slug, platform, input.ContentHash, PublishResult{URL: result.URL}, s.now()); err != nil {
+		if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, PublishResult{ID: result.ID, URL: result.URL}, s.now()); err != nil {
 			return DraftResult{}, err
 		}
 	}
 	if platform == "cnblogs" {
-		account := adapter.(*cnBlogsAdapter).username
-		if err := SaveCNBlogsBinding(contentRoot, CNBlogsBinding{
-			Slug: slug, Account: account, PostID: result.ID, State: "draft", EditURL: result.URL,
-			Source: "blogctl", LastPushedHash: input.ContentHash, VerifiedAt: verifiedAt(s.now()),
-		}); err != nil {
-			return DraftResult{}, err
+		binding, found, loadErr := LoadPublicationBinding(contentRoot, slug, platform)
+		if loadErr != nil {
+			return DraftResult{}, loadErr
+		}
+		if found {
+			binding.Account = adapter.(*cnBlogsAdapter).username
+			if binding.Source == "" {
+				binding.Source = "blogctl"
+			}
+			binding.VerifiedAt = verifiedAt(s.now())
+			if err := SavePublicationBinding(contentRoot, binding); err != nil {
+				return DraftResult{}, err
+			}
+		}
+	}
+	if platform == "csdn" {
+		binding, found, loadErr := LoadPublicationBinding(contentRoot, slug, platform)
+		if loadErr != nil {
+			return DraftResult{}, loadErr
+		}
+		if found {
+			binding.Account = adapter.(*csdnAdapter).userID
+			if binding.Source == "" {
+				binding.Source = "blogctl"
+			}
+			binding.VerifiedAt = verifiedAt(s.now())
+			if err := SavePublicationBinding(contentRoot, binding); err != nil {
+				return DraftResult{}, err
+			}
 		}
 	}
 	return result, nil
@@ -197,24 +209,13 @@ func (s Service) PublishDraftInput(
 	input DraftInput,
 ) (PublishResult, error) {
 	slug := input.Slug
-	state, manifestPath, err := LoadPublicationState(contentRoot, slug, platform)
+	state, _, err := LoadPublicationState(contentRoot, slug, platform)
 	if err != nil {
 		return PublishResult{}, err
 	}
 	input.RemoteDraftID = state.RemoteDraftID
 	input.DraftURL = state.DraftURL
 	input.DraftHash = state.DraftHash
-	if platform == "cnblogs" {
-		binding, bound, bindingErr := LoadCNBlogsBindingState(contentRoot, slug, "draft")
-		if bindingErr != nil {
-			return PublishResult{}, bindingErr
-		}
-		if bound {
-			input.RemoteDraftID, input.DraftURL, input.DraftHash = binding.PostID, binding.EditURL, binding.LastPushedHash
-		} else {
-			input.RemoteDraftID, input.DraftURL, input.DraftHash = "", "", ""
-		}
-	}
 	if input.RemoteDraftID == "" {
 		return PublishResult{}, platformError(ErrValidation, platform, "publish-draft", 0, "remote draft id is missing; create or update the draft first", false)
 	}
@@ -226,14 +227,11 @@ func (s Service) PublishDraftInput(
 	if err != nil {
 		return PublishResult{}, err
 	}
-	if platform == "cnblogs" {
-		binding, bound, bindingErr := LoadCNBlogsBindingState(contentRoot, slug, "draft")
-		if bindingErr != nil {
-			return PublishResult{}, bindingErr
-		}
-		if bound && binding.Account != "" && !strings.EqualFold(binding.Account, adapter.(*cnBlogsAdapter).username) {
-			return PublishResult{}, platformError(ErrValidation, platform, "binding", 0, "binding belongs to a different CNBlogs account", false)
-		}
+	if platform == "cnblogs" && state.Account != "" && !strings.EqualFold(state.Account, adapter.(*cnBlogsAdapter).username) {
+		return PublishResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CNBlogs account", false)
+	}
+	if platform == "csdn" && state.Account != "" && !strings.EqualFold(state.Account, adapter.(*csdnAdapter).userID) {
+		return PublishResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CSDN account", false)
 	}
 	result, err := adapter.PublishDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
 	if err != nil && retryableAuthError(err) {
@@ -246,24 +244,36 @@ func (s Service) PublishDraftInput(
 	if err != nil {
 		return PublishResult{}, err
 	}
-	if result.URL == "" {
+	if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.URL) == "" {
 		return PublishResult{}, fmt.Errorf("%s adapter returned an incomplete publish result", platform)
 	}
-	if err := SavePublishResult(manifestPath, slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return PublishResult{}, err
 	}
 	if platform == "cnblogs" {
 		cnblogs := adapter.(*cnBlogsAdapter)
-		remoteUpdatedAt := ""
-		if post, lookupErr := cnblogs.fetchPost(ctx, input.RemoteDraftID); lookupErr == nil {
-			remoteUpdatedAt = valueString(post["dateUpdated"])
+		binding, found, loadErr := LoadPublicationBinding(contentRoot, slug, platform)
+		if loadErr != nil {
+			return PublishResult{}, loadErr
 		}
-		if err := SaveCNBlogsBinding(contentRoot, CNBlogsBinding{
-			Slug: slug, Account: cnblogs.username, PostID: input.RemoteDraftID, State: "published",
-			EditURL: input.DraftURL, PublicURL: result.URL, Source: "blogctl", LastPushedHash: input.ContentHash,
-			RemoteUpdatedAt: remoteUpdatedAt, VerifiedAt: verifiedAt(s.now()),
-		}); err != nil {
-			return PublishResult{}, err
+		if found {
+			binding.PublishedRemoteID = input.RemoteDraftID
+			binding.Account = cnblogs.username
+			if binding.Source == "" {
+				binding.Source = "blogctl"
+			}
+			if post, lookupErr := cnblogs.fetchPost(ctx, input.RemoteDraftID); lookupErr == nil {
+				binding.RemoteUpdatedAt = valueString(post["dateUpdated"])
+			}
+			binding.VerifiedAt = verifiedAt(s.now())
+			// CNBlogs has no independent save-only draft after publication.
+			binding.RemoteDraftID = ""
+			binding.DraftURL = ""
+			binding.DraftHash = ""
+			binding.DraftSyncedAt = ""
+			if err := SavePublicationBinding(contentRoot, binding); err != nil {
+				return PublishResult{}, err
+			}
 		}
 	}
 	return result, nil
@@ -280,16 +290,12 @@ func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, co
 
 func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Session, contentRoot string, input DraftInput) (PublishResult, bool, error) {
 	slug := input.Slug
-	_, manifestPath, err := LoadPublicationState(contentRoot, slug, "cnblogs")
+	binding, found, err := LoadPublicationBinding(contentRoot, slug, "cnblogs")
 	if err != nil {
 		return PublishResult{}, false, err
 	}
-	binding, found, err := LoadCNBlogsBindingState(contentRoot, slug, "published")
-	if err != nil {
-		return PublishResult{}, false, err
-	}
-	if !found || binding.State != "published" || binding.PostID == "" {
-		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "update-published", 0, "a verified published binding is required", false)
+	if !found || binding.PublishedRemoteID == "" || binding.PublishedURL == "" {
+		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "update-published", 0, "a verified published publication is required", false)
 	}
 	adapterValue, err := s.authenticatedAdapter(ctx, "cnblogs", session)
 	if err != nil {
@@ -297,9 +303,9 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 	}
 	adapter := adapterValue.(*cnBlogsAdapter)
 	if binding.Account != "" && !strings.EqualFold(binding.Account, adapter.username) {
-		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "binding", 0, "binding belongs to a different CNBlogs account", false)
+		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "binding", 0, "publication belongs to a different CNBlogs account", false)
 	}
-	base, err := adapter.fetchPost(ctx, binding.PostID)
+	base, err := adapter.fetchPost(ctx, binding.PublishedRemoteID)
 	if err != nil {
 		return PublishResult{}, false, err
 	}
@@ -311,19 +317,19 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 	}
 	remoteUpdatedAt := valueString(base["dateUpdated"])
 	if binding.RemoteUpdatedAt == "" || remoteUpdatedAt == "" || binding.RemoteUpdatedAt != remoteUpdatedAt {
-		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "update-published", 0, "remote post changed or has no verified baseline; verify the binding again", false)
+		return PublishResult{}, false, platformError(ErrValidation, "cnblogs", "update-published", 0, "remote post changed or has no verified baseline; verify the publication again", false)
 	}
-	if binding.LastPushedHash != "" && binding.LastPushedHash == input.ContentHash {
-		return PublishResult{URL: binding.PublicURL}, true, nil
+	if binding.PublishedHash != "" && binding.PublishedHash == input.ContentHash {
+		return PublishResult{URL: binding.PublishedURL}, true, nil
 	}
-	decoded, err := adapter.save(ctx, binding.PostID, input, true, true)
+	decoded, err := adapter.save(ctx, binding.PublishedRemoteID, input, true, true)
 	if err != nil {
 		return PublishResult{}, false, err
 	}
-	if returned := valueString(decoded["id"]); returned != "" && returned != binding.PostID {
+	if returned := valueString(decoded["id"]); returned != "" && returned != binding.PublishedRemoteID {
 		return PublishResult{}, false, platformError(ErrUpstream, "cnblogs", "update-published", 0, "CNBlogs returned a different post ID", false)
 	}
-	updated, err := adapter.fetchPost(ctx, binding.PostID)
+	updated, err := adapter.fetchPost(ctx, binding.PublishedRemoteID)
 	if err != nil {
 		return PublishResult{}, false, err
 	}
@@ -331,18 +337,18 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 		return PublishResult{}, false, platformError(ErrUpstream, "cnblogs", "update-published", 0, "post update was not published", false)
 	}
 	binding.Account = adapter.username
-	binding.PublicURL = valueString(updated["url"])
-	if binding.PublicURL == "" {
-		binding.PublicURL = valueString(base["url"])
+	if target := valueString(updated["url"]); target != "" {
+		binding.PublishedURL = target
 	}
-	binding.LastPushedHash = input.ContentHash
+	binding.PublishedHash = input.ContentHash
+	binding.PublishedSyncedAt = verifiedAt(s.now())
 	binding.RemoteUpdatedAt = valueString(updated["dateUpdated"])
 	binding.VerifiedAt = verifiedAt(s.now())
-	if err := SaveCNBlogsBinding(contentRoot, binding); err != nil {
+	if binding.Source == "" {
+		binding.Source = "blogctl"
+	}
+	if err := SavePublicationBinding(contentRoot, binding); err != nil {
 		return PublishResult{}, false, err
 	}
-	if err := SavePublishedUpdateResult(manifestPath, slug, "cnblogs", input.ContentHash, s.now()); err != nil {
-		return PublishResult{}, false, err
-	}
-	return PublishResult{URL: binding.PublicURL}, false, nil
+	return PublishResult{URL: binding.PublishedURL}, false, nil
 }

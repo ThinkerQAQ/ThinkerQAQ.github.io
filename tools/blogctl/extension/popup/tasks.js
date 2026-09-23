@@ -10,11 +10,8 @@
     lastRenderedSnapshot: "",
     renderDeferredForSelection: false,
     pollTimer: null,
+    focusJobID: "",
   };
-
-  const NATIVE_CHINA_PLATFORMS = new Set([
-    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao",
-  ]);
 
   let list, refreshButton, clearButton, message;
 
@@ -53,15 +50,29 @@
         item.append(detail);
       }
 
-      if (row.url) {
-        const link = document.createElement("a");
-        link.className = "job-result-link";
-        link.href = row.url;
-        link.target = "_blank";
-        link.rel = "noreferrer noopener";
-        link.textContent = job.operation === "publish" || job.operation === "update-published" ? "打开已发布文章" : "打开草稿";
-        item.append(link);
+      if (row.state === "completed") {
+        if (job.operation === "publish" && row.url) {
+          const article = document.createElement("a");
+          article.className = "task-publication-link";
+          article.href = row.url;
+          article.target = "_blank";
+          article.rel = "noreferrer noopener";
+          article.textContent = "查看文章";
+          item.append(article);
+        } else if (job.operation !== "publish") {
+          const publication = document.createElement("button");
+          publication.type = "button";
+          publication.className = "task-publication-link";
+          publication.textContent = "进入发布";
+          publication.addEventListener("click", () => {
+            document.dispatchEvent(new CustomEvent("blogctl:navigate-publication", {
+              detail: { article: job.article, platform: row.id },
+            }));
+          });
+          item.append(publication);
+        }
       }
+
       container.append(item);
     }
     card.append(container);
@@ -104,60 +115,13 @@
     }
   }
 
-  async function deleteJob(job, button) {
-    button.disabled = true;
-    BlogCTLPopup.setMessage(message, `正在删除任务 ${job.id}…`);
-    try {
-      await BlogCTLPopup.send("blogctl.job.delete", { id: job.id });
-      state.ui.setJobExpanded(job.id, false);
-      state.ui.setLogExpanded(job.id, false);
-      BlogCTLPopup.setMessage(message, "任务已删除。", "ok");
-      await refresh();
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-      button.disabled = false;
-    }
-  }
-
-  function canConfirmPublish(job) {
-    return job.operation === "draft"
-      && job.state === "completed"
-      && (job.platforms ?? []).length > 0
-      && (job.platforms ?? []).every((platform) => NATIVE_CHINA_PLATFORMS.has(platform))
-      && (job.platforms ?? []).every((platform) => job.results?.[platform]?.state === "completed");
-  }
-
-  async function publishJob(job, button) {
-    button.disabled = true;
-    BlogCTLPopup.setMessage(message, `正在确认发布任务 ${job.id} 的草稿…`);
-    try {
-      const response = await BlogCTLPopup.send("blogctl.job.publish", { id: job.id });
-      if (response.job?.id) state.ui.setJobExpanded(response.job.id, true);
-      BlogCTLPopup.setMessage(message, "发布任务已启动。", "ok");
-      await refresh();
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-      button.disabled = false;
-    }
-  }
-
   function renderActions(job, card) {
-    if (job.state === "running") return;
+    if (job.state !== "failed" || job.operation === "publish") return;
     const actions = document.createElement("div");
     actions.className = "task-actions";
-    if (job.state === "failed") {
-      let retry;
-      retry = actionButton("重试", "secondary compact", () => retryJob(job, retry));
-      actions.append(retry);
-    }
-    if (canConfirmPublish(job)) {
-      let publish;
-      publish = actionButton("确定发布", "primary inline-primary compact", () => publishJob(job, publish));
-      actions.append(publish);
-    }
-    let remove;
-    remove = actionButton("删除", "secondary compact danger-action", () => deleteJob(job, remove));
-    actions.append(remove);
+    let retry;
+    retry = actionButton("重试", "secondary compact", () => retryJob(job, retry));
+    actions.append(retry);
     card.append(actions);
   }
 
@@ -182,6 +146,7 @@
     state.ui.prune(validIDs);
     list.replaceChildren();
     clearButton.disabled = !state.jobs.some((job) => job.state !== "running");
+    let focusedCard = null;
 
     if (!state.jobs.length) {
       list.innerHTML = '<div class="platform-loading">暂无任务</div>';
@@ -193,11 +158,17 @@
       const card = document.createElement("details");
       card.className = "job-item";
       card.dataset.jobId = job.id;
+      if (state.focusJobID === job.id) {
+        state.ui.setJobExpanded(job.id, true);
+        state.ui.setLogExpanded(job.id, true);
+        card.classList.add("job-item-highlight");
+        focusedCard = card;
+      }
       BlogCTLTaskUIState.bindDetails(card, state.ui, "job", job.id);
 
       const summary = document.createElement("summary");
       const title = document.createElement("span");
-      title.textContent = job.article;
+      title.textContent = `${job.article} · ${(job.platforms ?? []).length} 个平台`;
       const status = document.createElement("strong");
       const presentation = stateLabel(job);
       BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
@@ -211,7 +182,7 @@
       meta.textContent = [
         started ? `开始 ${started}` : "",
         finished ? `结束 ${finished}` : "",
-        job.operation ? (job.operation === "publish" ? "发布" : "草稿") : "",
+        job.operation === "publish" ? "发布" : job.operation === "update-published" ? "更新" : job.operation ? "保存" : "",
         job.id ? `ID ${job.id}` : "",
       ].filter(Boolean).join(" · ");
       card.append(meta);
@@ -227,6 +198,19 @@
       renderActions(job, card);
       list.append(card);
     }
+
+    if (focusedCard) {
+      const focusedID = state.focusJobID;
+      state.focusJobID = "";
+      requestAnimationFrame(() => {
+        focusedCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        focusedCard.focus?.({ preventScroll: true });
+        setTimeout(() => focusedCard.classList.remove("job-item-highlight"), 2200);
+      });
+      state.ui.setJobExpanded(focusedID, true);
+      state.ui.setLogExpanded(focusedID, true);
+    }
+
     state.lastRenderedSnapshot = snapshot;
     return true;
   }
@@ -276,6 +260,15 @@
     state.initialized = true;
   }
 
+  function focusJob(id) {
+    const jobID = String(id || "").trim();
+    if (!jobID) return;
+    state.focusJobID = jobID;
+    state.ui.setJobExpanded(jobID, true);
+    state.ui.setLogExpanded(jobID, true);
+    if (state.active) refresh(true);
+  }
+
   function activate() {
     state.active = true;
     refresh(true);
@@ -290,5 +283,5 @@
     }
   }
 
-  root.BlogCTLTasks = { init, activate, deactivate, refresh };
+  root.BlogCTLTasks = { init, activate, deactivate, refresh, focusJob };
 })(globalThis);

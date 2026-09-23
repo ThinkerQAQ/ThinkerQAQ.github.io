@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
-	"time"
 )
 
 const DistributionManifestVersion = 2
@@ -68,80 +68,28 @@ func readManifest(path string) (map[string]any, error) {
 	return manifest, nil
 }
 
-func readOrCreateManifest(path string) (map[string]any, error) {
-	manifest, err := readManifest(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return map[string]any{
-			"version":  float64(DistributionManifestVersion),
-			"articles": map[string]any{},
-		}, nil
-	}
-	return manifest, err
-}
-
 type PublicationState struct {
-	RemoteDraftID string
-	DraftURL      string
-	DraftHash     string
-	PublishedURL  string
-	PublishedHash string
+	RemoteDraftID     string
+	DraftURL          string
+	DraftHash         string
+	PublishedRemoteID string
+	PublishedURL      string
+	PublishedHash     string
+	Account           string
+	Source            string
+	RemoteUpdatedAt   string
+	VerifiedAt        string
 }
 
 func LoadPublicationState(contentRoot, slug, platform string) (PublicationState, string, error) {
-	manifestPath := filepath.Join(contentRoot, ".distribution", "manifest.json")
-	manifest, err := readOrCreateManifest(manifestPath)
+	binding, found, err := LoadPublicationBinding(contentRoot, slug, platform)
 	if err != nil {
 		return PublicationState{}, "", err
 	}
-	articles := objectValue(manifest["articles"])
-	article := objectValue(articles[slug])
-	if article == nil {
-		return PublicationState{}, manifestPath, nil
+	if !found {
+		return PublicationState{}, bindingPath(contentRoot), nil
 	}
-	state := objectValue(objectValue(article["platforms"])[platform])
-	if state == nil {
-		return PublicationState{}, manifestPath, nil
-	}
-	draftURL := stringValue(state["draftUrl"])
-	remoteID := stringValue(state["remoteDraftId"])
-	if remoteID == "" {
-		remoteID = draftIDFromURL(platform, draftURL)
-	}
-	draftHash := stringValue(state["draftHash"])
-	if draftHash == "" {
-		draftHash = stringValue(state["lastSyncedHash"])
-	}
-	return PublicationState{
-		RemoteDraftID: remoteID,
-		DraftURL:      draftURL,
-		DraftHash:     draftHash,
-		PublishedURL:  stringValue(state["publishedUrl"]),
-		PublishedHash: stringValue(state["publishedHash"]),
-	}, manifestPath, nil
-}
-
-func ensurePlatformState(manifest map[string]any, slug, platform string) map[string]any {
-	articles := objectValue(manifest["articles"])
-	if articles == nil {
-		articles = map[string]any{}
-		manifest["articles"] = articles
-	}
-	article := objectValue(articles[slug])
-	if article == nil {
-		article = map[string]any{"platforms": map[string]any{}}
-		articles[slug] = article
-	}
-	platforms := objectValue(article["platforms"])
-	if platforms == nil {
-		platforms = map[string]any{}
-		article["platforms"] = platforms
-	}
-	state := objectValue(platforms[platform])
-	if state == nil {
-		state = map[string]any{}
-		platforms[platform] = state
-	}
-	return state
+	return publicationBindingState(binding), bindingPath(contentRoot), nil
 }
 
 func stringValue(value any) string {
@@ -174,31 +122,90 @@ func platformState(manifest map[string]any, slug, platform string) (map[string]a
 }
 
 type ArticleLink struct {
-	Platform     string `json:"platform"`
-	RemoteID     string `json:"remoteId,omitempty"`
-	DraftURL     string `json:"draftUrl,omitempty"`
-	PublishedURL string `json:"publishedUrl,omitempty"`
+	Platform          string `json:"platform"`
+	RemoteID          string `json:"remoteId,omitempty"`
+	PublishedRemoteID string `json:"publishedRemoteId,omitempty"`
+	DraftURL          string `json:"draftUrl,omitempty"`
+	PublishedURL      string `json:"publishedUrl,omitempty"`
+}
+
+type PublicationRecord struct {
+	Article           string   `json:"article"`
+	Platform          string   `json:"platform"`
+	RemoteID          string   `json:"remoteId,omitempty"`
+	PublishedRemoteID string   `json:"publishedRemoteId,omitempty"`
+	DraftURL          string   `json:"draftUrl,omitempty"`
+	PublishedURL      string   `json:"publishedUrl,omitempty"`
+	DraftSyncedAt     string   `json:"draftSyncedAt,omitempty"`
+	PublishedAt       string   `json:"publishedAt,omitempty"`
+	PublishedSyncedAt string   `json:"publishedSyncedAt,omitempty"`
+	PendingFields     []string `json:"pendingFields,omitempty"`
+	UpdatedAt         string   `json:"updatedAt,omitempty"`
+}
+
+func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord {
+	record := PublicationRecord{
+		Article: binding.Slug, Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
+		PublishedRemoteID: binding.PublishedRemoteID,
+		DraftURL:          binding.DraftURL, PublishedURL: binding.PublishedURL,
+		DraftSyncedAt: binding.DraftSyncedAt, PublishedAt: binding.PublishedAt,
+		PublishedSyncedAt: binding.PublishedSyncedAt,
+		PendingFields:     append([]string{}, binding.PendingFields...),
+	}
+	for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
+		if candidate > record.UpdatedAt {
+			record.UpdatedAt = candidate
+		}
+	}
+	return record
+}
+
+func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
+	records := []PublicationRecord{}
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return nil, err
+	}
+	for _, binding := range bindings.Publications {
+		record := publicationRecordFromBinding(binding)
+		if record.RemoteID == "" && record.PublishedRemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
+			continue
+		}
+		records = append(records, record)
+	}
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].UpdatedAt != records[j].UpdatedAt {
+			return records[i].UpdatedAt > records[j].UpdatedAt
+		}
+		if records[i].Article != records[j].Article {
+			return records[i].Article < records[j].Article
+		}
+		return records[i].Platform < records[j].Platform
+	})
+	return records, nil
 }
 
 // LoadArticleLinks reads locally recorded remote references without contacting a platform.
 func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) {
-	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return map[string]ArticleLink{}, nil
-	}
+	result := map[string]ArticleLink{}
+	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return nil, err
 	}
-	article := objectValue(objectValue(manifest["articles"])[slug])
-	result := map[string]ArticleLink{}
-	for platform, raw := range objectValue(article["platforms"]) {
-		state := objectValue(raw)
-		link := ArticleLink{Platform: platform, RemoteID: stringValue(state["remoteDraftId"]), DraftURL: stringValue(state["draftUrl"]), PublishedURL: stringValue(state["publishedUrl"])}
-		if link.RemoteID == "" {
-			link.RemoteID = draftIDFromURL(platform, link.DraftURL)
+	for _, binding := range bindings.Publications {
+		if binding.Slug != slug {
+			continue
 		}
-		if link.RemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
-			result[platform] = link
+		link := ArticleLink{
+			Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
+			PublishedRemoteID: binding.PublishedRemoteID,
+			DraftURL:          binding.DraftURL, PublishedURL: binding.PublishedURL,
+		}
+		if link.RemoteID == "" {
+			link.RemoteID = draftIDFromURL(binding.Platform, link.DraftURL)
+		}
+		if link.RemoteID != "" || link.PublishedRemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
+			result[binding.Platform] = link
 		}
 	}
 	return result, nil
@@ -306,83 +313,9 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	if htmlRaw, htmlErr := os.ReadFile(htmlPath); htmlErr == nil {
 		htmlBody = strings.TrimSpace(string(htmlRaw))
 	}
-	draftHash := stringValue(state["draftHash"])
-	if draftHash == "" {
-		draftHash = stringValue(state["lastSyncedHash"])
-	}
-	draftURL := stringValue(state["draftUrl"])
-	remoteID := stringValue(state["remoteDraftId"])
-	if remoteID == "" {
-		remoteID = draftIDFromURL(platform, draftURL)
-	}
 	return DraftInput{
 		Slug: slug, Title: title, Description: description, Markdown: markdown, HTML: htmlBody,
-		Language: language, ContentHash: contentHash, DraftHash: draftHash,
-		RemoteDraftID: remoteID, DraftURL: draftURL,
+		Language: language, ContentHash: contentHash,
 		SourceDir: sourceDirectory(contentRoot, slug, language),
 	}, manifestPath, nil
-}
-
-func writeManifestAtomic(path string, manifest map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	payload, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return err
-	}
-	payload = append(payload, '\n')
-	temp := path + ".tmp"
-	if err := os.WriteFile(temp, payload, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(temp, path); err != nil {
-		_ = os.Remove(temp)
-		return err
-	}
-	return nil
-}
-
-func SaveDraftResult(manifestPath, slug, platform, contentHash string, result DraftResult, now time.Time) error {
-	manifest, err := readOrCreateManifest(manifestPath)
-	if err != nil {
-		return err
-	}
-	state := ensurePlatformState(manifest, slug, platform)
-	manifest["version"] = float64(DistributionManifestVersion)
-	state["remoteDraftId"] = result.ID
-	state["draftUrl"] = result.URL
-	state["draftHash"] = contentHash
-	state["draftSyncedAt"] = now.UTC().Format(time.RFC3339)
-	// Preserve the legacy v1 fields for backward compatibility with existing manifest readers.
-	state["lastSyncedHash"] = contentHash
-	state["lastSyncedAt"] = now.UTC().Format(time.RFC3339)
-
-	return writeManifestAtomic(manifestPath, manifest)
-}
-
-func SavePublishResult(manifestPath, slug, platform, contentHash string, result PublishResult, now time.Time) error {
-	manifest, err := readOrCreateManifest(manifestPath)
-	if err != nil {
-		return err
-	}
-	state := ensurePlatformState(manifest, slug, platform)
-	if stringValue(state["draftHash"]) != contentHash {
-		return errors.New("refusing to record publication for a stale draft")
-	}
-	state["publishedUrl"] = result.URL
-	state["publishedHash"] = contentHash
-	state["publishedAt"] = now.UTC().Format(time.RFC3339)
-	return writeManifestAtomic(manifestPath, manifest)
-}
-
-func SavePublishedUpdateResult(manifestPath, slug, platform, contentHash string, now time.Time) error {
-	manifest, err := readOrCreateManifest(manifestPath)
-	if err != nil {
-		return err
-	}
-	state := ensurePlatformState(manifest, slug, platform)
-	state["publishedHash"] = contentHash
-	state["publishedSyncedAt"] = now.UTC().Format(time.RFC3339)
-	return writeManifestAtomic(manifestPath, manifest)
 }

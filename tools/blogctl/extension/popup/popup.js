@@ -1,14 +1,16 @@
 "use strict";
 
 const modules = {
-  sync: BlogCTLSync,
+  binding: BlogCTLSync,
+  drafts: BlogCTLDrafts,
+  publications: BlogCTLPublications,
   tasks: BlogCTLTasks,
   publishing: BlogCTLPublishing,
   environment: BlogCTLEnvironment,
 };
 
 const ACTIVE_TAB_KEY = "blogctl.activeTab";
-let activeTab = "sync";
+let activeTab = "binding";
 
 function activateTab(name) {
   if (!modules[name]) return;
@@ -50,9 +52,36 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
+  document.addEventListener("blogctl:navigate-save", (event) => {
+    const article = String(event.detail?.article || "").trim();
+    if (!article) return;
+    BlogCTLDrafts.prepare(article);
+    activateTab("drafts");
+  });
+  document.addEventListener("blogctl:navigate-publication", (event) => {
+    const article = String(event.detail?.article || "").trim();
+    const platform = String(event.detail?.platform || "").trim();
+    if (!article || !platform) return;
+    BlogCTLPublications.focusRecord(article, platform);
+    activateTab("publications");
+  });
+  document.addEventListener("blogctl:navigate-task", (event) => {
+    const jobId = String(event.detail?.jobId || "").trim();
+    if (!jobId) return;
+    BlogCTLTasks.focusJob(jobId);
+    activateTab("tasks");
+  });
+  document.addEventListener("blogctl:draft-completed", (event) => {
+    const article = String(event.detail?.article || "").trim();
+    const platforms = Array.isArray(event.detail?.platforms) ? event.detail.platforms : [];
+    if (!article || !platforms.length) return;
+    BlogCTLPublications.prepare(article, platforms);
+    activateTab("publications");
+  });
   BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
   const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
-  activateTab(modules[savedTab] ? savedTab : "sync");
+  const normalizedTab = savedTab === "sync" ? "binding" : savedTab;
+  activateTab(modules[normalizedTab] ? normalizedTab : "binding");
 });
 
 window.addEventListener("unload", () => {

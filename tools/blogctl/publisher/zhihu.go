@@ -31,9 +31,18 @@ func NewZhihuAdapter(base *http.Client, session Session) (Adapter, error) {
 func (z *zhihuAdapter) ID() string { return "zhihu" }
 
 func (z *zhihuAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
-	req, err := browserRequest(ctx, method, rawURL, zhihuOrigin, zhihuOrigin+"/write", z.userAgent, body)
+	origin := zhihuOrigin
+	referer := zhihuOrigin + "/write"
+	if parsed, err := url.Parse(rawURL); err == nil && strings.EqualFold(parsed.Hostname(), "www.zhihu.com") {
+		origin = "https://www.zhihu.com"
+		referer = "https://www.zhihu.com/creator/manage/creation/content/article"
+	}
+	req, err := browserRequest(ctx, method, rawURL, origin, referer, z.userAgent, body)
 	if err != nil {
 		return nil, err
+	}
+	if method == http.MethodGet {
+		req.Header.Del("origin")
 	}
 	req.Header.Set("x-requested-with", "fetch")
 	return req, nil
@@ -177,26 +186,29 @@ func transformZhihuHTML(html string) string {
 }
 
 func (z *zhihuAdapter) prepareHTML(ctx context.Context, input DraftInput) (string, error) {
-	html := htmlFor(input)
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		if isZhihuImage(source) {
-			continue
+	html, err := rehostHTMLImages(ctx, z.client, input, htmlFor(input), ImageRehostOptions{
+		Platform:       z.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted:  isZhihuImage,
+	}, func(ctx context.Context, image RehostImage) (string, error) {
+		if !isRemoteHTTPImage(image.Source) {
+			return "", platformError(ErrUpload, z.ID(), "image-upload", 0, "Zhihu image import requires an HTTP(S) source URL", false)
 		}
-		target, err := z.uploadImage(ctx, source)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	for source, target := range replacements {
-		html = strings.ReplaceAll(html, source, target)
+		return z.uploadImage(ctx, image.Source)
+	})
+	if err != nil {
+		return "", err
 	}
 	return transformZhihuHTML(html), nil
 }
 
-func (z *zhihuAdapter) createDraftID(ctx context.Context) (string, error) {
-	req, err := z.request(ctx, http.MethodPost, zhihuOrigin+"/api/articles/drafts", strings.NewReader("{}"))
+func (z *zhihuAdapter) createDraftID(ctx context.Context, title string) (string, error) {
+	body, _ := json.Marshal(map[string]any{
+		"title":      title,
+		"delta_time": 0,
+		"can_reward": false,
+	})
+	req, err := z.request(ctx, http.MethodPost, zhihuOrigin+"/api/articles/drafts", strings.NewReader(string(body)))
 	if err != nil {
 		return "", err
 	}
@@ -220,10 +232,10 @@ func (z *zhihuAdapter) updateDraft(ctx context.Context, id string, input DraftIn
 		return err
 	}
 	body, _ := json.Marshal(map[string]any{
-		"title":             input.Title,
 		"content":           html,
-		"table_of_contents": true,
-		"delta_time":        30,
+		"table_of_contents": false,
+		"delta_time":        0,
+		"can_reward":        false,
 	})
 	req, err := z.request(ctx, http.MethodPatch, zhihuOrigin+"/api/articles/"+url.PathEscape(id)+"/draft", strings.NewReader(string(body)))
 	if err != nil {
@@ -237,7 +249,7 @@ func (z *zhihuAdapter) updateDraft(ctx context.Context, id string, input DraftIn
 }
 
 func (z *zhihuAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
-	id, err := z.createDraftID(ctx)
+	id, err := z.createDraftID(ctx, input.Title)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -281,14 +293,14 @@ func (z *zhihuAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if err := doJSON(z.client, req, z.ID(), "publish-draft", &decoded); err != nil {
 		return PublishResult{}, err
 	}
+	publishedID := valueString(decoded.ID)
+	if publishedID == "" {
+		publishedID = ref.ID
+	}
 	target := strings.TrimSpace(decoded.URL)
 	if target == "" {
-		id := valueString(decoded.ID)
-		if id == "" {
-			id = ref.ID
-		}
-		target = zhihuOrigin + "/p/" + url.PathEscape(id)
+		target = zhihuOrigin + "/p/" + url.PathEscape(publishedID)
 	}
 	_ = input
-	return PublishResult{URL: target}, nil
+	return PublishResult{ID: publishedID, URL: target}, nil
 }

@@ -20,9 +20,39 @@ import {
   buildMediumDraft,
 } from "../../../../scripts/medium.mjs";
 import {
+  assertNoUncompiledDiagrams,
   collectPublishingAssets,
   compilePublishingMarkdown,
 } from "./compiler.mjs";
+
+const NATIVE_IMAGE_UPLOAD_PLATFORMS = new Set([
+  "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao", "devto", "medium",
+]);
+
+function internalAssetRef(asset) {
+  return `blogctl-asset://${asset.kind}/${asset.id}`;
+}
+
+function useNativeImageUpload(platform) {
+  return NATIVE_IMAGE_UPLOAD_PLATFORMS.has(platform);
+}
+
+function replaceAssetUrls(value, assets) {
+  let result = String(value ?? "");
+  for (const asset of assets) {
+    result = result.replaceAll(asset.publicUrl, internalAssetRef(asset));
+  }
+  return result;
+}
+
+function replaceAssetUrlsDeep(value, assets) {
+  if (typeof value === "string") return replaceAssetUrls(value, assets);
+  if (Array.isArray(value)) return value.map((item) => replaceAssetUrlsDeep(item, assets));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceAssetUrlsDeep(item, assets)]));
+  }
+  return value;
+}
 import { preparePublishingAssetList } from "../../assets/node/assets.mjs";
 
 export const COMPILED_ARTICLE_PROTOCOL_VERSION = 1;
@@ -106,7 +136,7 @@ async function publishedSlugs(contentRoot, language) {
   return result;
 }
 
-function compileDevto(article, { slug, profile, language, draft }) {
+function compileDevto(article, { slug, profile, language }) {
   const canonicalUrl = buildArticleCanonicalUrl(slug, language);
   const body = compilePublishingMarkdown(article.body, {
     platform: "devto",
@@ -127,7 +157,9 @@ function compileDevto(article, { slug, profile, language, draft }) {
     nativeCanonicalUrl: nativeCanonicalUrl(canonicalUrl, profile),
     tags: normalizeDevtoTags(article.tags),
     coverImageUrl: resolveArticleAssetUrl(article.coverImage),
-    published: !draft,
+    // BlogCTL separates Save from Publish. Keep compilation state-neutral so
+    // the saved draft hash is still valid when the explicit Publish job runs.
+    published: false,
   };
 }
 
@@ -151,7 +183,7 @@ export async function compileArticle({
   let compiled;
   let hashSource;
   if (platform === "devto") {
-    compiled = compileDevto(article, { slug, profile, language, draft });
+    compiled = compileDevto(article, { slug, profile, language });
     hashSource = JSON.stringify({
       title: compiled.title,
       description: compiled.description,
@@ -202,26 +234,41 @@ export async function compileArticle({
       language,
     });
     const generatedArticle = parseArticle(generated, platform + ":" + slug);
+    const portable = compilePublishingMarkdown(generatedArticle.body, {
+      platform,
+      siteOrigin: "https://thinkerqaq.github.io",
+    }).markdown.trim();
     compiled = {
       title: generatedArticle.title,
       description: generatedArticle.description,
-      markdown: generatedArticle.body,
-      html: renderPlatformHtml(generatedArticle.body),
+      markdown: portable,
+      html: renderPlatformHtml(portable),
       canonicalUrl: buildArticleCanonicalUrl(slug, language),
       nativeCanonicalUrl: "",
       tags: article.tags,
       coverImageUrl: resolveArticleAssetUrl(article.coverImage),
       published: false,
     };
-    hashSource = generated + "\n<!-- blogctl-html -->\n" + compiled.html;
+    hashSource = generatedArticle.title + "\n" + portable + "\n<!-- blogctl-html -->\n" + compiled.html;
   }
 
+  assertNoUncompiledDiagrams(compiled.markdown, { platform });
+  assertNoUncompiledDiagrams(compiled.html, { platform });
+
   const assets = collectPublishingAssets(article.body);
+  const nativeImageUpload = useNativeImageUpload(platform) && !dryRun;
   await preparePublishingAssetList(assets, {
     dryRun,
     cacheRoot: path.join(contentRoot, ".distribution", "assets"),
     env,
+    uploadFallback: !nativeImageUpload,
   });
+
+  if (nativeImageUpload && assets.length) {
+    compiled.markdown = replaceAssetUrls(compiled.markdown, assets);
+    compiled.html = replaceAssetUrls(compiled.html, assets);
+    if (compiled.payload) compiled.payload = replaceAssetUrlsDeep(compiled.payload, assets);
+  }
 
   return {
     version: COMPILED_ARTICLE_PROTOCOL_VERSION,
@@ -245,6 +292,7 @@ export async function compileArticle({
     sourceDir: path.dirname(sourceFile),
     assets: assets.map(({ kind, id, objectKey, publicUrl, alt }) => ({
       kind, id, objectKey, publicUrl, alt,
+      source: nativeImageUpload ? internalAssetRef({ kind, id }) : publicUrl,
     })),
   };
 }

@@ -1,6 +1,9 @@
 package publisher
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -45,5 +48,50 @@ func TestTransformZhihuHTMLKeepsDraftTableAttributes(t *testing.T) {
 		if !strings.Contains(got, attribute) {
 			t.Fatalf("draft table attribute %q was lost: %s", attribute, got)
 		}
+	}
+}
+
+func TestZhihuCreateDraftMatchesCapturedPayload(t *testing.T) {
+	var createPayload map[string]any
+	var updatePayload map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/articles/drafts":
+			if err := json.NewDecoder(request.Body).Decode(&createPayload); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, 200, `{"id":"2086065787769562759"}`, nil), nil
+		case "/api/articles/2086065787769562759/draft":
+			if err := json.NewDecoder(request.Body).Decode(&updatePayload); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, 200, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewZhihuAdapter(client, Session{UserAgent: "BlogCTL-Test-UA", Cookies: []BrowserCookie{{Name: "z_c0", Value: "secret", Domain: ".zhihu.com", Path: "/", Secure: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adapter.CreateDraft(context.Background(), DraftInput{
+		Title: "test", HTML: "<p>teset</p>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ID != "2086065787769562759" || !result.Created {
+		t.Fatalf("result = %#v", result)
+	}
+	if createPayload["title"] != "test" || valueString(createPayload["delta_time"]) != "0" || createPayload["can_reward"] != false {
+		t.Fatalf("create payload = %#v", createPayload)
+	}
+	if _, exists := updatePayload["title"]; exists {
+		t.Fatalf("update payload unexpectedly contains title: %#v", updatePayload)
+	}
+	if updatePayload["content"] != "<p>teset</p>" || updatePayload["table_of_contents"] != false || updatePayload["can_reward"] != false {
+		t.Fatalf("update payload = %#v", updatePayload)
 	}
 }

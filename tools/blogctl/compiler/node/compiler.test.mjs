@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DEFAULT_R2_PUBLIC_BASE_URL,
+  assertNoUncompiledDiagrams,
   collectPublishingAssets,
   compilePublishingMarkdown,
   makeExternalLinksAbsolute,
@@ -49,6 +50,95 @@ test("renderer identity participates in the asset hash", () => {
 test("rejects an unclosed Mermaid fence", () => {
   assert.throws(
     () => compilePublishingMarkdown(fence + "mermaid\nflowchart LR\nA --> B", { platform: "devto" }),
-    /Unclosed Mermaid fenced block/u,
+    /Unclosed diagram fenced block/u,
   );
+});
+
+
+test("compiles Mermaid sequence diagrams for every publishing platform", () => {
+  const platforms = [
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
+    "51cto", "oschina", "toutiao", "devto", "medium",
+  ];
+  const markdown = [
+    "Before",
+    fence + "mermaid",
+    "sequenceDiagram",
+    "  participant J as Java Code",
+    "  participant R as Runtime",
+    "  J->>R: synchronized",
+    "  R-->>J: acquired",
+    fence,
+    "After",
+  ].join("\n");
+
+  for (const platform of platforms) {
+    const result = compilePublishingMarkdown(markdown, { platform });
+    assert.equal(result.assets.length, 1, platform);
+    assert.doesNotMatch(result.markdown, /sequenceDiagram/u, platform);
+    assert.match(result.markdown, /generated\/mermaid\/[a-f0-9]{24}\.png/u, platform);
+  }
+});
+
+test("accepts diagram and uml fence aliases when the payload is Mermaid", () => {
+  for (const language of ["diagram", "uml"]) {
+    const markdown = [
+      fence + language,
+      "sequenceDiagram",
+      "  A->>B: call",
+      fence,
+    ].join("\n");
+    const result = compilePublishingMarkdown(markdown, { platform: "csdn" });
+    assert.equal(result.assets.length, 1, language);
+    assert.doesNotMatch(result.markdown, /sequenceDiagram/u, language);
+    assert.match(result.markdown, /generated\/mermaid\/[a-f0-9]{24}\.png/u, language);
+  }
+});
+
+test("compiles PlantUML fences to content-addressed PNG assets for every publishing platform", () => {
+  const platforms = [
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
+    "51cto", "oschina", "toutiao", "devto", "medium",
+  ];
+  const markdown = [
+    fence + "plantuml",
+    "@startuml",
+    "Alice -> Bob: hello",
+    "@enduml",
+    fence,
+  ].join("\n");
+
+  for (const platform of platforms) {
+    const result = compilePublishingMarkdown(markdown, { platform });
+    assert.equal(result.assets.length, 1, platform);
+    assert.equal(result.assets[0].kind, "plantuml", platform);
+    assert.doesNotMatch(result.markdown, /@startuml/u, platform);
+    assert.match(result.markdown, /generated\/plantuml\/[a-f0-9]{64}\.png/u, platform);
+  }
+});
+
+test("accepts uml and diagram aliases when the payload is PlantUML", () => {
+  for (const language of ["uml", "diagram"]) {
+    const markdown = [
+      fence + language,
+      "@startuml",
+      "Alice -> Bob: hello",
+      "@enduml",
+      fence,
+    ].join("\n");
+    const result = compilePublishingMarkdown(markdown, { platform: "csdn" });
+    assert.equal(result.assets.length, 1, language);
+    assert.equal(result.assets[0].kind, "plantuml", language);
+    assert.doesNotMatch(result.markdown, /@startuml/u, language);
+  }
+});
+
+
+test("rejects platform output that still contains a diagram fence", () => {
+  const raw = [fence + "mermaid", "sequenceDiagram", "  A->>B: call", fence].join("\n");
+  assert.throws(
+    () => assertNoUncompiledDiagrams(raw, { platform: "csdn" }),
+    /Uncompiled diagram reached csdn output/u,
+  );
+  assert.doesNotThrow(() => assertNoUncompiledDiagrams("plain text", { platform: "csdn" }));
 });

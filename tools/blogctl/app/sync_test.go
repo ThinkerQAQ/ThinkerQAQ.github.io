@@ -98,36 +98,35 @@ func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ s
 	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
 		return compiledTestOutput(args[1:]), nil
 	}
-	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") {
-		return strings.Join([]string{
-			`{"operation":"syndication-devto","status":"dry-run","slug":"example","canonicalUrl":""}`,
-			`{"operation":"syndication-medium","status":"dry-run","slug":"example","draftUrl":"C:/tmp/example.html"}`,
-		}, "\n") + "\n", nil
-	}
 	return "", nil
 }
 
-func TestBuildSyncPlanRoutesAllChinesePlatformsNatively(t *testing.T) {
+func TestBuildSyncPlanRoutesAllPlatformsThroughUnifiedCompiler(t *testing.T) {
+	platforms := []string{
+		"cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
+		"51cto", "oschina", "toutiao", "devto", "medium",
+	}
 	request, err := NormalizeSyncRequest(SyncRequest{
 		Articles:  []string{"concurrency-series-00"},
-		Platforms: []string{"juejin", "csdn", "devto", "medium"},
+		Platforms: platforms,
 		DryRun:    true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	plan := BuildSyncPlan(request)
-	if len(plan) != 2 {
-		t.Fatalf("got %d plan entries, want 2", len(plan))
+	if len(plan) != 1 {
+		t.Fatalf("got %d plan entries, want 1", len(plan))
 	}
-	if plan[0].Group != "native-publishing" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, []string{"juejin", "csdn", "devto"}) {
-		t.Fatalf("native plan = %#v", plan[0])
+	if plan[0].Group != "native-publishing" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, platforms) {
+		t.Fatalf("unified plan = %#v", plan[0])
 	}
-	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn,devto", "--dry-run"}) {
-		t.Fatalf("native args = %#v", plan[0].Args)
-	}
-	if plan[1].Group != "scripted-medium" || !reflect.DeepEqual(plan[1].Platforms, []string{"medium"}) {
-		t.Fatalf("Medium plan = %#v", plan[1])
+	if !reflect.DeepEqual(plan[0].Args, []string{
+		"--article", "concurrency-series-00",
+		"--platforms", strings.Join(platforms, ","),
+		"--dry-run",
+	}) {
+		t.Fatalf("unified args = %#v", plan[0].Args)
 	}
 }
 
@@ -142,24 +141,6 @@ func TestBuildSyncPlanKeepsAllExplicit(t *testing.T) {
 	}
 	if !reflect.DeepEqual(plan[0].Args, []string{"--all", "--platforms", "devto"}) {
 		t.Fatalf("args = %#v", plan[0].Args)
-	}
-}
-
-func TestParseSyncEvents(t *testing.T) {
-	output := strings.Join([]string{
-		`noise that should be ignored`,
-		`{"operation":"distribution-sync","status":"completed","platform":"cnblogs","draftUrl":"https://example.com/draft"}`,
-		`{"operation":"syndication-devto","status":"updated","remoteUrl":"https://dev.to/example"}`,
-		`{"operation":"syndication-medium","status":"waiting-for-session","message":"waiting"}`,
-	}, "\n")
-	got := ParseSyncEvents(output)
-	want := []SyncEvent{
-		{Platform: "cnblogs", State: "completed", Result: "draft-created", URL: "https://example.com/draft"},
-		{Platform: "devto", State: "completed", Result: "updated", URL: "https://dev.to/example"},
-		{Platform: "medium", State: "waiting", Result: "waiting-for-session", Message: "waiting"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("events = %#v, want %#v", got, want)
 	}
 }
 
@@ -252,10 +233,10 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	want := []SyncEvent{
 		{Platform: "juejin", State: "running"},
 		{Platform: "devto", State: "running"},
+		{Platform: "medium", State: "running"},
 		{Platform: "juejin", State: "completed", Result: "dry-run"},
 		{Platform: "devto", State: "completed", Result: "dry-run"},
-		{Platform: "medium", State: "running"},
-		{Platform: "medium", State: "completed", Result: "dry-run", URL: "C:/tmp/example.html"},
+		{Platform: "medium", State: "completed", Result: "dry-run"},
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %#v, want %#v", events, want)
@@ -312,10 +293,13 @@ func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	}
 }
 
-func TestNormalizeSyncRequestRejectsAllForNativeJuejin(t *testing.T) {
-	_, err := NormalizeSyncRequest(SyncRequest{All: true, Platforms: []string{"juejin"}})
-	if err == nil || !strings.Contains(err.Error(), "explicit article") {
-		t.Fatalf("error = %v", err)
+func TestNormalizeSyncRequestAllowsExplicitAllForJuejin(t *testing.T) {
+	request, err := NormalizeSyncRequest(SyncRequest{All: true, Platforms: []string{"juejin"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !request.All || !reflect.DeepEqual(request.Platforms, []string{"juejin"}) {
+		t.Fatalf("request = %#v", request)
 	}
 }
 
@@ -367,12 +351,15 @@ func TestSyncServicePublishesNativeDraft(t *testing.T) {
 	}
 }
 
-func TestNormalizeSyncRequestRejectsInternationalConfirmPublish(t *testing.T) {
-	_, err := NormalizeSyncRequest(SyncRequest{
+func TestNormalizeSyncRequestAcceptsMediumConfirmPublish(t *testing.T) {
+	request, err := NormalizeSyncRequest(SyncRequest{
 		Articles: []string{"example"}, Platforms: []string{"medium"}, Operation: "publish",
 	})
-	if err == nil || !strings.Contains(err.Error(), "confirm publish is not implemented") {
-		t.Fatalf("error = %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.Operation != "publish" || !reflect.DeepEqual(request.Platforms, []string{"medium"}) {
+		t.Fatalf("request = %#v", request)
 	}
 }
 
@@ -385,20 +372,37 @@ func TestNormalizeSyncRequestRejectsUnknownOperation(t *testing.T) {
 	}
 }
 
-func TestSyncServiceRequiresBridgeForLiveMedium(t *testing.T) {
+func TestSyncServiceRoutesLiveMediumThroughNativePublisher(t *testing.T) {
 	engineRoot := t.TempDir()
 	contentRoot := t.TempDir()
 	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
 	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
+	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
 	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	_, err := NewSyncService().Run(context.Background(), SyncConfig{EngineRoot: engineRoot, ContentRoot: contentRoot}, SyncRequest{
-		Articles:  []string{"example"},
-		Platforms: []string{"medium"},
-	})
-	if err == nil || !strings.Contains(err.Error(), "active BlogCTL Bridge") {
-		t.Fatalf("error = %v", err)
+	node := filepath.Join(t.TempDir(), "node")
+	npm := filepath.Join(t.TempDir(), "npm")
+	writeTestFile(t, node)
+	writeTestFile(t, npm)
+
+	var calls []NativeDraftRequest
+	service := SyncService{
+		Runner: &recordingRunner{},
+		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
+			calls = append(calls, request)
+			return NativeDraftResult{Result: "draft-created", URL: "https://medium.com/p/post-123/edit"}, nil
+		}},
+	}
+	_, err := service.Run(context.Background(), SyncConfig{
+		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		ToolPaths: map[string]string{"node": node, "npm": npm},
+	}, SyncRequest{Articles: []string{"example"}, Platforms: []string{"medium"}, Draft: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 || calls[0].Platform != "medium" || calls[0].Compiled.Platform != "medium" {
+		t.Fatalf("medium native calls = %#v", calls)
 	}
 }
 
@@ -412,13 +416,10 @@ func (isolatedFailureRunner) Run(_ context.Context, _ string, args []string, _ s
 	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
 		return compiledTestOutput(args[1:]), nil
 	}
-	if strings.HasSuffix(script, "/scripts/blogctl-syndicate.mjs") && strings.Contains(strings.Join(args, " "), "--platforms medium") {
-		return `{"operation":"syndication-medium","status":"dry-run","draftUrl":"C:/tmp/medium.html"}` + "\n", nil
-	}
 	return "ok\n", nil
 }
 
-func TestSyncServiceIsolatesInternationalFailuresAndSurfacesScriptMessage(t *testing.T) {
+func TestSyncServiceIsolatesInternationalPublisherFailures(t *testing.T) {
 	engineRoot := t.TempDir()
 	contentRoot := t.TempDir()
 	writeTestFile(t, filepath.Join(engineRoot, "package.json"))

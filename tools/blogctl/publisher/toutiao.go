@@ -115,12 +115,8 @@ func (t *toutiaoAdapter) uploadByURL(ctx context.Context, source string) (string
 	return "", platformError(ErrUpload, t.ID(), "image-catch", 0, "image URL missing", false)
 }
 
-func (t *toutiaoAdapter) uploadBinary(ctx context.Context, source string, input DraftInput) (string, error) {
-	payload, contentType, err := loadImage(t.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, t.ID(), "download-image", 0, err.Error(), true)
-	}
-	body, bodyType, err := multipartBody(nil, "upfile", inferImageFilename(source, contentType), contentType, payload)
+func (t *toutiaoAdapter) uploadBinary(ctx context.Context, image RehostImage) (string, error) {
+	body, bodyType, err := multipartBody(nil, "upfile", inferImageFilename(image.Source, image.ContentType), image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -144,21 +140,18 @@ func (t *toutiaoAdapter) uploadBinary(ctx context.Context, source string, input 
 }
 
 func (t *toutiaoAdapter) prepareHTML(ctx context.Context, input DraftInput) (string, error) {
-	html := htmlFor(input)
-	for _, source := range imageSources(input.Markdown) {
-		if isToutiaoImage(source) {
-			continue
+	return rehostHTMLImages(ctx, t.client, input, htmlFor(input), ImageRehostOptions{
+		Platform:       t.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted:  isToutiaoImage,
+	}, func(ctx context.Context, image RehostImage) (string, error) {
+		if isRemoteHTTPImage(image.Source) {
+			if target, err := t.uploadByURL(ctx, image.Source); err == nil {
+				return target, nil
+			}
 		}
-		target, err := t.uploadByURL(ctx, source)
-		if err != nil {
-			target, err = t.uploadBinary(ctx, source, input)
-		}
-		if err != nil {
-			return "", err
-		}
-		html = strings.ReplaceAll(html, source, target)
-	}
-	return html, nil
+		return t.uploadBinary(ctx, image)
+	})
 }
 
 func truncateToutiaoTitle(value string) string {
@@ -255,5 +248,5 @@ func (t *toutiaoAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if err != nil {
 		return PublishResult{}, err
 	}
-	return PublishResult{URL: toutiaoPublic + "/article/" + url.PathEscape(id) + "/"}, nil
+	return PublishResult{ID: id, URL: toutiaoPublic + "/article/" + url.PathEscape(id) + "/"}, nil
 }

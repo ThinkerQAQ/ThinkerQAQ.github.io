@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 const (
@@ -70,6 +72,15 @@ func cookieHeaderNames(header string) []string {
 	return names
 }
 
+func cookieHeaderHasName(header, expected string) bool {
+	for _, name := range cookieHeaderNames(header) {
+		if name == expected {
+			return true
+		}
+	}
+	return false
+}
+
 type platformSession struct {
 	Cookies             map[string]string
 	BrowserCookies      []browserCookie
@@ -80,7 +91,42 @@ type platformSession struct {
 
 var browserSessionPlatforms = map[string]struct{}{
 	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "medium": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
+}
+
+// These allowlists are backed by the captured browser requests used to build
+// the platform adapters. Unknown platforms intentionally remain unfiltered here
+// until we have a verified cookie-name contract; do not guess authentication keys.
+var verifiedSessionCookieNames = map[string]map[string]struct{}{
+	"csdn":         cookieNameSet("UserName", "UserToken", "UserInfo", "UserNick", "AU", "UN", "BT", "csrfToken", "SESSION"),
+	"segmentfault": cookieNameSet("PHPSESSID", "SHARESESSID", "sl-session", "_c_WBKFRo"),
+	"zhihu":        cookieNameSet("z_c0", "_xsrf", "d_c0", "__zse_ck", "SESSIONID", "BEC"),
+	"51cto":        cookieNameSet("www51cto", "pub_auth_profile", "pub_sauth1", "pub_sauth2", "pub_cookietime", "pub_wechatopen", "once_p", "PHPSESSID", "EO-Bot-Captcha-Token", "EO-Bot-Js-Token"),
+	"oschina":      cookieNameSet("oscid", "_user_behavior_", "sl-session", "BEC"),
+	"devto":        cookieNameSet("_Devto_Forem_Session", "remember_user_token", "current_user"),
+	"medium":       cookieNameSet("sid", "uid", "rid", "xsrf", "cf_clearance", "_cfuvid"),
+}
+
+func cookieNameSet(names ...string) map[string]struct{} {
+	result := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		result[name] = struct{}{}
+	}
+	return result
+}
+
+func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []browserCookie {
+	allowed, verified := verifiedSessionCookieNames[platform]
+	if !verified {
+		return append([]browserCookie{}, cookies...)
+	}
+	filtered := make([]browserCookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		if _, ok := allowed[cookie.Name]; ok {
+			filtered = append(filtered, cookie)
+		}
+	}
+	return filtered
 }
 
 type Server struct {
@@ -146,15 +192,16 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleOptions(response, request)
 		return
 	}
+	if request.Method != http.MethodGet && validBrowserExtensionOrigin(request.Header.Get("origin")) &&
+		request.Header.Get("x-thinkerqaq-token") != s.token {
+		writeAPIError(response, http.StatusForbidden, "forbidden", "invalid bridge token for extension write", nil)
+		return
+	}
 
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if path == "v1/cnblogs/binding" && request.Method == http.MethodGet {
 		s.handleCNBlogsBindingGet(response, request, request.URL.Query().Get("article"))
-		return
-	}
-	if path == "v1/cnblogs/binding/migrate" && request.Method == http.MethodPost {
-		s.handleCNBlogsBindingMigrate(response, request)
 		return
 	}
 	if path == "v1/cnblogs/binding/search" && request.Method == http.MethodPost {
@@ -163,6 +210,74 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if path == "v1/devto/articles/search" && request.Method == http.MethodPost {
 		s.handleDevtoArticleSearch(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/devto/binding" && request.Method == http.MethodPost {
+		s.handleDevtoBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/devto/binding" && request.Method == http.MethodDelete {
+		s.handleDevtoBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/csdn/articles/list" && request.Method == http.MethodPost {
+		s.handleCSDNArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/csdn/binding" && request.Method == http.MethodPost {
+		s.handleCSDNBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/csdn/binding" && request.Method == http.MethodDelete {
+		s.handleCSDNBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/segmentfault/articles/list" && request.Method == http.MethodPost {
+		s.handleSegmentFaultArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/segmentfault/binding" && request.Method == http.MethodPost {
+		s.handleSegmentFaultBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/segmentfault/binding" && request.Method == http.MethodDelete {
+		s.handleSegmentFaultBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/zhihu/articles/list" && request.Method == http.MethodPost {
+		s.handleZhihuArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/zhihu/binding" && request.Method == http.MethodPost {
+		s.handleZhihuBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/zhihu/binding" && request.Method == http.MethodDelete {
+		s.handleZhihuBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/oschina/articles/list" && request.Method == http.MethodPost {
+		s.handleOSChinaArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/oschina/binding" && request.Method == http.MethodPost {
+		s.handleOSChinaBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/oschina/binding" && request.Method == http.MethodDelete {
+		s.handleOSChinaBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/medium/articles/list" && request.Method == http.MethodPost {
+		s.handleMediumArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/medium/binding" && request.Method == http.MethodPost {
+		s.handleMediumBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/medium/binding" && request.Method == http.MethodDelete {
+		s.handleMediumBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
 	if path == "v1/article-links" && request.Method == http.MethodGet {
@@ -213,6 +328,24 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 			return
 		}
 		s.handleArticles(response)
+		return
+	}
+
+	if path == "v1/publications" && request.Method == http.MethodGet {
+		if !allowReadOnlyBridgeStatus(response, request) {
+			return
+		}
+		s.handlePublications(response)
+		return
+	}
+
+	if path == "v1/publications/reconcile" && request.Method == http.MethodPost {
+		s.handlePublicationReconcile(response, request)
+		return
+	}
+
+	if path == "v1/publications/pending/resolve" && request.Method == http.MethodPost {
+		s.handlePublicationPendingResolve(response, request)
 		return
 	}
 
@@ -334,6 +467,14 @@ func allowExtensionWrite(response http.ResponseWriter, request *http.Request) (s
 	return origin, true
 }
 
+func (s *Server) allowSyncControlWrite(response http.ResponseWriter, request *http.Request) bool {
+	if request.Header.Get("x-thinkerqaq-token") == s.token {
+		return true
+	}
+	_, ok := allowExtensionWrite(response, request)
+	return ok
+}
+
 func (s *Server) handleOptions(response http.ResponseWriter, request *http.Request) {
 	origin := request.Header.Get("origin")
 	if !validBrowserExtensionOrigin(origin) {
@@ -342,7 +483,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	response.Header().Set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
-	response.Header().Set("access-control-allow-headers", "content-type")
+	response.Header().Set("access-control-allow-headers", "content-type, x-thinkerqaq-token")
 	response.WriteHeader(http.StatusNoContent)
 }
 
@@ -482,7 +623,7 @@ func (s *Server) handlePublishingGet(response http.ResponseWriter) {
 	s.mu.Lock()
 	config := s.config
 	s.mu.Unlock()
-	writeJSON(response, http.StatusOK, map[string]any{"platforms": publishingViews(config)})
+	writeJSON(response, http.StatusOK, publishingControlPayload(config))
 }
 
 func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http.Request) {
@@ -490,7 +631,9 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 		return
 	}
 	var body struct {
-		Platforms []publishingPlatformView `json:"platforms"`
+		Platforms []publishingPlatformView  `json:"platforms"`
+		Compiler  *publishingCompilerConfig `json:"compiler,omitempty"`
+		Assets    *publishingAssetsConfig   `json:"assets,omitempty"`
 	}
 	if err := readJSON(request, 512*1024, &body); err != nil {
 		writeError(response, err)
@@ -504,6 +647,11 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
+	normalized, err = applyPublishingRuntimeConfig(normalized, body.Compiler, body.Assets)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
 	if err := saveBridgeConfig(normalized); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法保存发布配置", nil)
 		return
@@ -511,11 +659,30 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 	s.mu.Lock()
 	s.config = normalized
 	s.mu.Unlock()
-	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "platforms": publishingViews(normalized)})
+	payload := publishingControlPayload(normalized)
+	payload["ok"] = true
+	writeJSON(response, http.StatusOK, payload)
+}
+
+func (s *Server) refreshSyncConfig() error {
+	config := loadBridgeConfig()
+	client, err := httpClientForConfig(config)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.config = config
+	s.httpClient = client
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Request) {
-	if _, ok := allowExtensionWrite(response, request); !ok {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
+	if err := s.refreshSyncConfig(); err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_config", err.Error(), nil)
 		return
 	}
 	var body syncRequest
@@ -621,19 +788,20 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		writeError(response, err)
 		return
 	}
-	if len(body.Cookies) == 0 && !(platform == "cnblogs" && body.RequestCookieHeader != "") {
-		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
-		return
-	}
 	if len(body.RequestCookieHeader) > 32768 || strings.ContainsAny(body.RequestCookieHeader, "\r\n") {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", "invalid browser Cookie header", nil)
+		return
+	}
+	body.Cookies = filterVerifiedSessionCookies(platform, body.Cookies)
+	if len(body.Cookies) == 0 && body.RequestCookieHeader == "" {
+		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser session cookies not found", map[string]any{"platform": platform})
 		return
 	}
 	cookies := map[string]string{}
 	if platform == "medium" {
 		cookies = filterMediumCookies(body.Cookies)
-		if cookies["sid"] == "" {
-			writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+		if cookies["sid"] == "" && !cookieHeaderHasName(body.RequestCookieHeader, "sid") {
+			writeAPIError(response, http.StatusBadRequest, "medium_session_required", "Medium browser session does not contain sid", nil)
 			return
 		}
 	} else {
@@ -701,7 +869,7 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 			})
 		}
 		payload["cookies"] = cookies
-		if platform == "cnblogs" {
+		if session.RequestCookieHeader != "" {
 			payload["requestCookieNames"] = cookieHeaderNames(session.RequestCookieHeader)
 		}
 	}
@@ -731,7 +899,7 @@ func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request
 		return
 	}
 	client := mediumClient{httpClient: httpClient}
-	result, err := client.createDraft(request.Context(), session, draft)
+	result, err := client.createDraft(request.Context(), session, draft, publisher.DraftInput{})
 	if err != nil {
 		writeAPIError(response, http.StatusBadGateway, "upstream_error", err.Error(), nil)
 		return

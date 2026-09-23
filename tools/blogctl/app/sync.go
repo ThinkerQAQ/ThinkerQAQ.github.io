@@ -13,26 +13,8 @@ import (
 	"strings"
 
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 )
-
-var chinaPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {},
-}
-
-var internationalPlatforms = map[string]struct{}{
-	"devto": {}, "medium": {},
-}
-
-var nativeChinaPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {},
-}
-
-var nativePublishingPlatforms = map[string]struct{}{
-	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {},
-}
 
 type SyncRequest struct {
 	Articles          []string
@@ -165,10 +147,8 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 		if platform == "" {
 			continue
 		}
-		if _, ok := chinaPlatforms[platform]; !ok {
-			if _, ok := internationalPlatforms[platform]; !ok {
-				return request, fmt.Errorf("unsupported platform: %s", platform)
-			}
+		if !blogplatform.Supported(platform) {
+			return request, fmt.Errorf("unsupported platform: %s", platform)
 		}
 		if _, exists := seenPlatforms[platform]; exists {
 			continue
@@ -191,15 +171,8 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 	}
 	if request.Operation == "publish" {
 		for _, platform := range request.Platforms {
-			if _, native := nativeChinaPlatforms[platform]; !native {
+			if !blogplatform.For(platform).ExplicitPublish {
 				return request, fmt.Errorf("confirm publish is not implemented for %s", platform)
-			}
-		}
-	}
-	if request.All {
-		for _, platform := range request.Platforms {
-			if _, native := nativeChinaPlatforms[platform]; native {
-				return request, fmt.Errorf("%s native publishing requires explicit article selection", platform)
 			}
 		}
 	}
@@ -207,57 +180,34 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 }
 
 func BuildSyncPlan(request SyncRequest) []SyncPlan {
-	native := []string{}
-	scripted := []string{}
+	platforms := make([]string, 0, len(request.Platforms))
 	for _, platform := range request.Platforms {
-		if _, ok := nativePublishingPlatforms[platform]; ok {
-			native = append(native, platform)
-			continue
+		if blogplatform.For(platform).DraftCreate {
+			platforms = append(platforms, platform)
 		}
-		scripted = append(scripted, platform)
+	}
+	if len(platforms) == 0 {
+		return nil
 	}
 
-	articleArgs := make([]string, 0, len(request.Articles)*2)
+	args := make([]string, 0, len(request.Articles)*2+5)
 	for _, article := range request.Articles {
-		articleArgs = append(articleArgs, "--article", article)
+		args = append(args, "--article", article)
 	}
-
-	plan := make([]SyncPlan, 0, 1+len(scripted))
-	if len(native) > 0 {
-		args := append([]string{}, articleArgs...)
-		if request.All {
-			args = append(args, "--all")
-		}
-		args = append(args, "--platforms", strings.Join(native, ","))
-		if request.DryRun {
-			args = append(args, "--dry-run")
-		}
-		if request.Draft {
-			args = append(args, "--draft")
-		}
-		plan = append(plan, SyncPlan{
-			Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
-			Platforms: append([]string{}, native...), Native: true,
-		})
+	if request.All {
+		args = append(args, "--all")
 	}
-	for _, platform := range scripted {
-		args := append([]string{}, articleArgs...)
-		if request.All {
-			args = append(args, "--all")
-		}
-		args = append(args, "--platforms", platform)
-		if request.DryRun {
-			args = append(args, "--dry-run")
-		}
-		if request.Draft {
-			args = append(args, "--draft")
-		}
-		plan = append(plan, SyncPlan{
-			Group: "scripted-" + platform, Script: "scripts/blogctl-syndicate.mjs", Args: args,
-			Platforms: []string{platform},
-		})
+	args = append(args, "--platforms", strings.Join(platforms, ","))
+	if request.DryRun {
+		args = append(args, "--dry-run")
 	}
-	return plan
+	if request.Draft {
+		args = append(args, "--draft")
+	}
+	return []SyncPlan{{
+		Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
+		Platforms: append([]string{}, platforms...), Native: true,
+	}}
 }
 
 func ParseCompiledArticles(output string) ([]blogcompiler.CompiledArticle, error) {
@@ -318,7 +268,7 @@ func scriptFailureMessage(output string) string {
 		if line == "" || !strings.HasPrefix(line, "{") {
 			continue
 		}
-		var raw scriptLogEvent
+		var raw scriptFailureEvent
 		if err := json.Unmarshal([]byte(line), &raw); err != nil {
 			continue
 		}
@@ -344,12 +294,6 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 	if err := validateSyncWorkspaces(config); err != nil {
 		return "", err
 	}
-	if usesPlatform(request.Platforms, "medium") && !request.DryRun {
-		if strings.TrimSpace(config.BridgeOrigin) == "" || strings.TrimSpace(config.BridgeToken) == "" {
-			return "", errors.New("Medium publishing requires an active BlogCTL Bridge")
-		}
-	}
-
 	runner := s.Runner
 	if runner == nil {
 		runner = OSCommandRunner{}
@@ -388,15 +332,6 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 		script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
 		commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
 		appendOutput(&output, commandOutput)
-		for _, event := range ParseSyncEvents(commandOutput) {
-			if !containsPlatform(entry.Platforms, event.Platform) {
-				continue
-			}
-			s.emit(event)
-			if event.State == "completed" || event.State == "failed" {
-				terminal[event.Platform] = true
-			}
-		}
 		if runErr != nil {
 			detail := scriptFailureMessage(commandOutput)
 			if detail == "" {
@@ -531,114 +466,12 @@ func (s SyncService) emit(event SyncEvent) {
 	}
 }
 
-func containsPlatform(platforms []string, target string) bool {
-	for _, platform := range platforms {
-		if platform == target {
-			return true
-		}
-	}
-	return false
-}
-
-type scriptLogEvent struct {
-	Operation string `json:"operation"`
+type scriptFailureEvent struct {
 	Status    string `json:"status"`
-	Platform  string `json:"platform"`
-	DraftURL  string `json:"draftUrl"`
-	RemoteURL string `json:"remoteUrl"`
 	Message   string `json:"message"`
 	Exception struct {
 		Message string `json:"message"`
 	} `json:"exception"`
-}
-
-func ParseSyncEvents(output string) []SyncEvent {
-	events := []SyncEvent{}
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	buffer := make([]byte, 0, 64*1024)
-	scanner.Buffer(buffer, 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || !strings.HasPrefix(line, "{") {
-			continue
-		}
-		var raw scriptLogEvent
-		if err := json.Unmarshal([]byte(line), &raw); err != nil {
-			continue
-		}
-		if event, ok := syncEventFromLog(raw); ok {
-			events = append(events, event)
-		}
-	}
-	return events
-}
-
-func syncEventFromLog(raw scriptLogEvent) (SyncEvent, bool) {
-	message := strings.TrimSpace(raw.Message)
-	if message == "" {
-		message = strings.TrimSpace(raw.Exception.Message)
-	}
-	switch raw.Operation {
-	case "distribution-sync":
-		if raw.Platform == "" {
-			return SyncEvent{}, false
-		}
-		event := SyncEvent{Platform: raw.Platform, Message: message}
-		switch raw.Status {
-		case "started":
-			event.State = "running"
-		case "rate-limit-retry-wait":
-			event.State = "waiting"
-			event.Result = "rate-limit-retry"
-		case "dry-run-completed":
-			event.State = "completed"
-			event.Result = "dry-run"
-			event.URL = raw.DraftURL
-		case "completed":
-			event.State = "completed"
-			event.Result = "completed"
-			if raw.DraftURL != "" {
-				event.Result = "draft-created"
-				event.URL = raw.DraftURL
-			}
-		case "failed":
-			event.State = "failed"
-		default:
-			return SyncEvent{}, false
-		}
-		return event, true
-	case "syndication-devto":
-		event := SyncEvent{Platform: "devto", Message: message, URL: raw.RemoteURL}
-		switch raw.Status {
-		case "dry-run":
-			event.State = "completed"
-			event.Result = "dry-run"
-		case "created", "updated", "skipped":
-			event.State = "completed"
-			event.Result = raw.Status
-		default:
-			return SyncEvent{}, false
-		}
-		return event, true
-	case "syndication-medium":
-		event := SyncEvent{Platform: "medium", Message: message, URL: raw.DraftURL}
-		switch raw.Status {
-		case "waiting-for-session":
-			event.State = "waiting"
-			event.Result = "waiting-for-session"
-		case "dry-run":
-			event.State = "completed"
-			event.Result = "dry-run"
-		case "draft-created":
-			event.State = "completed"
-			event.Result = "draft-created"
-		default:
-			return SyncEvent{}, false
-		}
-		return event, true
-	default:
-		return SyncEvent{}, false
-	}
 }
 
 func validateSyncWorkspaces(config SyncConfig) error {
@@ -692,13 +525,16 @@ func syncEnvironment(config SyncConfig) []string {
 	if strings.TrimSpace(config.DevtoAPIKey) != "" {
 		env = setEnvironment(env, "DEVTO_API_KEY", strings.TrimSpace(config.DevtoAPIKey))
 	}
+	if java := strings.TrimSpace(config.ToolPaths["java"]); java != "" {
+		env = setEnvironment(env, "PLANTUML_JAVA", java)
+	}
 	return prependToolDirectories(env, config.ToolPaths)
 }
 
 func prependToolDirectories(env []string, toolPaths map[string]string) []string {
 	directories := []string{}
 	seen := map[string]struct{}{}
-	for _, name := range []string{"node", "npm", "git"} {
+	for _, name := range []string{"node", "npm", "git", "java"} {
 		path := strings.TrimSpace(toolPaths[name])
 		if path == "" {
 			continue
@@ -740,15 +576,6 @@ func setEnvironment(env []string, key, value string) []string {
 func usesPlatform(platforms []string, target string) bool {
 	for _, platform := range platforms {
 		if platform == target {
-			return true
-		}
-	}
-	return false
-}
-
-func usesChinaPlatform(platforms []string) bool {
-	for _, platform := range platforms {
-		if _, ok := chinaPlatforms[platform]; ok {
 			return true
 		}
 	}

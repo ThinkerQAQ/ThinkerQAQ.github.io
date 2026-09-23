@@ -187,7 +187,38 @@ func truncateRunes(value string, maximum int) string {
 	return string(runes[:maximum])
 }
 
-func (j *juejinAdapter) draftPayload(ctx context.Context, input DraftInput, id string) (map[string]any, error) {
+type juejinID string
+
+func (id *juejinID) UnmarshalJSON(raw []byte) error {
+	value := strings.TrimSpace(string(raw))
+	if value == "" || value == "null" {
+		*id = ""
+		return nil
+	}
+	if strings.HasPrefix(value, "\"") {
+		var text string
+		if err := json.Unmarshal(raw, &text); err != nil {
+			return err
+		}
+		*id = juejinID(text)
+		return nil
+	}
+	*id = juejinID(value)
+	return nil
+}
+
+func juejinStringIDs(values []juejinID) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		id := strings.TrimSpace(string(value))
+		if id != "" && id != "0" {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+func (j *juejinAdapter) draftPayload(ctx context.Context, input DraftInput, id string, detail *juejinDraftDetail) (map[string]any, error) {
 	markdown, err := j.prepareMarkdown(ctx, input)
 	if err != nil {
 		return nil, err
@@ -203,14 +234,31 @@ func (j *juejinAdapter) draftPayload(ctx context.Context, input DraftInput, id s
 		"tag_ids":       []string{},
 		"title":         input.Title,
 	}
+	if detail != nil {
+		base := detail.Data.ArticleDraft
+		payload["id"] = id
+		payload["category_id"] = base.CategoryID
+		payload["tag_ids"] = juejinStringIDs(base.TagIDs)
+		payload["link_url"] = base.LinkURL
+		payload["cover_image"] = base.CoverImage
+		payload["is_gfw"] = base.IsGFW
+		payload["is_english"] = base.IsEnglish
+		payload["is_original"] = base.IsOriginal
+		if base.EditType != 0 {
+			payload["edit_type"] = base.EditType
+		}
+		payload["theme_ids"] = juejinStringIDs(base.ThemeIDs)
+		payload["pics"] = base.Pics
+		return payload, nil
+	}
 	if id != "" {
 		payload["id"] = id
 	}
 	return payload, nil
 }
 
-func (j *juejinAdapter) mutateDraft(ctx context.Context, path, operation string, input DraftInput, id string) (DraftResult, error) {
-	payload, err := j.draftPayload(ctx, input, id)
+func (j *juejinAdapter) mutateDraft(ctx context.Context, path, operation string, input DraftInput, id string, detail *juejinDraftDetail) (DraftResult, error) {
+	payload, err := j.draftPayload(ctx, input, id, detail)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -275,25 +323,49 @@ func (j *juejinAdapter) mutateDraft(ctx context.Context, path, operation string,
 }
 
 func (j *juejinAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
-	return j.mutateDraft(ctx, "/content_api/v1/article_draft/create", "create-draft", input, "")
+	return j.mutateDraft(ctx, "/content_api/v1/article_draft/create", "create-draft", input, "", nil)
 }
 
 func (j *juejinAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error) {
 	if strings.TrimSpace(ref.ID) == "" {
 		return DraftResult{}, platformError(ErrValidation, "juejin", "update-draft", 0, "draft id is required", false)
 	}
-	return j.mutateDraft(ctx, "/content_api/v1/article_draft/update", "update-draft", input, ref.ID)
+	detail, err := j.draftDetail(ctx, ref.ID)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	return j.mutateDraft(ctx, "/content_api/v1/article_draft/update", "update-draft", input, ref.ID, &detail)
+}
+
+type juejinDraftArticle struct {
+	ID         string           `json:"id"`
+	ArticleID  string           `json:"article_id"`
+	CategoryID string           `json:"category_id"`
+	TagIDs     []juejinID       `json:"tag_ids"`
+	LinkURL    string           `json:"link_url"`
+	CoverImage string           `json:"cover_image"`
+	IsGFW      int              `json:"is_gfw"`
+	IsEnglish  int              `json:"is_english"`
+	IsOriginal int              `json:"is_original"`
+	EditType   int              `json:"edit_type"`
+	ThemeIDs   []juejinID       `json:"theme_ids"`
+	Pics       []map[string]any `json:"pics"`
 }
 
 type juejinDraftDetail struct {
 	Data struct {
-		ID          string `json:"id"`
-		ArticleID   string `json:"article_id"`
-		ArticleInfo struct {
-			ArticleID  string `json:"article_id"`
-			CategoryID string `json:"category_id"`
-			TagIDs     []any  `json:"tag_ids"`
-		} `json:"article_info"`
+		DraftID      string             `json:"draft_id"`
+		ArticleDraft juejinDraftArticle `json:"article_draft"`
+		Columns      []struct {
+			Column struct {
+				ColumnID string `json:"column_id"`
+			} `json:"column"`
+		} `json:"columns"`
+		ThemeList []struct {
+			Theme struct {
+				ThemeID string `json:"theme_id"`
+			} `json:"theme"`
+		} `json:"theme_list"`
 	} `json:"data"`
 	ErrNo  int    `json:"err_no"`
 	ErrMsg string `json:"err_msg"`
@@ -345,15 +417,13 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 	if err != nil {
 		return PublishResult{}, err
 	}
-	articleID := detail.Data.ArticleID
-	if articleID == "" {
-		articleID = detail.Data.ArticleInfo.ArticleID
+	article := detail.Data.ArticleDraft
+	articleID := strings.TrimSpace(article.ArticleID)
+	if articleID == "0" {
+		articleID = ""
 	}
-	if articleID != "" {
-		return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
-	}
-	categoryID := strings.TrimSpace(detail.Data.ArticleInfo.CategoryID)
-	if categoryID == "" || categoryID == "0" || len(detail.Data.ArticleInfo.TagIDs) == 0 {
+	categoryID := strings.TrimSpace(article.CategoryID)
+	if categoryID == "" || categoryID == "0" || len(article.TagIDs) == 0 {
 		return PublishResult{}, platformError(
 			ErrValidation, "juejin", "publish-draft", 0,
 			"the previewed Juejin draft still needs a category and at least one tag; set them in the draft editor, then confirm publish again",
@@ -361,11 +431,25 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 		)
 	}
 
+	columnIDs := make([]string, 0, len(detail.Data.Columns))
+	for _, item := range detail.Data.Columns {
+		if id := strings.TrimSpace(item.Column.ColumnID); id != "" && id != "0" {
+			columnIDs = append(columnIDs, id)
+		}
+	}
+	themeIDs := juejinStringIDs(article.ThemeIDs)
+	if len(themeIDs) == 0 {
+		for _, item := range detail.Data.ThemeList {
+			if id := strings.TrimSpace(item.Theme.ThemeID); id != "" && id != "0" {
+				themeIDs = append(themeIDs, id)
+			}
+		}
+	}
 	body, _ := json.Marshal(map[string]any{
 		"draft_id":    ref.ID,
 		"sync_to_org": false,
-		"column_ids":  []string{},
-		"theme_ids":   []string{},
+		"column_ids":  columnIDs,
+		"theme_ids":   themeIDs,
 	})
 	req, err := j.request(ctx, http.MethodPost, j.apiBase+"/content_api/v1/article/publish", bytes.NewReader(body))
 	if err != nil {
@@ -406,9 +490,9 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 	if articleID == "" {
 		verified, verifyErr := j.draftDetail(ctx, ref.ID)
 		if verifyErr == nil {
-			articleID = verified.Data.ArticleID
-			if articleID == "" {
-				articleID = verified.Data.ArticleInfo.ArticleID
+			articleID = strings.TrimSpace(verified.Data.ArticleDraft.ArticleID)
+			if articleID == "0" {
+				articleID = ""
 			}
 		}
 	}
@@ -416,7 +500,7 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, "publish response did not contain an article id", false)
 	}
 	_ = input
-	return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
+	return PublishResult{ID: articleID, URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
 }
 
 func shouldKeepJuejinImage(source string) bool {
@@ -437,22 +521,13 @@ func shouldKeepJuejinImage(source string) bool {
 }
 
 func (j *juejinAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		if shouldKeepJuejinImage(source) {
-			continue
-		}
-		payload, contentType, err := loadImage(j.client, source, input.SourceDir)
-		if err != nil {
-			return "", platformError(ErrUpload, "juejin", "download-image", 0, err.Error(), true)
-		}
-		target, err := j.uploadImage(ctx, payload, contentType)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	return replaceImages(input.Markdown, replacements), nil
+	return rehostMarkdownImages(ctx, j.client, input, ImageRehostOptions{
+		Platform:       j.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted:  shouldKeepJuejinImage,
+	}, func(ctx context.Context, image RehostImage) (string, error) {
+		return j.uploadImage(ctx, image.Payload, image.ContentType)
+	})
 }
 
 func (j *juejinAdapter) imageToken(ctx context.Context) (imageXToken, error) {

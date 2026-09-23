@@ -134,12 +134,8 @@ func parseSegmentFaultID(raw []byte) (string, error) {
 	return "", fmt.Errorf("response did not contain a draft id")
 }
 
-func (s *segmentFaultAdapter) uploadImage(ctx context.Context, source string, input DraftInput, token string) (string, error) {
-	payload, contentType, err := loadImage(s.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, s.ID(), "download-image", 0, err.Error(), true)
-	}
-	body, bodyType, err := multipartBody(nil, "image", inferImageFilename(source, contentType), contentType, payload)
+func (s *segmentFaultAdapter) uploadImage(ctx context.Context, image RehostImage, token string) (string, error) {
+	body, bodyType, err := multipartBody(nil, "image", inferImageFilename(image.Source, image.ContentType), image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -182,18 +178,15 @@ func (s *segmentFaultAdapter) uploadImage(ctx context.Context, source string, in
 }
 
 func (s *segmentFaultAdapter) prepareMarkdown(ctx context.Context, input DraftInput, token string) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		if strings.Contains(strings.ToLower(source), "segmentfault.com") {
-			continue
-		}
-		target, err := s.uploadImage(ctx, source, input, token)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	return replaceImages(input.Markdown, replacements), nil
+	return rehostMarkdownImages(ctx, s.client, input, ImageRehostOptions{
+		Platform:       s.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			return strings.Contains(strings.ToLower(source), "segmentfault.com")
+		},
+	}, func(ctx context.Context, image RehostImage) (string, error) {
+		return s.uploadImage(ctx, image, token)
+	})
 }
 
 func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input DraftInput) (DraftResult, error) {
@@ -285,6 +278,10 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 	if err != nil {
 		return PublishResult{}, err
 	}
+	content, err := s.prepareMarkdown(ctx, input, token)
+	if err != nil {
+		return PublishResult{}, err
+	}
 	values := map[string]string{
 		"type":      "1",
 		"url":       "",
@@ -294,7 +291,7 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 		"weibo":     "0",
 		"license":   "0",
 		"title":     input.Title,
-		"text":      input.Markdown,
+		"text":      content,
 		"articleId": "",
 		"draftId":   ref.ID,
 		"id":        "",
@@ -339,5 +336,15 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 	if strings.HasPrefix(publicURL, "/") {
 		publicURL = segmentFaultOrigin + publicURL
 	}
-	return PublishResult{URL: publicURL}, nil
+	publishedID := ""
+	if parsed, parseErr := url.Parse(publicURL); parseErr == nil {
+		segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+		if len(segments) >= 2 && segments[len(segments)-2] == "a" {
+			publishedID = strings.TrimSpace(segments[len(segments)-1])
+		}
+	}
+	if publishedID == "" {
+		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", response.StatusCode, "published response did not contain an article id", false)
+	}
+	return PublishResult{ID: publishedID, URL: publicURL}, nil
 }

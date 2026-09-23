@@ -83,12 +83,8 @@ func (o *osChinaAdapter) ensureUser(ctx context.Context) error {
 	return nil
 }
 
-func (o *osChinaAdapter) uploadImage(ctx context.Context, source string, input DraftInput) (string, error) {
-	payload, contentType, err := loadImage(o.client, source, input.SourceDir)
-	if err != nil {
-		return "", platformError(ErrUpload, o.ID(), "download-image", 0, err.Error(), true)
-	}
-	body, bodyType, err := multipartBody(nil, "file", inferImageFilename(source, contentType), contentType, payload)
+func (o *osChinaAdapter) uploadImage(ctx context.Context, image RehostImage) (string, error) {
+	body, bodyType, err := multipartBody(nil, "file", inferImageFilename(image.Source, image.ContentType), image.ContentType, image.Payload)
 	if err != nil {
 		return "", err
 	}
@@ -112,19 +108,14 @@ func (o *osChinaAdapter) uploadImage(ctx context.Context, source string, input D
 }
 
 func (o *osChinaAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	replacements := map[string]string{}
-	for _, source := range imageSources(input.Markdown) {
-		host := strings.ToLower(source)
-		if strings.Contains(host, "oschina.net") || strings.Contains(host, "oscimg") {
-			continue
-		}
-		target, err := o.uploadImage(ctx, source, input)
-		if err != nil {
-			return "", err
-		}
-		replacements[source] = target
-	}
-	return replaceImages(input.Markdown, replacements), nil
+	return rehostMarkdownImages(ctx, o.client, input, ImageRehostOptions{
+		Platform:       o.ID(),
+		FailOpenRemote: true,
+		AlreadyHosted: func(source string) bool {
+			host := strings.ToLower(source)
+			return strings.Contains(host, "oschina.net") || strings.Contains(host, "oscimg")
+		},
+	}, o.uploadImage)
 }
 
 func (o *osChinaAdapter) saveDraft(ctx context.Context, refID string, input DraftInput) (DraftResult, error) {
@@ -146,8 +137,7 @@ func (o *osChinaAdapter) saveDraft(ctx context.Context, refID string, input Draf
 		"disableComment": false,
 	}
 	if refID != "" {
-		payload["id"] = refID
-		payload["draftId"] = refID
+		payload["draft"] = refID
 	}
 	body, _ := json.Marshal(payload)
 	req, err := o.request(ctx, http.MethodPost, osChinaAPIOrigin+"/oschinapi/api/draft/save_draft", strings.NewReader(string(body)))
@@ -235,13 +225,17 @@ func (o *osChinaAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if err := o.ensureUser(ctx); err != nil {
 		return PublishResult{}, err
 	}
+	content, err := o.prepareMarkdown(ctx, input)
+	if err != nil {
+		return PublishResult{}, err
+	}
 	catalog, err := o.catalogID(ctx)
 	if err != nil {
 		return PublishResult{}, err
 	}
 	payload := map[string]any{
 		"title":          input.Title,
-		"content":        input.Markdown,
+		"content":        content,
 		"contentType":    1,
 		"type":           "1",
 		"originUrl":      "",
@@ -278,5 +272,5 @@ func (o *osChinaAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 		return PublishResult{}, platformError(ErrUpstream, o.ID(), "publish-draft", decoded.Code, "response did not contain a public blog id", false)
 	}
 	_ = ref
-	return PublishResult{URL: fmt.Sprintf("%s/u/%s/blog/%s", osChinaOrigin, url.PathEscape(o.userID), url.PathEscape(id))}, nil
+	return PublishResult{ID: id, URL: fmt.Sprintf("%s/u/%s/blog/%s", osChinaOrigin, url.PathEscape(o.userID), url.PathEscape(id))}, nil
 }

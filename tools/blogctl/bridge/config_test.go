@@ -117,6 +117,10 @@ func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 	if medium.Language != "en" {
 		t.Fatalf("medium view language = %q", medium.Language)
 	}
+	if !medium.Capabilities.BrowserSession || !medium.Capabilities.DraftCreate || !medium.Capabilities.DraftUpdate ||
+		!medium.Capabilities.ExplicitPublish {
+		t.Fatalf("medium capabilities = %#v", medium.Capabilities)
+	}
 	medium.Language = "zh-CN"
 	updated, err := updatePublishing(config, []publishingPlatformView{medium})
 	if err != nil {
@@ -141,8 +145,12 @@ func TestPublishingViewsExposeAndUpdateLanguage(t *testing.T) {
 		t.Fatalf("changed-only policy leaked across platforms: %#v", updated.Publishing.Platforms)
 	}
 	medium.ChangedOnly = true
-	if _, err := updatePublishing(updated, []publishingPlatformView{medium}); err == nil {
-		t.Fatal("Medium must reject an unsupported changed-only policy")
+	updated, err = updatePublishing(updated, []publishingPlatformView{medium})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.Publishing.Platforms["medium"].ChangedOnly {
+		t.Fatal("Medium changed-only policy was not saved")
 	}
 }
 

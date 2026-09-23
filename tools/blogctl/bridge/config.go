@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 )
 
 type publishingFooterConfig struct {
@@ -77,13 +79,11 @@ type bridgeConfig struct {
 	Publishing  publishingConfig  `json:"publishing"`
 }
 
-var publishingPlatformOrder = []string{
-	"cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium",
-}
+var publishingPlatformOrder = blogplatform.IDs()
 
 func defaultPublishingLanguage(platform string) string {
-	if platform == "devto" || platform == "medium" {
-		return "en"
+	if language := blogplatform.DefaultLanguage(platform); language != "" {
+		return language
 	}
 	return "zh-CN"
 }

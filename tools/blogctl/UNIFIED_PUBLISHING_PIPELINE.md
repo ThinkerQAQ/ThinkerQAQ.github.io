@@ -20,7 +20,7 @@ BlogCTL
   +-- compiler       deterministic source -> publishable content
   +-- assets         generated/remote asset preparation
   +-- publisher      platform transport adapters
-  +-- state          draft/published bindings and hashes
+  +-- state          all-platform draft/published publication state and hashes
   +-- bridge         browser-session broker
   +-- extension      login/session UI
 ```
@@ -350,14 +350,27 @@ Node should never migrate or mutate publication state.
 
 `.distribution/manifest.json` may remain during migration, but all writes should pass through one Go state package.
 
-Longer term separate:
+The durable state boundary is now:
 
 ```text
-.blogctl/publications.json   durable remote bindings/state
+.blogctl/publications.json   all-platform durable publication state
 .distribution/               generated cache and review artifacts
 ```
 
-This matches the CNBlogs binding direction already present in the current branch.
+`.blogctl/publications.json` has one schema for every platform:
+
+```text
+version: 2
+publications[]:
+  slug
+  platform
+  remoteDraftId / draftUrl / draftHash / draftSyncedAt
+  publishedRemoteId / publishedUrl / publishedHash / publishedAt / publishedSyncedAt
+  optional account/source/remoteUpdatedAt/verifiedAt
+  pendingFields
+```
+
+The former CNBlogs-specific `cnblogs[]`, `unbound[]`, and version-1 binding schema are removed. CNBlogs manual linking still exists as a control-plane operation, but it writes the same `PublicationBinding` record used by every other platform.
 
 ## 10. Mermaid asset flow
 
@@ -613,19 +626,172 @@ That is the intended meaning of BlogCTL as the control plane.
 
 ## 20. Current convergence status
 
-As of 2026-09-21, Phase A and the first part of Phase D are implemented on this branch:
+As of 2026-09-22, the publishing control plane is substantially converged:
 
-- Mermaid semantic compilation lives under `tools/blogctl/compiler/node/`.
-- generated publishing assets live under `tools/blogctl/assets/node/`.
-- BlogCTL Go config owns Mermaid render policy and R2 public/store policy.
-- Chinese distribution, DEV.to preparation, and Medium preparation use the same BlogCTL compiler.
-- native Chinese dry-run propagates into asset preparation so it does not upload R2 objects.
-- the legacy PR #48 implementation is superseded by this branch.
+- `tools/blogctl/compiler/node/` is the single deterministic publishing compiler.
+- `tools/blogctl/assets/node/` owns Mermaid rendering, content-addressed asset caching, and R2 publication.
+- BlogCTL Go config owns publishing policy and passes resolved runtime configuration to the compiler.
+- Go is the only writer of remote publication state. The Node compiler and compatibility scripts do not mutate `.distribution/manifest.json`.
+- `CompiledArticle v1` is the versioned compiler-to-publisher protocol.
+- 博客园、掘金、CSDN、思否、知乎、51CTO、开源中国、今日头条 and DEV.to publish through the Go publisher/task flow.
+- Medium now uses the same `CompiledArticle` compiler output and Bridge task flow instead of the historical `scripts/blogctl-syndicate.mjs` control-plane route.
+- Medium draft results are recorded by the same Go publication-state writer and therefore appear in the publication inventory.
+- Mermaid assets follow one path: compiler detection -> PNG render -> R2 -> platform adapter.\n- For adapters with `BodyImageRehost=true`, BlogCTL downloads the R2/HTTPS source, uploads the bytes to the platform CDN, and rewrites the article body to the platform URL. Remote upload failures keep the working source URL; local-only image failures remain fatal.\n- `BodyImages=true` only means the platform can render body images. It does not imply that BlogCTL has a verified platform-CDN upload transport.
+- BlogCTL Extension exposes sync, task, publishing configuration, tool configuration, and publication inventory from the same local Bridge.
 
-Remaining convergence work:
+The old root publishing scripts remain only as compatibility/development entry points. They are no longer the desired control-plane boundary.
 
-1. make Go the only publication-state writer;
-2. replace file-system handoff with a versioned CompiledArticle protocol;
-3. migrate DEV.to transport into the Go publisher registry;
-4. converge Medium on the same compiled input;
-5. reduce root scripts to thin compatibility/development wrappers.
+### Medium boundary
+
+Medium does not issue new integration tokens for new integrations, so BlogCTL should not design its current publishing path around obtaining a new official API token. The supported path remains the user-initiated browser-session Bridge.
+
+The unified Medium flow remains draft-oriented:
+
+1. compiler builds a Medium payload plus copy/paste fallback HTML;
+2. Bridge validates a live browser session;
+3. unchanged drafts can be skipped by content hash;
+4. Bridge creates the Medium draft and records its post ID / draft URL in Go publication state;
+5. canonical URL, tags, and cover-image fields are surfaced as pending editor work when the editor transport cannot safely set them;
+6. body-image insertion fails closed and preserves a generated fallback rather than silently losing images.
+
+Reference: https://help.medium.com/hc/en-us/articles/213480228-API-Importing
+
+## 21. Re-audit findings and next development plan
+
+The next work should follow control-plane value rather than add isolated UI features.
+
+### P0 — unified live publishing path
+
+**Status:** implemented.
+
+Live publishing now has one execution path:
+
+```text
+Extension ----\
+              -> Bridge job API -> SyncService -> CompiledArticle -> publisher
+CLI ----------/
+```
+
+- Extension jobs already execute inside the persistent Bridge with browser sessions and native publishers.
+- non-dry-run `blogctl sync` starts/reuses the Bridge, submits `/v1/sync/jobs`, waits for terminal job state, and prints the same per-platform result model used by the Extension.
+- `--all` is expanded from the Bridge article inventory and still creates explicit per-article live jobs.
+- dry-run remains local compiler execution because it needs neither browser session nor remote mutation.
+
+The CLI and Extension therefore no longer maintain separate live publishing implementations.
+
+### P1 — durable publication state
+
+**Status:** implemented.
+
+Remote platform state now lives in:
+
+```text
+.blogctl/publications.json   durable platform bindings + hashes + remote URLs
+.distribution/               generated compiler/assets/debug cache only
+```
+
+The durable file is the only publication/binding source of truth. BlogCTL now accepts the current bindings schema version only; legacy v1 bindings and `.distribution/manifest.json` publication state are not migrated or read as binding fallbacks. New draft/publish/update writes mutate only `.blogctl/publications.json`.
+
+Regression coverage verifies that:
+
+1. generated `.distribution/manifest.json` remote references are ignored for every platform;
+2. deleting `.distribution/` does not lose remote draft/published identity;
+3. writes for one platform preserve durable publication state for every other platform, including CNBlogs verification metadata;
+4. inventory and article-link views are built only from `.blogctl/publications.json`.
+
+### P2 — platform capabilities and reconciliation
+
+**Status:** capability model implemented; remote reconciliation implemented where a stable endpoint is verified.
+
+All platform metadata now comes from one shared registry used by App, CLI, Bridge and Extension. The registry currently exposes:
+
+```go
+type Capabilities struct {
+    BrowserSession  bool
+    APIKey           bool
+    DraftCreate      bool
+    DraftUpdate      bool
+    ExplicitPublish  bool
+    PublishedUpdate  bool
+    RemoteList       bool
+    BodyImages       bool
+    BodyImageRehost  bool
+    CoverImage       bool
+    NativeCanonical  bool
+    Tags              bool
+}
+```
+
+The Extension no longer decides draft-update, explicit-publish, published-update or auth behavior from platform-name conditionals. Advanced capabilities stay fail-closed until the adapter actually implements them; for example DEV.to advertises native cover/canonical/tags, while Medium does not.
+
+Remote reconciliation is currently enabled only for verified transports:
+
+- CNBlogs: exact post lookup through the authenticated editor API; detects draft/published state, missing posts and remote changes against the stored verification baseline without accepting those changes automatically.
+- DEV.to: exact article lookup through the official Forem API; detects draft/published state, state drift and missing remote articles.
+- Other platforms: explicitly remain `local-only` until a stable list/get endpoint is proven from official API behavior or browser captures.
+
+The **草稿与发布** tab exposes this as an explicit **远端核验** action only when `RemoteList=true`.
+
+Do not guess undocumented list/update endpoints. Add them only from verified API/browser captures.
+
+Juejin capture verification:
+
+- draft detail is read from `data.article_draft`, with columns in `data.columns` and activity themes in `data.theme_list`;
+- updating an existing draft preserves the captured category, tags, cover, original/English flags, theme ids and picture metadata instead of resetting them;
+- publishing preserves the draft's selected column and theme ids;
+- an existing non-zero `article_id` does not mean the publish step can be skipped: the captured editor updated the draft and called `/content_api/v1/article/publish` again for the same published article id;
+- the capture included `encrypted_word_count` and `origin_word_count`, but BlogCTL does not synthesize those opaque client-computed values until their algorithm is verified.
+
+### P3 — Medium editor completeness
+
+**Formatting normalization is implemented.** Medium output now uses a dedicated Medium-safe transformation layer rather than sending raw Markdown semantics directly into the editor transport:
+
+- removes redundant local Table of Contents / Contents / 目录 sections;
+- maps body H1/H2 to Medium section headings so the dedicated story title is not duplicated;
+- keeps deeper headings as subheadings;
+- preserves fenced-code whitespace and language metadata in the copy/paste fallback;
+- converts Markdown tables into compact readable row summaries, including code spans containing pipe characters;
+- flattens nested lists into stable visible hierarchy and normalizes task-list markers;
+- converts GitHub admonitions into readable Medium quote blocks;
+- preserves separators with a transport-safe textual representation instead of guessing an undocumented delta type;
+- adds image captions in the copy/paste fallback;
+- keeps Mermaid on the shared PNG/R2 asset path.
+
+This formatting work does not require browser captures because it is deterministic content transformation.
+
+Keep the current fail-closed image behavior until a verified Medium browser request proves a safe image insertion transport. Browser captures are still required before enabling private editor mutations for:
+
+1. body-image upload/insertion;
+2. canonical URL;
+3. tags;
+4. cover image;
+5. existing-draft update if the editor transport can be verified safely.
+
+The copy/paste fallback remains mandatory until body images are verified.
+
+### P4 — compatibility cleanup
+
+**Status:** implemented for the obsolete control-plane compatibility layer.
+
+- `scripts/blogctl-distribute.mjs` and `scripts/blogctl-syndicate.mjs` are now compatibility stubs that direct live work to `blogctl sync`;
+- unreachable `distribution-sync`, `syndication-devto`, and `syndication-medium` event parsing has been removed from the Go control plane;
+- supported-platform metadata, labels, default languages and capabilities now come from one shared platform registry;
+- generic modules still used by the compiler, including `scripts/distribute.mjs`, `scripts/medium.mjs`, rendering helpers and their tests, remain intact.
+
+### P5 — control-plane UX
+
+**Status:** implemented for the current verified platform capabilities.
+
+The **草稿与发布** tab now:
+
+- reads durable publication state rather than task logs;
+- shows draft and published links from `.blogctl/publications.json`;
+- exposes capability-aware remote verification only for platforms with a verified remote lookup transport;
+- distinguishes local-only records, verified remote drafts, verified remote publications, remote state changes and missing remote objects;
+- shows Medium pending manual fields such as Canonical, Tags and cover image directly on the publication record, with a pending-only filter;
+- lets the user mark manual fields as handled by clearing only the local durable todo marker; this never mutates or claims to verify the remote platform;
+- keeps task logs as diagnostics rather than the authoritative publication state.
+
+Medium editor completeness itself remains P3 and stays fail-closed until additional browser captures verify safe body-image insertion, canonical, tags, cover-image and existing-draft update transports.
+
+This ordering keeps the architecture stable: one compiler, one state owner, one live execution path, one capability model, then richer UI.

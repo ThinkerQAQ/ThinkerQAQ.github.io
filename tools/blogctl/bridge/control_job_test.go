@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -69,6 +70,42 @@ func TestDeleteSyncJobRejectsRunningAndRemovesFinished(t *testing.T) {
 	}
 	if len(server.jobOrder) != 1 || server.jobOrder[0] != "running" {
 		t.Fatalf("jobOrder = %#v", server.jobOrder)
+	}
+}
+
+func TestPruneSyncJobHistoryNeverEvictsRunningJobs(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.jobs = map[string]*syncJob{}
+	server.jobOrder = nil
+
+	for index := 0; index < 22; index++ {
+		id := fmt.Sprintf("job-%02d", index)
+		state := "completed"
+		if index == 21 {
+			state = "running"
+		}
+		server.jobs[id] = &syncJob{ID: id, State: state}
+		server.jobOrder = append(server.jobOrder, id)
+	}
+
+	server.pruneSyncJobHistoryLocked(20)
+	if server.jobs["job-21"] == nil || server.jobs["job-21"].State != "running" {
+		t.Fatal("running job was evicted from history")
+	}
+	if len(server.jobOrder) != 21 {
+		t.Fatalf("jobOrder length = %d, want 21 while an old job is still running", len(server.jobOrder))
+	}
+
+	server.jobs["job-21"].State = "completed"
+	server.pruneSyncJobHistoryLocked(20)
+	if len(server.jobOrder) != 20 {
+		t.Fatalf("jobOrder length = %d, want 20 after all jobs finish", len(server.jobOrder))
+	}
+	if server.jobs["job-21"] != nil {
+		t.Fatal("old completed job was not pruned")
 	}
 }
 
@@ -174,6 +211,35 @@ func TestRetrySyncJobReusesIDAndReplacesFailedAttempt(t *testing.T) {
 	}
 }
 
+func TestRetrySyncJobRejectsPublishAttempts(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.jobs["publish-job"] = &syncJob{
+		ID: "publish-job", State: "failed", Operation: "publish",
+		Request: syncRequest{
+			Article: "example", Platforms: []string{"oschina"}, Operation: "publish",
+		},
+	}
+	server.jobOrder = []string{"publish-job"}
+
+	if _, err := server.retrySyncJob("publish-job"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
+		t.Fatalf("error = %v", err)
+	}
+	if server.jobs["publish-job"].State != "failed" {
+		t.Fatalf("publish job was mutated: %#v", server.jobs["publish-job"])
+	}
+
+	server.jobs["legacy-publish"] = &syncJob{
+		ID: "legacy-publish", State: "failed", Operation: "publish",
+		Request: syncRequest{Article: "example", Platforms: []string{"oschina"}},
+	}
+	if _, err := server.retrySyncJob("legacy-publish"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
+		t.Fatalf("legacy publish retry error = %v", err)
+	}
+}
+
 func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
 	config := defaultBridgeConfig()
 	profile := config.Publishing.Platforms["cnblogs"]
@@ -264,20 +330,24 @@ func TestPublishSyncJobFailsClosedForInvalidSourceJobs(t *testing.T) {
 			want: "sync job is not completed",
 		},
 		{
+			name: "partial platform failure",
+			job: &syncJob{
+				ID: "partial", State: "completed", Platforms: []string{"juejin", "csdn"},
+				Request: syncRequest{Operation: "draft", Platforms: []string{"juejin", "csdn"}},
+				Results: map[string]syncPlatformResult{
+					"juejin": {State: "completed"},
+					"csdn":   {State: "failed"},
+				},
+			},
+			want: "all selected draft platforms must complete successfully",
+		},
+		{
 			name: "already publish",
 			job: &syncJob{
 				ID: "published", State: "completed", Platforms: []string{"juejin"},
 				Request: syncRequest{Operation: "publish", Platforms: []string{"juejin"}},
 			},
 			want: "publish jobs cannot be published again",
-		},
-		{
-			name: "non native",
-			job: &syncJob{
-				ID: "medium", State: "completed", Platforms: []string{"medium"},
-				Request: syncRequest{Operation: "draft", Platforms: []string{"medium"}},
-			},
-			want: "only for native Chinese platforms",
 		},
 	}
 	for _, tc := range cases {

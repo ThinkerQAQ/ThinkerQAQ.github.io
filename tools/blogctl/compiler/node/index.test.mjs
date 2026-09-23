@@ -95,3 +95,35 @@ test("compileArticle preserves DEV.to payload semantics in the unified protocol"
     await rm(root, { recursive: true, force: true });
   }
 });
+
+
+test("DEV.to save and publish compilation share the same content hash", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "blogctl-devto-publish-hash-"));
+  try {
+    const articleDir = path.join(root, "src", "content", "articles", "en");
+    await mkdir(articleDir, { recursive: true });
+    await writeFile(path.join(articleDir, "example.md"), ARTICLE);
+    const publishingConfig = {
+      devto: {
+        language: "en",
+        changedOnly: false,
+        footer: { enabled: false, template: "" },
+        canonical: { mode: "native" },
+        tracking: { enabled: false, source: "devto", medium: "referral", campaign: "article_syndication" },
+      },
+    };
+    const saved = await compileArticle({
+      contentRoot: root, slug: "example", platform: "devto",
+      publishingConfig, dryRun: true, draft: true, env: {},
+    });
+    const publishing = await compileArticle({
+      contentRoot: root, slug: "example", platform: "devto",
+      publishingConfig, dryRun: true, draft: false, env: {},
+    });
+    assert.equal(saved.published, false);
+    assert.equal(publishing.published, false);
+    assert.equal(saved.contentHash, publishing.contentHash);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

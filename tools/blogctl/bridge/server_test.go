@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,8 +12,14 @@ import (
 	"testing"
 	"time"
 
+	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
+
+func setExtensionAuth(request *http.Request, token string) {
+	request.Header.Set("origin", "chrome-extension://test")
+	request.Header.Set("x-thinkerqaq-token", token)
+}
 
 func TestBridgeAcceptsOnlyApprovedMediumCookies(t *testing.T) {
 	server, err := New("token")
@@ -34,7 +41,7 @@ func TestBridgeAcceptsOnlyApprovedMediumCookies(t *testing.T) {
 	}
 	encoded, _ := json.Marshal(body)
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/medium", bytes.NewReader(encoded))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -77,7 +84,7 @@ func TestBridgeStoresJuejinCookieMetadataInMemory(t *testing.T) {
 	}
 	encoded, _ := json.Marshal(body)
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/juejin", bytes.NewReader(encoded))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -123,7 +130,7 @@ func TestCNBlogsCookieReachesGoJarAndStatusRedactsValue(t *testing.T) {
 		"requestCookieHeader": requestCookieHeader,
 	})
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/cnblogs", bytes.NewReader(body))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -187,7 +194,7 @@ func TestCNBlogsAcceptsCapturedRequestCookieWithoutCookieAPIEntries(t *testing.T
 		t.Fatal(err)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/cnblogs", strings.NewReader(`{"cookies":[],"requestCookieHeader":".CNBlogsCookie=test-login"}`))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
@@ -196,6 +203,49 @@ func TestCNBlogsAcceptsCapturedRequestCookieWithoutCookieAPIEntries(t *testing.T
 	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("cnblogs")
 	if err != nil || session.RequestCookieHeader == "" {
 		t.Fatal("captured request Cookie was not available to the Go publisher")
+	}
+}
+
+func TestBridgeAcceptsCapturedRequestCookieForSegmentFault(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/segmentfault",
+		strings.NewReader(`{"cookies":[],"requestCookieHeader":"PHPSESSID=test-login; sl-session=test-secondary","userAgent":"UA"}`))
+	setExtensionAuth(request, "token")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("segmentfault")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.RequestCookieHeader == "" || len(session.CookieHostSuffixes) != 1 || session.CookieHostSuffixes[0] != "segmentfault.com" {
+		t.Fatalf("publisher session = %#v", session)
+	}
+}
+
+func TestBridgeAcceptsMediumSidFromCapturedRequestHeader(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/medium",
+		strings.NewReader(`{"cookies":[],"requestCookieHeader":"sid=test-login; xsrf=test-xsrf","userAgent":"UA"}`))
+	setExtensionAuth(request, "token")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	server.mu.Lock()
+	session := server.sessions["medium"]
+	server.mu.Unlock()
+	if session.RequestCookieHeader == "" {
+		t.Fatal("Medium captured request Cookie header was not stored")
 	}
 }
 
@@ -233,7 +283,7 @@ func TestBridgeConfigResponseNeverExposesDevtoAPIKey(t *testing.T) {
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodGet, handler.URL+"/v1/config", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -282,6 +332,25 @@ func TestBridgeReadOnlyStatusRejectsWebsiteOrigin(t *testing.T) {
 	}
 }
 
+func TestBridgeExtensionWriteRequiresToken(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := false
+	server.SetRestart(func() { restarted = true })
+	request := httptest.NewRequest(http.MethodPost, "/v1/restart", nil)
+	request.Header.Set("origin", "chrome-extension://test")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.Code)
+	}
+	if restarted {
+		t.Fatal("extension write without bridge token reached the restart handler")
+	}
+}
+
 func TestBridgeRejectsNonExtensionOrigin(t *testing.T) {
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
@@ -327,7 +396,7 @@ func TestBridgeProxyConfigUpdatesTransportAndPersists(t *testing.T) {
 
 	body := bytes.NewBufferString(`{"proxyEnabled":true,"proxyHost":"127.0.0.1","proxyPort":7890}`)
 	request, _ := http.NewRequest(http.MethodPut, handler.URL+"/v1/config", body)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -390,13 +459,114 @@ func TestBridgeProxyConfigWriteRequiresExtensionOrigin(t *testing.T) {
 	}
 }
 
+func TestSyncStartAllowsBridgeTokenWithoutExtensionOrigin(t *testing.T) {
+	server, _ := New("token")
+	server.syncRunner = func(_ context.Context, _ bridgeConfig, request syncRequest, emit func(blogapp.SyncEvent)) (string, error) {
+		for _, platform := range request.Platforms {
+			emit(blogapp.SyncEvent{Platform: platform, State: "completed", Result: "draft-created"})
+		}
+		return "ok", nil
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sync/jobs",
+		bytes.NewBufferString(`{"article":"example","platforms":["devto"],"draft":true,"operation":"draft"}`))
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("x-thinkerqaq-token", "token")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", response.StatusCode)
+	}
+	var payload struct {
+		Job struct {
+			ID string `json:"id"`
+		} `json:"job"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Job.ID == "" {
+		t.Fatal("sync job id is empty")
+	}
+}
+
+func TestSyncStartRejectsInvalidBridgeTokenWithoutExtensionOrigin(t *testing.T) {
+	server, _ := New("token")
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sync/jobs",
+		bytes.NewBufferString(`{"article":"example","platforms":["devto"],"draft":true,"operation":"draft"}`))
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("x-thinkerqaq-token", "wrong")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.StatusCode)
+	}
+}
+
+func TestSyncStartReloadsPersistedWorkspaceRoots(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	configSeen := make(chan bridgeConfig, 1)
+	server.syncRunner = func(_ context.Context, config bridgeConfig, request syncRequest, emit func(blogapp.SyncEvent)) (string, error) {
+		configSeen <- config
+		for _, platform := range request.Platforms {
+			emit(blogapp.SyncEvent{Platform: platform, State: "completed", Result: "draft-created"})
+		}
+		return "ok", nil
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	contentRoot := t.TempDir()
+	engineRoot := t.TempDir()
+	if err := UpdateWorkspaceRoots(contentRoot, engineRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sync/jobs",
+		bytes.NewBufferString(`{"article":"example","platforms":["devto"],"draft":true,"operation":"draft"}`))
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("x-thinkerqaq-token", "token")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", response.StatusCode)
+	}
+
+	select {
+	case config := <-configSeen:
+		if config.ContentRoot != contentRoot || config.EngineRoot != engineRoot {
+			t.Fatalf("sync config roots = %q / %q", config.ContentRoot, config.EngineRoot)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("sync runner did not receive refreshed config")
+	}
+}
+
 func TestSyncJobNotFoundReturnsStructuredError(t *testing.T) {
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodGet, handler.URL+"/v1/sync/jobs/missing", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -461,7 +631,7 @@ func TestBridgeRestartEndpointRestartsWhenIdle(t *testing.T) {
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/restart", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -490,7 +660,7 @@ func TestBridgeRestartEndpointRejectsRunningSyncJob(t *testing.T) {
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/restart", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -503,5 +673,103 @@ func TestBridgeRestartEndpointRejectsRunningSyncJob(t *testing.T) {
 	case <-restarted:
 		t.Fatal("restart callback should not run while a sync job is active")
 	case <-time.After(250 * time.Millisecond):
+	}
+}
+
+func TestBridgeFiltersVerifiedPlatformCookiesBeforeStorage(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	body, _ := json.Marshal(map[string]any{
+		"cookies": []map[string]any{
+			{"name": "UserName", "value": "thinker", "domain": ".csdn.net", "path": "/", "secure": true},
+			{"name": "UserToken", "value": "token", "domain": ".csdn.net", "path": "/", "secure": true},
+			{"name": "tracking_cookie", "value": "drop-me", "domain": ".csdn.net", "path": "/", "secure": true},
+		},
+		"userAgent": "UA",
+	})
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/csdn", bytes.NewReader(body))
+	setExtensionAuth(request, "token")
+	request.Header.Set("content-type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", response.StatusCode)
+	}
+
+	server.mu.Lock()
+	session := server.sessions["csdn"]
+	server.mu.Unlock()
+	if len(session.BrowserCookies) != 2 {
+		t.Fatalf("browser cookies = %#v", session.BrowserCookies)
+	}
+	if _, ok := session.Cookies["tracking_cookie"]; ok {
+		t.Fatalf("unapproved cookie retained: %#v", session.Cookies)
+	}
+	for _, cookie := range session.BrowserCookies {
+		if cookie.Name == "tracking_cookie" {
+			t.Fatalf("unapproved browser cookie retained: %#v", session.BrowserCookies)
+		}
+	}
+}
+
+func TestBridgeMediumFilterAlsoAppliesToPublisherCookieMetadata(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/medium", strings.NewReader(`{
+		"cookies":[
+			{"name":"sid","value":"secret","domain":".medium.com","path":"/","secure":true},
+			{"name":"tracking_cookie","value":"drop","domain":".medium.com","path":"/","secure":true}
+		]
+	}`))
+	setExtensionAuth(request, "token")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(session.Cookies) != 1 || session.Cookies[0].Name != "sid" {
+		t.Fatalf("publisher cookies = %#v", session.Cookies)
+	}
+}
+
+func TestBridgeAcceptsOptionalDEVToBrowserSession(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.config.DevtoAPIKey = "api-key"
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/devto", strings.NewReader(`{
+		"cookies":[
+			{"name":"_Devto_Forem_Session","value":"session","domain":"dev.to","path":"/","secure":true},
+			{"name":"tracking_cookie","value":"drop","domain":"dev.to","path":"/","secure":true}
+		],
+		"userAgent":"UA"
+	}`))
+	setExtensionAuth(request, "token")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("devto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(session.Cookies) != 1 || session.Cookies[0].Name != "_Devto_Forem_Session" {
+		t.Fatalf("DEV.to publisher cookies = %#v", session.Cookies)
 	}
 }

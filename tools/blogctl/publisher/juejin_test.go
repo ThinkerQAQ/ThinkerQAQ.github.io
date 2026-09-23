@@ -101,12 +101,37 @@ func TestJuejinCreateDraftUsesBrowserSessionAndCSRF(t *testing.T) {
 	}
 }
 
-func TestJuejinUpdateDraftReusesRemoteID(t *testing.T) {
+func TestJuejinUpdateDraftPreservesCapturedRemoteFields(t *testing.T) {
 	var updateBody map[string]any
+	detailCalls := 0
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/user_api/v1/sys/token":
 			return jsonResponse(request, 200, "", map[string]string{"x-ware-csrf-token": "0,csrf,1,success,x"}), nil
+		case "/content_api/v1/article_draft/detail":
+			detailCalls++
+			return jsonResponse(request, 200, `{
+				"err_no":0,
+				"data":{
+					"draft_id":"existing",
+					"article_draft":{
+						"id":"existing",
+						"article_id":"published-1",
+						"category_id":"6809637769959178254",
+						"tag_ids":[6809640408797167623,6809640445233070094],
+						"link_url":"",
+						"cover_image":"cover",
+						"is_gfw":0,
+						"is_english":0,
+						"is_original":1,
+						"edit_type":10,
+						"theme_ids":[7275231252674773028],
+						"pics":[{"pic_url":"https://example.com/p.png","pic_uri":"uri/p.png"}]
+					},
+					"columns":[{"column":{"column_id":"7684228650583015430"}}],
+					"theme_list":[{"theme":{"theme_id":"7275231252674773028"}}]
+				}
+			}`, nil), nil
 		case "/content_api/v1/article_draft/update":
 			if err := json.NewDecoder(request.Body).Decode(&updateBody); err != nil {
 				t.Fatal(err)
@@ -127,11 +152,90 @@ func TestJuejinUpdateDraftReusesRemoteID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Updated || result.ID != "existing" {
+	if !result.Updated || result.ID != "existing" || detailCalls != 1 {
+		t.Fatalf("result = %#v, detailCalls = %d", result, detailCalls)
+	}
+	if updateBody["id"] != "existing" ||
+		updateBody["category_id"] != "6809637769959178254" ||
+		updateBody["cover_image"] != "cover" ||
+		updateBody["is_original"] != float64(1) {
+		t.Fatalf("update body = %#v", updateBody)
+	}
+	tags := updateBody["tag_ids"].([]any)
+	if len(tags) != 2 || tags[0] != "6809640408797167623" || tags[1] != "6809640445233070094" {
+		t.Fatalf("tag_ids = %#v", tags)
+	}
+	themes := updateBody["theme_ids"].([]any)
+	if len(themes) != 1 || themes[0] != "7275231252674773028" {
+		t.Fatalf("theme_ids = %#v", themes)
+	}
+	pics := updateBody["pics"].([]any)
+	if len(pics) != 1 {
+		t.Fatalf("pics = %#v", pics)
+	}
+}
+
+func TestJuejinPublishUsesCapturedColumnsThemesAndRepublishesExistingArticle(t *testing.T) {
+	var publishBody map[string]any
+	publishCalls := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/user_api/v1/sys/token":
+			return jsonResponse(request, 200, "", map[string]string{"x-ware-csrf-token": "0,csrf,1,success,x"}), nil
+		case "/content_api/v1/article_draft/detail":
+			return jsonResponse(request, 200, `{
+				"err_no":0,
+				"data":{
+					"draft_id":"7686808742222774291",
+					"article_draft":{
+						"id":"7686808742222774291",
+						"article_id":"7686846675643547711",
+						"category_id":"6809637769959178254",
+						"tag_ids":[6809640408797167623,6809640445233070094],
+						"is_original":1,
+						"edit_type":10,
+						"theme_ids":[7275231252674773028]
+					},
+					"columns":[{"column":{"column_id":"7684228650583015430"}}],
+					"theme_list":[{"theme":{"theme_id":"7275231252674773028"}}]
+				}
+			}`, nil), nil
+		case "/content_api/v1/article/publish":
+			publishCalls++
+			if err := json.NewDecoder(request.Body).Decode(&publishBody); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, 200, `{"err_no":0,"err_msg":"success","data":{"article_id":"7686846675643547711"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s", request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewJuejinAdapter(client, juejinSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adapter.PublishDraft(context.Background(), DraftRef{ID: "7686808742222774291"}, DraftInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if publishCalls != 1 {
+		t.Fatalf("publishCalls = %d, want 1 even when article_id already exists", publishCalls)
+	}
+	if result.URL != "https://juejin.cn/post/7686846675643547711" {
 		t.Fatalf("result = %#v", result)
 	}
-	if updateBody["id"] != "existing" {
-		t.Fatalf("update body = %#v", updateBody)
+	if publishBody["draft_id"] != "7686808742222774291" || publishBody["sync_to_org"] != false {
+		t.Fatalf("publish body = %#v", publishBody)
+	}
+	columns := publishBody["column_ids"].([]any)
+	if len(columns) != 1 || columns[0] != "7684228650583015430" {
+		t.Fatalf("column_ids = %#v", columns)
+	}
+	themes := publishBody["theme_ids"].([]any)
+	if len(themes) != 1 || themes[0] != "7275231252674773028" {
+		t.Fatalf("theme_ids = %#v", themes)
 	}
 }
 
@@ -209,9 +313,8 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 		"articles": map[string]any{
 			"example": map[string]any{"platforms": map[string]any{
 				"juejin": map[string]any{
-					"contentHash": "new", "draftHash": "old",
-					"remoteDraftId": "missing", "draftUrl": "https://juejin.cn/editor/drafts/missing",
-					"language": "zh-CN",
+					"contentHash": "new",
+					"language":    "zh-CN",
 				},
 			}},
 		},
@@ -220,7 +323,13 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), payload, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := SavePublicationDraftResult(root, "example", "juejin", "old", DraftResult{
+		ID: "missing", URL: "https://juejin.cn/editor/drafts/missing", Created: true,
+	}, time.Date(2026, 9, 18, 4, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
 
+	detailCalls := 0
 	updateCalls := 0
 	createCalls := 0
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -231,9 +340,13 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 			return jsonResponse(request, 200, "", map[string]string{
 				"x-ware-csrf-token": "0,csrf,1,success,x",
 			}), nil
+		case "/content_api/v1/article_draft/detail":
+			detailCalls++
+			return jsonResponse(request, http.StatusNotFound, `{"err_no":404,"err_msg":"draft not found"}`, nil), nil
 		case "/content_api/v1/article_draft/update":
 			updateCalls++
-			return jsonResponse(request, http.StatusNotFound, `{"err_no":404,"err_msg":"draft not found"}`, nil), nil
+			t.Fatal("update should not run after detail already proved the draft is missing")
+			return nil, nil
 		case "/content_api/v1/article_draft/create":
 			createCalls++
 			return jsonResponse(request, 200, `{"err_no":0,"data":{"id":"replacement"}}`, nil), nil
@@ -251,11 +364,19 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updateCalls != 1 || createCalls != 1 {
-		t.Fatalf("update/create calls = %d/%d", updateCalls, createCalls)
+	if detailCalls != 1 || updateCalls != 0 || createCalls != 1 {
+		t.Fatalf("detail/update/create calls = %d/%d/%d", detailCalls, updateCalls, createCalls)
 	}
 	if result.ID != "replacement" || !result.Created {
 		t.Fatalf("result = %#v", result)
+	}
+
+	state, _, err := LoadPublicationState(root, "example", "juejin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.RemoteDraftID != "replacement" || state.DraftHash != "new" {
+		t.Fatalf("durable state = %#v", state)
 	}
 
 	rawManifest, err := os.ReadFile(filepath.Join(root, ".distribution", "manifest.json"))
@@ -266,10 +387,9 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	if err := json.Unmarshal(rawManifest, &saved); err != nil {
 		t.Fatal(err)
 	}
-	state := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
-	savedState := objectValue(state)
-	if stringValue(savedState["remoteDraftId"]) != "replacement" || stringValue(savedState["draftHash"]) != "new" {
-		t.Fatalf("saved state = %#v", savedState)
+	generatedState := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
+	if stringValue(objectValue(generatedState)["remoteDraftId"]) != "" || stringValue(objectValue(generatedState)["draftUrl"]) != "" {
+		t.Fatalf("generated manifest unexpectedly gained durable remote state: %#v", objectValue(generatedState))
 	}
 }
 
@@ -287,15 +407,19 @@ func TestServiceSkipsUnchangedDraftWithoutNetwork(t *testing.T) {
 		"articles": map[string]any{
 			"example": map[string]any{"platforms": map[string]any{
 				"juejin": map[string]any{
-					"contentHash": "same", "draftHash": "same",
-					"remoteDraftId": "draft-1", "draftUrl": "https://juejin.cn/editor/drafts/draft-1",
-					"language": "zh-CN",
+					"contentHash": "same",
+					"language":    "zh-CN",
 				},
 			}},
 		},
 	}
 	payload, _ := json.Marshal(manifest)
 	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationDraftResult(root, "example", "juejin", "same", DraftResult{
+		ID: "draft-1", URL: "https://juejin.cn/editor/drafts/draft-1", Created: true,
+	}, time.Date(2026, 9, 18, 4, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {

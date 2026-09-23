@@ -3,7 +3,11 @@ package publisher
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -18,12 +22,17 @@ func TestCNBlogsPayloadMatchesBrowserDraftContract(t *testing.T) {
 	payload := cnBlogsPayload("", input, "test", false)
 
 	for field, want := range map[string]any{
-		"postType":      1,
-		"usingEditorId": 5,
-		"isMarkdown":    true,
-		"isDraft":       true,
-		"isPublished":   false,
-		"isAigc":        false,
+		"postType":                 1,
+		"usingEditorId":            5,
+		"isMarkdown":               true,
+		"isDraft":                  true,
+		"isPublished":              false,
+		"isAigc":                   false,
+		"inSiteHome":               true,
+		"displayOnHomePage":        true,
+		"includeInMainSyndication": true,
+		"blogId":                   0,
+		"canChangeCreatedTime":     false,
 	} {
 		if payload[field] != want {
 			t.Fatalf("%s = %v, want %v", field, payload[field], want)
@@ -31,6 +40,19 @@ func TestCNBlogsPayloadMatchesBrowserDraftContract(t *testing.T) {
 	}
 	if payload["id"] != nil {
 		t.Fatalf("new draft id = %v, want nil", payload["id"])
+	}
+	for _, field := range []string{"url", "categoryIds", "categories", "blogTeamIds", "description", "tags", "dateUpdated", "author", "autoDesc"} {
+		if payload[field] != nil {
+			t.Fatalf("%s = %#v, want nil for a browser-created draft", field, payload[field])
+		}
+	}
+	if got := payload["collectionIds"].([]any); len(got) != 0 {
+		t.Fatalf("collectionIds = %#v, want empty array", got)
+	}
+	if value, ok := payload["datePublished"].(string); !ok {
+		t.Fatalf("datePublished = %#v, want string", payload["datePublished"])
+	} else if _, err := time.Parse(time.RFC3339Nano, value); err != nil {
+		t.Fatalf("datePublished = %q: %v", value, err)
 	}
 }
 
@@ -176,8 +198,107 @@ func TestCNBlogsUpdatePayloadPreservesServerFields(t *testing.T) {
 	}
 }
 
+func TestCNBlogsPublishedUpdateMatchesCapturedRepublishContract(t *testing.T) {
+	base := map[string]any{
+		"id":                       float64(23039631),
+		"postType":                 float64(1),
+		"accessPermission":         float64(0),
+		"title":                    "并发编程（三）",
+		"url":                      "https://www.cnblogs.com/ThinkerQAQ/p/23039631",
+		"postBody":                 "old body",
+		"categoryIds":              []any{},
+		"categories":               nil,
+		"collectionIds":            []any{float64(44484)},
+		"inSiteCandidate":          false,
+		"inSiteHome":               true,
+		"siteCategoryId":           float64(106876),
+		"blogTeamIds":              []any{},
+		"isPublished":              true,
+		"displayOnHomePage":        true,
+		"isAllowComments":          true,
+		"includeInMainSyndication": false,
+		"isPinned":                 false,
+		"showBodyWhenPinned":       false,
+		"isOnlyForRegisterUser":    false,
+		"isUpdateDateAdded":        false,
+		"description":              "",
+		"featuredImage":            nil,
+		"tags":                     []any{},
+		"publishAt":                nil,
+		"datePublished":            "2026-09-19T12:08:00.000Z",
+		"dateUpdated":              "2026-09-19T20:10:00",
+		"isMarkdown":               true,
+		"isDraft":                  false,
+		"isAigc":                   false,
+		"autoDesc":                 "existing auto description",
+		"blogId":                   float64(824919),
+		"author":                   "ThinkerQAQ",
+		"usingEditorId":            nil,
+		"sourceUrl":                nil,
+	}
+	input := DraftInput{
+		Title:       "并发编程（三）：互斥锁——语言层的原子性、可见性与有序性 · ThinkerQAQ",
+		Description: "",
+	}
+	payload := cnBlogsUpdatePayload("23039631", input, "updated body", true, base)
+
+	// The 2026-09-21 capture successfully updated an already-published post
+	// by POSTing the same id with isPublished=true and isDraft=false.
+	for field, want := range map[string]any{
+		"id":                       float64(23039631),
+		"url":                      "https://www.cnblogs.com/ThinkerQAQ/p/23039631",
+		"isPublished":              true,
+		"isDraft":                  false,
+		"inSiteHome":               true,
+		"includeInMainSyndication": false,
+		"datePublished":            "2026-09-19T12:08:00.000Z",
+		"dateUpdated":              "2026-09-19T20:10:00",
+		"blogId":                   float64(824919),
+		"author":                   "ThinkerQAQ",
+		"usingEditorId":            5,
+	} {
+		if payload[field] != want {
+			t.Fatalf("%s = %v, want %v", field, payload[field], want)
+		}
+	}
+	if payload["title"] != input.Title || payload["postBody"] != "updated body" {
+		t.Fatalf("updated title/body = %v / %v", payload["title"], payload["postBody"])
+	}
+	if got := payload["collectionIds"].([]any); len(got) != 1 || got[0] != float64(44484) {
+		t.Fatalf("collectionIds = %#v, want preserved capture value", got)
+	}
+}
+
 // TestCNBlogsUpdateDraftFetchesThenPostsServerFields verifies the update path
 // GETs the existing post and echoes server fields into the save request.
+func TestCNBlogsSaveUsesCapturedEditorSessionHeader(t *testing.T) {
+	var sessionID string
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/posts/edit":
+			return jsonResponse(request, 200, "", nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/posts":
+			sessionID = request.Header.Get("sessionId")
+			return jsonResponse(request, 200, `{"id":23070000}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.CreateDraft(context.Background(), DraftInput{Title: "new draft", Markdown: "body"}); err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(sessionID, "-")
+	if len(parts) != 5 || len(parts[0]) != 8 || len(parts[1]) != 4 || len(parts[2]) != 4 || len(parts[3]) != 4 || len(parts[4]) != 12 {
+		t.Fatalf("sessionId = %q, want UUID-shaped editor session id", sessionID)
+	}
+}
+
 func TestCNBlogsUpdateDraftFetchesThenPostsServerFields(t *testing.T) {
 	var posted map[string]any
 	fetchCalled := false
@@ -223,5 +344,228 @@ func TestCNBlogsUpdateDraftFetchesThenPostsServerFields(t *testing.T) {
 	}
 	if posted["title"] != "updated" || posted["postBody"] != "updated body" {
 		t.Fatalf("post title/body = %v/%v, want updated", posted["title"], posted["postBody"])
+	}
+}
+
+func imageResponse(request *http.Request, status int, contentType string, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{contentType}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    request,
+	}
+}
+
+func multipartFileField(t *testing.T, request *http.Request) (string, string, []byte) {
+	t.Helper()
+	reader, err := request.MultipartReader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := io.ReadAll(part)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if part.FileName() != "" {
+			return part.FormName(), part.FileName(), payload
+		}
+	}
+	t.Fatal("multipart request did not contain a file")
+	return "", "", nil
+}
+
+func TestCNBlogsImageUploadUsesV2BrowserContract(t *testing.T) {
+	const source = "https://assets.example.com/diagram.png"
+	const uploaded = "https://img2024.cnblogs.com/blog/3466743/202609/diagram.png"
+	const xsrf = "capture-token"
+	v2Called := false
+
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Hostname() {
+		case "assets.example.com":
+			return imageResponse(request, http.StatusOK, "image/png", "png-bytes"), nil
+		case "upload.cnblogs.com":
+			if request.URL.Path != "/v2/images/cors-upload" {
+				t.Fatalf("unexpected upload path: %s", request.URL.Path)
+			}
+			v2Called = true
+			if request.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST", request.Method)
+			}
+			if request.Header.Get("accept") != "application/json, text/plain, */*" {
+				t.Fatalf("accept = %q", request.Header.Get("accept"))
+			}
+			if request.Header.Get("origin") != cnBlogsOrigin || request.Header.Get("referer") != cnBlogsOrigin+"/" {
+				t.Fatalf("origin/referer = %q/%q", request.Header.Get("origin"), request.Header.Get("referer"))
+			}
+			if request.Header.Get("x-xsrf-token") != xsrf {
+				t.Fatalf("x-xsrf-token = %q, want capture token", request.Header.Get("x-xsrf-token"))
+			}
+			field, filename, payload := multipartFileField(t, request)
+			if field != "image" || filename != "image.png" || string(payload) != "png-bytes" {
+				t.Fatalf("multipart file = %q %q %q", field, filename, string(payload))
+			}
+			return jsonResponse(request, http.StatusOK, `{"success":true,"message":"`+uploaded+`"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	session := cnBlogsSession()
+	session.Cookies = session.Cookies[1:]
+	session.RequestCookieHeader = "XSRF-TOKEN=" + xsrf + "; .CNBlogsCookie=login"
+	adapter, err := NewCNBlogsAdapter(client, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), RehostImage{Source: source, Payload: []byte("png-bytes"), ContentType: "image/png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v2Called || target != uploaded {
+		t.Fatalf("target = %q, called = %v", target, v2Called)
+	}
+}
+
+func TestCNBlogsImageUploadFallsBackToLegacyEndpoint(t *testing.T) {
+	const source = "https://assets.example.com/diagram.png"
+	const uploaded = "https://img2024.cnblogs.com/blog/3466743/202609/legacy.png"
+	legacyCalled := false
+
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Hostname() {
+		case "assets.example.com":
+			return imageResponse(request, http.StatusOK, "image/png", "png-bytes"), nil
+		case "upload.cnblogs.com":
+			switch request.URL.Path {
+			case "/v2/images/cors-upload":
+				return jsonResponse(request, http.StatusNotFound, `{"message":"not found"}`, nil), nil
+			case "/imageuploader/CorsUpload":
+				legacyCalled = true
+				field, _, _ := multipartFileField(t, request)
+				if field != "imageFile" {
+					t.Fatalf("legacy file field = %q, want imageFile", field)
+				}
+				return jsonResponse(request, http.StatusOK, `{"success":true,"message":"`+uploaded+`"}`, nil), nil
+			default:
+				t.Fatalf("unexpected upload path: %s", request.URL.Path)
+			}
+		}
+		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), RehostImage{Source: source, Payload: []byte("png-bytes"), ContentType: "image/png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !legacyCalled || target != uploaded {
+		t.Fatalf("target = %q, legacy called = %v", target, legacyCalled)
+	}
+}
+
+func TestCNBlogsKeepsRemoteR2ImageWhenCNBlogsUploadIsUnavailable(t *testing.T) {
+	const source = "https://pub-example.r2.dev/publishing/mermaid/diagram.png"
+	markdown := "before\n\n![diagram](" + source + ")\n\nafter"
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Hostname() {
+		case "pub-example.r2.dev":
+			return imageResponse(request, http.StatusOK, "image/png", "png-bytes"), nil
+		case "upload.cnblogs.com":
+			return jsonResponse(request, http.StatusServiceUnavailable, `{"message":"temporary unavailable"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := adapter.(*cnBlogsAdapter).prepareMarkdown(context.Background(), DraftInput{Markdown: markdown})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != markdown {
+		t.Fatalf("markdown changed despite upload outage:\n%s", got)
+	}
+}
+
+func TestCNBlogsPublishRehostsCompilerAssets(t *testing.T) {
+	root := t.TempDir()
+	assetDir := filepath.Join(root, ".distribution", "assets", "mermaid")
+	if err := os.MkdirAll(assetDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(assetDir, "asset-1.png"), []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	publishedBody := ""
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/v2/images/cors-upload":
+			return jsonResponse(request, 200, `{"url":"https://img2026.cnblogs.com/blog/diagram.png"}`, nil), nil
+		case "/api/posts/42":
+			return jsonResponse(request, 200, `{"blogPost":{
+				"id":42,
+				"title":"Example",
+				"postBody":"old",
+				"url":"https://www.cnblogs.com/ThinkerQAQ/p/42",
+				"isPublished":false,
+				"isDraft":true,
+				"author":"ThinkerQAQ",
+				"blogId":824919,
+				"datePublished":"2026-09-23T00:00:00.000Z",
+				"dateUpdated":"2026-09-23T00:00:00.000Z"
+			}}`, nil), nil
+		case "/api/posts":
+			var payload map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			publishedBody = valueString(payload["postBody"])
+			return jsonResponse(request, 200, `{"id":42,"url":"https://www.cnblogs.com/ThinkerQAQ/p/42.html"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = adapter.PublishDraft(context.Background(), DraftRef{ID: "42"}, DraftInput{
+		Title:       "Example",
+		Markdown:    "![diagram](blogctl-asset://mermaid/asset-1)",
+		ContentRoot: root,
+		Assets: []PublishingAsset{{
+			Kind: "mermaid", ID: "asset-1",
+			Source: "blogctl-asset://mermaid/asset-1",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(publishedBody, "blogctl-asset://") {
+		t.Fatalf("internal asset leaked into publish payload: %q", publishedBody)
+	}
+	if !strings.Contains(publishedBody, "https://img2026.cnblogs.com/blog/diagram.png") {
+		t.Fatalf("publish payload did not use hosted image: %q", publishedBody)
 	}
 }
