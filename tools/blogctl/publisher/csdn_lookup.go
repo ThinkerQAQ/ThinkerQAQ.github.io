@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -36,10 +37,22 @@ func CSDNTitleMatches(local, remote string) bool {
 	return false
 }
 
-func csdnArticleIDFromURL(rawURL string) string {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+func CSDNArticleID(reference string) string {
+	reference = strings.TrimSpace(reference)
+	if reference == "" {
+		return ""
+	}
+	if _, err := strconv.ParseInt(reference, 10, 64); err == nil {
+		return reference
+	}
+	parsed, err := url.Parse(reference)
 	if err != nil {
 		return ""
+	}
+	if id := strings.TrimSpace(parsed.Query().Get("articleId")); id != "" {
+		if _, err := strconv.ParseInt(id, 10, 64); err == nil {
+			return id
+		}
 	}
 	base := path.Base(strings.TrimRight(parsed.Path, "/"))
 	if _, err := strconv.ParseInt(base, 10, 64); err != nil {
@@ -108,7 +121,7 @@ func (c *csdnAdapter) listPublished(ctx context.Context) ([]CSDNPost, error) {
 			return nil, platformError(ErrUpstream, c.ID(), "list-published", decoded.Code, responseMessage(decoded.Message), false)
 		}
 		for _, item := range decoded.Data.List {
-			id := csdnArticleIDFromURL(item.URL)
+			id := CSDNArticleID(item.URL)
 			title := strings.TrimSpace(item.Title)
 			if id == "" || title == "" {
 				continue
