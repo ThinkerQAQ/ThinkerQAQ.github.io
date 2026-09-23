@@ -51,6 +51,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
+  document.addEventListener("blogctl:navigate-publication", (event) => {
+    const article = String(event.detail?.article || "").trim();
+    const platform = String(event.detail?.platform || "").trim();
+    if (!article || !platform) return;
+    BlogCTLPublications.focusRecord(article, platform);
+    activateTab("publications");
+  });
   BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
   const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
   activateTab(modules[savedTab] ? savedTab : "sync");
