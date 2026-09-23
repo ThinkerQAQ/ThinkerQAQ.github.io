@@ -221,6 +221,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleDevtoBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/csdn/lookup-context" && request.Method == http.MethodPost {
+		s.handleCSDNLookupContext(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/csdn/articles/list" && request.Method == http.MethodPost {
 		s.handleCSDNArticleList(response, request, request.URL.Query().Get("article"))
 		return
