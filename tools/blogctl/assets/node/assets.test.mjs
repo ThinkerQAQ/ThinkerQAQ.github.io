@@ -33,3 +33,23 @@ test("renders and uploads each unique asset", async () => {
   assert.equal(result.uploaded, 1);
   assert.deepEqual(calls.map((item) => item[0]), ["render", "upload"]);
 });
+
+
+test("render-only mode prepares local asset without pre-uploading R2", async () => {
+  const asset = mermaidAssetForSource("flowchart LR\nA --> B");
+  const calls = [];
+  const result = await preparePublishingAssetList([asset], {
+    env: {},
+    uploadFallback: false,
+    render: async (value) => {
+      calls.push(["render", value.id]);
+      return { asset: value, outputFile: "/tmp/example.png", rendered: true };
+    },
+    read: async () => assert.fail("render-only mode must not read payload for R2"),
+    upload: async () => assert.fail("render-only mode must not upload R2"),
+  });
+  assert.equal(result.assets, 1);
+  assert.equal(result.rendered, 1);
+  assert.equal(result.uploaded, 0);
+  assert.deepEqual(calls.map((item) => item[0]), ["render"]);
+});
