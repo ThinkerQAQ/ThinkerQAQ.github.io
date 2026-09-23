@@ -24,7 +24,7 @@
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">保存</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">发布配置</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">平台配置</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">工具与配置</button>
     </nav>
 
@@ -107,6 +107,9 @@
       <section class="status-card">
         <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
 
+        <div class="section-title">平台接入</div>
+        <div id="platformAccessConfig" class="platform-access-config"><div class="platform-loading">正在读取平台配置…</div></div>
+
         <div class="section-title">Mermaid 与图片资产</div>
         <div class="status-row"><span>R2 上传状态</span><strong id="assetStatus" class="status checking">检测中</strong></div>
         <p id="assetStatusDetail" class="card-hint">Mermaid 会先渲染为 PNG 上传到 R2，再由需要的平台适配器上传到平台图床。</p>
@@ -144,7 +147,6 @@
 
     <section class="panel" role="tabpanel" data-panel="environment">
       <section class="status-card"><div class="section-title">工具与工作区</div><div id="toolRegistry" class="tool-list"><div class="platform-loading">正在检测本机环境…</div></div></section>
-      <section class="status-card"><div class="section-title">平台登录状态</div><div id="platformStatuses" class="platform-statuses"><div class="platform-loading">正在检测平台登录状态…</div></div></section>
       <p id="environmentMessage" class="message" role="status"></p>
     </section>
   </main>
