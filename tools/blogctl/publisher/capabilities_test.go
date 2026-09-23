@@ -50,7 +50,6 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 	}
 }
 
-
 func TestMissingDraftRecreationPolicyFailsClosedForPublishedArticles(t *testing.T) {
 	published := PublicationState{PublishedRemoteID: "published-1", PublishedURL: "https://example.com/published-1"}
 	if mayRecreateMissingDraft("devto", published) {
