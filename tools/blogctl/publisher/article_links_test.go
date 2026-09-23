@@ -1,20 +1,22 @@
 package publisher
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
 func TestLoadArticleLinksReadsLocalReferencesOnly(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, ".distribution", "manifest.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	manifest := `{"version":2,"articles":{"example":{"platforms":{"juejin":{"remoteDraftId":"123","draftUrl":"https://juejin.cn/editor/drafts/123"},"csdn":{"draftUrl":"https://editor.csdn.net/md?articleId=456"},"zhihu":{}}}}}`
-	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
+	for _, binding := range []PublicationBinding{
+		{
+			Slug: "example", Platform: "juejin",
+			RemoteDraftID: "123", DraftURL: "https://juejin.cn/editor/drafts/123",
+		},
+		{
+			Slug: "example", Platform: "csdn",
+			RemoteDraftID: "456", DraftURL: "https://editor.csdn.net/md?articleId=456",
+		},
+	} {
+		if err := SavePublicationBinding(root, binding); err != nil {
+			t.Fatal(err)
+		}
 	}
 	links, err := LoadArticleLinks(root, "example")
 	if err != nil {
