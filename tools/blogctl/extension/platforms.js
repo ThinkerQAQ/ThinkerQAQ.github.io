@@ -151,6 +151,12 @@ export const PLATFORM_SESSIONS = Object.freeze({
     cookieUrls: ["https://mp.toutiao.com/"],
     requiredCookieNames: [],
   },
+  devto: {
+    cookieDomains: ["dev.to"],
+    cookieUrls: ["https://dev.to/", "https://dev.to/dashboard", "https://dev.to/new"],
+    requiredCookieNames: [],
+    optional: true,
+  },
   medium: {
     cookieDomains: ["medium.com"],
     cookieUrls: ["https://medium.com/"],
