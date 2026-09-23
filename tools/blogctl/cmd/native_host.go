@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 )
 
 const (
@@ -241,8 +242,10 @@ func runNativeHost() error {
 			_ = writeNativeMessage(os.Stdout, map[string]any{"ok": false, "error": err.Error()})
 			continue
 		}
+		executablePath, _ := os.Executable()
 		if err := writeNativeMessage(os.Stdout, map[string]any{
 			"ok": true, "baseUrl": state.BaseURL, "token": state.Token, "pid": state.PID,
+			"nativeHostVersion": version.Current, "executablePath": executablePath,
 		}); err != nil {
 			return err
 		}

@@ -213,20 +213,104 @@ function jsonOptions(method, body) {
 }
 
 async function bridgeStatus() {
+  const extensionVersion = chrome.runtime.getManifest().version;
   try {
     const bridge = await ensureBridge(false);
     const health = await fetchJSON("/v1/health");
     if (!health?.ok) throw new Error("Bridge health check failed.");
+    const nativeHostVersion = String(bridge.nativeHostVersion || "");
+    const bridgeVersion = String(health.version || "");
+    const compatible = nativeHostVersion === extensionVersion && bridgeVersion === extensionVersion;
+    const runtime = {
+      extensionVersion,
+      nativeHostVersion,
+      bridgeVersion,
+      nativeHostExecutable: String(bridge.executablePath || ""),
+      compatible,
+    };
     try {
       const result = await fetchJSON("/v1/config");
-      return { running: true, pid: bridge.pid || 0, configKnown: true, config: result?.config ?? {}, networkMode: result?.networkMode || "" };
+      return {
+        running: true, pid: bridge.pid || 0, configKnown: true, config: result?.config ?? {},
+        networkMode: result?.networkMode || "", ...runtime,
+      };
     } catch (error) {
-      return { running: true, pid: bridge.pid || 0, configKnown: false, config: {}, configError: errorMessage(error) };
+      return {
+        running: true, pid: bridge.pid || 0, configKnown: false, config: {},
+        configError: errorMessage(error), ...runtime,
+      };
     }
   } catch (error) {
     bridgeSession = null;
-    return { running: false, configKnown: false, config: {}, error: errorMessage(error) };
+    return {
+      running: false, configKnown: false, config: {}, error: errorMessage(error),
+      extensionVersion, nativeHostVersion: "", bridgeVersion: "", nativeHostExecutable: "", compatible: false,
+    };
   }
+}
+
+function runtimeVersionHealth(version, expectedVersion, healthySummary, detail = "", path = "") {
+  const normalized = String(version || "").trim();
+  if (!normalized) {
+    return {
+      ok: false, status: "error", summary: "版本未知", version: "",
+      detail: ["当前组件未提供版本握手；需要更新本机 BlogCTL runtime。", detail].filter(Boolean).join(" · "),
+      path,
+    };
+  }
+  if (normalized !== expectedVersion) {
+    return {
+      ok: false, status: "error", summary: "版本不一致", version: normalized,
+      detail: [`期望 v${expectedVersion}`, detail].filter(Boolean).join(" · "),
+      path,
+    };
+  }
+  return { ok: true, status: "ok", summary: healthySummary, version: normalized, detail, path };
+}
+
+async function environmentTools(serverTools = []) {
+  const bridge = await bridgeStatus();
+  const expectedVersion = bridge.extensionVersion || chrome.runtime.getManifest().version;
+  const extensionTool = {
+    name: "extension",
+    displayName: "BlogCTL Extension",
+    kind: "runtime",
+    description: "浏览器侧控制面、登录态检测与本地 Bridge 调度。",
+    required: true,
+    health: runtimeVersionHealth(expectedVersion, expectedVersion, "已加载", `Extension ID ${chrome.runtime.id}`),
+    config: { scope: "extension", values: {}, defaultExpanded: true },
+  };
+  const nativeHostTool = {
+    name: "native-host",
+    displayName: "BlogCTL Native Host",
+    kind: "runtime",
+    description: "浏览器 Native Messaging 入口；负责定位并启动本机 BlogCTL Bridge。",
+    required: true,
+    health: bridge.running
+      ? runtimeVersionHealth(
+          bridge.nativeHostVersion, expectedVersion, "已连接",
+          "Native Messaging Host", bridge.nativeHostExecutable,
+        )
+      : {
+          ok: false, status: "error", summary: "未连接", version: bridge.nativeHostVersion || "",
+          detail: bridge.error || "Native Host unavailable", path: bridge.nativeHostExecutable || "",
+        },
+    config: { scope: "native-host", values: {}, defaultExpanded: true },
+  };
+  const tools = serverTools.map((tool) => {
+    if (tool?.name !== "bridge") return tool;
+    const current = tool.health ?? {};
+    const versionHealth = bridge.running
+      ? runtimeVersionHealth(bridge.bridgeVersion || current.version, expectedVersion, "运行中", current.detail || "")
+      : {
+          ok: false, status: "error", summary: "未运行", version: bridge.bridgeVersion || current.version || "",
+          detail: bridge.error || current.detail || "Bridge unavailable",
+        };
+    return { ...tool, health: { ...current, ...versionHealth } };
+  });
+  const bridgeTool = tools.find((tool) => tool?.name === "bridge");
+  const remainingTools = tools.filter((tool) => tool?.name !== "bridge");
+  return [extensionTool, ...(bridgeTool ? [bridgeTool] : []), nativeHostTool, ...remainingTools];
 }
 
 async function platformSessionStatus(platform, bridge) {
@@ -763,13 +847,13 @@ async function handleMessage(message) {
     }
     case "blogctl.tools": {
       const result = await fetchJSON("/v1/tools");
-      return { ok: true, tools: result?.tools ?? [] };
+      return { ok: true, tools: await environmentTools(result?.tools ?? []) };
     }
     case "blogctl.tool.save": {
       const name = String(message.name || "").trim();
       if (!name) throw new Error("tool name is required");
       const result = await fetchJSON(`/v1/tools/${encodeURIComponent(name)}`, jsonOptions("PUT", { config: message.config ?? {} }));
-      return { ok: true, tools: result?.tools ?? [] };
+      return { ok: true, tools: await environmentTools(result?.tools ?? []) };
     }
     case "blogctl.tool.action": {
       const name = String(message.name || "").trim();

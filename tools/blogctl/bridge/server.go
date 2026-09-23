@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
@@ -305,7 +306,7 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		if !allowReadOnlyBridgeStatus(response, request) {
 			return
 		}
-		writeJSON(response, http.StatusOK, map[string]any{"ok": true})
+		writeJSON(response, http.StatusOK, map[string]any{"ok": true, "version": version.Current})
 		return
 	}
 

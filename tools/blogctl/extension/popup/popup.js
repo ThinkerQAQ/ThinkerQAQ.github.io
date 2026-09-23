@@ -44,7 +44,6 @@ async function refreshActiveTab() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("version").textContent = `v${chrome.runtime.getManifest().version}`;
   Object.values(modules).forEach((module) => module.init());
 
   document.querySelectorAll("[data-tab]").forEach((tab) => {

@@ -51,7 +51,14 @@
     try {
       const current = status || (await send("blogctl.status")).status;
       const bridge = current?.bridge ?? {};
-      if (bridge.running) {
+      if (bridge.running && bridge.compatible === false) {
+        const versions = [
+          bridge.extensionVersion ? `Extension v${bridge.extensionVersion}` : "",
+          bridge.nativeHostVersion ? `Native Host v${bridge.nativeHostVersion}` : "Native Host 版本未知",
+          bridge.bridgeVersion ? `Bridge v${bridge.bridgeVersion}` : "Bridge 版本未知",
+        ].filter(Boolean).join(" · ");
+        setStatus(indicator, "error", "运行时版本不一致", versions);
+      } else if (bridge.running) {
         setStatus(indicator, "ok", "Bridge 已连接", bridge.pid ? `PID ${bridge.pid}` : "");
       } else {
         setStatus(indicator, "error", "Bridge 未连接", bridge.error || "");
