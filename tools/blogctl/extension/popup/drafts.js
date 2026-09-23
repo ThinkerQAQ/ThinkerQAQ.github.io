@@ -39,8 +39,17 @@
 
   function platformAvailability(article, platform) {
     const sourceAvailability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
+    if (!sourceAvailability.available) return sourceAvailability;
     const toolAvailability = BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
-    return sourceAvailability.available ? toolAvailability : sourceAvailability;
+    if (!toolAvailability.available) return toolAvailability;
+
+    const record = publicationRecord(platform.id);
+    const hasDraft = Boolean(record?.remoteId || record?.draftUrl);
+    const hasPublished = Boolean(record?.publishedRemoteId || record?.publishedUrl);
+    if (!hasDraft && hasPublished && platform.capabilities?.publishedUpdate !== true) {
+      return { available: false, reason: "已有已发布文章；当前未支持安全更新" };
+    }
+    return { available: true, reason: "" };
   }
 
   function stopPolling() {
@@ -98,7 +107,7 @@
   function platformLifecycleText(platformId) {
     const record = publicationRecord(platformId);
     if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 保存时更新";
-    if (record?.publishedUrl) return "已有已发布记录 · 保存新的草稿版本";
+    if (record?.publishedUrl) return "已有已发布记录";
     return "没有草稿关系 · 保存时创建";
   }
 

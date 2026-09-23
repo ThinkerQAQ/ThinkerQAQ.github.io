@@ -269,11 +269,37 @@ func TestDurablePublicationWritesPreserveOtherPlatforms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.RemoteDraftID != "draft-1" || state.PublishedURL != "https://juejin.cn/post/post-1" || state.PublishedHash != "hash-1" {
+	if state.RemoteDraftID != "" || state.DraftURL != "" || state.DraftHash != "" ||
+		state.PublishedURL != "https://juejin.cn/post/post-1" || state.PublishedHash != "hash-1" {
 		t.Fatalf("publication state = %#v", state)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".distribution", "manifest.json")); !os.IsNotExist(err) {
 		t.Fatalf("durable publisher unexpectedly created distribution manifest: %v", err)
+	}
+}
+
+func TestSuccessfulPublishEndsDraftLifecycle(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 9, 23, 9, 0, 0, 0, time.UTC)
+	if err := SavePublicationDraftResult(root, "example", "devto", "hash-1", DraftResult{
+		ID: "42", URL: "https://dev.to/dashboard/edit/42", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationPublishResult(root, "example", "devto", "hash-1", PublishResult{
+		ID: "42", URL: "https://dev.to/thinker/example-42",
+	}, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	binding, found, err := LoadPublicationBinding(root, "example", "devto")
+	if err != nil || !found {
+		t.Fatalf("binding = %#v, found=%v, err=%v", binding, found, err)
+	}
+	if binding.RemoteDraftID != "" || binding.DraftURL != "" || binding.DraftHash != "" || binding.DraftSyncedAt != "" {
+		t.Fatalf("published binding retained stale draft state: %#v", binding)
+	}
+	if binding.PublishedRemoteID != "42" || binding.PublishedURL != "https://dev.to/thinker/example-42" {
+		t.Fatalf("published state = %#v", binding)
 	}
 }
 

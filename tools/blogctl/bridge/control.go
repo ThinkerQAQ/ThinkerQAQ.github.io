@@ -648,9 +648,8 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	}
 	targetID := strings.TrimSpace(state.RemoteDraftID)
 	targetURL := strings.TrimSpace(state.DraftURL)
-	if targetID == "" && strings.TrimSpace(state.PublishedRemoteID) != "" {
-		targetID = strings.TrimSpace(state.PublishedRemoteID)
-		targetURL = mediumOrigin + "/p/" + targetID + "/edit"
+	if targetID == "" && (strings.TrimSpace(state.PublishedRemoteID) != "" || strings.TrimSpace(state.PublishedURL) != "") {
+		return blogapp.NativeDraftResult{}, errors.New("Medium story is already published; safe published-article updates are not supported yet")
 	}
 	if targetID != "" && state.DraftHash == request.Compiled.ContentHash {
 		return blogapp.NativeDraftResult{

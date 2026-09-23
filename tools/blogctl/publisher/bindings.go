@@ -283,6 +283,13 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 	binding.PublishedURL = result.URL
 	binding.PublishedHash = contentHash
 	binding.PublishedAt = now.UTC().Format(time.RFC3339)
+	// A successful publish ends the prepared-draft lifecycle. Keeping the old
+	// draft slot makes the UI offer a second publish and can cause a later
+	// "Save" to mutate the public object or create a duplicate publication.
+	binding.RemoteDraftID = ""
+	binding.DraftURL = ""
+	binding.DraftHash = ""
+	binding.DraftSyncedAt = ""
 	upsertPublicationBinding(&bindings, binding)
 	return writeBindings(contentRoot, bindings)
 }

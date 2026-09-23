@@ -71,6 +71,14 @@ func (s Service) CreateOrUpdateDraftInput(
 	input.RemoteDraftID = state.RemoteDraftID
 	input.DraftURL = state.DraftURL
 	input.DraftHash = state.DraftHash
+	if input.RemoteDraftID == "" && (state.PublishedRemoteID != "" || state.PublishedURL != "") &&
+		!PlatformCapabilitiesFor(platform).PublishedUpdate {
+		return DraftResult{}, platformError(
+			ErrValidation, platform, "save-draft", 0,
+			"the article is already published; safe published-article updates are not supported for this platform yet",
+			false,
+		)
+	}
 	if platform != "devto" && changedOnly && input.ContentHash == input.DraftHash && input.RemoteDraftID != "" {
 		return DraftResult{
 			ID: input.RemoteDraftID, URL: input.DraftURL, Skipped: true,
