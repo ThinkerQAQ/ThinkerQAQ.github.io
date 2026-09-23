@@ -39,7 +39,7 @@
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
 
-      <div class="sync-actions"><button id="startSync" class="primary" type="button" disabled>创建／更新草稿</button><button id="updatePublished" class="secondary" type="button" disabled>更新博客园已发布文章</button></div>
+      <div class="sync-actions"><button id="startSync" class="primary" type="button" disabled>创建／更新</button></div>
       <p id="syncMessage" class="message" role="status"></p>
 
     </section>
@@ -47,7 +47,7 @@
     <section class="panel" role="tabpanel" data-panel="publications">
       <section class="status-card">
         <div class="section-title">草稿与发布</div>
-        <p class="card-hint">集中查看 BlogCTL 已记录的平台草稿与公开文章。这里读取本地发布状态，不会在刷新时批量访问各平台。</p>
+        <p class="card-hint">集中查看 BlogCTL 已记录的平台草稿与公开文章。草稿可在这里确认发布；刷新只读取本地发布状态，不会批量访问各平台。</p>
         <label class="field"><span>搜索</span><input id="publicationQuery" type="search" placeholder="文章标题、slug、平台或远端 ID" autocomplete="off"></label>
         <div class="publication-filters">
           <label class="field"><span>平台</span><select id="publicationPlatform"><option value="">全部平台</option></select></label>
