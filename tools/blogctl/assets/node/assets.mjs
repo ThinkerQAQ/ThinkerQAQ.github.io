@@ -1,6 +1,7 @@
 import { collectPublishingAssets } from "../../compiler/node/compiler.mjs";
 import { loadBlogctlPublishingRuntimeConfig } from "../../compiler/node/runtime-config.mjs";
 import { readRenderedAsset, renderMermaidAsset } from "./mermaid-assets.mjs";
+import { renderPlantUMLAsset } from "./plantuml-assets.mjs";
 import { loadR2Config, uploadR2Object } from "./r2.mjs";
 
 export function dedupePublishingAssets(groups) {
@@ -15,7 +16,8 @@ export async function preparePublishingAssetList(assets, {
   dryRun = false,
   cacheRoot = ".distribution/assets",
   env = process.env,
-  render = renderMermaidAsset,
+  render = null,
+  renderers = {},
   read = readRenderedAsset,
   upload = uploadR2Object,
   uploadFallback = true,
@@ -32,8 +34,15 @@ export async function preparePublishingAssetList(assets, {
   let cached = 0;
   let uploaded = 0;
 
+  const defaultRenderers = {
+    mermaid: renderMermaidAsset,
+    plantuml: renderPlantUMLAsset,
+  };
+
   for (const asset of unique) {
-    const result = await render(asset, { cacheRoot, env });
+    const renderer = render || renderers[asset.kind] || defaultRenderers[asset.kind];
+    if (!renderer) throw new Error("Unsupported publishing asset kind: " + asset.kind);
+    const result = await renderer(asset, { cacheRoot, env });
     if (result.rendered) rendered += 1;
     else cached += 1;
     if (uploadFallback) {
