@@ -212,7 +212,7 @@ func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord 
 	record := PublicationRecord{
 		Article: binding.Slug, Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
 		PublishedRemoteID: binding.PublishedRemoteID,
-		DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
+		DraftURL:          binding.DraftURL, PublishedURL: binding.PublishedURL,
 		DraftSyncedAt: binding.DraftSyncedAt, PublishedAt: binding.PublishedAt,
 		PublishedSyncedAt: binding.PublishedSyncedAt,
 		PendingFields:     append([]string{}, binding.PendingFields...),
@@ -263,7 +263,7 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 				record := PublicationRecord{
 					Article: slug, Platform: platform, RemoteID: remoteID,
 					PublishedRemoteID: stringValue(state["publishedRemoteId"]),
-					DraftURL: draftURL, PublishedURL: stringValue(state["publishedUrl"]),
+					DraftURL:          draftURL, PublishedURL: stringValue(state["publishedUrl"]),
 					DraftSyncedAt:     stringValue(state["draftSyncedAt"]),
 					PublishedAt:       stringValue(state["publishedAt"]),
 					PublishedSyncedAt: stringValue(state["publishedSyncedAt"]),
