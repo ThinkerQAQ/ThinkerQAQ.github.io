@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 )
 
 func TestBlogCTLVersionMatchesExtension(t *testing.T) {
@@ -46,6 +48,9 @@ func TestBlogCTLVersionMatchesExtension(t *testing.T) {
 	}
 	if manifest.Version != version {
 		t.Fatalf("extension version = %q, blogctl version = %q", manifest.Version, version)
+	}
+	if version.Current != version {
+		t.Fatalf("runtime version = %q, blogctl version = %q", version.Current, version)
 	}
 	if manifest.SidePanel.DefaultPath != "popup/popup.html" || manifest.Action.DefaultPopup != "" {
 		t.Fatalf("extension sidebar = %q, popup = %q", manifest.SidePanel.DefaultPath, manifest.Action.DefaultPopup)
