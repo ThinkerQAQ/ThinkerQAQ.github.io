@@ -61,7 +61,8 @@ var definitions = []Definition{
 	{
 		ID: "devto", Label: "DEV.to", DefaultLanguage: "en",
 		Capabilities: Capabilities{
-			APIKey: true, DraftCreate: true, DraftUpdate: true, RemoteList: true, BodyImages: true,
+			BrowserSession: true, APIKey: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true,
+			PublishedUpdate: true, RemoteList: true, BodyImages: true, BodyImageRehost: true,
 			CoverImage: true, NativeCanonical: true, Tags: true,
 		},
 	},
