@@ -7,7 +7,6 @@
     articles: [],
     selectedSlug: "",
     status: null,
-    publishing: [],
     tools: [],
     cnblogsBindings: [],
     bindingLoading: false,
@@ -22,10 +21,6 @@
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
-  }
-
-  function publishingProfile(platformId) {
-    return state.publishing.find((item) => item.id === platformId) ?? {};
   }
 
   function updateControls() {
@@ -308,16 +303,14 @@
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
     try {
-      const [articlesResponse, statusResponse, publishingResponse, toolsResponse] = await Promise.all([
+      const [articlesResponse, statusResponse, toolsResponse] = await Promise.all([
         BlogCTLPopup.send("blogctl.articles"),
         BlogCTLPopup.send("blogctl.status"),
-        BlogCTLPopup.send("blogctl.publishing"),
         BlogCTLPopup.send("blogctl.tools"),
       ]);
 
       state.articles = articlesResponse.articles ?? [];
       state.status = statusResponse.status;
-      state.publishing = publishingResponse.platforms ?? [];
       state.tools = toolsResponse.tools ?? [];
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
 
