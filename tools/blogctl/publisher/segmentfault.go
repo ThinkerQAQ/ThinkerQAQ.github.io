@@ -336,5 +336,15 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 	if strings.HasPrefix(publicURL, "/") {
 		publicURL = segmentFaultOrigin + publicURL
 	}
-	return PublishResult{URL: publicURL}, nil
+	publishedID := ""
+	if parsed, parseErr := url.Parse(publicURL); parseErr == nil {
+		segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+		if len(segments) >= 2 && segments[len(segments)-2] == "a" {
+			publishedID = strings.TrimSpace(segments[len(segments)-1])
+		}
+	}
+	if publishedID == "" {
+		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", response.StatusCode, "published response did not contain an article id", false)
+	}
+	return PublishResult{ID: publishedID, URL: publicURL}, nil
 }

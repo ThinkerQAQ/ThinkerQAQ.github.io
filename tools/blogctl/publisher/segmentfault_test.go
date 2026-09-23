@@ -169,7 +169,7 @@ func TestSegmentFaultPublishRehostsCompilerAssets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = adapter.PublishDraft(context.Background(), DraftRef{ID: "draft-1"}, DraftInput{
+	result, err := adapter.PublishDraft(context.Background(), DraftRef{ID: "draft-1"}, DraftInput{
 		Title:       "Example",
 		Markdown:    "![diagram](blogctl-asset://mermaid/asset-1)",
 		ContentRoot: root,
@@ -180,6 +180,9 @@ func TestSegmentFaultPublishRehostsCompilerAssets(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if result.ID != "123" || result.URL != "https://segmentfault.com/a/123" {
+		t.Fatalf("publish result = %#v", result)
 	}
 	if strings.Contains(publishedText, "blogctl-asset://") {
 		t.Fatalf("internal asset leaked into publish payload: %q", publishedText)
