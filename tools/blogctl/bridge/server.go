@@ -815,7 +815,7 @@ func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request
 		return
 	}
 	client := mediumClient{httpClient: httpClient}
-	result, err := client.createDraft(request.Context(), session, draft)
+	result, err := client.createDraft(request.Context(), session, draft, publisher.DraftInput{})
 	if err != nil {
 		writeAPIError(response, http.StatusBadGateway, "upstream_error", err.Error(), nil)
 		return
