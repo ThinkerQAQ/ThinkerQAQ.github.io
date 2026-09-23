@@ -352,9 +352,9 @@ func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 	payload, err := json.Marshal(mediumDraft{
 		Title: "Medium image",
 		Deltas: []map[string]any{{
-			"type": 1,
+			"type":      1,
 			"paragraph": map[string]any{"type": 4, "text": "", "markups": []any{}, "layout": 1, "metadata": map[string]any{}},
-			"image": map[string]any{"url": "blogctl-asset://mermaid/asset-1", "alt": "diagram"},
+			"image":     map[string]any{"url": "blogctl-asset://mermaid/asset-1", "alt": "diagram"},
 		}},
 	})
 	if err != nil {
@@ -365,7 +365,7 @@ func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 	compiled.Assets = []blogcompiler.Asset{{
 		Kind: "mermaid", ID: "asset-1", ObjectKey: "generated/mermaid/asset-1.png",
 		PublicURL: "https://assets.example/generated/mermaid/asset-1.png",
-		Source: "blogctl-asset://mermaid/asset-1",
+		Source:    "blogctl-asset://mermaid/asset-1",
 	}}
 
 	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
@@ -515,7 +515,6 @@ func TestMediumTitleMatchesPublishedListTruncation(t *testing.T) {
 		t.Fatalf("expected %q to match %q", local, remote)
 	}
 }
-
 
 func TestMediumCanonicalMatchesTrackedFooterLink(t *testing.T) {
 	canonical := "https://thinkerqaq.github.io/en/articles/concurrency-series-01-hardware/"
