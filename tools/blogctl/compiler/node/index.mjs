@@ -222,18 +222,22 @@ export async function compileArticle({
       language,
     });
     const generatedArticle = parseArticle(generated, platform + ":" + slug);
+    const portable = compilePublishingMarkdown(generatedArticle.body, {
+      platform,
+      siteOrigin: "https://thinkerqaq.github.io",
+    }).markdown.trim();
     compiled = {
       title: generatedArticle.title,
       description: generatedArticle.description,
-      markdown: generatedArticle.body,
-      html: renderPlatformHtml(generatedArticle.body),
+      markdown: portable,
+      html: renderPlatformHtml(portable),
       canonicalUrl: buildArticleCanonicalUrl(slug, language),
       nativeCanonicalUrl: "",
       tags: article.tags,
       coverImageUrl: resolveArticleAssetUrl(article.coverImage),
       published: false,
     };
-    hashSource = generated + "\n<!-- blogctl-html -->\n" + compiled.html;
+    hashSource = generatedArticle.title + "\n" + portable + "\n<!-- blogctl-html -->\n" + compiled.html;
   }
 
   const assets = collectPublishingAssets(article.body);
