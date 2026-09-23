@@ -556,7 +556,6 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 }
 
 var platformCookieHostSuffixes = map[string][]string{
-	"cnblogs":      {"cnblogs.com"},
 	"juejin":       {"juejin.cn"},
 	"csdn":         {"csdn.net"},
 	"segmentfault": {"segmentfault.com"},
