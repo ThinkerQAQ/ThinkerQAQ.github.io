@@ -21,9 +21,9 @@ export const PLATFORM_AUTH = Object.freeze([
     id: "csdn",
     label: "CSDN",
     probe: {
-      kind: "cookies",
-      cookieUrl: "https://www.csdn.net/",
-      requiredCookieNames: ["UserName", "UserToken"],
+      kind: "json",
+      url: "https://g-api.csdn.net/community/toolbar-api/v1/get-user-info",
+      path: "data.nickName",
     },
   },
   {
