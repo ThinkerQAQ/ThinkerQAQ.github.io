@@ -37,7 +37,7 @@ func TestCSDNArticleIDAcceptsIDAndEditorLinks(t *testing.T) {
 	cases := map[string]string{
 		"147578947": "147578947",
 		"https://blog.csdn.net/ThinkerQAQ/article/details/147578947": "147578947",
-		"https://editor.csdn.net/md?articleId=147578947": "147578947",
+		"https://editor.csdn.net/md?articleId=147578947":             "147578947",
 	}
 	for input, want := range cases {
 		if got := CSDNArticleID(input); got != want {
