@@ -195,29 +195,34 @@ func (c *csdnAdapter) uploadImage(ctx context.Context, image RehostImage) (strin
 	return uploaded.Data.ImageURL, nil
 }
 
-func (c *csdnAdapter) prepareMarkdown(ctx context.Context, input DraftInput) (string, error) {
-	return rehostMarkdownImages(ctx, c.client, input, ImageRehostOptions{
+func (c *csdnAdapter) prepareContent(ctx context.Context, input DraftInput) (string, string, error) {
+	options := ImageRehostOptions{
 		Platform:       c.ID(),
 		FailOpenRemote: true,
 		AlreadyHosted: func(source string) bool {
 			lower := strings.ToLower(source)
 			return strings.Contains(lower, "csdnimg.cn") || strings.Contains(lower, "csdn.net")
 		},
-	}, c.uploadImage)
+	}
+	replacements, err := rehostImageReplacements(ctx, c.client, input, input.Markdown, options, c.uploadImage)
+	if err != nil {
+		return "", "", err
+	}
+	return replaceImages(input.Markdown, replacements), replaceImages(htmlFor(input), replacements), nil
 }
 
 func (c *csdnAdapter) save(ctx context.Context, refID string, input DraftInput, publish bool) (map[string]any, error) {
-	markdown, err := c.prepareMarkdown(ctx, input)
+	markdown, html, err := c.prepareContent(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 	payload := map[string]any{
 		"title":             input.Title,
 		"markdowncontent":   markdown,
-		"content":           htmlFor(input),
+		"content":           html,
 		"readType":          "public",
 		"level":             0,
-		"tags":              "",
+		"tags":              strings.Join(input.Tags, ","),
 		"status":            2,
 		"categories":        "",
 		"type":              "original",
