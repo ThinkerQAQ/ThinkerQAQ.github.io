@@ -77,6 +77,38 @@ func (s *Server) zhihuCandidates(ctx context.Context, slug string) (
 	return article, root, account, matches, binding, nil
 }
 
+func (s *Server) handleZhihuLookupContext(response http.ResponseWriter, request *http.Request, slug string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
+	defer cancel()
+
+	article, root, err := s.cnBlogsArticle(slug)
+	if err != nil {
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	session, client, err := (bridgeNativePublisher{server: s}).publisherSession("zhihu")
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "session_unavailable", err.Error(), nil)
+		return
+	}
+	account, err := publisher.ZhihuAccountURLToken(ctx, client, session)
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "account_lookup_failed", err.Error(), nil)
+		return
+	}
+	binding, _, err := publisher.LoadPublicationBinding(root, slug, "zhihu")
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{
+		"title": article.Title, "account": account, "bindings": zhihuBindingViews(binding),
+	})
+}
+
 func (s *Server) handleZhihuArticleList(response http.ResponseWriter, request *http.Request, slug string) {
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
@@ -111,6 +143,12 @@ func (s *Server) handleZhihuBindingPut(response http.ResponseWriter, request *ht
 		PostID  string `json:"postId"`
 		State   string `json:"state"`
 		Replace bool   `json:"replace"`
+		Candidate *struct {
+			ID        string `json:"id"`
+			Title     string `json:"title"`
+			URL       string `json:"url"`
+			Published bool   `json:"published"`
+		} `json:"candidate,omitempty"`
 	}
 	if err := readJSON(request, 4096, &body); err != nil {
 		writeError(response, err)
@@ -125,24 +163,58 @@ func (s *Server) handleZhihuBindingPut(response http.ResponseWriter, request *ht
 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	_, root, account, posts, binding, err := s.zhihuCandidates(ctx, slug)
+	article, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
-		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	session, client, err := (bridgeNativePublisher{server: s}).publisherSession("zhihu")
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "session_unavailable", err.Error(), nil)
+		return
+	}
+	account, err := publisher.ZhihuAccountURLToken(ctx, client, session)
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "account_lookup_failed", err.Error(), nil)
+		return
+	}
+	binding, _, err := publisher.LoadPublicationBinding(root, slug, "zhihu")
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
 		return
 	}
 	var selected *publisher.ZhihuPost
-	for index := range posts {
-		state := "draft"
-		if posts[index].Published {
-			state = "published"
+	if body.Candidate != nil {
+		candidateState := "draft"
+		if body.Candidate.Published {
+			candidateState = "published"
 		}
-		if posts[index].ID == body.PostID && state == body.State {
-			selected = &posts[index]
-			break
+		if body.Candidate.ID == body.PostID && candidateState == body.State &&
+			publisher.ZhihuTitleMatches(article.Title, body.Candidate.Title) {
+			selected = &publisher.ZhihuPost{
+				ID: body.Candidate.ID, Title: body.Candidate.Title,
+				URL: body.Candidate.URL, Published: body.Candidate.Published,
+			}
+		}
+	} else {
+		_, posts, lookupErr := publisher.ZhihuListPosts(ctx, client, session)
+		if lookupErr != nil {
+			writeAPIError(response, http.StatusBadGateway, "lookup_failed", lookupErr.Error(), nil)
+			return
+		}
+		for index := range posts {
+			state := "draft"
+			if posts[index].Published {
+				state = "published"
+			}
+			if posts[index].ID == body.PostID && state == body.State {
+				selected = &posts[index]
+				break
+			}
 		}
 	}
 	if selected == nil {
-		writeAPIError(response, http.StatusConflict, "candidate_missing", "Zhihu list no longer contains the selected matching article", nil)
+		writeAPIError(response, http.StatusConflict, "candidate_missing", "Zhihu candidate is no longer valid", nil)
 		return
 	}
 
