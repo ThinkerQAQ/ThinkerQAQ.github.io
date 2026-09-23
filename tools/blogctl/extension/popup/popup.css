@@ -52,6 +52,8 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .secondary { padding: 7px 10px; background: #e5e7eb; color: #374151; font-size: 12px; } .compact { flex: 0 0 auto; } .full-width { width: 100%; }
 .button-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .message { min-height: 18px; margin: 4px 0 10px; font-size: 12px; line-height: 1.45; } .message.ok { color: #166534; } .message.error { color: #991b1b; }
+.platform-access-config { display: grid; gap: 8px; }
+.platform-access-card { display: grid; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; }
 .preview-box { padding: 10px; border-radius: 8px; background: #f9fafb; border: 1px dashed #d1d5db; }
 .preview-box pre { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: #374151; font: inherit; font-size: 12px; line-height: 1.55; }
 .job-item { border: 1px solid #e5e7eb; border-radius: 8px; padding: 9px; background: #fff; transition: border-color .15s ease, box-shadow .15s ease; }
