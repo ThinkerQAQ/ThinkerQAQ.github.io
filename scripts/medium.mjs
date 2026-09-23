@@ -339,13 +339,6 @@ export function parseMediumBlocks(markdown) {
     }
 
     if (/^---+$/u.test(trimmed)) {
-      blocks.push({
-        kind: "separator",
-        paragraphType: PARAGRAPH,
-        text: "• • •",
-        markups: [],
-        html: "<hr>",
-      });
       index += 1;
       continue;
     }
@@ -378,7 +371,7 @@ export function parseMediumBlocks(markdown) {
       // Medium already receives the article title as a dedicated title block.
       // Body H1/H2 therefore share the section-heading style to avoid a second
       // title-sized heading inside the story.
-      const paragraphType = level <= 2 ? H2 : H3;
+      const paragraphType = level <= 3 ? H2 : H3;
       blocks.push({ kind: "heading", level, paragraphType, ...inline });
       index += 1;
       continue;
@@ -390,8 +383,20 @@ export function parseMediumBlocks(markdown) {
         values.push(lines[index].replace(/^\s*>\s?/u, ""));
         index += 1;
       }
-      const inline = parseInline(normalizeAdmonition(values).join("\n"), warnings);
-      blocks.push({ kind: "blockquote", paragraphType: BLOCKQUOTE, ...inline });
+      const groups = [];
+      let current = [];
+      for (const value of normalizeAdmonition(values)) {
+        if (!value.trim()) {
+          if (current.length) groups.push(current), current = [];
+          continue;
+        }
+        current.push(value);
+      }
+      if (current.length) groups.push(current);
+      for (const group of groups) {
+        const inline = parseInline(group.join("\n"), warnings);
+        blocks.push({ kind: "blockquote", paragraphType: BLOCKQUOTE, ...inline });
+      }
       continue;
     }
 
@@ -458,7 +463,11 @@ export function buildMediumDraft(article, {
     siteOrigin: SITE_ORIGIN,
   });
   const { blocks, warnings } = parseMediumBlocks(compiled.markdown);
-  const deltas = blocks.map((block, index) => {
+  const coverUrl = resolveArticleAssetUrl(article.coverImage);
+  const contentBlocks = coverUrl
+    ? [{ kind: "image", url: coverUrl, alt: article.coverImageAlt || "", paragraphType: PARAGRAPH, text: "", markups: [] }, ...blocks]
+    : blocks;
+  const deltas = contentBlocks.map((block, index) => {
     if (block.kind === "image") {
       return {
         type: 1,
@@ -491,7 +500,6 @@ export function buildMediumDraft(article, {
       paragraph: { type: BLOCKQUOTE, text: footer.text, markups: footer.markups },
     });
   }
-  const coverUrl = resolveArticleAssetUrl(article.coverImage);
   return {
     title: article.title,
     canonicalUrl: nativeCanonicalUrl(canonicalUrl, publishingConfig),
