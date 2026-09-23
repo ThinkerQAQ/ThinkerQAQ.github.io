@@ -12,8 +12,9 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 				value.PublishedUpdate && value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
 		{"devto", func(value PlatformCapabilities) bool {
-			return value.APIKey && value.DraftCreate && value.DraftUpdate && value.RemoteList && value.BodyImages && !value.BodyImageRehost &&
-				!value.BrowserSession && !value.ExplicitPublish
+			return value.BrowserSession && value.APIKey && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
+				value.PublishedUpdate && value.RemoteList && value.BodyImages && value.BodyImageRehost &&
+				value.CoverImage && value.NativeCanonical && value.Tags
 		}},
 		{"medium", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
