@@ -148,13 +148,10 @@ func ZhihuListPosts(ctx context.Context, base *http.Client, session Session) (st
 	if err != nil {
 		return "", nil, err
 	}
-	drafts, err := adapter.listDrafts(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-	published, err := adapter.listPublished(ctx, urlToken)
-	if err != nil {
-		return "", nil, err
+	drafts, draftErr := adapter.listDrafts(ctx)
+	published, publishedErr := adapter.listPublished(ctx, urlToken)
+	if len(drafts) == 0 && len(published) == 0 && (draftErr != nil || publishedErr != nil) {
+		return "", nil, errors.Join(draftErr, publishedErr)
 	}
 	return urlToken, append(drafts, published...), nil
 }
