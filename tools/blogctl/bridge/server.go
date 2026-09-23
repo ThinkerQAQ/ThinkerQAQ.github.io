@@ -163,6 +163,14 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleDevtoArticleSearch(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/devto/binding" && request.Method == http.MethodPost {
+		s.handleDevtoBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/devto/binding" && request.Method == http.MethodDelete {
+		s.handleDevtoBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/segmentfault/articles/list" && request.Method == http.MethodPost {
 		s.handleSegmentFaultArticleList(response, request, request.URL.Query().Get("article"))
 		return
