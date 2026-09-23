@@ -554,11 +554,29 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 	if platform == "devto" {
 		apiKey := devtoAPIKey(p.server.config)
 		httpClient := p.server.httpClient
+		session, ok := p.server.sessions[platform]
+		if ok && !session.ExpiresAt.After(p.server.now()) {
+			delete(p.server.sessions, platform)
+			ok = false
+		}
 		p.server.mu.Unlock()
 		if apiKey == "" {
 			return publisher.Session{}, nil, errors.New("DEV.to API key is required")
 		}
-		return publisher.Session{APIKey: apiKey}, httpClient, nil
+		result := publisher.Session{APIKey: apiKey}
+		if ok {
+			result.UserAgent = session.UserAgent
+			result.RequestCookieHeader = session.RequestCookieHeader
+			result.Cookies = make([]publisher.BrowserCookie, 0, len(session.BrowserCookies))
+			for _, cookie := range session.BrowserCookies {
+				result.Cookies = append(result.Cookies, publisher.BrowserCookie{
+					Name: cookie.Name, Value: cookie.Value, Domain: cookie.Domain, Path: cookie.Path,
+					Secure: cookie.Secure, HTTPOnly: cookie.HTTPOnly, HostOnly: cookie.HostOnly,
+					SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
+				})
+			}
+		}
+		return result, httpClient, nil
 	}
 	session, ok := p.server.sessions[platform]
 	if ok && !session.ExpiresAt.After(p.server.now()) {
