@@ -18,6 +18,7 @@ export async function preparePublishingAssetList(assets, {
   render = renderMermaidAsset,
   read = readRenderedAsset,
   upload = uploadR2Object,
+  uploadFallback = true,
 } = {}) {
   const unique = dedupePublishingAssets([assets]);
   if (dryRun || unique.length === 0) {
@@ -26,7 +27,7 @@ export async function preparePublishingAssetList(assets, {
 
   const runtime = loadBlogctlPublishingRuntimeConfig(env);
   if (runtime.assets.store !== "r2") throw new Error("Unsupported BlogCTL publishing asset store: " + runtime.assets.store);
-  const config = loadR2Config(env);
+  const config = uploadFallback ? loadR2Config(env) : null;
   let rendered = 0;
   let cached = 0;
   let uploaded = 0;
@@ -35,17 +36,19 @@ export async function preparePublishingAssetList(assets, {
     const result = await render(asset, { cacheRoot, env });
     if (result.rendered) rendered += 1;
     else cached += 1;
-    const payload = await read(result.outputFile);
-    const uploadedAsset = await upload({
-      objectKey: asset.objectKey,
-      body: payload,
-      contentType: "image/png",
-      config,
-    });
-    if (uploadedAsset.publicUrl !== asset.publicUrl) {
-      throw new Error("R2 public URL mismatch for " + asset.objectKey);
+    if (uploadFallback) {
+      const payload = await read(result.outputFile);
+      const uploadedAsset = await upload({
+        objectKey: asset.objectKey,
+        body: payload,
+        contentType: "image/png",
+        config,
+      });
+      if (uploadedAsset.publicUrl !== asset.publicUrl) {
+        throw new Error("R2 public URL mismatch for " + asset.objectKey);
+      }
+      uploaded += 1;
     }
-    uploaded += 1;
   }
 
   return { assets: unique.length, rendered, cached, uploaded, dryRun: false };
