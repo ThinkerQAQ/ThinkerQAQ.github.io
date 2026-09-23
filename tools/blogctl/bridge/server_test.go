@@ -206,6 +206,49 @@ func TestCNBlogsAcceptsCapturedRequestCookieWithoutCookieAPIEntries(t *testing.T
 	}
 }
 
+func TestBridgeAcceptsCapturedRequestCookieForSegmentFault(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/segmentfault",
+		strings.NewReader(`{"cookies":[],"requestCookieHeader":"PHPSESSID=test-login; sl-session=test-secondary","userAgent":"UA"}`))
+	setExtensionAuth(request, "token")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("segmentfault")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.RequestCookieHeader == "" || len(session.CookieHostSuffixes) != 1 || session.CookieHostSuffixes[0] != "segmentfault.com" {
+		t.Fatalf("publisher session = %#v", session)
+	}
+}
+
+func TestBridgeAcceptsMediumSidFromCapturedRequestHeader(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/medium",
+		strings.NewReader(`{"cookies":[],"requestCookieHeader":"sid=test-login; xsrf=test-xsrf","userAgent":"UA"}`))
+	setExtensionAuth(request, "token")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	server.mu.Lock()
+	session := server.sessions["medium"]
+	server.mu.Unlock()
+	if session.RequestCookieHeader == "" {
+		t.Fatal("Medium captured request Cookie header was not stored")
+	}
+}
+
 func TestBridgeReadOnlyStatusDoesNotRequireToken(t *testing.T) {
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
