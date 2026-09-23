@@ -18,9 +18,9 @@ const (
 )
 
 type devtoAdapter struct {
-	client          *http.Client
-	apiKey          string
-	origin          string
+	client           *http.Client
+	apiKey           string
+	origin           string
 	browserCookies   []BrowserCookie
 	browserUserAgent string
 	browserCSRFToken string
@@ -67,7 +67,7 @@ func newDEVToAdapter(base *http.Client, session Session, origin string) (*devtoA
 	}
 	return &devtoAdapter{
 		client: base, apiKey: strings.TrimSpace(session.APIKey), origin: origin,
-		browserCookies: append([]BrowserCookie{}, session.Cookies...),
+		browserCookies:   append([]BrowserCookie{}, session.Cookies...),
 		browserUserAgent: strings.TrimSpace(session.UserAgent),
 	}, nil
 }
