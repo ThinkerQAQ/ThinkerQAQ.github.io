@@ -62,6 +62,26 @@ func mediumLocalCanonicalURL(article articleSummary) string {
 	return "https://thinkerqaq.github.io" + prefix + strings.Join(parts, "/") + "/"
 }
 
+func (s *Server) handleMediumLookupContext(response http.ResponseWriter, request *http.Request, slug string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	article, root, err := s.cnBlogsArticle(slug)
+	if err != nil {
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	binding, _, err := publisher.LoadPublicationBinding(root, slug, "medium")
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{
+		"title": article.Title, "canonicalUrl": mediumLocalCanonicalURL(article),
+		"bindings": mediumBindingViews(binding),
+	})
+}
+
 func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []mediumPost, publisher.PublicationBinding, error,
 ) {
@@ -135,9 +155,15 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
 	var body struct {
-		PostID  string `json:"postId"`
-		State   string `json:"state"`
-		Replace bool   `json:"replace"`
+		PostID    string `json:"postId"`
+		State     string `json:"state"`
+		Replace   bool   `json:"replace"`
+		Candidate *struct {
+			ID        string `json:"id"`
+			Title     string `json:"title"`
+			URL       string `json:"url"`
+			Published bool   `json:"published"`
+		} `json:"candidate"`
 	}
 	if err := readJSON(request, 4096, &body); err != nil {
 		writeError(response, err)
@@ -150,22 +176,41 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
-	defer cancel()
-	_, root, account, posts, binding, err := s.mediumCandidates(ctx, slug)
+	article, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
-		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
+	binding, _, err := publisher.LoadPublicationBinding(root, slug, "medium")
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
+		return
+	}
+	account := ""
 	var selected *mediumPost
-	for index := range posts {
-		state := "draft"
-		if posts[index].Published {
-			state = "published"
+	if body.Candidate != nil && body.Candidate.ID == body.PostID &&
+		body.Candidate.Published == (body.State == "published") &&
+		mediumTitleMatches(article.Title, body.Candidate.Title) {
+		if parsed, parseErr := url.Parse(body.Candidate.URL); parseErr == nil &&
+			strings.HasSuffix(strings.ToLower(parsed.Host), "medium.com") && strings.Contains(parsed.Path, body.PostID) {
+			selected = &mediumPost{ID: body.PostID, Title: body.Candidate.Title, URL: body.Candidate.URL, Published: body.Candidate.Published}
 		}
-		if posts[index].ID == body.PostID && state == body.State {
-			selected = &posts[index]
-			break
+	} else {
+		ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
+		defer cancel()
+		_, _, remoteAccount, posts, _, lookupErr := s.mediumCandidates(ctx, slug)
+		if lookupErr == nil {
+			account = remoteAccount
+			for index := range posts {
+				state := "draft"
+				if posts[index].Published {
+					state = "published"
+				}
+				if posts[index].ID == body.PostID && state == body.State {
+					selected = &posts[index]
+					break
+				}
+			}
 		}
 	}
 	if selected == nil {

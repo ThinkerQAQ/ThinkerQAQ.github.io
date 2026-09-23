@@ -305,6 +305,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleMediumArticleList(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/medium/lookup-context" && request.Method == http.MethodPost {
+		s.handleMediumLookupContext(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/medium/binding" && request.Method == http.MethodPost {
 		s.handleMediumBindingPut(response, request, request.URL.Query().Get("article"))
 		return

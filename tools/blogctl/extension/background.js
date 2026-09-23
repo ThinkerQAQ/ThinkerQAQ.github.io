@@ -372,20 +372,91 @@ async function csdnBrowserMatch(article) {
   return { candidates: matched, bindings };
 }
 
-async function fetchZhihuSignedPage(kind, pageURL) {
+async function mediumBrowserPage(pageURL, published) {
   let tabId = -1;
   try {
     const tab = await chrome.tabs.create({ url: pageURL, active: false });
     tabId = Number(tab?.id ?? -1);
+    if (tabId < 0) throw new Error("无法创建 Medium 检测标签页");
+    await waitForTabReady(tabId, 12000);
+    await delay(500);
+    const results = await chrome.scripting.executeScript({
+      target: { tabId }, world: "MAIN", args: [published],
+      func: (isPublished) => {
+        const values = [];
+        const seen = new Set();
+        for (const anchor of document.querySelectorAll("a[href]")) {
+          const href = anchor.href || "";
+          const match = isPublished
+            ? href.match(/medium\.com\/@[^/]+\/[^?#]*-([a-f0-9]{12})(?:[/?#]|$)/i)
+            : href.match(/medium\.com\/p\/([a-f0-9]{12})\/edit(?:[?#]|$)/i);
+          const title = String(anchor.textContent || anchor.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ");
+          const id = match?.[1] || "";
+          if (!id || !title || seen.has(id)) continue;
+          seen.add(id);
+          values.push({ id, title, url: href.split("?")[0], published: isPublished });
+        }
+        return values;
+      },
+    });
+    return results?.[0]?.result ?? [];
+  } finally {
+    if (tabId >= 0) await chrome.tabs.remove(tabId).catch(() => {});
+  }
+}
+
+async function mediumBrowserMatch(article) {
+  const context = await fetchJSON(`/v1/medium/lookup-context?article=${article}`, { method: "POST" });
+  const [draftResult, publishedResult] = await Promise.allSettled([
+    mediumBrowserPage("https://medium.com/me/stories", false),
+    mediumBrowserPage("https://medium.com/me/stories?tab=posts-published", true),
+  ]);
+  if (draftResult.status === "rejected" && publishedResult.status === "rejected") {
+    throw new Error(`Medium 草稿与已发布列表均检测失败：${errorMessage(draftResult.reason)}；${errorMessage(publishedResult.reason)}`);
+  }
+  const bindings = context.bindings ?? [];
+  const candidates = [];
+  const seen = new Set();
+  for (const post of [
+    ...(draftResult.status === "fulfilled" ? draftResult.value : []),
+    ...(publishedResult.status === "fulfilled" ? publishedResult.value : []),
+  ]) {
+    if (seen.has(post.id) || !remoteTitleMatches(context.title, post.title)) continue;
+    seen.add(post.id);
+    Object.assign(post, bindingForPost(bindings, post));
+    candidates.push(post);
+  }
+  const warnings = [];
+  if (draftResult.status === "rejected") warnings.push(`草稿列表失败：${errorMessage(draftResult.reason)}`);
+  if (publishedResult.status === "rejected") warnings.push(`已发布列表失败：${errorMessage(publishedResult.reason)}`);
+  return { candidates, bindings, warnings };
+}
+
+async function fetchZhihuSignedPage(kind, pageURL) {
+  let tabId = -1;
+  try {
+    const targetURL = new URL(pageURL);
+    targetURL.searchParams.set("blogctl_lookup", String(Date.now()));
+    const tab = await chrome.tabs.create({ url: targetURL.toString(), active: false });
+    tabId = Number(tab?.id ?? -1);
     if (tabId < 0) throw new Error("无法创建知乎后台检测标签页");
 
-    const deadline = Date.now() + 10000;
+    const deadline = Date.now() + 15000;
     let captured = null;
+    let stimulated = false;
     while (Date.now() < deadline) {
       const current = recentZhihuSignedRequests.get(tabId);
-      if (current?.kind === kind && Date.now() - current.capturedAt < 10000) {
+      if (current?.kind === kind && Date.now() - current.capturedAt < 15000) {
         captured = current;
         break;
+      }
+      if (!stimulated && Date.now() + 10000 < deadline) {
+        stimulated = true;
+        await waitForTabReady(tabId).catch(() => null);
+        await chrome.scripting.executeScript({
+          target: { tabId }, world: "MAIN",
+          func: () => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }),
+        }).catch(() => null);
       }
       await delay(100);
     }
@@ -437,10 +508,18 @@ async function zhihuBrowserMatch(article) {
   const draftPage = "https://www.zhihu.com/creator/manage/creation/draft?type=article";
   const profilePage = `https://www.zhihu.com/people/${encodeURIComponent(context.account)}/posts`;
 
-  const [draftPayload, publishedPayload] = await Promise.all([
+  const [draftResult, publishedResult] = await Promise.allSettled([
     fetchZhihuSignedPage("drafts", draftPage),
     fetchZhihuSignedPage("published", profilePage),
   ]);
+  if (draftResult.status === "rejected" && publishedResult.status === "rejected") {
+    throw new Error(`知乎草稿与已发布列表均检测失败：${errorMessage(draftResult.reason)}；${errorMessage(publishedResult.reason)}`);
+  }
+  const draftPayload = draftResult.status === "fulfilled" ? draftResult.value : null;
+  const publishedPayload = publishedResult.status === "fulfilled" ? publishedResult.value : null;
+  const warnings = [];
+  if (draftResult.status === "rejected") warnings.push(`草稿列表失败：${errorMessage(draftResult.reason)}`);
+  if (publishedResult.status === "rejected") warnings.push(`已发布列表失败：${errorMessage(publishedResult.reason)}`);
 
   const bindings = context.bindings ?? [];
   const candidates = [];
@@ -460,7 +539,7 @@ async function zhihuBrowserMatch(article) {
   };
   for (const value of draftPayload?.data ?? []) append(value, false);
   for (const value of publishedPayload?.data ?? []) append(value, true);
-  return { candidates, bindings };
+  return { candidates, bindings, warnings };
 }
 
 async function bridgeStatus() {
@@ -912,9 +991,10 @@ async function handleMessage(message) {
         const result = await zhihuBrowserMatch(article);
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
-          text: candidates.length
+          text: (candidates.length
             ? `通过知乎浏览器真实签名请求匹配到 ${candidates.length} 条候选。`
-            : "已读取知乎浏览器草稿列表和已发布文章列表，本地未匹配到同名文章。",
+            : "已读取可用的知乎文章列表，本地未匹配到同名文章。") +
+            (result.warnings?.length ? ` 部分检测异常：${result.warnings.join("；")}` : ""),
           items: candidates,
           bindings: result.bindings ?? [],
         } };
@@ -940,12 +1020,13 @@ async function handleMessage(message) {
       }
       if (platform === "medium") {
         await syncPlatformSession("medium");
-        const result = await fetchJSON(`/v1/medium/articles/list?article=${article}`, { method: "POST" });
+        const result = await mediumBrowserMatch(article);
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
-          text: candidates.length
+          text: (candidates.length
             ? `从 Medium 草稿和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
-            : "已读取 Medium 草稿和已发布文章列表，本地未匹配到同名文章。",
+            : "已通过 Medium 浏览器页面读取文章列表，本地未匹配到同名文章。") +
+            (result.warnings?.length ? ` 部分检测异常：${result.warnings.join("；")}` : ""),
           items: candidates.map((post) => ({
             title: post.title,
             id: post.id,
@@ -1100,6 +1181,7 @@ async function handleMessage(message) {
         postId: message.postId ?? "",
         state: message.state ?? "",
         replace: message.replace === true,
+        candidate: message.candidate ?? null,
       }))) };
     }
     case "blogctl.medium.unbind": {
