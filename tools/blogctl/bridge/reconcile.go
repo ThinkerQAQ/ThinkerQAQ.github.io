@@ -182,12 +182,12 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 			result.RemoteState = "draft"
 			result.RemoteURL = "https://i.cnblogs.com/articles/edit;postId=" + post.ID
 		}
-		binding, found, bindingErr := publisher.LoadCNBlogsBindingState(contentRoot, slug, localState)
+		binding, found, bindingErr := publisher.LoadPublicationBinding(contentRoot, slug, "cnblogs")
 		if bindingErr != nil {
 			writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", bindingErr.Error(), nil)
 			return
 		}
-		if found && binding.RemoteUpdatedAt != "" && post.UpdatedAt != "" && binding.RemoteUpdatedAt != post.UpdatedAt {
+		if found && localState == "published" && binding.RemoteUpdatedAt != "" && post.UpdatedAt != "" && binding.RemoteUpdatedAt != post.UpdatedAt {
 			result.Changed = true
 		}
 		result.Status = publicationReconciliationStatus(localState, result.RemoteState, result.Changed)
