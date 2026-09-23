@@ -472,7 +472,7 @@
       }
     });
 
-    refreshMatchesButton.addEventListener("click", refreshArticleMatches);
+    refreshMatchesButton.addEventListener("click", () => refreshArticleMatches());
     goToSaveButton.addEventListener("click", () => {
       if (!state.selectedSlug) return;
       document.dispatchEvent(new CustomEvent("blogctl:navigate-save", {
