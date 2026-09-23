@@ -13,6 +13,7 @@ type Asset struct {
 	ID        string `json:"id"`
 	ObjectKey string `json:"objectKey"`
 	PublicURL string `json:"publicUrl"`
+	Source    string `json:"source,omitempty"`
 	Alt       string `json:"alt,omitempty"`
 }
 
