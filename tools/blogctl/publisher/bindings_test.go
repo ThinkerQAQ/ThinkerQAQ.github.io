@@ -256,7 +256,7 @@ func TestDurablePublicationWritesPreserveOtherPlatforms(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := SavePublicationPublishResult(root, "example", "juejin", "hash-1", PublishResult{
-		URL: "https://juejin.cn/post/post-1",
+		ID: "post-1", URL: "https://juejin.cn/post/post-1",
 	}, now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
@@ -270,11 +270,33 @@ func TestDurablePublicationWritesPreserveOtherPlatforms(t *testing.T) {
 		t.Fatal(err)
 	}
 	if state.RemoteDraftID != "" || state.DraftURL != "" || state.DraftHash != "" ||
-		state.PublishedURL != "https://juejin.cn/post/post-1" || state.PublishedHash != "hash-1" {
+		state.PublishedRemoteID != "post-1" || state.PublishedURL != "https://juejin.cn/post/post-1" || state.PublishedHash != "hash-1" {
 		t.Fatalf("publication state = %#v", state)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".distribution", "manifest.json")); !os.IsNotExist(err) {
 		t.Fatalf("durable publisher unexpectedly created distribution manifest: %v", err)
+	}
+}
+
+func TestPublishResultRequiresStableRemoteIdentity(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 9, 23, 8, 30, 0, 0, time.UTC)
+	if err := SavePublicationDraftResult(root, "example", "devto", "hash-1", DraftResult{
+		ID: "42", URL: "https://dev.to/dashboard/edit/42", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationPublishResult(root, "example", "devto", "hash-1", PublishResult{
+		URL: "https://dev.to/thinker/example-42",
+	}, now.Add(time.Minute)); err == nil || !strings.Contains(err.Error(), "without remote id and URL") {
+		t.Fatalf("missing published id error = %v", err)
+	}
+	binding, found, err := LoadPublicationBinding(root, "example", "devto")
+	if err != nil || !found {
+		t.Fatalf("binding = %#v found=%v err=%v", binding, found, err)
+	}
+	if binding.PublishedURL != "" || binding.RemoteDraftID != "42" {
+		t.Fatalf("failed publish write mutated binding: %#v", binding)
 	}
 }
 

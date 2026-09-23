@@ -121,7 +121,7 @@ func TestDEVToPublicationReconciliationDetectsPublishedStateDrift(t *testing.T) 
 		t.Fatal(err)
 	}
 	if err := publisher.SavePublicationPublishResult(root, "example", "devto", "hash-1", publisher.PublishResult{
-		URL: "https://dev.to/user/example",
+		ID: "42", URL: "https://dev.to/user/example",
 	}, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}

@@ -160,7 +160,7 @@ func TestListPublicationRecords(t *testing.T) {
 		t.Fatalf("records = %#v", records)
 	}
 	record := records[0]
-	if record.Article != "example" || record.Platform != "juejin" || record.RemoteID != "draft-1" || record.PublishedRemoteID != "post-1" {
+	if record.Article != "example" || record.Platform != "juejin" || record.RemoteID != "" || record.PublishedRemoteID != "post-1" {
 		t.Fatalf("record identity = %#v", record)
 	}
 	if record.PublishedURL != "https://juejin.cn/post/post-1" || record.UpdatedAt != "2026-09-21T01:00:00Z" {

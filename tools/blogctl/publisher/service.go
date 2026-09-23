@@ -229,7 +229,7 @@ func (s Service) PublishDraftInput(
 	if err != nil {
 		return PublishResult{}, err
 	}
-	if result.URL == "" {
+	if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.URL) == "" {
 		return PublishResult{}, fmt.Errorf("%s adapter returned an incomplete publish result", platform)
 	}
 	if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, result, s.now()); err != nil {

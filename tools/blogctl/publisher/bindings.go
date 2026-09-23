@@ -265,6 +265,11 @@ func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string,
 func SavePublicationPublishResult(contentRoot, slug, platform, contentHash string, result PublishResult, now time.Time) error {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
+	result.ID = strings.TrimSpace(result.ID)
+	result.URL = strings.TrimSpace(result.URL)
+	if result.ID == "" || result.URL == "" {
+		return errors.New("refusing to record publication without remote id and URL")
+	}
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return err
@@ -287,9 +292,7 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 			RemoteDraftID: state.RemoteDraftID, DraftURL: state.DraftURL, DraftHash: state.DraftHash,
 		}
 	}
-	if strings.TrimSpace(result.ID) != "" {
-		binding.PublishedRemoteID = strings.TrimSpace(result.ID)
-	}
+	binding.PublishedRemoteID = result.ID
 	binding.PublishedURL = result.URL
 	binding.PublishedHash = contentHash
 	binding.PublishedAt = now.UTC().Format(time.RFC3339)

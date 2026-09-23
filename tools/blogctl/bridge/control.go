@@ -809,8 +809,8 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 		}
 		publishedID, _ := result["postId"].(string)
 		publishedURL, _ := result["url"].(string)
-		if strings.TrimSpace(publishedURL) == "" {
-			return blogapp.NativePublishResult{}, errors.New("Medium publish response is missing article URL")
+		if strings.TrimSpace(publishedID) == "" || strings.TrimSpace(publishedURL) == "" {
+			return blogapp.NativePublishResult{}, errors.New("Medium publish response is missing article id or URL")
 		}
 		if err := publisher.SavePublicationPublishResult(
 			request.ContentRoot,
