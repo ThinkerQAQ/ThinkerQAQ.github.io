@@ -112,7 +112,7 @@
 
         <div class="section-title">Mermaid 与图片资产</div>
         <div class="status-row"><span>R2 上传状态</span><strong id="assetStatus" class="status checking">检测中</strong></div>
-        <p id="assetStatusDetail" class="card-hint">Mermaid 会先渲染为 PNG 上传到 R2，再由需要的平台适配器上传到平台图床。</p>
+        <p id="assetStatusDetail" class="card-hint">Mermaid 会先本地渲染；支持图片上传的平台优先使用平台图床，失败时再回退到 R2。</p>
         <div class="publication-filters">
           <label class="field"><span>PNG 宽度</span><input id="mermaidWidth" type="number" min="1" step="1"></label>
           <label class="field"><span>渲染倍数</span><input id="mermaidScale" type="number" min="0.1" step="0.1"></label>
