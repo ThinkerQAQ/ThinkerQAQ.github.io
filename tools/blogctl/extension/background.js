@@ -459,6 +459,25 @@ async function handleMessage(message) {
           bindings: result.bindings ?? [],
         } };
       }
+      if (platform === "oschina") {
+        await syncPlatformSession("oschina");
+        const result = await fetchJSON(`/v1/oschina/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从开源中国草稿列表和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取开源中国草稿列表和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
       if (platform === "devto") {
         const result = await fetchJSON(`/v1/devto/articles/search?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
@@ -523,6 +542,22 @@ async function handleMessage(message) {
     case "blogctl.zhihu.unbind": {
       const article = encodeURIComponent(String(message.article || ""));
       return { ok: true, ...(await fetchJSON(`/v1/zhihu/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.oschina.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("oschina");
+      return { ok: true, ...(await fetchJSON(`/v1/oschina/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.oschina.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/oschina/binding?article=${article}`, jsonOptions("DELETE", {
         state: message.state,
         postId: message.postId,
       }))) };
