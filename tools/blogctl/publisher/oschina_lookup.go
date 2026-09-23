@@ -111,7 +111,7 @@ func (o *osChinaAdapter) listPublished(ctx context.Context) ([]OSChinaPost, erro
 			}
 			result = append(result, OSChinaPost{
 				ID: id, Title: title,
-				URL: osChinaOrigin + "/u/" + url.PathEscape(o.userID) + "/blog/" + url.PathEscape(id),
+				URL:       osChinaOrigin + "/u/" + url.PathEscape(o.userID) + "/blog/" + url.PathEscape(id),
 				Published: true,
 			})
 		}
