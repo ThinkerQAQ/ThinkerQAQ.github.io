@@ -52,3 +52,58 @@ test("rejects an unclosed Mermaid fence", () => {
     /Unclosed Mermaid fenced block/u,
   );
 });
+
+
+test("compiles Mermaid sequence diagrams for every publishing platform", () => {
+  const platforms = [
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
+    "51cto", "oschina", "toutiao", "devto", "medium",
+  ];
+  const markdown = [
+    "Before",
+    fence + "mermaid",
+    "sequenceDiagram",
+    "  participant J as Java Code",
+    "  participant R as Runtime",
+    "  J->>R: synchronized",
+    "  R-->>J: acquired",
+    fence,
+    "After",
+  ].join("\n");
+
+  for (const platform of platforms) {
+    const result = compilePublishingMarkdown(markdown, { platform });
+    assert.equal(result.assets.length, 1, platform);
+    assert.doesNotMatch(result.markdown, /sequenceDiagram/u, platform);
+    assert.match(result.markdown, /generated\/mermaid\/[a-f0-9]{24}\.png/u, platform);
+  }
+});
+
+test("accepts diagram and uml fence aliases when the payload is Mermaid", () => {
+  for (const language of ["diagram", "uml"]) {
+    const markdown = [
+      fence + language,
+      "sequenceDiagram",
+      "  A->>B: call",
+      fence,
+    ].join("\n");
+    const result = compilePublishingMarkdown(markdown, { platform: "csdn" });
+    assert.equal(result.assets.length, 1, language);
+    assert.doesNotMatch(result.markdown, /sequenceDiagram/u, language);
+    assert.match(result.markdown, /generated\/mermaid\/[a-f0-9]{24}\.png/u, language);
+  }
+});
+
+test("fails closed for PlantUML instead of publishing diagram source as code", () => {
+  const markdown = [
+    fence + "plantuml",
+    "@startuml",
+    "Alice -> Bob: hello",
+    "@enduml",
+    fence,
+  ].join("\n");
+  assert.throws(
+    () => compilePublishingMarkdown(markdown, { platform: "cnblogs" }),
+    /Unsupported PlantUML diagram/u,
+  );
+});
