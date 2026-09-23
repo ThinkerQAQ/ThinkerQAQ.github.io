@@ -28,7 +28,7 @@ func TestHTTPClientForSessionReplaysCapturedHeaderOnlyToAllowedPlatformHost(t *t
 	})}
 	client, err := HTTPClientForSession(base, Session{
 		RequestCookieHeader: "PHPSESSID=browser-value; sl-session=secondary",
-		CookieHostSuffixes:   []string{"segmentfault.com"},
+		CookieHostSuffixes:  []string{"segmentfault.com"},
 	})
 	if err != nil {
 		t.Fatal(err)
