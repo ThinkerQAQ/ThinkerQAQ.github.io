@@ -193,8 +193,13 @@ func (z *zhihuAdapter) prepareHTML(ctx context.Context, input DraftInput) (strin
 	return transformZhihuHTML(html), nil
 }
 
-func (z *zhihuAdapter) createDraftID(ctx context.Context) (string, error) {
-	req, err := z.request(ctx, http.MethodPost, zhihuOrigin+"/api/articles/drafts", strings.NewReader("{}"))
+func (z *zhihuAdapter) createDraftID(ctx context.Context, title string) (string, error) {
+	body, _ := json.Marshal(map[string]any{
+		"title":      title,
+		"delta_time": 0,
+		"can_reward": false,
+	})
+	req, err := z.request(ctx, http.MethodPost, zhihuOrigin+"/api/articles/drafts", strings.NewReader(string(body)))
 	if err != nil {
 		return "", err
 	}
@@ -218,10 +223,10 @@ func (z *zhihuAdapter) updateDraft(ctx context.Context, id string, input DraftIn
 		return err
 	}
 	body, _ := json.Marshal(map[string]any{
-		"title":             input.Title,
 		"content":           html,
-		"table_of_contents": true,
-		"delta_time":        30,
+		"table_of_contents": false,
+		"delta_time":        0,
+		"can_reward":        false,
 	})
 	req, err := z.request(ctx, http.MethodPatch, zhihuOrigin+"/api/articles/"+url.PathEscape(id)+"/draft", strings.NewReader(string(body)))
 	if err != nil {
@@ -235,7 +240,7 @@ func (z *zhihuAdapter) updateDraft(ctx context.Context, id string, input DraftIn
 }
 
 func (z *zhihuAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
-	id, err := z.createDraftID(ctx)
+	id, err := z.createDraftID(ctx, input.Title)
 	if err != nil {
 		return DraftResult{}, err
 	}
