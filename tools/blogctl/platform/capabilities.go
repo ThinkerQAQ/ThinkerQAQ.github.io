@@ -44,7 +44,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "zhihu", Label: "知乎", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "51cto", Label: "51CTO", DefaultLanguage: "zh-CN",
