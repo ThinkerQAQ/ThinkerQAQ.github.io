@@ -343,12 +343,15 @@ func TestSyncServicePublishesNativeDraft(t *testing.T) {
 	}
 }
 
-func TestNormalizeSyncRequestRejectsInternationalConfirmPublish(t *testing.T) {
-	_, err := NormalizeSyncRequest(SyncRequest{
+func TestNormalizeSyncRequestAcceptsMediumConfirmPublish(t *testing.T) {
+	request, err := NormalizeSyncRequest(SyncRequest{
 		Articles: []string{"example"}, Platforms: []string{"medium"}, Operation: "publish",
 	})
-	if err == nil || !strings.Contains(err.Error(), "confirm publish is not implemented") {
-		t.Fatalf("error = %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.Operation != "publish" || !reflect.DeepEqual(request.Platforms, []string{"medium"}) {
+		t.Fatalf("request = %#v", request)
 	}
 }
 
