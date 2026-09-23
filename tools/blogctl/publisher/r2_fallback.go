@@ -133,10 +133,10 @@ func signR2Put(rawURL string, payload []byte, contentType string, config R2Fallb
 	return map[string]string{
 		"authorization": "AWS4-HMAC-SHA256 Credential=" + config.AccessKeyID + "/" + scope +
 			", SignedHeaders=" + signedHeaders + ", Signature=" + signature,
-		"content-type": contentType,
+		"content-type":         contentType,
 		"x-amz-content-sha256": payloadHash,
-		"x-amz-date": amzDate,
-		"cache-control": "public, max-age=31536000, immutable",
+		"x-amz-date":           amzDate,
+		"cache-control":        "public, max-age=31536000, immutable",
 	}, nil
 }
 
