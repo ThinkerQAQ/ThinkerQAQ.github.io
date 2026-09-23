@@ -279,14 +279,14 @@ func (z *zhihuAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if err := doJSON(z.client, req, z.ID(), "publish-draft", &decoded); err != nil {
 		return PublishResult{}, err
 	}
+	publishedID := valueString(decoded.ID)
+	if publishedID == "" {
+		publishedID = ref.ID
+	}
 	target := strings.TrimSpace(decoded.URL)
 	if target == "" {
-		id := valueString(decoded.ID)
-		if id == "" {
-			id = ref.ID
-		}
-		target = zhihuOrigin + "/p/" + url.PathEscape(id)
+		target = zhihuOrigin + "/p/" + url.PathEscape(publishedID)
 	}
 	_ = input
-	return PublishResult{URL: target}, nil
+	return PublishResult{ID: publishedID, URL: target}, nil
 }
