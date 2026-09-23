@@ -349,7 +349,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "devto-api", DisplayName: "DEV.to API", Kind: "publishing", Required: false,
-			Description: "DEV.to 使用官方 API 发布；API Key 仅保存在本机 BlogCTL 配置中，不返回给 Extension。",
+			Description: "DEV.to 文章生命周期使用官方 API；图片优先通过浏览器会话上传到 DEV.to，失败时回退 R2。API Key 仅保存在本机 BlogCTL 配置中。",
 			Health:      devtoAPIHealth(config),
 			Config: toolConfigView{
 				Scope:  "bridge",
