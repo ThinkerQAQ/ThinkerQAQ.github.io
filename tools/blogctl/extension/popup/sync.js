@@ -277,7 +277,7 @@
     state.refreshSerial++;
   }
 
-  async function refreshArticleMatches() {
+  async function refreshArticleMatches(allowBridgeRestart = true) {
     const article = state.selectedSlug;
     const platforms = selectedPlatformIDs();
     if (!article || !platforms.length) return;
@@ -299,6 +299,20 @@
     }));
 
     if (serial !== state.refreshSerial || article !== state.selectedSlug) return;
+
+    const staleBridge = results.some(([, match]) => String(match?.text || "").includes("invalid bridge token"));
+    if (staleBridge && allowBridgeRestart) {
+      BlogCTLPopup.setMessage(message, "检测到 Bridge 仍在运行旧接口，正在重启后重新检测…");
+      try {
+        await BlogCTLPopup.send("blogctl.tool.action", { name: "bridge", action: "restart" });
+        if (article !== state.selectedSlug) return;
+        await refreshArticleMatches(false);
+        return;
+      } catch (error) {
+        BlogCTLPopup.setMessage(message, `Bridge 重启失败：${BlogCTLPopup.errorMessage(error)}`, "error");
+      }
+    }
+
     state.matches = Object.fromEntries(results);
     state.cachedMatchTime = Date.now();
     BlogCTLSyncState.saveMatches(localStorage, article, state.matches);
