@@ -379,8 +379,8 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		{
 			Name: "java", DisplayName: "Java", Kind: "dependency", Required: false,
 			Description: "仅在发布文章包含 PlantUML（puml / plantuml / UML）时用于编译图表。",
-			Health: executableHealth(config, "java"),
-			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
+			Health:      executableHealth(config, "java"),
+			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
 		},
 	}
 }
