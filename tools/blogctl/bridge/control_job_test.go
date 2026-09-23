@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -69,6 +70,42 @@ func TestDeleteSyncJobRejectsRunningAndRemovesFinished(t *testing.T) {
 	}
 	if len(server.jobOrder) != 1 || server.jobOrder[0] != "running" {
 		t.Fatalf("jobOrder = %#v", server.jobOrder)
+	}
+}
+
+func TestPruneSyncJobHistoryNeverEvictsRunningJobs(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.jobs = map[string]*syncJob{}
+	server.jobOrder = nil
+
+	for index := 0; index < 22; index++ {
+		id := fmt.Sprintf("job-%02d", index)
+		state := "completed"
+		if index == 21 {
+			state = "running"
+		}
+		server.jobs[id] = &syncJob{ID: id, State: state}
+		server.jobOrder = append(server.jobOrder, id)
+	}
+
+	server.pruneSyncJobHistoryLocked(20)
+	if server.jobs["job-21"] == nil || server.jobs["job-21"].State != "running" {
+		t.Fatal("running job was evicted from history")
+	}
+	if len(server.jobOrder) != 21 {
+		t.Fatalf("jobOrder length = %d, want 21 while an old job is still running", len(server.jobOrder))
+	}
+
+	server.jobs["job-21"].State = "completed"
+	server.pruneSyncJobHistoryLocked(20)
+	if len(server.jobOrder) != 20 {
+		t.Fatalf("jobOrder length = %d, want 20 after all jobs finish", len(server.jobOrder))
+	}
+	if server.jobs["job-21"] != nil {
+		t.Fatal("old completed job was not pruned")
 	}
 }
 

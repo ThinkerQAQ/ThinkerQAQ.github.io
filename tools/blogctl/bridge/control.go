@@ -991,6 +991,22 @@ func newSyncJob(id string, request syncRequest, startedAt time.Time) *syncJob {
 	}
 }
 
+func (s *Server) pruneSyncJobHistoryLocked(limit int) {
+	if limit < 1 || len(s.jobOrder) <= limit {
+		return
+	}
+	kept := make([]string, 0, len(s.jobOrder))
+	for _, id := range s.jobOrder {
+		job := s.jobs[id]
+		if len(kept) < limit || (job != nil && job.State == "running") {
+			kept = append(kept, id)
+			continue
+		}
+		delete(s.jobs, id)
+	}
+	s.jobOrder = kept
+}
+
 func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeConfig) {
 	runner := s.syncRunner
 	if runner == nil {
@@ -1020,9 +1036,11 @@ func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeC
 					Platform: platform, State: "failed", Message: err.Error(),
 				}, s.now())
 			}
+			s.pruneSyncJobHistoryLocked(20)
 			return
 		}
 		stored.State = "completed"
+		s.pruneSyncJobHistoryLocked(20)
 	}()
 }
 
@@ -1036,12 +1054,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	}
 	s.jobs[job.ID] = job
 	s.jobOrder = append([]string{job.ID}, s.jobOrder...)
-	if len(s.jobOrder) > 20 {
-		for _, id := range s.jobOrder[20:] {
-			delete(s.jobs, id)
-		}
-		s.jobOrder = s.jobOrder[:20]
-	}
+	s.pruneSyncJobHistoryLocked(20)
 	config := s.config
 	response := cloneSyncJob(job)
 	s.mu.Unlock()
