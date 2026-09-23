@@ -401,8 +401,16 @@ func TestBridgeNativePublisherUpdatesChangedMediumDraft(t *testing.T) {
 			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
-			if body.BaseRev != 9 || len(body.Deltas) < 4 {
+			if body.BaseRev != 9 || len(body.Deltas) < 2 {
 				t.Fatalf("update body = %#v", body)
+			}
+			for _, delta := range body.Deltas {
+				if delta["type"] == float64(2) && delta["index"] == float64(0) {
+					t.Fatalf("update must preserve Medium title paragraph: %#v", body.Deltas)
+				}
+				if delta["type"] == float64(1) && delta["index"] == float64(0) {
+					t.Fatalf("update must not recreate source title at index 0: %#v", body.Deltas)
+				}
 			}
 			return mediumResponse(request, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":13}}}`, nil), nil
@@ -442,12 +450,17 @@ func TestBridgeNativePublisherPublishesMediumDraft(t *testing.T) {
 		case "/p/post-existing/notes":
 			return mediumResponse(request, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"post":{"id":"post-existing","latestRev":12,"firstPublishedAt":0,"uniqueSlug":"","mediumUrl":"","creator":{"username":"ThinkerQAQ"}}}}`, nil), nil
+		case "/_/graphql":
+			return mediumResponse(request, http.StatusOK,
+				`[{"data":{"postResult":{"id":"post-existing","title":"Why count++ Breaks Under Concurrency: Atomicity, Visibility & Ordering — Concurrency Programming (1)","previewContent":{"subtitle":"A hardware-first explanation of CPU caches, store buffers, atomic instructions, cache coherence, and memory fences."}}}}]`, nil), nil
 		case "/p/post-existing/publish":
 			var body map[string]any
 			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
-			if body["latestRev"] != float64(12) || body["title"] != "Medium title" {
+			if body["latestRev"] != float64(12) ||
+				body["title"] != "Why count++ Breaks Under Concurrency: Atomicity, Visibility & Ordering — Concurrency Programming (1)" ||
+				body["subtitle"] != "A hardware-first explanation of CPU caches, store buffers, atomic instructions, cache coherence, and memory fences." {
 				t.Fatalf("publish body = %#v", body)
 			}
 			return mediumResponse(request, http.StatusOK,
