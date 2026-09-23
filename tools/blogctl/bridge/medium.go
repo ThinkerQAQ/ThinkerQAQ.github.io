@@ -352,8 +352,8 @@ func (c mediumClient) prepareDraftDeltas(
 			deltas = append(deltas, delta)
 			continue
 		}
-		source := strings.TrimSpace(valueString(imageSpec["url"]))
-		alt := strings.TrimSpace(valueString(imageSpec["alt"]))
+		source := strings.TrimSpace(mediumValueString(imageSpec["url"]))
+		alt := strings.TrimSpace(mediumValueString(imageSpec["alt"]))
 		image, err := c.loadImage(ctx, input, source)
 		if err != nil {
 			return nil, fallbacks, fmt.Errorf("Medium image load failed: %w", err)
@@ -838,6 +838,15 @@ func setMediumHeaders(req *http.Request, session platformSession, referer string
 	req.Header.Set("x-client-date", fmt.Sprintf("%d", time.Now().UnixMilli()))
 	if xsrf := session.Cookies["xsrf"]; xsrf != "" {
 		req.Header.Set("x-xsrf-token", xsrf)
+	}
+}
+
+func mediumValueString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return ""
 	}
 }
 
