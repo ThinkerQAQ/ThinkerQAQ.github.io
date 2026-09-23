@@ -13,7 +13,6 @@
     records: [],
     currentJob: null,
     pollTimer: null,
-    transitionedJobID: "",
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer, actionButton, runStatus, message;
@@ -83,6 +82,11 @@
     return "没有草稿关系 · 本次创建";
   }
 
+  function platformTaskResult(platformId) {
+    if (!state.currentJob || !(state.currentJob.platforms ?? []).includes(platformId)) return null;
+    return state.currentJob.results?.[platformId] ?? { state: state.currentJob.state || "queued" };
+  }
+
   function renderPlatforms() {
     const previous = platformsContainer.querySelector('input[data-platform]')
       ? new Set(selectedPlatforms())
@@ -92,6 +96,9 @@
 
     for (const platform of state.status?.platforms ?? []) {
       const availability = platformAvailability(article, platform);
+      const wrapper = document.createElement("div");
+      wrapper.className = "platform-choice-card";
+
       const card = document.createElement("label");
       card.className = "platform-choice";
 
@@ -99,7 +106,7 @@
       checkbox.type = "checkbox";
       checkbox.dataset.platform = platform.id;
       checkbox.checked = previous.has(platform.id) && availability.available;
-      checkbox.disabled = !availability.available;
+      checkbox.disabled = !availability.available || ["queued", "running"].includes(state.currentJob?.state);
       checkbox.addEventListener("change", () => {
         state.selectedPlatformIDs = new Set(selectedPlatforms());
         BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
@@ -121,7 +128,30 @@
       else BlogCTLPopup.setStatus(badge, "ok", publicationRecord(platform.id)?.remoteId ? "更新" : "创建");
 
       card.append(checkbox, text, badge);
-      platformsContainer.append(card);
+      wrapper.append(card);
+
+      const taskResult = platformTaskResult(platform.id);
+      if (taskResult) {
+        const statusRow = document.createElement("div");
+        statusRow.className = "platform-task-status";
+        const statusLabel = document.createElement("span");
+        statusLabel.textContent = "任务状态";
+        const status = document.createElement("strong");
+        const presentation = BlogCTLSyncModel.statePresentation(taskResult.state, taskResult.result || "");
+        BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
+        statusRow.append(statusLabel, status);
+
+        const detailText = taskResult.error || taskResult.message;
+        if (detailText) {
+          const taskDetail = document.createElement("small");
+          taskDetail.className = taskResult.error ? "job-platform-message error-text" : "job-platform-message";
+          taskDetail.textContent = detailText;
+          statusRow.append(taskDetail);
+        }
+        wrapper.append(statusRow);
+      }
+
+      platformsContainer.append(wrapper);
     }
 
     if (!platformsContainer.childElementCount) {
@@ -149,6 +179,31 @@
     return button;
   }
 
+  function completedPlatforms(job) {
+    return (job.platforms ?? []).filter((platform) => job.results?.[platform]?.state === "completed");
+  }
+
+  function publishLink(job) {
+    const platforms = completedPlatforms(job);
+    if (!platforms.length) return null;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "primary inline-primary compact";
+    button.textContent = platforms.length === (job.platforms ?? []).length
+      ? "进入发布"
+      : `发布成功的 ${platforms.length} 个平台`;
+    button.addEventListener("click", () => {
+      document.dispatchEvent(new CustomEvent("blogctl:draft-completed", {
+        detail: {
+          article: job.article,
+          platforms,
+          jobId: job.id,
+        },
+      }));
+    });
+    return button;
+  }
+
   function renderRunStatus() {
     const job = state.currentJob;
     runStatus.replaceChildren();
@@ -166,18 +221,20 @@
     runStatus.append(head);
 
     const detail = document.createElement("small");
-    detail.className = "job-platform-message";
+    detail.className = job.state === "failed" ? "job-platform-message error-text" : "job-platform-message";
     detail.textContent = job.state === "failed"
-      ? (job.error || "更新／保存失败")
+      ? (job.error || "更新／保存存在失败平台")
       : job.state === "completed"
-        ? "更新／保存完成，正在进入发布。"
+        ? "更新／保存完成。可查看任务详情，或手动进入发布。"
         : "正在更新远端草稿状态…";
     runStatus.append(detail);
 
-    if (job.state === "failed") {
+    if (["completed", "failed"].includes(job.state)) {
       const actions = document.createElement("div");
       actions.className = "workflow-status-actions";
-      actions.append(taskLink("查看失败任务", job.id));
+      actions.append(taskLink("查看任务", job.id));
+      const publish = publishLink(job);
+      if (publish) actions.append(publish);
       runStatus.append(actions);
     }
   }
@@ -189,18 +246,6 @@
     }
   }
 
-  function transitionToPublish(job) {
-    if (!state.active || job.state !== "completed" || state.transitionedJobID === job.id) return;
-    state.transitionedJobID = job.id;
-    document.dispatchEvent(new CustomEvent("blogctl:draft-completed", {
-      detail: {
-        article: job.article,
-        platforms: [...(job.platforms ?? [])],
-        jobId: job.id,
-      },
-    }));
-  }
-
   async function pollJob(jobID) {
     stopPolling();
     if (!jobID || state.currentJob?.id !== jobID) return;
@@ -209,14 +254,11 @@
       const response = await BlogCTLPopup.send("blogctl.job.get", { id: jobID });
       if (state.currentJob?.id !== jobID) return;
       state.currentJob = response.job ?? state.currentJob;
+      renderPlatforms();
       renderRunStatus();
       updateAction();
 
-      if (state.currentJob.state === "completed") {
-        transitionToPublish(state.currentJob);
-        return;
-      }
-      if (state.currentJob.state === "failed") return;
+      if (["completed", "failed"].includes(state.currentJob.state)) return;
     } catch (error) {
       BlogCTLPopup.setMessage(message, `任务状态读取失败：${BlogCTLPopup.errorMessage(error)}`, "error");
     }
@@ -243,7 +285,7 @@
         },
       });
       state.currentJob = response.job ?? null;
-      state.transitionedJobID = "";
+      renderPlatforms();
       renderRunStatus();
       BlogCTLPopup.setMessage(message, "任务已启动，正在轮询状态。", "ok");
       if (state.currentJob?.id) pollJob(state.currentJob.id);
