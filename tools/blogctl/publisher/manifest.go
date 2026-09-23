@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 const DistributionManifestVersion = 2
@@ -69,17 +68,6 @@ func readManifest(path string) (map[string]any, error) {
 	return manifest, nil
 }
 
-func readOrCreateManifest(path string) (map[string]any, error) {
-	manifest, err := readManifest(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return map[string]any{
-			"version":  float64(DistributionManifestVersion),
-			"articles": map[string]any{},
-		}, nil
-	}
-	return manifest, err
-}
-
 type PublicationState struct {
 	RemoteDraftID     string
 	DraftURL          string
@@ -94,67 +82,14 @@ type PublicationState struct {
 }
 
 func LoadPublicationState(contentRoot, slug, platform string) (PublicationState, string, error) {
-	if binding, found, err := LoadPublicationBinding(contentRoot, slug, platform); err != nil {
-		return PublicationState{}, "", err
-	} else if found {
-		return publicationBindingState(binding), bindingPath(contentRoot), nil
-	}
-
-	manifestPath := filepath.Join(contentRoot, ".distribution", "manifest.json")
-	manifest, err := readOrCreateManifest(manifestPath)
+	binding, found, err := LoadPublicationBinding(contentRoot, slug, platform)
 	if err != nil {
 		return PublicationState{}, "", err
 	}
-	articles := objectValue(manifest["articles"])
-	article := objectValue(articles[slug])
-	if article == nil {
-		return PublicationState{}, manifestPath, nil
+	if !found {
+		return PublicationState{}, bindingPath(contentRoot), nil
 	}
-	state := objectValue(objectValue(article["platforms"])[platform])
-	if state == nil {
-		return PublicationState{}, manifestPath, nil
-	}
-	draftURL := stringValue(state["draftUrl"])
-	remoteID := stringValue(state["remoteDraftId"])
-	if remoteID == "" {
-		remoteID = draftIDFromURL(platform, draftURL)
-	}
-	draftHash := stringValue(state["draftHash"])
-	if draftHash == "" {
-		draftHash = stringValue(state["lastSyncedHash"])
-	}
-	return PublicationState{
-		RemoteDraftID:     remoteID,
-		DraftURL:          draftURL,
-		DraftHash:         draftHash,
-		PublishedRemoteID: stringValue(state["publishedRemoteId"]),
-		PublishedURL:      stringValue(state["publishedUrl"]),
-		PublishedHash:     stringValue(state["publishedHash"]),
-	}, manifestPath, nil
-}
-
-func ensurePlatformState(manifest map[string]any, slug, platform string) map[string]any {
-	articles := objectValue(manifest["articles"])
-	if articles == nil {
-		articles = map[string]any{}
-		manifest["articles"] = articles
-	}
-	article := objectValue(articles[slug])
-	if article == nil {
-		article = map[string]any{"platforms": map[string]any{}}
-		articles[slug] = article
-	}
-	platforms := objectValue(article["platforms"])
-	if platforms == nil {
-		platforms = map[string]any{}
-		article["platforms"] = platforms
-	}
-	state := objectValue(platforms[platform])
-	if state == nil {
-		state = map[string]any{}
-		platforms[platform] = state
-	}
-	return state
+	return publicationBindingState(binding), bindingPath(contentRoot), nil
 }
 
 func stringValue(value any) string {
@@ -226,7 +161,7 @@ func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord 
 }
 
 func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
-	recordsByKey := map[string]PublicationRecord{}
+	records := []PublicationRecord{}
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return nil, err
@@ -236,56 +171,6 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 		if record.RemoteID == "" && record.PublishedRemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
 			continue
 		}
-		recordsByKey[binding.Slug+"\x00"+binding.Platform] = record
-	}
-
-	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	if err == nil {
-		for slug, articleValue := range objectValue(manifest["articles"]) {
-			article := objectValue(articleValue)
-			for platform, stateValue := range objectValue(article["platforms"]) {
-				key := slug + "\x00" + platform
-				if _, exists := recordsByKey[key]; exists {
-					continue
-				}
-				state := objectValue(stateValue)
-				if state == nil {
-					continue
-				}
-				draftURL := stringValue(state["draftUrl"])
-				remoteID := stringValue(state["remoteDraftId"])
-				if remoteID == "" {
-					remoteID = draftIDFromURL(platform, draftURL)
-				}
-				record := PublicationRecord{
-					Article: slug, Platform: platform, RemoteID: remoteID,
-					PublishedRemoteID: stringValue(state["publishedRemoteId"]),
-					DraftURL:          draftURL, PublishedURL: stringValue(state["publishedUrl"]),
-					DraftSyncedAt:     stringValue(state["draftSyncedAt"]),
-					PublishedAt:       stringValue(state["publishedAt"]),
-					PublishedSyncedAt: stringValue(state["publishedSyncedAt"]),
-				}
-				if record.DraftSyncedAt == "" {
-					record.DraftSyncedAt = stringValue(state["lastSyncedAt"])
-				}
-				for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
-					if candidate > record.UpdatedAt {
-						record.UpdatedAt = candidate
-					}
-				}
-				if record.RemoteID == "" && record.PublishedRemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
-					continue
-				}
-				recordsByKey[key] = record
-			}
-		}
-	}
-
-	records := make([]PublicationRecord, 0, len(recordsByKey))
-	for _, record := range recordsByKey {
 		records = append(records, record)
 	}
 	sort.Slice(records, func(i, j int) bool {
@@ -314,35 +199,13 @@ func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) 
 		link := ArticleLink{
 			Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
 			PublishedRemoteID: binding.PublishedRemoteID,
-			DraftURL:          binding.DraftURL, PublishedURL: binding.PublishedURL,
+			DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
 		}
 		if link.RemoteID == "" {
 			link.RemoteID = draftIDFromURL(binding.Platform, link.DraftURL)
 		}
 		if link.RemoteID != "" || link.PublishedRemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
 			result[binding.Platform] = link
-		}
-	}
-
-	manifest, err := readManifest(filepath.Join(contentRoot, ".distribution", "manifest.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return result, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	article := objectValue(objectValue(manifest["articles"])[slug])
-	for platform, raw := range objectValue(article["platforms"]) {
-		if _, exists := result[platform]; exists {
-			continue
-		}
-		state := objectValue(raw)
-		link := ArticleLink{Platform: platform, RemoteID: stringValue(state["remoteDraftId"]), PublishedRemoteID: stringValue(state["publishedRemoteId"]), DraftURL: stringValue(state["draftUrl"]), PublishedURL: stringValue(state["publishedUrl"])}
-		if link.RemoteID == "" {
-			link.RemoteID = draftIDFromURL(platform, link.DraftURL)
-		}
-		if link.RemoteID != "" || link.PublishedRemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
-			result[platform] = link
 		}
 	}
 	return result, nil
@@ -450,83 +313,9 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	if htmlRaw, htmlErr := os.ReadFile(htmlPath); htmlErr == nil {
 		htmlBody = strings.TrimSpace(string(htmlRaw))
 	}
-	draftHash := stringValue(state["draftHash"])
-	if draftHash == "" {
-		draftHash = stringValue(state["lastSyncedHash"])
-	}
-	draftURL := stringValue(state["draftUrl"])
-	remoteID := stringValue(state["remoteDraftId"])
-	if remoteID == "" {
-		remoteID = draftIDFromURL(platform, draftURL)
-	}
 	return DraftInput{
 		Slug: slug, Title: title, Description: description, Markdown: markdown, HTML: htmlBody,
-		Language: language, ContentHash: contentHash, DraftHash: draftHash,
-		RemoteDraftID: remoteID, DraftURL: draftURL,
+		Language: language, ContentHash: contentHash,
 		SourceDir: sourceDirectory(contentRoot, slug, language),
 	}, manifestPath, nil
-}
-
-func writeManifestAtomic(path string, manifest map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	payload, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return err
-	}
-	payload = append(payload, '\n')
-	temp := path + ".tmp"
-	if err := os.WriteFile(temp, payload, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(temp, path); err != nil {
-		_ = os.Remove(temp)
-		return err
-	}
-	return nil
-}
-
-func SaveDraftResult(manifestPath, slug, platform, contentHash string, result DraftResult, now time.Time) error {
-	manifest, err := readOrCreateManifest(manifestPath)
-	if err != nil {
-		return err
-	}
-	state := ensurePlatformState(manifest, slug, platform)
-	manifest["version"] = float64(DistributionManifestVersion)
-	state["remoteDraftId"] = result.ID
-	state["draftUrl"] = result.URL
-	state["draftHash"] = contentHash
-	state["draftSyncedAt"] = now.UTC().Format(time.RFC3339)
-	// Preserve the legacy v1 fields for backward compatibility with existing manifest readers.
-	state["lastSyncedHash"] = contentHash
-	state["lastSyncedAt"] = now.UTC().Format(time.RFC3339)
-
-	return writeManifestAtomic(manifestPath, manifest)
-}
-
-func SavePublishResult(manifestPath, slug, platform, contentHash string, result PublishResult, now time.Time) error {
-	manifest, err := readOrCreateManifest(manifestPath)
-	if err != nil {
-		return err
-	}
-	state := ensurePlatformState(manifest, slug, platform)
-	if stringValue(state["draftHash"]) != contentHash {
-		return errors.New("refusing to record publication for a stale draft")
-	}
-	state["publishedUrl"] = result.URL
-	state["publishedHash"] = contentHash
-	state["publishedAt"] = now.UTC().Format(time.RFC3339)
-	return writeManifestAtomic(manifestPath, manifest)
-}
-
-func SavePublishedUpdateResult(manifestPath, slug, platform, contentHash string, now time.Time) error {
-	manifest, err := readOrCreateManifest(manifestPath)
-	if err != nil {
-		return err
-	}
-	state := ensurePlatformState(manifest, slug, platform)
-	state["publishedHash"] = contentHash
-	state["publishedSyncedAt"] = now.UTC().Format(time.RFC3339)
-	return writeManifestAtomic(manifestPath, manifest)
 }
