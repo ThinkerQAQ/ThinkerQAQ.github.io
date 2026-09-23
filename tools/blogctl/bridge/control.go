@@ -524,12 +524,12 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
 		Assets: assets,
 		R2Fallback: publisher.R2FallbackConfig{
-			AccessKeyID: strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
+			AccessKeyID:     strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
 			SecretAccessKey: strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
-			AccountID: strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")),
-			Endpoint: strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
-			Bucket: bucket,
-			PublicBaseURL: publicBaseURL,
+			AccountID:       strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")),
+			Endpoint:        strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
+			Bucket:          bucket,
+			PublicBaseURL:   publicBaseURL,
 		},
 	}
 }
