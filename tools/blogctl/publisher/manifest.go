@@ -81,15 +81,20 @@ func readOrCreateManifest(path string) (map[string]any, error) {
 }
 
 type PublicationState struct {
-	RemoteDraftID string
-	DraftURL      string
-	DraftHash     string
-	PublishedURL  string
-	PublishedHash string
+	RemoteDraftID     string
+	DraftURL          string
+	DraftHash         string
+	PublishedRemoteID string
+	PublishedURL      string
+	PublishedHash     string
+	Account           string
+	Source            string
+	RemoteUpdatedAt   string
+	VerifiedAt        string
 }
 
 func LoadPublicationState(contentRoot, slug, platform string) (PublicationState, string, error) {
-	if binding, found, err := loadPublicationBinding(contentRoot, slug, platform); err != nil {
+	if binding, found, err := LoadPublicationBinding(contentRoot, slug, platform); err != nil {
 		return PublicationState{}, "", err
 	} else if found {
 		return publicationBindingState(binding), bindingPath(contentRoot), nil
@@ -119,11 +124,12 @@ func LoadPublicationState(contentRoot, slug, platform string) (PublicationState,
 		draftHash = stringValue(state["lastSyncedHash"])
 	}
 	return PublicationState{
-		RemoteDraftID: remoteID,
-		DraftURL:      draftURL,
-		DraftHash:     draftHash,
-		PublishedURL:  stringValue(state["publishedUrl"]),
-		PublishedHash: stringValue(state["publishedHash"]),
+		RemoteDraftID:     remoteID,
+		DraftURL:          draftURL,
+		DraftHash:         draftHash,
+		PublishedRemoteID: stringValue(state["publishedRemoteId"]),
+		PublishedURL:      stringValue(state["publishedUrl"]),
+		PublishedHash:     stringValue(state["publishedHash"]),
 	}, manifestPath, nil
 }
 
@@ -181,16 +187,18 @@ func platformState(manifest map[string]any, slug, platform string) (map[string]a
 }
 
 type ArticleLink struct {
-	Platform     string `json:"platform"`
-	RemoteID     string `json:"remoteId,omitempty"`
-	DraftURL     string `json:"draftUrl,omitempty"`
-	PublishedURL string `json:"publishedUrl,omitempty"`
+	Platform          string `json:"platform"`
+	RemoteID          string `json:"remoteId,omitempty"`
+	PublishedRemoteID string `json:"publishedRemoteId,omitempty"`
+	DraftURL          string `json:"draftUrl,omitempty"`
+	PublishedURL      string `json:"publishedUrl,omitempty"`
 }
 
 type PublicationRecord struct {
 	Article           string   `json:"article"`
 	Platform          string   `json:"platform"`
 	RemoteID          string   `json:"remoteId,omitempty"`
+	PublishedRemoteID string   `json:"publishedRemoteId,omitempty"`
 	DraftURL          string   `json:"draftUrl,omitempty"`
 	PublishedURL      string   `json:"publishedUrl,omitempty"`
 	DraftSyncedAt     string   `json:"draftSyncedAt,omitempty"`
@@ -203,6 +211,7 @@ type PublicationRecord struct {
 func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord {
 	record := PublicationRecord{
 		Article: binding.Slug, Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
+		PublishedRemoteID: binding.PublishedRemoteID,
 		DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
 		DraftSyncedAt: binding.DraftSyncedAt, PublishedAt: binding.PublishedAt,
 		PublishedSyncedAt: binding.PublishedSyncedAt,
@@ -224,7 +233,7 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 	}
 	for _, binding := range bindings.Publications {
 		record := publicationRecordFromBinding(binding)
-		if record.RemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
+		if record.RemoteID == "" && record.PublishedRemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
 			continue
 		}
 		recordsByKey[binding.Slug+"\x00"+binding.Platform] = record
@@ -253,6 +262,7 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 				}
 				record := PublicationRecord{
 					Article: slug, Platform: platform, RemoteID: remoteID,
+					PublishedRemoteID: stringValue(state["publishedRemoteId"]),
 					DraftURL: draftURL, PublishedURL: stringValue(state["publishedUrl"]),
 					DraftSyncedAt:     stringValue(state["draftSyncedAt"]),
 					PublishedAt:       stringValue(state["publishedAt"]),
@@ -266,7 +276,7 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 						record.UpdatedAt = candidate
 					}
 				}
-				if record.RemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
+				if record.RemoteID == "" && record.PublishedRemoteID == "" && record.DraftURL == "" && record.PublishedURL == "" {
 					continue
 				}
 				recordsByKey[key] = record
@@ -303,12 +313,13 @@ func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) 
 		}
 		link := ArticleLink{
 			Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
+			PublishedRemoteID: binding.PublishedRemoteID,
 			DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
 		}
 		if link.RemoteID == "" {
 			link.RemoteID = draftIDFromURL(binding.Platform, link.DraftURL)
 		}
-		if link.RemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
+		if link.RemoteID != "" || link.PublishedRemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
 			result[binding.Platform] = link
 		}
 	}
@@ -326,11 +337,11 @@ func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) 
 			continue
 		}
 		state := objectValue(raw)
-		link := ArticleLink{Platform: platform, RemoteID: stringValue(state["remoteDraftId"]), DraftURL: stringValue(state["draftUrl"]), PublishedURL: stringValue(state["publishedUrl"])}
+		link := ArticleLink{Platform: platform, RemoteID: stringValue(state["remoteDraftId"]), PublishedRemoteID: stringValue(state["publishedRemoteId"]), DraftURL: stringValue(state["draftUrl"]), PublishedURL: stringValue(state["publishedUrl"])}
 		if link.RemoteID == "" {
 			link.RemoteID = draftIDFromURL(platform, link.DraftURL)
 		}
-		if link.RemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
+		if link.RemoteID != "" || link.PublishedRemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
 			result[platform] = link
 		}
 	}
