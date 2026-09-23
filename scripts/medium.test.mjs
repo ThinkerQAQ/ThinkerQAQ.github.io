@@ -60,17 +60,15 @@ test("removes localized contents sections without requiring a separator", () => 
   assert.match(result, /^## 第一节/u);
 });
 
-test("maps body H1/H2 to Medium section headings and deeper headings to subheadings", () => {
-  const { blocks } = parseMediumBlocks("# Duplicate title\n\n## Section\n\n### Detail");
+test("maps body H1/H2/H3 to the Medium section-heading style used by published posts", () => {
+  const { blocks } = parseMediumBlocks("# Duplicate title\n\n## Section\n\n### Detail\n\n#### Deep");
   const headings = blocks.filter((block) => block.kind === "heading");
-  assert.deepEqual(headings.map((block) => block.paragraphType), [3, 3, 8]);
+  assert.deepEqual(headings.map((block) => block.paragraphType), [3, 3, 3, 8]);
 });
 
-test("preserves separators without guessing an undocumented Medium delta type", () => {
+test("drops markdown separators because published Medium posts do not retain them as paragraphs", () => {
   const { blocks } = parseMediumBlocks("First\n\n---\n\nSecond");
-  assert.equal(blocks[1].kind, "separator");
-  assert.equal(blocks[1].paragraphType, 1);
-  assert.equal(blocks[1].text, "• • •");
+  assert.deepEqual(blocks.map((block) => block.text), ["First", "Second"]);
 });
 
 test("makes nested and task lists stable in Medium's flat list transport", () => {
@@ -93,6 +91,12 @@ test("converts GitHub admonitions into readable Medium quote blocks", () => {
   assert.deepEqual({ start: bold.start, end: bold.end }, { start: 0, end: 5 });
 });
 
+test("splits quoted blank lines into separate Medium blockquote paragraphs", () => {
+  const { blocks } = parseMediumBlocks("> **Note.** First paragraph.\n>\n> Second paragraph.");
+  const quotes = blocks.filter((block) => block.kind === "blockquote");
+  assert.deepEqual(quotes.map((block) => block.text), ["Note. First paragraph.", "Second paragraph."]);
+});
+
 test("preserves whitespace-sensitive text fences as PRE deltas", () => {
   const { blocks } = parseMediumBlocks(article.body);
   const pre = blocks.find((block) => block.kind === "pre");
@@ -109,6 +113,11 @@ test("builds a Medium draft with canonical footer matching DEV.to wording", () =
     url: "https://thinkerqaq.github.io/media/articles/concurrency-series-00/cover.png",
     alt: "Concurrency series cover",
   });
+  assert.deepEqual(draft.deltas[0].image, {
+    url: "https://thinkerqaq.github.io/media/articles/concurrency-series-00/cover.png",
+    alt: "Concurrency series cover",
+  });
+  assert.equal(draft.deltas[0].paragraph.type, 4);
   const footer = draft.deltas.at(-1).paragraph;
   assert.equal(footer.type, 9);
   assert.match(footer.text, /This article was first published on ThinkerQAQ's personal blog and syndicated here by the author/u);
@@ -176,7 +185,7 @@ test("builds a copy/paste HTML fallback without TOC and with copy button", () =>
 });
 
 
-test("Medium compiles Mermaid to an image fallback", () => {
+test("Medium compiles Mermaid to an image delta for native upload", () => {
   const fence = String.fromCharCode(96).repeat(3);
   const withMermaid = {
     ...article,
@@ -184,8 +193,9 @@ test("Medium compiles Mermaid to an image fallback", () => {
   };
   const draft = buildMediumDraft(withMermaid, { slug: "concurrency-series-00" });
   assert.equal(draft.publishingAssets.length, 1);
-  assert.equal(draft.requiresHtmlFallback, true);
+  assert.equal(draft.requiresHtmlFallback, false);
   assert.equal(draft.deltas.some((delta) => /flowchart LR/u.test(delta.paragraph.text)), false);
+  assert.ok(draft.deltas.some((delta) => delta.image?.alt === "Mutex path"));
 
   const output = buildMediumCopyHtml(withMermaid, { slug: "concurrency-series-00" });
   assert.doesNotMatch(output, /flowchart LR/u);
@@ -193,12 +203,62 @@ test("Medium compiles Mermaid to an image fallback", () => {
 });
 
 
-test("Medium copy fallback renders separators and image captions", () => {
+test("Medium copy fallback drops separators and keeps image captions", () => {
   const withImage = {
     ...article,
     body: "## Start\n\n---\n\n![Mutex path](https://example.com/mutex.png)",
   };
   const output = buildMediumCopyHtml(withImage, { slug: "medium-formatting" });
-  assert.match(output, /<hr>/u);
+  assert.doesNotMatch(output, /<hr>/u);
   assert.match(output, /<figcaption>Mutex path<\/figcaption>/u);
+});
+
+
+test("published-post regression: cover, headings, quote paragraphs, tables, and footer stay readable", () => {
+  const fixture = {
+    ...article,
+    title: "Concurrency Programming (1): Start with the Hardware",
+    body: `## Table of Contents
+
+- [Start](#start)
+
+---
+
+## Start
+
+Intro.
+
+> **Question one?**
+
+### Store Buffer
+
+> **Note.** First paragraph.
+>
+> Second paragraph.
+
+| Concept | What question does it answer? |
+| --- | --- |
+| Store Buffer | Why may another core not see it? |
+| Out-of-Order Execution | Why may a later instruction execute first? |
+
+---
+
+End.`,
+  };
+  const draft = buildMediumDraft(fixture, { slug: "concurrency-series-01-hardware" });
+  assert.equal(draft.deltas[0].paragraph.type, 4);
+  assert.equal(draft.deltas.filter((delta) => delta.paragraph.type === 3).length, 2);
+  assert.deepEqual(
+    draft.deltas.filter((delta) => delta.paragraph.type === 9).map((delta) => delta.paragraph.text),
+    [
+      "Question one?",
+      "Note. First paragraph.",
+      "Second paragraph.",
+      "This article was first published on ThinkerQAQ's personal blog and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.",
+    ],
+  );
+  const text = draft.deltas.map((delta) => delta.paragraph.text).join("\n");
+  assert.doesNotMatch(text, /Table of Contents|• • •|\| --- \|/u);
+  assert.match(text, /Store Buffer — Why may another core not see it\?/u);
+  assert.match(text, /Out-of-Order Execution — Why may a later instruction execute first\?/u);
 });
