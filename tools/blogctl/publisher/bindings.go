@@ -10,20 +10,6 @@ import (
 	"time"
 )
 
-// CNBlogsBinding is durable article identity, separate from generated distribution output.
-type CNBlogsBinding struct {
-	Slug            string `json:"slug"`
-	Account         string `json:"account,omitempty"`
-	PostID          string `json:"postId"`
-	State           string `json:"state"`
-	EditURL         string `json:"editUrl,omitempty"`
-	PublicURL       string `json:"publicUrl,omitempty"`
-	Source          string `json:"source"`
-	LastPushedHash  string `json:"lastPushedHash,omitempty"`
-	RemoteUpdatedAt string `json:"remoteUpdatedAt,omitempty"`
-	VerifiedAt      string `json:"verifiedAt,omitempty"`
-}
-
 type PublicationBinding struct {
 	Slug              string   `json:"slug"`
 	Platform          string   `json:"platform"`
@@ -31,10 +17,15 @@ type PublicationBinding struct {
 	DraftURL          string   `json:"draftUrl,omitempty"`
 	DraftHash         string   `json:"draftHash,omitempty"`
 	DraftSyncedAt     string   `json:"draftSyncedAt,omitempty"`
+	PublishedRemoteID string   `json:"publishedRemoteId,omitempty"`
 	PublishedURL      string   `json:"publishedUrl,omitempty"`
 	PublishedHash     string   `json:"publishedHash,omitempty"`
 	PublishedAt       string   `json:"publishedAt,omitempty"`
 	PublishedSyncedAt string   `json:"publishedSyncedAt,omitempty"`
+	Account           string   `json:"account,omitempty"`
+	Source            string   `json:"source,omitempty"`
+	RemoteUpdatedAt   string   `json:"remoteUpdatedAt,omitempty"`
+	VerifiedAt        string   `json:"verifiedAt,omitempty"`
 	PendingFields     []string `json:"pendingFields,omitempty"`
 }
 
@@ -42,9 +33,7 @@ const bindingFileVersion = 2
 
 type bindingFile struct {
 	Version      int                  `json:"version"`
-	CNBlogs      []CNBlogsBinding     `json:"cnblogs"`
-	Publications []PublicationBinding `json:"publications,omitempty"`
-	Unbound      []string             `json:"unbound,omitempty"`
+	Publications []PublicationBinding `json:"publications"`
 }
 
 func bindingPath(contentRoot string) string {
@@ -53,11 +42,16 @@ func bindingPath(contentRoot string) string {
 
 func publicationBindingState(binding PublicationBinding) PublicationState {
 	return PublicationState{
-		RemoteDraftID: binding.RemoteDraftID,
-		DraftURL:      binding.DraftURL,
-		DraftHash:     binding.DraftHash,
-		PublishedURL:  binding.PublishedURL,
-		PublishedHash: binding.PublishedHash,
+		RemoteDraftID:     binding.RemoteDraftID,
+		DraftURL:          binding.DraftURL,
+		DraftHash:         binding.DraftHash,
+		PublishedRemoteID: binding.PublishedRemoteID,
+		PublishedURL:      binding.PublishedURL,
+		PublishedHash:     binding.PublishedHash,
+		Account:           binding.Account,
+		Source:            binding.Source,
+		RemoteUpdatedAt:   binding.RemoteUpdatedAt,
+		VerifiedAt:        binding.VerifiedAt,
 	}
 }
 
@@ -70,7 +64,7 @@ func publicationBindingFromFile(bindings bindingFile, slug, platform string) (Pu
 	return PublicationBinding{}, false
 }
 
-func loadPublicationBinding(contentRoot, slug, platform string) (PublicationBinding, bool, error) {
+func LoadPublicationBinding(contentRoot, slug, platform string) (PublicationBinding, bool, error) {
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return PublicationBinding{}, false, err
@@ -87,6 +81,81 @@ func upsertPublicationBinding(bindings *bindingFile, binding PublicationBinding)
 		}
 	}
 	bindings.Publications = append(bindings.Publications, binding)
+}
+
+func SavePublicationBinding(contentRoot string, binding PublicationBinding) error {
+	binding.Slug = strings.TrimSpace(binding.Slug)
+	binding.Platform = strings.TrimSpace(strings.ToLower(binding.Platform))
+	if binding.Slug == "" || binding.Platform == "" {
+		return errors.New("invalid publication binding")
+	}
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	for _, existing := range bindings.Publications {
+		if existing.Platform != binding.Platform || existing.Slug == binding.Slug {
+			continue
+		}
+		for _, remoteID := range []string{binding.RemoteDraftID, binding.PublishedRemoteID} {
+			remoteID = strings.TrimSpace(remoteID)
+			if remoteID == "" {
+				continue
+			}
+			if remoteID == strings.TrimSpace(existing.RemoteDraftID) || remoteID == strings.TrimSpace(existing.PublishedRemoteID) {
+				return fmt.Errorf("%s remote id %s is already bound to %s", binding.Platform, remoteID, existing.Slug)
+			}
+		}
+	}
+	upsertPublicationBinding(&bindings, binding)
+	return writeBindings(contentRoot, bindings)
+}
+
+func DeletePublicationBindingState(contentRoot, slug, platform, state, remoteID string) error {
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	binding, found := publicationBindingFromFile(bindings, slug, platform)
+	if !found {
+		return errors.New("binding not found or changed")
+	}
+	switch state {
+	case "draft":
+		if remoteID != "" && binding.RemoteDraftID != remoteID {
+			return errors.New("binding not found or changed")
+		}
+		binding.RemoteDraftID = ""
+		binding.DraftURL = ""
+		binding.DraftHash = ""
+		binding.DraftSyncedAt = ""
+	case "published":
+		if remoteID != "" && binding.PublishedRemoteID != remoteID {
+			return errors.New("binding not found or changed")
+		}
+		binding.PublishedRemoteID = ""
+		binding.PublishedURL = ""
+		binding.PublishedHash = ""
+		binding.PublishedAt = ""
+		binding.PublishedSyncedAt = ""
+		binding.RemoteUpdatedAt = ""
+		binding.VerifiedAt = ""
+	default:
+		return errors.New("invalid publication binding state")
+	}
+	if binding.RemoteDraftID == "" && binding.PublishedRemoteID == "" && binding.DraftURL == "" && binding.PublishedURL == "" && len(binding.PendingFields) == 0 {
+		filtered := bindings.Publications[:0]
+		for _, existing := range bindings.Publications {
+			if existing.Slug == slug && existing.Platform == platform {
+				continue
+			}
+			filtered = append(filtered, existing)
+		}
+		bindings.Publications = filtered
+		return writeBindings(contentRoot, bindings)
+	}
+	upsertPublicationBinding(&bindings, binding)
+	return writeBindings(contentRoot, bindings)
 }
 
 func normalizePendingFields(fields []string) []string {
@@ -193,6 +262,9 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 			RemoteDraftID: state.RemoteDraftID, DraftURL: state.DraftURL, DraftHash: state.DraftHash,
 		}
 	}
+	if binding.PublishedRemoteID == "" {
+		binding.PublishedRemoteID = binding.RemoteDraftID
+	}
 	binding.PublishedURL = result.URL
 	binding.PublishedHash = contentHash
 	binding.PublishedAt = now.UTC().Format(time.RFC3339)
@@ -224,7 +296,7 @@ func SavePublicationPublishedUpdateResult(contentRoot, slug, platform, contentHa
 }
 
 func readBindings(contentRoot string) (bindingFile, error) {
-	result := bindingFile{Version: bindingFileVersion, CNBlogs: []CNBlogsBinding{}, Publications: []PublicationBinding{}}
+	result := bindingFile{Version: bindingFileVersion, Publications: []PublicationBinding{}}
 	if strings.TrimSpace(contentRoot) == "" {
 		return result, errors.New("content repository path is not configured")
 	}
@@ -236,13 +308,10 @@ func readBindings(contentRoot string) (bindingFile, error) {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return result, fmt.Errorf("decode CNBlogs bindings: %w", err)
+		return result, fmt.Errorf("decode publication bindings: %w", err)
 	}
 	if result.Version != bindingFileVersion {
 		return result, fmt.Errorf("unsupported bindings version: %d", result.Version)
-	}
-	if result.CNBlogs == nil {
-		result.CNBlogs = []CNBlogsBinding{}
 	}
 	if result.Publications == nil {
 		result.Publications = []PublicationBinding{}
@@ -250,131 +319,8 @@ func readBindings(contentRoot string) (bindingFile, error) {
 	return result, nil
 }
 
-// LoadCNBlogsBinding returns the current durable CNBlogs association.
-func LoadCNBlogsBinding(contentRoot, slug string) (CNBlogsBinding, bool, error) {
-	binding, found, err := LoadCNBlogsBindingState(contentRoot, slug, "published")
-	if err != nil || found {
-		return binding, found, err
-	}
-	return LoadCNBlogsBindingState(contentRoot, slug, "draft")
-}
-
-// LoadCNBlogsBindingState selects a draft or published post independently.
-func LoadCNBlogsBindingState(contentRoot, slug, state string) (CNBlogsBinding, bool, error) {
-	bindings, err := readBindings(contentRoot)
-	if err != nil {
-		return CNBlogsBinding{}, false, err
-	}
-	for _, binding := range bindings.CNBlogs {
-		if binding.Slug == slug && binding.State == state {
-			return binding, true, nil
-		}
-	}
-	for _, binding := range bindings.CNBlogs {
-		if binding.Slug == slug {
-			return CNBlogsBinding{}, false, nil
-		}
-	}
-	for _, key := range bindings.Unbound {
-		if key == slug+":"+state {
-			return CNBlogsBinding{}, false, nil
-		}
-	}
-	return CNBlogsBinding{}, false, nil
-}
-
-func LoadCNBlogsBindings(contentRoot, slug string) ([]CNBlogsBinding, error) {
-	result := make([]CNBlogsBinding, 0, 2)
-	for _, state := range []string{"draft", "published"} {
-		binding, found, err := LoadCNBlogsBindingState(contentRoot, slug, state)
-		if err != nil {
-			return nil, err
-		}
-		if found {
-			result = append(result, binding)
-		}
-	}
-	return result, nil
-}
-
-func SaveCNBlogsBinding(contentRoot string, binding CNBlogsBinding) error {
-	if strings.TrimSpace(binding.Slug) == "" || strings.TrimSpace(binding.PostID) == "" || (binding.State != "draft" && binding.State != "published") {
-		return errors.New("invalid CNBlogs binding")
-	}
-	bindings, err := readBindings(contentRoot)
-	if err != nil {
-		return err
-	}
-	for _, existing := range bindings.CNBlogs {
-		if existing.PostID == binding.PostID && (existing.Slug != binding.Slug || existing.State != binding.State) {
-			if existing.Slug == binding.Slug {
-				continue
-			}
-			return fmt.Errorf("CNBlogs post %s is already bound to %s", binding.PostID, existing.Slug)
-		}
-	}
-	replaced := false
-	for index := range bindings.CNBlogs {
-		if bindings.CNBlogs[index].Slug == binding.Slug && bindings.CNBlogs[index].State == binding.State {
-			bindings.CNBlogs[index] = binding
-			replaced = true
-			break
-		}
-	}
-	if !replaced {
-		bindings.CNBlogs = append(bindings.CNBlogs, binding)
-	}
-	filteredUnbound := bindings.Unbound[:0]
-	for _, key := range bindings.Unbound {
-		if key != binding.Slug+":"+binding.State {
-			filteredUnbound = append(filteredUnbound, key)
-		}
-	}
-	bindings.Unbound = filteredUnbound
-	filtered := bindings.CNBlogs[:0]
-	for _, existing := range bindings.CNBlogs {
-		if existing.Slug == binding.Slug && existing.State != binding.State && existing.PostID == binding.PostID {
-			continue
-		}
-		filtered = append(filtered, existing)
-	}
-	bindings.CNBlogs = filtered
-	return writeBindings(contentRoot, bindings)
-}
-
-func DeleteCNBlogsBinding(contentRoot, slug, state, postID string) error {
-	bindings, err := readBindings(contentRoot)
-	if err != nil {
-		return err
-	}
-	filtered := bindings.CNBlogs[:0]
-	removed := false
-	for _, binding := range bindings.CNBlogs {
-		if binding.Slug == slug && binding.State == state && binding.PostID == postID {
-			removed = true
-			continue
-		}
-		filtered = append(filtered, binding)
-	}
-	if !removed {
-		return errors.New("binding not found or changed")
-	}
-	bindings.CNBlogs = filtered
-	key := slug + ":" + state
-	for _, existing := range bindings.Unbound {
-		if existing == key {
-			return writeBindings(contentRoot, bindings)
-		}
-	}
-	bindings.Unbound = append(bindings.Unbound, key)
-	return writeBindings(contentRoot, bindings)
-}
-
 func writeBindings(contentRoot string, bindings bindingFile) error {
 	bindings.Version = bindingFileVersion
-	if bindings.CNBlogs == nil {
-		bindings.CNBlogs = []CNBlogsBinding{}
-	}
 	if bindings.Publications == nil {
 		bindings.Publications = []PublicationBinding{}
 	}
@@ -398,6 +344,4 @@ func writeBindings(contentRoot string, bindings bindingFile) error {
 	return nil
 }
 
-// MigrateCNBlogsBindings preserves already-created identities before generated output is cleaned.
-// Legacy records have no account identity; the first authenticated use verifies and fills it.
 func verifiedAt(now time.Time) string { return now.UTC().Format(time.RFC3339) }
