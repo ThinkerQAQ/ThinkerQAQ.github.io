@@ -1,14 +1,118 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, platforms: [], compiler: {}, assets: {}, assetStatus: {} };
+  const state = { initialized: false, active: false, platforms: [], compiler: {}, assets: {}, assetStatus: {}, tools: [] };
   let platformSelect, languageSelect, changedOnly, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
   let mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, assetStatus, assetStatusDetail;
-  let preview, saveButton, resetButton, message;
+  let platformAccessConfig, preview, saveButton, resetButton, message;
 
   function currentPlatform() {
     return state.platforms.find((platform) => platform.id === platformSelect.value);
+  }
+
+  function healthKind(health) {
+    if (health?.status === "disabled") return "disabled";
+    if (health?.ok) return "ok";
+    if (health?.status === "missing" || health?.status === "error") return "error";
+    return "unknown";
+  }
+
+  function accessToolFor(platformID) {
+    if (platformID === "devto") return state.tools.find((tool) => tool.name === "devto-api") ?? null;
+    return null;
+  }
+
+  function makeAccessInput(tool, field) {
+    const label = document.createElement("label");
+    label.className = "field";
+    const title = document.createElement("span");
+    title.textContent = field.label || field.key;
+    const input = document.createElement("input");
+    input.dataset.configKey = field.key;
+    input.type = field.type === "secret" ? "password" : field.type === "integer" ? "number" : "text";
+    if (field.type === "secret") input.autocomplete = "off";
+    if (field.placeholder) input.placeholder = field.placeholder;
+    if (field.min) input.min = String(field.min);
+    if (field.max) input.max = String(field.max);
+    input.value = tool.config?.values?.[field.key] ?? "";
+    label.append(title, input);
+    if (field.description) {
+      const hint = document.createElement("small");
+      hint.className = "field-hint";
+      hint.textContent = field.description;
+      label.append(hint);
+    }
+    return label;
+  }
+
+  async function saveAccessTool(tool, container, button) {
+    const values = {};
+    container.querySelectorAll("[data-config-key]").forEach((input) => {
+      values[input.dataset.configKey] = input.type === "number" ? Number(input.value || 0) : input.value.trim();
+    });
+    button.disabled = true;
+    BlogCTLPopup.setMessage(message, `正在保存 ${tool.displayName || tool.name}…`);
+    try {
+      const response = await BlogCTLPopup.send("blogctl.tool.save", { name: tool.name, config: values });
+      state.tools = response.tools ?? state.tools;
+      renderPlatformAccess();
+      BlogCTLPopup.setMessage(message, `${tool.displayName || tool.name} 已保存。`, "ok");
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+      button.disabled = false;
+    }
+  }
+
+  function renderPlatformAccess() {
+    platformAccessConfig.replaceChildren();
+    const platform = currentPlatform();
+    if (!platform) {
+      platformAccessConfig.innerHTML = '<div class="platform-loading">请选择平台</div>';
+      return;
+    }
+
+    const tool = accessToolFor(platform.id);
+    if (!tool) {
+      const note = document.createElement("p");
+      note.className = "card-hint";
+      note.textContent = platform.capabilities?.browserSession
+        ? "此平台使用浏览器登录会话，不需要额外的平台凭据配置。登录状态在“绑定”页查看。"
+        : "当前平台没有额外的接入配置。";
+      platformAccessConfig.append(note);
+      return;
+    }
+
+    const card = document.createElement("div");
+    card.className = "platform-access-card";
+    const head = document.createElement("div");
+    head.className = "status-row";
+    const name = document.createElement("strong");
+    name.textContent = tool.displayName || tool.name;
+    const status = document.createElement("span");
+    BlogCTLPopup.setStatus(status, healthKind(tool.health), tool.health?.summary || tool.health?.status || "未知");
+    head.append(name, status);
+    card.append(head);
+
+    if (tool.description) {
+      const description = document.createElement("p");
+      description.className = "card-hint";
+      description.textContent = tool.description;
+      card.append(description);
+    }
+
+    for (const field of tool.config?.schema ?? []) card.append(makeAccessInput(tool, field));
+
+    if ((tool.config?.schema ?? []).length) {
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "secondary full-width";
+      save.textContent = "保存接入配置";
+      save.addEventListener("click", () => saveAccessTool(tool, card, save));
+      card.append(save);
+    }
+
+    platformAccessConfig.append(card);
   }
 
   function defaultFooterTemplate(language) {
