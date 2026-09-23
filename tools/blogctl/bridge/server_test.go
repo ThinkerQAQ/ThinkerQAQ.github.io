@@ -13,6 +13,7 @@ import (
 	"time"
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
@@ -246,6 +247,30 @@ func TestBridgeAcceptsMediumSidFromCapturedRequestHeader(t *testing.T) {
 	server.mu.Unlock()
 	if session.RequestCookieHeader == "" {
 		t.Fatal("Medium captured request Cookie header was not stored")
+	}
+}
+
+func TestBridgeHealthReportsRuntimeVersion(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/v1/health", nil)
+	request.Header.Set("origin", "chrome-extension://test")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		OK      bool   `json:"ok"`
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !payload.OK || payload.Version != version.Current {
+		t.Fatalf("health = %#v", payload)
 	}
 }
 
