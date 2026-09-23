@@ -19,10 +19,36 @@ func (t requestCookieTransport) RoundTrip(request *http.Request) (*http.Response
 	if request != nil && request.URL != nil && t.header != "" && requestHostAllowed(request.URL.Hostname(), t.hostSuffixes) {
 		clone := request.Clone(request.Context())
 		clone.Header = request.Header.Clone()
-		clone.Header.Set("Cookie", t.header)
+		clone.Header.Set("Cookie", mergeCookieHeaders(request.Header.Get("Cookie"), t.header))
 		request = clone
 	}
 	return t.base.RoundTrip(request)
+}
+
+func mergeCookieHeaders(existing, captured string) string {
+	values := map[string]string{}
+	order := []string{}
+	add := func(header string) {
+		for _, pair := range strings.Split(header, ";") {
+			pair = strings.TrimSpace(pair)
+			name, value, ok := strings.Cut(pair, "=")
+			name = strings.TrimSpace(name)
+			if !ok || name == "" {
+				continue
+			}
+			if _, exists := values[name]; !exists {
+				order = append(order, name)
+			}
+			values[name] = value
+		}
+	}
+	add(existing)
+	add(captured)
+	parts := make([]string, 0, len(order))
+	for _, name := range order {
+		parts = append(parts, name+"="+values[name])
+	}
+	return strings.Join(parts, "; ")
 }
 
 func requestHostAllowed(host string, suffixes []string) bool {
