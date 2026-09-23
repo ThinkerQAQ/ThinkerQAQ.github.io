@@ -29,6 +29,27 @@ function fenceLanguage(info) {
   return String(info || "").split(/\s+/u, 1)[0].toLowerCase();
 }
 
+const MERMAID_FENCE_LANGUAGES = new Set(["mermaid", "diagram", "uml"]);
+
+function looksLikeMermaid(source) {
+  const first = normalizeNewlines(source)
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("%%")) || "";
+  return /^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|sankey-beta|xychart-beta|block-beta|packet-beta|architecture-beta|kanban)\b/u.test(first);
+}
+
+function isMermaidFence(language, source) {
+  if (language === "mermaid") return true;
+  return MERMAID_FENCE_LANGUAGES.has(language) && looksLikeMermaid(source);
+}
+
+function isUnsupportedDiagramFence(language, source) {
+  const normalized = normalizeNewlines(source).trimStart();
+  if (language === "plantuml" || /^@startuml\b/u.test(normalized)) return true;
+  return false;
+}
+
 function normalizeAssetBaseUrl(value) {
   const raw = String(value || DEFAULT_R2_PUBLIC_BASE_URL).trim();
   if (!raw) throw new Error("R2 public base URL is required");
@@ -117,9 +138,13 @@ export function collectPublishingAssets(markdown, options = {}) {
     const hasClosingFence = index < lines.length;
     const closingIndex = hasClosingFence ? index : lines.length;
     const language = fenceLanguage(opening.info);
-    if (language === "mermaid" && !hasClosingFence) throw new Error("Unclosed Mermaid fenced block");
-    if (language === "mermaid") {
-      const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
+    const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
+    const mermaid = isMermaidFence(language, source);
+    if (mermaid && !hasClosingFence) throw new Error("Unclosed Mermaid fenced block");
+    if (isUnsupportedDiagramFence(language, source)) {
+      throw new Error("Unsupported PlantUML diagram: convert it to Mermaid before publishing");
+    }
+    if (mermaid) {
       const asset = mermaidAssetForSource(source, options);
       assets.set(asset.id, asset);
     }
@@ -155,17 +180,21 @@ export function compilePublishingMarkdown(markdown, {
     const hasClosingFence = index < lines.length;
     const closingIndex = hasClosingFence ? index : lines.length;
     const language = fenceLanguage(opening.info);
+    const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
+    const mermaid = isMermaidFence(language, source);
 
-    if (language === "mermaid" && !hasClosingFence) throw new Error("Unclosed Mermaid fenced block");
+    if (mermaid && !hasClosingFence) throw new Error("Unclosed Mermaid fenced block");
+    if (platform !== "site" && isUnsupportedDiagramFence(language, source)) {
+      throw new Error("Unsupported PlantUML diagram: convert it to Mermaid before publishing");
+    }
 
-    if (language !== "mermaid" || platform === "site") {
+    if (!mermaid || platform === "site") {
       const end = hasClosingFence ? closingIndex + 1 : closingIndex;
       out.push(...lines.slice(openingIndex, end));
       index = end;
       continue;
     }
 
-    const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
     const asset = mermaidAssetForSource(source, { assetBaseUrl });
     assets.set(asset.id, asset);
     out.push("![" + escapeMarkdownAlt(asset.alt) + "](" + asset.publicUrl + ")");
