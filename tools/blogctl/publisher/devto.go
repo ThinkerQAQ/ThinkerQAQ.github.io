@@ -21,8 +21,9 @@ type devtoAdapter struct {
 	client          *http.Client
 	apiKey          string
 	origin          string
-	browserCookies  []BrowserCookie
+	browserCookies   []BrowserCookie
 	browserUserAgent string
+	browserCSRFToken string
 }
 
 type devtoArticle struct {
