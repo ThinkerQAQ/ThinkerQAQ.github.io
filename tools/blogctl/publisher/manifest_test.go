@@ -168,7 +168,6 @@ func TestListPublicationRecords(t *testing.T) {
 	}
 }
 
-
 func TestPublicationStateIgnoresGeneratedManifestRemoteReferences(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, ".distribution")
