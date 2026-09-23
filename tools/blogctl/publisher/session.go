@@ -89,10 +89,7 @@ func HTTPClientForSession(base *http.Client, session Session) (*http.Client, err
 	}
 	clone := *base
 	clone.Jar = jar
-	if session.RequestCookieHeader != "" {
-		if len(session.CookieHostSuffixes) == 0 {
-			return nil, errors.New("captured browser Cookie header has no host allowlist")
-		}
+	if session.RequestCookieHeader != "" && len(session.CookieHostSuffixes) > 0 {
 		transport := clone.Transport
 		if transport == nil {
 			transport = http.DefaultTransport
