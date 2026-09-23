@@ -608,3 +608,74 @@ func TestBridgeRestartEndpointRejectsRunningSyncJob(t *testing.T) {
 	case <-time.After(250 * time.Millisecond):
 	}
 }
+
+
+func TestBridgeFiltersVerifiedPlatformCookiesBeforeStorage(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := httptest.NewServer(server.Handler())
+	defer handler.Close()
+
+	body, _ := json.Marshal(map[string]any{
+		"cookies": []map[string]any{
+			{"name": "UserName", "value": "thinker", "domain": ".csdn.net", "path": "/", "secure": true},
+			{"name": "UserToken", "value": "token", "domain": ".csdn.net", "path": "/", "secure": true},
+			{"name": "tracking_cookie", "value": "drop-me", "domain": ".csdn.net", "path": "/", "secure": true},
+		},
+		"userAgent": "UA",
+	})
+	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/csdn", bytes.NewReader(body))
+	request.Header.Set("origin", "chrome-extension://test")
+	request.Header.Set("content-type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", response.StatusCode)
+	}
+
+	server.mu.Lock()
+	session := server.sessions["csdn"]
+	server.mu.Unlock()
+	if len(session.BrowserCookies) != 2 {
+		t.Fatalf("browser cookies = %#v", session.BrowserCookies)
+	}
+	if _, ok := session.Cookies["tracking_cookie"]; ok {
+		t.Fatalf("unapproved cookie retained: %#v", session.Cookies)
+	}
+	for _, cookie := range session.BrowserCookies {
+		if cookie.Name == "tracking_cookie" {
+			t.Fatalf("unapproved browser cookie retained: %#v", session.BrowserCookies)
+		}
+	}
+}
+
+func TestBridgeMediumFilterAlsoAppliesToPublisherCookieMetadata(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/medium", strings.NewReader(`{
+		"cookies":[
+			{"name":"sid","value":"secret","domain":".medium.com","path":"/","secure":true},
+			{"name":"tracking_cookie","value":"drop","domain":".medium.com","path":"/","secure":true}
+		]
+	}`))
+	request.Header.Set("origin", "chrome-extension://test")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(session.Cookies) != 1 || session.Cookies[0].Name != "sid" {
+		t.Fatalf("publisher cookies = %#v", session.Cookies)
+	}
+}

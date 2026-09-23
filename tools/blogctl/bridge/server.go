@@ -85,6 +85,41 @@ var browserSessionPlatforms = map[string]struct{}{
 	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "medium": {},
 }
 
+// These allowlists are backed by the captured browser requests used to build
+// the platform adapters. Unknown platforms intentionally remain unfiltered here
+// until we have a verified cookie-name contract; do not guess authentication keys.
+var verifiedSessionCookieNames = map[string]map[string]struct{}{
+	"csdn": cookieNameSet("UserName", "UserToken", "UserInfo", "UserNick", "AU", "UN", "BT", "csrfToken", "SESSION"),
+	"segmentfault": cookieNameSet("PHPSESSID", "SHARESESSID", "sl-session", "_c_WBKFRo"),
+	"zhihu": cookieNameSet("z_c0", "_xsrf", "d_c0", "__zse_ck", "SESSIONID", "BEC"),
+	"51cto": cookieNameSet("www51cto", "pub_auth_profile", "pub_sauth1", "pub_sauth2", "pub_cookietime", "pub_wechatopen", "once_p", "PHPSESSID", "EO-Bot-Captcha-Token", "EO-Bot-Js-Token"),
+	"oschina": cookieNameSet("oscid", "_user_behavior_", "sl-session", "BEC"),
+	"devto": cookieNameSet("_Devto_Forem_Session", "remember_user_token", "current_user"),
+	"medium": cookieNameSet("sid", "uid", "rid", "xsrf", "cf_clearance", "_cfuvid"),
+}
+
+func cookieNameSet(names ...string) map[string]struct{} {
+	result := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		result[name] = struct{}{}
+	}
+	return result
+}
+
+func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []browserCookie {
+	allowed, verified := verifiedSessionCookieNames[platform]
+	if !verified {
+		return append([]browserCookie{}, cookies...)
+	}
+	filtered := make([]browserCookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		if _, ok := allowed[cookie.Name]; ok {
+			filtered = append(filtered, cookie)
+		}
+	}
+	return filtered
+}
+
 type Server struct {
 	token      string
 	now        func() time.Time
@@ -739,12 +774,13 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		writeError(response, err)
 		return
 	}
-	if len(body.Cookies) == 0 && !(platform == "cnblogs" && body.RequestCookieHeader != "") {
-		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
-		return
-	}
 	if len(body.RequestCookieHeader) > 32768 || strings.ContainsAny(body.RequestCookieHeader, "\r\n") {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", "invalid browser Cookie header", nil)
+		return
+	}
+	body.Cookies = filterVerifiedSessionCookies(platform, body.Cookies)
+	if len(body.Cookies) == 0 && !(platform == "cnblogs" && body.RequestCookieHeader != "") {
+		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
 		return
 	}
 	cookies := map[string]string{}
