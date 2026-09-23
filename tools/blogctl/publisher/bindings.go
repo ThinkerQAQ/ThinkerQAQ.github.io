@@ -262,8 +262,8 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 			RemoteDraftID: state.RemoteDraftID, DraftURL: state.DraftURL, DraftHash: state.DraftHash,
 		}
 	}
-	if binding.PublishedRemoteID == "" {
-		binding.PublishedRemoteID = binding.RemoteDraftID
+	if strings.TrimSpace(result.ID) != "" {
+		binding.PublishedRemoteID = strings.TrimSpace(result.ID)
 	}
 	binding.PublishedURL = result.URL
 	binding.PublishedHash = contentHash
