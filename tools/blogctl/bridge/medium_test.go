@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -115,7 +116,7 @@ func TestMediumCreateDraftUsesCurrentNewStoryFlow(t *testing.T) {
 	}, mediumDraft{
 		Title:  "Title",
 		Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "Body"}}},
-	})
+	}, publisher.DraftInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +155,7 @@ func TestMediumPrimesMissingXSRFBeforeWrite(t *testing.T) {
 
 	_, err := (mediumClient{httpClient: client}).createDraft(context.Background(), platformSession{
 		Cookies: map[string]string{"sid": "sid-value", "uid": "uid-value"},
-	}, mediumDraft{Title: "Title", Deltas: []map[string]any{}})
+	}, mediumDraft{Title: "Title", Deltas: []map[string]any{}}, publisher.DraftInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,44 +309,107 @@ func TestBridgeNativePublisherSkipsUnchangedMediumDraft(t *testing.T) {
 	}
 }
 
-func TestBridgeNativePublisherWritesMediumFallbackBeforeImageSafetyFailure(t *testing.T) {
+func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
 	}
 	installMediumBridgeSession(server)
-	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
-		t.Fatalf("fallback-required Medium article should not call network: %s", request.URL.String())
-		return nil, nil
-	})}
 
 	contentRoot := t.TempDir()
+	assetDir := filepath.Join(contentRoot, ".distribution", "assets", "mermaid")
+	if err := os.MkdirAll(assetDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(assetDir, "asset-1.png"), []byte("png-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	uploaded := false
+	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/new-story":
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"id":"post-image","mediumUrl":""}}}`, nil), nil
+		case "/_/upload":
+			uploaded = true
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"fileId":"1*medium.png","imgWidth":1200,"imgHeight":800}}}`, nil), nil
+		case "/p/post-image/deltas":
+			raw, _ := io.ReadAll(request.Body)
+			if !strings.Contains(string(raw), `"type":4`) ||
+				!strings.Contains(string(raw), `"id":"1*medium.png"`) {
+				t.Fatalf("delta body = %s", raw)
+			}
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":4}}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	payload, err := json.Marshal(mediumDraft{
+		Title: "Medium image",
+		Deltas: []map[string]any{{
+			"type": 1,
+			"paragraph": map[string]any{"type": 4, "text": "", "markups": []any{}, "layout": 1, "metadata": map[string]any{}},
+			"image": map[string]any{"url": "blogctl-asset://mermaid/asset-1", "alt": "diagram"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	compiled := compiledMediumArticle(t, "image-hash")
-	compiled.RequiresFallback = true
-	_, err = (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
+	compiled.Payload = payload
+	compiled.Assets = []blogcompiler.Asset{{
+		Kind: "mermaid", ID: "asset-1", ObjectKey: "generated/mermaid/asset-1.png",
+		PublicURL: "https://assets.example/generated/mermaid/asset-1.png",
+		Source: "blogctl-asset://mermaid/asset-1",
+	}}
+
+	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
 		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiled,
 	})
-	if err == nil || !strings.Contains(err.Error(), "cannot safely insert body images") {
-		t.Fatalf("error = %v", err)
+	if err != nil {
+		t.Fatal(err)
 	}
-	fallbackPath, pathErr := mediumFallbackPath(contentRoot, "example")
-	if pathErr != nil {
-		t.Fatal(pathErr)
-	}
-	if _, statErr := os.Stat(fallbackPath); statErr != nil {
-		t.Fatalf("fallback was not written: %v", statErr)
+	if !uploaded || result.Result != "draft-created" {
+		t.Fatalf("uploaded=%v result=%#v", uploaded, result)
 	}
 }
 
-func TestBridgeNativePublisherRejectsChangedExistingMediumDraft(t *testing.T) {
+func TestBridgeNativePublisherUpdatesChangedMediumDraft(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
 	}
 	installMediumBridgeSession(server)
 	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
-		t.Fatalf("changed-only Medium draft must fail before network: %s", request.URL.String())
-		return nil, nil
+		switch request.URL.Path {
+		case "/p/post-existing/notes":
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"post":{"id":"post-existing","latestRev":9,"firstPublishedAt":0,"uniqueSlug":"","mediumUrl":"","creator":{"username":"ThinkerQAQ"}}}}`, nil), nil
+		case "/_/graphql":
+			return mediumResponse(request, http.StatusOK,
+				`[{"data":{"postResult":{"content":{"bodyModel":{"paragraphs":[{"name":"title"},{"name":"body"}]}}}}}]`, nil), nil
+		case "/p/post-existing/deltas":
+			var body struct {
+				BaseRev int              `json:"baseRev"`
+				Deltas  []map[string]any `json:"deltas"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.BaseRev != 9 || len(body.Deltas) < 4 {
+				t.Fatalf("update body = %#v", body)
+			}
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":13}}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
 	})}
 
 	contentRoot := t.TempDir()
@@ -355,11 +419,60 @@ func TestBridgeNativePublisherRejectsChangedExistingMediumDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
+	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
 		Article: "example", Platform: "medium", ContentRoot: contentRoot,
 		ChangedOnly: false, Compiled: compiledMediumArticle(t, "new-hash"),
 	})
-	if err == nil || !strings.Contains(err.Error(), "updating an existing Medium draft is not verified") {
-		t.Fatalf("error = %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Result != "updated" || result.URL != "https://medium.com/p/post-existing/edit" {
+		t.Fatalf("result = %#v", result)
 	}
 }
+
+func TestBridgeNativePublisherPublishesMediumDraft(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installMediumBridgeSession(server)
+	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/p/post-existing/notes":
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"post":{"id":"post-existing","latestRev":12,"firstPublishedAt":0,"uniqueSlug":"","mediumUrl":"","creator":{"username":"ThinkerQAQ"}}}}`, nil), nil
+		case "/p/post-existing/publish":
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["latestRev"] != float64(12) || body["title"] != "Medium title" {
+				t.Fatalf("publish body = %#v", body)
+			}
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"id":"post-existing","uniqueSlug":"medium-title-post-existing","mediumUrl":"https://medium.com/@ThinkerQAQ/medium-title-post-existing","creator":{"username":"ThinkerQAQ"}}}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	contentRoot := t.TempDir()
+	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "hash-medium", publisher.DraftResult{
+		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
+	}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := (bridgeNativePublisher{server: server}).PublishDraft(context.Background(), blogapp.NativePublishRequest{
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiledMediumArticle(t, "hash-medium"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Result != "published" || result.URL != "https://medium.com/@ThinkerQAQ/medium-title-post-existing" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
