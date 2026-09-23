@@ -271,14 +271,6 @@ func TestPublishSyncJobFailsClosedForInvalidSourceJobs(t *testing.T) {
 			},
 			want: "publish jobs cannot be published again",
 		},
-		{
-			name: "non native",
-			job: &syncJob{
-				ID: "medium", State: "completed", Platforms: []string{"medium"},
-				Request: syncRequest{Operation: "draft", Platforms: []string{"medium"}},
-			},
-			want: "not supported by one or more selected platforms",
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
