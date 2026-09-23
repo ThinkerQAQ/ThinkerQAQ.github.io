@@ -25,7 +25,8 @@ func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 
 func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	devto := For("devto")
-	if !devto.APIKey || !devto.DraftUpdate || !devto.RemoteList || !devto.BodyImages || devto.BodyImageRehost ||
+	if !devto.BrowserSession || !devto.APIKey || !devto.DraftUpdate || !devto.ExplicitPublish ||
+		!devto.PublishedUpdate || !devto.RemoteList || !devto.BodyImages || !devto.BodyImageRehost ||
 		!devto.CoverImage || !devto.NativeCanonical || !devto.Tags {
 		t.Fatalf("DEV.to capabilities = %#v", devto)
 	}
