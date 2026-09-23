@@ -30,6 +30,23 @@ type AuthResult struct {
 	Username      string
 }
 
+type PublishingAsset struct {
+	Kind      string
+	ID        string
+	ObjectKey string
+	PublicURL string
+	Source    string
+}
+
+type R2FallbackConfig struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	AccountID       string
+	Endpoint        string
+	Bucket          string
+	PublicBaseURL   string
+}
+
 type DraftInput struct {
 	Slug               string
 	Title              string
@@ -47,6 +64,9 @@ type DraftInput struct {
 	NativeCanonicalURL string
 	Published          bool
 	ChangedOnly        bool
+	ContentRoot        string
+	Assets             []PublishingAsset
+	R2Fallback         R2FallbackConfig
 }
 
 type DraftRef struct {
