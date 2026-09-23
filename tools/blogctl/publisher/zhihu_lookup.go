@@ -129,6 +129,22 @@ func (z *zhihuAdapter) listPublished(ctx context.Context, urlToken string) ([]Zh
 	return result, nil
 }
 
+func ZhihuAccountURLToken(ctx context.Context, base *http.Client, session Session) (string, error) {
+	adapterValue, err := NewZhihuAdapter(base, session)
+	if err != nil {
+		return "", err
+	}
+	adapter := adapterValue.(*zhihuAdapter)
+	auth, err := adapter.CheckAuth(ctx)
+	if err != nil {
+		return "", err
+	}
+	if !auth.Authenticated {
+		return "", errors.New("Zhihu browser session is not authenticated")
+	}
+	return adapter.accountURLToken(ctx)
+}
+
 // ZhihuListPosts reads the signed-in user's draft list and published article list.
 // Binding candidates are matched locally; BlogCTL does not depend on global search.
 func ZhihuListPosts(ctx context.Context, base *http.Client, session Session) (string, []ZhihuPost, error) {
