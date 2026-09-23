@@ -12,6 +12,43 @@ import (
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
+type cnBlogsBindingView struct {
+	PostID          string `json:"postId"`
+	State           string `json:"state"`
+	EditURL         string `json:"editUrl,omitempty"`
+	PublicURL       string `json:"publicUrl,omitempty"`
+	Account         string `json:"account,omitempty"`
+	Source          string `json:"source,omitempty"`
+	RemoteUpdatedAt string `json:"remoteUpdatedAt,omitempty"`
+	VerifiedAt      string `json:"verifiedAt,omitempty"`
+}
+
+func cnBlogsBindingViews(binding publisher.PublicationBinding) []cnBlogsBindingView {
+	result := make([]cnBlogsBindingView, 0, 2)
+	if binding.RemoteDraftID != "" {
+		result = append(result, cnBlogsBindingView{
+			PostID: binding.RemoteDraftID, State: "draft", EditURL: binding.DraftURL,
+			Account: binding.Account, Source: binding.Source, VerifiedAt: binding.VerifiedAt,
+		})
+	}
+	if binding.PublishedRemoteID != "" {
+		result = append(result, cnBlogsBindingView{
+			PostID: binding.PublishedRemoteID, State: "published", PublicURL: binding.PublishedURL,
+			Account: binding.Account, Source: binding.Source, RemoteUpdatedAt: binding.RemoteUpdatedAt, VerifiedAt: binding.VerifiedAt,
+		})
+	}
+	return result
+}
+
+func cnBlogsBindingViewForState(binding publisher.PublicationBinding, state string) (cnBlogsBindingView, bool) {
+	for _, item := range cnBlogsBindingViews(binding) {
+		if item.State == state {
+			return item, true
+		}
+	}
+	return cnBlogsBindingView{}, false
+}
+
 func (s *Server) cnBlogsArticle(slug string) (articleSummary, string, error) {
 	s.mu.Lock()
 	contentRoot := s.config.ContentRoot
@@ -37,17 +74,26 @@ func (s *Server) handleCNBlogsBindingGet(response http.ResponseWriter, request *
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	binding, found, err := publisher.LoadCNBlogsBinding(root, slug)
+	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
 		return
 	}
-	bindings, err := publisher.LoadCNBlogsBindings(root, slug)
-	if err != nil {
-		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
-		return
+	views := []cnBlogsBindingView{}
+	var current cnBlogsBindingView
+	if found {
+		views = cnBlogsBindingViews(binding)
+		if len(views) > 0 {
+			current = views[0]
+			for _, candidate := range views {
+				if candidate.State == "published" {
+					current = candidate
+					break
+				}
+			}
+		}
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"article": article, "binding": binding, "found": found, "bindings": bindings})
+	writeJSON(response, http.StatusOK, map[string]any{"article": article, "binding": current, "found": len(views) > 0, "bindings": views})
 }
 
 func (s *Server) handleArticleLinks(response http.ResponseWriter, request *http.Request, slug string) {
@@ -76,18 +122,24 @@ func (s *Server) handleCNBlogsBindingVerify(response http.ResponseWriter, reques
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	state := request.URL.Query().Get("state")
-	var binding publisher.CNBlogsBinding
-	var found bool
-	if state == "draft" || state == "published" {
-		binding, found, err = publisher.LoadCNBlogsBindingState(root, slug, state)
-	} else {
-		binding, found, err = publisher.LoadCNBlogsBinding(root, slug)
-	}
+	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
 		return
 	}
+	if !found {
+		writeJSON(response, http.StatusOK, map[string]any{"found": false})
+		return
+	}
+	state := request.URL.Query().Get("state")
+	if state != "draft" && state != "published" {
+		if binding.PublishedRemoteID != "" {
+			state = "published"
+		} else {
+			state = "draft"
+		}
+	}
+	view, found := cnBlogsBindingViewForState(binding, state)
 	if !found {
 		writeJSON(response, http.StatusOK, map[string]any{"found": false})
 		return
@@ -100,18 +152,18 @@ func (s *Server) handleCNBlogsBindingVerify(response http.ResponseWriter, reques
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
 	started := time.Now()
-	account, post, err := publisher.CNBlogsGetPost(ctx, client, session, binding.PostID)
+	account, post, err := publisher.CNBlogsGetPost(ctx, client, session, view.PostID)
 	if err != nil {
-		slog.Warn("cnblogs binding verify failed", "operation", "binding-verify", "slug", slug, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
+		slog.Warn("cnblogs publication verify failed", "operation", "publication-verify", "slug", slug, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 		writeAPIError(response, http.StatusBadGateway, "verification_failed", err.Error(), nil)
 		return
 	}
 	if binding.Account != "" && !strings.EqualFold(binding.Account, account) {
-		writeAPIError(response, http.StatusConflict, "account_mismatch", "binding belongs to a different CNBlogs account", nil)
+		writeAPIError(response, http.StatusConflict, "account_mismatch", "publication belongs to a different CNBlogs account", nil)
 		return
 	}
-	slog.Info("cnblogs binding verified", "operation", "binding-verify", "slug", slug, "postId", post.ID, "durationMs", time.Since(started).Milliseconds())
-	writeJSON(response, http.StatusOK, map[string]any{"found": true, "binding": binding, "post": post, "account": account})
+	slog.Info("cnblogs publication verified", "operation", "publication-verify", "slug", slug, "postId", post.ID, "durationMs", time.Since(started).Milliseconds())
+	writeJSON(response, http.StatusOK, map[string]any{"found": true, "binding": view, "post": post, "account": account})
 }
 
 func (s *Server) handleCNBlogsBindingSearch(response http.ResponseWriter, request *http.Request, slug string) {
@@ -179,36 +231,48 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 	s.mu.Lock()
 	root := s.config.ContentRoot
 	s.mu.Unlock()
-	state := "draft"
-	if post.Published {
-		state = "published"
-	}
-	existing, found, err := publisher.LoadCNBlogsBindingState(root, slug, state)
+
+	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
 		return
 	}
-	if found && existing.Account != "" && !strings.EqualFold(existing.Account, account) {
-		writeAPIError(response, http.StatusConflict, "account_mismatch", "binding belongs to a different CNBlogs account", nil)
+	if !found {
+		binding = publisher.PublicationBinding{Slug: slug, Platform: "cnblogs"}
+	}
+	if binding.Account != "" && !strings.EqualFold(binding.Account, account) {
+		writeAPIError(response, http.StatusConflict, "account_mismatch", "publication belongs to a different CNBlogs account", nil)
 		return
 	}
-	if found && existing.PostID != post.ID && !body.Replace {
-		writeAPIError(response, http.StatusConflict, "binding_exists", "remove or replace the existing binding explicitly before linking another post", nil)
+	state := "draft"
+	existingID := binding.RemoteDraftID
+	if post.Published {
+		state = "published"
+		existingID = binding.PublishedRemoteID
+	}
+	if existingID != "" && existingID != post.ID && !body.Replace {
+		writeAPIError(response, http.StatusConflict, "binding_exists", "remove or replace the existing publication reference explicitly before linking another post", nil)
 		return
 	}
-	binding := publisher.CNBlogsBinding{Slug: slug, Account: account, PostID: post.ID, State: state, EditURL: "https://i.cnblogs.com/articles/edit;postId=" + post.ID, PublicURL: post.URL, Source: "manual", RemoteUpdatedAt: post.UpdatedAt, VerifiedAt: time.Now().UTC().Format(time.RFC3339)}
-	if found && existing.PostID == post.ID {
-		binding.Source = existing.Source
-		if existing.RemoteUpdatedAt != "" && existing.RemoteUpdatedAt == post.UpdatedAt {
-			binding.LastPushedHash = existing.LastPushedHash
-		}
+
+	binding.Account = account
+	binding.Source = "manual"
+	binding.VerifiedAt = time.Now().UTC().Format(time.RFC3339)
+	if state == "published" {
+		binding.PublishedRemoteID = post.ID
+		binding.PublishedURL = post.URL
+		binding.RemoteUpdatedAt = post.UpdatedAt
+	} else {
+		binding.RemoteDraftID = post.ID
+		binding.DraftURL = "https://i.cnblogs.com/articles/edit;postId=" + post.ID
 	}
-	if err := publisher.SaveCNBlogsBinding(root, binding); err != nil {
+	if err := publisher.SavePublicationBinding(root, binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
 		return
 	}
-	slog.Info("cnblogs binding saved", "operation", "binding-save", "slug", slug, "postId", post.ID, "state", state, "source", binding.Source)
-	writeJSON(response, http.StatusOK, map[string]any{"binding": binding})
+	view, _ := cnBlogsBindingViewForState(binding, state)
+	slog.Info("cnblogs publication reference saved", "operation", "publication-save", "slug", slug, "postId", post.ID, "state", state)
+	writeJSON(response, http.StatusOK, map[string]any{"binding": view})
 }
 
 func (s *Server) handleCNBlogsBindingDelete(response http.ResponseWriter, request *http.Request, slug string) {
@@ -234,11 +298,11 @@ func (s *Server) handleCNBlogsBindingDelete(response http.ResponseWriter, reques
 	}
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
-	if err := publisher.DeleteCNBlogsBinding(root, slug, body.State, body.PostID); err != nil {
+	if err := publisher.DeletePublicationBindingState(root, slug, "cnblogs", body.State, body.PostID); err != nil {
 		writeAPIError(response, http.StatusConflict, "binding_changed", err.Error(), nil)
 		return
 	}
-	slog.Info("cnblogs binding removed", "operation", "binding-delete", "slug", slug, "postId", body.PostID, "state", body.State)
+	slog.Info("cnblogs publication reference removed", "operation", "publication-delete", "slug", slug, "postId", body.PostID, "state", body.State)
 	writeJSON(response, http.StatusOK, map[string]any{"removed": true})
 }
 
@@ -251,12 +315,12 @@ func (s *Server) handleCNBlogsPublishedUpdate(response http.ResponseWriter, requ
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	binding, found, err := publisher.LoadCNBlogsBindingState(root, slug, "published")
+	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
 		return
 	}
-	if !found || binding.State != "published" {
+	if !found || binding.PublishedRemoteID == "" || binding.PublishedURL == "" {
 		writeAPIError(response, http.StatusConflict, "published_binding_required", "bind a published CNBlogs post first", nil)
 		return
 	}
