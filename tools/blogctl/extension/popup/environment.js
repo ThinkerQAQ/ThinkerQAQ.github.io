@@ -52,15 +52,16 @@
 
   function renderTools() {
     toolRegistry.replaceChildren();
+    const tools = state.tools.filter((item) => item.kind !== "publishing");
     if (!initializedExpansion) {
-      for (const tool of state.tools.filter((item) => item.kind !== "publishing")) {
+      for (const tool of tools) {
         if (tool.config?.defaultExpanded) expandedTools.add(tool.name);
       }
       initializedExpansion = true;
       persistExpandedTools();
     }
 
-    for (const tool of state.tools) {
+    for (const tool of tools) {
       const card = document.createElement("details");
       card.className = "tool-card";
       card.dataset.toolName = tool.name || "";
