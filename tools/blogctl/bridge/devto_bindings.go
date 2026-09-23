@@ -70,6 +70,20 @@ func (s *Server) devtoCandidateByID(ctx context.Context, slug, postID string) (d
 	return devtoArticleCandidate{}, "", errors.New("selected DEV.to article was not found")
 }
 
+func devtoPostID(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case json.Number:
+		return typed.String()
+	case float64:
+		if typed == float64(int64(typed)) {
+			return strconv.FormatInt(int64(typed), 10)
+		}
+	}
+	return ""
+}
+
 func devtoBindingViews(binding publisher.PublicationBinding) []map[string]any {
 	result := []map[string]any{}
 	if binding.RemoteDraftID != "" {
@@ -94,7 +108,7 @@ func (s *Server) handleDevtoBindingPut(response http.ResponseWriter, request *ht
 		writeError(response, err)
 		return
 	}
-	postID := valueString(body.PostID)
+	postID := devtoPostID(body.PostID)
 	state := strings.TrimSpace(body.State)
 	if postID == "" || (state != "draft" && state != "published") {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", "postId and draft/published state are required", nil)
@@ -163,7 +177,7 @@ func (s *Server) handleDevtoBindingDelete(response http.ResponseWriter, request 
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	if err := publisher.DeletePublicationBindingState(root, slug, "devto", strings.TrimSpace(body.State), valueString(body.PostID)); err != nil {
+	if err := publisher.DeletePublicationBindingState(root, slug, "devto", strings.TrimSpace(body.State), devtoPostID(body.PostID)); err != nil {
 		writeAPIError(response, http.StatusConflict, "binding_changed", err.Error(), nil)
 		return
 	}
