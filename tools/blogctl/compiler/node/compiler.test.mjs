@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DEFAULT_R2_PUBLIC_BASE_URL,
+  assertNoUncompiledDiagrams,
   collectPublishingAssets,
   compilePublishingMarkdown,
   makeExternalLinksAbsolute,
@@ -106,4 +107,14 @@ test("fails closed for PlantUML instead of publishing diagram source as code", (
     () => compilePublishingMarkdown(markdown, { platform: "cnblogs" }),
     /Unsupported PlantUML diagram/u,
   );
+});
+
+
+test("rejects platform output that still contains a diagram fence", () => {
+  const raw = [fence + "mermaid", "sequenceDiagram", "  A->>B: call", fence].join("\n");
+  assert.throws(
+    () => assertNoUncompiledDiagrams(raw, { platform: "csdn" }),
+    /Uncompiled diagram reached csdn output/u,
+  );
+  assert.doesNotThrow(() => assertNoUncompiledDiagrams("plain text", { platform: "csdn" }));
 });
