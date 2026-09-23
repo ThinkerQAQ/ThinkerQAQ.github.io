@@ -182,7 +182,7 @@
       meta.textContent = [
         started ? `开始 ${started}` : "",
         finished ? `结束 ${finished}` : "",
-        job.operation === "publish" ? "发布" : job.operation === "update-published" ? "更新" : job.operation ? "创建／更新" : "",
+        job.operation === "publish" ? "发布" : job.operation === "update-published" ? "更新" : job.operation ? "保存" : "",
         job.id ? `ID ${job.id}` : "",
       ].filter(Boolean).join(" · ");
       card.append(meta);
