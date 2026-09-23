@@ -140,6 +140,12 @@ func signR2Put(rawURL string, payload []byte, contentType string, config R2Fallb
 	}, nil
 }
 
+// UploadR2Fallback exposes the configured R2 asset fallback to platform-specific
+// transports that cannot reuse the generic Markdown rehost pipeline.
+func UploadR2Fallback(ctx context.Context, client *http.Client, input DraftInput, image RehostImage) (string, error) {
+	return uploadR2Fallback(ctx, client, input, image)
+}
+
 func uploadR2Fallback(ctx context.Context, client *http.Client, input DraftInput, image RehostImage) (string, error) {
 	config := input.R2Fallback
 	if !r2FallbackReady(config) {
