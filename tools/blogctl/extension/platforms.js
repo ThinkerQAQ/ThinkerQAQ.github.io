@@ -49,9 +49,9 @@ export const PLATFORM_AUTH = Object.freeze([
     id: "51cto",
     label: "51CTO",
     probe: {
-      kind: "json",
-      url: "https://api-media.51cto.com/user/index/get-info",
-      path: "data.data.user_id",
+      kind: "html",
+      url: "https://blog.51cto.com/blogger/publish",
+      match: "https?://blog\\.51cto\\.com/[A-Za-z0-9_-]+/?[\"']",
     },
   },
   {
