@@ -95,6 +95,7 @@ export const PLATFORM_AUTH = Object.freeze([
 
 export const PLATFORM_SESSIONS = Object.freeze({
   cnblogs: {
+    sessionProbeUrl: "https://i.cnblogs.com/api/user",
     cookieDomains: ["cnblogs.com"],
     // Chrome cookies.getAll defaults to unpartitioned cookies. CNBlogs can also
     // have cookies scoped to its top-level site partition.
@@ -112,11 +113,13 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
   juejin: {
+    sessionProbeUrl: "https://api.juejin.cn/user_api/v1/user/get",
     cookieDomains: ["juejin.cn"],
     cookieUrls: ["https://juejin.cn/", "https://api.juejin.cn/"],
     requiredCookieNames: [],
   },
   csdn: {
+    sessionProbeUrl: "https://bizapi.csdn.net/blog-console-api/v3/editor/getBaseInfo",
     cookieDomains: ["csdn.net"],
     cookieUrls: [
       "https://www.csdn.net/",
@@ -129,21 +132,24 @@ export const PLATFORM_SESSIONS = Object.freeze({
       "UserName", "UserToken", "UserInfo", "UserNick",
       "AU", "UN", "BT", "csrfToken", "SESSION",
     ],
-    requiredCookieNames: ["UserName", "UserToken"],
+    requiredCookieNames: [],
   },
   segmentfault: {
+    sessionProbeUrl: "https://segmentfault.com/write",
     cookieDomains: ["segmentfault.com"],
     cookieUrls: ["https://segmentfault.com/", "https://segmentfault.com/user/settings/profile", "https://segmentfault.com/write"],
     cookieNames: ["PHPSESSID", "SHARESESSID", "sl-session", "_c_WBKFRo"],
-    requiredCookieNames: ["PHPSESSID"],
+    requiredCookieNames: [],
   },
   zhihu: {
+    sessionProbeUrl: "https://www.zhihu.com/api/v4/me",
     cookieDomains: ["zhihu.com"],
     cookieUrls: ["https://www.zhihu.com/", "https://www.zhihu.com/api/v4/me", "https://zhuanlan.zhihu.com/"],
     cookieNames: ["z_c0", "_xsrf", "d_c0", "__zse_ck", "SESSIONID", "BEC"],
-    requiredCookieNames: ["z_c0"],
+    requiredCookieNames: [],
   },
   "51cto": {
+    sessionProbeUrl: "https://blog.51cto.com/blogger/publish",
     cookieDomains: ["51cto.com"],
     cookieUrls: [
       "https://www.51cto.com/",
@@ -157,32 +163,36 @@ export const PLATFORM_SESSIONS = Object.freeze({
       "pub_cookietime", "pub_wechatopen", "once_p", "PHPSESSID",
       "EO-Bot-Captcha-Token", "EO-Bot-Js-Token",
     ],
-    requiredCookieNames: ["www51cto", "pub_sauth1", "pub_sauth2"],
+    requiredCookieNames: [],
   },
   oschina: {
+    sessionProbeUrl: "https://apiv1.oschina.net/oschinapi/user/myDetails",
     cookieDomains: ["oschina.net"],
     cookieUrls: ["https://www.oschina.net/", "https://my.oschina.net/", "https://apiv1.oschina.net/"],
     cookieNames: ["oscid", "_user_behavior_", "sl-session", "BEC"],
-    requiredCookieNames: ["oscid"],
+    requiredCookieNames: [],
   },
   toutiao: {
+    sessionProbeUrl: "https://mp.toutiao.com/mp/agw/media/user_login_status_api",
     cookieDomains: ["toutiao.com"],
     cookieUrls: ["https://mp.toutiao.com/"],
     requiredCookieNames: [],
   },
   devto: {
+    sessionProbeUrl: "https://dev.to/dashboard",
     cookieDomains: ["dev.to"],
     cookieUrls: ["https://dev.to/", "https://dev.to/dashboard", "https://dev.to/new"],
     cookieNames: ["_Devto_Forem_Session", "remember_user_token", "current_user"],
-    requiredCookieNames: ["_Devto_Forem_Session"],
+    requiredCookieNames: [],
     optional: true,
   },
   medium: {
+    sessionProbeUrl: "https://medium.com/me/stories",
     cookieDomains: ["medium.com"],
     cookieUrls: ["https://medium.com/", "https://medium.com/me/stories", "https://medium.com/_/graphql"],
     cookiePartitionKeys: [{ topLevelSite: "https://medium.com" }],
     cookieNames: ["sid", "uid", "rid", "xsrf", "cf_clearance", "_cfuvid"],
-    requiredCookieNames: ["sid"],
+    requiredCookieNames: [],
   },
 });
 
