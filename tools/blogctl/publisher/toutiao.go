@@ -248,5 +248,5 @@ func (t *toutiaoAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if err != nil {
 		return PublishResult{}, err
 	}
-	return PublishResult{URL: toutiaoPublic + "/article/" + url.PathEscape(id) + "/"}, nil
+	return PublishResult{ID: id, URL: toutiaoPublic + "/article/" + url.PathEscape(id) + "/"}, nil
 }
