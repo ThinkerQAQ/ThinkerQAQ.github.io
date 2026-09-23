@@ -38,7 +38,11 @@
       </section>
 
       <section class="status-card">
-        <div class="status-row"><div class="section-title">远端关联</div><button id="refreshArticleMatches" class="secondary compact" type="button" disabled>刷新文章关联</button></div>
+        <div class="binding-detect-toolbar">
+          <div class="section-title">远端关联</div>
+          <button id="refreshArticleMatches" class="primary inline-primary compact" type="button" disabled>检测文章关联</button>
+        </div>
+        <p class="card-hint">勾选需要检测的平台，可多选；检测结果只更新所选平台。</p>
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
       <div class="sync-actions"><button id="goToSave" class="primary" type="button" disabled>进入保存</button></div>
