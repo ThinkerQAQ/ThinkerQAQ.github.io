@@ -112,7 +112,7 @@
       row.className = "article-match-row";
       row.textContent = `${item.localOnly ? "本地记录 · " : item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}${item.bound && item.bindingState && item.bindingState !== (item.published ? "published" : "draft") ? " · 远端状态已变化" : ""}`;
 
-      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com)\//.test(item.url)) {
+      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net)\//.test(item.url)) {
         const link = document.createElement("a");
         link.textContent = "查看文章";
         link.href = item.url;
@@ -121,7 +121,7 @@
         row.append(" · ", link);
       }
 
-      if (platform.id === "cnblogs" || platform.id === "segmentfault" || platform.id === "zhihu") {
+      if (platform.id === "cnblogs" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina") {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "secondary";
