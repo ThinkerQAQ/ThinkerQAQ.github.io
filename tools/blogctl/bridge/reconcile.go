@@ -29,7 +29,7 @@ type publicationReconciliation struct {
 }
 
 func localPublicationRecordState(record publisher.PublicationRecord) string {
-	hasDraft := strings.TrimSpace(remoteID) != "" || strings.TrimSpace(record.DraftURL) != ""
+	hasDraft := strings.TrimSpace(record.RemoteID) != "" || strings.TrimSpace(record.DraftURL) != ""
 	hasPublished := strings.TrimSpace(record.PublishedURL) != ""
 	if !hasPublished {
 		if hasDraft {
