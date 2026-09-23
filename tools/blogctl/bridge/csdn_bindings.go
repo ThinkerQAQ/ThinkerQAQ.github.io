@@ -139,10 +139,10 @@ func (s *Server) handleCSDNBindingPut(response http.ResponseWriter, request *htt
 		writeError(response, err)
 		return
 	}
-	body.PostID = strings.TrimSpace(body.PostID)
+	body.PostID = publisher.CSDNArticleID(body.PostID)
 	body.State = strings.TrimSpace(body.State)
 	if body.PostID == "" {
-		writeAPIError(response, http.StatusBadRequest, "invalid_request", "postId is required", nil)
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", "a valid CSDN article id or URL is required", nil)
 		return
 	}
 
