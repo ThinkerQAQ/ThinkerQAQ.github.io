@@ -9,6 +9,7 @@
     platforms: [],
     resolvingPending: new Set(),
     publishing: new Set(),
+    focusTarget: null,
   };
   let queryInput, platformSelect, statusSelect, summary, list, message;
 
@@ -55,7 +56,7 @@
   function appendLink(container, label, href) {
     if (!href) return;
     const link = document.createElement("a");
-    link.className = "job-result-link";
+    link.className = "secondary compact publication-action";
     link.href = href;
     link.target = "_blank";
     link.rel = "noreferrer noopener";
@@ -119,6 +120,7 @@
 
   function render() {
     const records = filteredRecords();
+    let focusedCard = null;
     const drafts = state.records.filter((record) => !record.publishedUrl && record.draftUrl).length;
     const published = state.records.filter((record) => Boolean(record.publishedUrl)).length;
     const pending = state.records.filter((record) => (record.pendingFields ?? []).length > 0).length;
@@ -133,6 +135,13 @@
     for (const record of records) {
       const card = document.createElement("div");
       card.className = "publication-item";
+      card.tabIndex = -1;
+      card.dataset.article = record.article;
+      card.dataset.platform = record.platform;
+      if (state.focusTarget?.article === record.article && state.focusTarget?.platform === record.platform) {
+        card.classList.add("publication-item-highlight");
+        focusedCard = card;
+      }
 
       const head = document.createElement("div");
       head.className = "job-platform-main";
@@ -157,7 +166,7 @@
       if (canPublish(record)) {
         const publish = document.createElement("button");
         publish.type = "button";
-        publish.className = "primary inline-primary compact";
+        publish.className = "primary inline-primary compact publication-action";
         publish.textContent = "发布";
         publish.disabled = state.publishing.has(key);
         publish.addEventListener("click", () => publishRecord(record));
@@ -191,6 +200,15 @@
       }
       list.append(card);
     }
+
+    if (focusedCard) {
+      state.focusTarget = null;
+      requestAnimationFrame(() => {
+        focusedCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        focusedCard.focus({ preventScroll: true });
+        setTimeout(() => focusedCard.classList.remove("publication-item-highlight"), 2200);
+      });
+    }
   }
 
   function renderPlatformOptions() {
@@ -210,6 +228,29 @@
     if (ids.includes(previous)) platformSelect.value = previous;
   }
 
+  function applyFocusFilters() {
+    if (!state.focusTarget) return;
+    queryInput.value = state.focusTarget.article;
+    statusSelect.value = "";
+    const hasPlatform = [...platformSelect.options].some((option) => option.value === state.focusTarget.platform);
+    platformSelect.value = hasPlatform ? state.focusTarget.platform : "";
+  }
+
+  function focusRecord(article, platform) {
+    state.focusTarget = {
+      article: String(article || "").trim(),
+      platform: String(platform || "").trim(),
+    };
+    if (!state.focusTarget.article || !state.focusTarget.platform) {
+      state.focusTarget = null;
+      return;
+    }
+    if (state.active && state.records.length) {
+      applyFocusFilters();
+      render();
+    }
+  }
+
   async function refresh() {
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
@@ -225,6 +266,7 @@
       state.resolvingPending.clear();
       state.publishing.clear();
       renderPlatformOptions();
+      applyFocusFilters();
       render();
       await BlogCTLPopup.refreshBridgeIndicator();
     } catch (error) {
@@ -249,5 +291,5 @@
   function activate() { state.active = true; refresh(); }
   function deactivate() { state.active = false; }
 
-  root.BlogCTLPublications = { init, activate, deactivate, refresh };
+  root.BlogCTLPublications = { init, activate, deactivate, refresh, focusRecord };
 })(globalThis);
