@@ -117,6 +117,10 @@ func normalizeDEVToTags(tags []string) []string {
 	return result
 }
 
+func devtoArticlePublished(article devtoArticle) bool {
+	return article.Published || strings.TrimSpace(article.PublishedAt) != "" || strings.TrimSpace(article.PublishedTimestamp) != ""
+}
+
 func devtoRemoteTags(article devtoArticle) []string {
 	if len(article.TagList) > 0 {
 		return normalizeDEVToTags(article.TagList)
@@ -140,7 +144,7 @@ func devtoDesired(input DraftInput) devtoPayload {
 }
 
 func devtoMatches(remote devtoArticle, desired devtoPayload) bool {
-	remotePublished := remote.Published || remote.PublishedAt != "" || remote.PublishedTimestamp != ""
+	remotePublished := devtoArticlePublished(remote)
 	canonicalMatches := strings.TrimSpace(desired.CanonicalURL) == ""
 	if desired.CanonicalURL != "" {
 		canonicalMatches = devtoCanonicalEqual(remote.CanonicalURL, desired.CanonicalURL)
@@ -259,6 +263,12 @@ func (a *devtoAdapter) upsertExisting(ctx context.Context, existing devtoArticle
 		if err != nil {
 			return DraftResult{}, err
 		}
+	}
+	// Saving content must not silently unpublish an already-public DEV.to article.
+	// Publication is a separate operation in BlogCTL; preserve the remote state
+	// when the matched/bound record is already published.
+	if !input.Published && devtoArticlePublished(full) {
+		desired.Published = true
 	}
 	if (input.Published || input.ChangedOnly) && devtoMatches(full, desired) {
 		return DraftResult{ID: strconv.FormatInt(full.ID, 10), URL: full.URL, Skipped: true}, nil
