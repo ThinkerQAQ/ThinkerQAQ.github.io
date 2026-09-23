@@ -87,10 +87,10 @@ func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 	// finds nothing, use the article's canonical footer link as the durable identity.
 	if len(matches) == 0 {
 		canonicalURL := mediumLocalCanonicalURL(article)
-		client := mediumClient{httpClient: client}
+		mediumAPI := mediumClient{httpClient: client}
 		mediumSession := mediumPlatformSession(session)
 		for _, post := range posts {
-			referencesCanonical, lookupErr := client.postReferencesCanonical(ctx, mediumSession, post.ID, canonicalURL)
+			referencesCanonical, lookupErr := mediumAPI.postReferencesCanonical(ctx, mediumSession, post.ID, canonicalURL)
 			if lookupErr == nil && referencesCanonical {
 				matches = append(matches, post)
 			}
