@@ -21,6 +21,7 @@ import (
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
@@ -308,7 +309,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Name: "bridge", DisplayName: "BlogCTL Bridge", Kind: "runtime", Required: true,
 			Description: "Extension 与本机 BlogCTL 的持久控制连接。",
 			Health: toolHealth{
-				OK: true, Status: "ok", Summary: "运行中",
+				OK: true, Status: "ok", Summary: "运行中", Version: version.Current,
 				Detail: fmt.Sprintf("PID %d · %s", os.Getpid(), DefaultAddress),
 			},
 			Actions: []toolAction{{
