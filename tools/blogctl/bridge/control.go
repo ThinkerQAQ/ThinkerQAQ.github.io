@@ -376,6 +376,12 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Description: "BlogCTL developer workflow dependency。", Health: executableHealth(config, "git"),
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
 		},
+		{
+			Name: "java", DisplayName: "Java", Kind: "dependency", Required: false,
+			Description: "仅在发布文章包含 PlantUML（puml / plantuml / UML）时用于编译图表。",
+			Health: executableHealth(config, "java"),
+			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
+		},
 	}
 }
 
@@ -414,7 +420,7 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
 		}
-	case "node", "npm", "git":
+	case "node", "npm", "git", "java":
 		if config.ToolPaths == nil {
 			config.ToolPaths = map[string]string{}
 		}
