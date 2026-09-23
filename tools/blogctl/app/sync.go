@@ -525,13 +525,16 @@ func syncEnvironment(config SyncConfig) []string {
 	if strings.TrimSpace(config.DevtoAPIKey) != "" {
 		env = setEnvironment(env, "DEVTO_API_KEY", strings.TrimSpace(config.DevtoAPIKey))
 	}
+	if java := strings.TrimSpace(config.ToolPaths["java"]); java != "" {
+		env = setEnvironment(env, "PLANTUML_JAVA", java)
+	}
 	return prependToolDirectories(env, config.ToolPaths)
 }
 
 func prependToolDirectories(env []string, toolPaths map[string]string) []string {
 	directories := []string{}
 	seen := map[string]struct{}{}
-	for _, name := range []string{"node", "npm", "git"} {
+	for _, name := range []string{"node", "npm", "git", "java"} {
 		path := strings.TrimSpace(toolPaths[name])
 		if path == "" {
 			continue
