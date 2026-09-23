@@ -9,6 +9,36 @@ import (
 	"time"
 )
 
+type requestCookieTransport struct {
+	base         http.RoundTripper
+	header       string
+	hostSuffixes []string
+}
+
+func (t requestCookieTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if request != nil && request.URL != nil && t.header != "" && requestHostAllowed(request.URL.Hostname(), t.hostSuffixes) {
+		clone := request.Clone(request.Context())
+		clone.Header = request.Header.Clone()
+		clone.Header.Set("Cookie", t.header)
+		request = clone
+	}
+	return t.base.RoundTrip(request)
+}
+
+func requestHostAllowed(host string, suffixes []string) bool {
+	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if host == "" {
+		return false
+	}
+	for _, suffix := range suffixes {
+		suffix = strings.TrimPrefix(strings.TrimSuffix(strings.ToLower(strings.TrimSpace(suffix)), "."), ".")
+		if suffix != "" && (host == suffix || strings.HasSuffix(host, "."+suffix)) {
+			return true
+		}
+	}
+	return false
+}
+
 func HTTPClientForSession(base *http.Client, session Session) (*http.Client, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -59,6 +89,19 @@ func HTTPClientForSession(base *http.Client, session Session) (*http.Client, err
 	}
 	clone := *base
 	clone.Jar = jar
+	if session.RequestCookieHeader != "" {
+		if len(session.CookieHostSuffixes) == 0 {
+			return nil, errors.New("captured browser Cookie header has no host allowlist")
+		}
+		transport := clone.Transport
+		if transport == nil {
+			transport = http.DefaultTransport
+		}
+		clone.Transport = requestCookieTransport{
+			base: transport, header: session.RequestCookieHeader,
+			hostSuffixes: append([]string{}, session.CookieHostSuffixes...),
+		}
+	}
 	return &clone, nil
 }
 
