@@ -30,7 +30,6 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
 				value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
-
 	}
 	for _, tc := range cases {
 		t.Run(tc.platform, func(t *testing.T) {
