@@ -511,9 +511,17 @@ async function handleMessage(message) {
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `远端找到 ${candidates.length} 篇候选文章${result.truncated ? "；仅检索了前 500 篇" : ""}。DEV.to 当前仅支持查找，尚不支持手动绑定。`
-            : result.truncated ? "前 500 篇中未找到候选文章，结果尚不完整。DEV.to 暂不支持手动绑定。" : "远端未找到候选文章。DEV.to 暂不支持手动绑定。",
-          items: candidates.map((post) => ({ title: post.title, id: post.id, published: post.published, url: post.url || "" })),
+            ? `从 DEV.to 全部文章列表本地匹配到 ${candidates.length} 条候选${result.truncated ? "；仅检索了前 500 篇" : ""}。`
+            : result.truncated ? "前 500 篇中未匹配到候选，结果尚不完整。" : "已读取 DEV.to 全部文章列表，本地未匹配到对应文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
         } };
       }
       const result = await fetchJSON(`/v1/article-links?article=${article}`);
@@ -586,6 +594,21 @@ async function handleMessage(message) {
     case "blogctl.oschina.unbind": {
       const article = encodeURIComponent(String(message.article || ""));
       return { ok: true, ...(await fetchJSON(`/v1/oschina/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.devto.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/devto/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.devto.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/devto/binding?article=${article}`, jsonOptions("DELETE", {
         state: message.state,
         postId: message.postId,
       }))) };
