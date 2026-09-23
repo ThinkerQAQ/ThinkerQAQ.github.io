@@ -142,7 +142,6 @@ func TestDEVToCreatesWhenCanonicalDoesNotExist(t *testing.T) {
 	}
 }
 
-
 func TestDEVToPublishDraftUsesOfficialArticleAPI(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut || r.URL.Path != "/api/articles/42" {
@@ -262,12 +261,12 @@ func TestDEVToNativeImageUploadUsesCapturedBrowserFlow(t *testing.T) {
 	input.Assets = []PublishingAsset{{
 		Kind: "mermaid", ID: "diagram", ObjectKey: "generated/mermaid/diagram.png",
 		PublicURL: "https://assets.example/generated/mermaid/diagram.png",
-		Source: "blogctl-asset://mermaid/diagram",
+		Source:    "blogctl-asset://mermaid/diagram",
 	}}
 
 	adapter, err := newDEVToAdapter(server.Client(), Session{
-		APIKey: "secret",
-		Cookies: []BrowserCookie{{Name: "_forem_session", Value: "session-value", Domain: "dev.to", Path: "/", Secure: true}},
+		APIKey:    "secret",
+		Cookies:   []BrowserCookie{{Name: "_forem_session", Value: "session-value", Domain: "dev.to", Path: "/", Secure: true}},
 		UserAgent: "BlogCTL-Test-UA",
 	}, server.URL)
 	if err != nil {
@@ -294,7 +293,7 @@ func TestDEVToSaveDoesNotUnpublishExistingArticle(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(devtoArticle{
 				ID: 42, Title: "Example", Description: "Old", BodyMarkdown: "Old body",
 				CanonicalURL: "https://thinkerqaq.github.io/en/articles/example/",
-				URL: "https://dev.to/thinker/example-42", PublishedAt: "2026-09-23T05:00:00Z",
+				URL:          "https://dev.to/thinker/example-42", PublishedAt: "2026-09-23T05:00:00Z",
 			})
 		case r.Method == http.MethodPut && r.URL.Path == "/api/articles/42":
 			var body struct {
