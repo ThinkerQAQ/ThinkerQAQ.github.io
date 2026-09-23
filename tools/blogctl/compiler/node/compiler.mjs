@@ -157,6 +157,29 @@ function escapeMarkdownAlt(value) {
   return String(value).replaceAll("\\", "\\\\").replaceAll("]", "\\]").replace(/\s+/gu, " ").trim();
 }
 
+export function assertNoUncompiledDiagrams(markdown, { platform = "generic" } = {}) {
+  if (platform === "site") return;
+  const lines = normalizeNewlines(markdown).split("\n");
+  for (let index = 0; index < lines.length;) {
+    const opening = fenceStart(lines[index]);
+    if (!opening) {
+      index += 1;
+      continue;
+    }
+    const openingIndex = index;
+    index += 1;
+    while (index < lines.length && !fenceEnd(lines[index], opening)) index += 1;
+    const hasClosingFence = index < lines.length;
+    const closingIndex = hasClosingFence ? index : lines.length;
+    const language = fenceLanguage(opening.info);
+    const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
+    if (isMermaidFence(language, source) || isUnsupportedDiagramFence(language, source)) {
+      throw new Error(`Uncompiled diagram reached ${platform} output (${language || "diagram"} fence)`);
+    }
+    index = hasClosingFence ? closingIndex + 1 : closingIndex;
+  }
+}
+
 export function compilePublishingMarkdown(markdown, {
   platform = "generic",
   siteOrigin = SITE_ORIGIN,
