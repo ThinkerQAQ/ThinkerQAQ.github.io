@@ -500,7 +500,7 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 		return PublishResult{}, platformError(ErrUpstream, "juejin", "publish-draft", response.StatusCode, "publish response did not contain an article id", false)
 	}
 	_ = input
-	return PublishResult{URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
+	return PublishResult{ID: articleID, URL: juejinOrigin + "/post/" + url.PathEscape(articleID)}, nil
 }
 
 func shouldKeepJuejinImage(source string) bool {
