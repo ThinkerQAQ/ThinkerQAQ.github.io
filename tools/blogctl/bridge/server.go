@@ -197,6 +197,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleOSChinaBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/medium/articles/list" && request.Method == http.MethodPost {
+		s.handleMediumArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/medium/binding" && request.Method == http.MethodPost {
+		s.handleMediumBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/medium/binding" && request.Method == http.MethodDelete {
+		s.handleMediumBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/article-links" && request.Method == http.MethodGet {
 		s.handleArticleLinks(response, request, request.URL.Query().Get("article"))
 		return
