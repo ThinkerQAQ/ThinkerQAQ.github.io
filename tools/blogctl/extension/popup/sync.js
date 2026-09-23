@@ -17,14 +17,16 @@
     refreshSerial: 0,
   };
 
-  let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton;
+  let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton, goToSaveButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
   }
 
   function updateControls() {
-    refreshMatchesButton.disabled = !state.selectedSlug || !state.status?.bridge?.running || state.bindingLoading;
+    const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
+    refreshMatchesButton.disabled = !ready || state.bindingLoading;
+    goToSaveButton.disabled = !ready;
   }
 
   function renderArticleMeta() {
@@ -350,6 +352,7 @@
     platformsContainer = document.getElementById("syncPlatforms");
     message = document.getElementById("syncMessage");
     refreshMatchesButton = document.getElementById("refreshArticleMatches");
+    goToSaveButton = document.getElementById("goToSave");
 
     articlePicker.addEventListener("focus", () => {
       articleOptions.hidden = false;
@@ -380,6 +383,12 @@
     });
 
     refreshMatchesButton.addEventListener("click", refreshArticleMatches);
+    goToSaveButton.addEventListener("click", () => {
+      if (!state.selectedSlug) return;
+      document.dispatchEvent(new CustomEvent("blogctl:navigate-save", {
+        detail: { article: state.selectedSlug },
+      }));
+    });
     state.initialized = true;
   }
 
