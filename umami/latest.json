@@ -1,127 +1,59 @@
 {
-  "generatedAt": "2026-09-23T19:15:00.422Z",
+  "generatedAt": "2026-09-23T22:27:49.543Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790187300422,
-    "endAt": 1790190900422,
+    "startAt": 1790198869543,
+    "endAt": 1790202469543,
     "stats": {
-      "pageviews": 15,
-      "visitors": 12,
-      "visits": 12,
-      "bounces": 9,
-      "totaltime": 1024
+      "pageviews": 5,
+      "visitors": 5,
+      "visits": 5,
+      "bounces": 5,
+      "totaltime": 0
     },
     "warnings": [],
     "paths": [
       {
-        "name": "/en/notes/java/Framework/SpringBoot/学习资源/",
+        "name": "/en/notes/distributed-systems/如何实现分布式锁/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JDK/Map/LinkedHashMap/",
+        "name": "/en/notes/java/JUC/Thread/Thread.sleep/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "name": "/notes/elasticsearch-search/Elasticsearch架构/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Reflection/Reflection/",
+        "name": "/notes/go/Golang内存泄露/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
-        "count": 1
-      },
-      {
-        "name": "/en/notes/operating-system/进程管理/同步/",
-        "count": 1
-      },
-      {
-        "name": "/notes/algorithm/数据结构/hashmap/",
-        "count": 1
-      },
-      {
-        "name": "/notes/database/MySQL/MySQL explain/",
-        "count": 1
-      },
-      {
-        "name": "/notes/developer-tools/gcc/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/fitness/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/joints/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/sleep/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/atomic/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/Golang微服务/retry/",
-        "count": 1
-      },
-      {
-        "name": "/notes/zookeeper/Zookeeper/",
+        "name": "/notes/redis-cache/Redis持久化/",
         "count": 1
       }
     ],
     "entryPages": [
       {
-        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "name": "/en/notes/distributed-systems/如何实现分布式锁/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Reflection/Reflection/",
+        "name": "/en/notes/java/JUC/Thread/Thread.sleep/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "name": "/notes/elasticsearch-search/Elasticsearch架构/",
         "count": 1
       },
       {
-        "name": "/en/notes/operating-system/进程管理/同步/",
+        "name": "/notes/go/Golang内存泄露/",
         "count": 1
       },
       {
-        "name": "/notes/algorithm/数据结构/hashmap/",
-        "count": 1
-      },
-      {
-        "name": "/notes/database/MySQL/MySQL explain/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/fitness/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/joints/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/sleep/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/atomic/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/Golang微服务/retry/",
-        "count": 1
-      },
-      {
-        "name": "/notes/zookeeper/Zookeeper/",
+        "name": "/notes/redis-cache/Redis持久化/",
         "count": 1
       }
     ],
@@ -129,20 +61,20 @@
     "channels": [
       {
         "name": "direct",
-        "count": 20
+        "count": 15
       }
     ],
     "countries": [
       {
         "name": "SG",
-        "count": 12
+        "count": 5
       }
     ],
     "regions": [],
     "cities": [
       {
         "name": "Singapore",
-        "count": 12,
+        "count": 5,
         "country": "SG"
       }
     ],
@@ -150,325 +82,209 @@
     "utmSources": []
   },
   "previous": {
-    "startAt": 1790183700421,
-    "endAt": 1790187300421,
+    "startAt": 1790195269542,
+    "endAt": 1790198869542,
     "stats": {
-      "pageviews": 57,
-      "visitors": 20,
-      "visits": 20,
-      "bounces": 3,
-      "totaltime": 33955
+      "pageviews": 32,
+      "visitors": 16,
+      "visits": 16,
+      "bounces": 7,
+      "totaltime": 7718
     },
     "warnings": [],
     "paths": [
       {
-        "name": "/en/articles/concurrency-series-01-hardware/",
+        "name": "/",
         "count": 1
       },
       {
-        "name": "/en/notes/garbage-collection/GC调优/",
+        "name": "/en/notes/computer-architecture-assembly/汇编语言/",
         "count": 1
       },
       {
-        "name": "/en/notes/investing/investing/",
+        "name": "/en/notes/go/channel/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/MyBatis/源码分析/",
+        "name": "/en/notes/investing/investment-strategy/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/Netty/源码分析/5.pipeline/pipeline的初始化/",
+        "name": "/en/notes/java/Framework/Netty/源码分析/3.绑定端口/3.绑定端口/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/Netty/源码分析/5.pipeline/事件和异常的传播/Inbound事件/",
+        "name": "/en/notes/java/Framework/Netty/源码分析/4.新连接的接入/1.检测新连接/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/Spring/Spring_AOP/使用/",
+        "name": "/en/notes/java/Framework/Netty/源码分析/4.新连接的接入/2.创建NioSocketChannel/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/Spring/Spring_AOP/源码分析/1.给容器中注入AspectJAnnotationAutoProxyCreator组件/1.给容器中注入AspectJAnnotationAutoProxyCreator组件/",
+        "name": "/en/notes/java/Framework/Netty/源码分析/Netty3.x源码分析/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/Spring/Spring事务/使用/",
+        "name": "/en/notes/java/Framework/Spring/Spring_IOC/是什么/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/SpringBoot/jar包启动原理/Spring Boot Jar启动原理/",
+        "name": "/en/notes/java/Framework/SpringBoot/Cache自动配置/原理分析/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/SpringMVC/学习资源/",
+        "name": "/en/notes/java/IO/AIO/AIOServer/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/IO/AIO/AIO/",
+        "name": "/en/notes/java/IO/服务器编程/序列化协议/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/IO/BIO/BIO/",
+        "name": "/en/notes/java/JDK/Integer/Integer/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/IO/BIO/基础流/",
+        "name": "/en/notes/java/JUC/12.BlockingQueue/PriorityBlockingQueue/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/IO/服务器编程/BIO实现的多线程服务器/",
+        "name": "/en/notes/java/JUC/16.ConcurrentHashMap/JDK1.8的ConcurrentHashMap/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Java8/Java8新特性/",
+        "name": "/en/notes/java/JUC/Semaphore/Semaphore/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JDK/Map/HashMap/JDK1.7/",
+        "name": "/en/notes/java/JVM/内存分区/对象分配规则/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JUC/3.volatile/3.volatile/",
+        "name": "/en/notes/java/JVM/调优/调优思路/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JUC/9.CountDownLatch/9.CountDownLatch/",
+        "name": "/en/notes/lua/Lua/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JVM/类加载/类生命周期/",
+        "name": "/en/notes/redis-cache/Redis/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JVM/调优/性能分析工具/性能分析工具/",
+        "name": "/en/notes/security/base64/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/OOP/OOP/",
+        "name": "/en/notes/security/mac/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Connector/",
+        "name": "/en/notes/zookeeper/使用/Zookeeper master选举/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/调优/调优/",
+        "name": "/notes/container/Docker/Docker/",
         "count": 1
       },
       {
-        "name": "/en/notes/photography/mobile-photography/",
+        "name": "/notes/go/Golang栈管理/",
         "count": 1
       },
       {
-        "name": "/en/notes/photography/photography-pre-production/",
+        "name": "/notes/go/sync.Cond/",
         "count": 1
       },
       {
-        "name": "/en/notes/security/overview/",
+        "name": "/notes/go/sync.Once/",
         "count": 1
       },
       {
-        "name": "/en/notes/software-engineering/Architecture/架构模式/架构模式/",
+        "name": "/notes/java/Exception/Exception/",
         "count": 1
       },
       {
-        "name": "/notes/computer-architecture-assembly/计算机组成/",
+        "name": "/notes/operating-system/Linux/Linux/",
         "count": 1
       },
       {
-        "name": "/notes/computer-network/传输层/TCP/TCP/",
+        "name": "/notes/software-engineering/Architecture/架构模式/分层架构/",
         "count": 1
       },
       {
-        "name": "/notes/computer-network/传输层/TCP/TCP流量控制/",
+        "name": "/notes/system-design/如何处理海量数据/",
         "count": 1
       },
       {
-        "name": "/notes/developer-tools/git/",
-        "count": 1
-      },
-      {
-        "name": "/notes/distributed-systems/如何实现分布式Session/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/cancer/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/gut/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/psychology-and-life/",
-        "count": 1
-      },
-      {
-        "name": "/notes/garbage-collection/GC调优/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/benchmark/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/concurrent/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/file/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/GC/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/Golang微服务/consul/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/goroutine/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/Go环境搭建/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/json/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/select/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/slice/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/struct/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/yaml/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/内存对齐/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/内存管理/",
-        "count": 1
-      },
-      {
-        "name": "/notes/java/Exception/如何优雅的处理异常/",
-        "count": 1
-      },
-      {
-        "name": "/notes/message-queue/消息队列消息的顺序性/",
-        "count": 1
-      },
-      {
-        "name": "/notes/security/base64/",
-        "count": 1
-      },
-      {
-        "name": "/notes/security/mac/",
-        "count": 1
-      },
-      {
-        "name": "/notes/testing-performance/jmeter-distributed/",
-        "count": 1
-      },
-      {
-        "name": "/notes/web-server-nginx/build-from-source/",
+        "name": "/notes/zookeeper/使用/Zookeeper分布式锁/",
         "count": 1
       }
     ],
     "entryPages": [
       {
-        "name": "/en/articles/concurrency-series-01-hardware/",
+        "name": "/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Framework/Spring/Spring_AOP/使用/",
+        "name": "/en/notes/go/channel/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/IO/AIO/AIO/",
+        "name": "/en/notes/investing/investment-strategy/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/IO/BIO/基础流/",
+        "name": "/en/notes/java/Framework/Netty/源码分析/4.新连接的接入/2.创建NioSocketChannel/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JUC/3.volatile/3.volatile/",
+        "name": "/en/notes/java/Framework/Spring/Spring_IOC/是什么/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/OOP/OOP/",
+        "name": "/en/notes/java/Framework/SpringBoot/Cache自动配置/原理分析/",
         "count": 1
       },
       {
-        "name": "/en/notes/software-engineering/Architecture/架构模式/架构模式/",
+        "name": "/en/notes/java/JDK/Integer/Integer/",
         "count": 1
       },
       {
-        "name": "/notes/computer-network/传输层/TCP/TCP流量控制/",
+        "name": "/en/notes/java/JUC/12.BlockingQueue/PriorityBlockingQueue/",
         "count": 1
       },
       {
-        "name": "/notes/developer-tools/git/",
+        "name": "/en/notes/java/JUC/16.ConcurrentHashMap/JDK1.8的ConcurrentHashMap/",
         "count": 1
       },
       {
-        "name": "/notes/distributed-systems/如何实现分布式Session/",
+        "name": "/en/notes/java/JUC/Semaphore/Semaphore/",
         "count": 1
       },
       {
-        "name": "/notes/fitness/cancer/",
+        "name": "/en/notes/lua/Lua/",
         "count": 1
       },
       {
-        "name": "/notes/fitness/psychology-and-life/",
+        "name": "/en/notes/redis-cache/Redis/",
         "count": 1
       },
       {
-        "name": "/notes/garbage-collection/GC调优/",
+        "name": "/en/notes/security/mac/",
         "count": 1
       },
       {
-        "name": "/notes/go/benchmark/",
+        "name": "/notes/go/Golang栈管理/",
         "count": 1
       },
       {
-        "name": "/notes/go/file/",
+        "name": "/notes/java/Exception/Exception/",
         "count": 1
       },
       {
-        "name": "/notes/go/Golang微服务/consul/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/Go环境搭建/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/yaml/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/内存对齐/",
-        "count": 1
-      },
-      {
-        "name": "/notes/security/base64/",
+        "name": "/notes/software-engineering/Architecture/架构模式/分层架构/",
         "count": 1
       }
     ],
@@ -476,188 +292,98 @@
     "channels": [
       {
         "name": "direct",
-        "count": 18
+        "count": 17
       }
     ],
     "countries": [
       {
         "name": "SG",
-        "count": 20
-      }
-    ],
-    "regions": [],
-    "cities": [
+        "count": 15
+      },
       {
-        "name": "Singapore",
-        "count": 20,
-        "country": "SG"
-      }
-    ],
-    "events": [
-      {
-        "name": "read_milestone",
+        "name": "US",
         "count": 1
       }
     ],
+    "regions": [
+      {
+        "name": "US-IA",
+        "count": 1,
+        "country": "US"
+      }
+    ],
+    "cities": [
+      {
+        "name": "Singapore",
+        "count": 15,
+        "country": "SG"
+      },
+      {
+        "name": "Council Bluffs",
+        "count": 1,
+        "country": "US"
+      }
+    ],
+    "events": [],
     "utmSources": []
   },
   "delta": {
     "stats": {
-      "pageviews": -42,
-      "visitors": -8,
-      "visits": -8,
-      "bounces": 6,
-      "totaltime": -32931
+      "pageviews": -27,
+      "visitors": -11,
+      "visits": -11,
+      "bounces": -2,
+      "totaltime": -7718
     },
     "newPaths": [
       {
-        "name": "/en/notes/java/Framework/SpringBoot/学习资源/",
+        "name": "/en/notes/distributed-systems/如何实现分布式锁/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JDK/Map/LinkedHashMap/",
+        "name": "/en/notes/java/JUC/Thread/Thread.sleep/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "name": "/notes/elasticsearch-search/Elasticsearch架构/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Reflection/Reflection/",
+        "name": "/notes/go/Golang内存泄露/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
-        "count": 1
-      },
-      {
-        "name": "/en/notes/operating-system/进程管理/同步/",
-        "count": 1
-      },
-      {
-        "name": "/notes/algorithm/数据结构/hashmap/",
-        "count": 1
-      },
-      {
-        "name": "/notes/database/MySQL/MySQL explain/",
-        "count": 1
-      },
-      {
-        "name": "/notes/developer-tools/gcc/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/fitness/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/joints/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/sleep/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/atomic/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/Golang微服务/retry/",
-        "count": 1
-      },
-      {
-        "name": "/notes/zookeeper/Zookeeper/",
+        "name": "/notes/redis-cache/Redis持久化/",
         "count": 1
       }
     ],
     "changedPaths": [
       {
-        "name": "/en/notes/java/Framework/SpringBoot/学习资源/",
+        "name": "/en/notes/distributed-systems/如何实现分布式锁/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/en/notes/java/JDK/Map/LinkedHashMap/",
+        "name": "/en/notes/java/JUC/Thread/Thread.sleep/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "name": "/notes/elasticsearch-search/Elasticsearch架构/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/en/notes/java/Reflection/Reflection/",
+        "name": "/notes/go/Golang内存泄露/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/en/notes/operating-system/进程管理/同步/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/algorithm/数据结构/hashmap/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/database/MySQL/MySQL explain/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/developer-tools/gcc/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/fitness/fitness/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/fitness/joints/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/fitness/sleep/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/go/atomic/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/go/Golang微服务/retry/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/zookeeper/Zookeeper/",
+        "name": "/notes/redis-cache/Redis持久化/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
@@ -665,123 +391,53 @@
     ],
     "newEntryPages": [
       {
-        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "name": "/en/notes/distributed-systems/如何实现分布式锁/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Reflection/Reflection/",
+        "name": "/en/notes/java/JUC/Thread/Thread.sleep/",
         "count": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "name": "/notes/elasticsearch-search/Elasticsearch架构/",
         "count": 1
       },
       {
-        "name": "/en/notes/operating-system/进程管理/同步/",
+        "name": "/notes/go/Golang内存泄露/",
         "count": 1
       },
       {
-        "name": "/notes/algorithm/数据结构/hashmap/",
-        "count": 1
-      },
-      {
-        "name": "/notes/database/MySQL/MySQL explain/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/fitness/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/joints/",
-        "count": 1
-      },
-      {
-        "name": "/notes/fitness/sleep/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/atomic/",
-        "count": 1
-      },
-      {
-        "name": "/notes/go/Golang微服务/retry/",
-        "count": 1
-      },
-      {
-        "name": "/notes/zookeeper/Zookeeper/",
+        "name": "/notes/redis-cache/Redis持久化/",
         "count": 1
       }
     ],
     "changedEntryPages": [
       {
-        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "name": "/en/notes/distributed-systems/如何实现分布式锁/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/en/notes/java/Reflection/Reflection/",
+        "name": "/en/notes/java/JUC/Thread/Thread.sleep/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "name": "/notes/elasticsearch-search/Elasticsearch架构/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/en/notes/operating-system/进程管理/同步/",
+        "name": "/notes/go/Golang内存泄露/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
       },
       {
-        "name": "/notes/algorithm/数据结构/hashmap/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/database/MySQL/MySQL explain/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/fitness/fitness/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/fitness/joints/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/fitness/sleep/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/go/atomic/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/go/Golang微服务/retry/",
-        "count": 1,
-        "previousCount": 0,
-        "delta": 1
-      },
-      {
-        "name": "/notes/zookeeper/Zookeeper/",
+        "name": "/notes/redis-cache/Redis持久化/",
         "count": 1,
         "previousCount": 0,
         "delta": 1
@@ -793,18 +449,18 @@
     "changedChannels": [
       {
         "name": "direct",
-        "count": 20,
-        "previousCount": 18,
-        "delta": 2
+        "count": 15,
+        "previousCount": 17,
+        "delta": -2
       }
     ],
     "newCountries": [],
     "changedCountries": [
       {
         "name": "SG",
-        "count": 12,
-        "previousCount": 20,
-        "delta": -8
+        "count": 5,
+        "previousCount": 15,
+        "delta": -10
       }
     ],
     "newRegions": [],
@@ -813,10 +469,10 @@
     "changedCities": [
       {
         "name": "Singapore",
-        "count": 12,
+        "count": 5,
         "country": "SG",
-        "previousCount": 20,
-        "delta": -8
+        "previousCount": 15,
+        "delta": -10
       }
     ],
     "newEvents": [],
