@@ -10,6 +10,7 @@
     lastRenderedSnapshot: "",
     renderDeferredForSelection: false,
     pollTimer: null,
+    focusJobID: "",
   };
 
   let list, refreshButton, clearButton, message;
@@ -135,6 +136,7 @@
     state.ui.prune(validIDs);
     list.replaceChildren();
     clearButton.disabled = !state.jobs.some((job) => job.state !== "running");
+    let focusedCard = null;
 
     if (!state.jobs.length) {
       list.innerHTML = '<div class="platform-loading">暂无任务</div>';
@@ -146,6 +148,12 @@
       const card = document.createElement("details");
       card.className = "job-item";
       card.dataset.jobId = job.id;
+      if (state.focusJobID === job.id) {
+        state.ui.setJobExpanded(job.id, true);
+        state.ui.setLogExpanded(job.id, true);
+        card.classList.add("job-item-highlight");
+        focusedCard = card;
+      }
       BlogCTLTaskUIState.bindDetails(card, state.ui, "job", job.id);
 
       const summary = document.createElement("summary");
@@ -180,6 +188,19 @@
       renderActions(job, card);
       list.append(card);
     }
+
+    if (focusedCard) {
+      const focusedID = state.focusJobID;
+      state.focusJobID = "";
+      requestAnimationFrame(() => {
+        focusedCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        focusedCard.focus?.({ preventScroll: true });
+        setTimeout(() => focusedCard.classList.remove("job-item-highlight"), 2200);
+      });
+      state.ui.setJobExpanded(focusedID, true);
+      state.ui.setLogExpanded(focusedID, true);
+    }
+
     state.lastRenderedSnapshot = snapshot;
     return true;
   }
@@ -229,6 +250,15 @@
     state.initialized = true;
   }
 
+  function focusJob(id) {
+    const jobID = String(id || "").trim();
+    if (!jobID) return;
+    state.focusJobID = jobID;
+    state.ui.setJobExpanded(jobID, true);
+    state.ui.setLogExpanded(jobID, true);
+    if (state.active) refresh(true);
+  }
+
   function activate() {
     state.active = true;
     refresh(true);
@@ -243,5 +273,5 @@
     }
   }
 
-  root.BlogCTLTasks = { init, activate, deactivate, refresh };
+  root.BlogCTLTasks = { init, activate, deactivate, refresh, focusJob };
 })(globalThis);
