@@ -82,7 +82,7 @@ type platformSession struct {
 
 var browserSessionPlatforms = map[string]struct{}{
 	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "medium": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
 }
 
 // These allowlists are backed by the captured browser requests used to build

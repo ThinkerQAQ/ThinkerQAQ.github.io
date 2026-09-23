@@ -678,3 +678,31 @@ func TestBridgeMediumFilterAlsoAppliesToPublisherCookieMetadata(t *testing.T) {
 		t.Fatalf("publisher cookies = %#v", session.Cookies)
 	}
 }
+
+
+func TestBridgeAcceptsOptionalDEVToBrowserSession(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/devto", strings.NewReader(`{
+		"cookies":[
+			{"name":"_Devto_Forem_Session","value":"session","domain":"dev.to","path":"/","secure":true},
+			{"name":"tracking_cookie","value":"drop","domain":"dev.to","path":"/","secure":true}
+		],
+		"userAgent":"UA"
+	}`))
+	request.Header.Set("origin", "chrome-extension://test")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	session, _, err := (bridgeNativePublisher{server: server}).publisherSession("devto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(session.Cookies) != 1 || session.Cookies[0].Name != "_Devto_Forem_Session" {
+		t.Fatalf("DEV.to publisher cookies = %#v", session.Cookies)
+	}
+}
