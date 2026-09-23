@@ -694,10 +694,10 @@ The durable file is the only publication/binding source of truth. BlogCTL now ac
 
 Regression coverage verifies that:
 
-1. legacy state migrates without overwriting newer durable state;
+1. generated `.distribution/manifest.json` remote references are ignored for every platform;
 2. deleting `.distribution/` does not lose remote draft/published identity;
-3. generic publication writes preserve CNBlogs verified bindings;
-4. inventory and article-link views continue to work after generated-output cleanup.
+3. writes for one platform preserve durable publication state for every other platform, including CNBlogs verification metadata;
+4. inventory and article-link views are built only from `.blogctl/publications.json`.
 
 ### P2 — platform capabilities and reconciliation
 
