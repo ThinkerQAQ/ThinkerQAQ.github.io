@@ -203,13 +203,13 @@ test("Medium compiles Mermaid to an image delta for native upload", () => {
 });
 
 
-test("Medium copy fallback drops separators and keeps image captions", () => {
+test("Medium copy fallback drops source separators and keeps image captions", () => {
   const withImage = {
     ...article,
     body: "## Start\n\n---\n\n![Mutex path](https://example.com/mutex.png)",
   };
   const output = buildMediumCopyHtml(withImage, { slug: "medium-formatting" });
-  assert.doesNotMatch(output, /<hr>/u);
+  assert.equal((output.match(/<hr>/gu) ?? []).length, 1);
   assert.match(output, /<figcaption>Mutex path<\/figcaption>/u);
 });
 
