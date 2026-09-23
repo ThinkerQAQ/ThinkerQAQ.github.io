@@ -38,6 +38,12 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 		t.Fatalf("Medium capabilities = %#v", medium)
 	}
 
+	csdn := For("csdn")
+	if !csdn.BrowserSession || !csdn.DraftCreate || !csdn.DraftUpdate || !csdn.ExplicitPublish ||
+		!csdn.RemoteList || !csdn.BodyImages || !csdn.BodyImageRehost || csdn.PublishedUpdate {
+		t.Fatalf("CSDN capabilities = %#v", csdn)
+	}
+
 	juejin := For("juejin")
 	if !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || !juejin.PublishedUpdate || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
 		t.Fatalf("Juejin capabilities = %#v", juejin)
