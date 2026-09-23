@@ -669,6 +669,25 @@ async function capturePlatformRequestCookieHeader(platform) {
   }
 }
 
+async function captureRequestCookieHeaderForURL(rawURL) {
+  const url = new URL(rawURL);
+  url.searchParams.set("blogctl_cookie_probe", crypto.randomUUID());
+  const expectedURL = url.toString();
+  let resolveCapture;
+  const captured = new Promise((resolve) => { resolveCapture = resolve; });
+  pendingPlatformCookieCaptures.set(expectedURL, { url: expectedURL, resolve: resolveCapture });
+  try {
+    void fetchWithTimeout(expectedURL, { cache: "no-store" }).catch(() => null);
+    const header = await Promise.race([
+      captured,
+      delay(1500).then(() => ""),
+    ]);
+    return String(header || "");
+  } finally {
+    pendingPlatformCookieCaptures.delete(expectedURL);
+  }
+}
+
 async function capturePlatformNavigationCookieHeader(platform) {
   const definition = PLATFORM_SESSIONS[platform];
   const rawURL = String(definition?.sessionProbeUrl || "").trim();
@@ -732,9 +751,14 @@ async function syncPlatformSession(platform) {
   let selected;
   const cookieQueries = [];
   const cookieStores = platform === "cnblogs" ? await cnBlogsCookieStores() : [];
+  const requestCookieHeaders = {};
   let requestCookieHeader = platform === "cnblogs"
     ? await captureCNBlogsRequestCookieHeader()
     : await capturePlatformRequestCookieHeader(platform);
+  if (platform === "cnblogs") {
+    const uploadCookieHeader = await captureRequestCookieHeaderForURL("https://upload.cnblogs.com/v2/images/cors-upload");
+    if (uploadCookieHeader) requestCookieHeaders["upload.cnblogs.com"] = uploadCookieHeader;
+  }
   if (platform !== "cnblogs" && !requestCookieHeader) {
     requestCookieHeader = await capturePlatformNavigationCookieHeader(platform);
   }
@@ -752,7 +776,14 @@ async function syncPlatformSession(platform) {
 
   return fetchJSON(
     `/v1/sessions/${encodeURIComponent(platform)}`,
-    jsonOptions("POST", { cookies: selected, userAgent: navigator.userAgent, cookieQueries, cookieStores, requestCookieHeader }),
+    jsonOptions("POST", {
+      cookies: selected,
+      userAgent: navigator.userAgent,
+      cookieQueries,
+      cookieStores,
+      requestCookieHeader,
+      requestCookieHeaders,
+    }),
   );
 }
 

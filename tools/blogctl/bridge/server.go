@@ -42,11 +42,12 @@ type browserCookie struct {
 }
 
 type sessionRequest struct {
-	Cookies             []browserCookie         `json:"cookies"`
-	UserAgent           string                  `json:"userAgent"`
-	CookieQueries       []cookieQueryDiagnostic `json:"cookieQueries,omitempty"`
-	CookieStores        []cookieStoreDiagnostic `json:"cookieStores,omitempty"`
-	RequestCookieHeader string                  `json:"requestCookieHeader,omitempty"`
+	Cookies              []browserCookie         `json:"cookies"`
+	UserAgent            string                  `json:"userAgent"`
+	CookieQueries        []cookieQueryDiagnostic `json:"cookieQueries,omitempty"`
+	CookieStores         []cookieStoreDiagnostic `json:"cookieStores,omitempty"`
+	RequestCookieHeader  string                  `json:"requestCookieHeader,omitempty"`
+	RequestCookieHeaders map[string]string       `json:"requestCookieHeaders,omitempty"`
 }
 
 type cookieQueryDiagnostic struct {
@@ -83,11 +84,34 @@ func cookieHeaderHasName(header, expected string) bool {
 }
 
 type platformSession struct {
-	Cookies             map[string]string
-	BrowserCookies      []browserCookie
-	RequestCookieHeader string
-	UserAgent           string
-	ExpiresAt           time.Time
+	Cookies              map[string]string
+	BrowserCookies       []browserCookie
+	RequestCookieHeader  string
+	RequestCookieHeaders map[string]string
+	UserAgent            string
+	ExpiresAt            time.Time
+}
+
+var verifiedRequestCookieHeaderHosts = map[string]map[string]struct{}{
+	"cnblogs": {"upload.cnblogs.com": {}},
+}
+
+func validateRequestCookieHeaders(platform string, headers map[string]string) (map[string]string, error) {
+	result := map[string]string{}
+	allowed := verifiedRequestCookieHeaderHosts[platform]
+	for rawHost, header := range headers {
+		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(rawHost)), ".")
+		if _, ok := allowed[host]; !ok {
+			return nil, fmt.Errorf("browser Cookie header host is not allowed: %s", host)
+		}
+		if len(header) > 32768 || strings.ContainsAny(header, "\r\n") {
+			return nil, fmt.Errorf("invalid browser Cookie header for %s", host)
+		}
+		if strings.TrimSpace(header) != "" {
+			result[host] = header
+		}
+	}
+	return result, nil
 }
 
 var browserSessionPlatforms = map[string]struct{}{
@@ -801,6 +825,11 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", "invalid browser Cookie header", nil)
 		return
 	}
+	requestCookieHeaders, err := validateRequestCookieHeaders(platform, body.RequestCookieHeaders)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
 	body.Cookies = filterVerifiedSessionCookies(platform, body.Cookies)
 	if len(body.Cookies) == 0 && body.RequestCookieHeader == "" {
 		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser session cookies not found", map[string]any{"platform": platform})
@@ -829,11 +858,12 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 	}
 	s.mu.Lock()
 	s.sessions[platform] = platformSession{
-		Cookies:             cookies,
-		BrowserCookies:      append([]browserCookie{}, body.Cookies...),
-		RequestCookieHeader: body.RequestCookieHeader,
-		UserAgent:           userAgent,
-		ExpiresAt:           s.now().Add(sessionTTL),
+		Cookies:              cookies,
+		BrowserCookies:       append([]browserCookie{}, body.Cookies...),
+		RequestCookieHeader:  body.RequestCookieHeader,
+		RequestCookieHeaders: requestCookieHeaders,
+		UserAgent:            userAgent,
+		ExpiresAt:            s.now().Add(sessionTTL),
 	}
 	s.mu.Unlock()
 	if platform == "cnblogs" {
@@ -841,7 +871,8 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		for _, cookie := range body.Cookies {
 			cookieNames = append(cookieNames, cookie.Name)
 		}
-		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "requestCookieNames", cookieHeaderNames(body.RequestCookieHeader), "cookieQueries", body.CookieQueries, "cookieStores", body.CookieStores)
+		uploadCookieNames := cookieHeaderNames(requestCookieHeaders["upload.cnblogs.com"])
+		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "requestCookieNames", cookieHeaderNames(body.RequestCookieHeader), "uploadCookieNames", uploadCookieNames, "cookieQueries", body.CookieQueries, "cookieStores", body.CookieStores)
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
@@ -880,6 +911,9 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 		payload["cookies"] = cookies
 		if session.RequestCookieHeader != "" {
 			payload["requestCookieNames"] = cookieHeaderNames(session.RequestCookieHeader)
+		}
+		if header := session.RequestCookieHeaders["upload.cnblogs.com"]; header != "" {
+			payload["uploadRequestCookieNames"] = cookieHeaderNames(header)
 		}
 	}
 	writeJSON(response, http.StatusOK, payload)

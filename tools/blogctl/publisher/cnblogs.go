@@ -54,6 +54,9 @@ func (c *cnBlogsAdapter) request(ctx context.Context, method, rawURL string, bod
 	if req.URL.Hostname() == "i.cnblogs.com" && c.session.RequestCookieHeader != "" {
 		req.Header.Set("Cookie", c.session.RequestCookieHeader)
 	}
+	if header := strings.TrimSpace(c.session.RequestCookieHeaders[req.URL.Hostname()]); header != "" {
+		req.Header.Set("Cookie", header)
+	}
 	return req, nil
 }
 
