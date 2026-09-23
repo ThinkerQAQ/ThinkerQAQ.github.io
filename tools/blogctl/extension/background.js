@@ -308,7 +308,9 @@ async function environmentTools(serverTools = []) {
         };
     return { ...tool, health: { ...current, ...versionHealth } };
   });
-  return [extensionTool, nativeHostTool, ...tools];
+  const bridgeTool = tools.find((tool) => tool?.name === "bridge");
+  const remainingTools = tools.filter((tool) => tool?.name !== "bridge");
+  return [extensionTool, ...(bridgeTool ? [bridgeTool] : []), nativeHostTool, ...remainingTools];
 }
 
 async function platformSessionStatus(platform, bridge) {
