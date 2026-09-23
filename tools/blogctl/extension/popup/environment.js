@@ -1,7 +1,7 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, status: null, tools: [] };
+  const state = { initialized: false, active: false, tools: [] };
   const EXPANDED_TOOLS_KEY = "blogctl.environment.expandedTools";
   const storedExpandedTools = (() => {
     try {
@@ -15,24 +15,10 @@
   })();
   const expandedTools = storedExpandedTools ?? new Set();
   let initializedExpansion = storedExpandedTools !== null;
-  let toolRegistry, platformStatuses, message;
+  let toolRegistry, message;
 
   function persistExpandedTools() {
     localStorage.setItem(EXPANDED_TOOLS_KEY, JSON.stringify([...expandedTools]));
-  }
-  function renderPlatforms(statusView) {
-    platformStatuses.replaceChildren();
-    for (const platform of statusView?.platforms ?? []) {
-      const row = document.createElement("div"); row.className = "status-row";
-      const text = document.createElement("span");
-      text.textContent = platform.label || platform.id;
-      const status = document.createElement("strong");
-      if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "检测失败", platform.error || "");
-      else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", "已登录");
-      else BlogCTLPopup.setStatus(status, "error", "未登录");
-      row.append(text, status); platformStatuses.append(row);
-    }
-    if (!platformStatuses.childElementCount) platformStatuses.innerHTML = '<div class="platform-loading">没有可检测的平台</div>';
   }
   function healthKind(health) { if (health?.status === "disabled") return "disabled"; if (health?.ok) return "ok"; if (health?.status === "missing" || health?.status === "error") return "error"; return "unknown"; }
   function makeConfigInput(tool, field) {
@@ -67,7 +53,7 @@
   function renderTools() {
     toolRegistry.replaceChildren();
     if (!initializedExpansion) {
-      for (const tool of state.tools) {
+      for (const tool of state.tools.filter((item) => item.kind !== "publishing")) {
         if (tool.config?.defaultExpanded) expandedTools.add(tool.name);
       }
       initializedExpansion = true;
@@ -138,22 +124,25 @@
     }
     if (!toolRegistry.childElementCount) toolRegistry.innerHTML = '<div class="platform-loading">没有工具信息</div>';
   }
-  function renderStatus(status) {
-    state.status = status;
-    renderPlatforms(status);
-    BlogCTLPopup.refreshBridgeIndicator(status).catch(() => {});
-  }
   async function refresh() {
-    if (!state.active) return; BlogCTLPopup.setMessage(message);
+    if (!state.active) return;
+    BlogCTLPopup.setMessage(message);
     try {
-      const [statusResponse, toolsResponse] = await Promise.all([BlogCTLPopup.send("blogctl.status"), BlogCTLPopup.send("blogctl.tools")]);
+      const toolsResponse = await BlogCTLPopup.send("blogctl.tools");
       state.tools = toolsResponse.tools ?? [];
-      renderStatus(statusResponse.status); renderTools();
+      renderTools();
+      BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
+    } catch (error) {
+      toolRegistry.innerHTML = '<div class="platform-loading">环境读取失败</div>';
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+      BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     }
-    catch (error) { toolRegistry.innerHTML = '<div class="platform-loading">环境读取失败</div>'; BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); BlogCTLPopup.refreshBridgeIndicator().catch(() => {}); }
   }
   function init() {
-    if (state.initialized) return; toolRegistry = document.getElementById("toolRegistry"); platformStatuses = document.getElementById("platformStatuses"); message = document.getElementById("environmentMessage"); state.initialized = true;
+    if (state.initialized) return;
+    toolRegistry = document.getElementById("toolRegistry");
+    message = document.getElementById("environmentMessage");
+    state.initialized = true;
   }
   function activate() { state.active = true; refresh(); }
   function deactivate() { state.active = false; }
