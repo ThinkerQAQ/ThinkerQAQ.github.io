@@ -73,15 +73,15 @@ func cnBlogsPublishedFixture(t *testing.T) string {
 	return root
 }
 
-func testCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing.T, withDraft bool) {
+func TestCNBlogsPublishedUpdatePreservesUnifiedPublicationState(t *testing.T) {
 	root := cnBlogsPublishedFixture(t)
-	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", Account: "ThinkerQAQ", PostID: "42", State: "published", PublicURL: "https://www.cnblogs.com/ThinkerQAQ/p/42", RemoteUpdatedAt: "before", LastPushedHash: "old-hash"}); err != nil {
+	if err := SavePublicationBinding(root, PublicationBinding{
+		Slug: "example", Platform: "cnblogs", Account: "ThinkerQAQ",
+		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
+		PublishedHash: "old-hash", RemoteUpdatedAt: "before", Source: "manual",
+		RemoteDraftID: "52", DraftURL: "https://i.cnblogs.com/articles/edit;postId=52", DraftHash: "draft-hash",
+	}); err != nil {
 		t.Fatal(err)
-	}
-	if withDraft {
-		if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", Account: "ThinkerQAQ", PostID: "52", State: "draft"}); err != nil {
-			t.Fatal(err)
-		}
 	}
 	posted := false
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -115,31 +115,23 @@ func testCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing
 	if err != nil || skipped || !posted || !strings.Contains(result.URL, "/p/42") {
 		t.Fatalf("result = %#v, %v, %v", result, skipped, err)
 	}
-	binding, _, err := LoadCNBlogsBinding(root, "example")
-	if err != nil || binding.RemoteUpdatedAt != "after" || binding.LastPushedHash != "new-hash" {
-		t.Fatalf("updated binding = %#v, %v", binding, err)
+	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
+	if err != nil || !found {
+		t.Fatalf("publication = %#v, %v, %v", binding, found, err)
 	}
-	draft, found, err := LoadCNBlogsBindingState(root, "example", "draft")
-	if err != nil || found != withDraft || (withDraft && (draft.PostID != "52" || draft.State != "draft")) {
-		t.Fatalf("draft binding changed = %#v, %v, %v", draft, found, err)
-	}
-}
-
-func TestCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t *testing.T) {
-	for _, withDraft := range []bool{false, true} {
-		name := "published-only"
-		if withDraft {
-			name = "published-and-draft"
-		}
-		t.Run(name, func(t *testing.T) {
-			testCNBlogsPublishedUpdatePreservesPublishedStateAndRemoteFields(t, withDraft)
-		})
+	if binding.RemoteUpdatedAt != "after" || binding.PublishedHash != "new-hash" ||
+		binding.PublishedRemoteID != "42" || binding.RemoteDraftID != "52" || binding.DraftHash != "draft-hash" {
+		t.Fatalf("updated publication = %#v", binding)
 	}
 }
 
 func TestCNBlogsPublishedUpdateRejectsRemoteChangesBeforePost(t *testing.T) {
 	root := cnBlogsPublishedFixture(t)
-	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", Account: "ThinkerQAQ", PostID: "42", State: "published", RemoteUpdatedAt: "old"}); err != nil {
+	if err := SavePublicationBinding(root, PublicationBinding{
+		Slug: "example", Platform: "cnblogs", Account: "ThinkerQAQ",
+		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
+		RemoteUpdatedAt: "old",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -156,9 +148,12 @@ func TestCNBlogsPublishedUpdateRejectsRemoteChangesBeforePost(t *testing.T) {
 	}
 }
 
-func TestCNBlogsPublishedBindingCreatesSeparateDraft(t *testing.T) {
+func TestCNBlogsPublishedPublicationCreatesSeparateDraft(t *testing.T) {
 	root := cnBlogsPublishedFixture(t)
-	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", PostID: "42", State: "published"}); err != nil {
+	if err := SavePublicationBinding(root, PublicationBinding{
+		Slug: "example", Platform: "cnblogs",
+		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -185,42 +180,41 @@ func TestCNBlogsPublishedBindingCreatesSeparateDraft(t *testing.T) {
 	if err != nil || result.ID != "52" {
 		t.Fatalf("draft = %#v, %v", result, err)
 	}
-	bindings, err := LoadCNBlogsBindings(root, "example")
-	if err != nil || len(bindings) != 2 || bindings[0].PostID != "52" || bindings[1].PostID != "42" {
-		t.Fatalf("bindings = %#v, %v", bindings, err)
+	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
+	if err != nil || !found || binding.PublishedRemoteID != "42" || binding.RemoteDraftID != "52" {
+		t.Fatalf("publication = %#v, %v, %v", binding, found, err)
 	}
 }
 
-func TestCNBlogsBindingSlotsTransitionAndUnbind(t *testing.T) {
+func TestPublicationBindingStateDeleteOnlyClearsSelectedSlot(t *testing.T) {
 	root := t.TempDir()
-	for _, binding := range []CNBlogsBinding{
-		{Slug: "example", PostID: "42", State: "published"},
-		{Slug: "example", PostID: "52", State: "draft"},
-	} {
-		if err := SaveCNBlogsBinding(root, binding); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := SaveCNBlogsBinding(root, CNBlogsBinding{Slug: "example", PostID: "52", State: "published"}); err != nil {
+	if err := SavePublicationBinding(root, PublicationBinding{
+		Slug: "example", Platform: "cnblogs",
+		RemoteDraftID: "52", DraftURL: "https://i.cnblogs.com/articles/edit;postId=52",
+		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
+	}); err != nil {
 		t.Fatal(err)
 	}
-	bindings, err := LoadCNBlogsBindings(root, "example")
-	if err != nil || len(bindings) != 1 || bindings[0].PostID != "52" || bindings[0].State != "published" {
-		t.Fatalf("transition = %#v, %v", bindings, err)
+	if err := DeletePublicationBindingState(root, "example", "cnblogs", "published", "99"); err == nil {
+		t.Fatal("stale ID removed current publication state")
 	}
-	if err := DeleteCNBlogsBinding(root, "example", "published", "42"); err == nil {
-		t.Fatal("stale ID removed current binding")
-	}
-	if err := DeleteCNBlogsBinding(root, "example", "published", "52"); err != nil {
+	if err := DeletePublicationBindingState(root, "example", "cnblogs", "published", "42"); err != nil {
 		t.Fatal(err)
 	}
-	bindings, err = LoadCNBlogsBindings(root, "example")
-	if err != nil || len(bindings) != 0 {
-		t.Fatalf("unbind = %#v, %v", bindings, err)
+	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
+	if err != nil || !found || binding.PublishedRemoteID != "" || binding.RemoteDraftID != "52" {
+		t.Fatalf("publication after published delete = %#v, %v, %v", binding, found, err)
+	}
+	if err := DeletePublicationBindingState(root, "example", "cnblogs", "draft", "52"); err != nil {
+		t.Fatal(err)
+	}
+	_, found, err = LoadPublicationBinding(root, "example", "cnblogs")
+	if err != nil || found {
+		t.Fatalf("publication should be removed after final slot delete: %v, %v", found, err)
 	}
 }
 
-func TestCNBlogsCreatedDraftWritesDurableBinding(t *testing.T) {
+func TestCNBlogsCreatedDraftWritesUnifiedPublicationState(t *testing.T) {
 	root := cnBlogsPublishedFixture(t)
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -235,7 +229,6 @@ func TestCNBlogsCreatedDraftWritesDurableBinding(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	// Remove the fixture's old generated ID so this exercise takes the create path.
 	path := filepath.Join(root, ".distribution", "manifest.json")
 	manifest, err := readManifest(path)
 	if err != nil {
@@ -255,17 +248,17 @@ func TestCNBlogsCreatedDraftWritesDurableBinding(t *testing.T) {
 	if err != nil || result.ID != "52" {
 		t.Fatalf("result = %#v, %v", result, err)
 	}
-	binding, found, err := LoadCNBlogsBinding(root, "example")
-	if err != nil || !found || binding.PostID != "52" || binding.Account != "ThinkerQAQ" || binding.LastPushedHash != "new-hash" {
-		t.Fatalf("created binding = %#v, %v, %v", binding, found, err)
+	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
+	if err != nil || !found || binding.RemoteDraftID != "52" || binding.Account != "ThinkerQAQ" || binding.DraftHash != "new-hash" {
+		t.Fatalf("created publication = %#v, %v, %v", binding, found, err)
 	}
 }
 
-func TestDurablePublicationWritesPreserveCNBlogsBindings(t *testing.T) {
+func TestDurablePublicationWritesPreserveOtherPlatforms(t *testing.T) {
 	root := t.TempDir()
-	if err := SaveCNBlogsBinding(root, CNBlogsBinding{
-		Slug: "example", PostID: "42", State: "published", Source: "manual",
-		PublicURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
+	if err := SavePublicationBinding(root, PublicationBinding{
+		Slug: "example", Platform: "cnblogs", PublishedRemoteID: "42",
+		PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42", Source: "manual",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -281,9 +274,9 @@ func TestDurablePublicationWritesPreserveCNBlogsBindings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	binding, found, err := LoadCNBlogsBindingState(root, "example", "published")
-	if err != nil || !found || binding.PostID != "42" {
-		t.Fatalf("CNBlogs binding = %#v, %v, %v", binding, found, err)
+	cnblogs, found, err := LoadPublicationBinding(root, "example", "cnblogs")
+	if err != nil || !found || cnblogs.PublishedRemoteID != "42" {
+		t.Fatalf("CNBlogs publication = %#v, %v, %v", cnblogs, found, err)
 	}
 	state, _, err := LoadPublicationState(root, "example", "juejin")
 	if err != nil {
