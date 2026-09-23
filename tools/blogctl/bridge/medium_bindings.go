@@ -3,6 +3,7 @@ package bridge
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -49,6 +50,18 @@ func mediumBindingState(binding publisher.PublicationBinding, post mediumPost) (
 	return false, ""
 }
 
+func mediumLocalCanonicalURL(article articleSummary) string {
+	prefix := "/articles/"
+	if article.Language == "en" {
+		prefix = "/en/articles/"
+	}
+	parts := strings.Split(strings.TrimSpace(article.Slug), "/")
+	for index, part := range parts {
+		parts[index] = url.PathEscape(part)
+	}
+	return "https://thinkerqaq.github.io" + prefix + strings.Join(parts, "/") + "/"
+}
+
 func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []mediumPost, publisher.PublicationBinding, error,
 ) {
@@ -68,6 +81,19 @@ func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 	for _, post := range posts {
 		if mediumTitleMatches(article.Title, post.Title) {
 			matches = append(matches, post)
+		}
+	}
+	// Medium headlines are often rewritten for the platform. If title matching
+	// finds nothing, use the article's canonical footer link as the durable identity.
+	if len(matches) == 0 {
+		canonicalURL := mediumLocalCanonicalURL(article)
+		client := mediumClient{httpClient: client}
+		mediumSession := mediumPlatformSession(session)
+		for _, post := range posts {
+			referencesCanonical, lookupErr := client.postReferencesCanonical(ctx, mediumSession, post.ID, canonicalURL)
+			if lookupErr == nil && referencesCanonical {
+				matches = append(matches, post)
+			}
 		}
 	}
 	binding, _, err := publisher.LoadPublicationBinding(root, slug, "medium")
