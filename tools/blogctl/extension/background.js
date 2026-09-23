@@ -372,39 +372,64 @@ async function csdnBrowserMatch(article) {
   return { candidates: matched, bindings };
 }
 
-async function captureZhihuSignedRequest(kind, pageURL) {
-  let tabId = null;
+async function fetchZhihuSignedPage(kind, pageURL) {
+  let tabId = -1;
   try {
     const tab = await chrome.tabs.create({ url: pageURL, active: false });
     tabId = Number(tab?.id ?? -1);
     if (tabId < 0) throw new Error("无法创建知乎后台检测标签页");
-    const deadline = Date.now() + 8000;
+
+    const deadline = Date.now() + 10000;
+    let captured = null;
     while (Date.now() < deadline) {
-      const captured = recentZhihuSignedRequests.get(tabId);
-      if (captured?.kind === kind && Date.now() - captured.capturedAt < 10000) {
-        return captured;
+      const current = recentZhihuSignedRequests.get(tabId);
+      if (current?.kind === kind && Date.now() - current.capturedAt < 10000) {
+        captured = current;
+        break;
       }
       await delay(100);
     }
-    throw new Error(`知乎未产生 ${kind === "drafts" ? "草稿" : "已发布文章"}列表请求`);
+    if (!captured) {
+      throw new Error(`知乎页面未产生 ${kind === "drafts" ? "草稿" : "已发布文章"}签名列表请求`);
+    }
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      args: [captured.url, captured.headers],
+      func: async (rawURL, requestHeaders) => {
+        try {
+          const response = await fetch(rawURL, {
+            credentials: "include",
+            cache: "no-store",
+            headers: requestHeaders,
+          });
+          return {
+            ok: response.ok,
+            status: response.status,
+            text: await response.text(),
+          };
+        } catch (error) {
+          return { ok: false, status: 0, text: "", error: error?.message || String(error) };
+        }
+      },
+    });
+    const value = results?.[0]?.result;
+    if (!value) throw new Error("知乎页面没有返回列表检测结果");
+    if (!value.ok) {
+      throw new Error(`知乎页面列表请求失败（HTTP ${value.status || 0}）${value.error ? ` · ${value.error}` : ""}`);
+    }
+    try {
+      return JSON.parse(value.text);
+    } catch {
+      throw new Error("知乎页面列表返回了非 JSON 响应");
+    }
   } finally {
-    if (tabId !== null && tabId >= 0) {
+    if (tabId >= 0) {
       recentZhihuSignedRequests.delete(tabId);
       await chrome.tabs.remove(tabId).catch(() => {});
     }
   }
-}
-
-async function fetchZhihuSignedList(captured, referrer) {
-  const response = await fetchWithTimeout(captured.url, {
-    cache: "no-store",
-    headers: captured.headers,
-    referrer,
-  });
-  if (!response.ok) {
-    throw new Error(`知乎列表请求失败（HTTP ${response.status}）`);
-  }
-  return response.json();
 }
 
 async function zhihuBrowserMatch(article) {
@@ -412,13 +437,9 @@ async function zhihuBrowserMatch(article) {
   const draftPage = "https://www.zhihu.com/creator/manage/creation/draft?type=article";
   const profilePage = `https://www.zhihu.com/people/${encodeURIComponent(context.account)}/posts`;
 
-  const [draftCapture, publishedCapture] = await Promise.all([
-    captureZhihuSignedRequest("drafts", draftPage),
-    captureZhihuSignedRequest("published", profilePage),
-  ]);
   const [draftPayload, publishedPayload] = await Promise.all([
-    fetchZhihuSignedList(draftCapture, draftPage),
-    fetchZhihuSignedList(publishedCapture, profilePage),
+    fetchZhihuSignedPage("drafts", draftPage),
+    fetchZhihuSignedPage("published", profilePage),
   ]);
 
   const bindings = context.bindings ?? [];
