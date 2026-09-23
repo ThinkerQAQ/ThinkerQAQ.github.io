@@ -436,7 +436,7 @@ func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if strings.TrimSpace(ref.ID) == "" {
 		return PublishResult{}, platformError(ErrValidation, c.ID(), "publish-draft", 0, "draft id is required", false)
 	}
-	decoded, err := c.save(ctx, ref.ID, input, true, false)
+	decoded, err := c.save(ctx, ref.ID, input, true, true)
 	if err != nil {
 		return PublishResult{}, err
 	}

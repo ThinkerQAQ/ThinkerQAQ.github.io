@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -500,5 +502,71 @@ func TestCNBlogsKeepsRemoteR2ImageWhenCNBlogsUploadIsUnavailable(t *testing.T) {
 	}
 	if got != markdown {
 		t.Fatalf("markdown changed despite upload outage:\n%s", got)
+	}
+}
+
+
+func TestCNBlogsPublishRehostsCompilerAssets(t *testing.T) {
+	root := t.TempDir()
+	assetDir := filepath.Join(root, ".distribution", "assets", "mermaid")
+	if err := os.MkdirAll(assetDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(assetDir, "asset-1.png"), []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	publishedBody := ""
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/v2/images/cors-upload":
+			return jsonResponse(request, 200, `{"url":"https://img2026.cnblogs.com/blog/diagram.png"}`, nil), nil
+		case "/api/posts/42":
+			return jsonResponse(request, 200, `{"blogPost":{
+				"id":42,
+				"title":"Example",
+				"postBody":"old",
+				"url":"https://www.cnblogs.com/ThinkerQAQ/p/42",
+				"isPublished":false,
+				"isDraft":true,
+				"author":"ThinkerQAQ",
+				"blogId":824919,
+				"datePublished":"2026-09-23T00:00:00.000Z",
+				"dateUpdated":"2026-09-23T00:00:00.000Z"
+			}}`, nil), nil
+		case "/api/posts":
+			var payload map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			publishedBody = valueString(payload["postBody"])
+			return jsonResponse(request, 200, `{"id":42,"url":"https://www.cnblogs.com/ThinkerQAQ/p/42.html"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = adapter.PublishDraft(context.Background(), DraftRef{ID: "42"}, DraftInput{
+		Title: "Example",
+		Markdown: "![diagram](blogctl-asset://mermaid/asset-1)",
+		ContentRoot: root,
+		Assets: []PublishingAsset{{
+			Kind: "mermaid", ID: "asset-1",
+			Source: "blogctl-asset://mermaid/asset-1",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(publishedBody, "blogctl-asset://") {
+		t.Fatalf("internal asset leaked into publish payload: %q", publishedBody)
+	}
+	if !strings.Contains(publishedBody, "https://img2026.cnblogs.com/blog/diagram.png") {
+		t.Fatalf("publish payload did not use hosted image: %q", publishedBody)
 	}
 }
