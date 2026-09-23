@@ -9,14 +9,18 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 type devtoArticleCandidate struct {
-	ID        int64  `json:"id"`
-	Title     string `json:"title"`
-	URL       string `json:"url"`
-	Canonical string `json:"canonical_url"`
-	Published bool   `json:"published"`
+	ID           int64  `json:"id"`
+	Title        string `json:"title"`
+	URL          string `json:"url"`
+	Canonical    string `json:"canonical_url"`
+	Published    bool   `json:"published"`
+	Bound        bool   `json:"bound"`
+	BindingState string `json:"bindingState,omitempty"`
 }
 
 func devtoArticleMatches(candidate devtoArticleCandidate, slug, title string) bool {
@@ -88,6 +92,28 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 			truncated = true
 		}
 	}
+	binding, _, bindingErr := publisher.LoadPublicationBinding(s.config.ContentRoot, slug, "devto")
+	if bindingErr != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", bindingErr.Error(), nil)
+		return
+	}
+	for index := range candidates {
+		if candidates[index].Published && binding.PublishedRemoteID == fmt.Sprint(candidates[index].ID) {
+			candidates[index].Bound = true
+			candidates[index].BindingState = "published"
+		}
+		if !candidates[index].Published && binding.RemoteDraftID == fmt.Sprint(candidates[index].ID) {
+			candidates[index].Bound = true
+			candidates[index].BindingState = "draft"
+		}
+	}
+	bindings := []map[string]any{}
+	if binding.RemoteDraftID != "" {
+		bindings = append(bindings, map[string]any{"postId": binding.RemoteDraftID, "state": "draft", "url": binding.DraftURL})
+	}
+	if binding.PublishedRemoteID != "" {
+		bindings = append(bindings, map[string]any{"postId": binding.PublishedRemoteID, "state": "published", "url": binding.PublishedURL})
+	}
 	slog.Info("devto article search completed", "operation", "article-search", "platform", "devto", "slug", slug, "candidateCount", len(candidates), "truncated", truncated, "durationMs", time.Since(started).Milliseconds())
-	writeJSON(response, http.StatusOK, map[string]any{"candidates": candidates, "truncated": truncated})
+	writeJSON(response, http.StatusOK, map[string]any{"candidates": candidates, "bindings": bindings, "truncated": truncated})
 }
