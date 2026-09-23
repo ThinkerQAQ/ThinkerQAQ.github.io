@@ -354,5 +354,5 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if blogID == "" {
 		return PublishResult{}, platformError(ErrUpstream, c.ID(), "publish-draft", 0, "response did not contain a public article id", false)
 	}
-	return PublishResult{URL: cto51Origin + "/" + url.PathEscape(c.username) + "/" + url.PathEscape(blogID)}, nil
+	return PublishResult{ID: blogID, URL: cto51Origin + "/" + url.PathEscape(c.username) + "/" + url.PathEscape(blogID)}, nil
 }
