@@ -23,6 +23,26 @@ import {
   collectPublishingAssets,
   compilePublishingMarkdown,
 } from "./compiler.mjs";
+
+const NATIVE_IMAGE_UPLOAD_PLATFORMS = new Set([
+  "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao",
+]);
+
+function internalAssetRef(asset) {
+  return `blogctl-asset://${asset.kind}/${asset.id}`;
+}
+
+function useNativeImageUpload(platform) {
+  return NATIVE_IMAGE_UPLOAD_PLATFORMS.has(platform);
+}
+
+function replaceAssetUrls(value, assets) {
+  let result = String(value ?? "");
+  for (const asset of assets) {
+    result = result.replaceAll(asset.publicUrl, internalAssetRef(asset));
+  }
+  return result;
+}
 import { preparePublishingAssetList } from "../../assets/node/assets.mjs";
 
 export const COMPILED_ARTICLE_PROTOCOL_VERSION = 1;
@@ -217,11 +237,18 @@ export async function compileArticle({
   }
 
   const assets = collectPublishingAssets(article.body);
+  const nativeImageUpload = useNativeImageUpload(platform) && !dryRun;
   await preparePublishingAssetList(assets, {
     dryRun,
     cacheRoot: path.join(contentRoot, ".distribution", "assets"),
     env,
+    uploadFallback: !nativeImageUpload,
   });
+
+  if (nativeImageUpload && assets.length) {
+    compiled.markdown = replaceAssetUrls(compiled.markdown, assets);
+    compiled.html = replaceAssetUrls(compiled.html, assets);
+  }
 
   return {
     version: COMPILED_ARTICLE_PROTOCOL_VERSION,
@@ -245,6 +272,7 @@ export async function compileArticle({
     sourceDir: path.dirname(sourceFile),
     assets: assets.map(({ kind, id, objectKey, publicUrl, alt }) => ({
       kind, id, objectKey, publicUrl, alt,
+      source: nativeImageUpload ? internalAssetRef({ kind, id }) : publicUrl,
     })),
   };
 }
