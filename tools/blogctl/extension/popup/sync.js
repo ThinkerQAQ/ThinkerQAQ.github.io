@@ -121,7 +121,7 @@
         row.append(" · ", link);
       }
 
-      if (platform.id === "cnblogs" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina" || platform.id === "medium") {
+      if (platform.id === "cnblogs" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina" || platform.id === "devto" || platform.id === "medium") {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "secondary";
@@ -257,7 +257,7 @@
       ? state.cnblogsBindings
       : (state.matches[platformID]?.bindings ?? []);
     const existing = bindings.find((binding) => binding.state === stateName);
-    if ((!item.bound || stateChanged) && existing && existing.postId !== item.id &&
+    if ((!item.bound || stateChanged) && existing && String(existing.postId) !== String(item.id) &&
         !confirm(`将替换当前${item.published ? "已发布文章" : "草稿"}绑定。继续吗？`)) return;
 
     button.disabled = true;
