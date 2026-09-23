@@ -515,3 +515,20 @@ func TestMediumTitleMatchesPublishedListTruncation(t *testing.T) {
 		t.Fatalf("expected %q to match %q", local, remote)
 	}
 }
+
+
+func TestMediumCanonicalMatchesTrackedFooterLink(t *testing.T) {
+	canonical := "https://thinkerqaq.github.io/en/articles/concurrency-series-01-hardware/"
+	tracked := "https://thinkerqaq.github.io/en/articles/concurrency-series-01-hardware/?utm_source=medium&utm_medium=referral&utm_campaign=article_syndication"
+	redirect := "https://medium.com/r/?url=https%3A%2F%2Fthinkerqaq.github.io%2Fen%2Farticles%2Fconcurrency-series-01-hardware%2F%3Futm_source%3Dmedium%26utm_medium%3Dreferral%26utm_campaign%3Darticle_syndication"
+
+	if !mediumCanonicalMatches(tracked, canonical) {
+		t.Fatal("tracked canonical URL should match source canonical")
+	}
+	if !mediumCanonicalMatches(redirect, canonical) {
+		t.Fatal("Medium redirect URL should match source canonical")
+	}
+	if mediumCanonicalMatches("https://thinkerqaq.github.io/en/articles/other/", canonical) {
+		t.Fatal("unrelated canonical URL must not match")
+	}
+}
