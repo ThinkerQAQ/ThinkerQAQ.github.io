@@ -59,6 +59,7 @@ func (s *Server) devtoCandidateByID(ctx context.Context, slug, postID string) (d
 				if !devtoArticleMatches(candidate, slug, article.Title) {
 					return devtoArticleCandidate{}, "", errors.New("selected DEV.to article does not match the local article")
 				}
+				candidate.Published = devtoCandidatePublished(candidate)
 				return candidate, root, nil
 			}
 		}
