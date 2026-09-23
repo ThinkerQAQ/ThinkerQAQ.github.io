@@ -168,7 +168,7 @@
 
       const summary = document.createElement("summary");
       const title = document.createElement("span");
-      title.textContent = job.article;
+      title.textContent = `${job.article} · ${(job.platforms ?? []).length} 个平台`;
       const status = document.createElement("strong");
       const presentation = stateLabel(job);
       BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
