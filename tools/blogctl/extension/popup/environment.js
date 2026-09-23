@@ -87,7 +87,8 @@
         description.textContent = tool.description;
         body.append(description);
       }
-      const detailText = [tool.health?.detail, tool.health?.path].filter(Boolean).join(" · ");
+      const versionText = tool.health?.version ? `版本 v${tool.health.version}` : "";
+      const detailText = [versionText, tool.health?.detail, tool.health?.path].filter(Boolean).join(" · ");
       if (detailText) {
         const detail = document.createElement("code");
         detail.className = "path-value";
