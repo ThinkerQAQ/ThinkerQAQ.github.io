@@ -6,8 +6,8 @@ import test from "node:test";
 
 import { runMediumSyndication } from "./syndicate-medium.mjs";
 
-test("Medium live sync refuses body images before opening the browser bridge", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "medium-body-image-test-"));
+test("Medium live sync must run through the BlogCTL browser bridge", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "medium-live-sync-test-"));
   try {
     const article = {
       title: "Test",
@@ -25,7 +25,7 @@ test("Medium live sync refuses body images before opening the browser bridge", a
           tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
         },
       }),
-      /cannot safely insert body images yet/u,
+      /must run through blogctl sync/u,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
