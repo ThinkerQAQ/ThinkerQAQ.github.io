@@ -32,7 +32,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "juejin", Label: "掘金", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedUpdate: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "csdn", Label: "CSDN", DefaultLanguage: "zh-CN",
@@ -62,7 +62,7 @@ var definitions = []Definition{
 		ID: "devto", Label: "DEV.to", DefaultLanguage: "en",
 		Capabilities: Capabilities{
 			BrowserSession: true, APIKey: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true,
-			PublishedUpdate: true, RemoteList: true, BodyImages: true, BodyImageRehost: true,
+			RemoteList: true, BodyImages: true, BodyImageRehost: true,
 			CoverImage: true, NativeCanonical: true, Tags: true,
 		},
 	},

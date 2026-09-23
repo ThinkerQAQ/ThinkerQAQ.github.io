@@ -281,7 +281,8 @@ func TestDEVToNativeImageUploadUsesCapturedBrowserFlow(t *testing.T) {
 	}
 }
 
-func TestDEVToSaveDoesNotUnpublishExistingArticle(t *testing.T) {
+func TestDEVToSaveRefusesToEditPublishedArticle(t *testing.T) {
+	puts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/articles/me/all":
@@ -296,16 +297,8 @@ func TestDEVToSaveDoesNotUnpublishExistingArticle(t *testing.T) {
 				URL:          "https://dev.to/thinker/example-42", PublishedAt: "2026-09-23T05:00:00Z",
 			})
 		case r.Method == http.MethodPut && r.URL.Path == "/api/articles/42":
-			var body struct {
-				Article devtoPayload `json:"article"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				t.Fatal(err)
-			}
-			if !body.Article.Published {
-				t.Fatal("save operation attempted to unpublish an existing public DEV.to article")
-			}
-			_ = json.NewEncoder(w).Encode(devtoArticle{ID: 42, URL: "https://dev.to/thinker/example-42", Published: true})
+			puts++
+			http.Error(w, "must not update public article", http.StatusInternalServerError)
 		default:
 			http.Error(w, "unexpected", http.StatusNotFound)
 		}
@@ -313,11 +306,11 @@ func TestDEVToSaveDoesNotUnpublishExistingArticle(t *testing.T) {
 	defer server.Close()
 
 	adapter, _ := newDEVToAdapter(server.Client(), Session{APIKey: "secret"}, server.URL)
-	result, err := adapter.CreateDraft(context.Background(), devtoTestInput())
-	if err != nil {
-		t.Fatal(err)
+	_, err := adapter.CreateDraft(context.Background(), devtoTestInput())
+	if err == nil || !IsKind(err, ErrValidation) {
+		t.Fatalf("error = %v, want validation error", err)
 	}
-	if !result.Updated {
-		t.Fatalf("result = %#v", result)
+	if puts != 0 {
+		t.Fatalf("public DEV.to article was updated %d time(s)", puts)
 	}
 }

@@ -264,11 +264,15 @@ func (a *devtoAdapter) upsertExisting(ctx context.Context, existing devtoArticle
 			return DraftResult{}, err
 		}
 	}
-	// Saving content must not silently unpublish an already-public DEV.to article.
-	// Publication is a separate operation in BlogCTL; preserve the remote state
-	// when the matched/bound record is already published.
+	// "Save" is a draft operation in BlogCTL. Updating a public DEV.to article
+	// would make the new body live immediately, bypassing preview + explicit
+	// publish. Fail closed until a separate published-update workflow exists.
 	if !input.Published && devtoArticlePublished(full) {
-		desired.Published = true
+		return DraftResult{}, platformError(
+			ErrValidation, "devto", "save-draft", 0,
+			"the matching DEV.to article is already published; safe published-article updates are not supported yet",
+			false,
+		)
 	}
 	if (input.Published || input.ChangedOnly) && devtoMatches(full, desired) {
 		return DraftResult{ID: strconv.FormatInt(full.ID, 10), URL: full.URL, Skipped: true}, nil

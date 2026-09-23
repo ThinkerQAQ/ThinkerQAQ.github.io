@@ -26,7 +26,7 @@ func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	devto := For("devto")
 	if !devto.BrowserSession || !devto.APIKey || !devto.DraftUpdate || !devto.ExplicitPublish ||
-		!devto.PublishedUpdate || !devto.RemoteList || !devto.BodyImages || !devto.BodyImageRehost ||
+		devto.PublishedUpdate || !devto.RemoteList || !devto.BodyImages || !devto.BodyImageRehost ||
 		!devto.CoverImage || !devto.NativeCanonical || !devto.Tags {
 		t.Fatalf("DEV.to capabilities = %#v", devto)
 	}
@@ -45,7 +45,7 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	}
 
 	juejin := For("juejin")
-	if !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || !juejin.PublishedUpdate || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
+	if !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || juejin.PublishedUpdate || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
 		t.Fatalf("Juejin capabilities = %#v", juejin)
 	}
 }
