@@ -190,6 +190,22 @@ func (c *csdnAdapter) fetchPost(ctx context.Context, postID string) (CSDNPost, e
 	return CSDNPost{ID: id, Title: title, URL: target, Published: published}, nil
 }
 
+func CSDNAccount(ctx context.Context, base *http.Client, session Session) (string, error) {
+	adapterValue, err := NewCSDNAdapter(base, session)
+	if err != nil {
+		return "", err
+	}
+	adapter := adapterValue.(*csdnAdapter)
+	auth, err := adapter.CheckAuth(ctx)
+	if err != nil {
+		return "", err
+	}
+	if !auth.Authenticated || strings.TrimSpace(adapter.userID) == "" {
+		return "", errors.New("CSDN browser session is not authenticated")
+	}
+	return adapter.userID, nil
+}
+
 // CSDNListPosts reads the signed-in user's published article list.
 // CSDN's stable public list endpoint does not enumerate drafts, so known drafts
 // are verified individually by ID through CSDNLookupPost.
