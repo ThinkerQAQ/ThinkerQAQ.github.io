@@ -340,8 +340,17 @@ async function syncBrowserSession(platform) {
 async function syncSessionsForPlatforms(platforms = []) {
   const unique = [...new Set(platforms.map((platform) => String(platform || "").trim()).filter(Boolean))];
   for (const platform of unique) {
-    if (!PLATFORM_SESSIONS[platform]) continue;
-    await syncPlatformSession(platform);
+    const definition = PLATFORM_SESSIONS[platform];
+    if (!definition) continue;
+    try {
+      await syncPlatformSession(platform);
+    } catch (error) {
+      if (definition.optional === true) {
+        console.warn(`${platform}: optional browser session unavailable; platform-native image upload may fall back.`, errorMessage(error));
+        continue;
+      }
+      throw error;
+    }
   }
 }
 
