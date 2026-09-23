@@ -20,7 +20,7 @@ BlogCTL
   +-- compiler       deterministic source -> publishable content
   +-- assets         generated/remote asset preparation
   +-- publisher      platform transport adapters
-  +-- state          draft/published bindings and hashes
+  +-- state          all-platform draft/published publication state and hashes
   +-- bridge         browser-session broker
   +-- extension      login/session UI
 ```
@@ -350,14 +350,27 @@ Node should never migrate or mutate publication state.
 
 `.distribution/manifest.json` may remain during migration, but all writes should pass through one Go state package.
 
-Longer term separate:
+The durable state boundary is now:
 
 ```text
-.blogctl/publications.json   durable remote bindings/state
+.blogctl/publications.json   all-platform durable publication state
 .distribution/               generated cache and review artifacts
 ```
 
-This matches the CNBlogs binding direction already present in the current branch.
+`.blogctl/publications.json` has one schema for every platform:
+
+```text
+version: 2
+publications[]:
+  slug
+  platform
+  remoteDraftId / draftUrl / draftHash / draftSyncedAt
+  publishedRemoteId / publishedUrl / publishedHash / publishedAt / publishedSyncedAt
+  optional account/source/remoteUpdatedAt/verifiedAt
+  pendingFields
+```
+
+The former CNBlogs-specific `cnblogs[]`, `unbound[]`, and version-1 binding schema are removed. CNBlogs manual linking still exists as a control-plane operation, but it writes the same `PublicationBinding` record used by every other platform.
 
 ## 10. Mermaid asset flow
 
