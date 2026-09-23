@@ -135,7 +135,7 @@ async function publishedSlugs(contentRoot, language) {
   return result;
 }
 
-function compileDevto(article, { slug, profile, language, draft }) {
+function compileDevto(article, { slug, profile, language }) {
   const canonicalUrl = buildArticleCanonicalUrl(slug, language);
   const body = compilePublishingMarkdown(article.body, {
     platform: "devto",
@@ -156,7 +156,9 @@ function compileDevto(article, { slug, profile, language, draft }) {
     nativeCanonicalUrl: nativeCanonicalUrl(canonicalUrl, profile),
     tags: normalizeDevtoTags(article.tags),
     coverImageUrl: resolveArticleAssetUrl(article.coverImage),
-    published: !draft,
+    // BlogCTL separates Save from Publish. Keep compilation state-neutral so
+    // the saved draft hash is still valid when the explicit Publish job runs.
+    published: false,
   };
 }
 
@@ -180,7 +182,7 @@ export async function compileArticle({
   let compiled;
   let hashSource;
   if (platform === "devto") {
-    compiled = compileDevto(article, { slug, profile, language, draft });
+    compiled = compileDevto(article, { slug, profile, language });
     hashSource = JSON.stringify({
       title: compiled.title,
       description: compiled.description,
