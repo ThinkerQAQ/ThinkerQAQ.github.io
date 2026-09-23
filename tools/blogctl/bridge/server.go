@@ -171,6 +171,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleDevtoBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/csdn/articles/list" && request.Method == http.MethodPost {
+		s.handleCSDNArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/csdn/binding" && request.Method == http.MethodPost {
+		s.handleCSDNBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/csdn/binding" && request.Method == http.MethodDelete {
+		s.handleCSDNBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/segmentfault/articles/list" && request.Method == http.MethodPost {
 		s.handleSegmentFaultArticleList(response, request, request.URL.Query().Get("article"))
 		return
