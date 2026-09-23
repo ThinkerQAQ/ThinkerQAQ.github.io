@@ -137,8 +137,7 @@ func (o *osChinaAdapter) saveDraft(ctx context.Context, refID string, input Draf
 		"disableComment": false,
 	}
 	if refID != "" {
-		payload["id"] = refID
-		payload["draftId"] = refID
+		payload["draft"] = refID
 	}
 	body, _ := json.Marshal(payload)
 	req, err := o.request(ctx, http.MethodPost, osChinaAPIOrigin+"/oschinapi/api/draft/save_draft", strings.NewReader(string(body)))
