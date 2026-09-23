@@ -190,8 +190,8 @@
     BlogCTLPopup.setStatus(assetStatus, ready ? "ok" : "unknown", ready ? "R2 兜底可用" : "R2 兜底未就绪");
     const missing = state.assetStatus?.missing ?? [];
     assetStatusDetail.textContent = ready
-      ? "Mermaid 先在本地渲染。支持直接上传的平台优先写入平台图床；平台上传失败时才使用 R2。DEV.to、Medium 等没有直接图床上传链路的平台仍依赖 R2。"
-      : `平台原生图片上传仍可使用；R2 兜底缺少：${missing.join("、") || "未知配置"}。不支持直接上传的平台会因此无法处理生成图片。`;
+      ? "Mermaid 先在本地渲染。支持直接上传的平台优先写入平台图床；平台上传失败时才使用 R2。"
+      : `平台原生图片上传仍可使用；R2 兜底缺少：${missing.join("、") || "未知配置"}。平台原生上传失败时将无法使用 R2 兜底。`;
   }
 
   function readAssetForm() {
