@@ -341,6 +341,12 @@
         state: item.bound && !stateChanged ? item.bindingState : stateName,
         postId: item.id,
         replace: Boolean(existing),
+        candidate: {
+          id: item.id,
+          title: item.title,
+          url: item.url || "",
+          published: Boolean(item.published),
+        },
       };
       if (platformID === "cnblogs") payload.reference = item.id;
       await BlogCTLPopup.send(`blogctl.${platformID}.${action}`, payload);
