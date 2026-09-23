@@ -187,11 +187,11 @@
     r2PublicBaseUrl.value = r2.publicBaseUrl || "";
 
     const ready = Boolean(state.assetStatus?.ready);
-    BlogCTLPopup.setStatus(assetStatus, ready ? "ok" : "error", ready ? "可上传" : "配置不完整");
+    BlogCTLPopup.setStatus(assetStatus, ready ? "ok" : "unknown", ready ? "R2 兜底可用" : "R2 兜底未就绪");
     const missing = state.assetStatus?.missing ?? [];
     assetStatusDetail.textContent = ready
-      ? "Mermaid 会渲染为 PNG 上传到 R2；平台支持时会继续上传到各自图床。"
-      : `缺少：${missing.join("、") || "未知配置"}。保存 Bucket / Public Base URL 后，如仍缺凭据，请重启带有对应 R2 环境变量的 Bridge。`;
+      ? "Mermaid 先在本地渲染。支持直接上传的平台优先写入平台图床；平台上传失败时才使用 R2。DEV.to、Medium 等没有直接图床上传链路的平台仍依赖 R2。"
+      : `平台原生图片上传仍可使用；R2 兜底缺少：${missing.join("、") || "未知配置"}。不支持直接上传的平台会因此无法处理生成图片。`;
   }
 
   function readAssetForm() {
