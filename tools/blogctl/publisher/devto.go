@@ -18,9 +18,11 @@ const (
 )
 
 type devtoAdapter struct {
-	client *http.Client
-	apiKey string
-	origin string
+	client          *http.Client
+	apiKey          string
+	origin          string
+	browserCookies  []BrowserCookie
+	browserUserAgent string
 }
 
 type devtoArticle struct {
@@ -62,7 +64,11 @@ func newDEVToAdapter(base *http.Client, session Session, origin string) (*devtoA
 	if _, err := url.ParseRequestURI(origin); err != nil {
 		return nil, err
 	}
-	return &devtoAdapter{client: base, apiKey: strings.TrimSpace(session.APIKey), origin: origin}, nil
+	return &devtoAdapter{
+		client: base, apiKey: strings.TrimSpace(session.APIKey), origin: origin,
+		browserCookies: append([]BrowserCookie{}, session.Cookies...),
+		browserUserAgent: strings.TrimSpace(session.UserAgent),
+	}, nil
 }
 
 func (a *devtoAdapter) ID() string { return "devto" }
@@ -264,6 +270,11 @@ func (a *devtoAdapter) upsertExisting(ctx context.Context, existing devtoArticle
 }
 
 func (a *devtoAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
+	prepared, err := a.prepareImages(ctx, input)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	input = prepared
 	desired := devtoDesired(input)
 	existing, err := a.findExisting(ctx, desired)
 	if err != nil {
@@ -280,13 +291,29 @@ func (a *devtoAdapter) CreateDraft(ctx context.Context, input DraftInput) (Draft
 }
 
 func (a *devtoAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error) {
+	prepared, err := a.prepareImages(ctx, input)
+	if err != nil {
+		return DraftResult{}, err
+	}
 	existing, err := a.getArticle(ctx, ref.ID)
 	if err != nil {
 		return DraftResult{}, err
 	}
-	return a.upsertExisting(ctx, existing, input)
+	return a.upsertExisting(ctx, existing, prepared)
 }
 
-func (a *devtoAdapter) PublishDraft(_ context.Context, _ DraftRef, _ DraftInput) (PublishResult, error) {
-	return PublishResult{}, platformError(ErrNotImplemented, "devto", "publish-draft", 0, "DEV.to publication state is selected while compiling the article", false)
+func (a *devtoAdapter) PublishDraft(ctx context.Context, ref DraftRef, _ DraftInput) (PublishResult, error) {
+	var updated devtoArticle
+	if err := a.request(ctx, http.MethodPut, "articles/"+url.PathEscape(ref.ID), map[string]any{
+		"article": map[string]any{"published": true},
+	}, &updated); err != nil {
+		return PublishResult{}, err
+	}
+	if updated.ID == 0 {
+		return PublishResult{}, platformError(ErrUpstream, "devto", "publish-draft", 0, "DEV.to publish response is missing article id", false)
+	}
+	if strings.TrimSpace(updated.URL) == "" {
+		return PublishResult{}, platformError(ErrUpstream, "devto", "publish-draft", 0, "DEV.to publish response is missing article URL", false)
+	}
+	return PublishResult{ID: strconv.FormatInt(updated.ID, 10), URL: updated.URL}, nil
 }
