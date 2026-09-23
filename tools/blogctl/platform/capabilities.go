@@ -67,7 +67,10 @@ var definitions = []Definition{
 	},
 	{
 		ID: "medium", Label: "Medium", DefaultLanguage: "en",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true},
+		Capabilities: Capabilities{
+			BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true,
+			RemoteList: true, BodyImages: true, BodyImageRehost: true,
+		},
 	},
 }
 
