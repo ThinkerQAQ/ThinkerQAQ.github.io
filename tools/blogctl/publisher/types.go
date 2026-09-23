@@ -63,6 +63,7 @@ type DraftResult struct {
 }
 
 type PublishResult struct {
+	ID  string
 	URL string
 }
 
