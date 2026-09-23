@@ -268,6 +268,59 @@ function csdnArticleID(reference) {
   }
 }
 
+async function waitForTabReady(tabId, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (!tab) throw new Error("浏览器检测标签页已关闭");
+    if (tab.status === "complete") return tab;
+    await delay(100);
+  }
+  throw new Error("浏览器检测页面加载超时");
+}
+
+async function runFirstPartyFetch(pageURL, requestURL) {
+  const existingTabs = await chrome.tabs.query({ url: [new URL(pageURL).origin + "/*"] });
+  const existing = existingTabs.find((tab) => Number(tab.id) >= 0);
+  let tabId = Number(existing?.id ?? -1);
+  let created = false;
+  try {
+    if (tabId < 0) {
+      const tab = await chrome.tabs.create({ url: pageURL, active: false });
+      tabId = Number(tab?.id ?? -1);
+      created = true;
+    }
+    if (tabId < 0) throw new Error("无法创建平台检测标签页");
+    await waitForTabReady(tabId);
+    if (created) await delay(500);
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      args: [requestURL],
+      func: async (rawURL) => {
+        try {
+          const response = await fetch(rawURL, {
+            credentials: "include",
+            cache: "no-store",
+            headers: { accept: "application/json, text/plain, */*" },
+          });
+          return { ok: response.ok, status: response.status, url: response.url, text: await response.text() };
+        } catch (error) {
+          return { ok: false, status: 0, url: rawURL, error: error?.message || String(error), text: "" };
+        }
+      },
+    });
+    const value = results?.[0]?.result;
+    if (!value) throw new Error("平台页面没有返回检测结果");
+    return value;
+  } finally {
+    if (created && tabId >= 0) {
+      await chrome.tabs.remove(tabId).catch(() => {});
+    }
+  }
+}
+
 async function csdnBrowserMatch(article) {
   const context = await fetchJSON(`/v1/csdn/lookup-context?article=${article}`, { method: "POST" });
   const query = new URLSearchParams({
@@ -277,19 +330,18 @@ async function csdnBrowserMatch(article) {
     noMore: "false",
     username: String(context.account || ""),
   });
-  const response = await fetchWithTimeout(
-    `https://blog.csdn.net/community/home-api/v1/get-business-list?${query.toString()}`,
-    { cache: "no-store", referrer: "https://blog.csdn.net/" },
-  );
-  const raw = await response.text();
+  const pageURL = `https://blog.csdn.net/${encodeURIComponent(String(context.account || ""))}`;
+  const requestURL = `https://blog.csdn.net/community/home-api/v1/get-business-list?${query.toString()}`;
+  const response = await runFirstPartyFetch(pageURL, requestURL);
+  const raw = String(response.text || "");
   if (!response.ok || /Security Verification|请进行安全验证/i.test(raw)) {
-    throw new Error(`CSDN 浏览器文章列表仍被安全验证拦截（HTTP ${response.status}）`);
+    throw new Error(`CSDN 页面上下文仍被安全验证拦截（HTTP ${response.status || 0}）`);
   }
   let payload;
   try {
     payload = JSON.parse(raw);
   } catch {
-    throw new Error("CSDN 浏览器文章列表返回了非 JSON 响应");
+    throw new Error("CSDN 页面上下文返回了非 JSON 文章列表");
   }
   if (Number(payload?.code) !== 200) {
     throw new Error(payload?.message || payload?.msg || "CSDN 浏览器文章列表请求失败");
