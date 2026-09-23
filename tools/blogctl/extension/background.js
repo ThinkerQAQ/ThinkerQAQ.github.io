@@ -8,6 +8,7 @@ const BRIDGE_CACHE_MS = 30000;
 let bridgeSession = null;
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
+const recentZhihuSignedRequests = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -43,6 +44,29 @@ chrome.webRequest.onSendHeaders.addListener((details) => {
   const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
   if (header !== null) pending.resolve(header);
 }, { urls: platformSessionRequestPatterns }, ["requestHeaders", "extraHeaders"]);
+
+chrome.webRequest.onSendHeaders.addListener((details) => {
+  const url = String(details.url || "");
+  const kind = url.includes("/api/v4/articles/my_drafts") ? "drafts"
+    : (/\/api\/v4\/members\/[^/]+\/articles/.test(url) ? "published" : "");
+  if (!kind || Number(details.tabId) < 0) return;
+  const headers = {};
+  for (const header of details.requestHeaders ?? []) {
+    const name = String(header.name || "").toLowerCase();
+    if (name === "x-zse-93" || name === "x-zse-96" || name === "x-requested-with") {
+      headers[name] = String(header.value || "");
+    }
+  }
+  if (!headers["x-zse-96"]) return;
+  recentZhihuSignedRequests.set(Number(details.tabId), {
+    kind, url, headers, capturedAt: Date.now(),
+  });
+}, {
+  urls: [
+    "https://www.zhihu.com/api/v4/articles/my_drafts*",
+    "https://www.zhihu.com/api/v4/members/*/articles*",
+  ],
+}, ["requestHeaders", "extraHeaders"]);
 
 async function setBadge(text, color) {
   await chrome.action.setBadgeText({ text });
@@ -210,6 +234,160 @@ async function fetchJSON(pathname, options = {}, retry = true) {
 
 function jsonOptions(method, body) {
   return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+}
+
+function normalizedRemoteTitle(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function remoteTitleMatches(local, remote) {
+  const localTitle = normalizedRemoteTitle(local);
+  const remoteTitle = normalizedRemoteTitle(remote);
+  if (!localTitle || !remoteTitle) return false;
+  if (localTitle === remoteTitle) return true;
+  return [" · ", " - ", " — "].some((separator) => remoteTitle.startsWith(localTitle + separator));
+}
+
+function bindingForPost(bindings, post) {
+  const state = post.published ? "published" : "draft";
+  const binding = (bindings ?? []).find((item) =>
+    item.state === state && String(item.postId) === String(post.id));
+  return binding ? { bound: true, bindingState: binding.state } : { bound: false, bindingState: "" };
+}
+
+function csdnArticleID(reference) {
+  try {
+    const parsed = new URL(String(reference || ""));
+    const articleId = parsed.searchParams.get("articleId");
+    if (/^\d+$/.test(articleId || "")) return articleId;
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    const last = parts.at(-1) || "";
+    return /^\d+$/.test(last) ? last : "";
+  } catch {
+    return /^\d+$/.test(String(reference || "").trim()) ? String(reference).trim() : "";
+  }
+}
+
+async function csdnBrowserMatch(article) {
+  const context = await fetchJSON(`/v1/csdn/lookup-context?article=${article}`, { method: "POST" });
+  const query = new URLSearchParams({
+    page: "1",
+    size: "100",
+    businessType: "lately",
+    noMore: "false",
+    username: String(context.account || ""),
+  });
+  const response = await fetchWithTimeout(
+    `https://blog.csdn.net/community/home-api/v1/get-business-list?${query.toString()}`,
+    { cache: "no-store", referrer: "https://blog.csdn.net/" },
+  );
+  const raw = await response.text();
+  if (!response.ok || /Security Verification|请进行安全验证/i.test(raw)) {
+    throw new Error(`CSDN 浏览器文章列表仍被安全验证拦截（HTTP ${response.status}）`);
+  }
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    throw new Error("CSDN 浏览器文章列表返回了非 JSON 响应");
+  }
+  if (Number(payload?.code) !== 200) {
+    throw new Error(payload?.message || payload?.msg || "CSDN 浏览器文章列表请求失败");
+  }
+  const bindings = context.bindings ?? [];
+  const matched = [];
+  const seen = new Set();
+  for (const value of payload?.data?.list ?? []) {
+    const id = csdnArticleID(value?.url);
+    const title = normalizedRemoteTitle(value?.title);
+    if (!id || !title || !remoteTitleMatches(context.title, title)) continue;
+    const post = { id, title, url: String(value?.url || ""), published: true };
+    Object.assign(post, bindingForPost(bindings, post));
+    matched.push(post);
+    seen.add(id);
+  }
+  for (const post of context.boundPosts ?? []) {
+    if (seen.has(String(post.id))) continue;
+    matched.push({
+      title: post.title,
+      id: post.id,
+      published: Boolean(post.published),
+      url: post.url || "",
+      bound: Boolean(post.bound),
+      bindingState: post.bindingState || "",
+    });
+  }
+  return { candidates: matched, bindings };
+}
+
+async function captureZhihuSignedRequest(kind, pageURL) {
+  let tabId = null;
+  try {
+    const tab = await chrome.tabs.create({ url: pageURL, active: false });
+    tabId = Number(tab?.id ?? -1);
+    if (tabId < 0) throw new Error("无法创建知乎后台检测标签页");
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      const captured = recentZhihuSignedRequests.get(tabId);
+      if (captured?.kind === kind && Date.now() - captured.capturedAt < 10000) {
+        return captured;
+      }
+      await delay(100);
+    }
+    throw new Error(`知乎未产生 ${kind === "drafts" ? "草稿" : "已发布文章"}列表请求`);
+  } finally {
+    if (tabId !== null && tabId >= 0) {
+      recentZhihuSignedRequests.delete(tabId);
+      await chrome.tabs.remove(tabId).catch(() => {});
+    }
+  }
+}
+
+async function fetchZhihuSignedList(captured, referrer) {
+  const response = await fetchWithTimeout(captured.url, {
+    cache: "no-store",
+    headers: captured.headers,
+    referrer,
+  });
+  if (!response.ok) {
+    throw new Error(`知乎列表请求失败（HTTP ${response.status}）`);
+  }
+  return response.json();
+}
+
+async function zhihuBrowserMatch(article) {
+  const context = await fetchJSON(`/v1/zhihu/lookup-context?article=${article}`, { method: "POST" });
+  const draftPage = "https://www.zhihu.com/creator/manage/creation/draft?type=article";
+  const profilePage = `https://www.zhihu.com/people/${encodeURIComponent(context.account)}/posts`;
+
+  const [draftCapture, publishedCapture] = await Promise.all([
+    captureZhihuSignedRequest("drafts", draftPage),
+    captureZhihuSignedRequest("published", profilePage),
+  ]);
+  const [draftPayload, publishedPayload] = await Promise.all([
+    fetchZhihuSignedList(draftCapture, draftPage),
+    fetchZhihuSignedList(publishedCapture, profilePage),
+  ]);
+
+  const bindings = context.bindings ?? [];
+  const candidates = [];
+  const seen = new Set();
+  const append = (value, published) => {
+    const id = String(value?.url_token || value?.id || "").trim();
+    const title = normalizedRemoteTitle(value?.title);
+    if (!id || !title || !remoteTitleMatches(context.title, title) || seen.has(id)) return;
+    seen.add(id);
+    const rawURL = String(value?.url || "");
+    const url = published
+      ? (rawURL ? rawURL.replace(/^http:\/\//, "https://") : `https://zhuanlan.zhihu.com/p/${encodeURIComponent(id)}`)
+      : `https://zhuanlan.zhihu.com/p/${encodeURIComponent(id)}/edit`;
+    const post = { id, title, url, published };
+    Object.assign(post, bindingForPost(bindings, post));
+    candidates.push(post);
+  };
+  for (const value of draftPayload?.data ?? []) append(value, false);
+  for (const value of publishedPayload?.data ?? []) append(value, true);
+  return { candidates, bindings };
 }
 
 async function bridgeStatus() {
@@ -627,20 +805,13 @@ async function handleMessage(message) {
       }
       if (platform === "zhihu") {
         await syncPlatformSession("zhihu");
-        const result = await fetchJSON(`/v1/zhihu/articles/list?article=${article}`, { method: "POST" });
+        const result = await zhihuBrowserMatch(article);
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `从知乎草稿列表和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
-            : "已读取知乎草稿列表和已发布文章列表，本地未匹配到同名文章。",
-          items: candidates.map((post) => ({
-            title: post.title,
-            id: post.id,
-            published: post.published,
-            url: post.url || "",
-            bound: Boolean(post.bound),
-            bindingState: post.bindingState || "",
-          })),
+            ? `通过知乎浏览器真实签名请求匹配到 ${candidates.length} 条候选。`
+            : "已读取知乎浏览器草稿列表和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates,
           bindings: result.bindings ?? [],
         } };
       }
@@ -702,20 +873,13 @@ async function handleMessage(message) {
       }
       if (platform === "csdn") {
         await syncPlatformSession("csdn");
-        const result = await fetchJSON(`/v1/csdn/articles/list?article=${article}`, { method: "POST" });
+        const result = await csdnBrowserMatch(article);
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `从 CSDN 已发布文章列表本地匹配到 ${candidates.length} 条候选；已绑定草稿会按 ID 单独核验。`
-            : "已读取 CSDN 已发布文章列表；未匹配到同名文章。历史草稿可用文章 ID／编辑链接手动绑定。",
-          items: candidates.map((post) => ({
-            title: post.title,
-            id: post.id,
-            published: post.published,
-            url: post.url || "",
-            bound: Boolean(post.bound),
-            bindingState: post.bindingState || "",
-          })),
+            ? `通过浏览器读取 CSDN 文章列表并匹配到 ${candidates.length} 条候选；已绑定草稿仍按 ID 单独核验。`
+            : "已通过浏览器读取 CSDN 已发布文章列表；未匹配到同名文章。历史草稿可用文章 ID／编辑链接手动绑定。",
+          items: candidates,
           bindings: result.bindings ?? [],
         } };
       }
