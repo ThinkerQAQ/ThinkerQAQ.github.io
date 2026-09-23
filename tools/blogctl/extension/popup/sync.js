@@ -112,7 +112,7 @@
       row.className = "article-match-row";
       row.textContent = `${item.localOnly ? "本地记录 · " : item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}${item.bound && item.bindingState && item.bindingState !== (item.published ? "published" : "draft") ? " · 远端状态已变化" : ""}`;
 
-      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net|medium\.com)\//.test(item.url)) {
+      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|blog\.csdn\.net|editor\.csdn\.net|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net|medium\.com)\//.test(item.url)) {
         const link = document.createElement("a");
         link.textContent = "查看文章";
         link.href = item.url;
@@ -121,7 +121,7 @@
         row.append(" · ", link);
       }
 
-      if (platform.id === "cnblogs" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina" || platform.id === "devto" || platform.id === "medium") {
+      if (platform.id === "cnblogs" || platform.id === "csdn" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina" || platform.id === "devto" || platform.id === "medium") {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "secondary";
@@ -159,6 +159,43 @@
           await loadSyncBinding();
           await refreshArticleMatches();
           BlogCTLPopup.setMessage(message, "绑定已保存。", "ok");
+        } catch (error) {
+          BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+        } finally {
+          bind.disabled = false;
+        }
+      });
+      manual.append(summary, input, bind);
+      result.append(manual);
+    } else if (platform.id === "csdn") {
+      const manual = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = "候选中没有？输入 CSDN 文章 ID／链接";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "CSDN 文章 ID、公开链接或编辑链接";
+      input.autocomplete = "off";
+      const bind = document.createElement("button");
+      bind.type = "button";
+      bind.className = "secondary";
+      bind.textContent = "验证并绑定";
+      bind.addEventListener("click", async () => {
+        const reference = input.value.trim();
+        if (!reference) return;
+        const article = state.selectedSlug;
+        const bindings = state.matches.csdn?.bindings ?? [];
+        bind.disabled = true;
+        try {
+          if (bindings.length && !confirm("将验证该 CSDN 文章；如果对应状态已有绑定，会替换原绑定。继续吗？")) return;
+          await BlogCTLPopup.send("blogctl.csdn.bind", {
+            article,
+            postId: reference,
+            state: "",
+            replace: bindings.length > 0,
+          });
+          if (article !== state.selectedSlug) return;
+          await refreshArticleMatches();
+          BlogCTLPopup.setMessage(message, "CSDN 绑定已保存。", "ok");
         } catch (error) {
           BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
         } finally {
