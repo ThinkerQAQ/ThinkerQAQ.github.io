@@ -389,3 +389,54 @@ func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
 		t.Fatalf("state = %#v", state)
 	}
 }
+
+
+func TestPublicationFileWritesOnlyUnifiedSchema(t *testing.T) {
+	root := t.TempDir()
+	if err := SavePublicationBinding(root, PublicationBinding{
+		Slug: "example", Platform: "cnblogs",
+		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationDraftResult(root, "example", "juejin", "hash-j", DraftResult{
+		ID: "draft-j", URL: "https://juejin.cn/editor/drafts/draft-j", Created: true,
+	}, time.Date(2026, 9, 23, 1, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, ".blogctl", "publications.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["version"] != float64(bindingFileVersion) {
+		t.Fatalf("version = %#v", decoded["version"])
+	}
+	if _, exists := decoded["cnblogs"]; exists {
+		t.Fatalf("legacy cnblogs top-level state was written: %s", raw)
+	}
+	if _, exists := decoded["unbound"]; exists {
+		t.Fatalf("legacy unbound state was written: %s", raw)
+	}
+	publications, ok := decoded["publications"].([]any)
+	if !ok || len(publications) != 2 {
+		t.Fatalf("publications = %#v", decoded["publications"])
+	}
+}
+
+func TestPublicationFileRejectsLegacyVersionOne(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".blogctl")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "publications.json"), []byte(`{"version":1,"publications":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadPublicationBinding(root, "example", "juejin"); err == nil || !strings.Contains(err.Error(), "unsupported bindings version: 1") {
+		t.Fatalf("err = %v, want explicit v1 rejection", err)
+	}
+}
