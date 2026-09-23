@@ -173,6 +173,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleSegmentFaultBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/zhihu/articles/list" && request.Method == http.MethodPost {
+		s.handleZhihuArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/zhihu/binding" && request.Method == http.MethodPost {
+		s.handleZhihuBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/zhihu/binding" && request.Method == http.MethodDelete {
+		s.handleZhihuBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/article-links" && request.Method == http.MethodGet {
 		s.handleArticleLinks(response, request, request.URL.Query().Get("article"))
 		return
