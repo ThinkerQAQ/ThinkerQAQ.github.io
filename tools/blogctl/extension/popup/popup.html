@@ -21,7 +21,7 @@
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
       <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">绑定</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新与保存</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">保存</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">发布配置</button>
@@ -41,13 +41,14 @@
         <div class="status-row"><div class="section-title">远端关联</div><button id="refreshArticleMatches" class="secondary compact" type="button" disabled>刷新文章关联</button></div>
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
+      <div class="sync-actions"><button id="goToSave" class="primary" type="button" disabled>进入保存</button></div>
       <p id="syncMessage" class="message" role="status"></p>
     </section>
 
     <section class="panel" role="tabpanel" data-panel="drafts">
       <section class="status-card">
-        <div class="section-title">更新与保存</div>
-        <p class="card-hint">选择文章和平台。已有草稿关系时更新，没有时创建草稿；操作会创建任务并轮询结果。</p>
+        <div class="section-title">保存</div>
+        <p class="card-hint">选择文章和平台。已有草稿关系时更新，没有时创建草稿；保存会创建任务并轮询结果。</p>
         <label class="field"><span>文章</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="输入标题或 slug 搜索；留空列出全部" autocomplete="off"></label>
         <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
         <p id="draftArticleMeta" class="card-hint"></p>
@@ -58,8 +59,13 @@
         <div id="draftPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
 
-      <div class="sync-actions"><button id="saveDrafts" class="primary" type="button" disabled>更新／保存</button></div>
-      <div id="draftRunStatus" class="workflow-status" hidden></div>
+      <div class="sync-actions">
+        <button id="saveDrafts" class="primary" type="button" disabled>保存</button>
+        <div id="draftNextActions" class="workflow-next-actions" hidden>
+          <button id="draftViewTask" class="secondary" type="button">查看任务</button>
+          <button id="draftEnterPublish" class="primary inline-primary" type="button">进入发布</button>
+        </div>
+      </div>
       <p id="draftsMessage" class="message" role="status"></p>
     </section>
 
