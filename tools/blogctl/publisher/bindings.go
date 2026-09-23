@@ -86,18 +86,7 @@ func upsertPublicationBinding(bindings *bindingFile, binding PublicationBinding)
 	bindings.Publications = append(bindings.Publications, binding)
 }
 
-func SavePublicationBinding(contentRoot string, binding PublicationBinding) error {
-	publicationBindingsMu.Lock()
-	defer publicationBindingsMu.Unlock()
-	binding.Slug = strings.TrimSpace(binding.Slug)
-	binding.Platform = strings.TrimSpace(strings.ToLower(binding.Platform))
-	if binding.Slug == "" || binding.Platform == "" {
-		return errors.New("invalid publication binding")
-	}
-	bindings, err := readBindings(contentRoot)
-	if err != nil {
-		return err
-	}
+func validatePublicationBindingUniqueness(bindings bindingFile, binding PublicationBinding) error {
 	for _, existing := range bindings.Publications {
 		if existing.Platform != binding.Platform || existing.Slug == binding.Slug {
 			continue
@@ -111,6 +100,24 @@ func SavePublicationBinding(contentRoot string, binding PublicationBinding) erro
 				return fmt.Errorf("%s remote id %s is already bound to %s", binding.Platform, remoteID, existing.Slug)
 			}
 		}
+	}
+	return nil
+}
+
+func SavePublicationBinding(contentRoot string, binding PublicationBinding) error {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
+	binding.Slug = strings.TrimSpace(binding.Slug)
+	binding.Platform = strings.TrimSpace(strings.ToLower(binding.Platform))
+	if binding.Slug == "" || binding.Platform == "" {
+		return errors.New("invalid publication binding")
+	}
+	bindings, err := readBindings(contentRoot)
+	if err != nil {
+		return err
+	}
+	if err := validatePublicationBindingUniqueness(bindings, binding); err != nil {
+		return err
 	}
 	upsertPublicationBinding(&bindings, binding)
 	return writeBindings(contentRoot, bindings)
@@ -248,6 +255,9 @@ func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string,
 	binding.DraftHash = contentHash
 	binding.DraftSyncedAt = now.UTC().Format(time.RFC3339)
 	binding.PendingFields = nil
+	if err := validatePublicationBindingUniqueness(bindings, binding); err != nil {
+		return err
+	}
 	upsertPublicationBinding(&bindings, binding)
 	return writeBindings(contentRoot, bindings)
 }
@@ -290,6 +300,9 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 	binding.DraftURL = ""
 	binding.DraftHash = ""
 	binding.DraftSyncedAt = ""
+	if err := validatePublicationBindingUniqueness(bindings, binding); err != nil {
+		return err
+	}
 	upsertPublicationBinding(&bindings, binding)
 	return writeBindings(contentRoot, bindings)
 }

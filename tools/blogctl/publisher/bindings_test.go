@@ -453,6 +453,40 @@ func TestPublicationFileRejectsLegacyVersionOne(t *testing.T) {
 	}
 }
 
+func TestPublicationResultWritesRejectDuplicateRemoteIDs(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	if err := SavePublicationDraftResult(root, "article-a", "juejin", "hash-a", DraftResult{
+		ID: "remote-42", URL: "https://juejin.cn/editor/drafts/remote-42", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationDraftResult(root, "article-b", "juejin", "hash-b", DraftResult{
+		ID: "remote-42", URL: "https://juejin.cn/editor/drafts/remote-42", Created: true,
+	}, now); err == nil || !strings.Contains(err.Error(), "already bound to article-a") {
+		t.Fatalf("duplicate draft id error = %v", err)
+	}
+
+	if err := SavePublicationDraftResult(root, "article-b", "juejin", "hash-b", DraftResult{
+		ID: "draft-b", URL: "https://juejin.cn/editor/drafts/draft-b", Created: true,
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationPublishResult(root, "article-b", "juejin", "hash-b", PublishResult{
+		ID: "remote-42", URL: "https://juejin.cn/post/remote-42",
+	}, now.Add(time.Minute)); err == nil || !strings.Contains(err.Error(), "already bound to article-a") {
+		t.Fatalf("duplicate published id error = %v", err)
+	}
+
+	binding, found, err := LoadPublicationBinding(root, "article-b", "juejin")
+	if err != nil || !found {
+		t.Fatalf("binding = %#v found=%v err=%v", binding, found, err)
+	}
+	if binding.PublishedRemoteID != "" || binding.RemoteDraftID != "draft-b" {
+		t.Fatalf("failed duplicate write mutated binding: %#v", binding)
+	}
+}
+
 func TestConcurrentPublicationWritesDoNotLoseRecords(t *testing.T) {
 	root := t.TempDir()
 	const count = 32
