@@ -211,6 +211,27 @@ func TestRetrySyncJobReusesIDAndReplacesFailedAttempt(t *testing.T) {
 	}
 }
 
+func TestRetrySyncJobRejectsPublishAttempts(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.jobs["publish-job"] = &syncJob{
+		ID: "publish-job", State: "failed", Operation: "publish",
+		Request: syncRequest{
+			Article: "example", Platforms: []string{"oschina"}, Operation: "publish",
+		},
+	}
+	server.jobOrder = []string{"publish-job"}
+
+	if _, err := server.retrySyncJob("publish-job"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
+		t.Fatalf("error = %v", err)
+	}
+	if server.jobs["publish-job"].State != "failed" {
+		t.Fatalf("publish job was mutated: %#v", server.jobs["publish-job"])
+	}
+}
+
 func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
 	config := defaultBridgeConfig()
 	profile := config.Publishing.Platforms["cnblogs"]

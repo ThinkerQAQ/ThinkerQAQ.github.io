@@ -116,7 +116,7 @@
   }
 
   function renderActions(job, card) {
-    if (job.state !== "failed") return;
+    if (job.state !== "failed" || job.operation === "publish") return;
     const actions = document.createElement("div");
     actions.className = "task-actions";
     let retry;

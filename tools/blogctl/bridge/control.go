@@ -1152,6 +1152,10 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
+	if job.Request.Operation == "publish" {
+		s.mu.Unlock()
+		return nil, errors.New("publish jobs cannot be retried safely; verify the remote publication before taking another action")
+	}
 	request := job.Request
 	replacement := newSyncJob(id, request, startedAt)
 	s.jobs[id] = replacement
