@@ -24,6 +24,11 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 		{"toutiao", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish && value.BodyImages && value.BodyImageRehost
 		}},
+		{"csdn", func(value PlatformCapabilities) bool {
+			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
+				value.RemoteList && value.BodyImages && value.BodyImageRehost
+		}},
+
 		{"zhihu", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
 				value.RemoteList && value.BodyImages && value.BodyImageRehost
