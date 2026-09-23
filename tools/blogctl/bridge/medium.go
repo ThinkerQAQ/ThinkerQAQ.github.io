@@ -29,70 +29,8 @@ var mediumCookieNames = map[string]struct{}{
 var (
 	mediumAnchorPattern    = regexp.MustCompile(`(?is)<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>`)
 	mediumHTMLTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
-	mediumDraftPathPattern = regexp.MustCompile(`^/p/([0-9a-f]{8,})/editpackage bridge
-
-import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	htmlstd "html"
-	"io"
-	"mime/multipart"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-	"time"
-
-	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
-)
-
-const mediumOrigin = "https://medium.com"
-
-var mediumCookieNames = map[string]struct{}{
-	"sid": {}, "uid": {}, "xsrf": {}, "cf_clearance": {},
-}
-
-var (
-	mediumAnchorPattern    = regexp.MustCompile(`(?is)<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>`)
-	mediumHTMLTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
-)
-	mediumPostIDPattern    = regexp.MustCompile(`-([0-9a-f]{8,})package bridge
-
-import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	htmlstd "html"
-	"io"
-	"mime/multipart"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-	"time"
-
-	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
-)
-
-const mediumOrigin = "https://medium.com"
-
-var mediumCookieNames = map[string]struct{}{
-	"sid": {}, "uid": {}, "xsrf": {}, "cf_clearance": {},
-}
-
-var (
-	mediumAnchorPattern    = regexp.MustCompile(`(?is)<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>`)
-	mediumHTMLTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
-)
+	mediumDraftPathPattern = regexp.MustCompile(`^/p/([0-9a-f]{8,})/edit$`)
+	mediumPostIDPattern    = regexp.MustCompile(`-([0-9a-f]{8,})$`)
 	mediumProfilePattern   = regexp.MustCompile(`(?i)(?:https://medium\.com)?/@([A-Za-z0-9_-]+)`)
 )
 
