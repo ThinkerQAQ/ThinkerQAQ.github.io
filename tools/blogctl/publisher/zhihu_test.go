@@ -72,7 +72,7 @@ func TestZhihuCreateDraftMatchesCapturedPayload(t *testing.T) {
 		}
 	})}
 
-	adapter, err := NewZhihuAdapter(client, Session{UserAgent: "BlogCTL-Test-UA"})
+	adapter, err := NewZhihuAdapter(client, Session{UserAgent: "BlogCTL-Test-UA", Cookies: []BrowserCookie{{Name: "z_c0", Value: "secret", Domain: ".zhihu.com", Path: "/", Secure: true}}})
 	if err != nil {
 		t.Fatal(err)
 	}
