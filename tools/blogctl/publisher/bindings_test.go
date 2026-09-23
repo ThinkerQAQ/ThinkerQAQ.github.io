@@ -390,7 +390,6 @@ func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
 	}
 }
 
-
 func TestPublicationFileWritesOnlyUnifiedSchema(t *testing.T) {
 	root := t.TempDir()
 	if err := SavePublicationBinding(root, PublicationBinding{
