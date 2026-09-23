@@ -66,6 +66,11 @@ type mediumPostMeta struct {
 	Username         string
 }
 
+type mediumPostPresentation struct {
+	Title    string
+	Subtitle string
+}
+
 type mediumUploadResult struct {
 	FileID string
 	Width  int
@@ -545,6 +550,63 @@ func (c mediumClient) paragraphCount(ctx context.Context, session platformSessio
 	return len(decoded[0].Data.PostResult.Content.BodyModel.Paragraphs), nil
 }
 
+func (c mediumClient) postPresentation(ctx context.Context, session platformSession, postID string) (mediumPostPresentation, error) {
+	query := `query BlogCTLMediumPostPresentationQuery($postId: ID!) {
+  postResult(id: $postId) {
+    __typename
+    ... on Post {
+      id
+      title
+      previewContent { subtitle __typename }
+      __typename
+    }
+  }
+}`
+	payload, _ := json.Marshal([]any{map[string]any{
+		"operationName": "BlogCTLMediumPostPresentationQuery",
+		"variables": map[string]any{"postId": postID},
+		"query": query,
+	}})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
+	if err != nil {
+		return mediumPostPresentation{}, err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return mediumPostPresentation{}, err
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
+	if err != nil {
+		return mediumPostPresentation{}, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return mediumPostPresentation{}, fmt.Errorf("Medium post presentation query failed (%d)", response.StatusCode)
+	}
+	var decoded []struct {
+		Data struct {
+			PostResult struct {
+				ID             string `json:"id"`
+				Title          string `json:"title"`
+				PreviewContent struct {
+					Subtitle string `json:"subtitle"`
+				} `json:"previewContent"`
+			} `json:"postResult"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), &decoded); err != nil || len(decoded) == 0 {
+		return mediumPostPresentation{}, errors.New("Medium post presentation query returned invalid JSON")
+	}
+	value := decoded[0].Data.PostResult
+	if strings.TrimSpace(value.ID) == "" {
+		return mediumPostPresentation{}, errors.New("Medium post presentation is unavailable")
+	}
+	return mediumPostPresentation{
+		Title: strings.TrimSpace(value.Title), Subtitle: strings.TrimSpace(value.PreviewContent.Subtitle),
+	}, nil
+}
+
 func (c mediumClient) updateDraft(
 	ctx context.Context,
 	session platformSession,
@@ -565,11 +627,20 @@ func (c mediumClient) updateDraft(
 	if err != nil {
 		return nil, err
 	}
-	deltas := make([]map[string]any, 0, count+len(replacement))
-	for index := count - 1; index >= 0; index-- {
+	if count < 1 || len(replacement) < 1 {
+		return nil, errors.New("Medium draft is missing its title paragraph")
+	}
+	// Keep the existing Medium title. Users often curate a platform-specific
+	// headline; saving source Markdown should replace the body, not overwrite it.
+	bodyReplacement := replacement[1:]
+	for index := range bodyReplacement {
+		bodyReplacement[index]["index"] = index + 1
+	}
+	deltas := make([]map[string]any, 0, max(0, count-1)+len(bodyReplacement))
+	for index := count - 1; index >= 1; index-- {
 		deltas = append(deltas, map[string]any{"type": 2, "index": index})
 	}
-	deltas = append(deltas, replacement...)
+	deltas = append(deltas, bodyReplacement...)
 	if _, err := c.writeDeltas(ctx, session, postID, meta.LatestRev, deltas); err != nil {
 		return nil, err
 	}
@@ -605,6 +676,16 @@ func (c mediumClient) publishDraft(
 	meta, err := c.postMeta(ctx, session, postID)
 	if err != nil {
 		return nil, err
+	}
+	presentation, err := c.postPresentation(ctx, session, postID)
+	if err != nil {
+		return nil, err
+	}
+	if presentation.Title != "" {
+		title = presentation.Title
+	}
+	if presentation.Subtitle != "" {
+		subtitle = presentation.Subtitle
 	}
 	body, err := json.Marshal(map[string]any{
 		"title": title, "subtitle": subtitle, "metaDescription": "", "latestRev": meta.LatestRev,
