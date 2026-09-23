@@ -476,3 +476,29 @@ func TestBridgeNativePublisherPublishesMediumDraft(t *testing.T) {
 	}
 }
 
+
+
+func TestParseMediumStoryLinksFromCapturedLists(t *testing.T) {
+	drafts := parseMediumStoryLinks(`
+		<a href="https://medium.com/p/1e645140212b/edit?source=your_stories_outbox">TEest</a>
+		<a href="https://medium.com/p/6e2fff4d49cd/edit?source=your_stories_outbox">Concurrency Programming (0): The Problem Space and Scope</a>
+	`, false)
+	if len(drafts) != 2 || drafts[0].ID != "1e645140212b" || drafts[0].Published {
+		t.Fatalf("drafts = %#v", drafts)
+	}
+
+	published := parseMediumStoryLinks(`
+		<a href="https://medium.com/@ThinkerQAQ/why-count-breaks-under-concurrency-atomicity-visibility-ordering-concurrency-programming-1-bce5e98fe815?source=your_stories_outbox">Why count++ Breaks Under Concurrency: Atomicity, Visibility &amp; Ordering — Concurrency Programming…</a>
+	`, true)
+	if len(published) != 1 || published[0].ID != "bce5e98fe815" || !published[0].Published {
+		t.Fatalf("published = %#v", published)
+	}
+}
+
+func TestMediumTitleMatchesPublishedListTruncation(t *testing.T) {
+	local := "Why count++ Breaks Under Concurrency: Atomicity, Visibility & Ordering — Concurrency Programming (1)"
+	remote := "Why count++ Breaks Under Concurrency: Atomicity, Visibility & Ordering — Concurrency Programming…"
+	if !mediumTitleMatches(local, remote) {
+		t.Fatalf("expected %q to match %q", local, remote)
+	}
+}
