@@ -31,9 +31,18 @@ func NewZhihuAdapter(base *http.Client, session Session) (Adapter, error) {
 func (z *zhihuAdapter) ID() string { return "zhihu" }
 
 func (z *zhihuAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
-	req, err := browserRequest(ctx, method, rawURL, zhihuOrigin, zhihuOrigin+"/write", z.userAgent, body)
+	origin := zhihuOrigin
+	referer := zhihuOrigin + "/write"
+	if parsed, err := url.Parse(rawURL); err == nil && strings.EqualFold(parsed.Hostname(), "www.zhihu.com") {
+		origin = "https://www.zhihu.com"
+		referer = "https://www.zhihu.com/creator/manage/creation/content/article"
+	}
+	req, err := browserRequest(ctx, method, rawURL, origin, referer, z.userAgent, body)
 	if err != nil {
 		return nil, err
+	}
+	if method == http.MethodGet {
+		req.Header.Del("origin")
 	}
 	req.Header.Set("x-requested-with", "fetch")
 	return req, nil
