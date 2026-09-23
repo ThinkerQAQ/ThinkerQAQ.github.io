@@ -161,6 +161,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleDevtoArticleSearch(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/segmentfault/articles/list" && request.Method == http.MethodPost {
+		s.handleSegmentFaultArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/segmentfault/binding" && request.Method == http.MethodPost {
+		s.handleSegmentFaultBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/segmentfault/binding" && request.Method == http.MethodDelete {
+		s.handleSegmentFaultBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/article-links" && request.Method == http.MethodGet {
 		s.handleArticleLinks(response, request, request.URL.Query().Get("article"))
 		return
