@@ -730,6 +730,9 @@ func (c mediumClient) updateDraft(
 	if err != nil {
 		return nil, err
 	}
+	if meta.FirstPublishedAt > 0 {
+		return nil, errors.New("Medium story is already published; safe published-article updates are not supported yet")
+	}
 	count, err := c.paragraphCount(ctx, session, postID)
 	if err != nil {
 		return nil, err

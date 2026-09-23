@@ -439,6 +439,49 @@ func TestBridgeNativePublisherUpdatesChangedMediumDraft(t *testing.T) {
 	}
 }
 
+func TestBridgeNativePublisherRefusesToSavePublishedMediumStory(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installMediumBridgeSession(server)
+	deltaWrites := 0
+	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/p/post-existing/notes":
+			return mediumResponse(request, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"post":{"id":"post-existing","latestRev":9,"firstPublishedAt":1758600000000,"uniqueSlug":"published-post","mediumUrl":"https://medium.com/@ThinkerQAQ/published-post","creator":{"username":"ThinkerQAQ"}}}}`, nil), nil
+		case "/p/post-existing/deltas":
+			deltaWrites++
+			t.Fatal("draft save must not write deltas to an already-published Medium story")
+			return nil, nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	contentRoot := t.TempDir()
+	if err := publisher.SavePublicationBinding(contentRoot, publisher.PublicationBinding{
+		Slug: "example", Platform: "medium",
+		PublishedRemoteID: "post-existing", PublishedURL: "https://medium.com/@ThinkerQAQ/published-post",
+		PublishedHash: "old-hash",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
+		Article: "example", Platform: "medium", ContentRoot: contentRoot,
+		ChangedOnly: false, Compiled: compiledMediumArticle(t, "new-hash"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "already published") {
+		t.Fatalf("error = %v, want published-story validation failure", err)
+	}
+	if deltaWrites != 0 {
+		t.Fatalf("published Medium story received %d delta write(s)", deltaWrites)
+	}
+}
+
 func TestBridgeNativePublisherPublishesMediumDraft(t *testing.T) {
 	server, err := New("token")
 	if err != nil {

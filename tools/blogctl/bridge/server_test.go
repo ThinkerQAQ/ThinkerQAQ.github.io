@@ -679,12 +679,12 @@ func TestBridgeMediumFilterAlsoAppliesToPublisherCookieMetadata(t *testing.T) {
 	}
 }
 
-
 func TestBridgeAcceptsOptionalDEVToBrowserSession(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.config.DevtoAPIKey = "api-key"
 	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/devto", strings.NewReader(`{
 		"cookies":[
 			{"name":"_Devto_Forem_Session","value":"session","domain":"dev.to","path":"/","secure":true},
