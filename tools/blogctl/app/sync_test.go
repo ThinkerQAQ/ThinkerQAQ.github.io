@@ -102,9 +102,13 @@ func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ s
 }
 
 func TestBuildSyncPlanRoutesAllPlatformsThroughUnifiedCompiler(t *testing.T) {
+	platforms := []string{
+		"cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
+		"51cto", "oschina", "toutiao", "devto", "medium",
+	}
 	request, err := NormalizeSyncRequest(SyncRequest{
 		Articles:  []string{"concurrency-series-00"},
-		Platforms: []string{"juejin", "csdn", "devto", "medium"},
+		Platforms: platforms,
 		DryRun:    true,
 	})
 	if err != nil {
@@ -114,10 +118,14 @@ func TestBuildSyncPlanRoutesAllPlatformsThroughUnifiedCompiler(t *testing.T) {
 	if len(plan) != 1 {
 		t.Fatalf("got %d plan entries, want 1", len(plan))
 	}
-	if plan[0].Group != "native-publishing" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, []string{"juejin", "csdn", "devto", "medium"}) {
+	if plan[0].Group != "native-publishing" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, platforms) {
 		t.Fatalf("unified plan = %#v", plan[0])
 	}
-	if !reflect.DeepEqual(plan[0].Args, []string{"--article", "concurrency-series-00", "--platforms", "juejin,csdn,devto,medium", "--dry-run"}) {
+	if !reflect.DeepEqual(plan[0].Args, []string{
+		"--article", "concurrency-series-00",
+		"--platforms", strings.Join(platforms, ","),
+		"--dry-run",
+	}) {
 		t.Fatalf("unified args = %#v", plan[0].Args)
 	}
 }
