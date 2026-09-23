@@ -1,0 +1,218 @@
+package publisher
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/url"
+	"path"
+	"strconv"
+	"strings"
+)
+
+const csdnBlogOrigin = "https://blog.csdn.net"
+
+type CSDNPost struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	URL       string `json:"url"`
+	Published bool   `json:"published"`
+}
+
+func CSDNTitleMatches(local, remote string) bool {
+	local = strings.Join(strings.Fields(strings.TrimSpace(local)), " ")
+	remote = strings.Join(strings.Fields(strings.TrimSpace(remote)), " ")
+	if local == "" || remote == "" {
+		return false
+	}
+	if local == remote {
+		return true
+	}
+	for _, separator := range []string{" · ", " - ", " — "} {
+		if strings.HasPrefix(remote, local+separator) {
+			return true
+		}
+	}
+	return false
+}
+
+func csdnArticleIDFromURL(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return ""
+	}
+	base := path.Base(strings.TrimRight(parsed.Path, "/"))
+	if _, err := strconv.ParseInt(base, 10, 64); err != nil {
+		return ""
+	}
+	return base
+}
+
+func (c *csdnAdapter) listPublished(ctx context.Context) ([]CSDNPost, error) {
+	if strings.TrimSpace(c.userID) == "" {
+		auth, err := c.CheckAuth(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !auth.Authenticated || strings.TrimSpace(c.userID) == "" {
+			return nil, errors.New("CSDN browser session is not authenticated")
+		}
+	}
+
+	const pageSize = 100
+	result := []CSDNPost{}
+	seen := map[string]struct{}{}
+	for pageNumber := 1; pageNumber <= 10; pageNumber++ {
+		query := url.Values{}
+		query.Set("page", strconv.Itoa(pageNumber))
+		query.Set("size", strconv.Itoa(pageSize))
+		query.Set("businessType", "lately")
+		query.Set("noMore", "false")
+		query.Set("username", c.userID)
+		rawURL := csdnBlogOrigin + "/community/home-api/v1/get-business-list?" + query.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("accept", "application/json")
+		if c.userAgent != "" {
+			req.Header.Set("user-agent", c.userAgent)
+		}
+		response, err := c.client.Do(req)
+		if err != nil {
+			return nil, platformError(ErrUpstream, c.ID(), "list-published", 0, err.Error(), true)
+		}
+		raw, readErr := readBounded(response, 4<<20)
+		response.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, classifyHTTP(c.ID(), "list-published", response.StatusCode, string(raw))
+		}
+		var decoded struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    struct {
+				List []struct {
+					Title string `json:"title"`
+					URL   string `json:"url"`
+				} `json:"list"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			return nil, platformError(ErrUpstream, c.ID(), "list-published", response.StatusCode, "invalid JSON response", false)
+		}
+		if decoded.Code != 200 {
+			return nil, platformError(ErrUpstream, c.ID(), "list-published", decoded.Code, responseMessage(decoded.Message), false)
+		}
+		for _, item := range decoded.Data.List {
+			id := csdnArticleIDFromURL(item.URL)
+			title := strings.TrimSpace(item.Title)
+			if id == "" || title == "" {
+				continue
+			}
+			if _, exists := seen[id]; exists {
+				continue
+			}
+			seen[id] = struct{}{}
+			result = append(result, CSDNPost{
+				ID: id, Title: title, URL: strings.TrimSpace(item.URL), Published: true,
+			})
+		}
+		if len(decoded.Data.List) < pageSize {
+			break
+		}
+	}
+	return result, nil
+}
+
+func (c *csdnAdapter) fetchPost(ctx context.Context, postID string) (CSDNPost, error) {
+	postID = strings.TrimSpace(postID)
+	if postID == "" {
+		return CSDNPost{}, platformError(ErrValidation, c.ID(), "get-article", 0, "article id is required", false)
+	}
+	query := url.Values{}
+	query.Set("id", postID)
+	query.Set("model_type", "")
+	path := "/blog-console-api/v3/editor/getArticle?" + query.Encode()
+	req, err := c.apiRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return CSDNPost{}, err
+	}
+	var decoded struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			ArticleID any    `json:"article_id"`
+			Title     string `json:"title"`
+			Status    int    `json:"status"`
+		} `json:"data"`
+	}
+	if err := doJSON(c.client, req, c.ID(), "get-article", &decoded); err != nil {
+		return CSDNPost{}, err
+	}
+	if decoded.Code != 200 {
+		return CSDNPost{}, platformError(ErrUpstream, c.ID(), "get-article", decoded.Code, responseMessage(decoded.Message), false)
+	}
+	id := valueString(decoded.Data.ArticleID)
+	if id == "" {
+		id = postID
+	}
+	title := strings.TrimSpace(decoded.Data.Title)
+	if title == "" {
+		return CSDNPost{}, platformError(ErrUpstream, c.ID(), "get-article", decoded.Code, "article title is missing", false)
+	}
+	published := decoded.Data.Status == 0
+	target := csdnOrigin + "/md?articleId=" + url.QueryEscape(id)
+	if published {
+		if strings.TrimSpace(c.userID) == "" {
+			_, _ = c.CheckAuth(ctx)
+		}
+		if c.userID != "" {
+			target = csdnBlogOrigin + "/" + url.PathEscape(c.userID) + "/article/details/" + url.PathEscape(id)
+		}
+	}
+	return CSDNPost{ID: id, Title: title, URL: target, Published: published}, nil
+}
+
+// CSDNListPosts reads the signed-in user's published article list.
+// CSDN's stable public list endpoint does not enumerate drafts, so known drafts
+// are verified individually by ID through CSDNLookupPost.
+func CSDNListPosts(ctx context.Context, base *http.Client, session Session) (string, []CSDNPost, error) {
+	adapterValue, err := NewCSDNAdapter(base, session)
+	if err != nil {
+		return "", nil, err
+	}
+	adapter := adapterValue.(*csdnAdapter)
+	auth, err := adapter.CheckAuth(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	if !auth.Authenticated || strings.TrimSpace(adapter.userID) == "" {
+		return "", nil, errors.New("CSDN browser session is not authenticated")
+	}
+	posts, err := adapter.listPublished(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	return adapter.userID, posts, nil
+}
+
+func CSDNLookupPost(ctx context.Context, base *http.Client, session Session, postID string) (string, CSDNPost, error) {
+	adapterValue, err := NewCSDNAdapter(base, session)
+	if err != nil {
+		return "", CSDNPost{}, err
+	}
+	adapter := adapterValue.(*csdnAdapter)
+	auth, err := adapter.CheckAuth(ctx)
+	if err != nil {
+		return "", CSDNPost{}, err
+	}
+	if !auth.Authenticated || strings.TrimSpace(adapter.userID) == "" {
+		return "", CSDNPost{}, errors.New("CSDN browser session is not authenticated")
+	}
+	post, err := adapter.fetchPost(ctx, postID)
+	return adapter.userID, post, err
+}
