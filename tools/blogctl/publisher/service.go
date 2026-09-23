@@ -39,6 +39,14 @@ func retryableAuthError(err error) bool {
 	return IsKind(err, ErrAuthExpired) || IsKind(err, ErrCSRF)
 }
 
+func publicationHasPublishedState(state PublicationState) bool {
+	return strings.TrimSpace(state.PublishedRemoteID) != "" || strings.TrimSpace(state.PublishedURL) != ""
+}
+
+func mayRecreateMissingDraft(platform string, state PublicationState) bool {
+	return !publicationHasPublishedState(state) || PlatformCapabilitiesFor(platform).PublishedUpdate
+}
+
 func (s Service) CreateOrUpdateDraft(
 	ctx context.Context,
 	platform string,
@@ -91,6 +99,13 @@ func (s Service) CreateOrUpdateDraftInput(
 		if input.RemoteDraftID != "" {
 			result, operationErr = adapter.UpdateDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
 			if operationErr != nil && IsKind(operationErr, ErrRemoteDraftMissing) {
+				if !mayRecreateMissingDraft(platform, state) {
+					return platformError(
+						ErrValidation, platform, "save-draft", 0,
+						"the recorded draft no longer exists and a published article is already bound; refusing to create a duplicate draft",
+						false,
+					)
+				}
 				result, operationErr = adapter.CreateDraft(ctx, input)
 			}
 		} else {

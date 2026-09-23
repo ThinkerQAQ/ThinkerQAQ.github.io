@@ -49,3 +49,20 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 		t.Fatalf("unknown capabilities = %#v", value)
 	}
 }
+
+
+func TestMissingDraftRecreationPolicyFailsClosedForPublishedArticles(t *testing.T) {
+	published := PublicationState{PublishedRemoteID: "published-1", PublishedURL: "https://example.com/published-1"}
+	if mayRecreateMissingDraft("devto", published) {
+		t.Fatal("DEV.to must not recreate a missing draft when a published article is already bound")
+	}
+	if mayRecreateMissingDraft("juejin", published) {
+		t.Fatal("Juejin must not recreate a missing draft when published-update safety is not verified")
+	}
+	if !mayRecreateMissingDraft("cnblogs", published) {
+		t.Fatal("CNBlogs has a verified published-update workflow and may create a replacement draft")
+	}
+	if !mayRecreateMissingDraft("devto", PublicationState{}) {
+		t.Fatal("a missing draft may be recreated when no published article exists")
+	}
+}
