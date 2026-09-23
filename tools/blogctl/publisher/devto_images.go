@@ -34,6 +34,9 @@ func devtoBrowserCookieHeader(cookies []BrowserCookie) string {
 }
 
 func (a *devtoAdapter) browserAuthenticityToken(ctx context.Context) (string, error) {
+	if a.browserCSRFToken != "" {
+		return a.browserCSRFToken, nil
+	}
 	if !a.hasBrowserSession() {
 		return "", errors.New("DEV.to browser session is unavailable")
 	}
@@ -66,7 +69,8 @@ func (a *devtoAdapter) browserAuthenticityToken(ctx context.Context) (string, er
 	if len(match) != 2 || strings.TrimSpace(match[1]) == "" {
 		return "", errors.New("DEV.to authenticity token was not found")
 	}
-	return htmlstd.UnescapeString(strings.TrimSpace(match[1])), nil
+	a.browserCSRFToken = htmlstd.UnescapeString(strings.TrimSpace(match[1]))
+	return a.browserCSRFToken, nil
 }
 
 func (a *devtoAdapter) uploadBrowserImage(ctx context.Context, image RehostImage) (string, error) {
@@ -130,7 +134,7 @@ func devtoHostedImage(source string) bool {
 
 func (a *devtoAdapter) prepareCoverImage(ctx context.Context, input DraftInput) (string, error) {
 	source := strings.TrimSpace(input.CoverImageURL)
-	if source == "" || devtoHostedImage(source) {
+	if source == "" || devtoHostedImage(source) || !a.hasBrowserSession() {
 		return source, nil
 	}
 	payload, contentType, err := loadRehostImage(a.client, input, source, input.SourceDir)
