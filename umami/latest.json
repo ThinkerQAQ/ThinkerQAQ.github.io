@@ -1,71 +1,824 @@
 {
-  "generatedAt": "2026-09-23T15:11:57.154Z",
+  "generatedAt": "2026-09-23T19:15:00.422Z",
   "websiteId": "6651b5ca-4f83-4da7-a1e2-44824439bccc",
   "windowHours": 1,
   "current": {
-    "startAt": 1790172717154,
-    "endAt": 1790176317154,
+    "startAt": 1790187300422,
+    "endAt": 1790190900422,
     "stats": {
-      "pageviews": 0,
-      "visitors": 0,
-      "visits": 0,
-      "bounces": 0,
-      "totaltime": 0
+      "pageviews": 15,
+      "visitors": 12,
+      "visits": 12,
+      "bounces": 9,
+      "totaltime": 1024
     },
     "warnings": [],
-    "paths": [],
-    "entryPages": [],
+    "paths": [
+      {
+        "name": "/en/notes/java/Framework/SpringBoot/学习资源/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JDK/Map/LinkedHashMap/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Reflection/Reflection/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/operating-system/进程管理/同步/",
+        "count": 1
+      },
+      {
+        "name": "/notes/algorithm/数据结构/hashmap/",
+        "count": 1
+      },
+      {
+        "name": "/notes/database/MySQL/MySQL explain/",
+        "count": 1
+      },
+      {
+        "name": "/notes/developer-tools/gcc/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/fitness/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/joints/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/sleep/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/atomic/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/retry/",
+        "count": 1
+      },
+      {
+        "name": "/notes/zookeeper/Zookeeper/",
+        "count": 1
+      }
+    ],
+    "entryPages": [
+      {
+        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Reflection/Reflection/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/operating-system/进程管理/同步/",
+        "count": 1
+      },
+      {
+        "name": "/notes/algorithm/数据结构/hashmap/",
+        "count": 1
+      },
+      {
+        "name": "/notes/database/MySQL/MySQL explain/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/fitness/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/joints/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/sleep/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/atomic/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/retry/",
+        "count": 1
+      },
+      {
+        "name": "/notes/zookeeper/Zookeeper/",
+        "count": 1
+      }
+    ],
     "referrers": [],
-    "channels": [],
-    "countries": [],
+    "channels": [
+      {
+        "name": "direct",
+        "count": 20
+      }
+    ],
+    "countries": [
+      {
+        "name": "SG",
+        "count": 12
+      }
+    ],
     "regions": [],
-    "cities": [],
+    "cities": [
+      {
+        "name": "Singapore",
+        "count": 12,
+        "country": "SG"
+      }
+    ],
     "events": [],
     "utmSources": []
   },
   "previous": {
-    "startAt": 1790169117153,
-    "endAt": 1790172717153,
+    "startAt": 1790183700421,
+    "endAt": 1790187300421,
     "stats": {
-      "pageviews": 0,
-      "visitors": 0,
-      "visits": 0,
-      "bounces": 0,
-      "totaltime": 0
+      "pageviews": 57,
+      "visitors": 20,
+      "visits": 20,
+      "bounces": 3,
+      "totaltime": 33955
     },
     "warnings": [],
-    "paths": [],
-    "entryPages": [],
+    "paths": [
+      {
+        "name": "/en/articles/concurrency-series-01-hardware/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/garbage-collection/GC调优/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/investing/investing/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/MyBatis/源码分析/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/Netty/源码分析/5.pipeline/pipeline的初始化/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/Netty/源码分析/5.pipeline/事件和异常的传播/Inbound事件/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/Spring/Spring_AOP/使用/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/Spring/Spring_AOP/源码分析/1.给容器中注入AspectJAnnotationAutoProxyCreator组件/1.给容器中注入AspectJAnnotationAutoProxyCreator组件/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/Spring/Spring事务/使用/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/SpringBoot/jar包启动原理/Spring Boot Jar启动原理/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/SpringMVC/学习资源/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/IO/AIO/AIO/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/IO/BIO/BIO/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/IO/BIO/基础流/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/IO/服务器编程/BIO实现的多线程服务器/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Java8/Java8新特性/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JDK/Map/HashMap/JDK1.7/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JUC/3.volatile/3.volatile/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JUC/9.CountDownLatch/9.CountDownLatch/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JVM/类加载/类生命周期/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JVM/调优/性能分析工具/性能分析工具/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/OOP/OOP/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Connector/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/调优/调优/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/photography/mobile-photography/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/photography/photography-pre-production/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/security/overview/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/software-engineering/Architecture/架构模式/架构模式/",
+        "count": 1
+      },
+      {
+        "name": "/notes/computer-architecture-assembly/计算机组成/",
+        "count": 1
+      },
+      {
+        "name": "/notes/computer-network/传输层/TCP/TCP/",
+        "count": 1
+      },
+      {
+        "name": "/notes/computer-network/传输层/TCP/TCP流量控制/",
+        "count": 1
+      },
+      {
+        "name": "/notes/developer-tools/git/",
+        "count": 1
+      },
+      {
+        "name": "/notes/distributed-systems/如何实现分布式Session/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/cancer/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/gut/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/psychology-and-life/",
+        "count": 1
+      },
+      {
+        "name": "/notes/garbage-collection/GC调优/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/benchmark/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/concurrent/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/file/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/GC/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/consul/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/goroutine/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Go环境搭建/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/json/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/select/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/slice/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/struct/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/yaml/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/内存对齐/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/内存管理/",
+        "count": 1
+      },
+      {
+        "name": "/notes/java/Exception/如何优雅的处理异常/",
+        "count": 1
+      },
+      {
+        "name": "/notes/message-queue/消息队列消息的顺序性/",
+        "count": 1
+      },
+      {
+        "name": "/notes/security/base64/",
+        "count": 1
+      },
+      {
+        "name": "/notes/security/mac/",
+        "count": 1
+      },
+      {
+        "name": "/notes/testing-performance/jmeter-distributed/",
+        "count": 1
+      },
+      {
+        "name": "/notes/web-server-nginx/build-from-source/",
+        "count": 1
+      }
+    ],
+    "entryPages": [
+      {
+        "name": "/en/articles/concurrency-series-01-hardware/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Framework/Spring/Spring_AOP/使用/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/IO/AIO/AIO/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/IO/BIO/基础流/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JUC/3.volatile/3.volatile/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/OOP/OOP/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/software-engineering/Architecture/架构模式/架构模式/",
+        "count": 1
+      },
+      {
+        "name": "/notes/computer-network/传输层/TCP/TCP流量控制/",
+        "count": 1
+      },
+      {
+        "name": "/notes/developer-tools/git/",
+        "count": 1
+      },
+      {
+        "name": "/notes/distributed-systems/如何实现分布式Session/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/cancer/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/psychology-and-life/",
+        "count": 1
+      },
+      {
+        "name": "/notes/garbage-collection/GC调优/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/benchmark/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/file/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/consul/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Go环境搭建/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/yaml/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/内存对齐/",
+        "count": 1
+      },
+      {
+        "name": "/notes/security/base64/",
+        "count": 1
+      }
+    ],
     "referrers": [],
-    "channels": [],
-    "countries": [],
+    "channels": [
+      {
+        "name": "direct",
+        "count": 18
+      }
+    ],
+    "countries": [
+      {
+        "name": "SG",
+        "count": 20
+      }
+    ],
     "regions": [],
-    "cities": [],
-    "events": [],
+    "cities": [
+      {
+        "name": "Singapore",
+        "count": 20,
+        "country": "SG"
+      }
+    ],
+    "events": [
+      {
+        "name": "read_milestone",
+        "count": 1
+      }
+    ],
     "utmSources": []
   },
   "delta": {
     "stats": {
-      "pageviews": 0,
-      "visitors": 0,
-      "visits": 0,
-      "bounces": 0,
-      "totaltime": 0
+      "pageviews": -42,
+      "visitors": -8,
+      "visits": -8,
+      "bounces": 6,
+      "totaltime": -32931
     },
-    "newPaths": [],
-    "changedPaths": [],
-    "newEntryPages": [],
-    "changedEntryPages": [],
+    "newPaths": [
+      {
+        "name": "/en/notes/java/Framework/SpringBoot/学习资源/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JDK/Map/LinkedHashMap/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Reflection/Reflection/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/operating-system/进程管理/同步/",
+        "count": 1
+      },
+      {
+        "name": "/notes/algorithm/数据结构/hashmap/",
+        "count": 1
+      },
+      {
+        "name": "/notes/database/MySQL/MySQL explain/",
+        "count": 1
+      },
+      {
+        "name": "/notes/developer-tools/gcc/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/fitness/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/joints/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/sleep/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/atomic/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/retry/",
+        "count": 1
+      },
+      {
+        "name": "/notes/zookeeper/Zookeeper/",
+        "count": 1
+      }
+    ],
+    "changedPaths": [
+      {
+        "name": "/en/notes/java/Framework/SpringBoot/学习资源/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/java/JDK/Map/LinkedHashMap/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/java/Reflection/Reflection/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/operating-system/进程管理/同步/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/algorithm/数据结构/hashmap/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/database/MySQL/MySQL explain/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/developer-tools/gcc/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/fitness/fitness/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/fitness/joints/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/fitness/sleep/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/go/atomic/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/retry/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/zookeeper/Zookeeper/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      }
+    ],
+    "newEntryPages": [
+      {
+        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Reflection/Reflection/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "count": 1
+      },
+      {
+        "name": "/en/notes/operating-system/进程管理/同步/",
+        "count": 1
+      },
+      {
+        "name": "/notes/algorithm/数据结构/hashmap/",
+        "count": 1
+      },
+      {
+        "name": "/notes/database/MySQL/MySQL explain/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/fitness/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/joints/",
+        "count": 1
+      },
+      {
+        "name": "/notes/fitness/sleep/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/atomic/",
+        "count": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/retry/",
+        "count": 1
+      },
+      {
+        "name": "/notes/zookeeper/Zookeeper/",
+        "count": 1
+      }
+    ],
+    "changedEntryPages": [
+      {
+        "name": "/en/notes/java/JDK/Set/TreeSet/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/java/Reflection/Reflection/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/java/Web/Tomcat/源码分析/架构/Container/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/en/notes/operating-system/进程管理/同步/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/algorithm/数据结构/hashmap/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/database/MySQL/MySQL explain/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/fitness/fitness/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/fitness/joints/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/fitness/sleep/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/go/atomic/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/go/Golang微服务/retry/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      },
+      {
+        "name": "/notes/zookeeper/Zookeeper/",
+        "count": 1,
+        "previousCount": 0,
+        "delta": 1
+      }
+    ],
     "newReferrers": [],
     "changedReferrers": [],
     "newChannels": [],
-    "changedChannels": [],
+    "changedChannels": [
+      {
+        "name": "direct",
+        "count": 20,
+        "previousCount": 18,
+        "delta": 2
+      }
+    ],
     "newCountries": [],
-    "changedCountries": [],
+    "changedCountries": [
+      {
+        "name": "SG",
+        "count": 12,
+        "previousCount": 20,
+        "delta": -8
+      }
+    ],
     "newRegions": [],
     "changedRegions": [],
     "newCities": [],
-    "changedCities": [],
+    "changedCities": [
+      {
+        "name": "Singapore",
+        "count": 12,
+        "country": "SG",
+        "previousCount": 20,
+        "delta": -8
+      }
+    ],
     "newEvents": [],
     "changedEvents": [],
     "newUtmSources": [],
