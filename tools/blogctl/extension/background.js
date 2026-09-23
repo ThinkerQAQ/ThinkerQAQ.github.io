@@ -932,6 +932,7 @@ async function handleMessage(message) {
         postId: message.postId ?? "",
         state: message.state ?? "",
         replace: message.replace === true,
+        candidate: message.candidate ?? null,
       }))) };
     }
     case "blogctl.zhihu.unbind": {
