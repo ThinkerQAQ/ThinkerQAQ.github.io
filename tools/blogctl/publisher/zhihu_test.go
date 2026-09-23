@@ -51,7 +51,6 @@ func TestTransformZhihuHTMLKeepsDraftTableAttributes(t *testing.T) {
 	}
 }
 
-
 func TestZhihuCreateDraftMatchesCapturedPayload(t *testing.T) {
 	var createPayload map[string]any
 	var updatePayload map[string]any
