@@ -82,7 +82,7 @@ func (z *zhihuAdapter) listDrafts(ctx context.Context) ([]ZhihuPost, error) {
 			}
 			result = append(result, ZhihuPost{
 				ID: id, Title: title,
-				URL: zhihuOrigin + "/p/" + url.PathEscape(id) + "/edit",
+				URL:       zhihuOrigin + "/p/" + url.PathEscape(id) + "/edit",
 				Published: false,
 			})
 		}
