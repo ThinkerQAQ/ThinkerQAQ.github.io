@@ -2,9 +2,11 @@ package publisher
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 )
 
@@ -28,9 +30,44 @@ func isRemoteHTTPImage(source string) bool {
 	return err == nil && (parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.Host != ""
 }
 
+func publishingAssetForSource(input DraftInput, source string) (PublishingAsset, bool) {
+	for _, asset := range input.Assets {
+		if strings.TrimSpace(asset.Source) != "" && asset.Source == source {
+			return asset, true
+		}
+	}
+	return PublishingAsset{}, false
+}
+
+func loadRehostImage(client *http.Client, input DraftInput, source, sourceDir string) ([]byte, string, error) {
+	if asset, ok := publishingAssetForSource(input, source); ok && strings.HasPrefix(source, "blogctl-asset://") {
+		if strings.TrimSpace(input.ContentRoot) == "" {
+			return nil, "", fmt.Errorf("content root is missing for generated asset %s", asset.ID)
+		}
+		extension := ".png"
+		relative := filepath.ToSlash(filepath.Join(".distribution", "assets", asset.Kind, asset.ID+extension))
+		return loadImage(client, relative, input.ContentRoot)
+	}
+	return loadImage(client, source, sourceDir)
+}
+
+func tryR2Fallback(ctx context.Context, client *http.Client, input DraftInput, image RehostImage, nativeErr error) (string, error) {
+	target, fallbackErr := uploadR2Fallback(ctx, client, input, image)
+	if fallbackErr == nil {
+		slog.Warn("platform image upload failed; using R2 fallback",
+			"source", image.Source, "error", nativeErr)
+		return strings.TrimSpace(target), nil
+	}
+	if nativeErr == nil {
+		return "", fallbackErr
+	}
+	return "", fmt.Errorf("platform image upload failed: %v; R2 fallback failed: %w", nativeErr, fallbackErr)
+}
+
 func rehostImageReplacements(
 	ctx context.Context,
 	client *http.Client,
+	input DraftInput,
 	markdown string,
 	options ImageRehostOptions,
 	upload ImageRehostUploader,
@@ -40,7 +77,7 @@ func rehostImageReplacements(
 		if options.AlreadyHosted != nil && options.AlreadyHosted(source) {
 			continue
 		}
-		payload, contentType, err := loadImage(client, source, options.SourceDir)
+		payload, contentType, err := loadRehostImage(client, input, source, options.SourceDir)
 		if err != nil {
 			wrapped := platformError(ErrUpload, options.Platform, "download-image", 0, err.Error(), true)
 			if options.FailOpenRemote && isRemoteHTTPImage(source) {
@@ -50,28 +87,29 @@ func rehostImageReplacements(
 			}
 			return nil, wrapped
 		}
-		target, err := upload(ctx, RehostImage{
+
+		image := RehostImage{
 			Source:      source,
 			Payload:     payload,
 			ContentType: contentType,
-		})
-		if err != nil {
-			if options.FailOpenRemote && isRemoteHTTPImage(source) {
-				slog.Warn("platform image rehost failed; keeping remote image URL",
-					"platform", options.Platform, "source", source, "error", err)
-				continue
-			}
-			return nil, err
 		}
+		target, uploadErr := upload(ctx, image)
 		target = strings.TrimSpace(target)
-		if target == "" {
-			err := platformError(ErrUpload, options.Platform, "image-upload", 0, "image URL missing", false)
-			if options.FailOpenRemote && isRemoteHTTPImage(source) {
-				slog.Warn("platform image rehost returned no URL; keeping remote image URL",
-					"platform", options.Platform, "source", source)
+		if uploadErr != nil || target == "" {
+			if uploadErr == nil {
+				uploadErr = platformError(ErrUpload, options.Platform, "image-upload", 0, "image URL missing", false)
+			}
+			fallbackTarget, fallbackErr := tryR2Fallback(ctx, client, input, image, uploadErr)
+			if fallbackErr == nil && fallbackTarget != "" {
+				replacements[source] = fallbackTarget
 				continue
 			}
-			return nil, err
+			if options.FailOpenRemote && isRemoteHTTPImage(source) {
+				slog.Warn("platform image rehost and R2 fallback failed; keeping remote image URL",
+					"platform", options.Platform, "source", source, "error", fallbackErr)
+				continue
+			}
+			return nil, fallbackErr
 		}
 		replacements[source] = target
 	}
@@ -88,7 +126,7 @@ func rehostMarkdownImages(
 	if options.SourceDir == "" {
 		options.SourceDir = input.SourceDir
 	}
-	replacements, err := rehostImageReplacements(ctx, client, input.Markdown, options, upload)
+	replacements, err := rehostImageReplacements(ctx, client, input, input.Markdown, options, upload)
 	if err != nil {
 		return "", err
 	}
@@ -106,7 +144,7 @@ func rehostHTMLImages(
 	if options.SourceDir == "" {
 		options.SourceDir = input.SourceDir
 	}
-	replacements, err := rehostImageReplacements(ctx, client, input.Markdown, options, upload)
+	replacements, err := rehostImageReplacements(ctx, client, input, input.Markdown, options, upload)
 	if err != nil {
 		return "", err
 	}
