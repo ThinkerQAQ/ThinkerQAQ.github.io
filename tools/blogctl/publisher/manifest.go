@@ -314,7 +314,7 @@ func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) 
 		link := ArticleLink{
 			Platform: binding.Platform, RemoteID: binding.RemoteDraftID,
 			PublishedRemoteID: binding.PublishedRemoteID,
-			DraftURL: binding.DraftURL, PublishedURL: binding.PublishedURL,
+			DraftURL:          binding.DraftURL, PublishedURL: binding.PublishedURL,
 		}
 		if link.RemoteID == "" {
 			link.RemoteID = draftIDFromURL(binding.Platform, link.DraftURL)
