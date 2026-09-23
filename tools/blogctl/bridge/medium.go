@@ -344,8 +344,8 @@ func (c mediumClient) prepareDraftDeltas(
 ) ([]map[string]any, int, error) {
 	deltas := make([]map[string]any, 0, len(draft.Deltas)+1)
 	deltas = append(deltas, map[string]any{
-		"type": 1,
-		"index": 0,
+		"type":      1,
+		"index":     0,
 		"paragraph": map[string]any{"type": 3, "text": draft.Title, "markups": []any{}},
 	})
 	fallbacks := 0
@@ -511,8 +511,8 @@ func (c mediumClient) paragraphCount(ctx context.Context, session platformSessio
 }`
 	payload, _ := json.Marshal([]any{map[string]any{
 		"operationName": "BlogCTLMediumPostBodyQuery",
-		"variables": map[string]any{"postId": postID},
-		"query": query,
+		"variables":     map[string]any{"postId": postID},
+		"query":         query,
 	}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
 	if err != nil {
@@ -564,8 +564,8 @@ func (c mediumClient) postPresentation(ctx context.Context, session platformSess
 }`
 	payload, _ := json.Marshal([]any{map[string]any{
 		"operationName": "BlogCTLMediumPostPresentationQuery",
-		"variables": map[string]any{"postId": postID},
-		"query": query,
+		"variables":     map[string]any{"postId": postID},
+		"query":         query,
 	}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
 	if err != nil {
@@ -652,8 +652,8 @@ func (c mediumClient) postLinks(ctx context.Context, session platformSession, po
 }`
 	payload, _ := json.Marshal([]any{map[string]any{
 		"operationName": "BlogCTLMediumPostLinksQuery",
-		"variables": map[string]any{"postId": postID},
-		"query": query,
+		"variables":     map[string]any{"postId": postID},
+		"query":         query,
 	}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
 	if err != nil {
@@ -963,8 +963,8 @@ func (c mediumClient) account(ctx context.Context, session platformSession) (str
 	query := `query BlogCTLMediumViewerQuery { viewer { id username name __typename } }`
 	payload, _ := json.Marshal([]any{map[string]any{
 		"operationName": "BlogCTLMediumViewerQuery",
-		"variables": map[string]any{},
-		"query": query,
+		"variables":     map[string]any{},
+		"query":         query,
 	}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
 	if err != nil {
