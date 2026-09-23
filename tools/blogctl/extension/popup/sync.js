@@ -15,6 +15,8 @@
     matchKey: "",
     cachedMatchTime: 0,
     refreshSerial: 0,
+    selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)),
+    platformSelectionInitialized: false,
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton, goToSaveButton;
@@ -23,9 +25,13 @@
     return state.articles.find((item) => item.slug === state.selectedSlug);
   }
 
+  function selectedPlatformIDs() {
+    return [...state.selectedPlatformIDs];
+  }
+
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
-    refreshMatchesButton.disabled = !ready || state.bindingLoading;
+    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.selectedPlatformIDs.size === 0;
     goToSaveButton.disabled = !ready;
   }
 
@@ -71,8 +77,20 @@
 
   function renderPlatformHeader(platform, article) {
     const availability = platformAvailability(article, platform);
-    const header = document.createElement("div");
+    const header = document.createElement("label");
     header.className = "platform-choice";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.dataset.platform = platform.id;
+    checkbox.checked = availability.available && state.selectedPlatformIDs.has(platform.id);
+    checkbox.disabled = !availability.available || state.bindingLoading;
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) state.selectedPlatformIDs.add(platform.id);
+      else state.selectedPlatformIDs.delete(platform.id);
+      BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
+      renderPlatforms();
+    });
 
     const text = document.createElement("span");
     text.className = "platform-choice-text";
@@ -84,14 +102,14 @@
     detail.textContent = !availability.available
       ? availability.reason
       : apiPlatform
-        ? "API Key 已配置"
+        ? "使用平台 API 接入"
         : platform.loggedIn
-          ? (platform.inferred ? "浏览器会话可用 · 执行时校验登录" : "已登录")
+          ? (platform.inferred ? "浏览器会话可用 · 执行时再次校验" : "浏览器登录会话")
           : nativeBrowserPlatform
-            ? "执行远端校验时检查登录"
+            ? "检测文章关联时同步浏览器登录"
             : platform.known === false
               ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}`
-              : "未登录";
+              : "浏览器未登录";
     text.append(name, detail);
 
     const status = document.createElement("span");
@@ -102,7 +120,7 @@
     else if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
     else BlogCTLPopup.setStatus(status, "error", "未登录");
 
-    header.append(text, status);
+    header.append(checkbox, text, status);
     return header;
   }
 
@@ -222,12 +240,13 @@
       card.className = "platform-choice-card";
       card.append(renderPlatformHeader(platform, article));
 
+      const selected = state.selectedPlatformIDs.has(platform.id);
       const match = state.matches[platform.id];
-      if (match && state.matchKey === currentKey) {
+      if (selected && match && state.matchKey === currentKey) {
         const result = document.createElement("div");
         result.className = "article-match";
         const prefix = state.cachedMatchTime
-          ? `上次刷新 ${new Date(state.cachedMatchTime).toLocaleString()} · `
+          ? `上次检测 ${new Date(state.cachedMatchTime).toLocaleString()} · `
           : "";
         result.textContent = prefix + match.text;
         appendMatchRows(platform, match, result);
@@ -235,7 +254,9 @@
       } else if (state.selectedSlug) {
         const note = document.createElement("div");
         note.className = "article-match";
-        note.textContent = "点击“刷新文章关联”读取远端候选与本地绑定状态。";
+        note.textContent = selected
+          ? "点击“检测文章关联”读取远端候选与本地绑定状态。"
+          : "未选择检测此平台。";
         card.append(note);
       }
 
@@ -258,7 +279,7 @@
 
   async function refreshArticleMatches() {
     const article = state.selectedSlug;
-    const platforms = (state.status?.platforms ?? []).map((platform) => platform.id);
+    const platforms = selectedPlatformIDs();
     if (!article || !platforms.length) return;
 
     const serial = ++state.refreshSerial;
@@ -356,6 +377,19 @@
       state.articles = articlesResponse.articles ?? [];
       state.status = statusResponse.status;
       state.tools = toolsResponse.tools ?? [];
+
+      const selectable = (state.status?.platforms ?? [])
+        .filter((platform) => platformAvailability(selectedArticle(), platform).available)
+        .map((platform) => platform.id);
+      if (!state.platformSelectionInitialized) {
+        const stored = selectedPlatformIDs().filter((id) => selectable.includes(id));
+        state.selectedPlatformIDs = new Set(stored.length ? stored : selectable);
+        state.platformSelectionInitialized = true;
+        BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
+      } else {
+        state.selectedPlatformIDs = new Set(selectedPlatformIDs().filter((id) => selectable.includes(id)));
+      }
+
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
 
       const previous = state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
