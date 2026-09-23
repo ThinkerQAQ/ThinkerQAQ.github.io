@@ -125,7 +125,6 @@ func TestRehostMarkdownImagesSkipsPlatformHostedAsset(t *testing.T) {
 	}
 }
 
-
 func TestRehostMarkdownImagesPrefersPlatformUploadBeforeR2Fallback(t *testing.T) {
 	var r2Uploads atomic.Int32
 	r2 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
