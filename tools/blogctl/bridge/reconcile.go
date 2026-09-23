@@ -29,7 +29,7 @@ type publicationReconciliation struct {
 }
 
 func localPublicationRecordState(record publisher.PublicationRecord) string {
-	hasDraft := strings.TrimSpace(record.RemoteID) != "" || strings.TrimSpace(record.DraftURL) != ""
+	hasDraft := strings.TrimSpace(remoteID) != "" || strings.TrimSpace(record.DraftURL) != ""
 	hasPublished := strings.TrimSpace(record.PublishedURL) != ""
 	if !hasPublished {
 		if hasDraft {
@@ -135,9 +135,13 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 		return
 	}
 	localState := localPublicationRecordState(record)
+	remoteID := record.RemoteID
+	if localState == "published" && strings.TrimSpace(record.PublishedRemoteID) != "" {
+		remoteID = record.PublishedRemoteID
+	}
 	result := publicationReconciliation{
 		Article: slug, Platform: platformID, Status: "local-only", LocalState: localState,
-		RemoteID: record.RemoteID,
+		RemoteID: remoteID,
 	}
 
 	capabilities := blogplatform.For(platformID)
@@ -146,7 +150,7 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 		writeJSON(response, http.StatusOK, map[string]any{"reconciliation": result})
 		return
 	}
-	if strings.TrimSpace(record.RemoteID) == "" {
+	if strings.TrimSpace(remoteID) == "" {
 		result.Message = "本地没有可用于远端核验的文章 ID。"
 		writeJSON(response, http.StatusOK, map[string]any{"reconciliation": result})
 		return
@@ -163,7 +167,7 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 			writeAPIError(response, http.StatusBadRequest, "session_required", sessionErr.Error(), nil)
 			return
 		}
-		_, post, lookupErr := publisher.CNBlogsGetPost(ctx, sessionClient, session, record.RemoteID)
+		_, post, lookupErr := publisher.CNBlogsGetPost(ctx, sessionClient, session, remoteID)
 		if lookupErr != nil {
 			if publisher.IsKind(lookupErr, publisher.ErrRemoteDraftMissing) {
 				result.RemoteState = "missing"
@@ -200,7 +204,7 @@ func (s *Server) handlePublicationReconcile(response http.ResponseWriter, reques
 			writeAPIError(response, http.StatusBadRequest, "api_key_required", "DEV.to API Key is not configured", nil)
 			return
 		}
-		article, missing, lookupErr := devtoArticleByID(ctx, client, key, record.RemoteID)
+		article, missing, lookupErr := devtoArticleByID(ctx, client, key, remoteID)
 		if lookupErr != nil {
 			writeAPIError(response, http.StatusBadGateway, "verification_failed", lookupErr.Error(), nil)
 			return
