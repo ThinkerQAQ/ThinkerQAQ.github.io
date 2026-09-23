@@ -72,6 +72,15 @@ func cookieHeaderNames(header string) []string {
 	return names
 }
 
+func cookieHeaderHasName(header, expected string) bool {
+	for _, name := range cookieHeaderNames(header) {
+		if name == expected {
+			return true
+		}
+	}
+	return false
+}
+
 type platformSession struct {
 	Cookies             map[string]string
 	BrowserCookies      []browserCookie
@@ -784,15 +793,15 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		return
 	}
 	body.Cookies = filterVerifiedSessionCookies(platform, body.Cookies)
-	if len(body.Cookies) == 0 && !(platform == "cnblogs" && body.RequestCookieHeader != "") {
-		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser cookies not found", map[string]any{"platform": platform})
+	if len(body.Cookies) == 0 && body.RequestCookieHeader == "" {
+		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser session cookies not found", map[string]any{"platform": platform})
 		return
 	}
 	cookies := map[string]string{}
 	if platform == "medium" {
 		cookies = filterMediumCookies(body.Cookies)
-		if cookies["sid"] == "" {
-			writeAPIError(response, http.StatusBadRequest, "medium_session_required", "medium sid cookie not found", nil)
+		if cookies["sid"] == "" && !cookieHeaderHasName(body.RequestCookieHeader, "sid") {
+			writeAPIError(response, http.StatusBadRequest, "medium_session_required", "Medium browser session does not contain sid", nil)
 			return
 		}
 	} else {
@@ -860,7 +869,7 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 			})
 		}
 		payload["cookies"] = cookies
-		if platform == "cnblogs" {
+		if session.RequestCookieHeader != "" {
 			payload["requestCookieNames"] = cookieHeaderNames(session.RequestCookieHeader)
 		}
 	}
