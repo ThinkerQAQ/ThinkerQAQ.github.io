@@ -119,7 +119,7 @@ func (s Service) CreateOrUpdateDraftInput(
 		return DraftResult{}, err
 	}
 	if platform == "devto" && input.Published {
-		if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, PublishResult{URL: result.URL}, s.now()); err != nil {
+		if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, PublishResult{ID: result.ID, URL: result.URL}, s.now()); err != nil {
 			return DraftResult{}, err
 		}
 	}
