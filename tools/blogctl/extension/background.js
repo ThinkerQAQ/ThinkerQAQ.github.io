@@ -8,7 +8,6 @@ const BRIDGE_CACHE_MS = 30000;
 let bridgeSession = null;
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
-const recentZhihuSignedRequests = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -44,29 +43,6 @@ chrome.webRequest.onSendHeaders.addListener((details) => {
   const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
   if (header !== null) pending.resolve(header);
 }, { urls: platformSessionRequestPatterns }, ["requestHeaders", "extraHeaders"]);
-
-chrome.webRequest.onSendHeaders.addListener((details) => {
-  const url = String(details.url || "");
-  const kind = url.includes("/api/v4/articles/my_drafts") ? "drafts"
-    : (/\/api\/v4\/members\/[^/]+\/articles/.test(url) ? "published" : "");
-  if (!kind || Number(details.tabId) < 0) return;
-  const headers = {};
-  for (const header of details.requestHeaders ?? []) {
-    const name = String(header.name || "").toLowerCase();
-    if (name === "x-zse-93" || name === "x-zse-96" || name === "x-requested-with") {
-      headers[name] = String(header.value || "");
-    }
-  }
-  if (!headers["x-zse-96"]) return;
-  recentZhihuSignedRequests.set(Number(details.tabId), {
-    kind, url, headers, capturedAt: Date.now(),
-  });
-}, {
-  urls: [
-    "https://www.zhihu.com/api/v4/articles/my_drafts*",
-    "https://www.zhihu.com/api/v4/members/*/articles*",
-  ],
-}, ["requestHeaders", "extraHeaders"]);
 
 async function setBadge(text, color) {
   await chrome.action.setBadgeText({ text });
@@ -234,312 +210,6 @@ async function fetchJSON(pathname, options = {}, retry = true) {
 
 function jsonOptions(method, body) {
   return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
-}
-
-function normalizedRemoteTitle(value) {
-  return String(value || "").trim().replace(/\s+/g, " ");
-}
-
-function remoteTitleMatches(local, remote) {
-  const localTitle = normalizedRemoteTitle(local);
-  const remoteTitle = normalizedRemoteTitle(remote);
-  if (!localTitle || !remoteTitle) return false;
-  if (localTitle === remoteTitle) return true;
-  return [" · ", " - ", " — "].some((separator) => remoteTitle.startsWith(localTitle + separator));
-}
-
-function bindingForPost(bindings, post) {
-  const state = post.published ? "published" : "draft";
-  const binding = (bindings ?? []).find((item) =>
-    item.state === state && String(item.postId) === String(post.id));
-  return binding ? { bound: true, bindingState: binding.state } : { bound: false, bindingState: "" };
-}
-
-function csdnArticleID(reference) {
-  try {
-    const parsed = new URL(String(reference || ""));
-    const articleId = parsed.searchParams.get("articleId");
-    if (/^\d+$/.test(articleId || "")) return articleId;
-    const parts = parsed.pathname.split("/").filter(Boolean);
-    const last = parts.at(-1) || "";
-    return /^\d+$/.test(last) ? last : "";
-  } catch {
-    return /^\d+$/.test(String(reference || "").trim()) ? String(reference).trim() : "";
-  }
-}
-
-async function waitForTabReady(tabId, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const tab = await chrome.tabs.get(tabId).catch(() => null);
-    if (!tab) throw new Error("浏览器检测标签页已关闭");
-    if (tab.status === "complete") return tab;
-    await delay(100);
-  }
-  throw new Error("浏览器检测页面加载超时");
-}
-
-async function runFirstPartyFetch(pageURL, requestURL) {
-  const existingTabs = await chrome.tabs.query({ url: [new URL(pageURL).origin + "/*"] });
-  const existing = existingTabs.find((tab) => Number(tab.id) >= 0);
-  let tabId = Number(existing?.id ?? -1);
-  let created = false;
-  try {
-    if (tabId < 0) {
-      const tab = await chrome.tabs.create({ url: pageURL, active: false });
-      tabId = Number(tab?.id ?? -1);
-      created = true;
-    }
-    if (tabId < 0) throw new Error("无法创建平台检测标签页");
-    await waitForTabReady(tabId);
-    if (created) await delay(500);
-
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: "MAIN",
-      args: [requestURL],
-      func: async (rawURL) => {
-        try {
-          const response = await fetch(rawURL, {
-            credentials: "include",
-            cache: "no-store",
-            headers: { accept: "application/json, text/plain, */*" },
-          });
-          return { ok: response.ok, status: response.status, url: response.url, text: await response.text() };
-        } catch (error) {
-          return { ok: false, status: 0, url: rawURL, error: error?.message || String(error), text: "" };
-        }
-      },
-    });
-    const value = results?.[0]?.result;
-    if (!value) throw new Error("平台页面没有返回检测结果");
-    return value;
-  } finally {
-    if (created && tabId >= 0) {
-      await chrome.tabs.remove(tabId).catch(() => {});
-    }
-  }
-}
-
-async function csdnBrowserMatch(article) {
-  const context = await fetchJSON(`/v1/csdn/lookup-context?article=${article}`, { method: "POST" });
-  const query = new URLSearchParams({
-    page: "1",
-    size: "100",
-    businessType: "lately",
-    noMore: "false",
-    username: String(context.account || ""),
-  });
-  const pageURL = `https://blog.csdn.net/${encodeURIComponent(String(context.account || ""))}`;
-  const requestURL = `https://blog.csdn.net/community/home-api/v1/get-business-list?${query.toString()}`;
-  const response = await runFirstPartyFetch(pageURL, requestURL);
-  const raw = String(response.text || "");
-  if (!response.ok || /Security Verification|请进行安全验证/i.test(raw)) {
-    throw new Error(`CSDN 页面上下文仍被安全验证拦截（HTTP ${response.status || 0}）`);
-  }
-  let payload;
-  try {
-    payload = JSON.parse(raw);
-  } catch {
-    throw new Error("CSDN 页面上下文返回了非 JSON 文章列表");
-  }
-  if (Number(payload?.code) !== 200) {
-    throw new Error(payload?.message || payload?.msg || "CSDN 浏览器文章列表请求失败");
-  }
-  const bindings = context.bindings ?? [];
-  const matched = [];
-  const seen = new Set();
-  for (const value of payload?.data?.list ?? []) {
-    const id = csdnArticleID(value?.url);
-    const title = normalizedRemoteTitle(value?.title);
-    if (!id || !title || !remoteTitleMatches(context.title, title)) continue;
-    const post = { id, title, url: String(value?.url || ""), published: true };
-    Object.assign(post, bindingForPost(bindings, post));
-    matched.push(post);
-    seen.add(id);
-  }
-  for (const post of context.boundPosts ?? []) {
-    if (seen.has(String(post.id))) continue;
-    matched.push({
-      title: post.title,
-      id: post.id,
-      published: Boolean(post.published),
-      url: post.url || "",
-      bound: Boolean(post.bound),
-      bindingState: post.bindingState || "",
-    });
-  }
-  return { candidates: matched, bindings };
-}
-
-async function mediumBrowserPage(pageURL, published) {
-  let tabId = -1;
-  try {
-    const tab = await chrome.tabs.create({ url: pageURL, active: false });
-    tabId = Number(tab?.id ?? -1);
-    if (tabId < 0) throw new Error("无法创建 Medium 检测标签页");
-    await waitForTabReady(tabId, 12000);
-    await delay(500);
-    const results = await chrome.scripting.executeScript({
-      target: { tabId }, world: "MAIN", args: [published],
-      func: (isPublished) => {
-        const values = [];
-        const seen = new Set();
-        for (const anchor of document.querySelectorAll("a[href]")) {
-          const href = anchor.href || "";
-          const match = isPublished
-            ? href.match(/medium\.com\/@[^/]+\/[^?#]*-([a-f0-9]{12})(?:[/?#]|$)/i)
-            : href.match(/medium\.com\/p\/([a-f0-9]{12})\/edit(?:[?#]|$)/i);
-          const title = String(anchor.textContent || anchor.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ");
-          const id = match?.[1] || "";
-          if (!id || !title || seen.has(id)) continue;
-          seen.add(id);
-          values.push({ id, title, url: href.split("?")[0], published: isPublished });
-        }
-        return values;
-      },
-    });
-    return results?.[0]?.result ?? [];
-  } finally {
-    if (tabId >= 0) await chrome.tabs.remove(tabId).catch(() => {});
-  }
-}
-
-async function mediumBrowserMatch(article) {
-  const context = await fetchJSON(`/v1/medium/lookup-context?article=${article}`, { method: "POST" });
-  const [draftResult, publishedResult] = await Promise.allSettled([
-    mediumBrowserPage("https://medium.com/me/stories", false),
-    mediumBrowserPage("https://medium.com/me/stories?tab=posts-published", true),
-  ]);
-  if (draftResult.status === "rejected" && publishedResult.status === "rejected") {
-    throw new Error(`Medium 草稿与已发布列表均检测失败：${errorMessage(draftResult.reason)}；${errorMessage(publishedResult.reason)}`);
-  }
-  const bindings = context.bindings ?? [];
-  const candidates = [];
-  const seen = new Set();
-  for (const post of [
-    ...(draftResult.status === "fulfilled" ? draftResult.value : []),
-    ...(publishedResult.status === "fulfilled" ? publishedResult.value : []),
-  ]) {
-    if (seen.has(post.id) || !remoteTitleMatches(context.title, post.title)) continue;
-    seen.add(post.id);
-    Object.assign(post, bindingForPost(bindings, post));
-    candidates.push(post);
-  }
-  const warnings = [];
-  if (draftResult.status === "rejected") warnings.push(`草稿列表失败：${errorMessage(draftResult.reason)}`);
-  if (publishedResult.status === "rejected") warnings.push(`已发布列表失败：${errorMessage(publishedResult.reason)}`);
-  return { candidates, bindings, warnings };
-}
-
-async function fetchZhihuSignedPage(kind, pageURL) {
-  let tabId = -1;
-  try {
-    const targetURL = new URL(pageURL);
-    targetURL.searchParams.set("blogctl_lookup", String(Date.now()));
-    const tab = await chrome.tabs.create({ url: targetURL.toString(), active: false });
-    tabId = Number(tab?.id ?? -1);
-    if (tabId < 0) throw new Error("无法创建知乎后台检测标签页");
-
-    const deadline = Date.now() + 15000;
-    let captured = null;
-    let stimulated = false;
-    while (Date.now() < deadline) {
-      const current = recentZhihuSignedRequests.get(tabId);
-      if (current?.kind === kind && Date.now() - current.capturedAt < 15000) {
-        captured = current;
-        break;
-      }
-      if (!stimulated && Date.now() + 10000 < deadline) {
-        stimulated = true;
-        await waitForTabReady(tabId).catch(() => null);
-        await chrome.scripting.executeScript({
-          target: { tabId }, world: "MAIN",
-          func: () => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }),
-        }).catch(() => null);
-      }
-      await delay(100);
-    }
-    if (!captured) {
-      throw new Error(`知乎页面未产生 ${kind === "drafts" ? "草稿" : "已发布文章"}签名列表请求`);
-    }
-
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: "MAIN",
-      args: [captured.url, captured.headers],
-      func: async (rawURL, requestHeaders) => {
-        try {
-          const response = await fetch(rawURL, {
-            credentials: "include",
-            cache: "no-store",
-            headers: requestHeaders,
-          });
-          return {
-            ok: response.ok,
-            status: response.status,
-            text: await response.text(),
-          };
-        } catch (error) {
-          return { ok: false, status: 0, text: "", error: error?.message || String(error) };
-        }
-      },
-    });
-    const value = results?.[0]?.result;
-    if (!value) throw new Error("知乎页面没有返回列表检测结果");
-    if (!value.ok) {
-      throw new Error(`知乎页面列表请求失败（HTTP ${value.status || 0}）${value.error ? ` · ${value.error}` : ""}`);
-    }
-    try {
-      return JSON.parse(value.text);
-    } catch {
-      throw new Error("知乎页面列表返回了非 JSON 响应");
-    }
-  } finally {
-    if (tabId >= 0) {
-      recentZhihuSignedRequests.delete(tabId);
-      await chrome.tabs.remove(tabId).catch(() => {});
-    }
-  }
-}
-
-async function zhihuBrowserMatch(article) {
-  const context = await fetchJSON(`/v1/zhihu/lookup-context?article=${article}`, { method: "POST" });
-  const draftPage = "https://www.zhihu.com/creator/manage/creation/draft?type=article";
-  const profilePage = `https://www.zhihu.com/people/${encodeURIComponent(context.account)}/posts`;
-
-  const [draftResult, publishedResult] = await Promise.allSettled([
-    fetchZhihuSignedPage("drafts", draftPage),
-    fetchZhihuSignedPage("published", profilePage),
-  ]);
-  if (draftResult.status === "rejected" && publishedResult.status === "rejected") {
-    throw new Error(`知乎草稿与已发布列表均检测失败：${errorMessage(draftResult.reason)}；${errorMessage(publishedResult.reason)}`);
-  }
-  const draftPayload = draftResult.status === "fulfilled" ? draftResult.value : null;
-  const publishedPayload = publishedResult.status === "fulfilled" ? publishedResult.value : null;
-  const warnings = [];
-  if (draftResult.status === "rejected") warnings.push(`草稿列表失败：${errorMessage(draftResult.reason)}`);
-  if (publishedResult.status === "rejected") warnings.push(`已发布列表失败：${errorMessage(publishedResult.reason)}`);
-
-  const bindings = context.bindings ?? [];
-  const candidates = [];
-  const seen = new Set();
-  const append = (value, published) => {
-    const id = String(value?.url_token || value?.id || "").trim();
-    const title = normalizedRemoteTitle(value?.title);
-    if (!id || !title || !remoteTitleMatches(context.title, title) || seen.has(id)) return;
-    seen.add(id);
-    const rawURL = String(value?.url || "");
-    const url = published
-      ? (rawURL ? rawURL.replace(/^http:\/\//, "https://") : `https://zhuanlan.zhihu.com/p/${encodeURIComponent(id)}`)
-      : `https://zhuanlan.zhihu.com/p/${encodeURIComponent(id)}/edit`;
-    const post = { id, title, url, published };
-    Object.assign(post, bindingForPost(bindings, post));
-    candidates.push(post);
-  };
-  for (const value of draftPayload?.data ?? []) append(value, false);
-  for (const value of publishedPayload?.data ?? []) append(value, true);
-  return { candidates, bindings, warnings };
 }
 
 async function bridgeStatus() {
@@ -767,36 +437,6 @@ async function captureRequestCookieHeaderForURL(rawURL) {
   }
 }
 
-async function capturePlatformNavigationCookieHeader(platform) {
-  const definition = PLATFORM_SESSIONS[platform];
-  const rawURL = String(definition?.sessionProbeUrl || "").trim();
-  if (!rawURL || !chrome.tabs?.create || !chrome.tabs?.remove) return "";
-
-  const url = new URL(rawURL);
-  url.searchParams.set("blogctl_cookie_probe", crypto.randomUUID());
-  const expectedURL = url.toString();
-  let resolveCapture;
-  const captured = new Promise((resolve) => { resolveCapture = resolve; });
-  pendingPlatformCookieCaptures.set(expectedURL, { url: expectedURL, resolve: resolveCapture });
-  let tabId = null;
-  try {
-    const tab = await chrome.tabs.create({ url: expectedURL, active: false });
-    tabId = tab?.id ?? null;
-    const header = await Promise.race([
-      captured,
-      delay(2500).then(() => ""),
-    ]);
-    return String(header || "");
-  } catch {
-    return "";
-  } finally {
-    pendingPlatformCookieCaptures.delete(expectedURL);
-    if (tabId !== null) {
-      await chrome.tabs.remove(tabId).catch(() => {});
-    }
-  }
-}
-
 async function selectedPlatformCookies(platform, diagnostics) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
@@ -837,9 +477,6 @@ async function syncPlatformSession(platform) {
   if (platform === "cnblogs") {
     const uploadCookieHeader = await captureRequestCookieHeaderForURL("https://upload.cnblogs.com/v2/images/cors-upload");
     if (uploadCookieHeader) requestCookieHeaders["upload.cnblogs.com"] = uploadCookieHeader;
-  }
-  if (platform !== "cnblogs" && !requestCookieHeader) {
-    requestCookieHeader = await capturePlatformNavigationCookieHeader(platform);
   }
   try {
     selected = await selectedPlatformCookies(platform, cookieQueries);
@@ -988,14 +625,20 @@ async function handleMessage(message) {
       }
       if (platform === "zhihu") {
         await syncPlatformSession("zhihu");
-        const result = await zhihuBrowserMatch(article);
+        const result = await fetchJSON(`/v1/zhihu/articles/list?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
-          text: (candidates.length
-            ? `通过知乎浏览器真实签名请求匹配到 ${candidates.length} 条候选。`
-            : "已读取可用的知乎文章列表，本地未匹配到同名文章。") +
-            (result.warnings?.length ? ` 部分检测异常：${result.warnings.join("；")}` : ""),
-          items: candidates,
+          text: candidates.length
+            ? `从知乎草稿列表和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取知乎草稿列表和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
           bindings: result.bindings ?? [],
         } };
       }
@@ -1018,15 +661,52 @@ async function handleMessage(message) {
           bindings: result.bindings ?? [],
         } };
       }
-      if (platform === "medium") {
-        await syncPlatformSession("medium");
-        const result = await mediumBrowserMatch(article);
+      if (platform === "juejin") {
+        await syncPlatformSession("juejin");
+        const result = await fetchJSON(`/v1/juejin/articles/list?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
-          text: (candidates.length
+          text: candidates.length
+            ? `已核验掘金本地草稿 ID，并通过搜索匹配到 ${candidates.length} 条候选。`
+            : "已检索掘金草稿与已发布文章，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
+      if (platform === "51cto") {
+        await syncPlatformSession("51cto");
+        const result = await fetchJSON(`/v1/51cto/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从 51CTO 草稿列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取 51CTO 草稿列表，本地未匹配到同名草稿。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
+      if (platform === "medium") {
+        await syncPlatformSession("medium");
+        const result = await fetchJSON(`/v1/medium/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
             ? `从 Medium 草稿和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
-            : "已通过 Medium 浏览器页面读取文章列表，本地未匹配到同名文章。") +
-            (result.warnings?.length ? ` 部分检测异常：${result.warnings.join("；")}` : ""),
+            : "已读取 Medium 草稿和已发布文章列表，本地未匹配到同名文章。",
           items: candidates.map((post) => ({
             title: post.title,
             id: post.id,
@@ -1058,13 +738,20 @@ async function handleMessage(message) {
       }
       if (platform === "csdn") {
         await syncPlatformSession("csdn");
-        const result = await csdnBrowserMatch(article);
+        const result = await fetchJSON(`/v1/csdn/articles/list?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `通过浏览器读取 CSDN 文章列表并匹配到 ${candidates.length} 条候选；已绑定草稿仍按 ID 单独核验。`
-            : "已通过浏览器读取 CSDN 已发布文章列表；未匹配到同名文章。历史草稿可用文章 ID／编辑链接手动绑定。",
-          items: candidates,
+            ? `从 CSDN 草稿列表和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取 CSDN 草稿列表和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
           bindings: result.bindings ?? [],
         } };
       }
@@ -1139,6 +826,38 @@ async function handleMessage(message) {
     case "blogctl.oschina.unbind": {
       const article = encodeURIComponent(String(message.article || ""));
       return { ok: true, ...(await fetchJSON(`/v1/oschina/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.juejin.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("juejin");
+      return { ok: true, ...(await fetchJSON(`/v1/juejin/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.juejin.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/juejin/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.51cto.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("51cto");
+      return { ok: true, ...(await fetchJSON(`/v1/51cto/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.51cto.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/51cto/binding?article=${article}`, jsonOptions("DELETE", {
         state: message.state,
         postId: message.postId,
       }))) };

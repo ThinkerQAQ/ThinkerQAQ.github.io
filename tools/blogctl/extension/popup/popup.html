@@ -20,7 +20,7 @@
     </header>
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
-      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">绑定</button>
+      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">检测</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">保存</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
@@ -40,12 +40,13 @@
       <section class="status-card">
         <div class="binding-detect-toolbar">
           <div class="section-title">远端关联</div>
-          <button id="refreshArticleMatches" class="primary inline-primary compact" type="button" disabled>检测文章关联</button>
+          <button id="selectAllSyncPlatforms" class="secondary compact" type="button">全选</button>
+          <button id="invertSyncPlatforms" class="secondary compact" type="button">反选</button>
         </div>
         <p class="card-hint">勾选需要检测的平台，可多选；检测结果只更新所选平台。</p>
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
-      <div class="sync-actions"><button id="goToSave" class="primary" type="button" disabled>进入保存</button></div>
+      <div class="sync-actions"><button id="refreshArticleMatches" class="primary" type="button" disabled>检测文章关联</button></div>
       <p id="syncMessage" class="message" role="status"></p>
     </section>
 
@@ -60,6 +61,10 @@
 
       <section class="status-card">
         <div class="section-title">平台</div>
+        <div class="binding-detect-toolbar">
+          <button id="selectAllDraftPlatforms" class="secondary compact" type="button">全选</button>
+          <button id="invertDraftPlatforms" class="secondary compact" type="button">反选</button>
+        </div>
         <div id="draftPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
 
@@ -83,6 +88,10 @@
           <label class="field"><span>状态</span><select id="publicationStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="published">已发布</option><option value="pending">待手动处理</option></select></label>
         </div>
         <p id="publicationSummary" class="card-hint"></p>
+        <div class="binding-detect-toolbar">
+          <button id="selectAllPublications" class="secondary compact" type="button">全选</button>
+          <button id="invertPublications" class="secondary compact" type="button">反选</button>
+        </div>
         <div id="publicationList" class="publication-list"><div class="platform-loading">正在读取发布记录…</div></div>
         <div class="sync-actions"><button id="publishSelected" class="primary" type="button" disabled>发布所选</button></div>
         <div id="publicationRunStatus" class="workflow-status" hidden></div>

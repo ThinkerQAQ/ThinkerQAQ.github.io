@@ -17,7 +17,7 @@
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer;
-  let actionButton, nextActions, viewTaskButton, enterPublishButton, message;
+  let actionButton, nextActions, viewTaskButton, enterPublishButton, message, selectAllButton, invertButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
@@ -188,6 +188,18 @@
       platformsContainer.innerHTML = '<div class="platform-loading">没有可用平台</div>';
     }
     updateAction();
+  }
+
+  function setDraftPlatforms(mode) {
+    if (!state.selectedSlug) return;
+    const checkboxes = [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]')]
+      .filter((input) => !input.disabled);
+    if (mode === "all") checkboxes.forEach((box) => { box.checked = true; });
+    else checkboxes.forEach((box) => { box.checked = !box.checked; });
+    resetWorkflow();
+    state.selectedPlatformIDs = new Set(selectedPlatforms());
+    BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
+    renderPlatforms();
   }
 
   function completedPlatforms(job) {
@@ -375,6 +387,8 @@
     viewTaskButton = document.getElementById("draftViewTask");
     enterPublishButton = document.getElementById("draftEnterPublish");
     message = document.getElementById("draftsMessage");
+    selectAllButton = document.getElementById("selectAllDraftPlatforms");
+    invertButton = document.getElementById("invertDraftPlatforms");
 
     articlePicker.addEventListener("focus", () => {
       articleOptions.hidden = false;
@@ -407,6 +421,8 @@
     actionButton.addEventListener("click", startSave);
     viewTaskButton.addEventListener("click", navigateTask);
     enterPublishButton.addEventListener("click", enterPublish);
+    selectAllButton.addEventListener("click", () => setDraftPlatforms("all"));
+    invertButton.addEventListener("click", () => setDraftPlatforms("invert"));
     state.initialized = true;
   }
 

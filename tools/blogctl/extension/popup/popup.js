@@ -51,12 +51,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
-  document.addEventListener("blogctl:navigate-save", (event) => {
-    const article = String(event.detail?.article || "").trim();
-    if (!article) return;
-    BlogCTLDrafts.prepare(article);
-    activateTab("drafts");
-  });
   document.addEventListener("blogctl:navigate-publication", (event) => {
     const article = String(event.detail?.article || "").trim();
     const platform = String(event.detail?.platform || "").trim();

@@ -19,7 +19,7 @@
     platformSelectionInitialized: false,
   };
 
-  let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton, goToSaveButton;
+  let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton, selectAllButton, invertButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
@@ -32,7 +32,19 @@
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
     refreshMatchesButton.disabled = !ready || state.bindingLoading || state.selectedPlatformIDs.size === 0;
-    goToSaveButton.disabled = !ready;
+  }
+
+  function setSyncPlatforms(mode) {
+    if (!state.selectedSlug) return;
+    const selectable = (state.status?.platforms ?? [])
+      .filter((platform) => platformAvailability(selectedArticle(), platform).available);
+    state.selectedPlatformIDs = new Set(
+      selectable
+        .filter((platform) => mode === "all" ? true : !state.selectedPlatformIDs.has(platform.id))
+        .map((platform) => platform.id),
+    );
+    BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
+    renderPlatforms();
   }
 
   function renderArticleMeta() {
@@ -130,7 +142,7 @@
       row.className = "article-match-row";
       row.textContent = `${item.localOnly ? "本地记录 · " : item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}${item.bound && item.bindingState && item.bindingState !== (item.published ? "published" : "draft") ? " · 远端状态已变化" : ""}`;
 
-      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|blog\.csdn\.net|editor\.csdn\.net|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net|medium\.com)\//.test(item.url)) {
+      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|blog\.csdn\.net|editor\.csdn\.net|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net|medium\.com|juejin\.cn|blog\.51cto\.com)\//.test(item.url)) {
         const link = document.createElement("a");
         link.textContent = "查看文章";
         link.href = item.url;
@@ -139,7 +151,7 @@
         row.append(" · ", link);
       }
 
-      if (platform.id === "cnblogs" || platform.id === "csdn" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina" || platform.id === "devto" || platform.id === "medium") {
+      if (platform.id === "cnblogs" || platform.id === "csdn" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina" || platform.id === "devto" || platform.id === "medium" || platform.id === "juejin" || platform.id === "51cto") {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "secondary";
@@ -448,7 +460,8 @@
     platformsContainer = document.getElementById("syncPlatforms");
     message = document.getElementById("syncMessage");
     refreshMatchesButton = document.getElementById("refreshArticleMatches");
-    goToSaveButton = document.getElementById("goToSave");
+    selectAllButton = document.getElementById("selectAllSyncPlatforms");
+    invertButton = document.getElementById("invertSyncPlatforms");
 
     articlePicker.addEventListener("focus", () => {
       articleOptions.hidden = false;
@@ -479,12 +492,8 @@
     });
 
     refreshMatchesButton.addEventListener("click", () => refreshArticleMatches());
-    goToSaveButton.addEventListener("click", () => {
-      if (!state.selectedSlug) return;
-      document.dispatchEvent(new CustomEvent("blogctl:navigate-save", {
-        detail: { article: state.selectedSlug },
-      }));
-    });
+    selectAllButton.addEventListener("click", () => setSyncPlatforms("all"));
+    invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
     state.initialized = true;
   }
 

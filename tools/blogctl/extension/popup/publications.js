@@ -15,7 +15,7 @@
     pollTimer: null,
   };
 
-  let queryInput, platformSelect, statusSelect, summary, list, publishButton, runStatus, message;
+  let queryInput, platformSelect, statusSelect, summary, list, publishButton, runStatus, message, selectAllButton, invertButton;
 
   const labelForPlatform = (id) => state.platforms.find((item) => item.id === id)?.label || id;
   const titleForArticle = (slug) => state.articles.find((item) => item.slug === slug)?.title || slug;
@@ -86,6 +86,32 @@
     const running = ["queued", "running"].includes(state.currentJob?.state);
     publishButton.disabled = selected.length === 0 || running;
     publishButton.textContent = selected.length > 0 ? `发布 ${selected.length} 个平台` : "发布所选";
+  }
+
+  function publicationTarget() {
+    const selected = selectedRecords();
+    if (selected.length) return selected[0].article;
+    const first = filteredRecords().find((record) => canPublish(record));
+    return first?.article || "";
+  }
+
+  function setPublications(mode) {
+    const article = publicationTarget();
+    if (!article) return;
+    const candidates = filteredRecords().filter((record) => record.article === article && canPublish(record));
+    if (!candidates.length) return;
+
+    if (mode === "all") {
+      state.selectedKeys.clear();
+      for (const record of candidates) state.selectedKeys.add(recordKey(record));
+    } else {
+      for (const record of candidates) {
+        const key = recordKey(record);
+        if (state.selectedKeys.has(key)) state.selectedKeys.delete(key);
+        else state.selectedKeys.add(key);
+      }
+    }
+    render();
   }
 
   function appendActionLink(container, label, href, primary = false) {
@@ -489,11 +515,15 @@
     publishButton = document.getElementById("publishSelected");
     runStatus = document.getElementById("publicationRunStatus");
     message = document.getElementById("publicationsMessage");
+    selectAllButton = document.getElementById("selectAllPublications");
+    invertButton = document.getElementById("invertPublications");
 
     queryInput.addEventListener("input", render);
     platformSelect.addEventListener("change", render);
     statusSelect.addEventListener("change", render);
     publishButton.addEventListener("click", startPublish);
+    selectAllButton.addEventListener("click", () => setPublications("all"));
+    invertButton.addEventListener("click", () => setPublications("invert"));
 
     state.initialized = true;
   }

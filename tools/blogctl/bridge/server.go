@@ -301,6 +301,30 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleOSChinaBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/juejin/articles/list" && request.Method == http.MethodPost {
+		s.handleJuejinArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/juejin/binding" && request.Method == http.MethodPost {
+		s.handleJuejinBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/juejin/binding" && request.Method == http.MethodDelete {
+		s.handleJuejinBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/51cto/articles/list" && request.Method == http.MethodPost {
+		s.handleCto51ArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/51cto/binding" && request.Method == http.MethodPost {
+		s.handleCto51BindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/51cto/binding" && request.Method == http.MethodDelete {
+		s.handleCto51BindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/medium/articles/list" && request.Method == http.MethodPost {
 		s.handleMediumArticleList(response, request, request.URL.Query().Get("article"))
 		return

@@ -195,26 +195,12 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 			strings.HasSuffix(strings.ToLower(parsed.Host), "medium.com") && strings.Contains(parsed.Path, body.PostID) {
 			selected = &mediumPost{ID: body.PostID, Title: body.Candidate.Title, URL: body.Candidate.URL, Published: body.Candidate.Published}
 		}
-	} else {
-		ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
-		defer cancel()
-		_, _, remoteAccount, posts, _, lookupErr := s.mediumCandidates(ctx, slug)
-		if lookupErr == nil {
-			account = remoteAccount
-			for index := range posts {
-				state := "draft"
-				if posts[index].Published {
-					state = "published"
-				}
-				if posts[index].ID == body.PostID && state == body.State {
-					selected = &posts[index]
-					break
-				}
-			}
-		}
 	}
+	// Medium's story list is not reachable from native Go (Cloudflare 403); the
+	// browser context passes the matched candidate inline. Never fall back to a
+	// native list here.
 	if selected == nil {
-		writeAPIError(response, http.StatusConflict, "candidate_missing", "Medium list no longer contains the selected matching article", nil)
+		writeAPIError(response, http.StatusConflict, "candidate_missing", "Medium candidate is no longer valid; refresh browser article detection", nil)
 		return
 	}
 
