@@ -7,6 +7,7 @@ const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
 let bridgeSession = null;
 const pendingCNBlogsCookieCaptures = new Map();
+const pendingPlatformCookieCaptures = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -26,6 +27,22 @@ chrome.webRequest.onSendHeaders.addListener((details) => {
   const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
   if (header !== null) pending.resolve(header);
 }, { urls: ["https://i.cnblogs.com/api/user*"] }, ["requestHeaders", "extraHeaders"]);
+
+const platformSessionRequestPatterns = [...new Set(
+  Object.values(PLATFORM_SESSIONS).flatMap((definition) =>
+    (definition.cookieDomains ?? []).flatMap((domain) => [
+      `https://${domain}/*`,
+      `https://*.${domain}/*`,
+    ]),
+  ),
+)];
+
+chrome.webRequest.onSendHeaders.addListener((details) => {
+  const pending = pendingPlatformCookieCaptures.get(details.url);
+  if (!pending) return;
+  const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
+  if (header !== null) pending.resolve(header);
+}, { urls: platformSessionRequestPatterns }, ["requestHeaders", "extraHeaders"]);
 
 async function setBadge(text, color) {
   await chrome.action.setBadgeText({ text });
@@ -294,6 +311,29 @@ async function captureCNBlogsRequestCookieHeader() {
   }
 }
 
+async function capturePlatformRequestCookieHeader(platform) {
+  const definition = PLATFORM_SESSIONS[platform];
+  const rawURL = String(definition?.sessionProbeUrl || "").trim();
+  if (!rawURL) return "";
+
+  const url = new URL(rawURL);
+  url.searchParams.set("blogctl_cookie_probe", crypto.randomUUID());
+  const expectedURL = url.toString();
+  let resolveCapture;
+  const captured = new Promise((resolve) => { resolveCapture = resolve; });
+  pendingPlatformCookieCaptures.set(expectedURL, { url: expectedURL, resolve: resolveCapture });
+  try {
+    const request = fetchWithTimeout(expectedURL, { cache: "no-store" }).catch(() => null);
+    const header = await Promise.race([
+      captured,
+      Promise.all([request, delay(1500)]).then(() => ""),
+    ]);
+    return String(header || "");
+  } finally {
+    pendingPlatformCookieCaptures.delete(expectedURL);
+  }
+}
+
 async function selectedPlatformCookies(platform, diagnostics) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
@@ -327,11 +367,13 @@ async function syncPlatformSession(platform) {
   let selected;
   const cookieQueries = [];
   const cookieStores = platform === "cnblogs" ? await cnBlogsCookieStores() : [];
-  const requestCookieHeader = platform === "cnblogs" ? await captureCNBlogsRequestCookieHeader() : "";
+  const requestCookieHeader = platform === "cnblogs"
+    ? await captureCNBlogsRequestCookieHeader()
+    : await capturePlatformRequestCookieHeader(platform);
   try {
     selected = await selectedPlatformCookies(platform, cookieQueries);
   } catch (error) {
-    if (platform === "cnblogs" && errorMessage(error) === "no browser cookies were available") {
+    if (requestCookieHeader) {
       selected = [];
     } else {
       const summary = cookieQuerySummary(cookieQueries);
