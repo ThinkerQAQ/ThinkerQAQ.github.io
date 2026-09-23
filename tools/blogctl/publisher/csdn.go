@@ -299,7 +299,7 @@ func (c *csdnAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Draf
 	id := csdnSavedID(decoded, ref.ID)
 	if data, ok := decoded["data"].(map[string]any); ok {
 		if target := valueString(data["url"]); target != "" {
-			return PublishResult{URL: target}, nil
+			return PublishResult{ID: id, URL: target}, nil
 		}
 	}
 	if c.userID == "" {
@@ -308,5 +308,5 @@ func (c *csdnAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Draf
 	if c.userID == "" {
 		return PublishResult{}, platformError(ErrUpstream, c.ID(), "publish-draft", 0, "published response did not include a public URL", false)
 	}
-	return PublishResult{URL: "https://blog.csdn.net/" + url.PathEscape(c.userID) + "/article/details/" + url.PathEscape(id)}, nil
+	return PublishResult{ID: id, URL: "https://blog.csdn.net/" + url.PathEscape(c.userID) + "/article/details/" + url.PathEscape(id)}, nil
 }
