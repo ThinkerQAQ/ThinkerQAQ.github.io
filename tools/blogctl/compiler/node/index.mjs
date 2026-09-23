@@ -25,7 +25,7 @@ import {
 } from "./compiler.mjs";
 
 const NATIVE_IMAGE_UPLOAD_PLATFORMS = new Set([
-  "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao",
+  "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao", "medium",
 ]);
 
 function internalAssetRef(asset) {
@@ -42,6 +42,15 @@ function replaceAssetUrls(value, assets) {
     result = result.replaceAll(asset.publicUrl, internalAssetRef(asset));
   }
   return result;
+}
+
+function replaceAssetUrlsDeep(value, assets) {
+  if (typeof value === "string") return replaceAssetUrls(value, assets);
+  if (Array.isArray(value)) return value.map((item) => replaceAssetUrlsDeep(item, assets));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceAssetUrlsDeep(item, assets)]));
+  }
+  return value;
 }
 import { preparePublishingAssetList } from "../../assets/node/assets.mjs";
 
@@ -252,6 +261,7 @@ export async function compileArticle({
   if (nativeImageUpload && assets.length) {
     compiled.markdown = replaceAssetUrls(compiled.markdown, assets);
     compiled.html = replaceAssetUrls(compiled.html, assets);
+    if (compiled.payload) compiled.payload = replaceAssetUrlsDeep(compiled.payload, assets);
   }
 
   return {
