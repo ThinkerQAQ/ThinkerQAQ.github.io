@@ -269,5 +269,5 @@ func (o *osChinaAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 		return PublishResult{}, platformError(ErrUpstream, o.ID(), "publish-draft", decoded.Code, "response did not contain a public blog id", false)
 	}
 	_ = ref
-	return PublishResult{URL: fmt.Sprintf("%s/u/%s/blog/%s", osChinaOrigin, url.PathEscape(o.userID), url.PathEscape(id))}, nil
+	return PublishResult{ID: id, URL: fmt.Sprintf("%s/u/%s/blog/%s", osChinaOrigin, url.PathEscape(o.userID), url.PathEscape(id))}, nil
 }
