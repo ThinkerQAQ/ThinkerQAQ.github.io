@@ -49,9 +49,9 @@ export const PLATFORM_AUTH = Object.freeze([
     id: "51cto",
     label: "51CTO",
     probe: {
-      kind: "html",
-      url: "https://blog.51cto.com/blogger/publish",
-      match: "class=[\"']more user[\"']",
+      kind: "json",
+      url: "https://api-media.51cto.com/user/index/get-info",
+      path: "data.data.user_id",
     },
   },
   {
@@ -133,7 +133,12 @@ export const PLATFORM_SESSIONS = Object.freeze({
   },
   "51cto": {
     cookieDomains: ["51cto.com"],
-    cookieUrls: ["https://blog.51cto.com/"],
+    cookieUrls: [
+      "https://www.51cto.com/",
+      "https://blog.51cto.com/",
+      "https://api-media.51cto.com/",
+      "https://api-blog.51cto.com/",
+    ],
     requiredCookieNames: [],
   },
   oschina: {
