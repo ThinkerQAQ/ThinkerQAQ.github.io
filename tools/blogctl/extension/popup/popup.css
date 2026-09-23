@@ -58,6 +58,8 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .error-text { color: #991b1b; }
 .job-result-link { width: max-content; color: #1d4ed8; font-size: 11px; font-weight: 600; text-decoration: none; }
 .job-result-link:hover { text-decoration: underline; }
+.task-publication-link { width: max-content; padding: 0; background: transparent; color: #1d4ed8; font-size: 11px; font-weight: 600; text-align: left; }
+.task-publication-link:hover { text-decoration: underline; }
 .job-debug { margin-top: 8px; font-size: 11px; color: #6b7280; }
 .job-debug > summary { cursor: pointer; }
 .job-output { max-height: 180px; overflow: auto; margin: 8px 0 0; padding: 8px; border-radius: 6px; background: #111827; color: #f9fafb; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10px; line-height: 1.4; }
@@ -79,6 +81,10 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 
 .publication-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .publication-list { display: grid; gap: 8px; }
-.publication-item { display: grid; gap: 5px; padding: 9px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa; }
-.publication-links { display: flex; flex-wrap: wrap; gap: 10px; }
+.publication-item { display: grid; gap: 5px; padding: 9px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa; transition: border-color .15s ease, box-shadow .15s ease; }
+.publication-item:focus { outline: none; }
+.publication-item-highlight { border-color: #111827; box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.12); }
+.publication-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.publication-action { display: inline-flex; align-items: center; justify-content: center; min-width: 96px; min-height: 38px; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; line-height: 1; text-decoration: none; }
+.publication-action:hover { text-decoration: none; }
 @media (max-width: 390px) { .publication-filters { grid-template-columns: 1fr; } }
