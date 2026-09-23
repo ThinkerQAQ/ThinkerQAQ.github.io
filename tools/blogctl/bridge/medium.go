@@ -1054,13 +1054,20 @@ func setMediumHeaders(req *http.Request, session platformSession, referer string
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("origin", mediumOrigin)
 	req.Header.Set("referer", referer)
-	req.Header.Set("cookie", cookieHeader(session.Cookies))
+	req.Header.Set("cookie", mediumSessionCookieHeader(session))
 	req.Header.Set("user-agent", session.UserAgent)
 	req.Header.Set("x-requested-with", "XMLHttpRequest")
 	req.Header.Set("x-obvious-cid", "web")
 	req.Header.Set("x-client-date", fmt.Sprintf("%d", time.Now().UnixMilli()))
-	if xsrf := session.Cookies["xsrf"]; xsrf != "" {
+	if xsrf := mediumSessionXSRF(session); xsrf != "" {
 		req.Header.Set("x-xsrf-token", xsrf)
+	}
+}
+
+func setMediumGraphQLHeaders(req *http.Request, session platformSession, referer, operation string) {
+	setMediumHeaders(req, session, referer)
+	if operation != "" {
+		req.Header.Set("graphql-operation", operation)
 	}
 }
 
