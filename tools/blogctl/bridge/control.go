@@ -500,13 +500,37 @@ type bridgeNativePublisher struct {
 	server *Server
 }
 
-func draftInputFromCompiled(article blogcompiler.CompiledArticle) publisher.DraftInput {
+func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot string, config bridgeConfig) publisher.DraftInput {
+	assets := make([]publisher.PublishingAsset, 0, len(article.Assets))
+	for _, asset := range article.Assets {
+		assets = append(assets, publisher.PublishingAsset{
+			Kind: asset.Kind, ID: asset.ID, ObjectKey: asset.ObjectKey,
+			PublicURL: asset.PublicURL, Source: asset.Source,
+		})
+	}
+	bucket := strings.TrimSpace(os.Getenv("R2_BUCKET"))
+	if bucket == "" {
+		bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
+	}
+	publicBaseURL := strings.TrimSpace(os.Getenv("R2_PUBLIC_BASE_URL"))
+	if publicBaseURL == "" {
+		publicBaseURL = strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL)
+	}
 	return publisher.DraftInput{
 		Slug: article.Slug, Title: article.Title, Description: article.Description,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
-		ContentHash: article.ContentHash, SourceDir: article.SourceDir,
+		ContentHash: article.ContentHash, SourceDir: article.SourceDir, ContentRoot: contentRoot,
 		Tags: append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
+		Assets: assets,
+		R2Fallback: publisher.R2FallbackConfig{
+			AccessKeyID: strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
+			SecretAccessKey: strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
+			AccountID: strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")),
+			Endpoint: strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
+			Bucket: bucket,
+			PublicBaseURL: publicBaseURL,
+		},
 	}
 }
 
@@ -678,7 +702,7 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 	}
 	service := publisher.Service{HTTPClient: httpClient}
 	result, err := service.CreateOrUpdateDraftInput(
-		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled), request.ChangedOnly,
+		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config), request.ChangedOnly,
 	)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
@@ -702,7 +726,7 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 		return blogapp.NativePublishResult{}, err
 	}
 	service := publisher.Service{HTTPClient: httpClient}
-	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled))
+	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config))
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
 	}
@@ -767,7 +791,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 			return output, compileErr
 		}
 		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublishedInput(
-			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled),
+			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config),
 		)
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
