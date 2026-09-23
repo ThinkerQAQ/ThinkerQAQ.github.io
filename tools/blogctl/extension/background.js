@@ -524,6 +524,25 @@ async function handleMessage(message) {
           bindings: result.bindings ?? [],
         } };
       }
+      if (platform === "csdn") {
+        await syncPlatformSession("csdn");
+        const result = await fetchJSON(`/v1/csdn/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从 CSDN 已发布文章列表本地匹配到 ${candidates.length} 条候选；已绑定草稿会按 ID 单独核验。`
+            : "已读取 CSDN 已发布文章列表；未匹配到同名文章。历史草稿可用文章 ID／编辑链接手动绑定。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
       const result = await fetchJSON(`/v1/article-links?article=${article}`);
       const link = result.links?.[platform];
       const reference = link?.remoteId || link?.publishedUrl || link?.draftUrl;
@@ -609,6 +628,22 @@ async function handleMessage(message) {
     case "blogctl.devto.unbind": {
       const article = encodeURIComponent(String(message.article || ""));
       return { ok: true, ...(await fetchJSON(`/v1/devto/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.csdn.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("csdn");
+      return { ok: true, ...(await fetchJSON(`/v1/csdn/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.csdn.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/csdn/binding?article=${article}`, jsonOptions("DELETE", {
         state: message.state,
         postId: message.postId,
       }))) };
