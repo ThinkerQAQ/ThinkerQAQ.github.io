@@ -225,13 +225,17 @@ func (o *osChinaAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if err := o.ensureUser(ctx); err != nil {
 		return PublishResult{}, err
 	}
+	content, err := o.prepareMarkdown(ctx, input)
+	if err != nil {
+		return PublishResult{}, err
+	}
 	catalog, err := o.catalogID(ctx)
 	if err != nil {
 		return PublishResult{}, err
 	}
 	payload := map[string]any{
 		"title":          input.Title,
-		"content":        input.Markdown,
+		"content":        content,
 		"contentType":    1,
 		"type":           "1",
 		"originUrl":      "",

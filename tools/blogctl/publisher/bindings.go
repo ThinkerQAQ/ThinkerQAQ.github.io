@@ -7,8 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
+
+var publicationBindingsMu sync.Mutex
 
 type PublicationBinding struct {
 	Slug              string   `json:"slug"`
@@ -84,6 +87,8 @@ func upsertPublicationBinding(bindings *bindingFile, binding PublicationBinding)
 }
 
 func SavePublicationBinding(contentRoot string, binding PublicationBinding) error {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
 	binding.Slug = strings.TrimSpace(binding.Slug)
 	binding.Platform = strings.TrimSpace(strings.ToLower(binding.Platform))
 	if binding.Slug == "" || binding.Platform == "" {
@@ -112,6 +117,8 @@ func SavePublicationBinding(contentRoot string, binding PublicationBinding) erro
 }
 
 func DeletePublicationBindingState(contentRoot, slug, platform, state, remoteID string) error {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return err
@@ -176,6 +183,8 @@ func normalizePendingFields(fields []string) []string {
 }
 
 func SavePublicationPendingFields(contentRoot, slug, platform string, fields []string) error {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return err
@@ -190,6 +199,8 @@ func SavePublicationPendingFields(contentRoot, slug, platform string, fields []s
 }
 
 func ResolvePublicationPendingFields(contentRoot, slug, platform string, resolved []string) ([]string, error) {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return nil, err
@@ -222,6 +233,8 @@ func ResolvePublicationPendingFields(contentRoot, slug, platform string, resolve
 }
 
 func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string, result DraftResult, now time.Time) error {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return err
@@ -240,6 +253,8 @@ func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string,
 }
 
 func SavePublicationPublishResult(contentRoot, slug, platform, contentHash string, result PublishResult, now time.Time) error {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return err
@@ -273,6 +288,8 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 }
 
 func SavePublicationPublishedUpdateResult(contentRoot, slug, platform, contentHash string, now time.Time) error {
+	publicationBindingsMu.Lock()
+	defer publicationBindingsMu.Unlock()
 	bindings, err := readBindings(contentRoot)
 	if err != nil {
 		return err

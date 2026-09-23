@@ -3,10 +3,12 @@ package publisher
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -422,5 +424,48 @@ func TestPublicationFileRejectsLegacyVersionOne(t *testing.T) {
 	}
 	if _, _, err := LoadPublicationBinding(root, "example", "juejin"); err == nil || !strings.Contains(err.Error(), "unsupported bindings version: 1") {
 		t.Fatalf("err = %v, want explicit v1 rejection", err)
+	}
+}
+
+
+func TestConcurrentPublicationWritesDoNotLoseRecords(t *testing.T) {
+	root := t.TempDir()
+	const count = 32
+	var wait sync.WaitGroup
+	errs := make(chan error, count)
+
+	for index := 0; index < count; index++ {
+		index := index
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			errs <- SavePublicationDraftResult(
+				root,
+				fmt.Sprintf("article-%02d", index),
+				"juejin",
+				fmt.Sprintf("hash-%02d", index),
+				DraftResult{
+					ID: fmt.Sprintf("draft-%02d", index),
+					URL: fmt.Sprintf("https://juejin.cn/editor/drafts/draft-%02d", index),
+					Created: true,
+				},
+				time.Date(2026, 9, 23, 8, 0, index, 0, time.UTC),
+			)
+		}()
+	}
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	records, err := ListPublicationRecords(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != count {
+		t.Fatalf("records = %d, want %d", len(records), count)
 	}
 }

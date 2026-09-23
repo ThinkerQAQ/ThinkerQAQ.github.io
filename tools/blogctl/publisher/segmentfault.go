@@ -278,6 +278,10 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 	if err != nil {
 		return PublishResult{}, err
 	}
+	content, err := s.prepareMarkdown(ctx, input, token)
+	if err != nil {
+		return PublishResult{}, err
+	}
 	values := map[string]string{
 		"type":      "1",
 		"url":       "",
@@ -287,7 +291,7 @@ func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, in
 		"weibo":     "0",
 		"license":   "0",
 		"title":     input.Title,
-		"text":      input.Markdown,
+		"text":      content,
 		"articleId": "",
 		"draftId":   ref.ID,
 		"id":        "",
