@@ -4,11 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	htmlstd "html"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
 const mediumOrigin = "https://medium.com"
@@ -16,6 +25,13 @@ const mediumOrigin = "https://medium.com"
 var mediumCookieNames = map[string]struct{}{
 	"sid": {}, "uid": {}, "xsrf": {}, "cf_clearance": {},
 }
+
+var (
+	mediumAnchorPattern    = regexp.MustCompile(`(?is)<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>`)
+	mediumHTMLTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
+	mediumDraftPathPattern = regexp.MustCompile(`^/p/([0-9a-f]{8,})/edit$`)
+	mediumPostIDPattern    = regexp.MustCompile(`-([0-9a-f]{8,})$`)
+)
 
 type mediumClient struct {
 	httpClient *http.Client
@@ -32,6 +48,28 @@ type mediumDraft struct {
 	CanonicalURL string            `json:"canonicalUrl"`
 	Tags         []string          `json:"tags"`
 	CoverImage   *mediumCoverImage `json:"coverImage,omitempty"`
+}
+
+type mediumPost struct {
+	ID        string
+	Title     string
+	URL       string
+	Published bool
+}
+
+type mediumPostMeta struct {
+	ID               string
+	LatestRev        int
+	FirstPublishedAt int64
+	UniqueSlug       string
+	MediumURL        string
+	Username         string
+}
+
+type mediumUploadResult struct {
+	FileID string
+	Width  int
+	Height int
 }
 
 func filterMediumCookies(cookies []browserCookie) map[string]string {
@@ -99,6 +137,24 @@ func (c mediumClient) primeXSRF(ctx context.Context, session platformSession) pl
 	return session
 }
 
+func decodeMediumResponse(response *http.Response, output any) error {
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
+	if err != nil {
+		return err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("Medium request failed (%d): %s", response.StatusCode, truncate(stripMediumXSSI(string(raw)), 500))
+	}
+	if output == nil {
+		return nil
+	}
+	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), output); err != nil {
+		return fmt.Errorf("Medium returned invalid JSON: %w", err)
+	}
+	return nil
+}
+
 func (c mediumClient) createStory(ctx context.Context, session platformSession) (string, string, error) {
 	session = c.primeXSRF(ctx, session)
 	body, err := json.Marshal(map[string]any{
@@ -119,14 +175,6 @@ func (c mediumClient) createStory(ctx context.Context, session platformSession) 
 	if err != nil {
 		return "", "", err
 	}
-	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if err != nil {
-		return "", "", err
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", "", fmt.Errorf("Medium new-story failed (%d): %s", response.StatusCode, truncate(stripMediumXSSI(string(raw)), 500))
-	}
 	var decoded struct {
 		Success bool `json:"success"`
 		Payload struct {
@@ -137,8 +185,8 @@ func (c mediumClient) createStory(ctx context.Context, session platformSession) 
 		} `json:"payload"`
 		Error string `json:"error"`
 	}
-	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), &decoded); err != nil {
-		return "", "", fmt.Errorf("Medium new-story returned invalid JSON: %w", err)
+	if err := decodeMediumResponse(response, &decoded); err != nil {
+		return "", "", err
 	}
 	if !decoded.Success || strings.TrimSpace(decoded.Payload.Value.ID) == "" {
 		return "", "", fmt.Errorf("Medium new-story did not return a post id: %s", truncate(decoded.Error, 300))
@@ -146,7 +194,242 @@ func (c mediumClient) createStory(ctx context.Context, session platformSession) 
 	return decoded.Payload.Value.ID, decoded.Payload.Value.MediumURL, nil
 }
 
-func (c mediumClient) createDraft(ctx context.Context, session platformSession, draft mediumDraft) (map[string]any, error) {
+func (c mediumClient) uploadImage(ctx context.Context, session platformSession, image publisher.RehostImage) (mediumUploadResult, error) {
+	session = c.primeXSRF(ctx, session)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("uploadedFile", mediumImageFilename(image.Source, image.ContentType))
+	if err != nil {
+		return mediumUploadResult{}, err
+	}
+	if _, err := part.Write(image.Payload); err != nil {
+		return mediumUploadResult{}, err
+	}
+	if err := writer.Close(); err != nil {
+		return mediumUploadResult{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/upload", &body)
+	if err != nil {
+		return mediumUploadResult{}, err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/new-story")
+	req.Header.Set("content-type", writer.FormDataContentType())
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return mediumUploadResult{}, err
+	}
+	var decoded struct {
+		Success bool `json:"success"`
+		Payload struct {
+			Value struct {
+				FileID    string `json:"fileId"`
+				ImgWidth  int    `json:"imgWidth"`
+				ImgHeight int    `json:"imgHeight"`
+			} `json:"value"`
+		} `json:"payload"`
+	}
+	if err := decodeMediumResponse(response, &decoded); err != nil {
+		return mediumUploadResult{}, err
+	}
+	if !decoded.Success || strings.TrimSpace(decoded.Payload.Value.FileID) == "" {
+		return mediumUploadResult{}, errors.New("Medium image upload did not return a file id")
+	}
+	return mediumUploadResult{
+		FileID: decoded.Payload.Value.FileID,
+		Width:  decoded.Payload.Value.ImgWidth,
+		Height: decoded.Payload.Value.ImgHeight,
+	}, nil
+}
+
+func mediumImageFilename(source, contentType string) string {
+	if strings.HasPrefix(source, "blogctl-asset://") {
+		return "image.png"
+	}
+	if parsed, err := url.Parse(source); err == nil {
+		if name := filepath.Base(parsed.Path); name != "" && name != "." && name != "/" {
+			return name
+		}
+	}
+	switch strings.ToLower(strings.Split(contentType, ";")[0]) {
+	case "image/jpeg":
+		return "image.jpg"
+	case "image/gif":
+		return "image.gif"
+	case "image/webp":
+		return "image.webp"
+	default:
+		return "image.png"
+	}
+}
+
+func mediumPublishingAsset(input publisher.DraftInput, source string) (publisher.PublishingAsset, bool) {
+	for _, asset := range input.Assets {
+		if asset.Source == source || asset.PublicURL == source {
+			return asset, true
+		}
+	}
+	return publisher.PublishingAsset{}, false
+}
+
+func (c mediumClient) loadImage(ctx context.Context, input publisher.DraftInput, source string) (publisher.RehostImage, error) {
+	if asset, ok := mediumPublishingAsset(input, source); ok && strings.HasPrefix(source, "blogctl-asset://") {
+		path := filepath.Join(input.ContentRoot, ".distribution", "assets", asset.Kind, asset.ID+".png")
+		payload, err := os.ReadFile(path)
+		if err != nil {
+			return publisher.RehostImage{}, err
+		}
+		return publisher.RehostImage{Source: source, Payload: payload, ContentType: "image/png"}, nil
+	}
+	parsed, err := url.Parse(strings.TrimSpace(source))
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+		return publisher.RehostImage{}, fmt.Errorf("unsupported Medium image source: %s", source)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
+	if err != nil {
+		return publisher.RehostImage{}, err
+	}
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return publisher.RehostImage{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return publisher.RehostImage{}, fmt.Errorf("Medium image source returned HTTP %d", response.StatusCode)
+	}
+	payload, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
+	if err != nil {
+		return publisher.RehostImage{}, err
+	}
+	return publisher.RehostImage{
+		Source: source, Payload: payload,
+		ContentType: response.Header.Get("content-type"),
+	}, nil
+}
+
+func cloneMediumDelta(delta map[string]any) map[string]any {
+	raw, _ := json.Marshal(delta)
+	var result map[string]any
+	_ = json.Unmarshal(raw, &result)
+	return result
+}
+
+func mediumLinkFallback(delta map[string]any, target, alt string) map[string]any {
+	label := "[Image]"
+	if strings.TrimSpace(alt) != "" {
+		label = "[Image: " + strings.TrimSpace(alt) + "]"
+	}
+	delta["paragraph"] = map[string]any{
+		"type": 1,
+		"text": label,
+		"markups": []any{map[string]any{
+			"type": 3, "start": 0, "end": len([]rune(label)),
+			"href": target, "anchorType": 0,
+		}},
+	}
+	delete(delta, "image")
+	return delta
+}
+
+func (c mediumClient) prepareDraftDeltas(
+	ctx context.Context,
+	session platformSession,
+	draft mediumDraft,
+	input publisher.DraftInput,
+) ([]map[string]any, int, error) {
+	deltas := make([]map[string]any, 0, len(draft.Deltas)+1)
+	deltas = append(deltas, map[string]any{
+		"type": 1,
+		"index": 0,
+		"paragraph": map[string]any{"type": 3, "text": draft.Title, "markups": []any{}},
+	})
+	fallbacks := 0
+	for _, original := range draft.Deltas {
+		delta := cloneMediumDelta(original)
+		delta["index"] = len(deltas)
+		imageSpec, isImage := delta["image"].(map[string]any)
+		if !isImage {
+			deltas = append(deltas, delta)
+			continue
+		}
+		source := strings.TrimSpace(valueString(imageSpec["url"]))
+		alt := strings.TrimSpace(valueString(imageSpec["alt"]))
+		image, err := c.loadImage(ctx, input, source)
+		if err != nil {
+			return nil, fallbacks, fmt.Errorf("Medium image load failed: %w", err)
+		}
+		uploaded, uploadErr := c.uploadImage(ctx, session, image)
+		if uploadErr != nil {
+			target, fallbackErr := publisher.UploadR2Fallback(ctx, c.httpClient, input, image)
+			if fallbackErr != nil {
+				return nil, fallbacks, fmt.Errorf("Medium image upload failed: %v; R2 fallback failed: %w", uploadErr, fallbackErr)
+			}
+			deltas = append(deltas, mediumLinkFallback(delta, target, alt))
+			fallbacks++
+			continue
+		}
+		paragraph, _ := delta["paragraph"].(map[string]any)
+		if paragraph == nil {
+			paragraph = map[string]any{}
+		}
+		paragraph["type"] = 4
+		paragraph["text"] = ""
+		paragraph["markups"] = []any{}
+		paragraph["layout"] = 1
+		paragraph["metadata"] = map[string]any{
+			"id": uploaded.FileID, "originalWidth": uploaded.Width,
+			"originalHeight": uploaded.Height, "alt": nullString(alt),
+		}
+		delta["paragraph"] = paragraph
+		delete(delta, "image")
+		deltas = append(deltas, delta)
+	}
+	return deltas, fallbacks, nil
+}
+
+func (c mediumClient) writeDeltas(
+	ctx context.Context,
+	session platformSession,
+	postID string,
+	baseRev int,
+	deltas []map[string]any,
+) (int, error) {
+	body, err := json.Marshal(map[string]any{"id": postID, "baseRev": baseRev, "deltas": deltas})
+	if err != nil {
+		return 0, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/p/"+postID+"/deltas", bytes.NewReader(body))
+	if err != nil {
+		return 0, err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	var decoded struct {
+		Success bool `json:"success"`
+		Payload struct {
+			Value struct {
+				LatestRev int `json:"latestRev"`
+			} `json:"value"`
+		} `json:"payload"`
+	}
+	if err := decodeMediumResponse(response, &decoded); err != nil {
+		return 0, err
+	}
+	if !decoded.Success {
+		return 0, errors.New("Medium delta write was rejected")
+	}
+	return decoded.Payload.Value.LatestRev, nil
+}
+
+func (c mediumClient) createDraft(
+	ctx context.Context,
+	session platformSession,
+	draft mediumDraft,
+	input publisher.DraftInput,
+) (map[string]any, error) {
 	if draft.Title == "" || draft.Deltas == nil {
 		return nil, fmt.Errorf("title and deltas are required")
 	}
@@ -155,46 +438,145 @@ func (c mediumClient) createDraft(ctx context.Context, session platformSession, 
 	if err != nil {
 		return nil, err
 	}
-	deltas := make([]map[string]any, 0, len(draft.Deltas)+1)
-	deltas = append(deltas, map[string]any{
-		"type":      1,
-		"index":     0,
-		"paragraph": map[string]any{"type": 3, "text": draft.Title, "markups": []any{}},
-	})
-	for _, delta := range draft.Deltas {
-		copy := make(map[string]any, len(delta)+1)
-		for key, value := range delta {
-			copy[key] = value
-		}
-		copy["index"] = len(deltas)
-		deltas = append(deltas, copy)
-	}
-	body, err := json.Marshal(map[string]any{"id": postID, "baseRev": -1, "rev": 0, "deltas": deltas})
+	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/p/"+postID+"/deltas", bytes.NewReader(body))
-	if err != nil {
+	if _, err := c.writeDeltas(ctx, session, postID, -1, deltas); err != nil {
 		return nil, err
+	}
+	return mediumDraftResult(postID, mediumURL, draft, fallbacks, true), nil
+}
+
+func (c mediumClient) postMeta(ctx context.Context, session platformSession, postID string) (mediumPostMeta, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediumOrigin+"/p/"+postID+"/notes", nil)
+	if err != nil {
+		return mediumPostMeta{}, err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	req.Header.Del("content-type")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return mediumPostMeta{}, err
+	}
+	var decoded struct {
+		Success bool `json:"success"`
+		Payload struct {
+			Post struct {
+				ID               string `json:"id"`
+				LatestRev        int    `json:"latestRev"`
+				FirstPublishedAt int64  `json:"firstPublishedAt"`
+				UniqueSlug       string `json:"uniqueSlug"`
+				MediumURL        string `json:"mediumUrl"`
+				Creator          struct {
+					Username string `json:"username"`
+				} `json:"creator"`
+			} `json:"post"`
+		} `json:"payload"`
+	}
+	if err := decodeMediumResponse(response, &decoded); err != nil {
+		return mediumPostMeta{}, err
+	}
+	if !decoded.Success || decoded.Payload.Post.ID == "" {
+		return mediumPostMeta{}, errors.New("Medium post metadata is unavailable")
+	}
+	post := decoded.Payload.Post
+	return mediumPostMeta{
+		ID: post.ID, LatestRev: post.LatestRev, FirstPublishedAt: post.FirstPublishedAt,
+		UniqueSlug: post.UniqueSlug, MediumURL: post.MediumURL, Username: post.Creator.Username,
+	}, nil
+}
+
+func (c mediumClient) paragraphCount(ctx context.Context, session platformSession, postID string) (int, error) {
+	query := `query BlogCTLMediumPostBodyQuery($postId: ID!) {
+  postResult(id: $postId) {
+    __typename
+    ... on Post {
+      id
+      content {
+        bodyModel {
+          paragraphs { name __typename }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+  }
+}`
+	payload, _ := json.Marshal([]any{map[string]any{
+		"operationName": "BlogCTLMediumPostBodyQuery",
+		"variables": map[string]any{"postId": postID},
+		"query": query,
+	}})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
+	if err != nil {
+		return 0, err
 	}
 	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
+	if err != nil {
+		return 0, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return 0, fmt.Errorf("Medium post body query failed (%d)", response.StatusCode)
+	}
+	var decoded []struct {
+		Data struct {
+			PostResult struct {
+				Content struct {
+					BodyModel struct {
+						Paragraphs []struct {
+							Name string `json:"name"`
+						} `json:"paragraphs"`
+					} `json:"bodyModel"`
+				} `json:"content"`
+			} `json:"postResult"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil || len(decoded) == 0 {
+		return 0, errors.New("Medium post body query returned invalid JSON")
+	}
+	return len(decoded[0].Data.PostResult.Content.BodyModel.Paragraphs), nil
+}
+
+func (c mediumClient) updateDraft(
+	ctx context.Context,
+	session platformSession,
+	postID string,
+	draft mediumDraft,
+	input publisher.DraftInput,
+) (map[string]any, error) {
+	session = c.primeXSRF(ctx, session)
+	meta, err := c.postMeta(ctx, session, postID)
 	if err != nil {
 		return nil, err
 	}
-	var deltaResult map[string]any
-	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), &deltaResult); err != nil {
-		return nil, fmt.Errorf("Medium delta endpoint returned invalid JSON (%d)", response.StatusCode)
+	count, err := c.paragraphCount(ctx, session, postID)
+	if err != nil {
+		return nil, err
 	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 || deltaResult["success"] == false {
-		encoded, _ := json.Marshal(deltaResult)
-		return nil, fmt.Errorf("Medium delta write failed (%d): %s", response.StatusCode, truncate(string(encoded), 500))
+	replacement, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
+	if err != nil {
+		return nil, err
 	}
+	deltas := make([]map[string]any, 0, count+len(replacement))
+	for index := count - 1; index >= 0; index-- {
+		deltas = append(deltas, map[string]any{"type": 2, "index": index})
+	}
+	deltas = append(deltas, replacement...)
+	if _, err := c.writeDeltas(ctx, session, postID, meta.LatestRev, deltas); err != nil {
+		return nil, err
+	}
+	return mediumDraftResult(postID, meta.MediumURL, draft, fallbacks, false), nil
+}
+
+func mediumDraftResult(postID, mediumURL string, draft mediumDraft, fallbacks int, created bool) map[string]any {
 	result := map[string]any{
 		"postId":            postID,
 		"draftUrl":          mediumOrigin + "/p/" + postID + "/edit",
@@ -203,12 +585,245 @@ func (c mediumClient) createDraft(ctx context.Context, session platformSession, 
 		"canonicalPending":  strings.TrimSpace(draft.CanonicalURL) != "",
 		"tagsPending":       len(draft.Tags) > 0,
 		"coverImagePending": draft.CoverImage != nil && strings.TrimSpace(draft.CoverImage.URL) != "",
+		"imageFallbacks":    fallbacks,
+		"created":           created,
+		"updated":           !created,
 	}
 	if draft.CoverImage != nil {
 		result["coverImageUrl"] = nullString(strings.TrimSpace(draft.CoverImage.URL))
 		result["coverImageAlt"] = nullString(strings.TrimSpace(draft.CoverImage.Alt))
 	}
-	return result, nil
+	return result
+}
+
+func (c mediumClient) publishDraft(
+	ctx context.Context,
+	session platformSession,
+	postID, title, subtitle string,
+) (map[string]any, error) {
+	session = c.primeXSRF(ctx, session)
+	meta, err := c.postMeta(ctx, session, postID)
+	if err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(map[string]any{
+		"title": title, "subtitle": subtitle, "metaDescription": "", "latestRev": meta.LatestRev,
+	})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/p/"+postID+"/publish", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	var decoded struct {
+		Success bool `json:"success"`
+		Payload struct {
+			Value struct {
+				ID         string `json:"id"`
+				UniqueSlug string `json:"uniqueSlug"`
+				MediumURL  string `json:"mediumUrl"`
+				Creator    struct {
+					Username string `json:"username"`
+				} `json:"creator"`
+			} `json:"value"`
+		} `json:"payload"`
+	}
+	if err := decodeMediumResponse(response, &decoded); err != nil {
+		return nil, err
+	}
+	if !decoded.Success || strings.TrimSpace(decoded.Payload.Value.ID) == "" {
+		return nil, errors.New("Medium publish did not return a post")
+	}
+	value := decoded.Payload.Value
+	target := strings.TrimSpace(value.MediumURL)
+	username := strings.TrimSpace(value.Creator.Username)
+	if username == "" {
+		username = meta.Username
+	}
+	if target == "" && username != "" && value.UniqueSlug != "" {
+		target = mediumOrigin + "/@" + url.PathEscape(username) + "/" + value.UniqueSlug
+	}
+	if target == "" && username != "" && meta.UniqueSlug != "" {
+		target = mediumOrigin + "/@" + url.PathEscape(username) + "/" + meta.UniqueSlug
+	}
+	if target == "" {
+		target = mediumOrigin + "/p/" + postID
+	}
+	return map[string]any{"postId": value.ID, "url": target}, nil
+}
+
+func normalizeMediumTitle(value string) string {
+	value = htmlstd.UnescapeString(mediumHTMLTagPattern.ReplaceAllString(value, " "))
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func mediumTitleMatches(local, remote string) bool {
+	local = normalizeMediumTitle(local)
+	remote = normalizeMediumTitle(remote)
+	if local == "" || remote == "" {
+		return false
+	}
+	if local == remote {
+		return true
+	}
+	for _, separator := range []string{" · ", " - ", " — "} {
+		if strings.HasPrefix(remote, local+separator) {
+			return true
+		}
+	}
+	if strings.HasSuffix(remote, "…") {
+		return strings.HasPrefix(local, strings.TrimSuffix(remote, "…"))
+	}
+	return false
+}
+
+func parseMediumStoryLinks(raw string, published bool) []mediumPost {
+	posts := []mediumPost{}
+	seen := map[string]struct{}{}
+	for _, match := range mediumAnchorPattern.FindAllStringSubmatch(raw, -1) {
+		if len(match) != 3 {
+			continue
+		}
+		href := htmlstd.UnescapeString(strings.TrimSpace(match[1]))
+		title := normalizeMediumTitle(match[2])
+		if title == "" {
+			continue
+		}
+		parsed, err := url.Parse(href)
+		if err != nil {
+			continue
+		}
+		if parsed.Host != "" && !strings.HasSuffix(strings.ToLower(parsed.Host), "medium.com") {
+			continue
+		}
+		if !published {
+			candidatePath := strings.TrimSuffix(parsed.Path, "/")
+			pathMatch := mediumDraftPathPattern.FindStringSubmatch(candidatePath)
+			if len(pathMatch) != 2 {
+				continue
+			}
+			id := pathMatch[1]
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			posts = append(posts, mediumPost{
+				ID: id, Title: title, URL: mediumOrigin + "/p/" + id + "/edit",
+			})
+			continue
+		}
+		if !strings.HasPrefix(parsed.Path, "/@") {
+			continue
+		}
+		slug := strings.Trim(strings.TrimPrefix(parsed.Path, "/"), "/")
+		idMatch := mediumPostIDPattern.FindStringSubmatch(slug)
+		if len(idMatch) != 2 {
+			continue
+		}
+		id := idMatch[1]
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		posts = append(posts, mediumPost{
+			ID: id, Title: title,
+			URL: mediumOrigin + parsed.Path, Published: true,
+		})
+	}
+	return posts
+}
+
+func (c mediumClient) storyListPage(ctx context.Context, session platformSession, tab string) ([]mediumPost, error) {
+	rawURL := mediumOrigin + "/me/stories"
+	published := tab == "posts-published"
+	if tab != "" {
+		rawURL += "?tab=" + url.QueryEscape(tab)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("accept", "text/html,application/xhtml+xml")
+	req.Header.Set("cookie", cookieHeader(session.Cookies))
+	req.Header.Set("user-agent", session.UserAgent)
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("Medium stories list failed (%d)", response.StatusCode)
+	}
+	return parseMediumStoryLinks(string(raw), published), nil
+}
+
+func (c mediumClient) account(ctx context.Context, session platformSession) (string, error) {
+	query := `query BlogCTLMediumViewerQuery { viewer { id username name __typename } }`
+	payload, _ := json.Marshal([]any{map[string]any{
+		"operationName": "BlogCTLMediumViewerQuery",
+		"variables": map[string]any{},
+		"query": query,
+	}})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
+	if err != nil {
+		return "", err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return "", fmt.Errorf("Medium viewer query failed (%d)", response.StatusCode)
+	}
+	var decoded []struct {
+		Data struct {
+			Viewer struct {
+				ID       string `json:"id"`
+				Username string `json:"username"`
+			} `json:"viewer"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil || len(decoded) == 0 ||
+		strings.TrimSpace(decoded[0].Data.Viewer.ID) == "" {
+		return "", errors.New("Medium browser session is not authenticated")
+	}
+	username := strings.TrimSpace(decoded[0].Data.Viewer.Username)
+	if username == "" {
+		username = strings.TrimSpace(decoded[0].Data.Viewer.ID)
+	}
+	return username, nil
+}
+
+func (c mediumClient) listPosts(ctx context.Context, session platformSession) (string, []mediumPost, error) {
+	username, err := c.account(ctx, session)
+	if err != nil {
+		return "", nil, err
+	}
+	drafts, err := c.storyListPage(ctx, session, "")
+	if err != nil {
+		return "", nil, err
+	}
+	published, err := c.storyListPage(ctx, session, "posts-published")
+	if err != nil {
+		return "", nil, err
+	}
+	return username, append(drafts, published...), nil
 }
 
 func setMediumHeaders(req *http.Request, session platformSession, referer string) {
