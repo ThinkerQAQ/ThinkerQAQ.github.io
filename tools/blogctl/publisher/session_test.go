@@ -55,10 +55,28 @@ func TestHTTPClientForSessionReplaysCapturedHeaderOnlyToAllowedPlatformHost(t *t
 	}
 }
 
-func TestHTTPClientForSessionRejectsUnscopedCapturedHeader(t *testing.T) {
-	_, err := HTTPClientForSession(&http.Client{}, Session{RequestCookieHeader: "sid=secret"})
-	if err == nil || !strings.Contains(err.Error(), "host allowlist") {
-		t.Fatalf("error = %v", err)
+func TestHTTPClientForSessionDoesNotReplayUnscopedCapturedHeader(t *testing.T) {
+	seen := ""
+	base := &http.Client{Transport: sessionRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		seen = request.Header.Get("Cookie")
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("ok")),
+			Request:    request,
+		}, nil
+	})}
+	client, err := HTTPClientForSession(base, Session{RequestCookieHeader: "sid=secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Get("https://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if seen != "" {
+		t.Fatalf("unscoped captured cookies were replayed: %q", seen)
 	}
 }
 
