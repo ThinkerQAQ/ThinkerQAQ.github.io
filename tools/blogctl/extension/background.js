@@ -169,15 +169,15 @@ async function platformLoginStatus(definition) {
     }
     if (definition.id !== "cnblogs" && await platformHasSessionCookies(definition.id)) {
       return {
-        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
-        warning: "Login probe did not match, but browser session cookies are available.",
+        id: definition.id, label: definition.label, known: false, loggedIn: false, inferred: true,
+        warning: "Browser cookies exist, but the login probe did not verify the session.",
       };
     }
     return { id: definition.id, label: definition.label, known: true, loggedIn: false, inferred: false };
   } catch (error) {
     if (definition.id !== "cnblogs" && await platformHasSessionCookies(definition.id)) {
       return {
-        id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: true,
+        id: definition.id, label: definition.label, known: false, loggedIn: false, inferred: true,
         warning: `Login probe failed: ${errorMessage(error)}`,
       };
     }
@@ -323,10 +323,10 @@ async function capturePlatformRequestCookieHeader(platform) {
   const captured = new Promise((resolve) => { resolveCapture = resolve; });
   pendingPlatformCookieCaptures.set(expectedURL, { url: expectedURL, resolve: resolveCapture });
   try {
-    const request = fetchWithTimeout(expectedURL, { cache: "no-store" }).catch(() => null);
+    void fetchWithTimeout(expectedURL, { cache: "no-store" }).catch(() => null);
     const header = await Promise.race([
       captured,
-      Promise.all([request, delay(1500)]).then(() => ""),
+      delay(1500).then(() => ""),
     ]);
     return String(header || "");
   } finally {
