@@ -552,7 +552,7 @@ func TestCNBlogsPublishRehostsCompilerAssets(t *testing.T) {
 	}
 	_, err = adapter.PublishDraft(context.Background(), DraftRef{ID: "42"}, DraftInput{
 		Title:       "Example",
-		Markdown:     "![diagram](blogctl-asset://mermaid/asset-1)",
+		Markdown:    "![diagram](blogctl-asset://mermaid/asset-1)",
 		ContentRoot: root,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: "asset-1",
