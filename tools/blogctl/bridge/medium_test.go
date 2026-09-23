@@ -489,8 +489,6 @@ func TestBridgeNativePublisherPublishesMediumDraft(t *testing.T) {
 	}
 }
 
-
-
 func TestParseMediumStoryLinksFromCapturedLists(t *testing.T) {
 	drafts := parseMediumStoryLinks(`
 		<a href="https://medium.com/p/1e645140212b/edit?source=your_stories_outbox">TEest</a>
