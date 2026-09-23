@@ -334,6 +334,36 @@ async function capturePlatformRequestCookieHeader(platform) {
   }
 }
 
+async function capturePlatformNavigationCookieHeader(platform) {
+  const definition = PLATFORM_SESSIONS[platform];
+  const rawURL = String(definition?.sessionProbeUrl || "").trim();
+  if (!rawURL || !chrome.tabs?.create || !chrome.tabs?.remove) return "";
+
+  const url = new URL(rawURL);
+  url.searchParams.set("blogctl_cookie_probe", crypto.randomUUID());
+  const expectedURL = url.toString();
+  let resolveCapture;
+  const captured = new Promise((resolve) => { resolveCapture = resolve; });
+  pendingPlatformCookieCaptures.set(expectedURL, { url: expectedURL, resolve: resolveCapture });
+  let tabId = null;
+  try {
+    const tab = await chrome.tabs.create({ url: expectedURL, active: false });
+    tabId = tab?.id ?? null;
+    const header = await Promise.race([
+      captured,
+      delay(2500).then(() => ""),
+    ]);
+    return String(header || "");
+  } catch {
+    return "";
+  } finally {
+    pendingPlatformCookieCaptures.delete(expectedURL);
+    if (tabId !== null) {
+      await chrome.tabs.remove(tabId).catch(() => {});
+    }
+  }
+}
+
 async function selectedPlatformCookies(platform, diagnostics) {
   const definition = PLATFORM_SESSIONS[platform];
   if (!definition) throw new Error(`${platform}: browser session sync is not supported.`);
@@ -367,9 +397,12 @@ async function syncPlatformSession(platform) {
   let selected;
   const cookieQueries = [];
   const cookieStores = platform === "cnblogs" ? await cnBlogsCookieStores() : [];
-  const requestCookieHeader = platform === "cnblogs"
+  let requestCookieHeader = platform === "cnblogs"
     ? await captureCNBlogsRequestCookieHeader()
     : await capturePlatformRequestCookieHeader(platform);
+  if (platform !== "cnblogs" && !requestCookieHeader) {
+    requestCookieHeader = await capturePlatformNavigationCookieHeader(platform);
+  }
   try {
     selected = await selectedPlatformCookies(platform, cookieQueries);
   } catch (error) {
