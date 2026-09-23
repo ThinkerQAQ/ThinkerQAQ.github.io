@@ -104,7 +104,7 @@ func stripMediumXSSI(text string) string {
 }
 
 func cookieHeader(cookies map[string]string) string {
-	order := []string{"sid", "uid", "xsrf", "cf_clearance"}
+	order := []string{"sid", "uid", "rid", "xsrf", "cf_clearance", "_cfuvid"}
 	parts := make([]string, 0, len(cookies))
 	for _, name := range order {
 		if value := cookies[name]; value != "" {
@@ -114,8 +114,36 @@ func cookieHeader(cookies map[string]string) string {
 	return strings.Join(parts, "; ")
 }
 
+func mediumRequestCookieValue(header, name string) string {
+	for _, pair := range strings.Split(header, ";") {
+		key, value, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if ok && key == name {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func mediumSessionCookieHeader(session platformSession) string {
+	if value := strings.TrimSpace(session.RequestCookieHeader); value != "" {
+		return value
+	}
+	return cookieHeader(session.Cookies)
+}
+
+func mediumSessionXSRF(session platformSession) string {
+	if value := strings.TrimSpace(session.Cookies["xsrf"]); value != "" {
+		return value
+	}
+	return mediumRequestCookieValue(session.RequestCookieHeader, "xsrf")
+}
+
 func (c mediumClient) primeXSRF(ctx context.Context, session platformSession) platformSession {
-	if session.Cookies["xsrf"] != "" {
+	if xsrf := mediumSessionXSRF(session); xsrf != "" {
+		if session.Cookies == nil {
+			session.Cookies = map[string]string{}
+		}
+		session.Cookies["xsrf"] = xsrf
 		return session
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediumOrigin+"/", nil)
@@ -518,7 +546,7 @@ func (c mediumClient) paragraphCount(ctx context.Context, session platformSessio
 	if err != nil {
 		return 0, err
 	}
-	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	setMediumGraphQLHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit", "BlogCTLMediumPostBodyQuery")
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, err
@@ -571,7 +599,7 @@ func (c mediumClient) postPresentation(ctx context.Context, session platformSess
 	if err != nil {
 		return mediumPostPresentation{}, err
 	}
-	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	setMediumGraphQLHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit", "BlogCTLMediumPostPresentationQuery")
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return mediumPostPresentation{}, err
@@ -659,7 +687,7 @@ func (c mediumClient) postLinks(ctx context.Context, session platformSession, po
 	if err != nil {
 		return nil, err
 	}
-	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	setMediumGraphQLHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit", "BlogCTLMediumPostLinksQuery")
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -945,7 +973,7 @@ func (c mediumClient) storyListPage(ctx context.Context, session platformSession
 		return nil, err
 	}
 	req.Header.Set("accept", "text/html,application/xhtml+xml")
-	req.Header.Set("cookie", cookieHeader(session.Cookies))
+	req.Header.Set("cookie", mediumSessionCookieHeader(session))
 	req.Header.Set("user-agent", session.UserAgent)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
@@ -973,7 +1001,7 @@ func (c mediumClient) account(ctx context.Context, session platformSession) (str
 	if err != nil {
 		return "", err
 	}
-	setMediumHeaders(req, session, mediumOrigin+"/")
+	setMediumGraphQLHeaders(req, session, mediumOrigin+"/", "BlogCTLMediumViewerQuery")
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", err
