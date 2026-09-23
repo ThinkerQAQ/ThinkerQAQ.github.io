@@ -101,6 +101,12 @@ func (s Service) CreateOrUpdateDraftInput(
 			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CNBlogs account", false)
 		}
 	}
+	if platform == "csdn" {
+		csdn := adapter.(*csdnAdapter)
+		if state.Account != "" && !strings.EqualFold(state.Account, csdn.userID) {
+			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CSDN account", false)
+		}
+	}
 	err = run(adapter)
 	if err != nil && retryableAuthError(err) {
 		adapter, refreshErr := s.authenticatedAdapter(ctx, platform, session)
@@ -130,6 +136,22 @@ func (s Service) CreateOrUpdateDraftInput(
 		}
 		if found {
 			binding.Account = adapter.(*cnBlogsAdapter).username
+			if binding.Source == "" {
+				binding.Source = "blogctl"
+			}
+			binding.VerifiedAt = verifiedAt(s.now())
+			if err := SavePublicationBinding(contentRoot, binding); err != nil {
+				return DraftResult{}, err
+			}
+		}
+	}
+	if platform == "csdn" {
+		binding, found, loadErr := LoadPublicationBinding(contentRoot, slug, platform)
+		if loadErr != nil {
+			return DraftResult{}, loadErr
+		}
+		if found {
+			binding.Account = adapter.(*csdnAdapter).userID
 			if binding.Source == "" {
 				binding.Source = "blogctl"
 			}
@@ -184,6 +206,9 @@ func (s Service) PublishDraftInput(
 	}
 	if platform == "cnblogs" && state.Account != "" && !strings.EqualFold(state.Account, adapter.(*cnBlogsAdapter).username) {
 		return PublishResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CNBlogs account", false)
+	}
+	if platform == "csdn" && state.Account != "" && !strings.EqualFold(state.Account, adapter.(*csdnAdapter).userID) {
+		return PublishResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CSDN account", false)
 	}
 	result, err := adapter.PublishDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
 	if err != nil && retryableAuthError(err) {
