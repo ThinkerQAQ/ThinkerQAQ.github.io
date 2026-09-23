@@ -299,6 +299,16 @@ async function selectedPlatformCookies(platform, diagnostics) {
   return selectBrowserSessionCookies(definition, batches);
 }
 
+function cookieQuerySummary(diagnostics = []) {
+  return diagnostics
+    .filter((item) => item && item.target)
+    .map((item) => {
+      const names = Array.isArray(item.names) && item.names.length ? item.names.join(",") : "none";
+      return `${item.target}[${names}]`;
+    })
+    .join("; ");
+}
+
 async function platformHasSessionCookies(platform) {
   if (!PLATFORM_SESSIONS[platform]) return false;
   try {
@@ -317,10 +327,15 @@ async function syncPlatformSession(platform) {
   const cookieStores = platform === "cnblogs" ? await cnBlogsCookieStores() : [];
   const requestCookieHeader = platform === "cnblogs" ? await captureCNBlogsRequestCookieHeader() : "";
   try {
-    selected = await selectedPlatformCookies(platform, platform === "cnblogs" ? cookieQueries : undefined);
+    selected = await selectedPlatformCookies(platform, cookieQueries);
   } catch (error) {
-    if (platform === "cnblogs" && errorMessage(error) === "no browser cookies were available") selected = [];
-    else throw new Error(`${platform}: ${errorMessage(error)}. Sign in first.`);
+    if (platform === "cnblogs" && errorMessage(error) === "no browser cookies were available") {
+      selected = [];
+    } else {
+      const summary = cookieQuerySummary(cookieQueries);
+      const detail = summary ? ` Cookie keys seen: ${summary}.` : "";
+      throw new Error(`${platform}: ${errorMessage(error)}.${detail} Sign in first.`);
+    }
   }
 
   return fetchJSON(
