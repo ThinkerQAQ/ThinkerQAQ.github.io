@@ -458,15 +458,31 @@ export function buildMediumDraft(article, {
     siteOrigin: SITE_ORIGIN,
   });
   const { blocks, warnings } = parseMediumBlocks(compiled.markdown);
-  const deltas = blocks.map((block, index) => ({
-    type: 1,
-    index,
-    paragraph: {
-      type: block.paragraphType,
-      text: block.text,
-      markups: block.markups,
-    },
-  }));
+  const deltas = blocks.map((block, index) => {
+    if (block.kind === "image") {
+      return {
+        type: 1,
+        index,
+        paragraph: {
+          type: 4,
+          text: "",
+          markups: [],
+          layout: 1,
+          metadata: {},
+        },
+        image: { url: block.url, alt: block.alt || "" },
+      };
+    }
+    return {
+      type: 1,
+      index,
+      paragraph: {
+        type: block.paragraphType,
+        text: block.text,
+        markups: block.markups,
+      },
+    };
+  });
   const footer = footerData(article, canonicalUrl, publishingConfig);
   if (footer) {
     deltas.push({
@@ -484,7 +500,7 @@ export function buildMediumDraft(article, {
     deltas,
     warnings,
     publishingAssets: compiled.assets,
-    requiresHtmlFallback: blocks.some((block) => block.kind === "image"),
+    requiresHtmlFallback: false,
   };
 }
 
