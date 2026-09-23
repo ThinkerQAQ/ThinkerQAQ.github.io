@@ -474,6 +474,21 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 	return request, nil
 }
 
+func numberValue(value any) float64 {
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case float32:
+		return float64(typed)
+	case int:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	default:
+		return 0
+	}
+}
+
 func newJobID() string {
 	value := make([]byte, 8)
 	if _, err := rand.Read(value); err == nil {
@@ -607,26 +622,22 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
-	if state.DraftURL != "" {
-		if state.DraftHash == request.Compiled.ContentHash {
-			return blogapp.NativeDraftResult{
-				Result: "skipped", URL: state.DraftURL,
-				Message: "Medium draft is unchanged; keeping the existing draft.",
-			}, nil
-		}
-		return blogapp.NativeDraftResult{}, errors.New("Medium draft already exists and changed, but updating an existing Medium draft is not verified yet")
+	targetID := strings.TrimSpace(state.RemoteDraftID)
+	targetURL := strings.TrimSpace(state.DraftURL)
+	if targetID == "" && strings.TrimSpace(state.PublishedRemoteID) != "" {
+		targetID = strings.TrimSpace(state.PublishedRemoteID)
+		targetURL = mediumOrigin + "/p/" + targetID + "/edit"
+	}
+	if targetID != "" && state.DraftHash == request.Compiled.ContentHash {
+		return blogapp.NativeDraftResult{
+			Result: "skipped", URL: targetURL,
+			Message: "Medium draft is unchanged; keeping the existing draft.",
+		}, nil
 	}
 
 	fallbackPath, err := writeMediumFallback(request.ContentRoot, request.Compiled)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
-	}
-	if request.Compiled.RequiresFallback {
-		message := "Medium live draft cannot safely insert body images yet."
-		if fallbackPath != "" {
-			message += " Copy/paste fallback generated at " + fallbackPath
-		}
-		return blogapp.NativeDraftResult{}, errors.New(message)
 	}
 	if len(request.Compiled.Payload) == 0 {
 		return blogapp.NativeDraftResult{}, errors.New("compiled Medium article is missing transport payload")
@@ -636,15 +647,30 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	if err := json.Unmarshal(request.Compiled.Payload, &draft); err != nil {
 		return blogapp.NativeDraftResult{}, fmt.Errorf("invalid compiled Medium payload: %w", err)
 	}
-	result, err := (mediumClient{httpClient: httpClient}).createDraft(ctx, mediumPlatformSession(session), draft)
+	input := draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config)
+	client := mediumClient{httpClient: httpClient}
+	var result map[string]any
+	if targetID == "" {
+		result, err = client.createDraft(ctx, mediumPlatformSession(session), draft, input)
+	} else {
+		result, err = client.updateDraft(ctx, mediumPlatformSession(session), targetID, draft, input)
+	}
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
+
 	postID, _ := result["postId"].(string)
 	draftURL, _ := result["draftUrl"].(string)
 	if strings.TrimSpace(postID) == "" || strings.TrimSpace(draftURL) == "" {
 		return blogapp.NativeDraftResult{}, errors.New("Medium draft response is missing post id or draft URL")
 	}
+	created, _ := result["created"].(bool)
+	updated, _ := result["updated"].(bool)
+	if !created && !updated {
+		created = targetID == ""
+		updated = targetID != ""
+	}
+
 	pending := []string{}
 	if value, _ := result["canonicalPending"].(bool); value {
 		pending = append(pending, "canonical")
@@ -661,7 +687,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 		request.Article,
 		"medium",
 		request.Compiled.ContentHash,
-		publisher.DraftResult{ID: postID, URL: draftURL, Created: true},
+		publisher.DraftResult{ID: postID, URL: draftURL, Created: created, Updated: updated},
 		p.server.now(),
 	); err != nil {
 		return blogapp.NativeDraftResult{}, err
@@ -679,9 +705,21 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 			pendingLabels = append(pendingLabels, field)
 		}
 	}
+	action := "created"
+	resultName := "draft-created"
+	if updated {
+		action = "updated"
+		resultName = "updated"
+	}
 	message := ""
 	if len(pendingLabels) > 0 {
-		message = "Medium draft created; pending editor fields: " + strings.Join(pendingLabels, ", ")
+		message = "Medium draft " + action + "; pending editor fields: " + strings.Join(pendingLabels, ", ")
+	}
+	if fallbackCount := int(numberValue(result["imageFallbacks"])); fallbackCount > 0 {
+		if message != "" {
+			message += ". "
+		}
+		message += fmt.Sprintf("%d image(s) used R2 fallback links after Medium upload failed", fallbackCount)
 	}
 	if fallbackPath != "" {
 		if message != "" {
@@ -689,7 +727,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 		}
 		message += "Fallback saved to " + fallbackPath
 	}
-	return blogapp.NativeDraftResult{Result: "draft-created", URL: draftURL, Message: message}, nil
+	return blogapp.NativeDraftResult{Result: resultName, URL: draftURL, Message: message}, nil
 }
 
 func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request blogapp.NativeDraftRequest) (blogapp.NativeDraftResult, error) {
@@ -724,6 +762,44 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 	session, httpClient, err := p.publisherSession(request.Platform)
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
+	}
+	if request.Platform == "medium" {
+		state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
+		if err != nil {
+			return blogapp.NativePublishResult{}, err
+		}
+		postID := strings.TrimSpace(state.RemoteDraftID)
+		if postID == "" {
+			postID = strings.TrimSpace(state.PublishedRemoteID)
+		}
+		if postID == "" {
+			return blogapp.NativePublishResult{}, errors.New("Medium remote draft id is missing; save the article first")
+		}
+		if state.DraftHash == "" || state.DraftHash != request.Compiled.ContentHash {
+			return blogapp.NativePublishResult{}, errors.New("Medium source changed after the remote draft was prepared; save the draft again before publishing")
+		}
+		result, err := (mediumClient{httpClient: httpClient}).publishDraft(
+			ctx, mediumPlatformSession(session), postID, request.Compiled.Title, request.Compiled.Description,
+		)
+		if err != nil {
+			return blogapp.NativePublishResult{}, err
+		}
+		publishedID, _ := result["postId"].(string)
+		publishedURL, _ := result["url"].(string)
+		if strings.TrimSpace(publishedURL) == "" {
+			return blogapp.NativePublishResult{}, errors.New("Medium publish response is missing article URL")
+		}
+		if err := publisher.SavePublicationPublishResult(
+			request.ContentRoot,
+			request.Article,
+			"medium",
+			request.Compiled.ContentHash,
+			publisher.PublishResult{ID: publishedID, URL: publishedURL},
+			p.server.now(),
+		); err != nil {
+			return blogapp.NativePublishResult{}, err
+		}
+		return blogapp.NativePublishResult{Result: "published", URL: publishedURL}, nil
 	}
 	service := publisher.Service{HTTPClient: httpClient}
 	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config))
