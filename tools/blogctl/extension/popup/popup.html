@@ -20,34 +20,53 @@
     </header>
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
-      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="sync">同步发布</button>
+      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">绑定</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新与保存</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">发布配置</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">工具与配置</button>
     </nav>
 
-    <section class="panel active" role="tabpanel" data-panel="sync">
+    <section class="panel active" role="tabpanel" data-panel="binding">
       <section class="status-card">
+        <div class="section-title">绑定</div>
+        <p class="card-hint">只建立本地文章与远端草稿／文章的关系，不创建同步任务。</p>
         <label class="field"><span>文章</span><input id="articlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="articleOptions" placeholder="输入标题或 slug 搜索；留空列出全部" autocomplete="off"></label>
         <div id="articleOptions" class="article-options" role="listbox" hidden></div>
         <p id="articleMeta" class="card-hint"></p>
       </section>
 
       <section class="status-card">
-        <div class="status-row"><div class="section-title">发布平台</div><button id="refreshArticleMatches" class="secondary compact" type="button" disabled>刷新文章关联</button></div>
+        <div class="status-row"><div class="section-title">远端关联</div><button id="refreshArticleMatches" class="secondary compact" type="button" disabled>刷新文章关联</button></div>
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
-
-      <div class="sync-actions"><button id="startSync" class="primary" type="button" disabled>创建／更新</button></div>
       <p id="syncMessage" class="message" role="status"></p>
+    </section>
 
+    <section class="panel" role="tabpanel" data-panel="drafts">
+      <section class="status-card">
+        <div class="section-title">更新与保存</div>
+        <p class="card-hint">选择文章和平台。已有草稿关系时更新，没有时创建草稿；操作会创建任务并轮询结果。</p>
+        <label class="field"><span>文章</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="输入标题或 slug 搜索；留空列出全部" autocomplete="off"></label>
+        <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
+        <p id="draftArticleMeta" class="card-hint"></p>
+      </section>
+
+      <section class="status-card">
+        <div class="section-title">平台</div>
+        <div id="draftPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
+      </section>
+
+      <div class="sync-actions"><button id="saveDrafts" class="primary" type="button" disabled>更新／保存</button></div>
+      <div id="draftRunStatus" class="workflow-status" hidden></div>
+      <p id="draftsMessage" class="message" role="status"></p>
     </section>
 
     <section class="panel" role="tabpanel" data-panel="publications">
       <section class="status-card">
         <div class="section-title">发布</div>
-        <p class="card-hint">集中查看 BlogCTL 已记录的平台草稿与公开文章。草稿可在这里确认发布；刷新只读取本地发布状态，不会批量访问各平台。</p>
+        <p class="card-hint">选择已经保存好的草稿并发布。发布会创建独立任务；成功后可直接打开对应文章。</p>
         <label class="field"><span>搜索</span><input id="publicationQuery" type="search" placeholder="文章标题、slug、平台或远端 ID" autocomplete="off"></label>
         <div class="publication-filters">
           <label class="field"><span>平台</span><select id="publicationPlatform"><option value="">全部平台</option></select></label>
@@ -55,6 +74,8 @@
         </div>
         <p id="publicationSummary" class="card-hint"></p>
         <div id="publicationList" class="publication-list"><div class="platform-loading">正在读取发布记录…</div></div>
+        <div class="sync-actions"><button id="publishSelected" class="primary" type="button" disabled>发布所选</button></div>
+        <div id="publicationRunStatus" class="workflow-status" hidden></div>
       </section>
       <p id="publicationsMessage" class="message" role="status"></p>
     </section>
@@ -126,6 +147,7 @@
   <script src="sync-model.js"></script>
   <script src="sync-state.js"></script>
   <script src="sync.js"></script>
+  <script src="drafts.js"></script>
   <script src="publications.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
