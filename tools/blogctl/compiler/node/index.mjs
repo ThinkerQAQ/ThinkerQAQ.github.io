@@ -25,7 +25,7 @@ import {
 } from "./compiler.mjs";
 
 const NATIVE_IMAGE_UPLOAD_PLATFORMS = new Set([
-  "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao", "medium",
+  "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao", "devto", "medium",
 ]);
 
 function internalAssetRef(asset) {
