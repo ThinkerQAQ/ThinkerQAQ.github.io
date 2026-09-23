@@ -555,6 +555,23 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 	}
 }
 
+var platformCookieHostSuffixes = map[string][]string{
+	"cnblogs":      {"cnblogs.com"},
+	"juejin":       {"juejin.cn"},
+	"csdn":         {"csdn.net"},
+	"segmentfault": {"segmentfault.com"},
+	"zhihu":        {"zhihu.com"},
+	"51cto":        {"51cto.com"},
+	"oschina":      {"oschina.net"},
+	"toutiao":      {"toutiao.com"},
+	"devto":        {"dev.to"},
+	"medium":       {"medium.com"},
+}
+
+func publisherCookieHostSuffixes(platform string) []string {
+	return append([]string{}, platformCookieHostSuffixes[platform]...)
+}
+
 func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Session, *http.Client, error) {
 	p.server.mu.Lock()
 	if platform == "devto" {
@@ -573,6 +590,7 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		if ok {
 			result.UserAgent = session.UserAgent
 			result.RequestCookieHeader = session.RequestCookieHeader
+			result.CookieHostSuffixes = publisherCookieHostSuffixes(platform)
 			result.Cookies = make([]publisher.BrowserCookie, 0, len(session.BrowserCookies))
 			for _, cookie := range session.BrowserCookies {
 				result.Cookies = append(result.Cookies, publisher.BrowserCookie{
@@ -603,7 +621,10 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 			SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
 		})
 	}
-	return publisher.Session{Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader}, httpClient, nil
+	return publisher.Session{
+		Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader,
+		CookieHostSuffixes: publisherCookieHostSuffixes(platform),
+	}, httpClient, nil
 }
 
 func mediumFallbackPath(contentRoot, slug string) (string, error) {
@@ -638,7 +659,10 @@ func mediumPlatformSession(session publisher.Session) platformSession {
 			cookies[cookie.Name] = cookie.Value
 		}
 	}
-	return platformSession{Cookies: cookies, UserAgent: session.UserAgent}
+	return platformSession{
+		Cookies: cookies, UserAgent: session.UserAgent,
+		RequestCookieHeader: session.RequestCookieHeader,
+	}
 }
 
 func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, request blogapp.NativeDraftRequest, session publisher.Session, httpClient *http.Client) (blogapp.NativeDraftResult, error) {
