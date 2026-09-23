@@ -213,6 +213,16 @@ func (c *cto51Adapter) prepareMarkdown(ctx context.Context, input DraftInput) (s
 	}, c.uploadImage)
 }
 
+func cto51AppendImageURLs(values url.Values, content string) {
+	for _, source := range imageSources(content) {
+		parsed, err := url.Parse(strings.TrimSpace(source))
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+			continue
+		}
+		values.Add("img_urls[]", source)
+	}
+}
+
 func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input DraftInput) (url.Values, error) {
 	if err := c.ensureAuth(ctx); err != nil {
 		return nil, err
@@ -246,6 +256,7 @@ func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input Draf
 	values.Set("raffle", "")
 	values.Set("orig", "")
 	values.Set("_csrf", c.csrf)
+	cto51AppendImageURLs(values, content)
 	return values, nil
 }
 
@@ -310,7 +321,10 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if err := c.ensureAuth(ctx); err != nil {
 		return PublishResult{}, err
 	}
-	content := htmlFor(input)
+	content, err := c.prepareMarkdown(ctx, input)
+	if err != nil {
+		return PublishResult{}, err
+	}
 	values := url.Values{}
 	values.Set("title", input.Title)
 	values.Set("content", content)
@@ -319,7 +333,6 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values.Set("tag", truncateRunes(input.Title, 20))
 	values.Set("abstract", truncateRunes(input.Description, 200))
 	values.Set("banner_type", "0")
-	values.Set("img_urls", "[]")
 	values.Set("blog_type", "1")
 	values.Set("copy_code", "1")
 	values.Set("is_hide", "0")
@@ -329,6 +342,7 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values.Set("work_id", "")
 	values.Set("_csrf", c.csrf)
 	values.Set("check", "1")
+	cto51AppendImageURLs(values, content)
 
 	req, err := c.request(ctx, http.MethodPost, cto51Origin+"/blogger/publish", strings.NewReader(values.Encode()))
 	if err != nil {
