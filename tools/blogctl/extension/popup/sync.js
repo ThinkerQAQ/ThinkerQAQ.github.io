@@ -112,7 +112,7 @@
       row.className = "article-match-row";
       row.textContent = `${item.localOnly ? "本地记录 · " : item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}${item.bound && item.bindingState && item.bindingState !== (item.published ? "published" : "draft") ? " · 远端状态已变化" : ""}`;
 
-      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|dev\.to)\//.test(item.url)) {
+      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|dev\.to|segmentfault\.com)\//.test(item.url)) {
         const link = document.createElement("a");
         link.textContent = "查看文章";
         link.href = item.url;
@@ -121,14 +121,14 @@
         row.append(" · ", link);
       }
 
-      if (platform.id === "cnblogs") {
+      if (platform.id === "cnblogs" || platform.id === "segmentfault") {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "secondary";
         const stateChanged = item.bound && item.bindingState !== (item.published ? "published" : "draft");
         button.textContent = stateChanged ? "更新绑定状态" : item.bound ? "解除绑定" : "验证并绑定";
         button.disabled = Boolean(item.unverified && stateChanged);
-        button.addEventListener("click", () => changeBinding(item, button));
+        button.addEventListener("click", () => changeBinding(platform.id, item, button));
         row.append(button);
       }
       result.append(row);
@@ -247,28 +247,33 @@
     renderPlatforms();
   }
 
-  async function changeBinding(item, button) {
+  async function changeBinding(platformID, item, button) {
     const article = state.selectedSlug;
     const stateName = item.published ? "published" : "draft";
     const stateChanged = item.bound && item.bindingState !== stateName;
     if (item.bound && !stateChanged && !confirm(`只解除本地${item.published ? "已发布文章" : "草稿"}绑定，远端文章不会删除。继续吗？`)) return;
 
-    const existing = state.cnblogsBindings.find((binding) => binding.state === stateName);
+    const bindings = platformID === "cnblogs"
+      ? state.cnblogsBindings
+      : (state.matches[platformID]?.bindings ?? []);
+    const existing = bindings.find((binding) => binding.state === stateName);
     if ((!item.bound || stateChanged) && existing && existing.postId !== item.id &&
         !confirm(`将替换当前${item.published ? "已发布文章" : "草稿"}绑定。继续吗？`)) return;
 
     button.disabled = true;
     BlogCTLPopup.setMessage(message, item.bound && !stateChanged ? "正在解除本地绑定…" : "正在验证远端文章并绑定…");
     try {
-      await BlogCTLPopup.send(item.bound && !stateChanged ? "blogctl.cnblogs.unbind" : "blogctl.cnblogs.bind", {
+      const action = item.bound && !stateChanged ? "unbind" : "bind";
+      const payload = {
         article,
         state: item.bound && !stateChanged ? item.bindingState : stateName,
         postId: item.id,
-        reference: item.id,
         replace: Boolean(existing),
-      });
+      };
+      if (platformID === "cnblogs") payload.reference = item.id;
+      await BlogCTLPopup.send(`blogctl.${platformID}.${action}`, payload);
       if (article !== state.selectedSlug) return;
-      await loadSyncBinding();
+      if (platformID === "cnblogs") await loadSyncBinding();
       await refreshArticleMatches();
       BlogCTLPopup.setMessage(message, item.bound && !stateChanged ? "本地绑定已解除。" : "绑定已保存。", "ok");
     } catch (error) {
