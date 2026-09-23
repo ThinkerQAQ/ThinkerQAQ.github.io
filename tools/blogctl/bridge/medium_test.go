@@ -549,6 +549,43 @@ func TestParseMediumStoryLinksFromCapturedLists(t *testing.T) {
 	}
 }
 
+func TestMediumListPostsUsesStoriesPagesWithoutViewerGraphQL(t *testing.T) {
+	calls := []string{}
+	client := &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		calls = append(calls, request.URL.RequestURI())
+		if request.URL.Path != "/me/stories" {
+			t.Fatalf("unexpected Medium lookup request: %s", request.URL.String())
+		}
+		if request.URL.Query().Get("tab") == "posts-published" {
+			return mediumResponse(request, http.StatusOK, `
+				<a href="https://medium.com/@ThinkerQAQ">ThinkerQAQ</a>
+				<a href="https://medium.com/@ThinkerQAQ/example-bce5e98fe815">Published title</a>
+			`, nil), nil
+		}
+		return mediumResponse(request, http.StatusOK, `
+			<a href="https://medium.com/@ThinkerQAQ">ThinkerQAQ</a>
+			<a href="https://medium.com/p/1e645140212b/edit?source=your_stories_outbox">Draft title</a>
+		`, nil), nil
+	})}
+
+	account, posts, err := (mediumClient{httpClient: client}).listPosts(context.Background(), platformSession{
+		RequestCookieHeader: "sid=session",
+		UserAgent:           "UA",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if account != "ThinkerQAQ" {
+		t.Fatalf("account = %q", account)
+	}
+	if len(posts) != 2 || posts[0].ID != "1e645140212b" || posts[1].ID != "bce5e98fe815" {
+		t.Fatalf("posts = %#v", posts)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %#v", calls)
+	}
+}
+
 func TestMediumTitleMatchesPublishedListTruncation(t *testing.T) {
 	local := "Why count++ Breaks Under Concurrency: Atomicity, Visibility & Ordering — Concurrency Programming (1)"
 	remote := "Why count++ Breaks Under Concurrency: Atomicity, Visibility & Ordering — Concurrency Programming…"
