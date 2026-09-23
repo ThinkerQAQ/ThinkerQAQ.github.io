@@ -20,8 +20,8 @@ import (
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
-	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
+	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
