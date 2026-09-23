@@ -7,9 +7,8 @@
     records: [],
     articles: [],
     platforms: [],
-    reconciliations: {},
-    reconciling: new Set(),
     resolvingPending: new Set(),
+    publishing: new Set(),
   };
   let queryInput, platformSelect, statusSelect, summary, list, message;
 
@@ -25,16 +24,6 @@
       case "tags": return "Tags";
       case "coverImage": return "封面图";
       default: return field;
-    }
-  }
-
-  function reconciliationPresentation(reconciliation) {
-    switch (reconciliation?.status) {
-      case "remote-draft": return { kind: "ok", label: "远端草稿" };
-      case "remote-published": return { kind: "ok", label: "远端已发布" };
-      case "remote-state-changed": return { kind: "error", label: "远端有变化" };
-      case "remote-missing": return { kind: "error", label: "远端缺失" };
-      default: return { kind: "unknown", label: "仅本地记录" };
     }
   }
 
@@ -74,27 +63,6 @@
     container.append(link);
   }
 
-  async function reconcileRecord(record) {
-    const key = recordKey(record);
-    if (state.reconciling.has(key)) return;
-    state.reconciling.add(key);
-    render();
-    BlogCTLPopup.setMessage(message, `正在核验 ${labelForPlatform(record.platform)} 远端状态…`);
-    try {
-      const response = await BlogCTLPopup.send("blogctl.publication.reconcile", {
-        article: record.article,
-        platform: record.platform,
-      });
-      if (response.reconciliation) state.reconciliations[key] = response.reconciliation;
-      BlogCTLPopup.setMessage(message, "远端核验完成。", "ok");
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, `远端核验失败：${BlogCTLPopup.errorMessage(error)}`, "error");
-    } finally {
-      state.reconciling.delete(key);
-      render();
-    }
-  }
-
   async function resolvePending(record) {
     const key = recordKey(record);
     if (state.resolvingPending.has(key)) return;
@@ -113,6 +81,38 @@
       BlogCTLPopup.setMessage(message, `更新待办状态失败：${BlogCTLPopup.errorMessage(error)}`, "error");
     } finally {
       state.resolvingPending.delete(key);
+      render();
+    }
+  }
+
+  function canPublish(record) {
+    return !record.publishedUrl
+      && Boolean(record.remoteId)
+      && platformProfile(record.platform).capabilities?.explicitPublish === true;
+  }
+
+  async function publishRecord(record) {
+    const key = recordKey(record);
+    if (state.publishing.has(key)) return;
+    state.publishing.add(key);
+    render();
+    BlogCTLPopup.setMessage(message, `正在发布 ${labelForPlatform(record.platform)} 草稿…`);
+    try {
+      const response = await BlogCTLPopup.send("blogctl.job.start", {
+        request: {
+          article: record.article,
+          platforms: [record.platform],
+          dryRun: false,
+          usePlatformChangedOnly: false,
+          draft: false,
+          operation: "publish",
+        },
+      });
+      BlogCTLPopup.setMessage(message, `发布任务 ${response.job?.id || ""} 已启动，可在“任务”页查看进度。`, "ok");
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, `发布失败：${BlogCTLPopup.errorMessage(error)}`, "error");
+    } finally {
+      state.publishing.delete(key);
       render();
     }
   }
@@ -154,42 +154,16 @@
       appendLink(links, "打开已发布文章", record.publishedUrl);
 
       const key = recordKey(record);
-      const profile = platformProfile(record.platform);
-      const reconciliation = state.reconciliations[key];
-      if (profile.capabilities?.remoteList === true) {
-        const reconcile = document.createElement("button");
-        reconcile.type = "button";
-        reconcile.className = "secondary compact";
-        reconcile.textContent = reconciliation ? "重新核验" : "远端核验";
-        reconcile.disabled = state.reconciling.has(key);
-        reconcile.addEventListener("click", () => reconcileRecord(record));
-        links.append(reconcile);
+      if (canPublish(record)) {
+        const publish = document.createElement("button");
+        publish.type = "button";
+        publish.className = "primary inline-primary compact";
+        publish.textContent = "发布";
+        publish.disabled = state.publishing.has(key);
+        publish.addEventListener("click", () => publishRecord(record));
+        links.append(publish);
       }
       if (links.childElementCount) card.append(links);
-
-      if (reconciliation) {
-        const verification = document.createElement("div");
-        verification.className = "job-platform-main";
-        const badge = document.createElement("span");
-        const presentation = reconciliationPresentation(reconciliation);
-        BlogCTLPopup.setStatus(badge, presentation.kind, presentation.label);
-        verification.append(badge);
-        const detail = document.createElement("small");
-        detail.className = reconciliation.status === "remote-state-changed" || reconciliation.status === "remote-missing"
-          ? "job-platform-message error-text"
-          : "job-platform-message";
-        detail.textContent = [
-          reconciliation.message || "",
-          reconciliation.verifiedAt ? `核验于 ${BlogCTLPopup.formatTime(reconciliation.verifiedAt)}` : "",
-        ].filter(Boolean).join(" · ");
-        if (detail.textContent) verification.append(detail);
-        card.append(verification);
-      } else if (profile.capabilities?.remoteList !== true) {
-        const localOnly = document.createElement("small");
-        localOnly.className = "job-platform-message";
-        localOnly.textContent = "仅本地记录 · 当前平台尚未接入稳定的远端核验接口";
-        card.append(localOnly);
-      }
 
       if ((record.pendingFields ?? []).length > 0) {
         const pendingRow = document.createElement("div");
@@ -248,9 +222,8 @@
       state.records = publications.records ?? [];
       state.articles = articles.articles ?? [];
       state.platforms = publishing.platforms ?? [];
-      state.reconciliations = {};
-      state.reconciling.clear();
       state.resolvingPending.clear();
+      state.publishing.clear();
       renderPlatformOptions();
       render();
       await BlogCTLPopup.refreshBridgeIndicator();
