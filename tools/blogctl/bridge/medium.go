@@ -607,6 +607,117 @@ func (c mediumClient) postPresentation(ctx context.Context, session platformSess
 	}, nil
 }
 
+func mediumCanonicalComparable(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	if strings.EqualFold(parsed.Host, "medium.com") && parsed.Path == "/r/" {
+		if target := strings.TrimSpace(parsed.Query().Get("url")); target != "" {
+			parsed, err = url.Parse(target)
+			if err != nil || parsed.Host == "" {
+				return ""
+			}
+		}
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return strings.TrimRight(strings.ToLower(parsed.Scheme+"://"+parsed.Host), "/") + strings.TrimRight(parsed.EscapedPath(), "/")
+}
+
+func mediumCanonicalMatches(candidate, canonicalURL string) bool {
+	return mediumCanonicalComparable(candidate) != "" &&
+		mediumCanonicalComparable(candidate) == mediumCanonicalComparable(canonicalURL)
+}
+
+func (c mediumClient) postLinks(ctx context.Context, session platformSession, postID string) ([]string, error) {
+	query := `query BlogCTLMediumPostLinksQuery($postId: ID!) {
+  postResult(id: $postId) {
+    __typename
+    ... on Post {
+      id
+      content {
+        bodyModel {
+          paragraphs {
+            markups { href __typename }
+            __typename
+          }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+  }
+}`
+	payload, _ := json.Marshal([]any{map[string]any{
+		"operationName": "BlogCTLMediumPostLinksQuery",
+		"variables": map[string]any{"postId": postID},
+		"query": query,
+	}})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	setMediumHeaders(req, session, mediumOrigin+"/p/"+postID+"/edit")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("Medium post links query failed (%d)", response.StatusCode)
+	}
+	var decoded []struct {
+		Data struct {
+			PostResult struct {
+				ID      string `json:"id"`
+				Content struct {
+					BodyModel struct {
+						Paragraphs []struct {
+							Markups []struct {
+								Href string `json:"href"`
+							} `json:"markups"`
+						} `json:"paragraphs"`
+					} `json:"bodyModel"`
+				} `json:"content"`
+			} `json:"postResult"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), &decoded); err != nil || len(decoded) == 0 {
+		return nil, errors.New("Medium post links query returned invalid JSON")
+	}
+	if strings.TrimSpace(decoded[0].Data.PostResult.ID) == "" {
+		return nil, errors.New("Medium post links are unavailable")
+	}
+	links := []string{}
+	for _, paragraph := range decoded[0].Data.PostResult.Content.BodyModel.Paragraphs {
+		for _, markup := range paragraph.Markups {
+			if href := strings.TrimSpace(markup.Href); href != "" {
+				links = append(links, href)
+			}
+		}
+	}
+	return links, nil
+}
+
+func (c mediumClient) postReferencesCanonical(ctx context.Context, session platformSession, postID, canonicalURL string) (bool, error) {
+	links, err := c.postLinks(ctx, session, postID)
+	if err != nil {
+		return false, err
+	}
+	for _, link := range links {
+		if mediumCanonicalMatches(link, canonicalURL) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (c mediumClient) updateDraft(
 	ctx context.Context,
 	session platformSession,
