@@ -105,6 +105,8 @@ func (s *Server) handleSegmentFaultBindingPut(response http.ResponseWriter, requ
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
 	var body struct {
 		PostID  string `json:"postId"`
 		State   string `json:"state"`
@@ -178,6 +180,8 @@ func (s *Server) handleSegmentFaultBindingDelete(response http.ResponseWriter, r
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
 	var body struct {
 		State  string `json:"state"`
 		PostID string `json:"postId"`

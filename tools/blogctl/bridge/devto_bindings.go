@@ -99,6 +99,8 @@ func (s *Server) handleDevtoBindingPut(response http.ResponseWriter, request *ht
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
 	var body struct {
 		PostID  any    `json:"postId"`
 		State   string `json:"state"`
@@ -164,6 +166,8 @@ func (s *Server) handleDevtoBindingDelete(response http.ResponseWriter, request 
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
 	var body struct {
 		State  string `json:"state"`
 		PostID any    `json:"postId"`

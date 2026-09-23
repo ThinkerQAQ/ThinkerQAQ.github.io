@@ -105,6 +105,8 @@ func (s *Server) handleZhihuBindingPut(response http.ResponseWriter, request *ht
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
 	var body struct {
 		PostID  string `json:"postId"`
 		State   string `json:"state"`
@@ -176,6 +178,8 @@ func (s *Server) handleZhihuBindingDelete(response http.ResponseWriter, request 
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+	s.distributionMu.Lock()
+	defer s.distributionMu.Unlock()
 	var body struct {
 		State  string `json:"state"`
 		PostID string `json:"postId"`
