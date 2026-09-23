@@ -313,15 +313,19 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 		"articles": map[string]any{
 			"example": map[string]any{"platforms": map[string]any{
 				"juejin": map[string]any{
-					"contentHash": "new", "draftHash": "old",
-					"remoteDraftId": "missing", "draftUrl": "https://juejin.cn/editor/drafts/missing",
-					"language": "zh-CN",
+					"contentHash": "new",
+					"language":    "zh-CN",
 				},
 			}},
 		},
 	}
 	payload, _ := json.Marshal(manifest)
 	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationDraftResult(root, "example", "juejin", "old", DraftResult{
+		ID: "missing", URL: "https://juejin.cn/editor/drafts/missing", Created: true,
+	}, time.Date(2026, 9, 18, 4, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -383,9 +387,9 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	if err := json.Unmarshal(rawManifest, &saved); err != nil {
 		t.Fatal(err)
 	}
-	legacyState := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
-	if stringValue(objectValue(legacyState)["remoteDraftId"]) != "missing" {
-		t.Fatalf("legacy manifest was unexpectedly mutated: %#v", objectValue(legacyState))
+	generatedState := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
+	if stringValue(objectValue(generatedState)["remoteDraftId"]) != "" || stringValue(objectValue(generatedState)["draftUrl"]) != "" {
+		t.Fatalf("generated manifest unexpectedly gained durable remote state: %#v", objectValue(generatedState))
 	}
 }
 
@@ -403,15 +407,19 @@ func TestServiceSkipsUnchangedDraftWithoutNetwork(t *testing.T) {
 		"articles": map[string]any{
 			"example": map[string]any{"platforms": map[string]any{
 				"juejin": map[string]any{
-					"contentHash": "same", "draftHash": "same",
-					"remoteDraftId": "draft-1", "draftUrl": "https://juejin.cn/editor/drafts/draft-1",
-					"language": "zh-CN",
+					"contentHash": "same",
+					"language":    "zh-CN",
 				},
 			}},
 		},
 	}
 	payload, _ := json.Marshal(manifest)
 	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SavePublicationDraftResult(root, "example", "juejin", "same", DraftResult{
+		ID: "draft-1", URL: "https://juejin.cn/editor/drafts/draft-1", Created: true,
+	}, time.Date(2026, 9, 18, 4, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
