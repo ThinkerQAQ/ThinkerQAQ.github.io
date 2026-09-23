@@ -66,7 +66,7 @@ func cnBlogsPublishedFixture(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(output, "example.md"), []byte("---\ntitle: \"Example\"\ndescription: \"Desc\"\n---\n\nNew body\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"version":2,"articles":{"example":{"platforms":{"cnblogs":{"contentHash":"new-hash","draftHash":"old-hash","remoteDraftId":"42","draftUrl":"https://i.cnblogs.com/articles/edit;postId=42","publishedUrl":"https://www.cnblogs.com/ThinkerQAQ/p/42","publishedHash":"old-hash"}}}}}`
+	manifest := `{"version":2,"articles":{"example":{"platforms":{"cnblogs":{"contentHash":"new-hash"}}}}}`
 	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -229,21 +229,6 @@ func TestCNBlogsCreatedDraftWritesUnifiedPublicationState(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	path := filepath.Join(root, ".distribution", "manifest.json")
-	manifest, err := readManifest(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state, err := platformState(manifest, "example", "cnblogs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	delete(state, "remoteDraftId")
-	delete(state, "draftUrl")
-	delete(state, "publishedUrl")
-	if err := writeManifestAtomic(path, manifest); err != nil {
-		t.Fatal(err)
-	}
 	result, err := (Service{HTTPClient: client}).CreateOrUpdateDraft(context.Background(), "cnblogs", cnBlogsSession(), root, "example", false)
 	if err != nil || result.ID != "52" {
 		t.Fatalf("result = %#v, %v", result, err)
