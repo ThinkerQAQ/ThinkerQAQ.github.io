@@ -6,6 +6,7 @@
     active: false,
     articles: [],
     selectedSlug: "",
+    preparedSlug: "",
     selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)),
     status: null,
     publishing: [],
@@ -15,7 +16,8 @@
     pollTimer: null,
   };
 
-  let articlePicker, articleOptions, articleMeta, platformsContainer, actionButton, runStatus, message;
+  let articlePicker, articleOptions, articleMeta, platformsContainer;
+  let actionButton, nextActions, viewTaskButton, enterPublishButton, message;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
@@ -41,6 +43,20 @@
     return sourceAvailability.available ? toolAvailability : sourceAvailability;
   }
 
+  function stopPolling() {
+    if (state.pollTimer) {
+      clearTimeout(state.pollTimer);
+      state.pollTimer = null;
+    }
+  }
+
+  function resetWorkflow() {
+    if (["queued", "running"].includes(state.currentJob?.state)) return;
+    state.currentJob = null;
+    stopPolling();
+    BlogCTLPopup.setMessage(message);
+  }
+
   function renderArticleMeta() {
     const article = selectedArticle();
     articleMeta.textContent = article ? `${article.title} · ${article.slug}` : "";
@@ -50,6 +66,7 @@
     const query = articlePicker.value.trim().toLowerCase();
     const filtered = state.articles.filter((article) => !query || `${article.title} · ${article.slug}`.toLowerCase().includes(query));
     articleOptions.replaceChildren();
+
     for (const article of filtered) {
       const option = document.createElement("button");
       option.type = "button";
@@ -59,6 +76,7 @@
       option.addEventListener("click", () => selectArticle(article));
       articleOptions.append(option);
     }
+
     if (!filtered.length) articleOptions.textContent = "没有匹配文章";
     articlePicker.setAttribute("aria-expanded", String(!articleOptions.hidden));
     renderArticleMeta();
@@ -66,7 +84,9 @@
   }
 
   function selectArticle(article) {
+    resetWorkflow();
     state.selectedSlug = article.slug;
+    state.preparedSlug = "";
     articlePicker.value = `${article.title} · ${article.slug}`;
     articleOptions.hidden = true;
     articlePicker.setAttribute("aria-expanded", "false");
@@ -77,9 +97,9 @@
 
   function platformLifecycleText(platformId) {
     const record = publicationRecord(platformId);
-    if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 本次更新";
-    if (record?.publishedUrl) return "已有已发布记录 · 本次保存新的草稿版本";
-    return "没有草稿关系 · 本次创建";
+    if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 保存时更新";
+    if (record?.publishedUrl) return "已有已发布记录 · 保存新的草稿版本";
+    return "没有草稿关系 · 保存时创建";
   }
 
   function platformTaskResult(platformId) {
@@ -92,6 +112,7 @@
       ? new Set(selectedPlatforms())
       : state.selectedPlatformIDs;
     const article = selectedArticle();
+    const running = ["queued", "running"].includes(state.currentJob?.state);
     platformsContainer.replaceChildren();
 
     for (const platform of state.status?.platforms ?? []) {
@@ -106,11 +127,12 @@
       checkbox.type = "checkbox";
       checkbox.dataset.platform = platform.id;
       checkbox.checked = previous.has(platform.id) && availability.available;
-      checkbox.disabled = !availability.available || ["queued", "running"].includes(state.currentJob?.state);
+      checkbox.disabled = !availability.available || running;
       checkbox.addEventListener("change", () => {
+        resetWorkflow();
         state.selectedPlatformIDs = new Set(selectedPlatforms());
         BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
-        updateAction();
+        renderPlatforms();
       });
 
       const text = document.createElement("span");
@@ -118,14 +140,12 @@
       const name = document.createElement("strong");
       name.textContent = platform.label || platform.id;
       const detail = document.createElement("small");
-      detail.textContent = !availability.available
-        ? availability.reason
-        : platformLifecycleText(platform.id);
+      detail.textContent = !availability.available ? availability.reason : platformLifecycleText(platform.id);
       text.append(name, detail);
 
       const badge = document.createElement("span");
       if (!availability.available) BlogCTLPopup.setStatus(badge, "disabled", availability.reason);
-      else BlogCTLPopup.setStatus(badge, "ok", publicationRecord(platform.id)?.remoteId ? "更新" : "创建");
+      else BlogCTLPopup.setStatus(badge, "ok", "可保存");
 
       card.append(checkbox, text, badge);
       wrapper.append(card);
@@ -134,8 +154,9 @@
       if (taskResult) {
         const statusRow = document.createElement("div");
         statusRow.className = "platform-task-status";
+
         const statusLabel = document.createElement("span");
-        statusLabel.textContent = "任务状态";
+        statusLabel.textContent = "保存状态";
         const status = document.createElement("strong");
         const presentation = BlogCTLSyncModel.statePresentation(taskResult.state, taskResult.result || "");
         BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
@@ -160,90 +181,57 @@
     updateAction();
   }
 
+  function completedPlatforms(job) {
+    return (job?.platforms ?? []).filter((platform) => job.results?.[platform]?.state === "completed");
+  }
+
   function updateAction() {
     const count = selectedPlatforms().length;
-    const running = state.currentJob?.state === "queued" || state.currentJob?.state === "running";
-    const ready = Boolean(state.selectedSlug) && count > 0 && Boolean(state.status?.bridge?.running);
-    actionButton.disabled = !ready || running;
-    actionButton.textContent = count > 0 ? `更新／保存 ${count} 个平台` : "更新／保存";
-  }
-
-  function taskLink(label, jobID) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "secondary compact";
-    button.textContent = label;
-    button.addEventListener("click", () => {
-      document.dispatchEvent(new CustomEvent("blogctl:navigate-task", { detail: { jobId: jobID } }));
-    });
-    return button;
-  }
-
-  function completedPlatforms(job) {
-    return (job.platforms ?? []).filter((platform) => job.results?.[platform]?.state === "completed");
-  }
-
-  function publishLink(job) {
-    const platforms = completedPlatforms(job);
-    if (!platforms.length) return null;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "primary inline-primary compact";
-    button.textContent = platforms.length === (job.platforms ?? []).length
-      ? "进入发布"
-      : `发布成功的 ${platforms.length} 个平台`;
-    button.addEventListener("click", () => {
-      document.dispatchEvent(new CustomEvent("blogctl:draft-completed", {
-        detail: {
-          article: job.article,
-          platforms,
-          jobId: job.id,
-        },
-      }));
-    });
-    return button;
-  }
-
-  function renderRunStatus() {
     const job = state.currentJob;
-    runStatus.replaceChildren();
-    runStatus.hidden = !job;
-    if (!job) return;
+    const running = ["queued", "running"].includes(job?.state);
+    const terminal = ["completed", "failed"].includes(job?.state);
+    const ready = Boolean(state.selectedSlug) && count > 0 && Boolean(state.status?.bridge?.running);
 
-    const head = document.createElement("div");
-    head.className = "workflow-status-head";
-    const label = document.createElement("strong");
-    label.textContent = `任务 ${job.id}`;
-    const status = document.createElement("span");
-    const presentation = BlogCTLSyncModel.statePresentation(job.state);
-    BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
-    head.append(label, status);
-    runStatus.append(head);
+    actionButton.hidden = terminal;
+    nextActions.hidden = !terminal;
 
-    const detail = document.createElement("small");
-    detail.className = job.state === "failed" ? "job-platform-message error-text" : "job-platform-message";
-    detail.textContent = job.state === "failed"
-      ? (job.error || "更新／保存存在失败平台")
-      : job.state === "completed"
-        ? "更新／保存完成。可查看任务详情，或手动进入发布。"
-        : "正在更新远端草稿状态…";
-    runStatus.append(detail);
+    if (!terminal) {
+      actionButton.disabled = !ready || running;
+      actionButton.textContent = running
+        ? "保存中…"
+        : count > 0 ? `保存 ${count} 个平台` : "保存";
+    }
 
-    if (["completed", "failed"].includes(job.state)) {
-      const actions = document.createElement("div");
-      actions.className = "workflow-status-actions";
-      actions.append(taskLink("查看任务", job.id));
-      const publish = publishLink(job);
-      if (publish) actions.append(publish);
-      runStatus.append(actions);
+    if (terminal) {
+      const successful = completedPlatforms(job);
+      viewTaskButton.disabled = false;
+      enterPublishButton.disabled = successful.length === 0;
+      enterPublishButton.textContent = successful.length > 0 && successful.length < (job.platforms ?? []).length
+        ? `发布成功的 ${successful.length} 个平台`
+        : "进入发布";
     }
   }
 
-  function stopPolling() {
-    if (state.pollTimer) {
-      clearTimeout(state.pollTimer);
-      state.pollTimer = null;
-    }
+  function navigateTask() {
+    if (!state.currentJob?.id) return;
+    document.dispatchEvent(new CustomEvent("blogctl:navigate-task", {
+      detail: { jobId: state.currentJob.id },
+    }));
+  }
+
+  function enterPublish() {
+    const job = state.currentJob;
+    if (!job) return;
+    const platforms = completedPlatforms(job);
+    if (!platforms.length) return;
+
+    document.dispatchEvent(new CustomEvent("blogctl:draft-completed", {
+      detail: {
+        article: job.article,
+        platforms,
+        jobId: job.id,
+      },
+    }));
   }
 
   async function pollJob(jobID) {
@@ -255,10 +243,23 @@
       if (state.currentJob?.id !== jobID) return;
       state.currentJob = response.job ?? state.currentJob;
       renderPlatforms();
-      renderRunStatus();
       updateAction();
 
-      if (["completed", "failed"].includes(state.currentJob.state)) return;
+      if (state.currentJob.state === "completed") {
+        BlogCTLPopup.setMessage(message, "保存完成。可查看任务，或进入发布。", "ok");
+        return;
+      }
+      if (state.currentJob.state === "failed") {
+        const successful = completedPlatforms(state.currentJob).length;
+        BlogCTLPopup.setMessage(
+          message,
+          successful > 0
+            ? `部分平台保存失败；${successful} 个平台可继续发布。`
+            : "保存失败，请查看任务详情。",
+          "error",
+        );
+        return;
+      }
     } catch (error) {
       BlogCTLPopup.setMessage(message, `任务状态读取失败：${BlogCTLPopup.errorMessage(error)}`, "error");
     }
@@ -272,7 +273,7 @@
     if (!article || !platforms.length || actionButton.disabled) return;
 
     actionButton.disabled = true;
-    BlogCTLPopup.setMessage(message, "正在创建更新／保存任务…");
+    BlogCTLPopup.setMessage(message, "正在创建保存任务…");
     try {
       const response = await BlogCTLPopup.send("blogctl.job.start", {
         request: {
@@ -286,8 +287,8 @@
       });
       state.currentJob = response.job ?? null;
       renderPlatforms();
-      renderRunStatus();
-      BlogCTLPopup.setMessage(message, "任务已启动，正在轮询状态。", "ok");
+      updateAction();
+      BlogCTLPopup.setMessage(message, "保存任务已启动，正在轮询状态。", "ok");
       if (state.currentJob?.id) pollJob(state.currentJob.id);
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -296,9 +297,26 @@
     }
   }
 
+  function prepare(article) {
+    const slug = String(article || "").trim();
+    if (!slug) return;
+    resetWorkflow();
+    state.preparedSlug = slug;
+    state.selectedSlug = slug;
+    localStorage.setItem("blogctl.selectedArticle", slug);
+
+    if (state.active && state.articles.length) {
+      const selected = selectedArticle();
+      articlePicker.value = selected ? `${selected.title} · ${selected.slug}` : slug;
+      renderArticles();
+      renderPlatforms();
+    }
+  }
+
   async function refresh() {
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
+
     try {
       const [articlesResponse, statusResponse, publishingResponse, toolsResponse, publicationsResponse] = await Promise.all([
         BlogCTLPopup.send("blogctl.articles"),
@@ -314,9 +332,10 @@
       state.tools = toolsResponse.tools ?? [];
       state.records = publicationsResponse.records ?? [];
 
-      const previous = state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
+      const previous = state.preparedSlug || state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
       if (state.articles.some((item) => item.slug === previous)) {
         state.selectedSlug = previous;
+        state.preparedSlug = "";
         const selected = selectedArticle();
         articlePicker.value = `${selected.title} · ${selected.slug}`;
       } else {
@@ -325,8 +344,9 @@
 
       renderArticles();
       renderPlatforms();
-      renderRunStatus();
-      if (state.currentJob?.id && ["queued", "running"].includes(state.currentJob.state)) pollJob(state.currentJob.id);
+      if (state.currentJob?.id && ["queued", "running"].includes(state.currentJob.state)) {
+        pollJob(state.currentJob.id);
+      }
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -342,7 +362,9 @@
     articleMeta = document.getElementById("draftArticleMeta");
     platformsContainer = document.getElementById("draftPlatforms");
     actionButton = document.getElementById("saveDrafts");
-    runStatus = document.getElementById("draftRunStatus");
+    nextActions = document.getElementById("draftNextActions");
+    viewTaskButton = document.getElementById("draftViewTask");
+    enterPublishButton = document.getElementById("draftEnterPublish");
     message = document.getElementById("draftsMessage");
 
     articlePicker.addEventListener("focus", () => {
@@ -350,6 +372,7 @@
       renderArticles();
     });
     articlePicker.addEventListener("input", () => {
+      resetWorkflow();
       state.selectedSlug = "";
       articleOptions.hidden = false;
       renderArticles();
@@ -373,6 +396,8 @@
     });
 
     actionButton.addEventListener("click", startSave);
+    viewTaskButton.addEventListener("click", navigateTask);
+    enterPublishButton.addEventListener("click", enterPublish);
     state.initialized = true;
   }
 
@@ -386,5 +411,5 @@
     stopPolling();
   }
 
-  root.BlogCTLDrafts = { init, activate, deactivate, refresh };
+  root.BlogCTLDrafts = { init, activate, deactivate, refresh, prepare };
 })(globalThis);
