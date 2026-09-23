@@ -27,6 +27,9 @@ func TestHTTPClientForSessionReplaysCapturedHeaderOnlyToAllowedPlatformHost(t *t
 		}, nil
 	})}
 	client, err := HTTPClientForSession(base, Session{
+		Cookies: []BrowserCookie{{
+			Name: "host-cookie", Value: "host-value", Domain: "segmentfault.com", Path: "/", Secure: true, HostOnly: true,
+		}},
 		RequestCookieHeader: "PHPSESSID=browser-value; sl-session=secondary",
 		CookieHostSuffixes:  []string{"segmentfault.com"},
 	})
@@ -44,7 +47,7 @@ func TestHTTPClientForSessionReplaysCapturedHeaderOnlyToAllowedPlatformHost(t *t
 		}
 		response.Body.Close()
 	}
-	if seen["segmentfault.com"] != "PHPSESSID=browser-value; sl-session=secondary" {
+	if seen["segmentfault.com"] != "host-cookie=host-value; PHPSESSID=browser-value; sl-session=secondary" {
 		t.Fatalf("platform cookie header = %q", seen["segmentfault.com"])
 	}
 	if seen["api.segmentfault.com"] != "PHPSESSID=browser-value; sl-session=secondary" {
