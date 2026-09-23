@@ -14,13 +14,19 @@ import (
 )
 
 type devtoArticleCandidate struct {
-	ID           int64  `json:"id"`
-	Title        string `json:"title"`
-	URL          string `json:"url"`
-	Canonical    string `json:"canonical_url"`
-	Published    bool   `json:"published"`
-	Bound        bool   `json:"bound"`
-	BindingState string `json:"bindingState,omitempty"`
+	ID                 int64  `json:"id"`
+	Title              string `json:"title"`
+	URL                string `json:"url"`
+	Canonical          string `json:"canonical_url"`
+	Published          bool   `json:"published"`
+	PublishedAt        string `json:"published_at"`
+	PublishedTimestamp string `json:"published_timestamp"`
+	Bound              bool   `json:"bound"`
+	BindingState       string `json:"bindingState,omitempty"`
+}
+
+func devtoCandidatePublished(candidate devtoArticleCandidate) bool {
+	return candidate.Published || strings.TrimSpace(candidate.PublishedAt) != "" || strings.TrimSpace(candidate.PublishedTimestamp) != ""
 }
 
 func devtoArticleMatches(candidate devtoArticleCandidate, slug, title string) bool {
@@ -98,6 +104,7 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 		return
 	}
 	for index := range candidates {
+		candidates[index].Published = devtoCandidatePublished(candidates[index])
 		if candidates[index].Published && binding.PublishedRemoteID == fmt.Sprint(candidates[index].ID) {
 			candidates[index].Bound = true
 			candidates[index].BindingState = "published"
