@@ -268,6 +268,7 @@
     if (state.platforms.some((platform) => platform.id === previous)) platformSelect.value = previous;
     if (!platformSelect.value && state.platforms.length) platformSelect.value = state.platforms[0].id;
     writeForm(currentPlatform());
+    renderPlatformAccess();
   }
 
   async function save() {
@@ -282,7 +283,7 @@
       return;
     }
     saveButton.disabled = true;
-    BlogCTLPopup.setMessage(message, "正在保存发布配置…");
+    BlogCTLPopup.setMessage(message, "正在保存平台配置…");
     try {
       const runtime = readAssetForm();
       const response = await BlogCTLPopup.send("blogctl.publishing.save", {
@@ -298,7 +299,7 @@
       renderPlatformSelect();
       platformSelect.value = current.id;
       writeForm(currentPlatform());
-      BlogCTLPopup.setMessage(message, `${current.label || current.id} 发布配置已保存。`, "ok");
+      BlogCTLPopup.setMessage(message, `${current.label || current.id} 平台配置已保存。`, "ok");
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally {
@@ -317,11 +318,15 @@
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
     try {
-      const response = await BlogCTLPopup.send("blogctl.publishing");
+      const [response, toolsResponse] = await Promise.all([
+        BlogCTLPopup.send("blogctl.publishing"),
+        BlogCTLPopup.send("blogctl.tools"),
+      ]);
       state.platforms = response.platforms ?? [];
       state.compiler = response.compiler ?? {};
       state.assets = response.assets ?? {};
       state.assetStatus = response.assetStatus ?? {};
+      state.tools = toolsResponse.tools ?? [];
       writeAssetForm();
       renderPlatformSelect();
       await BlogCTLPopup.refreshBridgeIndicator();
@@ -333,6 +338,7 @@
   function init() {
     if (state.initialized) return;
     platformSelect = document.getElementById("publishingPlatform");
+    platformAccessConfig = document.getElementById("platformAccessConfig");
     languageSelect = document.getElementById("publishingLanguage");
     changedOnly = document.getElementById("publishingChangedOnly");
     footerEnabled = document.getElementById("footerEnabled");
@@ -353,7 +359,7 @@
     resetButton = document.getElementById("resetPublishing");
     message = document.getElementById("publishingMessage");
 
-    platformSelect.addEventListener("change", () => writeForm(currentPlatform()));
+    platformSelect.addEventListener("change", () => { writeForm(currentPlatform()); renderPlatformAccess(); });
     languageSelect.addEventListener("change", () => {
       const currentTemplate = footerTemplate.value.trim();
       const defaultTemplates = new Set([defaultFooterTemplate("zh-CN"), defaultFooterTemplate("en")]);
