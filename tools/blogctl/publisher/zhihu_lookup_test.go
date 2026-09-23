@@ -37,7 +37,7 @@ func TestZhihuListPostsUsesDraftAndPublishedLists(t *testing.T) {
 
 	account, posts, err := ZhihuListPosts(context.Background(), client, Session{
 		UserAgent: "BlogCTL-Test-UA",
-		Cookies: []BrowserCookie{{Name: "z_c0", Value: "secret", Domain: ".zhihu.com", Path: "/", Secure: true}},
+		Cookies:   []BrowserCookie{{Name: "z_c0", Value: "secret", Domain: ".zhihu.com", Path: "/", Secure: true}},
 	})
 	if err != nil {
 		t.Fatal(err)
