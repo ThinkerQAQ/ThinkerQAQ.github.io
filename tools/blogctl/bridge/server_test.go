@@ -17,7 +17,7 @@ import (
 )
 
 func setExtensionAuth(request *http.Request, token string) {
-	setExtensionAuth(request, "token")
+	request.Header.Set("origin", "chrome-extension://test")
 	request.Header.Set("x-thinkerqaq-token", token)
 }
 
