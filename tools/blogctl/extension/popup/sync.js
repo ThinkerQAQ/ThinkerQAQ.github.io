@@ -2,7 +2,7 @@
 
 (function (root) {
   const state = { initialized: false, active: false, articles: [], selectedSlug: "", selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)), status: null, publishing: [], tools: [], cnblogsBindings: [], bindingLoading: false, bindingError: false, matches: {}, matchKey: "", cachedMatchTime: 0, refreshSerial: 0 };
-  let articlePicker, articleOptions, articleMeta, platformsContainer, startButton, updatePublishedButton, message;
+  let articlePicker, articleOptions, articleMeta, platformsContainer, startButton, message;
   let refreshMatchesButton;
 
   function selectedPlatforms() {
@@ -24,15 +24,7 @@
     const ready = Boolean(state.selectedSlug) && count > 0 && Boolean(state.status?.bridge?.running);
     startButton.disabled = !ready || (selectedPlatforms().includes("cnblogs") && (state.bindingLoading || state.bindingError));
     refreshMatchesButton.disabled = !state.selectedSlug || !state.status?.bridge?.running;
-    startButton.textContent = ready ? `创建／更新 ${count} 个平台草稿` : "选择文章和平台后创建草稿";
-    const selected = selectedPlatforms();
-    updatePublishedButton.disabled = !BlogCTLSyncModel.canUpdatePublished(
-      state.selectedSlug, selected, state.status?.bridge?.running, state.status,
-    );
-    const selectedStatus = (state.status?.platforms ?? []).find((platform) => platform.id === selected[0]);
-    updatePublishedButton.title = selected.length === 1 && selectedStatus?.capabilities?.publishedUpdate
-      ? "更新前会由 Bridge 校验已发布文章绑定和远端状态"
-      : "所选平台暂不支持安全更新已发布文章";
+    startButton.textContent = "创建／更新";
   }
 
   function renderArticleMeta() {
@@ -326,27 +318,9 @@
     }
   }
 
-  async function updatePublished() {
-    if (updatePublishedButton.disabled || !state.selectedSlug) return;
-    if (!confirm("将本地内容更新到已绑定的博客园已发布文章。继续吗？")) return;
-    const article = state.selectedSlug;
-    const started = performance.now();
-    updatePublishedButton.disabled = true;
-    BlogCTLPopup.setMessage(message, "正在启动已发布文章更新任务…");
-    try {
-      console.info("BlogCTL published update requested", { platform: "cnblogs", article });
-      const response = await BlogCTLPopup.send("blogctl.cnblogs.update", { article });
-      console.info("BlogCTL published update started", { platform: "cnblogs", article, jobId: response.job?.id || "", durationMs: Math.round(performance.now() - started) });
-      BlogCTLPopup.setMessage(message, `任务 ${response.job?.id || ""} 已启动，可在“任务”页查看进度。`, "ok");
-    } catch (error) {
-      console.warn("BlogCTL published update rejected", { platform: "cnblogs", article, code: error.code || "", status: error.status || 0, durationMs: Math.round(performance.now() - started) });
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-    } finally { updateStartButton(); }
-  }
-
   function init() {
     if (state.initialized) return;
-    articlePicker = document.getElementById("articlePicker"); articleOptions = document.getElementById("articleOptions"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); startButton = document.getElementById("startSync"); updatePublishedButton = document.getElementById("updatePublished"); message = document.getElementById("syncMessage"); refreshMatchesButton = document.getElementById("refreshArticleMatches");
+    articlePicker = document.getElementById("articlePicker"); articleOptions = document.getElementById("articleOptions"); articleMeta = document.getElementById("articleMeta"); platformsContainer = document.getElementById("syncPlatforms"); startButton = document.getElementById("startSync"); message = document.getElementById("syncMessage"); refreshMatchesButton = document.getElementById("refreshArticleMatches");
     articlePicker.addEventListener("focus", () => { articleOptions.hidden = false; renderArticles(); });
     articlePicker.addEventListener("input", () => {
       state.selectedSlug = "";
@@ -363,7 +337,6 @@
       if (event.target !== articlePicker && !articleOptions.contains(event.target)) { articleOptions.hidden = true; articlePicker.setAttribute("aria-expanded", "false"); }
     });
     startButton.addEventListener("click", startSync);
-    updatePublishedButton.addEventListener("click", updatePublished);
     refreshMatchesButton.addEventListener("click", refreshArticleMatches);
     state.initialized = true;
   }
