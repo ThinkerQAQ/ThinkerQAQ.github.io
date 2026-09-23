@@ -68,10 +68,8 @@
     loadSyncBinding();
   }
 
-  function platformAvailability(article, platform) {
-    const sourceAvailability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
-    const toolAvailability = BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
-    return sourceAvailability.available ? toolAvailability : sourceAvailability;
+  function platformAvailability(_article, platform) {
+    return BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
   }
 
   function renderPlatformHeader(platform, article) {
