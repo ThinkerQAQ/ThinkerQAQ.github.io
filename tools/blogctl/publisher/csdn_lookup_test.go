@@ -3,6 +3,7 @@ package publisher
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"reflect"
@@ -130,5 +131,84 @@ func TestCSDNTitleMatchesExactAndSuffix(t *testing.T) {
 	}
 	if CSDNTitleMatches("并发编程（四）", "并发编程（三）") {
 		t.Fatal("unrelated titles must not match")
+	}
+}
+
+
+func TestCSDNSaveUsesPlatformImageURLInMarkdownAndHTML(t *testing.T) {
+	imageUploads := 0
+	client := &http.Client{Transport: csdnRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Host == "source.example" && request.URL.Path == "/diagram.png":
+			response := csdnResponse(request, 200, "png-bytes")
+			response.Header.Set("content-type", "image/png")
+			return response, nil
+		case request.Method == http.MethodPost && request.URL.Host == "bizapi.csdn.net" &&
+			request.URL.Path == "/resource-api/v1/image/direct/upload/signature":
+			return csdnResponse(request, 200, `{
+				"code":200,
+				"data":{
+					"filePath":"blog/test.png",
+					"host":"https://upload.example/",
+					"accessId":"access",
+					"policy":"policy",
+					"signature":"signature",
+					"callbackUrl":"",
+					"callbackBody":"",
+					"callbackBodyType":"",
+					"customParam":{}
+				}
+			}`), nil
+		case request.Method == http.MethodPost && request.URL.Host == "upload.example":
+			imageUploads++
+			if err := request.ParseMultipartForm(2 << 20); err != nil {
+				t.Fatal(err)
+			}
+			file, _, err := request.FormFile("file")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = file.Close()
+			return csdnResponse(request, 200, `{
+				"code":200,
+				"data":{"imageUrl":"https://img-blog.csdnimg.cn/blog/test.png"}
+			}`), nil
+		case request.Method == http.MethodPost && request.URL.Host == "bizapi.csdn.net" &&
+			request.URL.Path == "/blog-console-api/v3/mdeditor/saveArticle":
+			var payload map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			markdown := valueString(payload["markdowncontent"])
+			html := valueString(payload["content"])
+			if !strings.Contains(markdown, "https://img-blog.csdnimg.cn/blog/test.png") ||
+				!strings.Contains(html, "https://img-blog.csdnimg.cn/blog/test.png") {
+				t.Fatalf("payload image URLs are inconsistent: markdown=%q html=%q", markdown, html)
+			}
+			if valueString(payload["tags"]) != "Go,Concurrency" {
+				t.Fatalf("tags = %q", valueString(payload["tags"]))
+			}
+			return csdnResponse(request, 200, `{"code":200,"data":{"id":"147578947"}}`), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapterValue, err := NewCSDNAdapter(client, csdnTestSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adapterValue.CreateDraft(context.Background(), DraftInput{
+		Title:    "并发编程（四）：互斥锁的实现",
+		Markdown: "![diagram](https://source.example/diagram.png)",
+		HTML:     `<p><img src="https://source.example/diagram.png"></p>`,
+		Tags:     []string{"Go", "Concurrency"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if imageUploads != 1 || !result.Created || result.ID != "147578947" {
+		t.Fatalf("uploads=%d result=%#v", imageUploads, result)
 	}
 }
