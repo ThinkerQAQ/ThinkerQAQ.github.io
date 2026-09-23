@@ -101,6 +101,55 @@ func (s *Server) csdnCandidates(ctx context.Context, slug string) (
 	return article, root, account, matches, binding, nil
 }
 
+func (s *Server) handleCSDNLookupContext(response http.ResponseWriter, request *http.Request, slug string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
+	defer cancel()
+
+	article, root, err := s.cnBlogsArticle(slug)
+	if err != nil {
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	session, client, err := (bridgeNativePublisher{server: s}).publisherSession("csdn")
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "session_unavailable", err.Error(), nil)
+		return
+	}
+	account, err := publisher.CSDNAccount(ctx, client, session)
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "account_lookup_failed", err.Error(), nil)
+		return
+	}
+	binding, _, err := publisher.LoadPublicationBinding(root, slug, "csdn")
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
+		return
+	}
+	boundPosts := []csdnCandidateView{}
+	for _, postID := range []string{binding.RemoteDraftID, binding.PublishedRemoteID} {
+		postID = strings.TrimSpace(postID)
+		if postID == "" {
+			continue
+		}
+		_, post, lookupErr := publisher.CSDNLookupPost(ctx, client, session, postID)
+		if lookupErr != nil {
+			continue
+		}
+		bound, state := csdnBindingState(binding, post)
+		boundPosts = append(boundPosts, csdnCandidateView{
+			ID: post.ID, Title: post.Title, URL: post.URL, Published: post.Published,
+			Bound: bound, BindingState: state,
+		})
+	}
+	writeJSON(response, http.StatusOK, map[string]any{
+		"title": article.Title, "account": account,
+		"bindings": csdnBindingViews(binding), "boundPosts": boundPosts,
+	})
+}
+
 func (s *Server) handleCSDNArticleList(response http.ResponseWriter, request *http.Request, slug string) {
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
