@@ -154,3 +154,47 @@ test("cnblogs auth probe uses the JSON /api/user endpoint", async () => {
   assert.equal(cnblogs.probe.url, "https://i.cnblogs.com/api/user");
   assert.equal(cnblogs.probe.path, "loginName");
 });
+
+
+test("captured platform session definitions keep only authentication-relevant cookie names", async () => {
+  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  const expected = {
+    csdn: {
+      required: ["UserName", "UserToken"],
+      names: ["UserName", "UserToken", "UserInfo", "UserNick", "AU", "UN", "BT", "csrfToken", "SESSION"],
+    },
+    segmentfault: {
+      required: ["PHPSESSID"],
+      names: ["PHPSESSID", "SHARESESSID", "sl-session", "_c_WBKFRo"],
+    },
+    zhihu: {
+      required: ["z_c0"],
+      names: ["z_c0", "_xsrf", "d_c0", "__zse_ck", "SESSIONID", "BEC"],
+    },
+    "51cto": {
+      required: ["www51cto", "pub_sauth1", "pub_sauth2"],
+      names: ["www51cto", "pub_auth_profile", "pub_sauth1", "pub_sauth2", "pub_cookietime", "pub_wechatopen", "once_p", "PHPSESSID", "EO-Bot-Captcha-Token", "EO-Bot-Js-Token"],
+    },
+    oschina: {
+      required: ["oscid"],
+      names: ["oscid", "_user_behavior_", "sl-session", "BEC"],
+    },
+    devto: {
+      required: ["_Devto_Forem_Session"],
+      names: ["_Devto_Forem_Session", "remember_user_token", "current_user"],
+    },
+    medium: {
+      required: ["sid"],
+      names: ["sid", "uid", "rid", "xsrf", "cf_clearance", "_cfuvid"],
+    },
+  };
+
+  for (const [platform, contract] of Object.entries(expected)) {
+    assert.deepEqual(PLATFORM_SESSIONS[platform].requiredCookieNames, contract.required, platform);
+    assert.deepEqual(PLATFORM_SESSIONS[platform].cookieNames, contract.names, platform);
+  }
+  assert.deepEqual(
+    PLATFORM_SESSIONS.medium.cookiePartitionKeys,
+    [{ topLevelSite: "https://medium.com" }],
+  );
+});
