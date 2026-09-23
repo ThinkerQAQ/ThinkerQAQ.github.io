@@ -45,7 +45,7 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
-	article, _, err := s.cnBlogsArticle(slug)
+	article, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -98,7 +98,7 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 			truncated = true
 		}
 	}
-	binding, _, bindingErr := publisher.LoadPublicationBinding(s.config.ContentRoot, slug, "devto")
+	binding, _, bindingErr := publisher.LoadPublicationBinding(root, slug, "devto")
 	if bindingErr != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", bindingErr.Error(), nil)
 		return
