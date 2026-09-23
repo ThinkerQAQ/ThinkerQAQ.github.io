@@ -26,8 +26,8 @@ type devtoAdapter struct {
 	browserCSRFToken string
 }
 
-// DEV.to returns tag_list as either an array (API v1) or a comma-separated
-// string (some browser/API responses). Accept both representations.
+// DEV.to returns tag_list / tags as either an array (API v1) or a
+// comma-separated string (some browser/API responses). Accept both.
 type devtoTagList []string
 
 func (tags *devtoTagList) UnmarshalJSON(raw []byte) error {
@@ -59,7 +59,7 @@ type devtoArticle struct {
 	CanonicalURL       string       `json:"canonical_url"`
 	BodyMarkdown       string       `json:"body_markdown"`
 	TagList            devtoTagList `json:"tag_list"`
-	Tags               string       `json:"tags"`
+	Tags               devtoTagList `json:"tags"`
 	Published          bool         `json:"published"`
 	PublishedAt        string       `json:"published_at"`
 	PublishedTimestamp string       `json:"published_timestamp"`
@@ -151,8 +151,8 @@ func devtoRemoteTags(article devtoArticle) []string {
 	if len(article.TagList) > 0 {
 		return normalizeDEVToTags(article.TagList)
 	}
-	if article.Tags != "" {
-		return normalizeDEVToTags(strings.Split(article.Tags, ","))
+	if len(article.Tags) > 0 {
+		return normalizeDEVToTags(article.Tags)
 	}
 	return nil
 }
