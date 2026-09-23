@@ -134,7 +134,6 @@ func TestCSDNTitleMatchesExactAndSuffix(t *testing.T) {
 	}
 }
 
-
 func TestCSDNSaveUsesPlatformImageURLInMarkdownAndHTML(t *testing.T) {
 	imageUploads := 0
 	client := &http.Client{Transport: csdnRoundTripFunc(func(request *http.Request) (*http.Response, error) {
