@@ -140,9 +140,9 @@ func (s *Server) handleZhihuBindingPut(response http.ResponseWriter, request *ht
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
 	var body struct {
-		PostID  string `json:"postId"`
-		State   string `json:"state"`
-		Replace bool   `json:"replace"`
+		PostID    string `json:"postId"`
+		State     string `json:"state"`
+		Replace   bool   `json:"replace"`
 		Candidate *struct {
 			ID        string `json:"id"`
 			Title     string `json:"title"`
