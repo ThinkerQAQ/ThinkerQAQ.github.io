@@ -31,7 +31,7 @@ func TestPublicationPendingResolveUpdatesOnlyDurableState(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{"fields": []string{"tags"}})
 	request := httptest.NewRequest(http.MethodPost, "/v1/publications/pending/resolve?article=example&platform=medium", bytes.NewReader(body))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)

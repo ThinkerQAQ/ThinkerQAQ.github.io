@@ -183,6 +183,11 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleOptions(response, request)
 		return
 	}
+	if request.Method != http.MethodGet && validBrowserExtensionOrigin(request.Header.Get("origin")) &&
+		request.Header.Get("x-thinkerqaq-token") != s.token {
+		writeAPIError(response, http.StatusForbidden, "forbidden", "invalid bridge token for extension write", nil)
+		return
+	}
 
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
@@ -469,7 +474,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	response.Header().Set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
-	response.Header().Set("access-control-allow-headers", "content-type")
+	response.Header().Set("access-control-allow-headers", "content-type, x-thinkerqaq-token")
 	response.WriteHeader(http.StatusNoContent)
 }
 

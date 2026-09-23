@@ -16,6 +16,11 @@ import (
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
+func setExtensionAuth(request *http.Request, token string) {
+	setExtensionAuth(request, "token")
+	request.Header.Set("x-thinkerqaq-token", token)
+}
+
 func TestBridgeAcceptsOnlyApprovedMediumCookies(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
@@ -36,7 +41,7 @@ func TestBridgeAcceptsOnlyApprovedMediumCookies(t *testing.T) {
 	}
 	encoded, _ := json.Marshal(body)
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/medium", bytes.NewReader(encoded))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -79,7 +84,7 @@ func TestBridgeStoresJuejinCookieMetadataInMemory(t *testing.T) {
 	}
 	encoded, _ := json.Marshal(body)
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/juejin", bytes.NewReader(encoded))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -125,7 +130,7 @@ func TestCNBlogsCookieReachesGoJarAndStatusRedactsValue(t *testing.T) {
 		"requestCookieHeader": requestCookieHeader,
 	})
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/cnblogs", bytes.NewReader(body))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -189,7 +194,7 @@ func TestCNBlogsAcceptsCapturedRequestCookieWithoutCookieAPIEntries(t *testing.T
 		t.Fatal(err)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/cnblogs", strings.NewReader(`{"cookies":[],"requestCookieHeader":".CNBlogsCookie=test-login"}`))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
@@ -235,7 +240,7 @@ func TestBridgeConfigResponseNeverExposesDevtoAPIKey(t *testing.T) {
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodGet, handler.URL+"/v1/config", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -284,6 +289,25 @@ func TestBridgeReadOnlyStatusRejectsWebsiteOrigin(t *testing.T) {
 	}
 }
 
+func TestBridgeExtensionWriteRequiresToken(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := false
+	server.SetRestart(func() { restarted = true })
+	request := httptest.NewRequest(http.MethodPost, "/v1/restart", nil)
+	request.Header.Set("origin", "chrome-extension://test")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.Code)
+	}
+	if restarted {
+		t.Fatal("extension write without bridge token reached the restart handler")
+	}
+}
+
 func TestBridgeRejectsNonExtensionOrigin(t *testing.T) {
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
@@ -329,7 +353,7 @@ func TestBridgeProxyConfigUpdatesTransportAndPersists(t *testing.T) {
 
 	body := bytes.NewBufferString(`{"proxyEnabled":true,"proxyHost":"127.0.0.1","proxyPort":7890}`)
 	request, _ := http.NewRequest(http.MethodPut, handler.URL+"/v1/config", body)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -499,7 +523,7 @@ func TestSyncJobNotFoundReturnsStructuredError(t *testing.T) {
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodGet, handler.URL+"/v1/sync/jobs/missing", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -564,7 +588,7 @@ func TestBridgeRestartEndpointRestartsWhenIdle(t *testing.T) {
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/restart", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -593,7 +617,7 @@ func TestBridgeRestartEndpointRejectsRunningSyncJob(t *testing.T) {
 	defer handler.Close()
 
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/restart", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -626,7 +650,7 @@ func TestBridgeFiltersVerifiedPlatformCookiesBeforeStorage(t *testing.T) {
 		"userAgent": "UA",
 	})
 	request, _ := http.NewRequest(http.MethodPost, handler.URL+"/v1/sessions/csdn", bytes.NewReader(body))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -664,7 +688,7 @@ func TestBridgeMediumFilterAlsoAppliesToPublisherCookieMetadata(t *testing.T) {
 			{"name":"tracking_cookie","value":"drop","domain":".medium.com","path":"/","secure":true}
 		]
 	}`))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
@@ -692,7 +716,7 @@ func TestBridgeAcceptsOptionalDEVToBrowserSession(t *testing.T) {
 		],
 		"userAgent":"UA"
 	}`))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {

@@ -175,7 +175,9 @@ async function allPlatformLoginStatuses() {
 async function fetchJSON(pathname, options = {}, retry = true) {
   const bridge = await ensureBridge(false);
   try {
-    const response = await fetch(`${bridge.baseUrl}${pathname}`, options);
+    const headers = new Headers(options.headers ?? {});
+    headers.set("x-thinkerqaq-token", bridge.token);
+    const response = await fetch(`${bridge.baseUrl}${pathname}`, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw toError(payload, response.status);
     return payload;

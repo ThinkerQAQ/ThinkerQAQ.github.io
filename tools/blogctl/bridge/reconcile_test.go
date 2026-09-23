@@ -93,7 +93,7 @@ func TestDEVToPublicationReconciliationUsesExactRemoteID(t *testing.T) {
 	})}
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/publications/reconcile?article=example&platform=devto", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
@@ -143,7 +143,7 @@ func TestDEVToPublicationReconciliationDetectsPublishedStateDrift(t *testing.T) 
 	})}
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/publications/reconcile?article=example&platform=devto", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
@@ -175,7 +175,7 @@ func TestPublicationReconciliationStaysLocalOnlyWithoutStableRemoteList(t *testi
 	server.config.ContentRoot = root
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/publications/reconcile?article=example&platform=juejin", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {

@@ -47,7 +47,7 @@ func TestCNBlogsPublishedUpdateStartsDistinctJob(t *testing.T) {
 		return "", nil
 	}
 	request := httptest.NewRequest(http.MethodPost, "/v1/cnblogs/binding/update?article=example", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusAccepted {
@@ -106,7 +106,7 @@ func TestCNBlogsBindingSearchAndManualVerification(t *testing.T) {
 	defer handler.Close()
 	post := func(path string, body []byte) map[string]any {
 		request, _ := http.NewRequest(http.MethodPost, handler.URL+path, bytes.NewReader(body))
-		request.Header.Set("origin", "chrome-extension://test")
+		setExtensionAuth(request, "token")
 		response, err := handler.Client().Do(request)
 		if err != nil {
 			t.Fatal(err)
@@ -171,7 +171,7 @@ func TestCNBlogsBindingDeleteOnlyRemovesSelectedLocalSlot(t *testing.T) {
 	}
 	server.config.ContentRoot = root
 	request := httptest.NewRequest(http.MethodDelete, "/v1/cnblogs/binding?article=example", bytes.NewBufferString(`{"state":"draft","postId":"52"}`))
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {

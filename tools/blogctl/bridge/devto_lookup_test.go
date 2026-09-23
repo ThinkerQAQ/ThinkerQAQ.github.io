@@ -38,7 +38,7 @@ func TestDevtoArticleSearchReadsAccountArticles(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString(body)), Header: make(http.Header), Request: request}, nil
 	})}
 	request := httptest.NewRequest(http.MethodPost, "/v1/devto/articles/search?article=example", nil)
-	request.Header.Set("origin", "chrome-extension://test")
+	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
