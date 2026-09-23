@@ -230,6 +230,14 @@ func TestRetrySyncJobRejectsPublishAttempts(t *testing.T) {
 	if server.jobs["publish-job"].State != "failed" {
 		t.Fatalf("publish job was mutated: %#v", server.jobs["publish-job"])
 	}
+
+	server.jobs["legacy-publish"] = &syncJob{
+		ID: "legacy-publish", State: "failed", Operation: "publish",
+		Request: syncRequest{Article: "example", Platforms: []string{"oschina"}},
+	}
+	if _, err := server.retrySyncJob("legacy-publish"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
+		t.Fatalf("legacy publish retry error = %v", err)
+	}
 }
 
 func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
@@ -320,6 +328,18 @@ func TestPublishSyncJobFailsClosedForInvalidSourceJobs(t *testing.T) {
 				Request: syncRequest{Operation: "draft", Platforms: []string{"juejin"}},
 			},
 			want: "sync job is not completed",
+		},
+		{
+			name: "partial platform failure",
+			job: &syncJob{
+				ID: "partial", State: "completed", Platforms: []string{"juejin", "csdn"},
+				Request: syncRequest{Operation: "draft", Platforms: []string{"juejin", "csdn"}},
+				Results: map[string]syncPlatformResult{
+					"juejin": {State: "completed"},
+					"csdn":   {State: "failed"},
+				},
+			},
+			want: "all selected draft platforms must complete successfully",
 		},
 		{
 			name: "already publish",

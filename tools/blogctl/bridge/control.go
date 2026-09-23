@@ -1152,7 +1152,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
-	if job.Request.Operation == "publish" {
+	if job.Operation == "publish" || job.Request.Operation == "publish" {
 		s.mu.Unlock()
 		return nil, errors.New("publish jobs cannot be retried safely; verify the remote publication before taking another action")
 	}
@@ -1190,6 +1190,12 @@ func (s *Server) publishSyncJob(id string) (*syncJob, error) {
 	if !allExplicitPublishPlatforms(source.Platforms) {
 		s.mu.Unlock()
 		return nil, errors.New("confirm publish is not supported by one or more selected platforms")
+	}
+	for _, platform := range source.Platforms {
+		if source.Results[platform].State != "completed" {
+			s.mu.Unlock()
+			return nil, errors.New("all selected draft platforms must complete successfully before publish")
+		}
 	}
 	request := source.Request
 	request.Operation = "publish"
