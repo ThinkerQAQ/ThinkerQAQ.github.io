@@ -50,7 +50,7 @@ test("renderer identity participates in the asset hash", () => {
 test("rejects an unclosed Mermaid fence", () => {
   assert.throws(
     () => compilePublishingMarkdown(fence + "mermaid\nflowchart LR\nA --> B", { platform: "devto" }),
-    /Unclosed Mermaid fenced block/u,
+    /Unclosed diagram fenced block/u,
   );
 });
 
@@ -95,7 +95,11 @@ test("accepts diagram and uml fence aliases when the payload is Mermaid", () => 
   }
 });
 
-test("fails closed for PlantUML instead of publishing diagram source as code", () => {
+test("compiles PlantUML fences to content-addressed PNG assets for every publishing platform", () => {
+  const platforms = [
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
+    "51cto", "oschina", "toutiao", "devto", "medium",
+  ];
   const markdown = [
     fence + "plantuml",
     "@startuml",
@@ -103,10 +107,30 @@ test("fails closed for PlantUML instead of publishing diagram source as code", (
     "@enduml",
     fence,
   ].join("\n");
-  assert.throws(
-    () => compilePublishingMarkdown(markdown, { platform: "cnblogs" }),
-    /Unsupported PlantUML diagram/u,
-  );
+
+  for (const platform of platforms) {
+    const result = compilePublishingMarkdown(markdown, { platform });
+    assert.equal(result.assets.length, 1, platform);
+    assert.equal(result.assets[0].kind, "plantuml", platform);
+    assert.doesNotMatch(result.markdown, /@startuml/u, platform);
+    assert.match(result.markdown, /generated\/plantuml\/[a-f0-9]{64}\.png/u, platform);
+  }
+});
+
+test("accepts uml and diagram aliases when the payload is PlantUML", () => {
+  for (const language of ["uml", "diagram"]) {
+    const markdown = [
+      fence + language,
+      "@startuml",
+      "Alice -> Bob: hello",
+      "@enduml",
+      fence,
+    ].join("\n");
+    const result = compilePublishingMarkdown(markdown, { platform: "csdn" });
+    assert.equal(result.assets.length, 1, language);
+    assert.equal(result.assets[0].kind, "plantuml", language);
+    assert.doesNotMatch(result.markdown, /@startuml/u, language);
+  }
 });
 
 
