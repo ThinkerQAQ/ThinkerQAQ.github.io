@@ -448,7 +448,7 @@ func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 			if strings.HasPrefix(target, "/") {
 				target = "https://www.cnblogs.com" + target
 			}
-			return PublishResult{URL: target}, nil
+			return PublishResult{ID: ref.ID, URL: target}, nil
 		}
 	}
 	if c.username == "" {
@@ -457,5 +457,5 @@ func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if c.username == "" {
 		return PublishResult{}, platformError(ErrUpstream, c.ID(), "publish-draft", 0, "published response did not include a public URL", false)
 	}
-	return PublishResult{URL: "https://www.cnblogs.com/" + url.PathEscape(c.username) + "/p/" + url.PathEscape(ref.ID) + ".html"}, nil
+	return PublishResult{ID: ref.ID, URL: "https://www.cnblogs.com/" + url.PathEscape(c.username) + "/p/" + url.PathEscape(ref.ID) + ".html"}, nil
 }
