@@ -440,6 +440,25 @@ async function handleMessage(message) {
           bindings: result.bindings ?? [],
         } };
       }
+      if (platform === "zhihu") {
+        await syncPlatformSession("zhihu");
+        const result = await fetchJSON(`/v1/zhihu/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `从知乎草稿列表和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
+            : "已读取知乎草稿列表和已发布文章列表，本地未匹配到同名文章。",
+          items: candidates.map((post) => ({
+            title: post.title,
+            id: post.id,
+            published: post.published,
+            url: post.url || "",
+            bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+          bindings: result.bindings ?? [],
+        } };
+      }
       if (platform === "devto") {
         const result = await fetchJSON(`/v1/devto/articles/search?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
@@ -488,6 +507,22 @@ async function handleMessage(message) {
     case "blogctl.segmentfault.unbind": {
       const article = encodeURIComponent(String(message.article || ""));
       return { ok: true, ...(await fetchJSON(`/v1/segmentfault/binding?article=${article}`, jsonOptions("DELETE", {
+        state: message.state,
+        postId: message.postId,
+      }))) };
+    }
+    case "blogctl.zhihu.bind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      await syncPlatformSession("zhihu");
+      return { ok: true, ...(await fetchJSON(`/v1/zhihu/binding?article=${article}`, jsonOptions("POST", {
+        postId: message.postId ?? "",
+        state: message.state ?? "",
+        replace: message.replace === true,
+      }))) };
+    }
+    case "blogctl.zhihu.unbind": {
+      const article = encodeURIComponent(String(message.article || ""));
+      return { ok: true, ...(await fetchJSON(`/v1/zhihu/binding?article=${article}`, jsonOptions("DELETE", {
         state: message.state,
         postId: message.postId,
       }))) };
