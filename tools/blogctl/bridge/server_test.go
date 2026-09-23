@@ -609,7 +609,6 @@ func TestBridgeRestartEndpointRejectsRunningSyncJob(t *testing.T) {
 	}
 }
 
-
 func TestBridgeFiltersVerifiedPlatformCookiesBeforeStorage(t *testing.T) {
 	server, err := New("token")
 	if err != nil {

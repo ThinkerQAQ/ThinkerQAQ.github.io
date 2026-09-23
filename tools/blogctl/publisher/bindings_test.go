@@ -427,7 +427,6 @@ func TestPublicationFileRejectsLegacyVersionOne(t *testing.T) {
 	}
 }
 
-
 func TestConcurrentPublicationWritesDoNotLoseRecords(t *testing.T) {
 	root := t.TempDir()
 	const count = 32
@@ -445,8 +444,8 @@ func TestConcurrentPublicationWritesDoNotLoseRecords(t *testing.T) {
 				"juejin",
 				fmt.Sprintf("hash-%02d", index),
 				DraftResult{
-					ID: fmt.Sprintf("draft-%02d", index),
-					URL: fmt.Sprintf("https://juejin.cn/editor/drafts/draft-%02d", index),
+					ID:      fmt.Sprintf("draft-%02d", index),
+					URL:     fmt.Sprintf("https://juejin.cn/editor/drafts/draft-%02d", index),
 					Created: true,
 				},
 				time.Date(2026, 9, 23, 8, 0, index, 0, time.UTC),

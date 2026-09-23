@@ -89,13 +89,13 @@ var browserSessionPlatforms = map[string]struct{}{
 // the platform adapters. Unknown platforms intentionally remain unfiltered here
 // until we have a verified cookie-name contract; do not guess authentication keys.
 var verifiedSessionCookieNames = map[string]map[string]struct{}{
-	"csdn": cookieNameSet("UserName", "UserToken", "UserInfo", "UserNick", "AU", "UN", "BT", "csrfToken", "SESSION"),
+	"csdn":         cookieNameSet("UserName", "UserToken", "UserInfo", "UserNick", "AU", "UN", "BT", "csrfToken", "SESSION"),
 	"segmentfault": cookieNameSet("PHPSESSID", "SHARESESSID", "sl-session", "_c_WBKFRo"),
-	"zhihu": cookieNameSet("z_c0", "_xsrf", "d_c0", "__zse_ck", "SESSIONID", "BEC"),
-	"51cto": cookieNameSet("www51cto", "pub_auth_profile", "pub_sauth1", "pub_sauth2", "pub_cookietime", "pub_wechatopen", "once_p", "PHPSESSID", "EO-Bot-Captcha-Token", "EO-Bot-Js-Token"),
-	"oschina": cookieNameSet("oscid", "_user_behavior_", "sl-session", "BEC"),
-	"devto": cookieNameSet("_Devto_Forem_Session", "remember_user_token", "current_user"),
-	"medium": cookieNameSet("sid", "uid", "rid", "xsrf", "cf_clearance", "_cfuvid"),
+	"zhihu":        cookieNameSet("z_c0", "_xsrf", "d_c0", "__zse_ck", "SESSIONID", "BEC"),
+	"51cto":        cookieNameSet("www51cto", "pub_auth_profile", "pub_sauth1", "pub_sauth2", "pub_cookietime", "pub_wechatopen", "once_p", "PHPSESSID", "EO-Bot-Captcha-Token", "EO-Bot-Js-Token"),
+	"oschina":      cookieNameSet("oscid", "_user_behavior_", "sl-session", "BEC"),
+	"devto":        cookieNameSet("_Devto_Forem_Session", "remember_user_token", "current_user"),
+	"medium":       cookieNameSet("sid", "uid", "rid", "xsrf", "cf_clearance", "_cfuvid"),
 }
 
 func cookieNameSet(names ...string) map[string]struct{} {
