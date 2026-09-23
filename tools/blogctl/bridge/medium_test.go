@@ -290,11 +290,7 @@ func TestBridgeNativePublisherSkipsUnchangedMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
-	_, manifestPath, err := publisher.LoadPublicationState(contentRoot, "example", "medium")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := publisher.SaveDraftResult(manifestPath, "example", "medium", "same-hash", publisher.DraftResult{
+	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "same-hash", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
 		t.Fatal(err)
@@ -353,11 +349,7 @@ func TestBridgeNativePublisherRejectsChangedExistingMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
-	_, manifestPath, err := publisher.LoadPublicationState(contentRoot, "example", "medium")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := publisher.SaveDraftResult(manifestPath, "example", "medium", "old-hash", publisher.DraftResult{
+	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "old-hash", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
 		t.Fatal(err)
