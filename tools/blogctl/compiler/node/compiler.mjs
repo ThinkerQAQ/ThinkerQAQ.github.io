@@ -4,11 +4,13 @@ import {
   DEFAULT_R2_PUBLIC_BASE_URL,
   loadBlogctlPublishingRuntimeConfig,
 } from "./runtime-config.mjs";
+import { diagramKey as plantumlDiagramKey, normalize as normalizePlantUML } from "../../../../scripts/plantuml/core.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export { DEFAULT_R2_PUBLIC_BASE_URL };
 export const MERMAID_CLI_PACKAGE = "@mermaid-js/mermaid-cli@11.17.0";
 export const MERMAID_OBJECT_PREFIX = "generated/mermaid";
+export const PLANTUML_OBJECT_PREFIX = "generated/plantuml";
 
 function normalizeNewlines(value) {
   return String(value ?? "").replaceAll("\r\n", "\n").replaceAll("\r", "\n");
@@ -30,6 +32,7 @@ function fenceLanguage(info) {
 }
 
 const MERMAID_FENCE_LANGUAGES = new Set(["mermaid", "diagram", "uml"]);
+const PLANTUML_FENCE_LANGUAGES = new Set(["puml", "plantuml", "uml", "diagram"]);
 
 function looksLikeMermaid(source) {
   const first = normalizeNewlines(source)
@@ -39,15 +42,18 @@ function looksLikeMermaid(source) {
   return /^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|sankey-beta|xychart-beta|block-beta|packet-beta|architecture-beta|kanban)\b/u.test(first);
 }
 
+function looksLikePlantUML(source) {
+  return /^\s*@start\w+\b/iu.test(normalizeNewlines(source));
+}
+
 function isMermaidFence(language, source) {
   if (language === "mermaid") return true;
   return MERMAID_FENCE_LANGUAGES.has(language) && looksLikeMermaid(source);
 }
 
-function isUnsupportedDiagramFence(language, source) {
-  const normalized = normalizeNewlines(source).trimStart();
-  if (language === "plantuml" || /^@startuml\b/u.test(normalized)) return true;
-  return false;
+function isPlantUMLFence(language, source) {
+  if (language === "puml" || language === "plantuml") return true;
+  return PLANTUML_FENCE_LANGUAGES.has(language) && looksLikePlantUML(source);
 }
 
 function normalizeAssetBaseUrl(value) {
@@ -97,6 +103,23 @@ export function mermaidAssetForSource(source, {
   };
 }
 
+export function plantumlAssetForSource(source, {
+  assetBaseUrl = defaultAssetBaseUrl(),
+} = {}) {
+  const normalizedSource = normalizePlantUML(normalizeNewlines(source));
+  const digest = plantumlDiagramKey(normalizedSource);
+  const objectKey = PLANTUML_OBJECT_PREFIX + "/" + digest + ".png";
+  return {
+    kind: "plantuml",
+    id: digest,
+    renderer: "plantuml",
+    source: normalizedSource,
+    objectKey,
+    publicUrl: new URL(objectKey, normalizeAssetBaseUrl(assetBaseUrl)).toString(),
+    alt: "PlantUML diagram",
+  };
+}
+
 function makeLineLinksAbsolute(line, siteOrigin) {
   const origin = new URL(siteOrigin).origin;
   return line
@@ -140,13 +163,14 @@ export function collectPublishingAssets(markdown, options = {}) {
     const language = fenceLanguage(opening.info);
     const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
     const mermaid = isMermaidFence(language, source);
-    if (mermaid && !hasClosingFence) throw new Error("Unclosed Mermaid fenced block");
-    if (isUnsupportedDiagramFence(language, source)) {
-      throw new Error("Unsupported PlantUML diagram: convert it to Mermaid before publishing");
-    }
+    const plantuml = isPlantUMLFence(language, source);
+    if ((mermaid || plantuml) && !hasClosingFence) throw new Error("Unclosed diagram fenced block");
     if (mermaid) {
       const asset = mermaidAssetForSource(source, options);
-      assets.set(asset.id, asset);
+      assets.set(asset.kind + ":" + asset.id, asset);
+    } else if (plantuml) {
+      const asset = plantumlAssetForSource(source, options);
+      assets.set(asset.kind + ":" + asset.id, asset);
     }
     index = hasClosingFence ? closingIndex + 1 : closingIndex;
   }
@@ -173,7 +197,7 @@ export function assertNoUncompiledDiagrams(markdown, { platform = "generic" } = 
     const closingIndex = hasClosingFence ? index : lines.length;
     const language = fenceLanguage(opening.info);
     const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
-    if (isMermaidFence(language, source) || isUnsupportedDiagramFence(language, source)) {
+    if (isMermaidFence(language, source) || isPlantUMLFence(language, source)) {
       throw new Error(`Uncompiled diagram reached ${platform} output (${language || "diagram"} fence)`);
     }
     index = hasClosingFence ? closingIndex + 1 : closingIndex;
@@ -205,21 +229,21 @@ export function compilePublishingMarkdown(markdown, {
     const language = fenceLanguage(opening.info);
     const source = lines.slice(openingIndex + 1, closingIndex).join("\n");
     const mermaid = isMermaidFence(language, source);
+    const plantuml = isPlantUMLFence(language, source);
 
-    if (mermaid && !hasClosingFence) throw new Error("Unclosed Mermaid fenced block");
-    if (platform !== "site" && isUnsupportedDiagramFence(language, source)) {
-      throw new Error("Unsupported PlantUML diagram: convert it to Mermaid before publishing");
-    }
+    if ((mermaid || plantuml) && !hasClosingFence) throw new Error("Unclosed diagram fenced block");
 
-    if (!mermaid || platform === "site") {
+    if ((!mermaid && !plantuml) || platform === "site") {
       const end = hasClosingFence ? closingIndex + 1 : closingIndex;
       out.push(...lines.slice(openingIndex, end));
       index = end;
       continue;
     }
 
-    const asset = mermaidAssetForSource(source, { assetBaseUrl });
-    assets.set(asset.id, asset);
+    const asset = mermaid
+      ? mermaidAssetForSource(source, { assetBaseUrl })
+      : plantumlAssetForSource(source, { assetBaseUrl });
+    assets.set(asset.kind + ":" + asset.id, asset);
     out.push("![" + escapeMarkdownAlt(asset.alt) + "](" + asset.publicUrl + ")");
     index = hasClosingFence ? closingIndex + 1 : closingIndex;
   }
