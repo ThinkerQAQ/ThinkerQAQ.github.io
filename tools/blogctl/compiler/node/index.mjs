@@ -20,6 +20,7 @@ import {
   buildMediumDraft,
 } from "../../../../scripts/medium.mjs";
 import {
+  assertNoUncompiledDiagrams,
   collectPublishingAssets,
   compilePublishingMarkdown,
 } from "./compiler.mjs";
@@ -250,6 +251,9 @@ export async function compileArticle({
     };
     hashSource = generatedArticle.title + "\n" + portable + "\n<!-- blogctl-html -->\n" + compiled.html;
   }
+
+  assertNoUncompiledDiagrams(compiled.markdown, { platform });
+  assertNoUncompiledDiagrams(compiled.html, { platform });
 
   const assets = collectPublishingAssets(article.body);
   const nativeImageUpload = useNativeImageUpload(platform) && !dryRun;
