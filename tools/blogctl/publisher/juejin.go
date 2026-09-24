@@ -579,13 +579,13 @@ func (j *juejinAdapter) resolvePublishMetadata(ctx context.Context, input DraftI
 	for _, keyword := range keywords {
 		tags, searchErr := j.queryNamedIDs(
 			ctx, "/recommend_api/v1/tag/recommend/search", "tag-search",
-			map[string]any{"key_word": keyword, "cursor": "0", "limit": 10},
+			map[string]any{"page_no": 1, "page_size": 20, "key_word": keyword},
 			"tag_id", "tag_name",
 		)
 		if searchErr != nil {
 			tags, searchErr = j.queryNamedIDs(
 				ctx, "/tag_api/v1/query_tag_list", "tag-list",
-				map[string]any{"cursor": "0", "key_word": keyword, "limit": 10, "sort_type": 1},
+				map[string]any{"page_no": 1, "page_size": 20, "key_word": keyword},
 				"tag_id", "tag_name",
 			)
 		}
