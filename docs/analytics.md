@@ -88,18 +88,22 @@ The design, industry research, event schema, thresholds, lifecycle rules, valida
 
 ## Hourly automation without a Pro API key
 
-Umami Cloud API keys require a Pro plan. Hourly monitoring instead runs in GitHub Actions, which can reach the public Umami Share APIs directly.
+Umami Cloud API keys require a Pro plan. Routine monitoring now runs inside the existing Cloudflare Worker and continues to use the public Umami Share API.
 
-The workflow `.github/workflows/umami-hourly-report.yml` runs every hour and:
+The Worker is configured with:
 
-1. Resolves the public Umami Share slug through `/api/share/{slug}`.
-2. Uses Umami's scoped read-only share token.
-3. Reads aggregate stats and metrics directly from Umami Cloud.
-4. Compares the most recent hour with the immediately preceding hour.
-5. Writes only aggregate JSON to the dedicated `analytics-data` branch as `umami/latest.json`.
+- an hourly Cron Trigger at minute 7;
+- an `ANALYTICS_KV` namespace for durable hourly buckets and metadata;
+- a small Cache API read-through layer for hot responses.
 
-The snapshot includes traffic totals, paths, entry pages, referrers, channels, countries, regions, cities, custom events, UTM sources, and hour-over-hour deltas.
+Each Cron run resolves the read-only Umami share token, stores complete UTC-hour buckets, refreshes the latest current/previous comparison, and records health metadata. If a prior scheduled execution was missed, the next run backfills up to four missing hours instead of permanently losing the gap.
 
-The `analytics-data` branch is intentionally separate from `main` so hourly snapshots do not trigger site or Worker deployments. No IP address, session ID, distinct ID, or individual visitor trajectory is stored.
+Public aggregate read endpoints are:
 
-ChatGPT automation reads the generated snapshot from GitHub instead of contacting Umami Cloud or the Cloudflare Worker directly.
+- `GET /analytics/hourly`: latest complete hour, previous hour, and hour-over-hour deltas;
+- `GET /analytics/today`: exact Beijing-calendar-day aggregate from midnight to now, persisted briefly and cached for five minutes;
+- `GET /analytics/health`: last successful run, pending hours, and last collection error.
+
+Only aggregate analytics are stored. No IP address, session ID, distinct ID, or individual visitor trajectory is persisted by this reporting layer.
+
+The old `.github/workflows/umami-hourly-report.yml` and `analytics-data` branch are retained temporarily as a fallback while the Worker path is verified in production. Once the Worker Cron and KV path are proven stable, the GitHub-scheduled snapshot can be removed.
