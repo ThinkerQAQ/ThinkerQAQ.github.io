@@ -217,7 +217,7 @@ func (z *zhihuAdapter) uploadImageBinary(ctx context.Context, image RehostImage)
 		return "", platformError(ErrUpload, z.ID(), "image-token", 0, "Zhihu image upload token is incomplete", false)
 	}
 
-	ossDate := time.Now().UTC().Format(time.RFC1123)
+	ossDate := time.Now().UTC().Format(http.TimeFormat)
 	stringToSign := zhihuOSSStringToSign(objectKey, contentType, ossDate, token.UploadToken.AccessToken)
 	signature := zhihuOSSSignature(token.UploadToken.AccessKey, stringToSign)
 	target := zhihuImageUploadHost + "/" + strings.TrimLeft(objectKey, "/")
