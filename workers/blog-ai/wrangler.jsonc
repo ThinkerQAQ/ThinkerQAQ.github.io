@@ -3,6 +3,16 @@
   "name": "thinkerqaq-blog-ai",
   "main": "src/policy-worker.js",
   "compatibility_date": "2026-09-13",
+  "triggers": {
+    "crons": [
+      "7 * * * *"
+    ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "ANALYTICS_KV"
+    }
+  ],
   "ai": {
     "binding": "AI"
   },
@@ -27,6 +37,8 @@
     "BLOG_ORIGIN": "https://thinkerqaq.github.io",
     "ALLOWED_ORIGINS": "https://thinkerqaq.github.io,http://localhost:4321,http://127.0.0.1:4321",
     "AI_MODEL": "@cf/zai-org/glm-4.7-flash",
-    "AI_SEARCH_INSTANCE": "thinkerqaq-blog"
+    "AI_SEARCH_INSTANCE": "thinkerqaq-blog",
+    "UMAMI_SHARE_SLUG": "rroJe4zvqujFgYS0",
+    "ANALYTICS_TIMEZONE_OFFSET_MINUTES": "480"
   }
 }
