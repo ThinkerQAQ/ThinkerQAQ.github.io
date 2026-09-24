@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { compileArticle } from "./index.mjs";
+import { compileArticle, useNativeImageUpload } from "./index.mjs";
 
 const ARTICLE = `---
 title: "Compiled"
@@ -24,6 +24,12 @@ flowchart LR
   A --> B
 \`\`\`
 `;
+
+test("native image upload platforms do not require compiler-side R2 pre-upload", () => {
+  for (const platform of ["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium"]) {
+    assert.equal(useNativeImageUpload(platform), true, platform);
+  }
+});
 
 test("compileArticle returns versioned in-memory publishing content without writing publication state", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "blogctl-compiler-protocol-"));
