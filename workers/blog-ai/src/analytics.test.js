@@ -25,6 +25,22 @@ class MemoryKv {
   }
 }
 
+class LaggyHourReadKv extends MemoryKv {
+  constructor(entries = {}) {
+    super(entries);
+    this.visibleHours = new Map(
+      [...this.data].filter(([key]) => key.startsWith("analytics:hour:")),
+    );
+  }
+
+  async get(key) {
+    if (key.startsWith("analytics:hour:")) {
+      return this.visibleHours.get(key) ?? null;
+    }
+    return super.get(key);
+  }
+}
+
 function installUmamiFetch() {
   const originalFetch = globalThis.fetch;
   let calls = 0;
@@ -126,8 +142,8 @@ test("cron backfills missing complete hours and persists latest report", async (
   }
 });
 
-test("cron bootstrap collects two buckets so current and previous are immediately available", async () => {
-  const kv = new MemoryKv();
+test("cron bootstrap builds latest without relying on KV read-after-write consistency", async () => {
+  const kv = new LaggyHourReadKv();
   const umami = installUmamiFetch();
 
   try {
