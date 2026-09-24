@@ -173,17 +173,33 @@ async function main() {
   const errors = findings.filter(item => item.severity === "error");
   const warnings = findings.filter(item => item.severity === "warning");
 
-  for (const item of findings) {
-    const prefix = item.severity === "error" ? "::error" : "::warning";
-    console.log(`${prefix} file=${item.file},line=${item.line}::Public content audit: ${item.rule}`);
+  const redactPaths = process.env.PUBLIC_CONTENT_AUDIT_REDACT_PATHS === "1";
+  const byRule = Object.fromEntries(
+    [...new Set(findings.map(item => item.rule))]
+      .sort()
+      .map(rule => [rule, findings.filter(item => item.rule === rule).length]),
+  );
+
+  if (redactPaths) {
+    for (const [rule, count] of Object.entries(byRule)) {
+      const severity = findings.find(item => item.rule === rule)?.severity || "warning";
+      const prefix = severity === "error" ? "::error" : "::warning";
+      console.log(`${prefix}::Public content audit: ${rule} (${count} finding${count === 1 ? "" : "s"}; paths redacted)`);
+    }
+  } else {
+    for (const item of findings) {
+      const prefix = item.severity === "error" ? "::error" : "::warning";
+      console.log(`${prefix} file=${item.file},line=${item.line}::Public content audit: ${item.rule}`);
+    }
   }
 
   console.log(JSON.stringify({
     operation: "assert-public-content-safety",
     status: errors.length ? "failed" : "passed",
-    root,
+    root: redactPaths ? "<redacted>" : root,
     errors: errors.length,
     warnings: warnings.length,
+    byRule,
   }));
 
   if (errors.length) process.exitCode = 1;
