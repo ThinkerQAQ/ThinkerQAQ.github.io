@@ -152,7 +152,10 @@ func TestZhihuPrepareHTMLUploadsGeneratedAssetWithoutR2(t *testing.T) {
 		}
 	})}
 
-	adapterValue, err := NewZhihuAdapter(client, Session{UserAgent: "BlogCTL-Test-UA"})
+	adapterValue, err := NewZhihuAdapter(client, Session{
+		UserAgent: "BlogCTL-Test-UA",
+		Cookies: []BrowserCookie{{Name: "z_c0", Value: "test", Domain: ".zhihu.com", Path: "/", Secure: true}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
