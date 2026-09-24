@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -28,6 +29,26 @@ export function defaultRun(command, args, { cwd = process.cwd() } = {}) {
   });
 }
 
+export function mermaidCliInvocation({
+  platform = process.platform,
+  execPath = process.execPath,
+  npmExecPath = process.env.npm_execpath,
+  exists = existsSync,
+} = {}) {
+  if (platform !== "win32") return { command: "npx", prefixArgs: [] };
+
+  const pathApi = path.win32;
+  const candidates = [
+    npmExecPath ? pathApi.join(pathApi.dirname(npmExecPath), "npx-cli.js") : "",
+    pathApi.join(pathApi.dirname(execPath), "node_modules", "npm", "bin", "npx-cli.js"),
+  ].filter(Boolean);
+  const npxCli = candidates.find((candidate) => exists(candidate));
+  if (!npxCli) {
+    throw new Error("npm npx-cli.js was not found beside the active Windows Node.js runtime");
+  }
+  return { command: execPath, prefixArgs: [npxCli] };
+}
+
 export function assetCacheFile(cacheRoot, asset) {
   return path.resolve(cacheRoot, "mermaid", asset.id + ".png");
 }
@@ -52,8 +73,11 @@ export async function renderMermaidAsset(asset, {
     await writeFile(inputFile, asset.source + "\n", "utf8");
     await writeFile(configFile, JSON.stringify({ securityLevel: "strict", theme: "default" }), "utf8");
 
-    const command = process.platform === "win32" ? "npx.cmd" : "npx";
+    const invocation = mermaidCliInvocation({
+      npmExecPath: env.npm_execpath,
+    });
     const args = [
+      ...invocation.prefixArgs,
       "--yes", "-p", MERMAID_CLI_PACKAGE, "mmdc",
       "--input", inputFile,
       "--output", outputFile,
@@ -64,7 +88,7 @@ export async function renderMermaidAsset(asset, {
     ];
     const puppeteerConfig = String(env.MERMAID_PUPPETEER_CONFIG_FILE || "").trim();
     if (puppeteerConfig) args.push("--puppeteerConfigFile", path.resolve(puppeteerConfig));
-    await run(command, args, { cwd: temporary });
+    await run(invocation.command, args, { cwd: temporary });
     if (!(await exists(outputFile))) throw new Error("Mermaid renderer completed without creating " + outputFile);
     return { asset, outputFile, rendered: true };
   } finally {

@@ -26,18 +26,44 @@ type devtoAdapter struct {
 	browserCSRFToken string
 }
 
+// DEV.to returns tag_list / tags as either an array (API v1) or a
+// comma-separated string (some browser/API responses). Accept both.
+type devtoTagList []string
+
+func (tags *devtoTagList) UnmarshalJSON(raw []byte) error {
+	var values []string
+	if err := json.Unmarshal(raw, &values); err == nil {
+		*tags = values
+		return nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return err
+	}
+	if strings.TrimSpace(value) == "" {
+		*tags = nil
+		return nil
+	}
+	for _, tag := range strings.Split(value, ",") {
+		if tag = strings.TrimSpace(tag); tag != "" {
+			*tags = append(*tags, tag)
+		}
+	}
+	return nil
+}
+
 type devtoArticle struct {
-	ID                 int64    `json:"id"`
-	Title              string   `json:"title"`
-	Description        string   `json:"description"`
-	CanonicalURL       string   `json:"canonical_url"`
-	BodyMarkdown       string   `json:"body_markdown"`
-	TagList            []string `json:"tag_list"`
-	Tags               string   `json:"tags"`
-	Published          bool     `json:"published"`
-	PublishedAt        string   `json:"published_at"`
-	PublishedTimestamp string   `json:"published_timestamp"`
-	URL                string   `json:"url"`
+	ID                 int64        `json:"id"`
+	Title              string       `json:"title"`
+	Description        string       `json:"description"`
+	CanonicalURL       string       `json:"canonical_url"`
+	BodyMarkdown       string       `json:"body_markdown"`
+	TagList            devtoTagList `json:"tag_list"`
+	Tags               devtoTagList `json:"tags"`
+	Published          bool         `json:"published"`
+	PublishedAt        string       `json:"published_at"`
+	PublishedTimestamp string       `json:"published_timestamp"`
+	URL                string       `json:"url"`
 }
 
 type devtoPayload struct {
@@ -125,8 +151,8 @@ func devtoRemoteTags(article devtoArticle) []string {
 	if len(article.TagList) > 0 {
 		return normalizeDEVToTags(article.TagList)
 	}
-	if article.Tags != "" {
-		return normalizeDEVToTags(strings.Split(article.Tags, ","))
+	if len(article.Tags) > 0 {
+		return normalizeDEVToTags(article.Tags)
 	}
 	return nil
 }

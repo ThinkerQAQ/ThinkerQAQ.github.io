@@ -138,6 +138,39 @@ func TestCNBlogsUsesCapturedBrowserCookieHeaderForAPI(t *testing.T) {
 	}
 }
 
+func TestCNBlogsUsesHostScopedCapturedCookieHeaderForUpload(t *testing.T) {
+	const editorCookie = ".Cnblogs.AspNetCore.Cookies=editor-login"
+	const uploadCookie = ".Cnblogs.Upload.Cookies=upload-login"
+	session := Session{
+		UserAgent:           "BlogCTL-Test-UA",
+		RequestCookieHeader: editorCookie,
+		RequestCookieHeaders: map[string]string{
+			"upload.cnblogs.com": uploadCookie,
+		},
+	}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return jsonResponse(request, http.StatusOK, `{}`, nil), nil
+	})}
+	adapter, err := NewCNBlogsAdapter(client, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uploadRequest, err := adapter.(*cnBlogsAdapter).request(context.Background(), http.MethodGet, "https://upload.cnblogs.com/v2/images/cors-upload", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploadRequest.Header.Get("Cookie") != uploadCookie {
+		t.Fatalf("upload Cookie = %q, want host-scoped captured Cookie", uploadRequest.Header.Get("Cookie"))
+	}
+	editorRequest, err := adapter.(*cnBlogsAdapter).request(context.Background(), http.MethodGet, "https://i.cnblogs.com/api/user", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if editorRequest.Header.Get("Cookie") != editorCookie {
+		t.Fatalf("editor Cookie = %q, want editor captured Cookie", editorRequest.Header.Get("Cookie"))
+	}
+}
+
 // TestCNBlogsCheckAuthRejectsInvalidJSON ensures a 200 with non-JSON body is an
 // upstream error, never a false "logged in".
 func TestCNBlogsCheckAuthRejectsInvalidJSON(t *testing.T) {

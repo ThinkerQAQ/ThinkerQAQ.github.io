@@ -29,6 +29,17 @@ const NATIVE_IMAGE_UPLOAD_PLATFORMS = new Set([
   "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao", "devto", "medium",
 ]);
 
+function logAssetStage(env, severity, fields) {
+  if (String(env?.BLOGCTL_COMPILER_LOGS || "").trim().toLowerCase() === "off") return;
+  process.stderr.write(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    severity,
+    component: "blogctl-compiler",
+    operation: "prepare-diagram-assets",
+    ...fields,
+  }) + "\n");
+}
+
 function internalAssetRef(asset) {
   return `blogctl-asset://${asset.kind}/${asset.id}`;
 }
@@ -257,12 +268,42 @@ export async function compileArticle({
 
   const assets = collectPublishingAssets(article.body);
   const nativeImageUpload = useNativeImageUpload(platform) && !dryRun;
-  await preparePublishingAssetList(assets, {
-    dryRun,
-    cacheRoot: path.join(contentRoot, ".distribution", "assets"),
-    env,
-    uploadFallback: !nativeImageUpload,
-  });
+  const assetStartedAt = Date.now();
+  let assetPreparation;
+  try {
+    assetPreparation = await preparePublishingAssetList(assets, {
+      dryRun,
+      cacheRoot: path.join(contentRoot, ".distribution", "assets"),
+      env,
+      uploadFallback: !nativeImageUpload,
+    });
+  } catch (error) {
+    logAssetStage(env, "error", {
+      status: "failed",
+      slug,
+      platform,
+      assetCount: assets.length,
+      delivery: nativeImageUpload ? "platform-native" : "r2",
+      durationMs: Date.now() - assetStartedAt,
+      error: { name: error?.name || "Error", message: error?.message || String(error) },
+    });
+    throw error;
+  }
+  if (assets.length > 0) {
+    logAssetStage(env, "info", {
+      status: "completed",
+      slug,
+      platform,
+      assetCount: assets.length,
+      assetKinds: [...new Set(assets.map((asset) => asset.kind))],
+      delivery: nativeImageUpload ? "platform-native" : "r2",
+      rendered: assetPreparation.rendered,
+      cached: assetPreparation.cached,
+      uploaded: assetPreparation.uploaded,
+      dryRun: assetPreparation.dryRun,
+      durationMs: Date.now() - assetStartedAt,
+    });
+  }
 
   if (nativeImageUpload && assets.length) {
     compiled.markdown = replaceAssetUrls(compiled.markdown, assets);

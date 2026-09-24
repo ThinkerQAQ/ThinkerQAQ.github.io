@@ -17,7 +17,7 @@
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer;
-  let actionButton, nextActions, viewTaskButton, enterPublishButton, message;
+  let actionButton, nextActions, viewTaskButton, enterPublishButton, message, selectAllButton, invertButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
@@ -106,9 +106,9 @@
 
   function platformLifecycleText(platformId) {
     const record = publicationRecord(platformId);
-    if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 保存时更新";
+    if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 本次更新";
     if (record?.publishedUrl) return "已有已发布记录";
-    return "没有草稿关系 · 保存时创建";
+    return "没有草稿关系 · 本次创建";
   }
 
   function platformTaskResult(platformId) {
@@ -154,7 +154,7 @@
 
       const badge = document.createElement("span");
       if (!availability.available) BlogCTLPopup.setStatus(badge, "disabled", availability.reason);
-      else BlogCTLPopup.setStatus(badge, "ok", "可保存");
+      else BlogCTLPopup.setStatus(badge, "ok", "可更新");
 
       card.append(checkbox, text, badge);
       wrapper.append(card);
@@ -165,7 +165,7 @@
         statusRow.className = "platform-task-status";
 
         const statusLabel = document.createElement("span");
-        statusLabel.textContent = "保存状态";
+        statusLabel.textContent = "更新状态";
         const status = document.createElement("strong");
         const presentation = BlogCTLSyncModel.statePresentation(taskResult.state, taskResult.result || "");
         BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
@@ -190,6 +190,18 @@
     updateAction();
   }
 
+  function setDraftPlatforms(mode) {
+    if (!state.selectedSlug) return;
+    const checkboxes = [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]')]
+      .filter((input) => !input.disabled);
+    if (mode === "all") checkboxes.forEach((box) => { box.checked = true; });
+    else checkboxes.forEach((box) => { box.checked = !box.checked; });
+    resetWorkflow();
+    state.selectedPlatformIDs = new Set(selectedPlatforms());
+    BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
+    renderPlatforms();
+  }
+
   function completedPlatforms(job) {
     return (job?.platforms ?? []).filter((platform) => job.results?.[platform]?.state === "completed");
   }
@@ -207,8 +219,8 @@
     if (!terminal) {
       actionButton.disabled = !ready || running;
       actionButton.textContent = running
-        ? "保存中…"
-        : count > 0 ? `保存 ${count} 个平台` : "保存";
+        ? "更新中…"
+        : count > 0 ? `更新 ${count} 个平台` : "更新";
     }
 
     if (terminal) {
@@ -255,7 +267,7 @@
       updateAction();
 
       if (state.currentJob.state === "completed") {
-        BlogCTLPopup.setMessage(message, "保存完成。可查看任务，或进入发布。", "ok");
+        BlogCTLPopup.setMessage(message, "更新完成。可查看任务，或进入发布。", "ok");
         return;
       }
       if (state.currentJob.state === "failed") {
@@ -263,8 +275,8 @@
         BlogCTLPopup.setMessage(
           message,
           successful > 0
-            ? `部分平台保存失败；${successful} 个平台可继续发布。`
-            : "保存失败，请查看任务详情。",
+            ? `部分平台更新失败；${successful} 个平台可继续发布。`
+            : "更新失败，请查看任务详情。",
           "error",
         );
         return;
@@ -282,7 +294,7 @@
     if (!article || !platforms.length || actionButton.disabled) return;
 
     actionButton.disabled = true;
-    BlogCTLPopup.setMessage(message, "正在创建保存任务…");
+    BlogCTLPopup.setMessage(message, "正在创建更新任务…");
     try {
       const response = await BlogCTLPopup.send("blogctl.job.start", {
         request: {
@@ -297,7 +309,7 @@
       state.currentJob = response.job ?? null;
       renderPlatforms();
       updateAction();
-      BlogCTLPopup.setMessage(message, "保存任务已启动，正在轮询状态。", "ok");
+      BlogCTLPopup.setMessage(message, "更新任务已启动，正在轮询状态。", "ok");
       if (state.currentJob?.id) pollJob(state.currentJob.id);
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -375,6 +387,8 @@
     viewTaskButton = document.getElementById("draftViewTask");
     enterPublishButton = document.getElementById("draftEnterPublish");
     message = document.getElementById("draftsMessage");
+    selectAllButton = document.getElementById("selectAllDraftPlatforms");
+    invertButton = document.getElementById("invertDraftPlatforms");
 
     articlePicker.addEventListener("focus", () => {
       articleOptions.hidden = false;
@@ -407,6 +421,8 @@
     actionButton.addEventListener("click", startSave);
     viewTaskButton.addEventListener("click", navigateTask);
     enterPublishButton.addEventListener("click", enterPublish);
+    selectAllButton.addEventListener("click", () => setDraftPlatforms("all"));
+    invertButton.addEventListener("click", () => setDraftPlatforms("invert"));
     state.initialized = true;
   }
 

@@ -522,6 +522,14 @@ type bridgeNativePublisher struct {
 	server *Server
 }
 
+func cloneStringMap(values map[string]string) map[string]string {
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		result[key] = value
+	}
+	return result
+}
+
 func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot string, config bridgeConfig) publisher.DraftInput {
 	assets := make([]publisher.PublishingAsset, 0, len(article.Assets))
 	for _, asset := range article.Assets {
@@ -623,7 +631,8 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 	}
 	return publisher.Session{
 		Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader,
-		CookieHostSuffixes: publisherCookieHostSuffixes(platform),
+		RequestCookieHeaders: cloneStringMap(session.RequestCookieHeaders),
+		CookieHostSuffixes:   publisherCookieHostSuffixes(platform),
 	}, httpClient, nil
 }
 

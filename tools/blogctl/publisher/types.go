@@ -18,11 +18,12 @@ type BrowserCookie struct {
 }
 
 type Session struct {
-	Cookies             []BrowserCookie
-	UserAgent           string
-	RequestCookieHeader string
-	CookieHostSuffixes  []string
-	APIKey              string
+	Cookies              []BrowserCookie
+	UserAgent            string
+	RequestCookieHeader  string
+	RequestCookieHeaders map[string]string
+	CookieHostSuffixes   []string
+	APIKey               string
 }
 
 type AuthResult struct {

@@ -17,9 +17,12 @@
     refreshSerial: 0,
     selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)),
     platformSelectionInitialized: false,
+    selectedMatchKeys: new Set(),
+    bindingMutating: false,
   };
 
-  let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton, goToSaveButton;
+  let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton;
+  let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
@@ -29,10 +32,79 @@
     return [...state.selectedPlatformIDs];
   }
 
+  function pruneSelectedMatchesToPlatforms() {
+    for (const key of [...state.selectedMatchKeys]) {
+      const platformID = key.split(":", 1)[0];
+      if (!state.selectedPlatformIDs.has(platformID)) state.selectedMatchKeys.delete(key);
+    }
+  }
+
+  function setSyncPlatforms(mode) {
+    if (!state.selectedSlug) return;
+    const selectable = (state.status?.platforms ?? [])
+      .filter((platform) => platformAvailability(selectedArticle(), platform).available);
+    state.selectedPlatformIDs = new Set(
+      selectable
+        .filter((platform) => mode === "all" ? true : !state.selectedPlatformIDs.has(platform.id))
+        .map((platform) => platform.id),
+    );
+    pruneSelectedMatchesToPlatforms();
+    BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
+    renderPlatforms();
+  }
+
+  function matchSelectionKey(platformID, item) {
+    return [platformID, item.published ? "published" : "draft", String(item.id)].join(":");
+  }
+
+  function remoteStateName(item) {
+    return item.published ? "published" : "draft";
+  }
+
+  function bindingStateChanged(item) {
+    return Boolean(item.bound && item.bindingState && item.bindingState !== remoteStateName(item));
+  }
+
+  function selectedMatchEntries() {
+    if (!state.selectedSlug || state.matchKey !== state.selectedSlug) return [];
+    const selected = [];
+    for (const platform of state.status?.platforms ?? []) {
+      if (!state.selectedPlatformIDs.has(platform.id)) continue;
+      const match = state.matches[platform.id];
+      for (const item of match?.items ?? []) {
+        const key = matchSelectionKey(platform.id, item);
+        if (state.selectedMatchKeys.has(key)) selected.push({ platform, item, key });
+      }
+    }
+    return selected;
+  }
+
+  function canBindItem(item) {
+    const changed = bindingStateChanged(item);
+    return (!item.bound || changed) && !(item.unverified && changed);
+  }
+
+  function canUnbindItem(item) {
+    return Boolean(item.bound && item.bindingState);
+  }
+
+  function updateBulkActions() {
+    if (!bulkActions) return;
+    const entries = selectedMatchEntries();
+    bulkActions.hidden = entries.length === 0;
+    selectionSummary.textContent = "已选择 " + entries.length + " 篇文章";
+    const bindable = entries.filter(({ item }) => canBindItem(item)).length;
+    const unbindable = entries.filter(({ item }) => canUnbindItem(item)).length;
+    bindSelectedButton.disabled = state.bindingMutating || bindable === 0;
+    unbindSelectedButton.disabled = state.bindingMutating || unbindable === 0;
+    bindSelectedButton.textContent = bindable > 0 ? "批量绑定 (" + bindable + ")" : "批量绑定";
+    unbindSelectedButton.textContent = unbindable > 0 ? "批量解绑 (" + unbindable + ")" : "批量解绑";
+  }
+
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
-    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.selectedPlatformIDs.size === 0;
-    goToSaveButton.disabled = !ready;
+    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating || state.selectedPlatformIDs.size === 0;
+    updateBulkActions();
   }
 
   function renderArticleMeta() {
@@ -84,10 +156,11 @@
     checkbox.type = "checkbox";
     checkbox.dataset.platform = platform.id;
     checkbox.checked = availability.available && state.selectedPlatformIDs.has(platform.id);
-    checkbox.disabled = !availability.available || state.bindingLoading;
+    checkbox.disabled = !availability.available || state.bindingLoading || state.bindingMutating;
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) state.selectedPlatformIDs.add(platform.id);
       else state.selectedPlatformIDs.delete(platform.id);
+      pruneSelectedMatchesToPlatforms();
       BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
       renderPlatforms();
     });
@@ -108,7 +181,7 @@
           : nativeBrowserPlatform
             ? "检测文章关联时同步浏览器登录"
             : platform.known === false
-              ? `登录状态检测失败${platform.error ? ` · ${platform.error}` : ""}`
+              ? "登录状态检测失败" + (platform.error ? " · " + platform.error : "")
               : "浏览器未登录";
     text.append(name, detail);
 
@@ -124,110 +197,177 @@
     return header;
   }
 
+  const manualBindingPlatforms = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "medium",
+  ]);
+
+  function manualBindingStates(platformID) {
+    if (platformID === "cnblogs" || platformID === "csdn") return [];
+    if (platformID === "51cto") return ["draft"];
+    return ["draft", "published"];
+  }
+
+  function manualBindingPlaceholder(platformID) {
+    const labels = {
+      cnblogs: "博客园文章 ID 或链接",
+      juejin: "掘金文章／草稿 ID 或链接",
+      csdn: "CSDN 文章 ID、公开链接或编辑链接",
+      segmentfault: "思否文章／草稿 ID 或链接",
+      zhihu: "知乎文章 ID 或链接",
+      "51cto": "51CTO 草稿 ID 或链接",
+      oschina: "开源中国文章／草稿 ID 或链接",
+      devto: "DEV.to 文章 ID（或带 ID 的后台链接）",
+      medium: "Medium 文章 ID 或链接",
+    };
+    return labels[platformID] || "文章 ID 或链接";
+  }
+
+  function manualBindingID(platformID, reference) {
+    const raw = String(reference || "").trim();
+    if (!raw) return "";
+    if (platformID === "cnblogs" || platformID === "csdn") return raw;
+    if (/^[A-Za-z0-9_-]+$/.test(raw) && !raw.includes(".")) return raw;
+
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      return "";
+    }
+    const path = parsed.pathname;
+    if (platformID === "segmentfault") return parsed.searchParams.get("draftId") || path.match(/\/a\/([0-9]+)/)?.[1] || "";
+    if (platformID === "zhihu") return path.match(/\/p\/([A-Za-z0-9_-]+)/)?.[1] || "";
+    if (platformID === "juejin") return path.match(/\/post\/([0-9]+)/)?.[1] || path.match(/\/editor\/drafts\/([0-9]+)/)?.[1] || "";
+    if (platformID === "oschina") return path.match(/\/blog\/ai-write\/draft\/([0-9]+)/)?.[1] || path.match(/\/blog\/([0-9]+)/)?.[1] || "";
+    if (platformID === "51cto") return path.match(/\/([0-9]+)\/?$/)?.[1] || "";
+    if (platformID === "devto") return path.match(/\/([0-9]+)(?:\/edit)?\/?$/)?.[1] || "";
+    if (platformID === "medium") return path.match(/\/p\/([0-9a-f]{8,})(?:\/edit)?\/?$/i)?.[1] || path.match(/-([0-9a-f]{8,})\/?$/i)?.[1] || "";
+    return "";
+  }
+
+  function appendManualBinding(platform, match, result) {
+    if (!manualBindingPlatforms.has(platform.id)) return;
+    const manual = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "候选中没有？输入文章 ID／链接";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = manualBindingPlaceholder(platform.id);
+    input.autocomplete = "off";
+
+    const states = manualBindingStates(platform.id);
+    let stateSelect = null;
+    if (states.length) {
+      stateSelect = document.createElement("select");
+      for (const stateName of states) {
+        const option = document.createElement("option");
+        option.value = stateName;
+        option.textContent = stateName === "published" ? "已发布" : "草稿";
+        stateSelect.append(option);
+      }
+    }
+
+    const bind = document.createElement("button");
+    bind.type = "button";
+    bind.className = "secondary";
+    bind.textContent = "验证并绑定";
+    bind.addEventListener("click", async () => {
+      const reference = input.value.trim();
+      if (!reference) return;
+      const article = state.selectedSlug;
+      const bindings = platform.id === "cnblogs" ? state.cnblogsBindings : (match.bindings ?? []);
+      bind.disabled = true;
+      if (stateSelect) stateSelect.disabled = true;
+      try {
+        if (platform.id === "cnblogs") {
+          const existing = bindings.length > 0;
+          if (existing && !confirm("将验证该远端文章；若对应状态已有绑定，会替换原绑定。继续吗？")) return;
+          await BlogCTLPopup.send("blogctl.cnblogs.bind", { article, reference, replace: existing });
+          await loadSyncBinding();
+        } else if (platform.id === "csdn") {
+          if (bindings.length && !confirm("将验证该 CSDN 文章；如果对应状态已有绑定，会替换原绑定。继续吗？")) return;
+          await BlogCTLPopup.send("blogctl.csdn.bind", {
+            article, postId: reference, state: "", replace: bindings.length > 0, manual: true,
+          });
+        } else {
+          const postId = manualBindingID(platform.id, reference);
+          if (!postId) throw new Error("无法从输入内容识别远端文章 ID");
+          const stateName = stateSelect?.value || "draft";
+          const existing = bindings.find((binding) => binding.state === stateName);
+          if (existing && String(existing.postId) !== String(postId) &&
+              !confirm("将替换当前" + (stateName === "published" ? "已发布文章" : "草稿") + "绑定。继续吗？")) return;
+          await BlogCTLPopup.send("blogctl." + platform.id + ".bind", {
+            article, postId, state: stateName,
+            replace: Boolean(existing && String(existing.postId) !== String(postId)),
+            manual: true,
+          });
+        }
+        if (article !== state.selectedSlug) return;
+        await refreshArticleMatches();
+        BlogCTLPopup.setMessage(message, (platform.label || platform.id) + " 绑定已保存。", "ok");
+      } catch (error) {
+        BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+      } finally {
+        bind.disabled = false;
+        if (stateSelect) stateSelect.disabled = false;
+      }
+    });
+
+    manual.append(summary, input);
+    if (stateSelect) manual.append(stateSelect);
+    manual.append(bind);
+    result.append(manual);
+  }
+
   function appendMatchRows(platform, match, result) {
     for (const item of match.items ?? []) {
       const row = document.createElement("div");
       row.className = "article-match-row";
-      row.textContent = `${item.localOnly ? "本地记录 · " : item.bound ? "已绑定 · " : "候选 · "}${item.title} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}${item.bound && item.bindingState && item.bindingState !== (item.published ? "published" : "draft") ? " · 远端状态已变化" : ""}`;
 
-      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|blog\.csdn\.net|editor\.csdn\.net|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net|medium\.com)\//.test(item.url)) {
+      const choice = document.createElement("label");
+      choice.className = "article-match-choice";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.dataset.platform = platform.id;
+      checkbox.dataset.postId = String(item.id);
+      const key = matchSelectionKey(platform.id, item);
+      checkbox.checked = state.selectedMatchKeys.has(key);
+      checkbox.disabled = state.bindingLoading || state.bindingMutating || (!canBindItem(item) && !canUnbindItem(item));
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) state.selectedMatchKeys.add(key);
+        else state.selectedMatchKeys.delete(key);
+        updateBulkActions();
+      });
+
+      const text = document.createElement("span");
+      text.className = "article-match-choice-text";
+      const parts = [
+        item.localOnly ? "本地记录" : item.bound ? "已绑定" : "候选",
+        item.title,
+        item.published ? "已发布" : "草稿",
+        "ID " + item.id,
+      ];
+      if (bindingStateChanged(item)) parts.push("远端状态已变化");
+      text.textContent = parts.join(" · ");
+      choice.append(checkbox, text);
+      row.append(choice);
+
+      if (item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|blog\.csdn\.net|editor\.csdn\.net|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net|medium\.com|juejin\.cn|blog\.51cto\.com)\//.test(item.url)) {
+        const links = document.createElement("div");
+        links.className = "article-match-links";
         const link = document.createElement("a");
         link.textContent = "查看文章";
         link.href = item.url;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        row.append(" · ", link);
+        links.append(link);
+        row.append(links);
       }
 
-      if (platform.id === "cnblogs" || platform.id === "csdn" || platform.id === "segmentfault" || platform.id === "zhihu" || platform.id === "oschina" || platform.id === "devto" || platform.id === "medium") {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "secondary";
-        const stateChanged = item.bound && item.bindingState !== (item.published ? "published" : "draft");
-        button.textContent = stateChanged ? "更新绑定状态" : item.bound ? "解除绑定" : "验证并绑定";
-        button.disabled = Boolean(item.unverified && stateChanged);
-        button.addEventListener("click", () => changeBinding(platform.id, item, button));
-        row.append(button);
-      }
       result.append(row);
     }
 
-    if (platform.id === "cnblogs") {
-      const manual = document.createElement("details");
-      const summary = document.createElement("summary");
-      summary.textContent = "候选中没有？输入文章 ID／链接";
-      const input = document.createElement("input");
-      input.type = "text";
-      input.placeholder = "博客园文章 ID 或链接";
-      input.autocomplete = "off";
-      const bind = document.createElement("button");
-      bind.type = "button";
-      bind.className = "secondary";
-      bind.textContent = "验证并绑定";
-      bind.addEventListener("click", async () => {
-        const reference = input.value.trim();
-        if (!reference) return;
-        const article = state.selectedSlug;
-        bind.disabled = true;
-        try {
-          const existing = state.cnblogsBindings.length > 0;
-          if (existing && !confirm("将验证该远端文章；若对应状态已有绑定，会替换原绑定。继续吗？")) return;
-          await BlogCTLPopup.send("blogctl.cnblogs.bind", { article, reference, replace: existing });
-          if (article !== state.selectedSlug) return;
-          await loadSyncBinding();
-          await refreshArticleMatches();
-          BlogCTLPopup.setMessage(message, "绑定已保存。", "ok");
-        } catch (error) {
-          BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-        } finally {
-          bind.disabled = false;
-        }
-      });
-      manual.append(summary, input, bind);
-      result.append(manual);
-    } else if (platform.id === "csdn") {
-      const manual = document.createElement("details");
-      const summary = document.createElement("summary");
-      summary.textContent = "候选中没有？输入 CSDN 文章 ID／链接";
-      const input = document.createElement("input");
-      input.type = "text";
-      input.placeholder = "CSDN 文章 ID、公开链接或编辑链接";
-      input.autocomplete = "off";
-      const bind = document.createElement("button");
-      bind.type = "button";
-      bind.className = "secondary";
-      bind.textContent = "验证并绑定";
-      bind.addEventListener("click", async () => {
-        const reference = input.value.trim();
-        if (!reference) return;
-        const article = state.selectedSlug;
-        const bindings = state.matches.csdn?.bindings ?? [];
-        bind.disabled = true;
-        try {
-          if (bindings.length && !confirm("将验证该 CSDN 文章；如果对应状态已有绑定，会替换原绑定。继续吗？")) return;
-          await BlogCTLPopup.send("blogctl.csdn.bind", {
-            article,
-            postId: reference,
-            state: "",
-            replace: bindings.length > 0,
-          });
-          if (article !== state.selectedSlug) return;
-          await refreshArticleMatches();
-          BlogCTLPopup.setMessage(message, "CSDN 绑定已保存。", "ok");
-        } catch (error) {
-          BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-        } finally {
-          bind.disabled = false;
-        }
-      });
-      manual.append(summary, input, bind);
-      result.append(manual);
-    } else if (!(match.items ?? []).length) {
-      const note = document.createElement("small");
-      note.className = "job-platform-message";
-      note.textContent = "当前平台没有可绑定的远端候选，或尚未接入手动绑定。";
-      result.append(note);
-    }
+    appendManualBinding(platform, match, result);
   }
 
   function renderPlatforms() {
@@ -246,7 +386,7 @@
         const result = document.createElement("div");
         result.className = "article-match";
         const prefix = state.cachedMatchTime
-          ? `上次检测 ${new Date(state.cachedMatchTime).toLocaleString()} · `
+          ? "上次检测 " + new Date(state.cachedMatchTime).toLocaleString() + " · "
           : "";
         result.textContent = prefix + match.text;
         appendMatchRows(platform, match, result);
@@ -254,9 +394,12 @@
       } else if (state.selectedSlug) {
         const note = document.createElement("div");
         note.className = "article-match";
-        note.textContent = selected
-          ? "点击“检测文章关联”读取远端候选与本地绑定状态。"
-          : "未选择检测此平台。";
+        const availability = platformAvailability(article, platform);
+        note.textContent = !availability.available
+          ? availability.reason
+          : selected
+            ? "点击“检测文章关联”读取远端候选与本地绑定状态。"
+            : "未选择检测此平台。";
         card.append(note);
       }
 
@@ -273,15 +416,23 @@
     state.matches = {};
     state.matchKey = "";
     state.cachedMatchTime = 0;
+    state.selectedMatchKeys.clear();
     BlogCTLSyncState.clearMatches(localStorage);
     state.refreshSerial++;
+    updateBulkActions();
   }
 
   async function refreshArticleMatches(allowBridgeRestart = true) {
     const article = state.selectedSlug;
     const platforms = selectedPlatformIDs();
-    if (!article || !platforms.length) return;
+    if (!article) return;
+    if (!platforms.length) {
+      BlogCTLPopup.setMessage(message, "请先选择至少一个需要检测的平台。", "error");
+      return;
+    }
 
+    state.selectedMatchKeys.clear();
+    updateBulkActions();
     const serial = ++state.refreshSerial;
     state.matchKey = article;
     state.cachedMatchTime = 0;
@@ -319,39 +470,96 @@
     renderPlatforms();
   }
 
-  async function changeBinding(platformID, item, button) {
-    const article = state.selectedSlug;
-    const stateName = item.published ? "published" : "draft";
-    const stateChanged = item.bound && item.bindingState !== stateName;
-    if (item.bound && !stateChanged && !confirm(`只解除本地${item.published ? "已发布文章" : "草稿"}绑定，远端文章不会删除。继续吗？`)) return;
-
-    const bindings = platformID === "cnblogs"
+  function platformBindings(platformID) {
+    return platformID === "cnblogs"
       ? state.cnblogsBindings
       : (state.matches[platformID]?.bindings ?? []);
-    const existing = bindings.find((binding) => binding.state === stateName);
-    if ((!item.bound || stateChanged) && existing && String(existing.postId) !== String(item.id) &&
-        !confirm(`将替换当前${item.published ? "已发布文章" : "草稿"}绑定。继续吗？`)) return;
+  }
 
-    button.disabled = true;
-    BlogCTLPopup.setMessage(message, item.bound && !stateChanged ? "正在解除本地绑定…" : "正在验证远端文章并绑定…");
+  function existingBinding(platformID, stateName) {
+    return platformBindings(platformID).find((binding) => binding.state === stateName);
+  }
+
+  function batchEntries(action) {
+    return selectedMatchEntries().filter(({ item }) => action === "bind" ? canBindItem(item) : canUnbindItem(item));
+  }
+
+  async function runBulkBinding(action) {
+    const article = state.selectedSlug;
+    const entries = batchEntries(action);
+    if (!article || !entries.length || state.bindingMutating) return;
+
+    if (action === "bind") {
+      const targets = new Set();
+      for (const { platform, item } of entries) {
+        const target = platform.id + ":" + remoteStateName(item);
+        if (targets.has(target)) {
+          BlogCTLPopup.setMessage(message, "同一平台的同一状态一次只能绑定一篇文章，请减少勾选后重试。", "error");
+          return;
+        }
+        targets.add(target);
+      }
+
+      const replacements = entries.filter(({ platform, item }) => {
+        const bound = existingBinding(platform.id, remoteStateName(item));
+        return bound && String(bound.postId) !== String(item.id);
+      });
+      if (replacements.length && !confirm("所选文章中有 " + replacements.length + " 条会替换当前绑定。继续吗？")) return;
+    } else if (!confirm("将解除所选 " + entries.length + " 条本地绑定，远端文章不会删除。继续吗？")) {
+      return;
+    }
+
+    state.bindingMutating = true;
+    updateControls();
+    BlogCTLPopup.setMessage(message, action === "bind" ? "正在批量验证并绑定…" : "正在批量解除本地绑定…");
+
+    let success = 0;
+    const failures = [];
+    let touchedCnblogs = false;
+    for (const { platform, item } of entries) {
+      try {
+        const stateName = action === "bind" ? remoteStateName(item) : (item.bindingState || remoteStateName(item));
+        const bound = existingBinding(platform.id, stateName);
+        const payload = {
+          article,
+          state: stateName,
+          postId: item.id,
+          replace: action === "bind" && Boolean(bound && String(bound.postId) !== String(item.id)),
+          candidate: {
+            id: item.id,
+            title: item.title,
+            url: item.url || "",
+            published: Boolean(item.published),
+          },
+        };
+        if (platform.id === "cnblogs") {
+          payload.reference = item.id;
+          touchedCnblogs = true;
+        }
+        await BlogCTLPopup.send("blogctl." + platform.id + "." + (action === "bind" ? "bind" : "unbind"), payload);
+        success++;
+      } catch (error) {
+        failures.push((platform.label || platform.id) + " / " + item.title + "：" + BlogCTLPopup.errorMessage(error));
+      }
+    }
+
+    state.selectedMatchKeys.clear();
     try {
-      const action = item.bound && !stateChanged ? "unbind" : "bind";
-      const payload = {
-        article,
-        state: item.bound && !stateChanged ? item.bindingState : stateName,
-        postId: item.id,
-        replace: Boolean(existing),
-      };
-      if (platformID === "cnblogs") payload.reference = item.id;
-      await BlogCTLPopup.send(`blogctl.${platformID}.${action}`, payload);
-      if (article !== state.selectedSlug) return;
-      if (platformID === "cnblogs") await loadSyncBinding();
+      if (touchedCnblogs) await loadSyncBinding();
       await refreshArticleMatches();
-      BlogCTLPopup.setMessage(message, item.bound && !stateChanged ? "本地绑定已解除。" : "绑定已保存。", "ok");
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally {
-      button.disabled = false;
+      state.bindingMutating = false;
+      updateControls();
+    }
+
+    if (failures.length) {
+      BlogCTLPopup.setMessage(
+        message,
+        "批量操作完成：成功 " + success + "，失败 " + failures.length + "。 " + failures.slice(0, 2).join("；"),
+        "error",
+      );
+    } else {
+      BlogCTLPopup.setMessage(message, action === "bind" ? "批量绑定已完成。" : "批量解绑已完成。", "ok");
     }
   }
 
@@ -402,6 +610,7 @@
         BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
       } else {
         state.selectedPlatformIDs = new Set(selectedPlatformIDs().filter((id) => selectable.includes(id)));
+        pruneSelectedMatchesToPlatforms();
       }
 
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
@@ -442,7 +651,12 @@
     platformsContainer = document.getElementById("syncPlatforms");
     message = document.getElementById("syncMessage");
     refreshMatchesButton = document.getElementById("refreshArticleMatches");
-    goToSaveButton = document.getElementById("goToSave");
+    selectAllButton = document.getElementById("selectAllSyncPlatforms");
+    invertButton = document.getElementById("invertSyncPlatforms");
+    bulkActions = document.getElementById("bindingBulkActions");
+    selectionSummary = document.getElementById("bindingSelectionSummary");
+    bindSelectedButton = document.getElementById("bindSelectedMatches");
+    unbindSelectedButton = document.getElementById("unbindSelectedMatches");
 
     articlePicker.addEventListener("focus", () => {
       articleOptions.hidden = false;
@@ -473,12 +687,10 @@
     });
 
     refreshMatchesButton.addEventListener("click", () => refreshArticleMatches());
-    goToSaveButton.addEventListener("click", () => {
-      if (!state.selectedSlug) return;
-      document.dispatchEvent(new CustomEvent("blogctl:navigate-save", {
-        detail: { article: state.selectedSlug },
-      }));
-    });
+    selectAllButton.addEventListener("click", () => setSyncPlatforms("all"));
+    invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
+    bindSelectedButton.addEventListener("click", () => runBulkBinding("bind"));
+    unbindSelectedButton.addEventListener("click", () => runBulkBinding("unbind"));
     state.initialized = true;
   }
 

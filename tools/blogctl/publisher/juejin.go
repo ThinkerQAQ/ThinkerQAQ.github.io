@@ -340,6 +340,7 @@ func (j *juejinAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dra
 type juejinDraftArticle struct {
 	ID         string           `json:"id"`
 	ArticleID  string           `json:"article_id"`
+	Title      string           `json:"title"`
 	CategoryID string           `json:"category_id"`
 	TagIDs     []juejinID       `json:"tag_ids"`
 	LinkURL    string           `json:"link_url"`

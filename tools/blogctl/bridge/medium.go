@@ -31,6 +31,7 @@ var (
 	mediumHTMLTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
 	mediumDraftPathPattern = regexp.MustCompile(`^/p/([0-9a-f]{8,})/edit$`)
 	mediumPostIDPattern    = regexp.MustCompile(`-([0-9a-f]{8,})$`)
+	mediumProfilePattern   = regexp.MustCompile(`(?i)(?:https://medium\.com)?/@([A-Za-z0-9_-]+)`)
 )
 
 type mediumClient struct {
@@ -962,7 +963,16 @@ func parseMediumStoryLinks(raw string, published bool) []mediumPost {
 	return posts
 }
 
-func (c mediumClient) storyListPage(ctx context.Context, session platformSession, tab string) ([]mediumPost, error) {
+func mediumAccountFromStoriesHTML(raw string) string {
+	for _, match := range mediumProfilePattern.FindAllStringSubmatch(raw, -1) {
+		if len(match) == 2 && strings.TrimSpace(match[1]) != "" {
+			return strings.TrimSpace(match[1])
+		}
+	}
+	return ""
+}
+
+func (c mediumClient) storyListPage(ctx context.Context, session platformSession, tab string) ([]mediumPost, string, error) {
 	rawURL := mediumOrigin + "/me/stories"
 	published := tab == "posts-published"
 	if tab != "" {
@@ -970,24 +980,25 @@ func (c mediumClient) storyListPage(ctx context.Context, session platformSession
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	req.Header.Set("accept", "text/html,application/xhtml+xml")
 	req.Header.Set("cookie", mediumSessionCookieHeader(session))
 	req.Header.Set("user-agent", session.UserAgent)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer response.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("Medium stories list failed (%d)", response.StatusCode)
+		return nil, "", fmt.Errorf("Medium stories list failed (%d)", response.StatusCode)
 	}
-	return parseMediumStoryLinks(string(raw), published), nil
+	text := string(raw)
+	return parseMediumStoryLinks(text, published), mediumAccountFromStoriesHTML(text), nil
 }
 
 func (c mediumClient) account(ctx context.Context, session platformSession) (string, error) {
@@ -1034,19 +1045,18 @@ func (c mediumClient) account(ctx context.Context, session platformSession) (str
 }
 
 func (c mediumClient) listPosts(ctx context.Context, session platformSession) (string, []mediumPost, error) {
-	username, err := c.account(ctx, session)
+	drafts, account, err := c.storyListPage(ctx, session, "")
 	if err != nil {
 		return "", nil, err
 	}
-	drafts, err := c.storyListPage(ctx, session, "")
+	published, publishedAccount, err := c.storyListPage(ctx, session, "posts-published")
 	if err != nil {
 		return "", nil, err
 	}
-	published, err := c.storyListPage(ctx, session, "posts-published")
-	if err != nil {
-		return "", nil, err
+	if account == "" {
+		account = publishedAccount
 	}
-	return username, append(drafts, published...), nil
+	return account, append(drafts, published...), nil
 }
 
 func setMediumHeaders(req *http.Request, session platformSession, referer string) {
