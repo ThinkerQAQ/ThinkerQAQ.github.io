@@ -111,30 +111,22 @@ func (s *Server) removeBrowserOperation(id string) {
 func (s *Server) nextBrowserOperation() *browserOperation {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for len(s.browserOpOrder) > 0 {
-		id := s.browserOpOrder[0]
-		op := s.browserOps[id]
-		if op != nil && !op.claimed {
-			op.claimed = true
-			copy := *op
-			copy.done = nil
-			return &copy
+	filtered := s.browserOpOrder[:0]
+	for _, id := range s.browserOpOrder {
+		if s.browserOps[id] != nil {
+			filtered = append(filtered, id)
 		}
-		if op == nil {
-			s.browserOpOrder = s.browserOpOrder[1:]
+	}
+	s.browserOpOrder = filtered
+	for _, id := range s.browserOpOrder {
+		op := s.browserOps[id]
+		if op == nil || op.claimed {
 			continue
 		}
-		foundUnclaimed := false
-		for _, candidate := range s.browserOpOrder[1:] {
-			if pending := s.browserOps[candidate]; pending != nil && !pending.claimed {
-				foundUnclaimed = true
-				break
-			}
-		}
-		if !foundUnclaimed {
-			return nil
-		}
-		s.browserOpOrder = append(s.browserOpOrder[1:], id)
+		op.claimed = true
+		copy := *op
+		copy.done = nil
+		return &copy
 	}
 	return nil
 }
