@@ -45,11 +45,12 @@ jobs:
           hourly="$(mktemp)"
           today="$(mktemp)"
 
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/health" > "$health"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/hourly" > "$hourly"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/today" > "$today"
+          verify() {
+            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/health" > "$health" || return 1
+            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/hourly" > "$hourly" || return 1
+            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/today" > "$today" || return 1
 
-          node - "$health" "$hourly" "$today" <<'NODE'
+            node - "$health" "$hourly" "$today" <<'NODE'
           const fs = require("fs");
           const [healthPath, hourlyPath, todayPath] = process.argv.slice(2);
           const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
@@ -90,3 +91,18 @@ jobs:
             `analytics healthy; hourly=${hourly.current.stats.visitors} visitors/${hourly.current.stats.pageviews} pageviews; today=${today.current.stats.visitors} visitors/${today.current.stats.pageviews} pageviews`,
           );
           NODE
+          }
+
+          for attempt in 1 2 3 4 5 6; do
+            echo "Analytics verification attempt $attempt/6"
+            if verify; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 6 ]; then
+              echo "Worker version may still be propagating; retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+
+          echo "::error::Analytics endpoint verification did not converge after Worker deployment."
+          exit 1
