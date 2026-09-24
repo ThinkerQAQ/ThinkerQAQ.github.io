@@ -300,6 +300,24 @@ func devtoAPIPlaceholder(config bridgeConfig) string {
 	return "DEV.to API Key"
 }
 
+func r2PublishingHealth(config bridgeConfig) toolHealth {
+	status := publishingAssetStatus(config)
+	if status.Ready {
+		return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
+	}
+	return toolHealth{
+		Status: "missing", Summary: "配置不完整",
+		Detail: "缺少：" + strings.Join(status.Missing, "、"),
+	}
+}
+
+func r2SecretPlaceholder(configured, envKey, label string) string {
+	if configuredOrEnvironment(configured, envKey) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return label
+}
+
 func toolRegistry(config bridgeConfig) []toolDescriptor {
 	pathField := func(key, label, description string) []toolField {
 		return []toolField{{Key: key, Label: label, Type: "file", Description: description}}
@@ -345,6 +363,28 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				Schema: []toolField{
 					{Key: "proxyHost", Label: "代理主机", Type: "text", Placeholder: "127.0.0.1"},
 					{Key: "proxyPort", Label: "代理端口", Type: "integer", Placeholder: "7890", Min: 1, Max: 65535},
+				},
+			},
+		},
+		{
+			Name: "r2-publishing", DisplayName: "Cloudflare R2", Kind: "asset", Required: false,
+			Description: "Mermaid / PlantUML 生成图以及平台图片上传失败时的公共图片兜底。凭据只保存在本机 BlogCTL 配置文件中；环境变量仍可覆盖本机配置。",
+			Health:      r2PublishingHealth(config),
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{
+					"accountId": config.R2AccountID,
+					"endpoint": config.R2Endpoint,
+					"bucket": config.Publishing.Assets.R2.Bucket,
+					"publicBaseUrl": config.Publishing.Assets.R2.PublicBaseURL,
+				},
+				Schema: []toolField{
+					{Key: "accountId", Label: "Account ID", Type: "text", Placeholder: "Cloudflare R2 Account ID", Description: "填写 Account ID 即可自动使用 <account>.r2.cloudflarestorage.com；也可以改填 Endpoint。"},
+					{Key: "endpoint", Label: "Endpoint", Type: "text", Placeholder: "https://<account>.r2.cloudflarestorage.com", Description: "可选；填写时优先于 Account ID。"},
+					{Key: "accessKeyId", Label: "Access Key ID", Type: "secret", Placeholder: r2SecretPlaceholder(config.R2AccessKeyID, "R2_ACCESS_KEY_ID", "R2 Access Key ID"), Description: "留空保存不会清除已有凭据。"},
+					{Key: "secretAccessKey", Label: "Secret Access Key", Type: "secret", Placeholder: r2SecretPlaceholder(config.R2SecretAccessKey, "R2_SECRET_ACCESS_KEY", "R2 Secret Access Key"), Description: "留空保存不会清除已有凭据。"},
+					{Key: "bucket", Label: "Bucket", Type: "text", Placeholder: "thinkerqaq-asset"},
+					{Key: "publicBaseUrl", Label: "Public Base URL", Type: "text", Placeholder: "https://pub-....r2.dev/", Description: "必须是公开可访问的 HTTPS 基础地址。"},
 				},
 			},
 		},
@@ -421,6 +461,17 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
 		}
+	case "r2-publishing":
+		config.R2AccountID = stringConfig(values, "accountId")
+		config.R2Endpoint = stringConfig(values, "endpoint")
+		if key := stringConfig(values, "accessKeyId"); key != "" {
+			config.R2AccessKeyID = key
+		}
+		if secret := stringConfig(values, "secretAccessKey"); secret != "" {
+			config.R2SecretAccessKey = secret
+		}
+		config.Publishing.Assets.R2.Bucket = stringConfig(values, "bucket")
+		config.Publishing.Assets.R2.PublicBaseURL = stringConfig(values, "publicBaseUrl")
 	case "node", "npm", "git", "java":
 		if config.ToolPaths == nil {
 			config.ToolPaths = map[string]string{}
@@ -554,10 +605,10 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
 		Assets: assets,
 		R2Fallback: publisher.R2FallbackConfig{
-			AccessKeyID:     strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
-			SecretAccessKey: strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
-			AccountID:       strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")),
-			Endpoint:        strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
+			AccessKeyID:     configuredOrEnvironment(config.R2AccessKeyID, "R2_ACCESS_KEY_ID"),
+			SecretAccessKey: configuredOrEnvironment(config.R2SecretAccessKey, "R2_SECRET_ACCESS_KEY"),
+			AccountID:       configuredOrEnvironment(config.R2AccountID, "R2_ACCOUNT_ID"),
+			Endpoint:        configuredOrEnvironment(config.R2Endpoint, "R2_ENDPOINT"),
 			Bucket:          bucket,
 			PublicBaseURL:   publicBaseURL,
 		},
@@ -880,9 +931,15 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		ContentRoot:    config.ContentRoot,
 		PublishingJSON: publishingJSON,
 		BridgeOrigin:   "http://" + DefaultAddress,
-		BridgeToken:    s.token,
-		DevtoAPIKey:    config.DevtoAPIKey,
-		ToolPaths:      config.ToolPaths,
+		BridgeToken:       s.token,
+		DevtoAPIKey:       config.DevtoAPIKey,
+		R2AccountID:       config.R2AccountID,
+		R2Endpoint:        config.R2Endpoint,
+		R2AccessKeyID:     config.R2AccessKeyID,
+		R2SecretAccessKey: config.R2SecretAccessKey,
+		R2Bucket:          config.Publishing.Assets.R2.Bucket,
+		R2PublicBaseURL:   config.Publishing.Assets.R2.PublicBaseURL,
+		ToolPaths:         config.ToolPaths,
 	}
 	if configPath, err := ConfigPath(); err == nil {
 		applicationConfig.ConfigPath = configPath
