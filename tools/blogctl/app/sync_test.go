@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 type recordedCommand struct {
@@ -19,6 +21,7 @@ type recordedCommand struct {
 }
 
 type recordingRunner struct {
+	mu       sync.Mutex
 	commands []recordedCommand
 }
 
@@ -62,7 +65,9 @@ func compiledTestOutput(args []string) string {
 }
 
 func (r *recordingRunner) Run(_ context.Context, name string, args []string, dir string, env []string) (string, error) {
+	r.mu.Lock()
 	r.commands = append(r.commands, recordedCommand{Name: name, Args: append([]string{}, args...), Dir: dir, Env: append([]string{}, env...)})
+	r.mu.Unlock()
 	if len(args) > 0 && strings.HasSuffix(filepath.ToSlash(args[0]), "/tools/blogctl/compiler/node/index.mjs") {
 		return compiledTestOutput(args[1:]), nil
 	}
@@ -233,16 +238,100 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []SyncEvent{
-		{Platform: "juejin", State: "running"},
-		{Platform: "juejin", State: "completed", Result: "dry-run"},
-		{Platform: "devto", State: "running"},
-		{Platform: "devto", State: "completed", Result: "dry-run"},
-		{Platform: "medium", State: "running"},
-		{Platform: "medium", State: "completed", Result: "dry-run"},
+	if len(events) != 6 {
+		t.Fatalf("events = %#v", events)
 	}
-	if !reflect.DeepEqual(events, want) {
-		t.Fatalf("events = %#v, want %#v", events, want)
+	wantRunning := []SyncEvent{
+		{Platform: "juejin", State: "running"},
+		{Platform: "devto", State: "running"},
+		{Platform: "medium", State: "running"},
+	}
+	if !reflect.DeepEqual(events[:3], wantRunning) {
+		t.Fatalf("running events = %#v, want %#v", events[:3], wantRunning)
+	}
+	completed := map[string]bool{}
+	for _, event := range events[3:] {
+		if event.State != "completed" || event.Result != "dry-run" {
+			t.Fatalf("terminal event = %#v", event)
+		}
+		completed[event.Platform] = true
+	}
+	for _, platform := range []string{"juejin", "devto", "medium"} {
+		if !completed[platform] {
+			t.Fatalf("missing completion for %s: %#v", platform, events)
+		}
+	}
+}
+
+type blockingParallelRunner struct {
+	started chan string
+	release chan struct{}
+}
+
+func (r blockingParallelRunner) Run(ctx context.Context, _ string, args []string, _ string, _ []string) (string, error) {
+	if len(args) == 0 || !strings.HasSuffix(filepath.ToSlash(args[0]), "/tools/blogctl/compiler/node/index.mjs") {
+		return "ok\n", nil
+	}
+	platform := ""
+	for index := 1; index < len(args); index++ {
+		if args[index] == "--platforms" && index+1 < len(args) {
+			platform = args[index+1]
+			break
+		}
+	}
+	select {
+	case r.started <- platform:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	select {
+	case <-r.release:
+		return compiledTestOutput(args[1:]), nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+func TestSyncServiceRunsPlatformPlansInParallel(t *testing.T) {
+	engineRoot := t.TempDir()
+	contentRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
+	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
+	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
+	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	node := filepath.Join(t.TempDir(), "node")
+	npm := filepath.Join(t.TempDir(), "npm")
+	writeTestFile(t, node)
+	writeTestFile(t, npm)
+
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	service := SyncService{Runner: blockingParallelRunner{started: started, release: release}}
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.Run(context.Background(), SyncConfig{
+			EngineRoot: engineRoot, ContentRoot: contentRoot,
+			ToolPaths: map[string]string{"node": node, "npm": npm},
+		}, SyncRequest{
+			Articles: []string{"example"}, Platforms: []string{"juejin", "devto"}, DryRun: true,
+		})
+		done <- err
+	}()
+
+	seen := map[string]bool{}
+	for len(seen) < 2 {
+		select {
+		case platform := <-started:
+			seen[platform] = true
+		case <-time.After(2 * time.Second):
+			t.Fatalf("platform compiler invocations did not overlap: %#v", seen)
+		}
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 
