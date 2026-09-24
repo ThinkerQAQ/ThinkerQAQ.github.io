@@ -113,7 +113,15 @@ function buildReasons(state) {
 }
 
 export async function observeAnalyticsBeacon(request, env, bodyBytes, now = Date.now()) {
-  const kv = requireKv(env);
+  if (!env?.ANALYTICS_KV) {
+    return {
+      shouldBlock: false,
+      observed: false,
+      reason: "missing_kv",
+    };
+  }
+
+  const kv = env.ANALYTICS_KV;
   const ip = request.headers.get("cf-connecting-ip") || "";
   const userAgent = request.headers.get("user-agent") || "";
   const verifiedBot = request.cf?.botManagement?.verifiedBot === true;
