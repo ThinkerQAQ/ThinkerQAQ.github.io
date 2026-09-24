@@ -283,6 +283,161 @@ func scriptFailureMessage(output string) string {
 	return message
 }
 
+type syncPlanExecution struct {
+	index    int
+	output   string
+	failures []string
+	events   []SyncEvent
+}
+
+func (s SyncService) runSyncPlan(
+	ctx context.Context,
+	config SyncConfig,
+	request SyncRequest,
+	runner CommandRunner,
+	node string,
+	env []string,
+	index int,
+	entry SyncPlan,
+) syncPlanExecution {
+	result := syncPlanExecution{index: index}
+	terminal := map[string]bool{}
+	emit := func(event SyncEvent) {
+		result.events = append(result.events, event)
+	}
+
+	script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
+	commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
+	result.output = commandOutput
+	if runErr != nil {
+		detail := scriptFailureMessage(commandOutput)
+		if detail == "" {
+			detail = runErr.Error()
+		}
+		message := fmt.Sprintf("%s: %s", entry.Group, detail)
+		for _, platform := range entry.Platforms {
+			if !terminal[platform] {
+				emit(SyncEvent{Platform: platform, State: "failed", Message: message})
+				terminal[platform] = true
+			}
+		}
+		result.failures = append(result.failures, message)
+		return result
+	}
+
+	if entry.Native {
+		compiledArticles, compileErr := ParseCompiledArticles(commandOutput)
+		if compileErr != nil {
+			message := entry.Group + ": " + compileErr.Error()
+			for _, platform := range entry.Platforms {
+				if !terminal[platform] {
+					emit(SyncEvent{Platform: platform, State: "failed", Message: compileErr.Error()})
+					terminal[platform] = true
+				}
+			}
+			result.failures = append(result.failures, message)
+			return result
+		}
+
+		validationFailed := false
+		if request.All {
+			for _, platform := range entry.Platforms {
+				found := false
+				for _, compiled := range compiledArticles {
+					if compiled.Platform == platform {
+						found = true
+						break
+					}
+				}
+				if !found {
+					err := fmt.Errorf("publishing compiler returned no articles for %s", platform)
+					emit(SyncEvent{Platform: platform, State: "failed", Message: err.Error()})
+					terminal[platform] = true
+					result.failures = append(result.failures, entry.Group+": "+err.Error())
+					validationFailed = true
+				}
+			}
+		} else {
+			for _, article := range request.Articles {
+				for _, platform := range entry.Platforms {
+					if _, err := compiledArticleFor(compiledArticles, article, platform); err != nil {
+						emit(SyncEvent{Platform: platform, State: "failed", Message: err.Error()})
+						terminal[platform] = true
+						result.failures = append(result.failures, entry.Group+": "+err.Error())
+						validationFailed = true
+					}
+				}
+			}
+		}
+		if validationFailed {
+			return result
+		}
+
+		if request.DryRun {
+			for _, platform := range entry.Platforms {
+				emit(SyncEvent{Platform: platform, State: "completed", Result: "dry-run"})
+				terminal[platform] = true
+			}
+		} else {
+			if s.NativePublisher == nil {
+				message := "native publisher is not configured"
+				for _, platform := range entry.Platforms {
+					emit(SyncEvent{Platform: platform, State: "failed", Message: message})
+					terminal[platform] = true
+				}
+				result.failures = append(result.failures, message)
+				return result
+			}
+			for _, compiled := range compiledArticles {
+				article := compiled.Slug
+				platform := compiled.Platform
+				if request.Operation == "publish" {
+					publishResult, publishErr := s.NativePublisher.PublishDraft(ctx, NativePublishRequest{
+						Article: article, Platform: platform, ContentRoot: config.ContentRoot, Compiled: compiled,
+					})
+					if publishErr != nil {
+						message := platform + ": " + publishErr.Error()
+						emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
+						terminal[platform] = true
+						result.failures = append(result.failures, message)
+						continue
+					}
+					emit(SyncEvent{
+						Platform: platform, State: "completed", Result: publishResult.Result,
+						URL: publishResult.URL, Message: publishResult.Message,
+					})
+					terminal[platform] = true
+					continue
+				}
+
+				draftResult, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
+					Article: article, Platform: platform, ContentRoot: config.ContentRoot,
+					ChangedOnly: changedOnlyForPlatform(request, platform), Compiled: compiled,
+				})
+				if publishErr != nil {
+					message := platform + ": " + publishErr.Error()
+					emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
+					terminal[platform] = true
+					result.failures = append(result.failures, message)
+					continue
+				}
+				emit(SyncEvent{
+					Platform: platform, State: "completed", Result: draftResult.Result,
+					URL: draftResult.URL, Message: draftResult.Message,
+				})
+				terminal[platform] = true
+			}
+		}
+	}
+
+	for _, platform := range entry.Platforms {
+		if !terminal[platform] {
+			emit(SyncEvent{Platform: platform, State: "completed", Result: "completed"})
+		}
+	}
+	return result
+}
+
 func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncRequest) (string, error) {
 	request, err := NormalizeSyncRequest(request)
 	if err != nil {
@@ -320,136 +475,34 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 		}
 	}
 
-	failures := []string{}
-	for _, entry := range BuildSyncPlan(request) {
-		terminal := map[string]bool{}
+	plans := BuildSyncPlan(request)
+	for _, entry := range plans {
 		for _, platform := range entry.Platforms {
 			s.emit(SyncEvent{Platform: platform, State: "running"})
 		}
-		script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
-		commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
-		appendOutput(&output, commandOutput)
-		if runErr != nil {
-			detail := scriptFailureMessage(commandOutput)
-			if detail == "" {
-				detail = runErr.Error()
-			}
-			message := fmt.Sprintf("%s: %s", entry.Group, detail)
-			for _, platform := range entry.Platforms {
-				if !terminal[platform] {
-					s.emit(SyncEvent{Platform: platform, State: "failed", Message: message})
-					terminal[platform] = true
-				}
-			}
-			failures = append(failures, message)
-			continue
+	}
+
+	executionCh := make(chan syncPlanExecution, len(plans))
+	for index, entry := range plans {
+		index, entry := index, entry
+		go func() {
+			executionCh <- s.runSyncPlan(ctx, config, request, runner, node, env, index, entry)
+		}()
+	}
+
+	executions := make([]syncPlanExecution, len(plans))
+	for range plans {
+		execution := <-executionCh
+		executions[execution.index] = execution
+		for _, event := range execution.events {
+			s.emit(event)
 		}
-		if entry.Native {
-			compiledArticles, compileErr := ParseCompiledArticles(commandOutput)
-			if compileErr != nil {
-				message := entry.Group + ": " + compileErr.Error()
-				for _, platform := range entry.Platforms {
-					if !terminal[platform] {
-						s.emit(SyncEvent{Platform: platform, State: "failed", Message: compileErr.Error()})
-						terminal[platform] = true
-					}
-				}
-				failures = append(failures, message)
-				continue
-			}
-			validationFailed := false
-			if request.All {
-				for _, platform := range entry.Platforms {
-					found := false
-					for _, compiled := range compiledArticles {
-						if compiled.Platform == platform {
-							found = true
-							break
-						}
-					}
-					if !found {
-						err := fmt.Errorf("publishing compiler returned no articles for %s", platform)
-						s.emit(SyncEvent{Platform: platform, State: "failed", Message: err.Error()})
-						terminal[platform] = true
-						failures = append(failures, entry.Group+": "+err.Error())
-						validationFailed = true
-					}
-				}
-			} else {
-				for _, article := range request.Articles {
-					for _, platform := range entry.Platforms {
-						if _, err := compiledArticleFor(compiledArticles, article, platform); err != nil {
-							s.emit(SyncEvent{Platform: platform, State: "failed", Message: err.Error()})
-							terminal[platform] = true
-							failures = append(failures, entry.Group+": "+err.Error())
-							validationFailed = true
-						}
-					}
-				}
-			}
-			if validationFailed {
-				continue
-			}
-			if request.DryRun {
-				for _, platform := range entry.Platforms {
-					s.emit(SyncEvent{Platform: platform, State: "completed", Result: "dry-run"})
-					terminal[platform] = true
-				}
-			} else {
-				if s.NativePublisher == nil {
-					message := "native publisher is not configured"
-					for _, platform := range entry.Platforms {
-						s.emit(SyncEvent{Platform: platform, State: "failed", Message: message})
-						terminal[platform] = true
-					}
-					failures = append(failures, message)
-					continue
-				}
-				for _, compiled := range compiledArticles {
-					article := compiled.Slug
-					platform := compiled.Platform
-					if request.Operation == "publish" {
-						result, publishErr := s.NativePublisher.PublishDraft(ctx, NativePublishRequest{
-							Article: article, Platform: platform, ContentRoot: config.ContentRoot, Compiled: compiled,
-						})
-						if publishErr != nil {
-							message := platform + ": " + publishErr.Error()
-							s.emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
-							terminal[platform] = true
-							failures = append(failures, message)
-							continue
-						}
-						s.emit(SyncEvent{
-							Platform: platform, State: "completed", Result: result.Result,
-							URL: result.URL, Message: result.Message,
-						})
-						terminal[platform] = true
-						continue
-					}
-					result, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
-						Article: article, Platform: platform, ContentRoot: config.ContentRoot,
-						ChangedOnly: changedOnlyForPlatform(request, platform), Compiled: compiled,
-					})
-					if publishErr != nil {
-						message := platform + ": " + publishErr.Error()
-						s.emit(SyncEvent{Platform: platform, State: "failed", Message: publishErr.Error()})
-						terminal[platform] = true
-						failures = append(failures, message)
-						continue
-					}
-					s.emit(SyncEvent{
-						Platform: platform, State: "completed", Result: result.Result,
-						URL: result.URL, Message: result.Message,
-					})
-					terminal[platform] = true
-				}
-			}
-		}
-		for _, platform := range entry.Platforms {
-			if !terminal[platform] {
-				s.emit(SyncEvent{Platform: platform, State: "completed", Result: "completed"})
-			}
-		}
+	}
+
+	failures := []string{}
+	for _, execution := range executions {
+		appendOutput(&output, execution.output)
+		failures = append(failures, execution.failures...)
 	}
 	if len(failures) > 0 {
 		return output.String(), errors.New(strings.Join(failures, "; "))
