@@ -171,5 +171,10 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     <AskBlog locale={locale} />
     <ContentAnalyticsRuntime />
     <MermaidRuntime />
+    <script>
+      import { initFloatingActionLayout } from "../lib/floating-actions-runtime.js";
+
+      initFloatingActionLayout();
+    </script>
   </body>
 </html>

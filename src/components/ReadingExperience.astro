@@ -135,8 +135,12 @@ const copy = READING_EXPERIENCE_UI[locale];
   .reading-jump {
     position: fixed;
     z-index: 20;
-    right: clamp(1rem, 3vw, 2rem);
-    bottom: calc(clamp(1rem, 3vw, 2rem) + 3.75rem);
+    right: var(--floating-action-edge);
+    bottom: calc(
+      var(--floating-action-edge) +
+      var(--floating-footer-offset) +
+      var(--floating-action-jump-offset)
+    );
     display: grid;
     width: 2.75rem;
     height: 2.75rem;
@@ -150,7 +154,7 @@ const copy = READING_EXPERIENCE_UI[locale];
     line-height: 1;
     place-items: center;
     text-decoration: none;
-    transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+    transition: border-color 160ms ease, color 160ms ease, transform 160ms ease, bottom 140ms ease;
   }
 
   .reading-jump:hover,
