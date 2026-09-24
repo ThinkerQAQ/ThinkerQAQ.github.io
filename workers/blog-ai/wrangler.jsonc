@@ -10,7 +10,8 @@
   },
   "kv_namespaces": [
     {
-      "binding": "ANALYTICS_KV"
+      "binding": "ANALYTICS_KV",
+      "id": "6aea68e2c7924839bf46d9ac3cbadaa2"
     }
   ],
   "ai": {
