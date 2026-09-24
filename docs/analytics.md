@@ -102,8 +102,8 @@ Public aggregate read endpoints are:
 
 - `GET /analytics/hourly`: latest complete hour, previous hour, and hour-over-hour deltas;
 - `GET /analytics/today`: exact Beijing-calendar-day aggregate from midnight to now, persisted briefly and cached for five minutes;
-- `GET /analytics/health`: last successful run, pending hours, and last collection error.
+- `GET /analytics/health`: minimal health state, last successful run, and pending-hour count.
 
-Only aggregate analytics are stored. No IP address, session ID, distinct ID, or individual visitor trajectory is persisted by this reporting layer.
+Only aggregate analytics are stored. No IP address, session ID, distinct ID, or individual visitor trajectory is persisted by this reporting layer. Public responses are additionally minimized: `websiteId`, region-level data, city-level data, internal scheduling metadata, and raw error details are not exposed. KV may retain the richer aggregate payload for internal processing.
 
 The Worker/KV path is the production source for hourly analytics. The former GitHub Actions snapshot workflow has been retired; the historical `analytics-data` branch is no longer written by automation.

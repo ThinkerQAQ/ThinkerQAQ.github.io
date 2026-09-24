@@ -56,7 +56,7 @@ jobs:
           const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
           const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
 
-          if (health.healthy !== true || !health.lastSuccessAt || health.pendingHours !== 0 || health.lastError) {
+          if (health.healthy !== true || !health.lastSuccessAt || health.pendingHours !== 0 || health.hasError === true) {
             throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
           }
           if (!hourly.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
@@ -64,6 +64,26 @@ jobs:
           }
           if (!today.generatedAt || !today.date || !today.current?.stats) {
             throw new Error("analytics/today is missing the current-day aggregate");
+          }
+
+          const forbidden = [
+            ["health.websiteId", health.websiteId],
+            ["health.lastError", health.lastError],
+            ["health.lastFinalizedHourEnd", health.lastFinalizedHourEnd],
+            ["health.lastScheduledAt", health.lastScheduledAt],
+            ["hourly.websiteId", hourly.websiteId],
+            ["hourly.current.regions", hourly.current?.regions],
+            ["hourly.current.cities", hourly.current?.cities],
+            ["hourly.previous.regions", hourly.previous?.regions],
+            ["hourly.previous.cities", hourly.previous?.cities],
+            ["today.websiteId", today.websiteId],
+            ["today.generatedAtMs", today.generatedAtMs],
+            ["today.current.regions", today.current?.regions],
+            ["today.current.cities", today.current?.cities],
+          ].filter(([, value]) => value !== undefined);
+
+          if (forbidden.length) {
+            throw new Error(`analytics public response exposes forbidden fields: ${forbidden.map(([name]) => name).join(", ")}`);
           }
 
           console.log(

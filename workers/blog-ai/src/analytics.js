@@ -4,6 +4,7 @@ const METRIC_LIMIT = 100;
 const MAX_BACKFILL_HOURS = 4;
 const TODAY_CACHE_MS = 5 * 60 * 1000;
 const HEALTH_GRACE_MS = 15 * 60 * 1000;
+const PUBLIC_CACHE_VERSION = "2";
 
 const META_KEY = "analytics:meta";
 const LATEST_KEY = "analytics:latest";
@@ -215,6 +216,48 @@ export function buildDelta(current, previous) {
   }
 
   return delta;
+}
+
+function publicWindow(window) {
+  if (!window) return window;
+  const { regions: _regions, cities: _cities, ...rest } = window;
+  return rest;
+}
+
+function publicDelta(delta) {
+  if (!delta) return delta;
+  const {
+    newRegions: _newRegions,
+    changedRegions: _changedRegions,
+    newCities: _newCities,
+    changedCities: _changedCities,
+    ...rest
+  } = delta;
+  return rest;
+}
+
+function publicHourlyReport(report) {
+  if (!report) return report;
+  const { websiteId: _websiteId, ...rest } = report;
+  return {
+    ...rest,
+    current: publicWindow(report.current),
+    previous: publicWindow(report.previous),
+    delta: publicDelta(report.delta),
+  };
+}
+
+function publicTodayReport(report) {
+  if (!report) return report;
+  const {
+    websiteId: _websiteId,
+    generatedAtMs: _generatedAtMs,
+    ...rest
+  } = report;
+  return {
+    ...rest,
+    current: publicWindow(report.current),
+  };
 }
 
 function requireKv(env) {
@@ -434,8 +477,12 @@ function jsonResponse(data, { maxAge = 0, source } = {}) {
 
 async function cachedJson(request, ctx, load, maxAge) {
   const cache = globalThis.caches?.default;
+  const cacheUrl = new URL(request.url);
+  cacheUrl.searchParams.set("__analytics_public", PUBLIC_CACHE_VERSION);
+  const cacheRequest = new Request(cacheUrl, request);
+
   if (cache) {
-    const hit = await cache.match(request);
+    const hit = await cache.match(cacheRequest);
     if (hit) return hit;
   }
 
@@ -443,7 +490,7 @@ async function cachedJson(request, ctx, load, maxAge) {
   const response = jsonResponse(data, { maxAge, source: "kv" });
 
   if (cache && ctx?.waitUntil) {
-    ctx.waitUntil(cache.put(request, response.clone()));
+    ctx.waitUntil(cache.put(cacheRequest, response.clone()));
   }
 
   return response;
@@ -474,14 +521,19 @@ export async function handleAnalyticsRequest(request, env, ctx) {
             message: "Hourly analytics have not been collected yet.",
           };
         }
-        return latest;
+        return publicHourlyReport(latest);
       },
       60,
     );
   }
 
   if (url.pathname === "/analytics/today") {
-    return cachedJson(request, ctx, () => loadToday(env, Date.now()), 300);
+    return cachedJson(
+      request,
+      ctx,
+      async () => publicTodayReport(await loadToday(env, Date.now())),
+      300,
+    );
   }
 
   if (url.pathname === "/analytics/health") {
@@ -502,8 +554,9 @@ export async function handleAnalyticsRequest(request, env, ctx) {
     return jsonResponse({
       healthy,
       now: new Date(now).toISOString(),
-      ...meta,
+      lastSuccessAt: meta.lastSuccessAt || null,
       pendingHours: pending,
+      hasError: Boolean(meta.lastError),
     });
   }
 

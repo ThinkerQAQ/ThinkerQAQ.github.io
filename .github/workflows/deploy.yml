@@ -40,6 +40,7 @@ jobs:
       PUBLIC_REACTION_WORKER_URL: ${{ vars.PUBLIC_REACTION_WORKER_URL }}
       PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.PUBLIC_UMAMI_WEBSITE_ID }}
       CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
+      PUBLIC_CONTENT_AUDIT_REDACT_PATHS: "1"
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6

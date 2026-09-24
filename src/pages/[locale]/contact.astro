@@ -17,25 +17,23 @@ const { locale } = Astro.props;
 
 <BaseLayout
   title="Contact"
-  description="Contact ThinkerQAQ for technical discussions, article feedback, or collaboration."
+  description="Contact ThinkerQAQ through GitHub for technical discussions, article feedback, or collaboration."
   canonicalPath={localizePath(locale, "/contact/")}
   locale={locale}
 >
   <div class="shell page narrow collection-page">
     <CollectionHeader
       title="Contact"
-      description="For technical discussions, article feedback, or collaboration, you can reach me through the channels below."
+      description="For technical discussions, article feedback, or collaboration, please contact me through GitHub."
     />
 
     <div class="prose">
-      <h2>Email</h2>
-      <p><a href={SITE.contact}>zhangshengkunz@gmail.com</a></p>
-      <p>Technical discussions, article feedback, and collaboration inquiries are welcome by email.</p>
-
       <h2>GitHub</h2>
       <p>
-        For code or project-specific topics, you can also contact me through{" "}
-        <a href={SITE.github}>GitHub</a>.
+        <a href={SITE.contact}>github.com/ThinkerQAQ</a>
+      </p>
+      <p>
+        For code, project, or article-specific topics, use the relevant GitHub repository or discussion entry point.
       </p>
     </div>
   </div>
