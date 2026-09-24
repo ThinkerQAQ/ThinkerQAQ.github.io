@@ -616,6 +616,7 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		ok = false
 	}
 	httpClient := p.server.httpClient
+	browserOpsAvailable := p.server.browserOpsAvailable
 	p.server.mu.Unlock()
 	if !ok {
 		return publisher.Session{}, nil, fmt.Errorf("%s browser session is required", platform)
@@ -634,7 +635,7 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		RequestCookieHeaders: cloneStringMap(session.RequestCookieHeaders),
 		CookieHostSuffixes:   publisherCookieHostSuffixes(platform),
 	}
-	if platform == "medium" {
+	if platform == "medium" && browserOpsAvailable {
 		browserClient := *httpClient
 		browserClient.Transport = browserHTTPTransport{
 			server: p.server, platform: platform, fallback: httpClient.Transport,
