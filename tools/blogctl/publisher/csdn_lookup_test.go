@@ -51,22 +51,35 @@ func TestCSDNArticleIDAcceptsIDAndEditorLinks(t *testing.T) {
 	}
 }
 
-func TestCSDNListPostsUsesPublicPublishedList(t *testing.T) {
+func TestCSDNListPostsUsesSignedConsoleLists(t *testing.T) {
 	client := &http.Client{Transport: csdnRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.URL.Host == "bizapi.csdn.net" && request.URL.Path == "/blog-console-api/v3/editor/getBaseInfo":
 			return csdnResponse(request, 200, `{"code":200,"data":{"name":"ThinkerQAQ","nickname":"ThinkerQAQ"}}`), nil
-		case request.URL.Host == "blog.csdn.net" && request.URL.Path == "/community/home-api/v1/get-business-list":
-			if request.URL.Query().Get("username") != "ThinkerQAQ" {
-				t.Fatalf("username = %q", request.URL.Query().Get("username"))
+		case request.URL.Host == "bizapi.csdn.net" && request.URL.Path == "/blog/phoenix/console/v1/article/list":
+			if request.Header.Get("x-ca-key") != csdnKey || request.Header.Get("x-ca-signature") == "" {
+				t.Fatalf("missing CSDN signed headers: %#v", request.Header)
 			}
-			return csdnResponse(request, 200, `{
-				"code":200,
-				"data":{"list":[
-					{"title":"并发编程（四）：互斥锁的实现","url":"https://blog.csdn.net/ThinkerQAQ/article/details/147578947"},
-					{"title":"并发编程（三）：语言层互斥锁","url":"https://blog.csdn.net/ThinkerQAQ/article/details/147578900"}
-				]}
-			}`), nil
+			switch request.URL.Query().Get("status") {
+			case "draft":
+				return csdnResponse(request, 200, `{
+					"code":200,
+					"data":{"list":[
+						{"articleId":"147578946","title":"并发编程（四）：互斥锁的实现 · ThinkerQAQ"}
+					],"page":1,"size":20,"total":1}
+				}`), nil
+			case "all_v3":
+				return csdnResponse(request, 200, `{
+					"code":200,
+					"data":{"list":[
+						{"articleId":"147578947","title":"并发编程（四）：互斥锁的实现"},
+						{"articleId":"147578900","title":"并发编程（三）：语言层互斥锁"}
+					],"page":1,"size":20,"total":2}
+				}`), nil
+			default:
+				t.Fatalf("unexpected list status: %q", request.URL.Query().Get("status"))
+				return nil, nil
+			}
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -81,6 +94,7 @@ func TestCSDNListPostsUsesPublicPublishedList(t *testing.T) {
 		t.Fatalf("account = %q", account)
 	}
 	want := []CSDNPost{
+		{ID: "147578946", Title: "并发编程（四）：互斥锁的实现 · ThinkerQAQ", URL: "https://editor.csdn.net/md?articleId=147578946", Published: false},
 		{ID: "147578947", Title: "并发编程（四）：互斥锁的实现", URL: "https://blog.csdn.net/ThinkerQAQ/article/details/147578947", Published: true},
 		{ID: "147578900", Title: "并发编程（三）：语言层互斥锁", URL: "https://blog.csdn.net/ThinkerQAQ/article/details/147578900", Published: true},
 	}

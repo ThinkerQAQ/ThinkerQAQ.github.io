@@ -85,9 +85,8 @@ func (s *Server) csdnCandidates(ctx context.Context, slug string) (
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
 
-	// CSDN exposes a stable public list for published articles, but no reliable
-	// draft-list endpoint in the verified flow. Known bound drafts are therefore
-	// re-verified individually by article ID.
+	// Re-verify bound IDs individually so a stored binding remains visible even
+	// if CSDN temporarily omits it from a paginated list response.
 	for _, postID := range []string{binding.RemoteDraftID, binding.PublishedRemoteID} {
 		postID = strings.TrimSpace(postID)
 		if postID == "" {
