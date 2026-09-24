@@ -10,25 +10,30 @@ type publishingAssetStatusView struct {
 	Missing []string `json:"missing,omitempty"`
 }
 
+func configuredOrEnvironment(configured, key string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return strings.TrimSpace(configured)
+}
+
 func publishingAssetStatus(config bridgeConfig) publishingAssetStatusView {
 	missing := []string{}
-	bucket := strings.TrimSpace(os.Getenv("R2_BUCKET"))
-	if bucket == "" {
-		bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
-	}
+	bucket := configuredOrEnvironment(config.Publishing.Assets.R2.Bucket, "R2_BUCKET")
 	if bucket == "" {
 		missing = append(missing, "R2 bucket")
 	}
-	if strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")) == "" {
+	if configuredOrEnvironment(config.R2AccessKeyID, "R2_ACCESS_KEY_ID") == "" {
 		missing = append(missing, "R2_ACCESS_KEY_ID")
 	}
-	if strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")) == "" {
+	if configuredOrEnvironment(config.R2SecretAccessKey, "R2_SECRET_ACCESS_KEY") == "" {
 		missing = append(missing, "R2_SECRET_ACCESS_KEY")
 	}
-	if strings.TrimSpace(os.Getenv("R2_ENDPOINT")) == "" && strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")) == "" {
+	if configuredOrEnvironment(config.R2Endpoint, "R2_ENDPOINT") == "" &&
+		configuredOrEnvironment(config.R2AccountID, "R2_ACCOUNT_ID") == "" {
 		missing = append(missing, "R2_ACCOUNT_ID or R2_ENDPOINT")
 	}
-	if strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL) == "" && strings.TrimSpace(os.Getenv("R2_PUBLIC_BASE_URL")) == "" {
+	if configuredOrEnvironment(config.Publishing.Assets.R2.PublicBaseURL, "R2_PUBLIC_BASE_URL") == "" {
 		missing = append(missing, "R2 public base URL")
 	}
 	return publishingAssetStatusView{Ready: len(missing) == 0, Missing: missing}
