@@ -60,6 +60,11 @@ func juejinBindingState(binding publisher.PublicationBinding, post publisher.Jue
 	if post.Published && binding.PublishedRemoteID == post.ID {
 		return true, "published"
 	}
+	// Juejin keeps the same article id when a locally recorded draft is
+	// published. Surface that transition so the UI can update the binding.
+	if post.Published && binding.RemoteDraftID == post.ID {
+		return true, "draft"
+	}
 	if !post.Published && binding.RemoteDraftID == post.ID {
 		return true, "draft"
 	}
@@ -198,6 +203,10 @@ func (s *Server) handleJuejinBindingPut(response http.ResponseWriter, request *h
 	if body.State == "published" {
 		binding.PublishedRemoteID = selected.ID
 		binding.PublishedURL = selected.URL
+		if binding.RemoteDraftID == selected.ID {
+			binding.RemoteDraftID = ""
+			binding.DraftURL = ""
+		}
 	} else {
 		binding.RemoteDraftID = selected.ID
 		binding.DraftURL = selected.URL

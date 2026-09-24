@@ -21,7 +21,7 @@
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
       <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">检测</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">保存</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">平台配置</button>
@@ -52,8 +52,8 @@
 
     <section class="panel" role="tabpanel" data-panel="drafts">
       <section class="status-card">
-        <div class="section-title">保存</div>
-        <p class="card-hint">选择文章和平台。已有草稿关系时更新，没有时创建草稿；保存会创建任务并轮询结果。</p>
+        <div class="section-title">更新</div>
+        <p class="card-hint">选择文章和平台。已有草稿关系时更新，没有时创建草稿；更新会创建任务并轮询结果。</p>
         <label class="field"><span>文章</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="输入标题或 slug 搜索；留空列出全部" autocomplete="off"></label>
         <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
         <p id="draftArticleMeta" class="card-hint"></p>
@@ -69,7 +69,7 @@
       </section>
 
       <div class="sync-actions">
-        <button id="saveDrafts" class="primary" type="button" disabled>保存</button>
+        <button id="saveDrafts" class="primary" type="button" disabled>更新</button>
         <div id="draftNextActions" class="workflow-next-actions" hidden>
           <button id="draftViewTask" class="secondary" type="button">查看任务</button>
           <button id="draftEnterPublish" class="primary inline-primary" type="button">进入发布</button>

@@ -212,6 +212,234 @@ function jsonOptions(method, body) {
   return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
+function normalizedRemoteTitle(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function remoteTitleMatches(local, remote) {
+  const localTitle = normalizedRemoteTitle(local);
+  const remoteTitle = normalizedRemoteTitle(remote);
+  if (!localTitle || !remoteTitle) return false;
+  if (localTitle === remoteTitle) return true;
+  return [" · ", " - ", " — "].some((separator) => remoteTitle.startsWith(localTitle + separator));
+}
+
+function bindingForPost(bindings, post) {
+  const state = post.published ? "published" : "draft";
+  const binding = (bindings ?? []).find((item) =>
+    item.state === state && String(item.postId) === String(post.id));
+  return binding ? { bound: true, bindingState: binding.state } : { bound: false, bindingState: "" };
+}
+
+function stripMediumXSSI(value) {
+  const text = String(value || "").trim();
+  if (!text.startsWith("])}") && !text.startsWith(")]}")) return text;
+  const newline = text.indexOf("\n");
+  if (newline >= 0) return text.slice(newline + 1).trim();
+  const objectStart = text.indexOf("{");
+  const arrayStart = text.indexOf("[", 3);
+  const starts = [objectStart, arrayStart].filter((index) => index >= 0);
+  return starts.length ? text.slice(Math.min(...starts)).trim() : "";
+}
+
+async function mediumGraphQL(operation, query, variables, frontendPath) {
+  const startedAt = Date.now();
+  const response = await fetchWithTimeout("https://medium.com/_/graphql", {
+    method: "POST",
+    headers: {
+      accept: "*/*",
+      "content-type": "application/json",
+      "graphql-operation": operation,
+      "medium-frontend-path": frontendPath,
+      "medium-frontend-route": frontendPath.startsWith("/@") ? "profile" : "stories",
+      "x-obvious-cid": "web",
+      "x-client-date": String(Date.now()),
+    },
+    body: JSON.stringify([{ operationName: operation, variables, query }]),
+  });
+  const raw = await response.text();
+  if (!response.ok) {
+    console.warn("[BlogCTL][medium-detect] GraphQL request failed", {
+      operation, status: response.status, durationMs: Date.now() - startedAt,
+    });
+    throw new Error(`Medium ${operation} failed (${response.status})`);
+  }
+  let decoded;
+  try {
+    decoded = JSON.parse(stripMediumXSSI(raw));
+  } catch {
+    throw new Error(`Medium ${operation} returned invalid JSON`);
+  }
+  const envelope = Array.isArray(decoded) ? decoded[0] : decoded;
+  if (envelope?.errors?.length) {
+    const detail = envelope.errors.map((item) => item?.message).filter(Boolean).join("；");
+    throw new Error(detail || `Medium ${operation} returned GraphQL errors`);
+  }
+  console.info("[BlogCTL][medium-detect] GraphQL request completed", {
+    operation, status: response.status, durationMs: Date.now() - startedAt,
+  });
+  return envelope?.data ?? {};
+}
+
+async function mediumViewer() {
+  const operation = "BlogCTLMediumViewerQuery";
+  const query = `query ${operation} { viewer { id username name __typename } }`;
+  const data = await mediumGraphQL(operation, query, {}, "/");
+  const viewer = data?.viewer;
+  if (!viewer?.id) throw new Error("Medium 浏览器会话未登录");
+  return viewer;
+}
+
+function mediumPostCandidate(post, published, fallbackUsername = "") {
+  const id = String(post?.id || "").trim();
+  const title = normalizedRemoteTitle(post?.title);
+  if (!id || !title) return null;
+  const username = String(post?.creator?.username || fallbackUsername || "").trim();
+  const uniqueSlug = String(post?.uniqueSlug || "").trim();
+  let url = String(post?.mediumUrl || "").trim();
+  if (!url && published && username && uniqueSlug) {
+    url = `https://medium.com/@${encodeURIComponent(username)}/${uniqueSlug}`;
+  }
+  if (!url) url = published ? `https://medium.com/p/${id}` : `https://medium.com/p/${id}/edit`;
+  return { id, title, url, published };
+}
+
+async function mediumLatestPosts(postType, operation, frontendPath, published) {
+  const query = `query ${operation}($pagingOptions: PagingOptions) {
+    viewer {
+      id
+      latestPostsConnection(
+        type: ${postType}
+        includeResponses: false
+        includeSuspended: true
+        includeDeleted: false
+        paging: $pagingOptions
+      ) {
+        pagingInfo { next { limit to __typename } __typename }
+        postPreviews {
+          postId
+          post {
+            id title mediumUrl uniqueSlug isPublished visibility
+            creator { id username __typename }
+            __typename
+          }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+  }`;
+  const posts = [];
+  let to = "";
+  for (let page = 0; page < 10; page += 1) {
+    const data = await mediumGraphQL(operation, query, {
+      pagingOptions: { to, limit: 25, order: "DESC" },
+    }, frontendPath);
+    const connection = data?.viewer?.latestPostsConnection;
+    for (const preview of connection?.postPreviews ?? []) {
+      const candidate = mediumPostCandidate(preview?.post, published);
+      if (candidate) posts.push(candidate);
+    }
+    const next = String(connection?.pagingInfo?.next?.to || "").trim();
+    if (!next || next === to) break;
+    to = next;
+  }
+  return posts;
+}
+
+async function mediumPublishedPosts(username) {
+  const operation = "BlogCTLMediumProfilePostsQuery";
+  const query = `query ${operation}($username: ID!, $limit: PaginationLimit, $from: String) {
+    userResult(username: $username) {
+      __typename
+      ... on User {
+        id username
+        homepagePostsConnection(
+          paging: {limit: $limit, from: $from}
+          includeDistributedResponses: true
+        ) {
+          posts {
+            id title mediumUrl uniqueSlug isPublished visibility
+            creator { id username __typename }
+            __typename
+          }
+          pagingInfo { next { from limit __typename } __typename }
+          __typename
+        }
+        __typename
+      }
+    }
+  }`;
+  const posts = [];
+  let from = null;
+  for (let page = 0; page < 10; page += 1) {
+    const data = await mediumGraphQL(operation, query, {
+      username, limit: 25, from,
+    }, `/@${encodeURIComponent(username)}`);
+    const connection = data?.userResult?.homepagePostsConnection;
+    for (const post of connection?.posts ?? []) {
+      const candidate = mediumPostCandidate(post, true, username);
+      if (candidate) posts.push(candidate);
+    }
+    const next = String(connection?.pagingInfo?.next?.from || "").trim();
+    if (!next || next === from) break;
+    from = next;
+  }
+  return posts;
+}
+
+async function mediumBrowserMatch(article) {
+  const startedAt = Date.now();
+  console.info("[BlogCTL][medium-detect] detection started", { article });
+  const context = await fetchJSON(`/v1/medium/lookup-context?article=${article}`, { method: "POST" });
+  const viewer = await mediumViewer();
+  const username = String(viewer.username || viewer.id || "").trim();
+  const [draftResult, publishedResult, unlistedResult] = await Promise.allSettled([
+    mediumLatestPosts("POST_TYPE_DRAFT", "BlogCTLMediumDraftPostsQuery", "/me/stories", false),
+    mediumPublishedPosts(username),
+    mediumLatestPosts("POST_TYPE_UNLISTED", "BlogCTLMediumUnlistedPostsQuery", "/me/stories?tab=posts-unlisted", true),
+  ]);
+
+  const warnings = [];
+  if (draftResult.status === "rejected") warnings.push(`草稿列表失败：${errorMessage(draftResult.reason)}`);
+  if (publishedResult.status === "rejected") warnings.push(`已发布列表失败：${errorMessage(publishedResult.reason)}`);
+  if (unlistedResult.status === "rejected") warnings.push(`未列出文章失败：${errorMessage(unlistedResult.reason)}`);
+  if (draftResult.status === "rejected" && publishedResult.status === "rejected" && unlistedResult.status === "rejected") {
+    throw new Error(`Medium 文章列表检测失败：${warnings.join("；")}`);
+  }
+
+  const bindings = context.bindings ?? [];
+  const candidates = [];
+  const seen = new Set();
+  const append = (post) => {
+    if (!post?.id || seen.has(String(post.id)) || !remoteTitleMatches(context.title, post.title)) return;
+    seen.add(String(post.id));
+    Object.assign(post, bindingForPost(bindings, post));
+    candidates.push(post);
+  };
+  for (const result of [draftResult, publishedResult, unlistedResult]) {
+    if (result.status === "fulfilled") result.value.forEach(append);
+  }
+  for (const binding of bindings) {
+    const id = String(binding?.postId || "").trim();
+    if (!id || seen.has(id)) continue;
+    const published = binding.state === "published";
+    candidates.push({
+      id,
+      title: context.title,
+      url: binding.url || (published ? `https://medium.com/p/${id}` : `https://medium.com/p/${id}/edit`),
+      published,
+      bound: true,
+      bindingState: binding.state || (published ? "published" : "draft"),
+    });
+  }
+  console.info("[BlogCTL][medium-detect] detection completed", {
+    article, candidates: candidates.length, warnings: warnings.length, durationMs: Date.now() - startedAt,
+  });
+  return { candidates, bindings, warnings };
+}
+
 async function bridgeStatus() {
   const extensionVersion = chrome.runtime.getManifest().version;
   try {
@@ -701,12 +929,13 @@ async function handleMessage(message) {
       }
       if (platform === "medium") {
         await syncPlatformSession("medium");
-        const result = await fetchJSON(`/v1/medium/articles/list?article=${article}`, { method: "POST" });
+        const result = await mediumBrowserMatch(article);
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
-          text: candidates.length
+          text: (candidates.length
             ? `从 Medium 草稿和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
-            : "已读取 Medium 草稿和已发布文章列表，本地未匹配到同名文章。",
+            : "已通过 Medium GraphQL 读取文章列表，本地未匹配到同名文章。") +
+            (result.warnings?.length ? ` 部分检测异常：${result.warnings.join("；")}` : ""),
           items: candidates.map((post) => ({
             title: post.title,
             id: post.id,
