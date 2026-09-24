@@ -3,6 +3,10 @@ import {
   handleAnalyticsRequest,
   runAnalyticsCron,
 } from "./analytics.js";
+import {
+  handleBotObservationRequest,
+  observeAnalyticsBeacon,
+} from "./bot-observation.js";
 
 const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
 const UMAMI_COLLECT_URL = "https://gateway.umami.is/api/send";
@@ -65,7 +69,17 @@ async function proxyTrackerScript() {
   });
 }
 
-async function proxyAnalyticsRequest(request, origin) {
+async function proxyAnalyticsRequest(request, origin, env) {
+  const bodyBytes = await request.arrayBuffer();
+  const observation = await observeAnalyticsBeacon(request, env, bodyBytes);
+
+  if (observation.shouldBlock) {
+    const blockedHeaders = new Headers(analyticsCorsHeaders(origin));
+    blockedHeaders.set("cache-control", "no-store");
+    blockedHeaders.set("x-analytics-filtered", "automation");
+    return new Response(null, { status: 204, headers: blockedHeaders });
+  }
+
   const headers = new Headers();
   const forwardedHeaders = [
     "content-type",
@@ -87,7 +101,7 @@ async function proxyAnalyticsRequest(request, origin) {
   const upstream = await fetch(UMAMI_COLLECT_URL, {
     method: "POST",
     headers,
-    body: await request.arrayBuffer(),
+    body: bodyBytes,
   });
 
   const responseHeaders = new Headers(analyticsCorsHeaders(origin));
@@ -137,8 +151,11 @@ export default {
         });
       }
 
-      return proxyAnalyticsRequest(request, origin);
+      return proxyAnalyticsRequest(request, origin, env);
     }
+
+    const botObservationResponse = await handleBotObservationRequest(request, env);
+    if (botObservationResponse) return botObservationResponse;
 
     const analyticsResponse = await handleAnalyticsRequest(request, env, ctx);
     if (analyticsResponse) return analyticsResponse;
