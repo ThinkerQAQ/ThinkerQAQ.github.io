@@ -20,6 +20,33 @@ function nowIso(now) {
   return new Date(now).toISOString();
 }
 
+function classifyBotFamily(userAgent = "") {
+  const ua = String(userAgent).toLowerCase();
+  if (!ua) return "unknown";
+
+  const families = [
+    ["yandex", /yandex(bot|images|video|media|blogs|favicons|accessibilitybot|renderresourcesbot)/],
+    ["google", /googlebot|google-inspectiontool|googleother|adsbot-google|apis-google/],
+    ["bing", /bingbot|adidxbot|bingpreview|microsoftpreview|msnbot/],
+    ["openai", /gptbot|chatgpt-user|oai-searchbot/],
+    ["anthropic", /claudebot|claude-web|anthropic-ai/],
+    ["apple", /applebot/],
+    ["meta", /meta-externalagent|meta-externalfetcher|facebookexternalhit|facebot/],
+    ["bytespider", /bytespider/],
+    ["baidu", /baiduspider/],
+    ["sogou", /sogou.*spider/],
+    ["360", /360spider|haosouspider/],
+    ["duckduckgo", /duckduckbot/],
+    ["semrush", /semrushbot/],
+    ["ahrefs", /ahrefsbot/],
+  ];
+
+  for (const [family, pattern] of families) {
+    if (pattern.test(ua)) return family;
+  }
+  return "unknown";
+}
+
 function classifyUserAgent(userAgent = "") {
   const ua = String(userAgent).toLowerCase();
   if (!ua) return "unknown";
@@ -161,6 +188,7 @@ export async function observeAnalyticsBeacon(request, env, bodyBytes, now = Date
     distinctPaths: trackedPaths.size,
     country: request.cf?.country ? String(request.cf.country) : existing?.country || "",
     uaCategory: classifyUserAgent(userAgent),
+    botFamily: classifyBotFamily(userAgent),
     obviousAutomation: Boolean(existing?.obviousAutomation) || obviousAutomation(userAgent),
     verifiedBot,
     blockedHits: Number(existing?.blockedHits || 0),
@@ -210,6 +238,7 @@ function publicClientSummary(state) {
   return {
     country: state.country || null,
     uaCategory: state.uaCategory || "unknown",
+    botFamily: state.botFamily || "unknown",
     firstSeenAt: state.firstSeenAt,
     lastSeenAt: state.lastSeenAt,
     hits: Number(state.hits || 0),
@@ -286,5 +315,6 @@ export const botObservationInternals = {
   BOT_CLIENT_PREFIX,
   BOT_SALT_KEY,
   classifyUserAgent,
+  classifyBotFamily,
   buildReasons,
 };
