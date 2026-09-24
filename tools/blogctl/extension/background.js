@@ -1216,29 +1216,43 @@ async function executeBrowserOperation(operation) {
 }
 
 async function pumpBrowserOperations() {
-  const idleDeadline = Date.now() + 5000;
   let lastWorkAt = Date.now();
-  while (Date.now() < idleDeadline || Date.now() - lastWorkAt < 5000) {
+  const inFlight = new Set();
+
+  const startOperation = (operation) => {
+    let task;
+    task = (async () => {
+      let result = null;
+      let error = "";
+      try {
+        result = await executeBrowserOperation(operation);
+      } catch (operationError) {
+        error = errorMessage(operationError);
+      }
+      await fetchJSON(
+        `/v1/browser-ops/${encodeURIComponent(operation.id)}`,
+        jsonOptions("POST", { result, error }),
+      );
+    })().finally(() => inFlight.delete(task));
+    inFlight.add(task);
+  };
+
+  while (Date.now() - lastWorkAt < 5000 || inFlight.size > 0) {
     const pending = await fetchJSON("/v1/browser-ops");
     const operation = pending?.operation;
-    if (!operation?.id) {
-      if (Date.now() - lastWorkAt >= 5000) break;
-      await delay(100);
+    if (operation?.id) {
+      lastWorkAt = Date.now();
+      startOperation(operation);
       continue;
     }
-    lastWorkAt = Date.now();
-    let result = null;
-    let error = "";
-    try {
-      result = await executeBrowserOperation(operation);
-    } catch (operationError) {
-      error = errorMessage(operationError);
+    if (inFlight.size > 0) {
+      await Promise.race([...inFlight]);
+      lastWorkAt = Date.now();
+      continue;
     }
-    await fetchJSON(
-      `/v1/browser-ops/${encodeURIComponent(operation.id)}`,
-      jsonOptions("POST", { result, error }),
-    );
+    await delay(100);
   }
+  await Promise.allSettled([...inFlight]);
 }
 
 function kickBrowserOperationPump() {
