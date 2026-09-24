@@ -76,6 +76,10 @@ type bridgeConfig struct {
 	EngineRoot  string            `json:"engineRoot"`
 	ToolPaths   map[string]string `json:"toolPaths"`
 	DevtoAPIKey string            `json:"devtoApiKey,omitempty"`
+	R2AccountID       string `json:"r2AccountId,omitempty"`
+	R2Endpoint        string `json:"r2Endpoint,omitempty"`
+	R2AccessKeyID     string `json:"r2AccessKeyId,omitempty"`
+	R2SecretAccessKey string `json:"r2SecretAccessKey,omitempty"`
 	Publishing  publishingConfig  `json:"publishing"`
 }
 
@@ -236,6 +240,10 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
 	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
+	config.R2AccountID = strings.TrimSpace(config.R2AccountID)
+	config.R2Endpoint = strings.TrimSpace(config.R2Endpoint)
+	config.R2AccessKeyID = strings.TrimSpace(config.R2AccessKeyID)
+	config.R2SecretAccessKey = strings.TrimSpace(config.R2SecretAccessKey)
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
