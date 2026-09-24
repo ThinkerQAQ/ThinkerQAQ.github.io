@@ -629,11 +629,19 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 			SameSite: cookie.SameSite, ExpirationDate: cookie.ExpirationDate,
 		})
 	}
-	return publisher.Session{
+	publisherSession := publisher.Session{
 		Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader,
 		RequestCookieHeaders: cloneStringMap(session.RequestCookieHeaders),
 		CookieHostSuffixes:   publisherCookieHostSuffixes(platform),
-	}, httpClient, nil
+	}
+	if platform == "medium" {
+		browserClient := *httpClient
+		browserClient.Transport = browserHTTPTransport{
+			server: p.server, platform: platform, fallback: httpClient.Transport,
+		}
+		return publisherSession, &browserClient, nil
+	}
+	return publisherSession, httpClient, nil
 }
 
 func mediumFallbackPath(contentRoot, slug string) (string, error) {
