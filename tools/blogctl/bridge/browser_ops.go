@@ -19,6 +19,7 @@ type browserOperation struct {
 	Action   string          `json:"action"`
 	Payload  json.RawMessage `json:"payload,omitempty"`
 	done     chan browserOperationCompletion
+	claimed  bool
 }
 
 type browserOperationCompletion struct {
@@ -113,12 +114,27 @@ func (s *Server) nextBrowserOperation() *browserOperation {
 	for len(s.browserOpOrder) > 0 {
 		id := s.browserOpOrder[0]
 		op := s.browserOps[id]
-		if op != nil {
+		if op != nil && !op.claimed {
+			op.claimed = true
 			copy := *op
 			copy.done = nil
 			return &copy
 		}
-		s.browserOpOrder = s.browserOpOrder[1:]
+		if op == nil {
+			s.browserOpOrder = s.browserOpOrder[1:]
+			continue
+		}
+		foundUnclaimed := false
+		for _, candidate := range s.browserOpOrder[1:] {
+			if pending := s.browserOps[candidate]; pending != nil && !pending.claimed {
+				foundUnclaimed = true
+				break
+			}
+		}
+		if !foundUnclaimed {
+			return nil
+		}
+		s.browserOpOrder = append(s.browserOpOrder[1:], id)
 	}
 	return nil
 }
