@@ -66,6 +66,26 @@ jobs:
             throw new Error("analytics/today is missing the current-day aggregate");
           }
 
+          const forbidden = [
+            ["health.websiteId", health.websiteId],
+            ["health.lastError", health.lastError],
+            ["health.lastFinalizedHourEnd", health.lastFinalizedHourEnd],
+            ["health.lastScheduledAt", health.lastScheduledAt],
+            ["hourly.websiteId", hourly.websiteId],
+            ["hourly.current.regions", hourly.current?.regions],
+            ["hourly.current.cities", hourly.current?.cities],
+            ["hourly.previous.regions", hourly.previous?.regions],
+            ["hourly.previous.cities", hourly.previous?.cities],
+            ["today.websiteId", today.websiteId],
+            ["today.generatedAtMs", today.generatedAtMs],
+            ["today.current.regions", today.current?.regions],
+            ["today.current.cities", today.current?.cities],
+          ].filter(([, value]) => value !== undefined);
+
+          if (forbidden.length) {
+            throw new Error(`analytics public response exposes forbidden fields: ${forbidden.map(([name]) => name).join(", ")}`);
+          }
+
           console.log(
             `analytics healthy; hourly=${hourly.current.stats.visitors} visitors/${hourly.current.stats.pageviews} pageviews; today=${today.current.stats.visitors} visitors/${today.current.stats.pageviews} pageviews`,
           );
