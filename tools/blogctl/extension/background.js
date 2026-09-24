@@ -1610,6 +1610,7 @@ async function handleMessage(message) {
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       await syncSessionsForPlatforms(current?.job?.platforms ?? []);
+      await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
       void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
@@ -1619,6 +1620,7 @@ async function handleMessage(message) {
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       await prepareJobSessions(current?.job);
+      await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
       void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
