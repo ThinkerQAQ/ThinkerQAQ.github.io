@@ -180,34 +180,31 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 }
 
 func BuildSyncPlan(request SyncRequest) []SyncPlan {
-	platforms := make([]string, 0, len(request.Platforms))
+	plans := []SyncPlan{}
 	for _, platform := range request.Platforms {
-		if blogplatform.For(platform).DraftCreate {
-			platforms = append(platforms, platform)
+		if !blogplatform.For(platform).DraftCreate {
+			continue
 		}
+		args := make([]string, 0, len(request.Articles)*2+5)
+		for _, article := range request.Articles {
+			args = append(args, "--article", article)
+		}
+		if request.All {
+			args = append(args, "--all")
+		}
+		args = append(args, "--platforms", platform)
+		if request.DryRun {
+			args = append(args, "--dry-run")
+		}
+		if request.Draft {
+			args = append(args, "--draft")
+		}
+		plans = append(plans, SyncPlan{
+			Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
+			Platforms: []string{platform}, Native: true,
+		})
 	}
-	if len(platforms) == 0 {
-		return nil
-	}
-
-	args := make([]string, 0, len(request.Articles)*2+5)
-	for _, article := range request.Articles {
-		args = append(args, "--article", article)
-	}
-	if request.All {
-		args = append(args, "--all")
-	}
-	args = append(args, "--platforms", strings.Join(platforms, ","))
-	if request.DryRun {
-		args = append(args, "--dry-run")
-	}
-	if request.Draft {
-		args = append(args, "--draft")
-	}
-	return []SyncPlan{{
-		Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
-		Platforms: append([]string{}, platforms...), Native: true,
-	}}
+	return plans
 }
 
 func ParseCompiledArticles(output string) ([]blogcompiler.CompiledArticle, error) {
