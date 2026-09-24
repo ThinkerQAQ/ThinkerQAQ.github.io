@@ -1,6 +1,7 @@
 import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const SECRET_RULES = [
   {
@@ -188,7 +189,7 @@ async function main() {
   if (errors.length) process.exitCode = 1;
 }
 
-if (import.meta.url === new URL(`file://${process.argv[1]?.replaceAll("\\", "/")}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(error => {
     console.error(error);
     process.exitCode = 1;
