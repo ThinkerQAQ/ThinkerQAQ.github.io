@@ -96,7 +96,8 @@ The same Worker also owns the lightweight Umami reporting path.
 - If a scheduled run was missed, the next run backfills up to four missing hours and keeps the remaining backlog visible through health metadata.
 - `GET /analytics/hourly` returns the latest complete hour, the immediately preceding hour, and their delta.
 - `GET /analytics/today` queries the exact current Beijing-calendar-day window, persists it briefly in KV, and caches the response for five minutes.
-- `GET /analytics/health` exposes the last successful collection, pending-hour count, and last error.
+- `GET /analytics/health` exposes only minimal public health state, the last successful collection, and pending-hour count.
+- Public responses omit `websiteId`, region/city breakdowns, internal scheduler metadata, and raw error details; KV keeps the richer aggregate payload for internal processing.
 - Cache API is only a read-through hot cache; KV remains the durable source for hourly snapshots.
 
 The existing KV namespace is bound explicitly as `ANALYTICS_KV` in `wrangler.jsonc`. The namespace is provisioned once outside CI; normal deployments only bind and use the existing namespace.
