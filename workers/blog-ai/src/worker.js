@@ -1,4 +1,8 @@
 import app from "./chat.js";
+import {
+  handleAnalyticsRequest,
+  runAnalyticsCron,
+} from "./analytics.js";
 
 const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
 const UMAMI_COLLECT_URL = "https://gateway.umami.is/api/send";
@@ -29,7 +33,6 @@ function analyticsCorsHeaders(origin) {
   };
 }
 
-
 function setAnalyticsGeoHeaders(headers, request) {
   const country = request.cf?.country;
   const region = request.cf?.regionCode;
@@ -49,7 +52,9 @@ async function proxyTrackerScript() {
 
   const headers = new Headers({
     "cache-control": "public, max-age=300, stale-while-revalidate=3600",
-    "content-type": upstream.headers.get("content-type") || "application/javascript; charset=utf-8",
+    "content-type":
+      upstream.headers.get("content-type") ||
+      "application/javascript; charset=utf-8",
     "x-content-type-options": "nosniff",
   });
 
@@ -87,7 +92,9 @@ async function proxyAnalyticsRequest(request, origin) {
 
   const responseHeaders = new Headers(analyticsCorsHeaders(origin));
   const upstreamContentType = upstream.headers.get("content-type");
-  if (upstreamContentType) responseHeaders.set("content-type", upstreamContentType);
+  if (upstreamContentType) {
+    responseHeaders.set("content-type", upstreamContentType);
+  }
   responseHeaders.set("cache-control", "no-store");
   responseHeaders.set("x-content-type-options", "nosniff");
 
@@ -133,6 +140,13 @@ export default {
       return proxyAnalyticsRequest(request, origin);
     }
 
+    const analyticsResponse = await handleAnalyticsRequest(request, env, ctx);
+    if (analyticsResponse) return analyticsResponse;
+
     return app.fetch(request, env, ctx);
+  },
+
+  scheduled(controller, env) {
+    return runAnalyticsCron(env, controller.scheduledTime);
   },
 };
