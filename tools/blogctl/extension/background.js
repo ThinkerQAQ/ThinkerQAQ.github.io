@@ -784,6 +784,110 @@ async function prepareJobSessions(job) {
   await syncSessionsForPlatforms(job?.platforms ?? []);
 }
 
+let browserOperationPumpPromise = null;
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + chunk)));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(String(value || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function browserFetchHeaders(rawHeaders) {
+  const headers = new Headers();
+  const blocked = new Set(["cookie", "user-agent", "host", "content-length", "origin", "referer"]);
+  for (const [name, values] of Object.entries(rawHeaders ?? {})) {
+    if (blocked.has(String(name).toLowerCase())) continue;
+    for (const value of Array.isArray(values) ? values : [values]) {
+      if (value !== undefined && value !== null) headers.append(name, String(value));
+    }
+  }
+  return headers;
+}
+
+async function executeBrowserHTTP(payload) {
+  const rawURL = String(payload?.url || "").trim();
+  const target = new URL(rawURL);
+  if (!["http:", "https:"].includes(target.protocol)) throw new Error("browser HTTP only supports http(s) URLs");
+
+  const method = String(payload?.method || "GET").toUpperCase();
+  const options = {
+    method,
+    headers: browserFetchHeaders(payload?.headers),
+    credentials: "include",
+    redirect: "follow",
+  };
+  if (!["GET", "HEAD"].includes(method) && payload?.bodyBase64) {
+    options.body = base64ToBytes(payload.bodyBase64);
+  }
+  const response = await fetch(rawURL, options);
+  const responseHeaders = {};
+  response.headers.forEach((value, name) => {
+    if (!responseHeaders[name]) responseHeaders[name] = [];
+    responseHeaders[name].push(value);
+  });
+  const body = new Uint8Array(await response.arrayBuffer());
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    url: response.url,
+    headers: responseHeaders,
+    bodyBase64: bytesToBase64(body),
+  };
+}
+
+async function executeBrowserOperation(operation) {
+  switch (operation?.action) {
+    case "http.fetch":
+      return executeBrowserHTTP(operation.payload ?? {});
+    default:
+      throw new Error(`unsupported browser operation: ${operation?.action || "unknown"}`);
+  }
+}
+
+async function pumpBrowserOperations() {
+  const idleDeadline = Date.now() + 5000;
+  let lastWorkAt = Date.now();
+  while (Date.now() < idleDeadline || Date.now() - lastWorkAt < 5000) {
+    const pending = await fetchJSON("/v1/browser-ops");
+    const operation = pending?.operation;
+    if (!operation?.id) {
+      if (Date.now() - lastWorkAt >= 5000) break;
+      await delay(100);
+      continue;
+    }
+    lastWorkAt = Date.now();
+    let result = null;
+    let error = "";
+    try {
+      result = await executeBrowserOperation(operation);
+    } catch (operationError) {
+      error = errorMessage(operationError);
+    }
+    await fetchJSON(
+      `/v1/browser-ops/${encodeURIComponent(operation.id)}`,
+      jsonOptions("POST", { result, error }),
+    );
+  }
+}
+
+function kickBrowserOperationPump() {
+  if (browserOperationPumpPromise) return browserOperationPumpPromise;
+  browserOperationPumpPromise = pumpBrowserOperations()
+    .catch((error) => console.warn("[BlogCTL][browser-op] pump failed", errorMessage(error)))
+    .finally(() => { browserOperationPumpPromise = null; });
+  return browserOperationPumpPromise;
+}
+
 async function handleMessage(message) {
   switch (message.type) {
     case "blogctl.status": return { ok: true, status: await getStatus() };
@@ -1222,11 +1326,13 @@ async function handleMessage(message) {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
+      void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
+      void kickBrowserOperationPump();
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       return { ok: true, job: result?.job };
     }
@@ -1246,6 +1352,7 @@ async function handleMessage(message) {
       const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       await syncSessionsForPlatforms(current?.job?.platforms ?? []);
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.publish": {
@@ -1254,6 +1361,7 @@ async function handleMessage(message) {
       const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       await prepareJobSessions(current?.job);
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
+      void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     default: return null;
