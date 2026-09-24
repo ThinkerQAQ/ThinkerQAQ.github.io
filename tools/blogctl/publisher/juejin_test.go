@@ -239,6 +239,71 @@ func TestJuejinPublishUsesCapturedColumnsThemesAndRepublishesExistingArticle(t *
 	}
 }
 
+func TestJuejinPublishRepairsMissingCategoryAndTags(t *testing.T) {
+	detailCalls := 0
+	var updateBody map[string]any
+	var publishBody map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/user_api/v1/sys/token":
+			return jsonResponse(request, 200, "", map[string]string{"x-ware-csrf-token": "0,csrf,1,success,x"}), nil
+		case "/content_api/v1/article_draft/detail":
+			detailCalls++
+			category := "0"
+			tags := "[]"
+			if detailCalls > 1 {
+				category = "6809637769959178254"
+				tags = "[6809640408797167623]"
+			}
+			return jsonResponse(request, 200, `{"err_no":0,"data":{"draft_id":"draft-missing","article_draft":{"id":"draft-missing","article_id":"0","category_id":"`+category+`","tag_ids":`+tags+`,"edit_type":10}}}`, nil), nil
+		case "/tag_api/v1/query_category_list":
+			return jsonResponse(request, 200, `{"err_no":0,"data":{"categories":[{"category_id":"6809637769959178254","category_name":"后端"}]}}`, nil), nil
+		case "/recommend_api/v1/tag/recommend/search":
+			return jsonResponse(request, 200, `{"err_no":0,"data":[{"tag_id":"6809640408797167623","tag_name":"Java"}]}`, nil), nil
+		case "/content_api/v1/article_draft/update":
+			if err := json.NewDecoder(request.Body).Decode(&updateBody); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, 200, `{"err_no":0,"data":{"id":"draft-missing"}}`, nil), nil
+		case "/content_api/v1/article/publish":
+			if err := json.NewDecoder(request.Body).Decode(&publishBody); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, 200, `{"err_no":0,"err_msg":"success","data":{"article_id":"published-123"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	adapterValue, err := NewJuejinAdapter(client, juejinSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := adapterValue.(*juejinAdapter)
+	result, err := adapter.PublishDraft(context.Background(), DraftRef{ID: "draft-missing"}, DraftInput{
+		Title: "Java 并发编程", Description: "mutex runtime", Markdown: "# Body", Tags: []string{"Java"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detailCalls != 2 {
+		t.Fatalf("detailCalls = %d, want 2", detailCalls)
+	}
+	if updateBody["category_id"] != "6809637769959178254" {
+		t.Fatalf("update category = %#v", updateBody["category_id"])
+	}
+	tagIDs, _ := updateBody["tag_ids"].([]any)
+	if len(tagIDs) == 0 || tagIDs[0] != "6809640408797167623" {
+		t.Fatalf("update tag_ids = %#v", updateBody["tag_ids"])
+	}
+	if publishBody["draft_id"] != "draft-missing" {
+		t.Fatalf("publish body = %#v", publishBody)
+	}
+	if result.ID != "published-123" || result.URL != "https://juejin.cn/post/published-123" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestJuejinImageUploadRewritesMarkdown(t *testing.T) {
 	calls := []string{}
 	var createBody map[string]any

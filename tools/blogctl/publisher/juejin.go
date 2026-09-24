@@ -410,6 +410,240 @@ func (j *juejinAdapter) draftDetail(ctx context.Context, draftID string) (juejin
 	return decoded, nil
 }
 
+type juejinNamedID struct {
+	ID   string
+	Name string
+}
+
+func juejinTextID(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case json.Number:
+		return strings.TrimSpace(typed.String())
+	case float64:
+		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.0f", typed), ".0"), ".")
+	default:
+		return ""
+	}
+}
+
+func collectJuejinNamedIDs(value any, idKey, nameKey string, result *[]juejinNamedID) {
+	switch typed := value.(type) {
+	case map[string]any:
+		id := juejinTextID(typed[idKey])
+		name, _ := typed[nameKey].(string)
+		name = strings.TrimSpace(name)
+		if id != "" && id != "0" && name != "" {
+			*result = append(*result, juejinNamedID{ID: id, Name: name})
+		}
+		for _, child := range typed {
+			collectJuejinNamedIDs(child, idKey, nameKey, result)
+		}
+	case []any:
+		for _, child := range typed {
+			collectJuejinNamedIDs(child, idKey, nameKey, result)
+		}
+	}
+}
+
+func dedupeJuejinNamedIDs(values []juejinNamedID) []juejinNamedID {
+	result := make([]juejinNamedID, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		if value.ID == "" {
+			continue
+		}
+		if _, ok := seen[value.ID]; ok {
+			continue
+		}
+		seen[value.ID] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
+func (j *juejinAdapter) queryNamedIDs(
+	ctx context.Context,
+	path, operation string,
+	payload map[string]any,
+	idKey, nameKey string,
+) ([]juejinNamedID, error) {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := j.request(ctx, http.MethodPost, j.apiBase+path, bytes.NewReader(encoded))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("content-type", "application/json")
+	response, err := j.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	raw, err := readBounded(response, 2<<20)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, classifyHTTP("juejin", operation, response.StatusCode, string(raw))
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var decoded map[string]any
+	if err := decoder.Decode(&decoded); err != nil {
+		return nil, platformError(ErrUpstream, "juejin", operation, response.StatusCode, "invalid JSON response", false)
+	}
+	if errNo := juejinTextID(decoded["err_no"]); errNo != "" && errNo != "0" {
+		message, _ := decoded["err_msg"].(string)
+		return nil, platformError(ErrUpstream, "juejin", operation, response.StatusCode, strings.TrimSpace(message), false)
+	}
+	values := []juejinNamedID{}
+	collectJuejinNamedIDs(decoded["data"], idKey, nameKey, &values)
+	return dedupeJuejinNamedIDs(values), nil
+}
+
+func juejinCategoryPreference(input DraftInput) []string {
+	corpus := strings.ToLower(input.Title + " " + strings.Join(input.Tags, " ") + " " + input.Description)
+	switch {
+	case strings.Contains(corpus, "人工智能") || strings.Contains(corpus, " ai ") ||
+		strings.Contains(corpus, "llm") || strings.Contains(corpus, "agent"):
+		return []string{"人工智能", "后端"}
+	case strings.Contains(corpus, "前端") || strings.Contains(corpus, "javascript") ||
+		strings.Contains(corpus, "typescript") || strings.Contains(corpus, "react") || strings.Contains(corpus, "vue"):
+		return []string{"前端", "后端"}
+	case strings.Contains(corpus, "android"):
+		return []string{"Android", "后端"}
+	case strings.Contains(corpus, "ios"):
+		return []string{"iOS", "后端"}
+	default:
+		return []string{"后端", "开发工具"}
+	}
+}
+
+func (j *juejinAdapter) resolvePublishMetadata(ctx context.Context, input DraftInput) (string, []string, error) {
+	categories, err := j.queryNamedIDs(
+		ctx, "/tag_api/v1/query_category_list", "category-list", map[string]any{},
+		"category_id", "category_name",
+	)
+	if err != nil {
+		return "", nil, err
+	}
+	categoryID := ""
+	for _, preferred := range juejinCategoryPreference(input) {
+		for _, category := range categories {
+			if strings.EqualFold(strings.TrimSpace(category.Name), preferred) {
+				categoryID = category.ID
+				break
+			}
+		}
+		if categoryID != "" {
+			break
+		}
+	}
+	if categoryID == "" && len(categories) > 0 {
+		categoryID = categories[0].ID
+	}
+	if categoryID == "" {
+		return "", nil, platformError(ErrValidation, "juejin", "publish-metadata", 0, "Juejin returned no usable article category", false)
+	}
+
+	keywords := make([]string, 0, len(input.Tags)+4)
+	seenKeywords := map[string]struct{}{}
+	addKeyword := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		key := strings.ToLower(value)
+		if _, ok := seenKeywords[key]; ok {
+			return
+		}
+		seenKeywords[key] = struct{}{}
+		keywords = append(keywords, value)
+	}
+	for _, tag := range input.Tags {
+		addKeyword(tag)
+	}
+	for _, candidate := range []string{"Go", "Java", "Python", "Redis", "Linux", "Docker", "Kubernetes", "并发", "后端"} {
+		if strings.Contains(strings.ToLower(input.Title+" "+input.Description), strings.ToLower(candidate)) {
+			addKeyword(candidate)
+		}
+	}
+	addKeyword("后端")
+
+	tagIDs := []string{}
+	seenTagIDs := map[string]struct{}{}
+	for _, keyword := range keywords {
+		tags, searchErr := j.queryNamedIDs(
+			ctx, "/recommend_api/v1/tag/recommend/search", "tag-search",
+			map[string]any{"page_no": 1, "page_size": 20, "key_word": keyword},
+			"tag_id", "tag_name",
+		)
+		if searchErr != nil {
+			tags, searchErr = j.queryNamedIDs(
+				ctx, "/tag_api/v1/query_tag_list", "tag-list",
+				map[string]any{"page_no": 1, "page_size": 20, "key_word": keyword},
+				"tag_id", "tag_name",
+			)
+		}
+		if searchErr != nil {
+			continue
+		}
+		var chosen *juejinNamedID
+		for index := range tags {
+			if strings.EqualFold(tags[index].Name, keyword) {
+				chosen = &tags[index]
+				break
+			}
+		}
+		if chosen == nil && len(tags) > 0 {
+			chosen = &tags[0]
+		}
+		if chosen == nil {
+			continue
+		}
+		if _, ok := seenTagIDs[chosen.ID]; ok {
+			continue
+		}
+		seenTagIDs[chosen.ID] = struct{}{}
+		tagIDs = append(tagIDs, chosen.ID)
+		if len(tagIDs) >= 3 {
+			break
+		}
+	}
+	if len(tagIDs) == 0 {
+		return "", nil, platformError(ErrValidation, "juejin", "publish-metadata", 0, "Juejin returned no usable article tag", false)
+	}
+	return categoryID, tagIDs, nil
+}
+
+func (j *juejinAdapter) repairPublishMetadata(
+	ctx context.Context,
+	ref DraftRef,
+	input DraftInput,
+	detail juejinDraftDetail,
+) (juejinDraftDetail, error) {
+	categoryID, tagIDs, err := j.resolvePublishMetadata(ctx, input)
+	if err != nil {
+		return juejinDraftDetail{}, err
+	}
+	repaired := detail
+	repaired.Data.ArticleDraft.CategoryID = categoryID
+	repaired.Data.ArticleDraft.TagIDs = make([]juejinID, 0, len(tagIDs))
+	for _, id := range tagIDs {
+		repaired.Data.ArticleDraft.TagIDs = append(repaired.Data.ArticleDraft.TagIDs, juejinID(id))
+	}
+	if _, err := j.mutateDraft(
+		ctx, "/content_api/v1/article_draft/update", "update-draft", input, ref.ID, &repaired,
+	); err != nil {
+		return juejinDraftDetail{}, err
+	}
+	return j.draftDetail(ctx, ref.ID)
+}
+
 func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {
 	if strings.TrimSpace(ref.ID) == "" {
 		return PublishResult{}, platformError(ErrValidation, "juejin", "publish-draft", 0, "draft id is required", false)
@@ -424,12 +658,20 @@ func (j *juejinAdapter) PublishDraft(ctx context.Context, ref DraftRef, input Dr
 		articleID = ""
 	}
 	categoryID := strings.TrimSpace(article.CategoryID)
-	if categoryID == "" || categoryID == "0" || len(article.TagIDs) == 0 {
-		return PublishResult{}, platformError(
-			ErrValidation, "juejin", "publish-draft", 0,
-			"the previewed Juejin draft still needs a category and at least one tag; set them in the draft editor, then confirm publish again",
-			false,
-		)
+	if categoryID == "" || categoryID == "0" || len(juejinStringIDs(article.TagIDs)) == 0 {
+		detail, err = j.repairPublishMetadata(ctx, ref, input, detail)
+		if err != nil {
+			return PublishResult{}, err
+		}
+		article = detail.Data.ArticleDraft
+		categoryID = strings.TrimSpace(article.CategoryID)
+		if categoryID == "" || categoryID == "0" || len(juejinStringIDs(article.TagIDs)) == 0 {
+			return PublishResult{}, platformError(
+				ErrValidation, "juejin", "publish-draft", 0,
+				"Juejin draft still has no category or tag after metadata repair",
+				false,
+			)
+		}
 	}
 
 	columnIDs := make([]string, 0, len(detail.Data.Columns))

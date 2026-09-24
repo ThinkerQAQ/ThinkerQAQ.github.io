@@ -162,11 +162,14 @@ type Server struct {
 	restart    func()
 	syncRunner syncRunner
 
-	mu             sync.Mutex
-	distributionMu sync.Mutex
-	sessions       map[string]platformSession
-	jobs           map[string]*syncJob
-	jobOrder       []string
+	mu                  sync.Mutex
+	distributionMu      sync.Mutex
+	sessions            map[string]platformSession
+	jobs                map[string]*syncJob
+	jobOrder            []string
+	browserOps          map[string]*browserOperation
+	browserOpOrder      []string
+	browserOpsAvailable bool
 }
 
 func New(token string) (*Server, error) {
@@ -185,6 +188,7 @@ func New(token string) (*Server, error) {
 		config:     config,
 		sessions:   make(map[string]platformSession),
 		jobs:       make(map[string]*syncJob),
+		browserOps: make(map[string]*browserOperation),
 	}, nil
 }
 
@@ -439,6 +443,19 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 			s.handlePublishingPut(response, request)
 			return
 		}
+	}
+
+	if path == "v1/browser-ops/enable" && request.Method == http.MethodPost {
+		s.handleBrowserOperationsEnable(response, request)
+		return
+	}
+	if path == "v1/browser-ops" && request.Method == http.MethodGet {
+		s.handleBrowserOperationGet(response, request)
+		return
+	}
+	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "browser-ops" && request.Method == http.MethodPost {
+		s.handleBrowserOperationComplete(response, request, parts[2])
+		return
 	}
 
 	if path == "v1/sync/jobs" {
