@@ -1,4 +1,4 @@
-# BlogCTL v0.1.63
+# BlogCTL v0.1.69
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
 
@@ -171,4 +171,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 - Windows / macOS / Linux 卸载脚本。
 - `SHA256SUMS`。
 
-版本：`0.1.63`
+版本：`0.1.69`
