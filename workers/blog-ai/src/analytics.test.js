@@ -6,6 +6,7 @@ import {
   handleAnalyticsRequest,
   runAnalyticsCron,
 } from "./analytics.js";
+import policyWorker from "./policy-worker.js";
 
 const SHARE = "rroJe4zvqujFgYS0";
 const WEBSITE_ID = "11111111-1111-4111-8111-111111111111";
@@ -138,6 +139,24 @@ test("cron bootstrap collects two buckets so current and previous are immediatel
     assert.equal(latest.current.startAt, Date.parse("2026-09-24T04:00:00Z"));
     assert.equal(latest.previous.startAt, Date.parse("2026-09-24T03:00:00Z"));
     assert.equal(umami.calls(), 21);
+  } finally {
+    umami.restore();
+  }
+});
+
+
+test("deployed policy entrypoint forwards scheduled events to analytics cron", async () => {
+  const kv = new MemoryKv();
+  const umami = installUmamiFetch();
+
+  try {
+    const scheduledTime = Date.parse("2026-09-24T05:07:00Z");
+    await policyWorker.scheduled({ scheduledTime }, env(kv), {});
+
+    const meta = JSON.parse(await kv.get(analyticsInternals.META_KEY));
+    assert.equal(meta.lastFinalizedHourEnd, Date.parse("2026-09-24T05:00:00Z"));
+    assert.equal(meta.pendingHours, 0);
+    assert.ok(kv.data.has(analyticsInternals.LATEST_KEY));
   } finally {
     umami.restore();
   }
