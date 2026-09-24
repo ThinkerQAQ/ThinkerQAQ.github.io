@@ -41,11 +41,32 @@ jobs:
         run: |
           set -euo pipefail
           base="https://thinkerqaq-blog-ai.blog-ai.workers.dev"
-          for path in analytics/health analytics/hourly analytics/today; do
-            output="$(mktemp)"
-            curl --fail --silent --show-error \
-              --retry 5 --retry-delay 2 --retry-connrefused \
-              "$base/$path" > "$output"
-            node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$output"
-            echo "$path: ok"
-          done
+          health="$(mktemp)"
+          hourly="$(mktemp)"
+          today="$(mktemp)"
+
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/health" > "$health"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/hourly" > "$hourly"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/today" > "$today"
+
+          node - "$health" "$hourly" "$today" <<'NODE'
+          const fs = require("fs");
+          const [healthPath, hourlyPath, todayPath] = process.argv.slice(2);
+          const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
+          const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
+          const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
+
+          if (health.healthy !== true || !health.lastSuccessAt || health.pendingHours !== 0 || health.lastError) {
+            throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
+          }
+          if (!hourly.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
+            throw new Error("analytics/hourly is missing persisted current/previous windows");
+          }
+          if (!today.generatedAt || !today.date || !today.current?.stats) {
+            throw new Error("analytics/today is missing the current-day aggregate");
+          }
+
+          console.log(
+            `analytics healthy; hourly=${hourly.current.stats.visitors} visitors/${hourly.current.stats.pageviews} pageviews; today=${today.current.stats.visitors} visitors/${today.current.stats.pageviews} pageviews`,
+          );
+          NODE
