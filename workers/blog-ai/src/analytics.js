@@ -3,6 +3,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const METRIC_LIMIT = 100;
 const MAX_BACKFILL_HOURS = 4;
 const TODAY_CACHE_MS = 5 * 60 * 1000;
+const HEALTH_GRACE_MS = 15 * 60 * 1000;
 
 const META_KEY = "analytics:meta";
 const LATEST_KEY = "analytics:latest";
@@ -277,7 +278,11 @@ function emptyWindow(startAt, endAt) {
 
 function pendingHours(lastFinalizedHourEnd, now) {
   if (!Number.isFinite(lastFinalizedHourEnd)) return null;
-  return Math.max(0, Math.floor((floorHour(now) - lastFinalizedHourEnd) / HOUR_MS));
+  const expectedHourEnd = floorHour(now - HEALTH_GRACE_MS);
+  return Math.max(
+    0,
+    Math.floor((expectedHourEnd - lastFinalizedHourEnd) / HOUR_MS),
+  );
 }
 
 async function refreshLatest(kv, websiteId, generatedAt, lastFinalizedHourEnd) {
