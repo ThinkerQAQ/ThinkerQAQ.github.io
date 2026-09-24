@@ -56,7 +56,7 @@ jobs:
           const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
           const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
 
-          if (health.healthy !== true || !health.lastSuccessAt || health.pendingHours !== 0 || health.lastError) {
+          if (health.healthy !== true || !health.lastSuccessAt || health.pendingHours !== 0 || health.hasError === true) {
             throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
           }
           if (!hourly.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
