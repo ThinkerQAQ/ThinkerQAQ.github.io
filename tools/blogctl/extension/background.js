@@ -815,6 +815,7 @@ function browserFetchHeaders(rawHeaders) {
 }
 
 let mediumBrowserFetchTabId = null;
+let mediumBrowserFetchTabOwned = false;
 
 async function ensureMediumBrowserFetchTab() {
   if (mediumBrowserFetchTabId !== null) {
@@ -827,17 +828,31 @@ async function ensureMediumBrowserFetchTab() {
       }
     } catch {}
     mediumBrowserFetchTabId = null;
+    mediumBrowserFetchTabOwned = false;
   }
+
+  const existing = await chrome.tabs.query({ url: ["https://medium.com/*"] }).catch(() => []);
+  const reusable = existing.find((tab) => tab.id && tab.status === "complete") || existing.find((tab) => tab.id);
+  if (reusable?.id) {
+    mediumBrowserFetchTabId = reusable.id;
+    mediumBrowserFetchTabOwned = false;
+    if (reusable.status !== "complete") await waitForTabLoaded(reusable.id, 25000);
+    return reusable.id;
+  }
+
   const tab = await chrome.tabs.create({ url: "https://medium.com/me/stories", active: false });
   mediumBrowserFetchTabId = tab.id;
+  mediumBrowserFetchTabOwned = true;
   await waitForTabLoaded(tab.id, 25000);
   return tab.id;
 }
 
 async function closeBrowserOperationTabs() {
   const tabId = mediumBrowserFetchTabId;
+  const owned = mediumBrowserFetchTabOwned;
   mediumBrowserFetchTabId = null;
-  if (tabId !== null) {
+  mediumBrowserFetchTabOwned = false;
+  if (owned && tabId !== null) {
     try { await chrome.tabs.remove(tabId); } catch {}
   }
 }
@@ -1231,8 +1246,8 @@ function kickBrowserOperationPump() {
   browserOperationPumpPromise = pumpBrowserOperations()
     .catch((error) => console.warn("[BlogCTL][browser-op] pump failed", errorMessage(error)))
     .finally(async () => {
-      browserOperationPumpPromise = null;
       await closeBrowserOperationTabs();
+      browserOperationPumpPromise = null;
     });
   return browserOperationPumpPromise;
 }
