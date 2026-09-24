@@ -167,8 +167,9 @@ type Server struct {
 	sessions       map[string]platformSession
 	jobs           map[string]*syncJob
 	jobOrder       []string
-	browserOps     map[string]*browserOperation
-	browserOpOrder []string
+	browserOps          map[string]*browserOperation
+	browserOpOrder      []string
+	browserOpsAvailable bool
 }
 
 func New(token string) (*Server, error) {
@@ -444,6 +445,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 	}
 
+	if path == "v1/browser-ops/enable" && request.Method == http.MethodPost {
+		s.handleBrowserOperationsEnable(response, request)
+		return
+	}
 	if path == "v1/browser-ops" && request.Method == http.MethodGet {
 		s.handleBrowserOperationGet(response, request)
 		return
