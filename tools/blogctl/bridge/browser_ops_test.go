@@ -78,7 +78,13 @@ func TestBrowserHTTPTransportProxiesMediumRequest(t *testing.T) {
 	if got := requestPayload.Headers["Cookie"]; len(got) != 0 {
 		t.Fatalf("browser request leaked Cookie header: %#v", got)
 	}
-	if requestPayload.Headers["x-xsrf-token"][0] != "xsrf" && requestPayload.Headers["X-Xsrf-Token"][0] != "xsrf" {
+	xsrf := ""
+	for name, values := range requestPayload.Headers {
+		if strings.EqualFold(name, "x-xsrf-token") && len(values) > 0 {
+			xsrf = values[0]
+		}
+	}
+	if xsrf != "xsrf" {
 		t.Fatalf("xsrf headers = %#v", requestPayload.Headers)
 	}
 	body, err := base64.StdEncoding.DecodeString(requestPayload.BodyBase64)
