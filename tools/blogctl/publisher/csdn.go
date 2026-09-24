@@ -49,6 +49,23 @@ func csdnNonce() string {
 	return "00000000-0000-4000-a000-000000000000"
 }
 
+// csdnSignaturePath mirrors the editor-side canonical URI used for X-Ca-Signature.
+// Empty query values are signed as a bare key ("model_type"), while the actual
+// request URL still keeps the normal "model_type=" form.
+func csdnSignaturePath(rawPath string) string {
+	base, query, ok := strings.Cut(rawPath, "?")
+	if !ok || query == "" {
+		return rawPath
+	}
+	parts := strings.Split(query, "&")
+	for index, part := range parts {
+		if strings.HasSuffix(part, "=") {
+			parts[index] = strings.TrimSuffix(part, "=")
+		}
+	}
+	return base + "?" + strings.Join(parts, "&")
+}
+
 func (c *csdnAdapter) signedHeaders(path, method string) http.Header {
 	nonce := csdnNonce()
 	contentType := ""
@@ -58,7 +75,7 @@ func (c *csdnAdapter) signedHeaders(path, method string) http.Header {
 	signString := method + "\n*/*\n\n" + contentType + "\n\n" +
 		"x-ca-key:" + csdnKey + "\n" +
 		"x-ca-nonce:" + nonce + "\n" +
-		path
+		csdnSignaturePath(path)
 	headers := make(http.Header)
 	headers.Set("accept", "*/*")
 	headers.Set("x-ca-key", csdnKey)
