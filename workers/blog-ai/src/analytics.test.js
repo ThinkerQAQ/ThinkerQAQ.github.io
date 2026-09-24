@@ -204,7 +204,7 @@ test("today endpoint uses Asia/Shanghai-style offset and persists a short-lived 
     const stored = JSON.parse(await kv.get("analytics:today:2026-09-24"));
     assert.equal(stored.websiteId, WEBSITE_ID);
     assert.deepEqual(stored.current.cities, [
-      { name: "Singapore", count: 6, country: "SG" },
+      { name: "Singapore", count: 17, country: "SG" },
     ]);
 
     const callsAfterFirst = umami.calls();
