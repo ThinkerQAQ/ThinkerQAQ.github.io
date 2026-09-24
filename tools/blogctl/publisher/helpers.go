@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -19,6 +20,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func browserRequest(ctx context.Context, method, rawURL, origin, referer, userAgent string, body io.Reader) (*http.Request, error) {
@@ -39,8 +41,10 @@ func browserRequest(ctx context.Context, method, rawURL, origin, referer, userAg
 }
 
 func doJSON(client *http.Client, req *http.Request, platform, operation string, output any) error {
+	started := time.Now()
 	response, err := client.Do(req)
 	if err != nil {
+		slog.Warn("platform request failed", "operation", operation, "platform", platform, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 		return platformError(ErrUpstream, platform, operation, 0, err.Error(), true)
 	}
 	defer response.Body.Close()
@@ -55,6 +59,12 @@ func doJSON(client *http.Client, req *http.Request, platform, operation string, 
 		return nil
 	}
 	if err := json.Unmarshal(raw, output); err != nil {
+		bodyKind := "other"
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) > 0 && trimmed[0] == '<' {
+			bodyKind = "html"
+		}
+		slog.Warn("platform returned invalid JSON", "operation", operation, "platform", platform, "status", response.StatusCode, "contentType", response.Header.Get("content-type"), "bodyKind", bodyKind, "byteSize", len(raw), "durationMs", time.Since(started).Milliseconds())
 		return platformError(ErrUpstream, platform, operation, response.StatusCode, "invalid JSON response", false)
 	}
 	return nil

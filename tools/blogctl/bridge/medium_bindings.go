@@ -197,12 +197,29 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 			selected = &mediumPost{ID: body.PostID, Title: body.Candidate.Title, URL: body.Candidate.URL, Published: body.Candidate.Published}
 		}
 	}
-	// Medium's story list is not reachable from native Go (Cloudflare 403); the
-	// browser context passes the matched candidate inline. Never fall back to a
-	// native list here.
 	if selected == nil {
-		writeAPIError(response, http.StatusConflict, "candidate_missing", "Medium candidate is no longer valid; refresh browser article detection", nil)
-		return
+		session, client, sessionErr := (bridgeNativePublisher{server: s}).publisherSession("medium")
+		if sessionErr != nil {
+			writeAPIError(response, http.StatusUnauthorized, "session_required", sessionErr.Error(), nil)
+			return
+		}
+		lookupAccount, posts, lookupErr := (mediumClient{httpClient: client}).listPosts(request.Context(), mediumPlatformSession(session))
+		if lookupErr != nil {
+			writeAPIError(response, http.StatusBadGateway, "lookup_failed", lookupErr.Error(), nil)
+			return
+		}
+		account = lookupAccount
+		for _, post := range posts {
+			if post.ID == body.PostID && post.Published == (body.State == "published") {
+				candidate := post
+				selected = &candidate
+				break
+			}
+		}
+		if selected == nil {
+			writeAPIError(response, http.StatusConflict, "candidate_missing", "Medium candidate was not found in the current account", nil)
+			return
+		}
 	}
 
 	existingID := binding.RemoteDraftID
