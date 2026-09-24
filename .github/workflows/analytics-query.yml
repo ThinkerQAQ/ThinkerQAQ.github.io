@@ -30,18 +30,21 @@ jobs:
           health="$(mktemp)"
           hourly="$(mktemp)"
           today="$(mktemp)"
+          bot_observation="$(mktemp)"
 
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/health" > "$health"
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/hourly" > "$hourly"
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/today" > "$today"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/bot-observation" > "$bot_observation"
 
-          node - "$health" "$hourly" "$today" <<'NODE'
+          node - "$health" "$hourly" "$today" "$bot_observation" <<'NODE'
           const fs = require("fs");
-          const [healthPath, hourlyPath, todayPath] = process.argv.slice(2);
+          const [healthPath, hourlyPath, todayPath, botObservationPath] = process.argv.slice(2);
 
           const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
           const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
           const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
+          const botObservation = JSON.parse(fs.readFileSync(botObservationPath, "utf8"));
 
           if (
             health.healthy !== true ||
@@ -102,6 +105,17 @@ jobs:
               date: today.date,
               timezoneOffsetMinutes: today.timezoneOffsetMinutes,
               current: trimWindow(today.current),
+            },
+            botObservation: {
+              generatedAt: botObservation.generatedAt,
+              windowHours: botObservation.windowHours,
+              clientsObserved: botObservation.clientsObserved,
+              suspectedClients: botObservation.suspectedClients,
+              totalObservedPageviews: botObservation.totalObservedPageviews,
+              blockedHits: botObservation.blockedHits,
+              largestClientPageviewShare: botObservation.largestClientPageviewShare,
+              dominantSingleClient: botObservation.dominantSingleClient,
+              topSuspected: take(botObservation.topSuspected, 10),
             },
           };
 
