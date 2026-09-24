@@ -162,11 +162,11 @@ type Server struct {
 	restart    func()
 	syncRunner syncRunner
 
-	mu             sync.Mutex
-	distributionMu sync.Mutex
-	sessions       map[string]platformSession
-	jobs           map[string]*syncJob
-	jobOrder       []string
+	mu                  sync.Mutex
+	distributionMu      sync.Mutex
+	sessions            map[string]platformSession
+	jobs                map[string]*syncJob
+	jobOrder            []string
 	browserOps          map[string]*browserOperation
 	browserOpOrder      []string
 	browserOpsAvailable bool
