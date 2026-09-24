@@ -195,7 +195,17 @@ test("today endpoint uses Asia/Shanghai-style offset and persists a short-lived 
     assert.equal(report.timezoneOffsetMinutes, 480);
     assert.equal(report.current.startAt, Date.parse("2026-09-23T16:00:00Z"));
     assert.equal(report.current.endAt, now);
+    assert.equal(report.websiteId, undefined);
+    assert.equal(report.generatedAtMs, undefined);
+    assert.equal(report.current.regions, undefined);
+    assert.equal(report.current.cities, undefined);
     assert.ok(kv.data.has("analytics:today:2026-09-24"));
+
+    const stored = JSON.parse(await kv.get("analytics:today:2026-09-24"));
+    assert.equal(stored.websiteId, WEBSITE_ID);
+    assert.deepEqual(stored.current.cities, [
+      { name: "Singapore", count: 6, country: "SG" },
+    ]);
 
     const callsAfterFirst = umami.calls();
     const second = await handleAnalyticsRequest(request, env(kv), {});
@@ -210,9 +220,26 @@ test("today endpoint uses Asia/Shanghai-style offset and persists a short-lived 
 test("hourly and health endpoints read persisted KV without calling Umami", async () => {
   const latest = {
     generatedAt: "2026-09-24T05:07:00.000Z",
-    current: { stats: { visitors: 2 } },
-    previous: { stats: { visitors: 1 } },
-    delta: { stats: { visitors: 1 } },
+    websiteId: WEBSITE_ID,
+    current: {
+      stats: { visitors: 2 },
+      regions: [{ name: "SG-01", count: 2, country: "SG" }],
+      cities: [{ name: "Singapore", count: 2, country: "SG" }],
+    },
+    previous: {
+      stats: { visitors: 1 },
+      regions: [],
+      cities: [{ name: "Singapore", count: 1, country: "SG" }],
+    },
+    delta: {
+      stats: { visitors: 1 },
+      newRegions: [{ name: "SG-01", count: 2, country: "SG" }],
+      changedRegions: [],
+      newCities: [],
+      changedCities: [
+        { name: "Singapore", count: 2, country: "SG", previousCount: 1, delta: 1 },
+      ],
+    },
   };
   const lastFinalizedHourEnd = Date.parse("2026-09-24T05:00:00Z");
   const kv = new MemoryKv({
@@ -232,7 +259,15 @@ test("hourly and health endpoints read persisted KV without calling Umami", asyn
       env(kv),
       {},
     );
-    assert.deepEqual(await hourly.json(), latest);
+    const hourlyBody = await hourly.json();
+    assert.equal(hourlyBody.websiteId, undefined);
+    assert.deepEqual(hourlyBody.current.stats, { visitors: 2 });
+    assert.equal(hourlyBody.current.regions, undefined);
+    assert.equal(hourlyBody.current.cities, undefined);
+    assert.equal(hourlyBody.previous.regions, undefined);
+    assert.equal(hourlyBody.previous.cities, undefined);
+    assert.equal(hourlyBody.delta.newRegions, undefined);
+    assert.equal(hourlyBody.delta.changedCities, undefined);
 
     const health = await handleAnalyticsRequest(
       new Request("https://example.workers.dev/analytics/health"),
@@ -242,6 +277,9 @@ test("hourly and health endpoints read persisted KV without calling Umami", asyn
     const body = await health.json();
     assert.equal(body.healthy, true);
     assert.equal(body.pendingHours, 0);
+    assert.equal(body.hasError, false);
+    assert.equal(body.lastFinalizedHourEnd, undefined);
+    assert.equal(body.lastError, undefined);
 
     Date.now = () => Date.parse("2026-09-24T06:06:00Z");
     const graceHealth = await handleAnalyticsRequest(
