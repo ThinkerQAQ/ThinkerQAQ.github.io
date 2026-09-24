@@ -7,13 +7,22 @@ import (
 	"errors"
 	"fmt"
 	htmlstd "html"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/jpeg"
+	"image/png"
 	"io"
+	"log/slog"
+	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -126,10 +135,40 @@ func mediumRequestCookieValue(header, name string) string {
 }
 
 func mediumSessionCookieHeader(session platformSession) string {
-	if value := strings.TrimSpace(session.RequestCookieHeader); value != "" {
-		return value
+	values := make(map[string]string)
+	order := make([]string, 0)
+	for _, pair := range strings.Split(session.RequestCookieHeader, ";") {
+		name, value, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		name = strings.TrimSpace(name)
+		if !ok || name == "" {
+			continue
+		}
+		if _, exists := values[name]; !exists {
+			order = append(order, name)
+		}
+		values[name] = strings.TrimSpace(value)
 	}
-	return cookieHeader(session.Cookies)
+
+	missingNames := make([]string, 0, len(session.Cookies))
+	for name := range session.Cookies {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		if _, exists := values[name]; !exists {
+			missingNames = append(missingNames, name)
+		}
+	}
+	sort.Strings(missingNames)
+	for _, name := range missingNames {
+		values[name] = session.Cookies[name]
+		order = append(order, name)
+	}
+
+	parts := make([]string, 0, len(order))
+	for _, name := range order {
+		parts = append(parts, name+"="+values[name])
+	}
+	return strings.Join(parts, "; ")
 }
 
 func mediumSessionXSRF(session platformSession) string {
@@ -229,10 +268,35 @@ func (c mediumClient) createStory(ctx context.Context, session platformSession) 
 }
 
 func (c mediumClient) uploadImage(ctx context.Context, session platformSession, image publisher.RehostImage) (mediumUploadResult, error) {
+	result, err := c.uploadImageOnce(ctx, session, image)
+	if err == nil || mediumImageContentType(image.Payload, image.ContentType) != "image/png" {
+		return result, err
+	}
+	retryImage, conversionErr := mediumPNGAsJPEG(image)
+	if conversionErr != nil {
+		return mediumUploadResult{}, err
+	}
+	slog.Warn("medium PNG upload failed; retrying as JPEG", "operation", "image-upload-retry", "originalByteSize", len(image.Payload), "retryByteSize", len(retryImage.Payload), "errorType", fmt.Sprintf("%T", err))
+	result, retryErr := c.uploadImageOnce(ctx, session, retryImage)
+	if retryErr != nil {
+		return mediumUploadResult{}, fmt.Errorf("Medium PNG upload failed: %v; JPEG retry failed: %w", err, retryErr)
+	}
+	return result, nil
+}
+
+func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSession, image publisher.RehostImage) (mediumUploadResult, error) {
+	started := time.Now()
 	session = c.primeXSRF(ctx, session)
+	contentType := mediumImageContentType(image.Payload, image.ContentType)
+	filename := mediumImageFilename(image.Source, contentType)
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile("uploadedFile", mediumImageFilename(image.Source, image.ContentType))
+	partHeader := make(textproto.MIMEHeader)
+	partHeader.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{
+		"name": "uploadedFile", "filename": filename,
+	}))
+	partHeader.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(partHeader)
 	if err != nil {
 		return mediumUploadResult{}, err
 	}
@@ -249,10 +313,14 @@ func (c mediumClient) uploadImage(ctx context.Context, session platformSession, 
 	}
 	setMediumHeaders(req, session, mediumOrigin+"/new-story")
 	req.Header.Set("content-type", writer.FormDataContentType())
+	requestCookieHeader := req.Header.Get("cookie")
+	slog.Info("medium image upload started", "operation", "image-upload", "contentType", contentType, "byteSize", len(image.Payload), "requestCookieNames", cookieHeaderNames(requestCookieHeader), "hasClearance", cookieHeaderHasName(requestCookieHeader, "cf_clearance"))
 	response, err := c.httpClient.Do(req)
 	if err != nil {
+		slog.Warn("medium image upload request failed", "operation", "image-upload", "contentType", contentType, "byteSize", len(image.Payload), "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 		return mediumUploadResult{}, err
 	}
+	slog.Info("medium image upload response", "operation", "image-upload", "status", response.StatusCode, "contentType", contentType, "byteSize", len(image.Payload), "durationMs", time.Since(started).Milliseconds())
 	var decoded struct {
 		Success bool `json:"success"`
 		Payload struct {
@@ -264,6 +332,7 @@ func (c mediumClient) uploadImage(ctx context.Context, session platformSession, 
 		} `json:"payload"`
 	}
 	if err := decodeMediumResponse(response, &decoded); err != nil {
+		slog.Warn("medium image upload rejected", "operation", "image-upload", "status", response.StatusCode, "contentType", contentType, "byteSize", len(image.Payload), "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 		return mediumUploadResult{}, err
 	}
 	if !decoded.Success || strings.TrimSpace(decoded.Payload.Value.FileID) == "" {
@@ -276,25 +345,57 @@ func (c mediumClient) uploadImage(ctx context.Context, session platformSession, 
 	}, nil
 }
 
+func mediumPNGAsJPEG(imageValue publisher.RehostImage) (publisher.RehostImage, error) {
+	decoded, err := png.Decode(bytes.NewReader(imageValue.Payload))
+	if err != nil {
+		return publisher.RehostImage{}, err
+	}
+	bounds := decoded.Bounds()
+	flattened := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	draw.Draw(flattened, flattened.Bounds(), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+	draw.Draw(flattened, flattened.Bounds(), decoded, bounds.Min, draw.Over)
+	var payload bytes.Buffer
+	if err := jpeg.Encode(&payload, flattened, &jpeg.Options{Quality: 90}); err != nil {
+		return publisher.RehostImage{}, err
+	}
+	return publisher.RehostImage{
+		Source: imageValue.Source, Payload: payload.Bytes(), ContentType: "image/jpeg",
+	}, nil
+}
+
+func mediumImageContentType(payload []byte, declared string) string {
+	detected := strings.ToLower(strings.TrimSpace(strings.Split(http.DetectContentType(payload), ";")[0]))
+	if strings.HasPrefix(detected, "image/") {
+		return detected
+	}
+	declared = strings.ToLower(strings.TrimSpace(strings.Split(declared, ";")[0]))
+	if strings.HasPrefix(declared, "image/") {
+		return declared
+	}
+	return "application/octet-stream"
+}
+
 func mediumImageFilename(source, contentType string) string {
-	if strings.HasPrefix(source, "blogctl-asset://") {
-		return "image.png"
+	extension := ".png"
+	switch strings.ToLower(strings.Split(contentType, ";")[0]) {
+	case "image/jpeg":
+		extension = ".jpg"
+	case "image/gif":
+		extension = ".gif"
+	case "image/webp":
+		extension = ".webp"
+	case "image/svg+xml":
+		extension = ".svg"
 	}
 	if parsed, err := url.Parse(source); err == nil {
 		if name := filepath.Base(parsed.Path); name != "" && name != "." && name != "/" {
-			return name
+			if strings.EqualFold(filepath.Ext(name), extension) ||
+				(extension == ".jpg" && strings.EqualFold(filepath.Ext(name), ".jpeg")) {
+				return name
+			}
 		}
 	}
-	switch strings.ToLower(strings.Split(contentType, ";")[0]) {
-	case "image/jpeg":
-		return "image.jpg"
-	case "image/gif":
-		return "image.gif"
-	case "image/webp":
-		return "image.webp"
-	default:
-		return "image.png"
-	}
+	return "image" + extension
 }
 
 func mediumPublishingAsset(input publisher.DraftInput, source string) (publisher.PublishingAsset, bool) {
@@ -972,33 +1073,136 @@ func mediumAccountFromStoriesHTML(raw string) string {
 	return ""
 }
 
-func (c mediumClient) storyListPage(ctx context.Context, session platformSession, tab string) ([]mediumPost, string, error) {
-	rawURL := mediumOrigin + "/me/stories"
-	published := tab == "posts-published"
-	if tab != "" {
-		rawURL += "?tab=" + url.QueryEscape(tab)
+func (c mediumClient) storyListPagePage(ctx context.Context, session platformSession, published bool, cursor string) ([]mediumPost, string, string, error) {
+	postType := "POST_TYPE_DRAFT"
+	operation := "BlogCTLMediumDraftsQuery"
+	if published {
+		postType = "POST_TYPE_PUBLISHED"
+		operation = "BlogCTLMediumPublishedQuery"
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	query := fmt.Sprintf(`query %s($pagingOptions: PagingOptions) {
+  viewer {
+    id
+    username
+    latestPostsConnection(type: %s, includeResponses: false, includeSuspended: true, includeDeleted: false, paging: $pagingOptions) {
+      pagingInfo { next { to } }
+      postPreviews { postId post { id title mediumUrl uniqueSlug isPublished } }
+    }
+  }
+}`, operation, postType)
+	payload, err := json.Marshal([]any{map[string]any{
+		"operationName": operation,
+		"variables": map[string]any{"pagingOptions": map[string]any{
+			"to": cursor, "limit": 25, "order": "DESC",
+		}},
+		"query": query,
+	}})
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
-	req.Header.Set("accept", "text/html,application/xhtml+xml")
-	req.Header.Set("cookie", mediumSessionCookieHeader(session))
-	req.Header.Set("user-agent", session.UserAgent)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
+	if err != nil {
+		return nil, "", "", err
+	}
+	setMediumGraphQLHeaders(req, session, mediumOrigin+"/me/stories", operation)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	defer response.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, "", fmt.Errorf("Medium stories list failed (%d)", response.StatusCode)
+		return nil, "", "", fmt.Errorf("Medium stories query failed (%d)", response.StatusCode)
 	}
-	text := string(raw)
-	return parseMediumStoryLinks(text, published), mediumAccountFromStoriesHTML(text), nil
+	var decoded []struct {
+		Data struct {
+			Viewer struct {
+				ID       string `json:"id"`
+				Username string `json:"username"`
+				Latest   struct {
+					PagingInfo struct {
+						Next *struct {
+							To string `json:"to"`
+						} `json:"next"`
+					} `json:"pagingInfo"`
+					PostPreviews []struct {
+						PostID string `json:"postId"`
+						Post   struct {
+							ID         string `json:"id"`
+							Title      string `json:"title"`
+							MediumURL  string `json:"mediumUrl"`
+							UniqueSlug string `json:"uniqueSlug"`
+						} `json:"post"`
+					} `json:"postPreviews"`
+				} `json:"latestPostsConnection"`
+			} `json:"viewer"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), &decoded); err != nil || len(decoded) == 0 {
+		return nil, "", "", errors.New("Medium stories query returned invalid JSON")
+	}
+	if len(decoded[0].Errors) > 0 {
+		return nil, "", "", fmt.Errorf("Medium stories query failed: %s", truncate(decoded[0].Errors[0].Message, 300))
+	}
+	viewer := decoded[0].Data.Viewer
+	if strings.TrimSpace(viewer.ID) == "" {
+		return nil, "", "", errors.New("Medium browser session is not authenticated")
+	}
+	posts := make([]mediumPost, 0, len(viewer.Latest.PostPreviews))
+	for _, preview := range viewer.Latest.PostPreviews {
+		id := strings.TrimSpace(preview.Post.ID)
+		if id == "" {
+			id = strings.TrimSpace(preview.PostID)
+		}
+		title := normalizeMediumTitle(preview.Post.Title)
+		if id == "" || title == "" {
+			continue
+		}
+		target := strings.TrimSpace(preview.Post.MediumURL)
+		if published {
+			if target == "" && viewer.Username != "" && preview.Post.UniqueSlug != "" {
+				target = mediumOrigin + "/@" + url.PathEscape(viewer.Username) + "/" + preview.Post.UniqueSlug
+			}
+			if target == "" {
+				target = mediumOrigin + "/p/" + id
+			}
+		} else {
+			target = mediumOrigin + "/p/" + id + "/edit"
+		}
+		posts = append(posts, mediumPost{ID: id, Title: title, URL: target, Published: published})
+	}
+	nextCursor := ""
+	if viewer.Latest.PagingInfo.Next != nil {
+		nextCursor = strings.TrimSpace(viewer.Latest.PagingInfo.Next.To)
+	}
+	return posts, strings.TrimSpace(viewer.Username), nextCursor, nil
+}
+
+func (c mediumClient) storyListPage(ctx context.Context, session platformSession, published bool) ([]mediumPost, string, error) {
+	posts := []mediumPost{}
+	account := ""
+	cursor := ""
+	for page := 1; page <= 100; page++ {
+		pagePosts, pageAccount, nextCursor, err := c.storyListPagePage(ctx, session, published, cursor)
+		if err != nil {
+			return nil, "", err
+		}
+		posts = append(posts, pagePosts...)
+		if account == "" {
+			account = pageAccount
+		}
+		if nextCursor == "" || nextCursor == cursor {
+			return posts, account, nil
+		}
+		cursor = nextCursor
+	}
+	return nil, "", errors.New("Medium stories query exceeded pagination limit")
 }
 
 func (c mediumClient) account(ctx context.Context, session platformSession) (string, error) {
@@ -1045,11 +1249,11 @@ func (c mediumClient) account(ctx context.Context, session platformSession) (str
 }
 
 func (c mediumClient) listPosts(ctx context.Context, session platformSession) (string, []mediumPost, error) {
-	drafts, account, err := c.storyListPage(ctx, session, "")
+	drafts, account, err := c.storyListPage(ctx, session, false)
 	if err != nil {
 		return "", nil, err
 	}
-	published, publishedAccount, err := c.storyListPage(ctx, session, "posts-published")
+	published, publishedAccount, err := c.storyListPage(ctx, session, true)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1060,12 +1264,21 @@ func (c mediumClient) listPosts(ctx context.Context, session platformSession) (s
 }
 
 func setMediumHeaders(req *http.Request, session platformSession, referer string) {
-	req.Header.Set("accept", "application/json")
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("accept-language", "zh-CN,zh;q=0.9,en;q=0.8")
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("origin", mediumOrigin)
 	req.Header.Set("referer", referer)
 	req.Header.Set("cookie", mediumSessionCookieHeader(session))
 	req.Header.Set("user-agent", session.UserAgent)
+	if major := mediumChromeMajor(session.UserAgent); major > 0 {
+		req.Header.Set("sec-ch-ua", fmt.Sprintf(`"Chromium";v="%d", "Google Chrome";v="%d", "Not_A Brand";v="99"`, major, major))
+	}
+	req.Header.Set("sec-ch-ua-mobile", "?0")
+	req.Header.Set("sec-ch-ua-platform", `"Windows"`)
+	req.Header.Set("sec-fetch-dest", "empty")
+	req.Header.Set("sec-fetch-mode", "cors")
+	req.Header.Set("sec-fetch-site", "same-origin")
 	req.Header.Set("x-requested-with", "XMLHttpRequest")
 	req.Header.Set("x-obvious-cid", "web")
 	req.Header.Set("x-client-date", fmt.Sprintf("%d", time.Now().UnixMilli()))

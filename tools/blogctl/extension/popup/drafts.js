@@ -46,8 +46,9 @@
     const record = publicationRecord(platform.id);
     const hasDraft = Boolean(record?.remoteId || record?.draftUrl);
     const hasPublished = Boolean(record?.publishedRemoteId || record?.publishedUrl);
-    if (!hasDraft && hasPublished && platform.capabilities?.publishedUpdate !== true) {
-      return { available: false, reason: "已有已发布文章；当前未支持安全更新" };
+    if (!hasDraft && hasPublished && platform.capabilities?.publishedUpdate !== true &&
+      platform.capabilities?.publishedDraftEdit !== true) {
+      return { available: false, reason: "已有已发布文章；该平台暂不支持原文更新" };
     }
     return { available: true, reason: "" };
   }

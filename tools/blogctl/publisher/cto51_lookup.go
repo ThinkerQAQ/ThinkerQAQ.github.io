@@ -52,6 +52,7 @@ func (c *cto51Adapter) listDrafts(ctx context.Context) ([]Cto51Post, error) {
 		return nil, err
 	}
 	req.Header.Set("content-type", "application/x-www-form-urlencoded; charset=UTF-8")
+	req.Header.Set("accept", "*/*")
 	req.Header.Set("x-requested-with", "XMLHttpRequest")
 	var decoded cto51ListPage
 	if err := doJSON(c.client, req, c.ID(), "list-drafts", &decoded); err != nil {

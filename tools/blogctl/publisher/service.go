@@ -3,6 +3,7 @@ package publisher
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -79,8 +80,14 @@ func (s Service) CreateOrUpdateDraftInput(
 	input.RemoteDraftID = state.RemoteDraftID
 	input.DraftURL = state.DraftURL
 	input.DraftHash = state.DraftHash
+	capabilities := PlatformCapabilitiesFor(platform)
+	if input.RemoteDraftID == "" && state.PublishedRemoteID != "" && capabilities.PublishedDraftEdit && platform != "juejin" {
+		input.RemoteDraftID = state.PublishedRemoteID
+		input.DraftURL = state.PublishedURL
+		slog.Info("reopening published article draft", "operation", "published-draft-edit", "platform", platform, "slug", slug, "remoteId", input.RemoteDraftID)
+	}
 	if input.RemoteDraftID == "" && (state.PublishedRemoteID != "" || state.PublishedURL != "") &&
-		!PlatformCapabilitiesFor(platform).PublishedUpdate {
+		!capabilities.PublishedUpdate && !capabilities.PublishedDraftEdit {
 		return DraftResult{}, platformError(
 			ErrValidation, platform, "save-draft", 0,
 			"the article is already published; safe published-article updates are not supported for this platform yet",
@@ -129,6 +136,23 @@ func (s Service) CreateOrUpdateDraftInput(
 		if state.Account != "" && !strings.EqualFold(state.Account, csdn.userID) {
 			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CSDN account", false)
 		}
+	}
+	if platform == "juejin" && input.RemoteDraftID == "" && state.PublishedRemoteID != "" && capabilities.PublishedDraftEdit {
+		posts, lookupErr := adapter.(*juejinAdapter).searchPublished(ctx, juejinSearchKeyword(input.Title))
+		if lookupErr != nil {
+			return DraftResult{}, lookupErr
+		}
+		for _, post := range posts {
+			if post.ID == state.PublishedRemoteID && strings.TrimSpace(post.DraftID) != "" {
+				input.RemoteDraftID = strings.TrimSpace(post.DraftID)
+				input.DraftURL = juejinOrigin + "/editor/drafts/" + input.RemoteDraftID
+				break
+			}
+		}
+		if input.RemoteDraftID == "" {
+			return DraftResult{}, platformError(ErrValidation, platform, "published-draft-edit", 0, "published article has no editable draft id", false)
+		}
+		slog.Info("resolved published article draft", "operation", "published-draft-edit", "platform", platform, "slug", slug, "articleId", state.PublishedRemoteID, "draftId", input.RemoteDraftID)
 	}
 	err = run(adapter)
 	if err != nil && retryableAuthError(err) {

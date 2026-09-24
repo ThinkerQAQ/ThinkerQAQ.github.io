@@ -814,113 +814,12 @@ function browserFetchHeaders(rawHeaders) {
   return headers;
 }
 
-let mediumBrowserFetchTabId = null;
-let mediumBrowserFetchTabOwned = false;
-
-async function ensureMediumBrowserFetchTab() {
-  if (mediumBrowserFetchTabId !== null) {
-    try {
-      const tab = await chrome.tabs.get(mediumBrowserFetchTabId);
-      const parsed = new URL(String(tab?.url || ""));
-      if (parsed.hostname === "medium.com") {
-        if (tab.status !== "complete") await waitForTabLoaded(tab.id);
-        return tab.id;
-      }
-    } catch {}
-    mediumBrowserFetchTabId = null;
-    mediumBrowserFetchTabOwned = false;
-  }
-
-  const existing = await chrome.tabs.query({ url: ["https://medium.com/*"] }).catch(() => []);
-  const reusable = existing.find((tab) => tab.id && tab.status === "complete") || existing.find((tab) => tab.id);
-  if (reusable?.id) {
-    mediumBrowserFetchTabId = reusable.id;
-    mediumBrowserFetchTabOwned = false;
-    if (reusable.status !== "complete") await waitForTabLoaded(reusable.id, 25000);
-    return reusable.id;
-  }
-
-  const tab = await chrome.tabs.create({ url: "https://medium.com/me/stories", active: false });
-  mediumBrowserFetchTabId = tab.id;
-  mediumBrowserFetchTabOwned = true;
-  await waitForTabLoaded(tab.id, 25000);
-  return tab.id;
-}
-
-async function closeBrowserOperationTabs() {
-  const tabId = mediumBrowserFetchTabId;
-  const owned = mediumBrowserFetchTabOwned;
-  mediumBrowserFetchTabId = null;
-  mediumBrowserFetchTabOwned = false;
-  if (owned && tabId !== null) {
-    try { await chrome.tabs.remove(tabId); } catch {}
-  }
-}
-
-async function executeMediumPageHTTP(payload) {
-  const tabId = await ensureMediumBrowserFetchTab();
-  const result = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: async (input) => {
-      const rawURL = String(input?.url || "").trim();
-      const parsed = new URL(rawURL);
-      if (parsed.hostname !== "medium.com") throw new Error("Medium browser proxy only accepts medium.com");
-      const blocked = new Set(["cookie", "user-agent", "host", "content-length", "origin", "referer"]);
-      const headers = new Headers();
-      for (const [name, values] of Object.entries(input?.headers ?? {})) {
-        if (blocked.has(String(name).toLowerCase())) continue;
-        for (const value of Array.isArray(values) ? values : [values]) {
-          if (value !== undefined && value !== null) headers.append(name, String(value));
-        }
-      }
-      const method = String(input?.method || "GET").toUpperCase();
-      const options = { method, headers, credentials: "include", redirect: "follow" };
-      if (!["GET", "HEAD"].includes(method) && input?.bodyBase64) {
-        const binary = atob(String(input.bodyBase64));
-        const bytes = new Uint8Array(binary.length);
-        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-        options.body = bytes;
-      }
-      const response = await fetch(rawURL, options);
-      const responseHeaders = {};
-      response.headers.forEach((value, name) => {
-        if (!responseHeaders[name]) responseHeaders[name] = [];
-        responseHeaders[name].push(value);
-      });
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      let binary = "";
-      const chunk = 0x8000;
-      for (let offset = 0; offset < bytes.length; offset += chunk) {
-        binary += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + chunk)));
-      }
-      return {
-        status: response.status,
-        statusText: response.statusText,
-        url: response.url,
-        headers: responseHeaders,
-        bodyBase64: btoa(binary),
-      };
-    },
-    args: [payload ?? {}],
-  });
-  const response = result?.[0]?.result;
-  if (!response) throw new Error("Medium browser request returned no response");
-  try {
-    const xsrf = await chrome.cookies.get({ url: "https://medium.com/", name: "xsrf" });
-    if (xsrf?.value) {
-      response.headers = response.headers ?? {};
-      response.headers["set-cookie"] = [`xsrf=${xsrf.value}; Path=/; Secure`];
-    }
-  } catch {}
-  return response;
-}
-
 async function executeBrowserHTTP(payload) {
   const rawURL = String(payload?.url || "").trim();
   const target = new URL(rawURL);
   if (!["http:", "https:"].includes(target.protocol)) throw new Error("browser HTTP only supports http(s) URLs");
-  if (target.hostname === "medium.com") return executeMediumPageHTTP(payload);
+  const startedAt = Date.now();
+  const isMedium = target.hostname === "medium.com";
 
   const method = String(payload?.method || "GET").toUpperCase();
   const options = {
@@ -932,20 +831,40 @@ async function executeBrowserHTTP(payload) {
   if (!["GET", "HEAD"].includes(method) && payload?.bodyBase64) {
     options.body = base64ToBytes(payload.bodyBase64);
   }
-  const response = await fetch(rawURL, options);
+  let response;
+  try {
+    response = await fetch(rawURL, options);
+  } catch (error) {
+    if (isMedium) {
+      console.warn("[BlogCTL][medium-http] background request failed", {
+        method, path: target.pathname, durationMs: Date.now() - startedAt, error: errorMessage(error),
+      });
+    }
+    throw error;
+  }
   const responseHeaders = {};
   response.headers.forEach((value, name) => {
     if (!responseHeaders[name]) responseHeaders[name] = [];
     responseHeaders[name].push(value);
   });
   const body = new Uint8Array(await response.arrayBuffer());
-  return {
+  const result = {
     status: response.status,
     statusText: response.statusText,
     url: response.url,
     headers: responseHeaders,
     bodyBase64: bytesToBase64(body),
   };
+  if (isMedium) {
+    try {
+      const xsrf = await chrome.cookies.get({ url: "https://medium.com/", name: "xsrf" });
+      if (xsrf?.value) result.headers["set-cookie"] = [`xsrf=${xsrf.value}; Path=/; Secure`];
+    } catch {}
+    console.info("[BlogCTL][medium-http] background request completed", {
+      method, path: target.pathname, status: response.status, durationMs: Date.now() - startedAt,
+    });
+  }
+  return result;
 }
 
 async function waitForTabLoaded(tabId, timeoutMs = 20000) {
@@ -1203,16 +1122,7 @@ async function cto51PublishInBrowser(payload) {
 }
 
 async function executeBrowserOperation(operation) {
-  switch (operation?.action) {
-    case "http.fetch":
-      return executeBrowserHTTP(operation.payload ?? {});
-    case "segmentfault.publish":
-      return segmentFaultPublishInBrowser(operation.payload ?? {});
-    case "51cto.publish":
-      return cto51PublishInBrowser(operation.payload ?? {});
-    default:
-      throw new Error(`unsupported browser operation: ${operation?.action || "unknown"}`);
-  }
+  throw new Error(`browser platform operations are disabled: ${operation?.action || "unknown"}`);
 }
 
 async function pumpBrowserOperations() {
@@ -1259,8 +1169,7 @@ function kickBrowserOperationPump() {
   if (browserOperationPumpPromise) return browserOperationPumpPromise;
   browserOperationPumpPromise = pumpBrowserOperations()
     .catch((error) => console.warn("[BlogCTL][browser-op] pump failed", errorMessage(error)))
-    .finally(async () => {
-      await closeBrowserOperationTabs();
+    .finally(() => {
       browserOperationPumpPromise = null;
     });
   return browserOperationPumpPromise;
@@ -1435,13 +1344,12 @@ async function handleMessage(message) {
       }
       if (platform === "medium") {
         await syncPlatformSession("medium");
-        const result = await mediumBrowserMatch(article);
+        const result = await fetchJSON(`/v1/medium/articles/list?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
-          text: (candidates.length
+          text: candidates.length
             ? `从 Medium 草稿和已发布文章列表本地匹配到 ${candidates.length} 条候选。`
-            : "已通过 Medium GraphQL 读取文章列表，本地未匹配到同名文章。") +
-            (result.warnings?.length ? ` 部分检测异常：${result.warnings.join("；")}` : ""),
+            : "已通过 Bridge 读取 Medium 草稿和已发布文章列表，本地未匹配到同名文章。",
           items: candidates.map((post) => ({
             title: post.title,
             id: post.id,
@@ -1631,13 +1539,11 @@ async function handleMessage(message) {
     case "blogctl.medium.bind": {
       const article = encodeURIComponent(String(message.article || ""));
       await syncPlatformSession("medium");
-      let candidate = message.candidate ?? null;
-      if (!candidate && message.manual === true) candidate = await mediumManualCandidate(message.postId, message.state);
       return { ok: true, ...(await fetchJSON(`/v1/medium/binding?article=${article}`, jsonOptions("POST", {
         postId: message.postId ?? "",
         state: message.state ?? "",
         replace: message.replace === true,
-        candidate,
+        candidate: message.candidate ?? null,
         manual: message.manual === true,
       }))) };
     }
@@ -1703,15 +1609,12 @@ async function handleMessage(message) {
     case "blogctl.job.start": {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
-      await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
-      void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      void kickBrowserOperationPump();
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       return { ok: true, job: result?.job };
     }
@@ -1730,9 +1633,7 @@ async function handleMessage(message) {
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       await syncSessionsForPlatforms(current?.job?.platforms ?? []);
-      await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
-      void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.publish": {
@@ -1740,9 +1641,7 @@ async function handleMessage(message) {
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
       await prepareJobSessions(current?.job);
-      await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
-      void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     default: return null;

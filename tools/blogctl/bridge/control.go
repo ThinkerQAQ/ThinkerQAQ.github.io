@@ -616,7 +616,7 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		ok = false
 	}
 	httpClient := p.server.httpClient
-	browserOpsAvailable := p.server.browserOpsAvailable
+	config := p.server.config
 	p.server.mu.Unlock()
 	if !ok {
 		return publisher.Session{}, nil, fmt.Errorf("%s browser session is required", platform)
@@ -635,12 +635,16 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		RequestCookieHeaders: cloneStringMap(session.RequestCookieHeaders),
 		CookieHostSuffixes:   publisherCookieHostSuffixes(platform),
 	}
-	if platform == "medium" && browserOpsAvailable {
-		browserClient := *httpClient
-		browserClient.Transport = browserHTTPTransport{
-			server: p.server, platform: platform, fallback: httpClient.Transport,
+	if platform == "medium" || platform == "51cto" {
+		// Tests inject a purpose-built transport. Production uses the normal
+		// *http.Transport and needs a browser TLS/HTTP2 fingerprint for Cloudflare.
+		if _, productionTransport := httpClient.Transport.(*http.Transport); productionTransport {
+			browserHTTPClient, err := newBrowserProfileHTTPClient(config, session.UserAgent, platform)
+			if err != nil {
+				return publisher.Session{}, nil, err
+			}
+			return publisherSession, browserHTTPClient, nil
 		}
-		return publisherSession, &browserClient, nil
 	}
 	return publisherSession, httpClient, nil
 }
@@ -877,12 +881,6 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 	session, httpClient, err := p.publisherSession(request.Platform)
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
-	}
-	switch request.Platform {
-	case "segmentfault":
-		return p.publishDraftViaBrowser(ctx, request, "segmentfault.publish")
-	case "51cto":
-		return p.publishDraftViaBrowser(ctx, request, "51cto.publish")
 	}
 	if request.Platform == "medium" {
 		state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")

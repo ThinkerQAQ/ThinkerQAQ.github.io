@@ -1,8 +1,12 @@
 package bridge
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"net/http"
 	"os"
@@ -42,6 +46,76 @@ func TestFilterMediumCookies(t *testing.T) {
 	})
 	if len(got) != 2 || got["sid"] != "secret" || got["xsrf"] != "token" {
 		t.Fatalf("cookies = %#v", got)
+	}
+}
+
+func TestMediumSessionCookieHeaderMergesBrowserCookies(t *testing.T) {
+	header := mediumSessionCookieHeader(platformSession{
+		RequestCookieHeader: "sid=raw-sid; xsrf=raw-xsrf",
+		Cookies: map[string]string{
+			"sid":          "map-sid",
+			"cf_clearance": "clearance-token",
+			"_cfuvid":      "visitor-token",
+		},
+	})
+
+	for name, expected := range map[string]string{
+		"sid":          "raw-sid",
+		"xsrf":         "raw-xsrf",
+		"cf_clearance": "clearance-token",
+		"_cfuvid":      "visitor-token",
+	} {
+		if got := mediumRequestCookieValue(header, name); got != expected {
+			t.Fatalf("cookie %s = %q, want %q; header names = %v", name, got, expected, cookieHeaderNames(header))
+		}
+	}
+	if strings.Contains(header, "map-sid") {
+		t.Fatalf("request cookie should win over browser cookie; header names = %v", cookieHeaderNames(header))
+	}
+}
+
+func TestMediumUploadRetriesRejectedPNGAsJPEG(t *testing.T) {
+	var pngPayload bytes.Buffer
+	pngImage := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	pngImage.Set(0, 0, color.RGBA{R: 40, G: 80, B: 120, A: 255})
+	if err := png.Encode(&pngPayload, pngImage); err != nil {
+		t.Fatal(err)
+	}
+	attempts := 0
+	client := mediumClient{httpClient: &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		attempts++
+		reader, err := request.MultipartReader()
+		if err != nil {
+			t.Fatal(err)
+		}
+		part, err := reader.NextPart()
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := io.ReadAll(part)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if attempts == 1 {
+			if part.Header.Get("Content-Type") != "image/png" {
+				t.Fatalf("first content type = %q", part.Header.Get("Content-Type"))
+			}
+			return mediumResponse(request, http.StatusUnsupportedMediaType, `{"success":false,"error":"unsupported"}`, nil), nil
+		}
+		if part.Header.Get("Content-Type") != "image/jpeg" || len(payload) < 2 || payload[0] != 0xff || payload[1] != 0xd8 {
+			t.Fatalf("JPEG retry = type %q prefix %x", part.Header.Get("Content-Type"), payload[:min(2, len(payload))])
+		}
+		return mediumResponse(request, http.StatusOK,
+			`])}while(1);</x>{"success":true,"payload":{"value":{"fileId":"1*retry.jpg","imgWidth":1,"imgHeight":1}}}`, nil), nil
+	})}}
+	result, err := client.uploadImage(context.Background(), platformSession{
+		Cookies: map[string]string{"xsrf": "token"}, UserAgent: "BlogCTL-Test",
+	}, publisher.RehostImage{Source: "cover.png", Payload: pngPayload.Bytes(), ContentType: "image/png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 || result.FileID != "1*retry.jpg" {
+		t.Fatalf("attempts=%d result=%#v", attempts, result)
 	}
 }
 
@@ -333,6 +407,18 @@ func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 				`])}while(1);</x>{"success":true,"payload":{"value":{"id":"post-image","mediumUrl":""}}}`, nil), nil
 		case "/_/upload":
 			uploaded = true
+			reader, err := request.MultipartReader()
+			if err != nil {
+				t.Fatal(err)
+			}
+			part, err := reader.NextPart()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if part.FormName() != "uploadedFile" || part.FileName() != "image.png" ||
+				part.Header.Get("Content-Type") != "image/png" {
+				t.Fatalf("Medium upload part = name %q file %q type %q", part.FormName(), part.FileName(), part.Header.Get("Content-Type"))
+			}
 			return mediumResponse(request, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"value":{"fileId":"1*medium.png","imgWidth":1200,"imgHeight":800}}}`, nil), nil
 		case "/p/post-image/deltas":
@@ -549,23 +635,17 @@ func TestParseMediumStoryLinksFromCapturedLists(t *testing.T) {
 	}
 }
 
-func TestMediumListPostsUsesStoriesPagesWithoutViewerGraphQL(t *testing.T) {
+func TestMediumListPostsUsesGraphQLWithoutStoriesPage(t *testing.T) {
 	calls := []string{}
 	client := &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		calls = append(calls, request.URL.RequestURI())
-		if request.URL.Path != "/me/stories" {
+		if request.URL.Path != "/_/graphql" {
 			t.Fatalf("unexpected Medium lookup request: %s", request.URL.String())
 		}
-		if request.URL.Query().Get("tab") == "posts-published" {
-			return mediumResponse(request, http.StatusOK, `
-				<a href="https://medium.com/@ThinkerQAQ">ThinkerQAQ</a>
-				<a href="https://medium.com/@ThinkerQAQ/example-bce5e98fe815">Published title</a>
-			`, nil), nil
+		if request.Header.Get("graphql-operation") == "BlogCTLMediumPublishedQuery" {
+			return mediumResponse(request, http.StatusOK, `[{"data":{"viewer":{"id":"user","username":"ThinkerQAQ","latestPostsConnection":{"postPreviews":[{"postId":"bce5e98fe815","post":{"id":"bce5e98fe815","title":"Published title","mediumUrl":"https://medium.com/@ThinkerQAQ/example-bce5e98fe815","uniqueSlug":"example-bce5e98fe815","isPublished":true}}]}}}}]`, nil), nil
 		}
-		return mediumResponse(request, http.StatusOK, `
-			<a href="https://medium.com/@ThinkerQAQ">ThinkerQAQ</a>
-			<a href="https://medium.com/p/1e645140212b/edit?source=your_stories_outbox">Draft title</a>
-		`, nil), nil
+		return mediumResponse(request, http.StatusOK, `[{"data":{"viewer":{"id":"user","username":"ThinkerQAQ","latestPostsConnection":{"postPreviews":[{"postId":"1e645140212b","post":{"id":"1e645140212b","title":"Draft title","mediumUrl":"","uniqueSlug":"","isPublished":false}}]}}}}]`, nil), nil
 	})}
 
 	account, posts, err := (mediumClient{httpClient: client}).listPosts(context.Background(), platformSession{
