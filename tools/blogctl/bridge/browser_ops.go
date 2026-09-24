@@ -58,6 +58,10 @@ func (s *Server) requestBrowserOperation(ctx context.Context, platform, action s
 		done: make(chan browserOperationCompletion, 1),
 	}
 	s.mu.Lock()
+	if !s.browserOpsAvailable {
+		s.mu.Unlock()
+		return nil, errors.New("browser operation requires the BlogCTL extension")
+	}
 	if s.browserOps == nil {
 		s.browserOps = map[string]*browserOperation{}
 	}
@@ -106,11 +110,25 @@ func (s *Server) nextBrowserOperation() *browserOperation {
 	return nil
 }
 
+func (s *Server) handleBrowserOperationsEnable(response http.ResponseWriter, request *http.Request) {
+	if request.Header.Get("x-thinkerqaq-token") != s.token {
+		writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
+		return
+	}
+	s.mu.Lock()
+	s.browserOpsAvailable = true
+	s.mu.Unlock()
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true})
+}
+
 func (s *Server) handleBrowserOperationGet(response http.ResponseWriter, request *http.Request) {
 	if request.Header.Get("x-thinkerqaq-token") != s.token {
 		writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
 		return
 	}
+	s.mu.Lock()
+	s.browserOpsAvailable = true
+	s.mu.Unlock()
 	writeJSON(response, http.StatusOK, map[string]any{"operation": s.nextBrowserOperation()})
 }
 
