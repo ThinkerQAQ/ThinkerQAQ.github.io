@@ -845,10 +845,273 @@ async function executeBrowserHTTP(payload) {
   };
 }
 
+async function waitForTabLoaded(tabId, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab?.status === "complete") return tab;
+    await delay(150);
+  }
+  throw new Error("browser publish page load timed out");
+}
+
+async function waitForPublishedURL(tabId, platform, timeoutMs = 25000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    let tab;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch {
+      break;
+    }
+    const rawURL = String(tab?.url || "");
+    try {
+      const parsed = new URL(rawURL);
+      if (platform === "segmentfault") {
+        const match = parsed.pathname.match(/^\/a\/(\d+)\/?$/);
+        if (parsed.hostname === "segmentfault.com" && match) return { id: match[1], url: rawURL };
+      }
+      if (platform === "51cto") {
+        const match = parsed.pathname.match(/^\/([^/]+)\/(\d+)\/?$/);
+        if (parsed.hostname === "blog.51cto.com" && match && match[1] !== "blogger") {
+          return { id: match[2], url: rawURL };
+        }
+      }
+    } catch {}
+    await delay(250);
+  }
+
+  try {
+    const result = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (platformName) => {
+        const links = [...document.querySelectorAll("a[href]")].map((item) => item.href);
+        if (platformName === "segmentfault") {
+          const target = links.find((href) => /^https:\/\/segmentfault\.com\/a\/\d+\/?(?:[?#].*)?$/.test(href));
+          if (target) return target;
+        }
+        if (platformName === "51cto") {
+          const target = links.find((href) => {
+            try {
+              const parsed = new URL(href);
+              return parsed.hostname === "blog.51cto.com" &&
+                /^\/[^/]+\/\d+\/?$/.test(parsed.pathname) &&
+                !parsed.pathname.startsWith("/blogger/");
+            } catch {
+              return false;
+            }
+          });
+          if (target) return target;
+        }
+        return "";
+      },
+      args: [platform],
+    });
+    const rawURL = String(result?.[0]?.result || "");
+    if (rawURL) {
+      const parsed = new URL(rawURL);
+      const match = platform === "segmentfault"
+        ? parsed.pathname.match(/^\/a\/(\d+)\/?$/)
+        : parsed.pathname.match(/^\/[^/]+\/(\d+)\/?$/);
+      if (match) return { id: match[1], url: rawURL };
+    }
+  } catch {}
+  throw new Error(`${platform} browser publish did not reach a public article URL`);
+}
+
+async function segmentFaultPublishInBrowser(payload) {
+  const draftId = String(payload?.draftId || "").trim();
+  if (!draftId) throw new Error("SegmentFault draft id is required");
+  const tab = await chrome.tabs.create({
+    url: `https://segmentfault.com/write?draftId=${encodeURIComponent(draftId)}`,
+    active: false,
+  });
+  try {
+    await waitForTabLoaded(tab.id);
+    let scriptError = null;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: async (input) => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const waitFor = async (selector, timeout = 12000) => {
+            const deadline = Date.now() + timeout;
+            while (Date.now() < deadline) {
+              const node = document.querySelector(selector);
+              if (node) return node;
+              await sleep(100);
+            }
+            throw new Error("SegmentFault editor element missing: " + selector);
+          };
+          await waitFor("#title");
+
+          const selectedTags = [...document.querySelectorAll('[class*="tag"]')].filter((node) => {
+            const text = String(node.textContent || "").trim();
+            return text && node.closest("#tags-toggle, [class*=tag]");
+          });
+          if (selectedTags.length === 0) {
+            const toggle = document.querySelector("#tags-toggle");
+            if (toggle) {
+              toggle.click();
+              await sleep(250);
+            }
+            const tagInput = await waitFor('input[placeholder="搜索标签"]', 6000);
+            const candidates = [...new Set([
+              ...(Array.isArray(input?.tags) ? input.tags : []),
+              ...(String(input?.title || "").match(/Go|Java|Python|Redis|Linux|Kubernetes|Docker|并发|后端/gi) || []),
+              "后端",
+            ].map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 6);
+            let added = 0;
+            for (const candidate of candidates) {
+              tagInput.focus();
+              tagInput.value = candidate;
+              tagInput.dispatchEvent(new Event("input", { bubbles: true }));
+              tagInput.dispatchEvent(new Event("change", { bubbles: true }));
+              await sleep(450);
+              const options = [...document.querySelectorAll('[role="option"], li, .dropdown-menu a, .search-result-item')]
+                .filter((node) => {
+                  const text = String(node.textContent || "").trim().toLowerCase();
+                  return text && text.includes(candidate.toLowerCase()) && node.offsetParent !== null;
+                });
+              if (options[0]) {
+                options[0].click();
+                added += 1;
+                await sleep(250);
+              }
+              if (added >= 2) break;
+            }
+            if (added === 0) throw new Error("SegmentFault did not expose a selectable tag; open the draft and choose a tag once");
+          }
+
+          const publishToggle = document.querySelector("#publish-toggle");
+          if (publishToggle) {
+            publishToggle.click();
+            await sleep(300);
+          }
+          const confirm = await waitFor("#sureSubmitBtn", 8000);
+          confirm.click();
+          return { clicked: true };
+        },
+        args: [payload ?? {}],
+      });
+    } catch (error) {
+      scriptError = error;
+    }
+    try {
+      return await waitForPublishedURL(tab.id, "segmentfault");
+    } catch (publishError) {
+      if (scriptError) throw scriptError;
+      throw publishError;
+    }
+  } finally {
+    chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+async function cto51PublishInBrowser(payload) {
+  const draftId = String(payload?.draftId || "").trim();
+  if (!draftId) throw new Error("51CTO draft id is required");
+  const tab = await chrome.tabs.create({
+    url: `https://blog.51cto.com/blogger/draft/${encodeURIComponent(draftId)}`,
+    active: false,
+  });
+  try {
+    await waitForTabLoaded(tab.id);
+    let scriptError = null;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: async (input) => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const waitForAny = async (selectors, timeout = 12000) => {
+            const deadline = Date.now() + timeout;
+            while (Date.now() < deadline) {
+              for (const selector of selectors) {
+                const node = document.querySelector(selector);
+                if (node) return node;
+              }
+              await sleep(100);
+            }
+            throw new Error("51CTO editor controls did not appear");
+          };
+
+          await waitForAny(["#title", 'textarea[placeholder="请输入正文"]', ".edit-submit"]);
+          const publishEntry = document.querySelector(".edit-submit") ||
+            [...document.querySelectorAll("button, a")].find((node) => String(node.textContent || "").includes("发布文章"));
+          if (!publishEntry) throw new Error("51CTO publish entry button was not found");
+          publishEntry.click();
+          await sleep(400);
+
+          const title = String(input?.title || "");
+          const tags = Array.isArray(input?.tags) ? input.tags.map(String) : [];
+          const corpus = (title + " " + tags.join(" ")).toLowerCase();
+          let preferredCategory = "后端开发";
+          if (/ai|人工智能|llm|agent/.test(corpus)) preferredCategory = "人工智能";
+          else if (/mysql|redis|database|数据库|elasticsearch/.test(corpus)) preferredCategory = "数据库";
+          else if (/frontend|javascript|typescript|react|vue|前端/.test(corpus)) preferredCategory = "前端开发";
+          else if (/kubernetes|docker|linux|服务器|运维/.test(corpus)) preferredCategory = "服务器";
+
+          const categoryNodes = [...document.querySelectorAll(".types-select-box span")].filter((node) => node.offsetParent !== null);
+          if (categoryNodes.length) {
+            const current = categoryNodes.find((node) => /active|selected|checked/.test(String(node.className || "")));
+            if (!current) {
+              const preferred = categoryNodes.find((node) => String(node.textContent || "").trim() === preferredCategory) || categoryNodes[0];
+              preferred.click();
+              await sleep(200);
+            }
+          }
+
+          const tagInput = document.querySelector("#tag-input");
+          if (tagInput && !String(tagInput.value || "").trim()) {
+            const candidates = [...new Set([
+              ...tags,
+              ...(title.match(/Go|Java|Python|Redis|Linux|Kubernetes|Docker|并发编程|后端/gi) || []),
+            ].map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 4);
+            for (const candidate of candidates) {
+              tagInput.focus();
+              tagInput.value = candidate;
+              tagInput.dispatchEvent(new Event("input", { bubbles: true }));
+              tagInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+              tagInput.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true }));
+              await sleep(150);
+            }
+          }
+
+          const abstractInput = document.querySelector("#abstractData");
+          if (abstractInput && !String(abstractInput.value || "").trim() && input?.description) {
+            abstractInput.value = String(input.description).slice(0, 200);
+            abstractInput.dispatchEvent(new Event("input", { bubbles: true }));
+            abstractInput.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          const confirm = await waitForAny(["#submitForm"], 8000);
+          confirm.click();
+          return { clicked: true };
+        },
+        args: [payload ?? {}],
+      });
+    } catch (error) {
+      scriptError = error;
+    }
+    try {
+      return await waitForPublishedURL(tab.id, "51cto");
+    } catch (publishError) {
+      if (scriptError) throw scriptError;
+      throw publishError;
+    }
+  } finally {
+    chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
 async function executeBrowserOperation(operation) {
   switch (operation?.action) {
     case "http.fetch":
       return executeBrowserHTTP(operation.payload ?? {});
+    case "segmentfault.publish":
+      return segmentFaultPublishInBrowser(operation.payload ?? {});
+    case "51cto.publish":
+      return cto51PublishInBrowser(operation.payload ?? {});
     default:
       throw new Error(`unsupported browser operation: ${operation?.action || "unknown"}`);
   }
