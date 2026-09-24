@@ -197,6 +197,128 @@
     return header;
   }
 
+  const manualBindingPlatforms = new Set([
+    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "medium",
+  ]);
+
+  function manualBindingStates(platformID) {
+    if (platformID === "cnblogs" || platformID === "csdn") return [];
+    if (platformID === "51cto") return ["draft"];
+    return ["draft", "published"];
+  }
+
+  function manualBindingPlaceholder(platformID) {
+    const labels = {
+      cnblogs: "博客园文章 ID 或链接",
+      juejin: "掘金文章／草稿 ID 或链接",
+      csdn: "CSDN 文章 ID、公开链接或编辑链接",
+      segmentfault: "思否文章／草稿 ID 或链接",
+      zhihu: "知乎文章 ID 或链接",
+      "51cto": "51CTO 草稿 ID 或链接",
+      oschina: "开源中国文章／草稿 ID 或链接",
+      devto: "DEV.to 文章 ID（或带 ID 的后台链接）",
+      medium: "Medium 文章 ID 或链接",
+    };
+    return labels[platformID] || "文章 ID 或链接";
+  }
+
+  function manualBindingID(platformID, reference) {
+    const raw = String(reference || "").trim();
+    if (!raw) return "";
+    if (platformID === "cnblogs" || platformID === "csdn") return raw;
+    if (/^[A-Za-z0-9_-]+$/.test(raw) && !raw.includes(".")) return raw;
+
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      return "";
+    }
+    const path = parsed.pathname;
+    if (platformID === "segmentfault") return parsed.searchParams.get("draftId") || path.match(/\/a\/([0-9]+)/)?.[1] || "";
+    if (platformID === "zhihu") return path.match(/\/p\/([A-Za-z0-9_-]+)/)?.[1] || "";
+    if (platformID === "juejin") return path.match(/\/post\/([0-9]+)/)?.[1] || path.match(/\/editor\/drafts\/([0-9]+)/)?.[1] || "";
+    if (platformID === "oschina") return path.match(/\/blog\/ai-write\/draft\/([0-9]+)/)?.[1] || path.match(/\/blog\/([0-9]+)/)?.[1] || "";
+    if (platformID === "51cto") return path.match(/\/([0-9]+)\/?$/)?.[1] || "";
+    if (platformID === "devto") return path.match(/\/([0-9]+)(?:\/edit)?\/?$/)?.[1] || "";
+    if (platformID === "medium") return path.match(/\/p\/([0-9a-f]{8,})(?:\/edit)?\/?$/i)?.[1] || path.match(/-([0-9a-f]{8,})\/?$/i)?.[1] || "";
+    return "";
+  }
+
+  function appendManualBinding(platform, match, result) {
+    if (!manualBindingPlatforms.has(platform.id)) return;
+    const manual = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "候选中没有？输入文章 ID／链接";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = manualBindingPlaceholder(platform.id);
+    input.autocomplete = "off";
+
+    const states = manualBindingStates(platform.id);
+    let stateSelect = null;
+    if (states.length) {
+      stateSelect = document.createElement("select");
+      for (const stateName of states) {
+        const option = document.createElement("option");
+        option.value = stateName;
+        option.textContent = stateName === "published" ? "已发布" : "草稿";
+        stateSelect.append(option);
+      }
+    }
+
+    const bind = document.createElement("button");
+    bind.type = "button";
+    bind.className = "secondary";
+    bind.textContent = "验证并绑定";
+    bind.addEventListener("click", async () => {
+      const reference = input.value.trim();
+      if (!reference) return;
+      const article = state.selectedSlug;
+      const bindings = platform.id === "cnblogs" ? state.cnblogsBindings : (match.bindings ?? []);
+      bind.disabled = true;
+      if (stateSelect) stateSelect.disabled = true;
+      try {
+        if (platform.id === "cnblogs") {
+          const existing = bindings.length > 0;
+          if (existing && !confirm("将验证该远端文章；若对应状态已有绑定，会替换原绑定。继续吗？")) return;
+          await BlogCTLPopup.send("blogctl.cnblogs.bind", { article, reference, replace: existing });
+          await loadSyncBinding();
+        } else if (platform.id === "csdn") {
+          if (bindings.length && !confirm("将验证该 CSDN 文章；如果对应状态已有绑定，会替换原绑定。继续吗？")) return;
+          await BlogCTLPopup.send("blogctl.csdn.bind", {
+            article, postId: reference, state: "", replace: bindings.length > 0, manual: true,
+          });
+        } else {
+          const postId = manualBindingID(platform.id, reference);
+          if (!postId) throw new Error("无法从输入内容识别远端文章 ID");
+          const stateName = stateSelect?.value || "draft";
+          const existing = bindings.find((binding) => binding.state === stateName);
+          if (existing && String(existing.postId) !== String(postId) &&
+              !confirm("将替换当前" + (stateName === "published" ? "已发布文章" : "草稿") + "绑定。继续吗？")) return;
+          await BlogCTLPopup.send("blogctl." + platform.id + ".bind", {
+            article, postId, state: stateName,
+            replace: Boolean(existing && String(existing.postId) !== String(postId)),
+            manual: true,
+          });
+        }
+        if (article !== state.selectedSlug) return;
+        await refreshArticleMatches();
+        BlogCTLPopup.setMessage(message, (platform.label || platform.id) + " 绑定已保存。", "ok");
+      } catch (error) {
+        BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+      } finally {
+        bind.disabled = false;
+        if (stateSelect) stateSelect.disabled = false;
+      }
+    });
+
+    manual.append(summary, input);
+    if (stateSelect) manual.append(stateSelect);
+    manual.append(bind);
+    result.append(manual);
+  }
+
   function appendMatchRows(platform, match, result) {
     for (const item of match.items ?? []) {
       const row = document.createElement("div");
@@ -245,82 +367,7 @@
       result.append(row);
     }
 
-    if (platform.id === "cnblogs") {
-      const manual = document.createElement("details");
-      const summary = document.createElement("summary");
-      summary.textContent = "候选中没有？输入文章 ID／链接";
-      const input = document.createElement("input");
-      input.type = "text";
-      input.placeholder = "博客园文章 ID 或链接";
-      input.autocomplete = "off";
-      const bind = document.createElement("button");
-      bind.type = "button";
-      bind.className = "secondary";
-      bind.textContent = "验证并绑定";
-      bind.addEventListener("click", async () => {
-        const reference = input.value.trim();
-        if (!reference) return;
-        const article = state.selectedSlug;
-        bind.disabled = true;
-        try {
-          const existing = state.cnblogsBindings.length > 0;
-          if (existing && !confirm("将验证该远端文章；若对应状态已有绑定，会替换原绑定。继续吗？")) return;
-          await BlogCTLPopup.send("blogctl.cnblogs.bind", { article, reference, replace: existing });
-          if (article !== state.selectedSlug) return;
-          await loadSyncBinding();
-          await refreshArticleMatches();
-          BlogCTLPopup.setMessage(message, "绑定已保存。", "ok");
-        } catch (error) {
-          BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-        } finally {
-          bind.disabled = false;
-        }
-      });
-      manual.append(summary, input, bind);
-      result.append(manual);
-    } else if (platform.id === "csdn") {
-      const manual = document.createElement("details");
-      const summary = document.createElement("summary");
-      summary.textContent = "候选中没有？输入 CSDN 文章 ID／链接";
-      const input = document.createElement("input");
-      input.type = "text";
-      input.placeholder = "CSDN 文章 ID、公开链接或编辑链接";
-      input.autocomplete = "off";
-      const bind = document.createElement("button");
-      bind.type = "button";
-      bind.className = "secondary";
-      bind.textContent = "验证并绑定";
-      bind.addEventListener("click", async () => {
-        const reference = input.value.trim();
-        if (!reference) return;
-        const article = state.selectedSlug;
-        const bindings = state.matches.csdn?.bindings ?? [];
-        bind.disabled = true;
-        try {
-          if (bindings.length && !confirm("将验证该 CSDN 文章；如果对应状态已有绑定，会替换原绑定。继续吗？")) return;
-          await BlogCTLPopup.send("blogctl.csdn.bind", {
-            article,
-            postId: reference,
-            state: "",
-            replace: bindings.length > 0,
-          });
-          if (article !== state.selectedSlug) return;
-          await refreshArticleMatches();
-          BlogCTLPopup.setMessage(message, "CSDN 绑定已保存。", "ok");
-        } catch (error) {
-          BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-        } finally {
-          bind.disabled = false;
-        }
-      });
-      manual.append(summary, input, bind);
-      result.append(manual);
-    } else if (!(match.items ?? []).length) {
-      const note = document.createElement("small");
-      note.className = "job-platform-message";
-      note.textContent = "当前平台没有可绑定的远端候选，或尚未接入手动绑定。";
-      result.append(note);
-    }
+    appendManualBinding(platform, match, result);
   }
 
   function renderPlatforms() {

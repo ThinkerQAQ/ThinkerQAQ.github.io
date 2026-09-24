@@ -158,6 +158,7 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 		PostID    string `json:"postId"`
 		State     string `json:"state"`
 		Replace   bool   `json:"replace"`
+		Manual    bool   `json:"manual"`
 		Candidate *struct {
 			ID        string `json:"id"`
 			Title     string `json:"title"`
@@ -190,7 +191,7 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 	var selected *mediumPost
 	if body.Candidate != nil && body.Candidate.ID == body.PostID &&
 		body.Candidate.Published == (body.State == "published") &&
-		mediumTitleMatches(article.Title, body.Candidate.Title) {
+		(body.Manual || mediumTitleMatches(article.Title, body.Candidate.Title)) {
 		if parsed, parseErr := url.Parse(body.Candidate.URL); parseErr == nil &&
 			strings.HasSuffix(strings.ToLower(parsed.Host), "medium.com") && strings.Contains(parsed.Path, body.PostID) {
 			selected = &mediumPost{ID: body.PostID, Title: body.Candidate.Title, URL: body.Candidate.URL, Published: body.Candidate.Published}

@@ -440,6 +440,30 @@ async function mediumBrowserMatch(article) {
   return { candidates, bindings, warnings };
 }
 
+async function mediumManualCandidate(postID, state) {
+  const id = String(postID || "").trim();
+  const normalizedState = String(state || "").trim();
+  if (!id || !["draft", "published"].includes(normalizedState)) {
+    throw new Error("Medium article id and state are required");
+  }
+  const viewer = await mediumViewer();
+  const username = String(viewer.username || viewer.id || "").trim();
+  const lookups = normalizedState === "draft"
+    ? [mediumLatestPosts("POST_TYPE_DRAFT", "BlogCTLMediumDraftPostsQuery", "/me/stories", false)]
+    : [
+        mediumPublishedPosts(username),
+        mediumLatestPosts("POST_TYPE_UNLISTED", "BlogCTLMediumUnlistedPostsQuery", "/me/stories?tab=posts-unlisted", true),
+      ];
+  const results = await Promise.allSettled(lookups);
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    const candidate = result.value.find((post) => String(post?.id || "") === id);
+    if (candidate) return candidate;
+  }
+  const errors = results.filter((result) => result.status === "rejected").map((result) => errorMessage(result.reason));
+  throw new Error(errors.length ? "Medium 文章核验失败：" + errors.join("；") : "未在当前 Medium 账号中找到该文章 ID");
+}
+
 async function bridgeStatus() {
   const extensionVersion = chrome.runtime.getManifest().version;
   try {
@@ -1125,11 +1149,14 @@ async function handleMessage(message) {
     case "blogctl.medium.bind": {
       const article = encodeURIComponent(String(message.article || ""));
       await syncPlatformSession("medium");
+      let candidate = message.candidate ?? null;
+      if (!candidate && message.manual === true) candidate = await mediumManualCandidate(message.postId, message.state);
       return { ok: true, ...(await fetchJSON(`/v1/medium/binding?article=${article}`, jsonOptions("POST", {
         postId: message.postId ?? "",
         state: message.state ?? "",
         replace: message.replace === true,
-        candidate: message.candidate ?? null,
+        candidate,
+        manual: message.manual === true,
       }))) };
     }
     case "blogctl.medium.unbind": {
