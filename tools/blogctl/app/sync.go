@@ -32,10 +32,16 @@ type SyncConfig struct {
 	ContentRoot    string
 	ConfigPath     string
 	PublishingJSON string
-	BridgeOrigin   string
-	BridgeToken    string
-	DevtoAPIKey    string
-	ToolPaths      map[string]string
+	BridgeOrigin       string
+	BridgeToken        string
+	DevtoAPIKey        string
+	R2AccountID        string
+	R2Endpoint         string
+	R2AccessKeyID      string
+	R2SecretAccessKey  string
+	R2Bucket           string
+	R2PublicBaseURL    string
+	ToolPaths          map[string]string
 }
 
 type SyncPlan struct {
@@ -180,34 +186,31 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 }
 
 func BuildSyncPlan(request SyncRequest) []SyncPlan {
-	platforms := make([]string, 0, len(request.Platforms))
+	plans := []SyncPlan{}
 	for _, platform := range request.Platforms {
-		if blogplatform.For(platform).DraftCreate {
-			platforms = append(platforms, platform)
+		if !blogplatform.For(platform).DraftCreate {
+			continue
 		}
+		args := make([]string, 0, len(request.Articles)*2+5)
+		for _, article := range request.Articles {
+			args = append(args, "--article", article)
+		}
+		if request.All {
+			args = append(args, "--all")
+		}
+		args = append(args, "--platforms", platform)
+		if request.DryRun {
+			args = append(args, "--dry-run")
+		}
+		if request.Draft {
+			args = append(args, "--draft")
+		}
+		plans = append(plans, SyncPlan{
+			Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
+			Platforms: []string{platform}, Native: true,
+		})
 	}
-	if len(platforms) == 0 {
-		return nil
-	}
-
-	args := make([]string, 0, len(request.Articles)*2+5)
-	for _, article := range request.Articles {
-		args = append(args, "--article", article)
-	}
-	if request.All {
-		args = append(args, "--all")
-	}
-	args = append(args, "--platforms", strings.Join(platforms, ","))
-	if request.DryRun {
-		args = append(args, "--dry-run")
-	}
-	if request.Draft {
-		args = append(args, "--draft")
-	}
-	return []SyncPlan{{
-		Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
-		Platforms: append([]string{}, platforms...), Native: true,
-	}}
+	return plans
 }
 
 func ParseCompiledArticles(output string) ([]blogcompiler.CompiledArticle, error) {
@@ -524,6 +527,18 @@ func syncEnvironment(config SyncConfig) []string {
 	}
 	if strings.TrimSpace(config.DevtoAPIKey) != "" {
 		env = setEnvironment(env, "DEVTO_API_KEY", strings.TrimSpace(config.DevtoAPIKey))
+	}
+	for key, value := range map[string]string{
+		"R2_ACCOUNT_ID":        config.R2AccountID,
+		"R2_ENDPOINT":          config.R2Endpoint,
+		"R2_ACCESS_KEY_ID":     config.R2AccessKeyID,
+		"R2_SECRET_ACCESS_KEY": config.R2SecretAccessKey,
+		"R2_BUCKET":            config.R2Bucket,
+		"R2_PUBLIC_BASE_URL":   config.R2PublicBaseURL,
+	} {
+		if strings.TrimSpace(value) != "" {
+			env = setEnvironment(env, key, strings.TrimSpace(value))
+		}
 	}
 	if java := strings.TrimSpace(config.ToolPaths["java"]); java != "" {
 		env = setEnvironment(env, "PLANTUML_JAVA", java)
