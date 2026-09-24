@@ -94,7 +94,7 @@ func TestBrowserHTTPTransportProxiesMediumRequest(t *testing.T) {
 
 	rawResponse, _ := json.Marshal(browserHTTPResponse{
 		Status: 200, StatusText: "OK",
-		Headers: map[string][]string{"content-type": {"application/json"}},
+		Headers:    map[string][]string{"content-type": {"application/json"}},
 		BodyBase64: base64.StdEncoding.EncodeToString([]byte(`{"success":true}`)),
 	})
 	server.mu.Lock()
