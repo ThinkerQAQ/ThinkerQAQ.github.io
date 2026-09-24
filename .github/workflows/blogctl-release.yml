@@ -51,6 +51,18 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Remove superseded releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release list --limit 100 --json tagName --jq '.[].tagName' | while IFS= read -r old_tag; do
+            [[ -z "$old_tag" || "$old_tag" == "$TAG" ]] && continue
+            echo "Deleting superseded release: $old_tag"
+            gh release delete "$old_tag" --yes
+          done
+
       - name: Test blogctl
         if: steps.version.outputs.exists != 'true'
         working-directory: tools/blogctl
@@ -105,4 +117,15 @@ jobs:
           gh release create "$TAG" dist/blogctl-release/* \
             --target "$GITHUB_SHA" \
             --title "blogctl v${VERSION}" \
-            --notes "Cross-platform ThinkerQAQ blog developer tool. Includes Windows, macOS, and Linux binaries, Native Messaging installers, and the matching browser extension."
+            --notes-file tools/blogctl/RELEASE_NOTES.md
+
+      - name: Refresh current release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" \
+            --title "blogctl v${VERSION}" \
+            --notes-file tools/blogctl/RELEASE_NOTES.md
