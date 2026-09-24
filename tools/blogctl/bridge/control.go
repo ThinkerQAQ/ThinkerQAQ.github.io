@@ -822,10 +822,66 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 	return blogapp.NativeDraftResult{Result: resultName, URL: result.URL}, nil
 }
 
+func (p bridgeNativePublisher) publishDraftViaBrowser(
+	ctx context.Context,
+	request blogapp.NativePublishRequest,
+	action string,
+) (blogapp.NativePublishResult, error) {
+	state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, request.Platform)
+	if err != nil {
+		return blogapp.NativePublishResult{}, err
+	}
+	draftID := strings.TrimSpace(state.RemoteDraftID)
+	if draftID == "" {
+		return blogapp.NativePublishResult{}, fmt.Errorf("%s remote draft id is missing; save the article first", request.Platform)
+	}
+	if state.DraftHash == "" || state.DraftHash != request.Compiled.ContentHash {
+		return blogapp.NativePublishResult{}, fmt.Errorf("%s source changed after the remote draft was prepared; save the draft again before publishing", request.Platform)
+	}
+	raw, err := p.server.requestBrowserOperation(ctx, request.Platform, action, map[string]any{
+		"draftId":     draftID,
+		"title":       request.Compiled.Title,
+		"description": request.Compiled.Description,
+		"tags":        request.Compiled.Tags,
+	})
+	if err != nil {
+		return blogapp.NativePublishResult{}, err
+	}
+	var result struct {
+		ID  string `json:"id"`
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return blogapp.NativePublishResult{}, fmt.Errorf("decode %s browser publish result: %w", request.Platform, err)
+	}
+	result.ID = strings.TrimSpace(result.ID)
+	result.URL = strings.TrimSpace(result.URL)
+	if result.ID == "" || result.URL == "" {
+		return blogapp.NativePublishResult{}, fmt.Errorf("%s browser publish did not return article id and URL", request.Platform)
+	}
+	if err := publisher.SavePublicationPublishResult(
+		request.ContentRoot,
+		request.Article,
+		request.Platform,
+		request.Compiled.ContentHash,
+		publisher.PublishResult{ID: result.ID, URL: result.URL},
+		p.server.now(),
+	); err != nil {
+		return blogapp.NativePublishResult{}, err
+	}
+	return blogapp.NativePublishResult{Result: "published", URL: result.URL}, nil
+}
+
 func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp.NativePublishRequest) (blogapp.NativePublishResult, error) {
 	session, httpClient, err := p.publisherSession(request.Platform)
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
+	}
+	switch request.Platform {
+	case "segmentfault":
+		return p.publishDraftViaBrowser(ctx, request, "segmentfault.publish")
+	case "51cto":
+		return p.publishDraftViaBrowser(ctx, request, "51cto.publish")
 	}
 	if request.Platform == "medium" {
 		state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
