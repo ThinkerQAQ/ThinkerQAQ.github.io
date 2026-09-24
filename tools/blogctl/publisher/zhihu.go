@@ -1,18 +1,28 @@
 package publisher
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/md5"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
-	zhihuOrigin = "https://zhuanlan.zhihu.com"
-	zhihuMeURL  = "https://www.zhihu.com/api/v4/me"
+	zhihuOrigin          = "https://zhuanlan.zhihu.com"
+	zhihuMeURL           = "https://www.zhihu.com/api/v4/me"
+	zhihuImageAPI        = "https://api.zhihu.com/images"
+	zhihuImageUploadHost = "https://zhihu-pics-upload.zhimg.com"
 )
 
 type zhihuAdapter struct {
@@ -109,6 +119,138 @@ func (z *zhihuAdapter) uploadImage(ctx context.Context, source string) (string, 
 	return decoded.Src, nil
 }
 
+type zhihuImageUploadToken struct {
+	UploadFile struct {
+		State     int    `json:"state"`
+		ImageID   string `json:"image_id"`
+		ObjectKey string `json:"object_key"`
+	} `json:"upload_file"`
+	UploadToken struct {
+		AccessID    string `json:"access_id"`
+		AccessKey   string `json:"access_key"`
+		AccessToken string `json:"access_token"`
+	} `json:"upload_token"`
+}
+
+func zhihuImageMD5(payload []byte) string {
+	sum := md5.Sum(payload)
+	return hex.EncodeToString(sum[:])
+}
+
+func zhihuOSSSignature(accessKey, stringToSign string) string {
+	mac := hmac.New(sha1.New, []byte(accessKey))
+	_, _ = mac.Write([]byte(stringToSign))
+	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func zhihuOSSStringToSign(objectKey, contentType, ossDate, securityToken string) string {
+	headers := "x-oss-date:" + ossDate + "\n" +
+		"x-oss-security-token:" + securityToken + "\n" +
+		"x-oss-user-agent:aliyun-sdk-js/6.8.0"
+	return "PUT\n\n" + contentType + "\n" + ossDate + "\n" +
+		headers + "\n/zhihu-pics/" + objectKey
+}
+
+func (z *zhihuAdapter) waitForImageReady(ctx context.Context, imageID string) (string, error) {
+	imageID = strings.TrimSpace(imageID)
+	if imageID == "" {
+		return "", platformError(ErrUpload, z.ID(), "image-status", 0, "image id is missing", false)
+	}
+	for attempt := 0; attempt < 10; attempt++ {
+		req, err := z.request(ctx, http.MethodGet, zhihuImageAPI+"/"+url.PathEscape(imageID), nil)
+		if err != nil {
+			return "", err
+		}
+		var decoded struct {
+			Status       string `json:"status"`
+			OriginalHash string `json:"original_hash"`
+		}
+		if err := doJSON(z.client, req, z.ID(), "image-status", &decoded); err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(decoded.OriginalHash) != "" {
+			return strings.TrimSpace(decoded.OriginalHash), nil
+		}
+		if strings.EqualFold(strings.TrimSpace(decoded.Status), "completed") {
+			return "", platformError(ErrUpload, z.ID(), "image-status", 0, "completed image is missing original_hash", false)
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	return "", platformError(ErrUpload, z.ID(), "image-status", 0, "image processing timeout", true)
+}
+
+func (z *zhihuAdapter) uploadImageBinary(ctx context.Context, image RehostImage) (string, error) {
+	contentType := strings.TrimSpace(strings.Split(image.ContentType, ";")[0])
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	body, _ := json.Marshal(map[string]any{
+		"image_hash": zhihuImageMD5(image.Payload),
+		"source":     "article",
+	})
+	req, err := z.request(ctx, http.MethodPost, zhihuImageAPI, strings.NewReader(string(body)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("content-type", "application/json")
+	var token zhihuImageUploadToken
+	if err := doJSON(z.client, req, z.ID(), "image-token", &token); err != nil {
+		return "", err
+	}
+
+	objectKey := strings.TrimSpace(token.UploadFile.ObjectKey)
+	if token.UploadFile.State == 1 {
+		readyKey, err := z.waitForImageReady(ctx, token.UploadFile.ImageID)
+		if err != nil {
+			return "", err
+		}
+		return "https://pic4.zhimg.com/" + strings.TrimLeft(readyKey, "/"), nil
+	}
+	if objectKey == "" ||
+		strings.TrimSpace(token.UploadToken.AccessID) == "" ||
+		strings.TrimSpace(token.UploadToken.AccessKey) == "" ||
+		strings.TrimSpace(token.UploadToken.AccessToken) == "" {
+		return "", platformError(ErrUpload, z.ID(), "image-token", 0, "Zhihu image upload token is incomplete", false)
+	}
+
+	ossDate := time.Now().UTC().Format(time.RFC1123)
+	stringToSign := zhihuOSSStringToSign(objectKey, contentType, ossDate, token.UploadToken.AccessToken)
+	signature := zhihuOSSSignature(token.UploadToken.AccessKey, stringToSign)
+	target := zhihuImageUploadHost + "/" + strings.TrimLeft(objectKey, "/")
+	uploadReq, err := http.NewRequestWithContext(ctx, http.MethodPut, target, bytes.NewReader(image.Payload))
+	if err != nil {
+		return "", err
+	}
+	uploadReq.Header.Set("content-type", contentType)
+	uploadReq.Header.Set("authorization", "OSS "+token.UploadToken.AccessID+":"+signature)
+	uploadReq.Header.Set("x-oss-date", ossDate)
+	uploadReq.Header.Set("x-oss-security-token", token.UploadToken.AccessToken)
+	uploadReq.Header.Set("x-oss-user-agent", "aliyun-sdk-js/6.8.0")
+	uploadReq.Header.Set("origin", zhihuOrigin)
+	uploadReq.Header.Set("referer", zhihuOrigin+"/")
+	if z.userAgent != "" {
+		uploadReq.Header.Set("user-agent", z.userAgent)
+	}
+
+	response, err := z.client.Do(uploadReq)
+	if err != nil {
+		return "", platformError(ErrUpload, z.ID(), "image-oss-upload", 0, err.Error(), true)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		raw, _ := readBounded(response, 1<<20)
+		return "", platformError(ErrUpload, z.ID(), "image-oss-upload", response.StatusCode, string(raw), true)
+	}
+	if strings.EqualFold(contentType, "image/gif") {
+		objectKey += ".gif"
+	}
+	return "https://pic4.zhimg.com/" + strings.TrimLeft(objectKey, "/"), nil
+}
+
 var (
 	zhihuFigureTablePattern  = regexp.MustCompile(`(?is)<figure[^>]*>\s*(<table[\s\S]*?</table>)\s*</figure>`)
 	zhihuTablePattern        = regexp.MustCompile(`(?is)<table[^>]*>([\s\S]*?)</table>`)
@@ -199,10 +341,12 @@ func (z *zhihuAdapter) prepareHTML(ctx context.Context, input DraftInput) (strin
 		FailOpenRemote: true,
 		AlreadyHosted:  isZhihuImage,
 	}, func(ctx context.Context, image RehostImage) (string, error) {
-		if !isRemoteHTTPImage(image.Source) {
-			return "", platformError(ErrUpload, z.ID(), "image-upload", 0, "Zhihu image import requires an HTTP(S) source URL", false)
+		if isRemoteHTTPImage(image.Source) {
+			if target, err := z.uploadImage(ctx, image.Source); err == nil && strings.TrimSpace(target) != "" {
+				return target, nil
+			}
 		}
-		return z.uploadImage(ctx, image.Source)
+		return z.uploadImageBinary(ctx, image)
 	})
 	if err != nil {
 		return "", err
