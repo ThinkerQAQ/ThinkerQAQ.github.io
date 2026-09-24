@@ -1,0 +1,109 @@
+name: Query blog analytics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/analytics-query.yml"
+  schedule:
+    - cron: "12 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analytics-query
+  cancel-in-progress: false
+
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query production analytics
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base="https://thinkerqaq-blog-ai.blog-ai.workers.dev"
+          health="$(mktemp)"
+          hourly="$(mktemp)"
+          today="$(mktemp)"
+
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/health" > "$health"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/hourly" > "$hourly"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/today" > "$today"
+
+          node - "$health" "$hourly" "$today" <<'NODE'
+          const fs = require("fs");
+          const [healthPath, hourlyPath, todayPath] = process.argv.slice(2);
+
+          const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
+          const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
+          const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
+
+          if (
+            health.healthy !== true ||
+            !health.lastSuccessAt ||
+            health.pendingHours !== 0 ||
+            health.hasError === true
+          ) {
+            throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
+          }
+
+          if (!hourly.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
+            throw new Error("analytics/hourly is missing persisted current/previous windows");
+          }
+
+          if (!today.generatedAt || !today.date || !today.current?.stats) {
+            throw new Error("analytics/today is missing the current-day aggregate");
+          }
+
+          const take = (value, limit = 50) =>
+            Array.isArray(value) ? value.slice(0, limit) : [];
+
+          const trimWindow = (window) => ({
+            startAt: window?.startAt,
+            endAt: window?.endAt,
+            stats: window?.stats,
+            paths: take(window?.paths),
+            entryPages: take(window?.entryPages),
+            referrers: take(window?.referrers),
+            channels: take(window?.channels),
+            countries: take(window?.countries),
+            events: take(window?.events),
+            utmSources: take(window?.utmSources),
+            warnings: take(window?.warnings),
+          });
+
+          const trimDelta = (delta) => {
+            if (!delta) return delta;
+            const result = { stats: delta.stats };
+            for (const [key, value] of Object.entries(delta)) {
+              if (key === "stats") continue;
+              if (Array.isArray(value)) result[key] = value.slice(0, 50);
+            }
+            return result;
+          };
+
+          const result = {
+            queriedAt: new Date().toISOString(),
+            health,
+            hourly: {
+              generatedAt: hourly.generatedAt,
+              windowHours: hourly.windowHours,
+              current: trimWindow(hourly.current),
+              previous: trimWindow(hourly.previous),
+              delta: trimDelta(hourly.delta),
+            },
+            today: {
+              generatedAt: today.generatedAt,
+              date: today.date,
+              timezoneOffsetMinutes: today.timezoneOffsetMinutes,
+              current: trimWindow(today.current),
+            },
+          };
+
+          console.log(`ANALYTICS_QUERY_RESULT=${JSON.stringify(result)}`);
+          NODE
