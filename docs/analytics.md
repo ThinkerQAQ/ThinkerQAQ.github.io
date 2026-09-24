@@ -106,4 +106,4 @@ Public aggregate read endpoints are:
 
 Only aggregate analytics are stored. No IP address, session ID, distinct ID, or individual visitor trajectory is persisted by this reporting layer.
 
-The old `.github/workflows/umami-hourly-report.yml` and `analytics-data` branch are retained temporarily as a fallback while the Worker path is verified in production. Once the Worker Cron and KV path are proven stable, the GitHub-scheduled snapshot can be removed.
+The Worker/KV path is the production source for hourly analytics. The former GitHub Actions snapshot workflow has been retired; the historical `analytics-data` branch is no longer written by automation.

@@ -99,13 +99,11 @@ The same Worker also owns the lightweight Umami reporting path.
 - `GET /analytics/health` exposes the last successful collection, pending-hour count, and last error.
 - Cache API is only a read-through hot cache; KV remains the durable source for hourly snapshots.
 
-The KV binding is declared without a hard-coded namespace ID so current Wrangler versions can auto-provision it on first deployment. If the deployment token is not allowed to create KV resources, create/bind the namespace once in Cloudflare and keep the binding name `ANALYTICS_KV`.
-
-The legacy GitHub Actions hourly snapshot remains temporarily available as a fallback while the Worker path is being verified in production.
+The existing KV namespace is bound explicitly as `ANALYTICS_KV` in `wrangler.jsonc`. The namespace is provisioned once outside CI; normal deployments only bind and use the existing namespace.
 
 ## Deploy the Worker
 
-Worker deployment is handled by `.github/workflows/worker-release.yml`. A push to `main` that changes `workers/blog-ai/**` (or the release workflow itself) runs the Worker test suite and then deploys with:
+Worker deployment is handled by `.github/workflows/worker-release.yml`. A push to `main` that changes `workers/blog-ai/**` (or the release workflow itself) runs the Worker test suite, deploys, and then smoke-tests the public analytics endpoints with structural/health assertions.
 
 ```text
 wrangler deploy --config workers/blog-ai/wrangler.jsonc
