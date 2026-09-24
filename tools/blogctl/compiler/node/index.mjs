@@ -26,7 +26,7 @@ import {
 } from "./compiler.mjs";
 
 const NATIVE_IMAGE_UPLOAD_PLATFORMS = new Set([
-  "cnblogs", "juejin", "csdn", "segmentfault", "51cto", "oschina", "toutiao", "devto", "medium",
+  "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium",
 ]);
 
 function logAssetStage(env, severity, fields) {
@@ -44,7 +44,7 @@ function internalAssetRef(asset) {
   return `blogctl-asset://${asset.kind}/${asset.id}`;
 }
 
-function useNativeImageUpload(platform) {
+export function useNativeImageUpload(platform) {
   return NATIVE_IMAGE_UPLOAD_PLATFORMS.has(platform);
 }
 
