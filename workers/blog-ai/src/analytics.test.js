@@ -207,6 +207,26 @@ test("hourly and health endpoints read persisted KV without calling Umami", asyn
     const body = await health.json();
     assert.equal(body.healthy, true);
     assert.equal(body.pendingHours, 0);
+
+    Date.now = () => Date.parse("2026-09-24T06:06:00Z");
+    const graceHealth = await handleAnalyticsRequest(
+      new Request("https://example.workers.dev/analytics/health"),
+      env(kv),
+      {},
+    );
+    const graceBody = await graceHealth.json();
+    assert.equal(graceBody.healthy, true);
+    assert.equal(graceBody.pendingHours, 0);
+
+    Date.now = () => Date.parse("2026-09-24T06:30:00Z");
+    const staleHealth = await handleAnalyticsRequest(
+      new Request("https://example.workers.dev/analytics/health"),
+      env(kv),
+      {},
+    );
+    const staleBody = await staleHealth.json();
+    assert.equal(staleBody.healthy, false);
+    assert.equal(staleBody.pendingHours, 1);
   } finally {
     Date.now = originalNow;
   }
