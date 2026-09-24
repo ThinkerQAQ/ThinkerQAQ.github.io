@@ -87,6 +87,22 @@ When present, `ASK_SESSION_SECRET` is preferred. Neither secret may be committed
 
 For local testing, Cloudflare provides dedicated test credentials. Use the always-pass test site key in the Astro build and put the always-pass test secret in `workers/blog-ai/.dev.vars`; never use those test credentials in production.
 
+## Analytics snapshots
+
+The same Worker also owns the lightweight Umami reporting path.
+
+- A Cloudflare Cron Trigger runs at minute 7 of every hour.
+- Complete UTC-hour buckets are persisted in the `ANALYTICS_KV` namespace.
+- If a scheduled run was missed, the next run backfills up to four missing hours and keeps the remaining backlog visible through health metadata.
+- `GET /analytics/hourly` returns the latest complete hour, the immediately preceding hour, and their delta.
+- `GET /analytics/today` queries the exact current Beijing-calendar-day window, persists it briefly in KV, and caches the response for five minutes.
+- `GET /analytics/health` exposes the last successful collection, pending-hour count, and last error.
+- Cache API is only a read-through hot cache; KV remains the durable source for hourly snapshots.
+
+The KV binding is declared without a hard-coded namespace ID so current Wrangler versions can auto-provision it on first deployment. If the deployment token is not allowed to create KV resources, create/bind the namespace once in Cloudflare and keep the binding name `ANALYTICS_KV`.
+
+The legacy GitHub Actions hourly snapshot remains temporarily available as a fallback while the Worker path is being verified in production.
+
 ## Deploy the Worker
 
 Worker deployment is handled by `.github/workflows/worker-release.yml`. A push to `main` that changes `workers/blog-ai/**` (or the release workflow itself) runs the Worker test suite and then deploys with:
