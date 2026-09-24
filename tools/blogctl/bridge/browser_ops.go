@@ -152,9 +152,17 @@ func (s *Server) handleBrowserOperationComplete(response http.ResponseWriter, re
 type browserHTTPTransport struct {
 	server   *Server
 	platform string
+	fallback http.RoundTripper
 }
 
 func (t browserHTTPTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if t.platform == "medium" && !strings.EqualFold(request.URL.Hostname(), "medium.com") {
+		fallback := t.fallback
+		if fallback == nil {
+			fallback = http.DefaultTransport
+		}
+		return fallback.RoundTrip(request)
+	}
 	if t.server == nil {
 		return nil, errors.New("browser HTTP transport is unavailable")
 	}
