@@ -223,7 +223,12 @@ export async function buildBotObservationReport(env, now = Date.now()) {
   });
 
   const suspected = active
-    .filter(state => Array.isArray(state.reasons) && state.reasons.length > 0)
+    .filter(
+      state =>
+        state.verifiedBot !== true &&
+        Array.isArray(state.reasons) &&
+        state.reasons.length > 0,
+    )
     .sort((a, b) => Number(b.pageviews || 0) - Number(a.pageviews || 0));
 
   const totalPageviews = active.reduce((sum, state) => sum + Number(state.pageviews || 0), 0);
