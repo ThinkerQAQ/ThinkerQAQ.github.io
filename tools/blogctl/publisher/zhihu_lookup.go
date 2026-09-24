@@ -59,6 +59,9 @@ func (z *zhihuAdapter) accountURLToken(ctx context.Context) (string, error) {
 }
 
 func (z *zhihuAdapter) listDrafts(ctx context.Context) ([]ZhihuPost, error) {
+	if strings.TrimSpace(z.dc0) == "" {
+		return nil, errors.New("Zhihu d_c0 cookie is required for signed article lookup")
+	}
 	result := []ZhihuPost{}
 	for offset, page := 0, 0; page < 10; page, offset = page+1, offset+10 {
 		rawURL := "https://www.zhihu.com/api/v4/articles/my_drafts?offset=" + strconv.Itoa(offset) +
@@ -94,6 +97,9 @@ func (z *zhihuAdapter) listDrafts(ctx context.Context) ([]ZhihuPost, error) {
 }
 
 func (z *zhihuAdapter) listPublished(ctx context.Context, urlToken string) ([]ZhihuPost, error) {
+	if strings.TrimSpace(z.dc0) == "" {
+		return nil, errors.New("Zhihu d_c0 cookie is required for signed article lookup")
+	}
 	result := []ZhihuPost{}
 	for offset, page := 0, 0; page < 10; page, offset = page+1, offset+20 {
 		rawURL := "https://www.zhihu.com/api/v4/members/" + url.PathEscape(urlToken) +

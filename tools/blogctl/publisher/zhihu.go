@@ -18,6 +18,7 @@ const (
 type zhihuAdapter struct {
 	client    *http.Client
 	userAgent string
+	dc0       string
 }
 
 func NewZhihuAdapter(base *http.Client, session Session) (Adapter, error) {
@@ -25,7 +26,9 @@ func NewZhihuAdapter(base *http.Client, session Session) (Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &zhihuAdapter{client: client, userAgent: session.UserAgent}, nil
+	return &zhihuAdapter{
+		client: client, userAgent: session.UserAgent, dc0: zhihuDC0FromSession(session),
+	}, nil
 }
 
 func (z *zhihuAdapter) ID() string { return "zhihu" }
@@ -45,6 +48,11 @@ func (z *zhihuAdapter) request(ctx context.Context, method, rawURL string, body 
 		req.Header.Del("origin")
 	}
 	req.Header.Set("x-requested-with", "fetch")
+	if z.dc0 != "" {
+		if err := zhihuSignRequest(req, z.dc0); err != nil {
+			return nil, err
+		}
+	}
 	return req, nil
 }
 

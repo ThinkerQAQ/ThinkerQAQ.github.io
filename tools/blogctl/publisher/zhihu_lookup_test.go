@@ -15,6 +15,9 @@ func TestZhihuListPostsUsesDraftAndPublishedLists(t *testing.T) {
 			}
 			return jsonResponse(request, 200, `{"id":"member-id","name":"ThinkerQAQ"}`, nil), nil
 		case request.URL.Path == "/api/v4/articles/my_drafts":
+			if request.Header.Get("x-zse-93") != zhihuZSE93 || request.Header.Get("x-zse-96") == "" {
+				t.Fatalf("draft-list request is missing Zhihu signature headers: %#v", request.Header)
+			}
 			return jsonResponse(request, 200, `{
 				"paging":{"is_end":true},
 				"data":[
@@ -23,6 +26,9 @@ func TestZhihuListPostsUsesDraftAndPublishedLists(t *testing.T) {
 				]
 			}`, nil), nil
 		case request.URL.Path == "/api/v4/members/thinkQAQ/articles":
+			if request.Header.Get("x-zse-93") != zhihuZSE93 || request.Header.Get("x-zse-96") == "" {
+				t.Fatalf("published-list request is missing Zhihu signature headers: %#v", request.Header)
+			}
 			return jsonResponse(request, 200, `{
 				"paging":{"is_end":true},
 				"data":[
@@ -37,7 +43,10 @@ func TestZhihuListPostsUsesDraftAndPublishedLists(t *testing.T) {
 
 	account, posts, err := ZhihuListPosts(context.Background(), client, Session{
 		UserAgent: "BlogCTL-Test-UA",
-		Cookies:   []BrowserCookie{{Name: "z_c0", Value: "secret", Domain: ".zhihu.com", Path: "/", Secure: true}},
+		Cookies: []BrowserCookie{
+			{Name: "z_c0", Value: "secret", Domain: ".zhihu.com", Path: "/", Secure: true},
+			{Name: "d_c0", Value: "test-dc0", Domain: ".zhihu.com", Path: "/", Secure: true},
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
