@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  botObservationInternals,
   buildBotObservationReport,
   observeAnalyticsBeacon,
 } from "./bot-observation.js";
@@ -172,4 +173,40 @@ test("different IPs remain separate anonymous clients", async () => {
   assert.equal(report.clientsObserved, 2);
   assert.equal(report.totalObservedPageviews, 2);
   assert.equal(report.largestClientPageviewShare, 0.5);
+});
+
+
+test("classifies common crawler families without exposing full user agents", async () => {
+  const cases = [
+    ["Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)", "yandex"],
+    ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "google"],
+    ["Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)", "bing"],
+    ["Mozilla/5.0 AppleWebKit/537.36; compatible; GPTBot/1.2", "openai"],
+    ["Mozilla/5.0; compatible; ClaudeBot/1.0", "anthropic"],
+    ["Mozilla/5.0 HeadlessChrome/153.0", "unknown"],
+  ];
+
+  for (const [ua, expected] of cases) {
+    assert.equal(botObservationInternals.classifyBotFamily(ua), expected);
+  }
+
+  const kv = new MemoryKv();
+  const env = { ANALYTICS_KV: kv };
+  const now = Date.parse("2026-09-24T08:00:00Z");
+
+  await observeAnalyticsBeacon(
+    requestFor({
+      ip: "203.0.113.60",
+      ua: "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)",
+      country: "RU",
+    }),
+    env,
+    pageview("/notes/yandex/"),
+    now,
+  );
+
+  const report = await buildBotObservationReport(env, now + 60_000);
+  assert.equal(report.topSuspected[0].botFamily, "yandex");
+  assert.equal("userAgent" in report.topSuspected[0], false);
+  assert.equal("clientTag" in report.topSuspected[0], false);
 });
