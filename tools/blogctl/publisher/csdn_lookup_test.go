@@ -103,6 +103,19 @@ func TestCSDNListPostsUsesSignedConsoleLists(t *testing.T) {
 	}
 }
 
+func TestCSDNSignaturePathCanonicalizesEmptyQueryValues(t *testing.T) {
+	cases := map[string]string{
+		"/blog-console-api/v3/editor/getArticle?id=147578947&model_type=":       "/blog-console-api/v3/editor/getArticle?id=147578947&model_type",
+		"/blog/phoenix/console/v1/article/list?page=1&pageSize=20&status=draft": "/blog/phoenix/console/v1/article/list?page=1&pageSize=20&status=draft",
+		"/blog-console-api/v3/editor/getBaseInfo":                               "/blog-console-api/v3/editor/getBaseInfo",
+	}
+	for input, want := range cases {
+		if got := csdnSignaturePath(input); got != want {
+			t.Fatalf("csdnSignaturePath(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestCSDNLookupPostVerifiesDraftByID(t *testing.T) {
 	client := &http.Client{Transport: csdnRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
@@ -112,8 +125,19 @@ func TestCSDNLookupPostVerifiesDraftByID(t *testing.T) {
 			if request.URL.Query().Get("id") != "147578947" {
 				t.Fatalf("id = %q", request.URL.Query().Get("id"))
 			}
-			if request.Header.Get("x-ca-key") != csdnKey || request.Header.Get("x-ca-signature") == "" {
+			if request.URL.RawQuery != "id=147578947&model_type=" {
+				t.Fatalf("request query = %q", request.URL.RawQuery)
+			}
+			nonce := request.Header.Get("x-ca-nonce")
+			if request.Header.Get("x-ca-key") != csdnKey || nonce == "" {
 				t.Fatalf("missing CSDN signed headers: %#v", request.Header)
+			}
+			signString := "GET\n*/*\n\n\n\n" +
+				"x-ca-key:" + csdnKey + "\n" +
+				"x-ca-nonce:" + nonce + "\n" +
+				"/blog-console-api/v3/editor/getArticle?id=147578947&model_type"
+			if got, want := request.Header.Get("x-ca-signature"), hmacSHA256Base64(csdnSecret, signString); got != want {
+				t.Fatalf("x-ca-signature = %q, want %q", got, want)
 			}
 			return csdnResponse(request, 200, `{
 				"code":200,

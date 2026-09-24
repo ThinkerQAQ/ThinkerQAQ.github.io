@@ -101,7 +101,7 @@ func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ s
 	return "", nil
 }
 
-func TestBuildSyncPlanRoutesAllPlatformsThroughUnifiedCompiler(t *testing.T) {
+func TestBuildSyncPlanIsolatesEachPlatformCompilerInvocation(t *testing.T) {
 	platforms := []string{
 		"cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
 		"51cto", "oschina", "toutiao", "devto", "medium",
@@ -114,19 +114,22 @@ func TestBuildSyncPlanRoutesAllPlatformsThroughUnifiedCompiler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan := BuildSyncPlan(request)
-	if len(plan) != 1 {
-		t.Fatalf("got %d plan entries, want 1", len(plan))
+	plans := BuildSyncPlan(request)
+	if len(plans) != len(platforms) {
+		t.Fatalf("got %d plan entries, want %d", len(plans), len(platforms))
 	}
-	if plan[0].Group != "native-publishing" || !plan[0].Native || !reflect.DeepEqual(plan[0].Platforms, platforms) {
-		t.Fatalf("unified plan = %#v", plan[0])
-	}
-	if !reflect.DeepEqual(plan[0].Args, []string{
-		"--article", "concurrency-series-00",
-		"--platforms", strings.Join(platforms, ","),
-		"--dry-run",
-	}) {
-		t.Fatalf("unified args = %#v", plan[0].Args)
+	for index, platform := range platforms {
+		plan := plans[index]
+		if plan.Group != "native-publishing" || !plan.Native || !reflect.DeepEqual(plan.Platforms, []string{platform}) {
+			t.Fatalf("plan[%d] = %#v", index, plan)
+		}
+		if !reflect.DeepEqual(plan.Args, []string{
+			"--article", "concurrency-series-00",
+			"--platforms", platform,
+			"--dry-run",
+		}) {
+			t.Fatalf("plan[%d] args = %#v", index, plan.Args)
+		}
 	}
 }
 
@@ -172,8 +175,8 @@ func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runner.commands) != 1 {
-		t.Fatalf("got %d commands, want 1 unified compiler invocation", len(runner.commands))
+	if len(runner.commands) != 2 {
+		t.Fatalf("got %d commands, want 2 isolated compiler invocations", len(runner.commands))
 	}
 	for _, command := range runner.commands {
 		if command.Name != node {
@@ -232,10 +235,10 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	}
 	want := []SyncEvent{
 		{Platform: "juejin", State: "running"},
-		{Platform: "devto", State: "running"},
-		{Platform: "medium", State: "running"},
 		{Platform: "juejin", State: "completed", Result: "dry-run"},
+		{Platform: "devto", State: "running"},
 		{Platform: "devto", State: "completed", Result: "dry-run"},
+		{Platform: "medium", State: "running"},
 		{Platform: "medium", State: "completed", Result: "dry-run"},
 	}
 	if !reflect.DeepEqual(events, want) {
@@ -403,6 +406,76 @@ func TestSyncServiceRoutesLiveMediumThroughNativePublisher(t *testing.T) {
 	}
 	if len(calls) != 1 || calls[0].Platform != "medium" || calls[0].Compiled.Platform != "medium" {
 		t.Fatalf("medium native calls = %#v", calls)
+	}
+}
+
+type compilerFailureRunner struct{}
+
+func (compilerFailureRunner) Run(_ context.Context, _ string, args []string, _ string, _ []string) (string, error) {
+	if len(args) == 0 {
+		return "", nil
+	}
+	script := filepath.ToSlash(args[0])
+	if !strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
+		return "ok\n", nil
+	}
+	platform := ""
+	for index := 1; index < len(args); index++ {
+		if args[index] == "--platforms" && index+1 < len(args) {
+			platform = args[index+1]
+			break
+		}
+	}
+	if platform == "zhihu" {
+		return "{\"operation\":\"blogctl-compile\",\"status\":\"failed\",\"message\":\"Missing BlogCTL R2 publishing configuration: accessKeyId\"}\n", errors.New("exit status 1")
+	}
+	return compiledTestOutput(args[1:]), nil
+}
+
+func TestSyncServiceIsolatesCompilerFailureToOnePlatform(t *testing.T) {
+	engineRoot := t.TempDir()
+	contentRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
+	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
+	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
+	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	node := filepath.Join(t.TempDir(), "node")
+	npm := filepath.Join(t.TempDir(), "npm")
+	writeTestFile(t, node)
+	writeTestFile(t, npm)
+
+	var events []SyncEvent
+	service := SyncService{
+		Runner: compilerFailureRunner{},
+		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
+			return NativeDraftResult{Result: "draft-created", URL: "https://example.com/" + request.Platform}, nil
+		}},
+		OnEvent: func(event SyncEvent) { events = append(events, event) },
+	}
+	_, err := service.Run(context.Background(), SyncConfig{
+		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		ToolPaths: map[string]string{"node": node, "npm": npm},
+	}, SyncRequest{
+		Articles: []string{"example"}, Platforms: []string{"zhihu", "51cto"}, Draft: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "Missing BlogCTL R2 publishing configuration") {
+		t.Fatalf("error = %v", err)
+	}
+
+	zhihuFailed := false
+	ctoSucceeded := false
+	for _, event := range events {
+		if event.Platform == "zhihu" && event.State == "failed" {
+			zhihuFailed = true
+		}
+		if event.Platform == "51cto" && event.State == "completed" {
+			ctoSucceeded = true
+		}
+	}
+	if !zhihuFailed || !ctoSucceeded {
+		t.Fatalf("events = %#v", events)
 	}
 }
 
