@@ -945,17 +945,13 @@ async function segmentFaultPublishInBrowser(payload) {
           };
           await waitFor("#title");
 
-          const selectedTags = [...document.querySelectorAll('[class*="tag"]')].filter((node) => {
-            const text = String(node.textContent || "").trim();
-            return text && node.closest("#tags-toggle, [class*=tag]");
-          });
-          if (selectedTags.length === 0) {
-            const toggle = document.querySelector("#tags-toggle");
-            if (toggle) {
-              toggle.click();
-              await sleep(250);
-            }
-            const tagInput = await waitFor('input[placeholder="搜索标签"]', 6000);
+          const toggle = document.querySelector("#tags-toggle");
+          if (toggle) {
+            toggle.click();
+            await sleep(250);
+          }
+          const tagInput = document.querySelector('input[placeholder="搜索标签"]');
+          if (tagInput) {
             const candidates = [...new Set([
               ...(Array.isArray(input?.tags) ? input.tags : []),
               ...(String(input?.title || "").match(/Go|Java|Python|Redis|Linux|Kubernetes|Docker|并发|后端/gi) || []),
@@ -980,7 +976,6 @@ async function segmentFaultPublishInBrowser(payload) {
               }
               if (added >= 2) break;
             }
-            if (added === 0) throw new Error("SegmentFault did not expose a selectable tag; open the draft and choose a tag once");
           }
 
           const publishToggle = document.querySelector("#publish-toggle");
