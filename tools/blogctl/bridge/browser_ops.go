@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type browserOperation struct {
@@ -69,15 +70,27 @@ func (s *Server) requestBrowserOperation(ctx context.Context, platform, action s
 	s.browserOpOrder = append(s.browserOpOrder, op.ID)
 	s.mu.Unlock()
 
+	waitContext := ctx
+	cancel := func() {}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		waitContext, cancel = context.WithTimeout(ctx, 60*time.Second)
+	}
+	defer cancel()
+
 	select {
 	case result := <-op.done:
 		if result.Error != "" {
 			return nil, errors.New(result.Error)
 		}
 		return result.Result, nil
-	case <-ctx.Done():
+	case <-waitContext.Done():
 		s.removeBrowserOperation(op.ID)
-		return nil, ctx.Err()
+		if errors.Is(waitContext.Err(), context.DeadlineExceeded) {
+			s.mu.Lock()
+			s.browserOpsAvailable = false
+			s.mu.Unlock()
+		}
+		return nil, waitContext.Err()
 	}
 }
 
