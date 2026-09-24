@@ -1,8 +1,9 @@
 name: Release blogctl
 
 on:
-  push:
+  pull_request:
     branches: [main]
+    types: [closed]
     paths:
       - "tools/blogctl/**"
       - ".github/workflows/blogctl-release.yml"
@@ -17,6 +18,7 @@ concurrency:
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
