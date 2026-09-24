@@ -7,12 +7,15 @@ type Capabilities struct {
 	DraftUpdate     bool `json:"draftUpdate"`
 	ExplicitPublish bool `json:"explicitPublish"`
 	PublishedUpdate bool `json:"publishedUpdate"`
-	RemoteList      bool `json:"remoteList"`
-	BodyImages      bool `json:"bodyImages"`
-	BodyImageRehost bool `json:"bodyImageRehost"`
-	CoverImage      bool `json:"coverImage"`
-	NativeCanonical bool `json:"nativeCanonical"`
-	Tags            bool `json:"tags"`
+	// PublishedDraftEdit means an already-published article can be reopened as
+	// an editable draft and published again without creating a duplicate post.
+	PublishedDraftEdit bool `json:"publishedDraftEdit"`
+	RemoteList         bool `json:"remoteList"`
+	BodyImages         bool `json:"bodyImages"`
+	BodyImageRehost    bool `json:"bodyImageRehost"`
+	CoverImage         bool `json:"coverImage"`
+	NativeCanonical    bool `json:"nativeCanonical"`
+	Tags               bool `json:"tags"`
 }
 
 type Definition struct {
@@ -32,11 +35,11 @@ var definitions = []Definition{
 	},
 	{
 		ID: "juejin", Label: "掘金", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "csdn", Label: "CSDN", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "segmentfault", Label: "思否", DefaultLanguage: "zh-CN",
@@ -44,7 +47,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "zhihu", Label: "知乎", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "51cto", Label: "51CTO", DefaultLanguage: "zh-CN",
@@ -52,7 +55,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "oschina", Label: "开源中国", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "toutiao", Label: "今日头条", DefaultLanguage: "zh-CN",

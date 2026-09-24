@@ -49,6 +49,31 @@ func TestFilterMediumCookies(t *testing.T) {
 	}
 }
 
+func TestMediumSessionCookieHeaderMergesBrowserCookies(t *testing.T) {
+	header := mediumSessionCookieHeader(platformSession{
+		RequestCookieHeader: "sid=raw-sid; xsrf=raw-xsrf",
+		Cookies: map[string]string{
+			"sid":          "map-sid",
+			"cf_clearance": "clearance-token",
+			"_cfuvid":      "visitor-token",
+		},
+	})
+
+	for name, expected := range map[string]string{
+		"sid":          "raw-sid",
+		"xsrf":         "raw-xsrf",
+		"cf_clearance": "clearance-token",
+		"_cfuvid":      "visitor-token",
+	} {
+		if got := mediumRequestCookieValue(header, name); got != expected {
+			t.Fatalf("cookie %s = %q, want %q; header names = %v", name, got, expected, cookieHeaderNames(header))
+		}
+	}
+	if strings.Contains(header, "map-sid") {
+		t.Fatalf("request cookie should win over browser cookie; header names = %v", cookieHeaderNames(header))
+	}
+}
+
 func TestMediumUploadRetriesRejectedPNGAsJPEG(t *testing.T) {
 	var pngPayload bytes.Buffer
 	pngImage := image.NewRGBA(image.Rect(0, 0, 1, 1))

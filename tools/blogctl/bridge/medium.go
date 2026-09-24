@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -134,10 +135,40 @@ func mediumRequestCookieValue(header, name string) string {
 }
 
 func mediumSessionCookieHeader(session platformSession) string {
-	if value := strings.TrimSpace(session.RequestCookieHeader); value != "" {
-		return value
+	values := make(map[string]string)
+	order := make([]string, 0)
+	for _, pair := range strings.Split(session.RequestCookieHeader, ";") {
+		name, value, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		name = strings.TrimSpace(name)
+		if !ok || name == "" {
+			continue
+		}
+		if _, exists := values[name]; !exists {
+			order = append(order, name)
+		}
+		values[name] = strings.TrimSpace(value)
 	}
-	return cookieHeader(session.Cookies)
+
+	missingNames := make([]string, 0, len(session.Cookies))
+	for name := range session.Cookies {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		if _, exists := values[name]; !exists {
+			missingNames = append(missingNames, name)
+		}
+	}
+	sort.Strings(missingNames)
+	for _, name := range missingNames {
+		values[name] = session.Cookies[name]
+		order = append(order, name)
+	}
+
+	parts := make([]string, 0, len(order))
+	for _, name := range order {
+		parts = append(parts, name+"="+values[name])
+	}
+	return strings.Join(parts, "; ")
 }
 
 func mediumSessionXSRF(session platformSession) string {
@@ -282,6 +313,8 @@ func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSessi
 	}
 	setMediumHeaders(req, session, mediumOrigin+"/new-story")
 	req.Header.Set("content-type", writer.FormDataContentType())
+	requestCookieHeader := req.Header.Get("cookie")
+	slog.Info("medium image upload started", "operation", "image-upload", "contentType", contentType, "byteSize", len(image.Payload), "requestCookieNames", cookieHeaderNames(requestCookieHeader), "hasClearance", cookieHeaderHasName(requestCookieHeader, "cf_clearance"))
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Warn("medium image upload request failed", "operation", "image-upload", "contentType", contentType, "byteSize", len(image.Payload), "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
@@ -1040,7 +1073,7 @@ func mediumAccountFromStoriesHTML(raw string) string {
 	return ""
 }
 
-func (c mediumClient) storyListPage(ctx context.Context, session platformSession, published bool) ([]mediumPost, string, error) {
+func (c mediumClient) storyListPagePage(ctx context.Context, session platformSession, published bool, cursor string) ([]mediumPost, string, string, error) {
 	postType := "POST_TYPE_DRAFT"
 	operation := "BlogCTLMediumDraftsQuery"
 	if published {
@@ -1052,6 +1085,7 @@ func (c mediumClient) storyListPage(ctx context.Context, session platformSession
     id
     username
     latestPostsConnection(type: %s, includeResponses: false, includeSuspended: true, includeDeleted: false, paging: $pagingOptions) {
+      pagingInfo { next { to } }
       postPreviews { postId post { id title mediumUrl uniqueSlug isPublished } }
     }
   }
@@ -1059,29 +1093,29 @@ func (c mediumClient) storyListPage(ctx context.Context, session platformSession
 	payload, err := json.Marshal([]any{map[string]any{
 		"operationName": operation,
 		"variables": map[string]any{"pagingOptions": map[string]any{
-			"to": "", "limit": 100, "order": "DESC",
+			"to": cursor, "limit": 25, "order": "DESC",
 		}},
 		"query": query,
 	}})
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/graphql", bytes.NewReader(payload))
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	setMediumGraphQLHeaders(req, session, mediumOrigin+"/me/stories", operation)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	defer response.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, "", fmt.Errorf("Medium stories query failed (%d)", response.StatusCode)
+		return nil, "", "", fmt.Errorf("Medium stories query failed (%d)", response.StatusCode)
 	}
 	var decoded []struct {
 		Data struct {
@@ -1089,6 +1123,11 @@ func (c mediumClient) storyListPage(ctx context.Context, session platformSession
 				ID       string `json:"id"`
 				Username string `json:"username"`
 				Latest   struct {
+					PagingInfo struct {
+						Next *struct {
+							To string `json:"to"`
+						} `json:"next"`
+					} `json:"pagingInfo"`
 					PostPreviews []struct {
 						PostID string `json:"postId"`
 						Post   struct {
@@ -1106,14 +1145,14 @@ func (c mediumClient) storyListPage(ctx context.Context, session platformSession
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal([]byte(stripMediumXSSI(string(raw))), &decoded); err != nil || len(decoded) == 0 {
-		return nil, "", errors.New("Medium stories query returned invalid JSON")
+		return nil, "", "", errors.New("Medium stories query returned invalid JSON")
 	}
 	if len(decoded[0].Errors) > 0 {
-		return nil, "", fmt.Errorf("Medium stories query failed: %s", truncate(decoded[0].Errors[0].Message, 300))
+		return nil, "", "", fmt.Errorf("Medium stories query failed: %s", truncate(decoded[0].Errors[0].Message, 300))
 	}
 	viewer := decoded[0].Data.Viewer
 	if strings.TrimSpace(viewer.ID) == "" {
-		return nil, "", errors.New("Medium browser session is not authenticated")
+		return nil, "", "", errors.New("Medium browser session is not authenticated")
 	}
 	posts := make([]mediumPost, 0, len(viewer.Latest.PostPreviews))
 	for _, preview := range viewer.Latest.PostPreviews {
@@ -1138,7 +1177,32 @@ func (c mediumClient) storyListPage(ctx context.Context, session platformSession
 		}
 		posts = append(posts, mediumPost{ID: id, Title: title, URL: target, Published: published})
 	}
-	return posts, strings.TrimSpace(viewer.Username), nil
+	nextCursor := ""
+	if viewer.Latest.PagingInfo.Next != nil {
+		nextCursor = strings.TrimSpace(viewer.Latest.PagingInfo.Next.To)
+	}
+	return posts, strings.TrimSpace(viewer.Username), nextCursor, nil
+}
+
+func (c mediumClient) storyListPage(ctx context.Context, session platformSession, published bool) ([]mediumPost, string, error) {
+	posts := []mediumPost{}
+	account := ""
+	cursor := ""
+	for page := 1; page <= 100; page++ {
+		pagePosts, pageAccount, nextCursor, err := c.storyListPagePage(ctx, session, published, cursor)
+		if err != nil {
+			return nil, "", err
+		}
+		posts = append(posts, pagePosts...)
+		if account == "" {
+			account = pageAccount
+		}
+		if nextCursor == "" || nextCursor == cursor {
+			return posts, account, nil
+		}
+		cursor = nextCursor
+	}
+	return nil, "", errors.New("Medium stories query exceeded pagination limit")
 }
 
 func (c mediumClient) account(ctx context.Context, session platformSession) (string, error) {

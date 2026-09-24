@@ -132,6 +132,7 @@ func (t mediumBrowserTransport) RoundTrip(request *http.Request) (*http.Response
 		slog.Warn("browser-profile request failed", "operation", "platform-http", "platform", t.platform, "method", request.Method, "path", request.URL.Path, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 		return nil, err
 	}
+	contentEncoding, decoded := decodeBrowserProfileResponse(response)
 	header := make(http.Header, len(response.Header))
 	for name, values := range response.Header {
 		if name == fhttp.HeaderOrderKey || name == fhttp.PHeaderOrderKey {
@@ -147,7 +148,7 @@ func (t mediumBrowserTransport) RoundTrip(request *http.Request) (*http.Response
 			trailer.Add(name, value)
 		}
 	}
-	slog.Info("browser-profile response", "operation", "platform-http", "platform", t.platform, "method", request.Method, "path", request.URL.Path, "status", response.StatusCode, "durationMs", time.Since(started).Milliseconds())
+	slog.Info("browser-profile response", "operation", "platform-http", "platform", t.platform, "method", request.Method, "path", request.URL.Path, "status", response.StatusCode, "contentEncoding", contentEncoding, "decoded", decoded, "durationMs", time.Since(started).Milliseconds())
 	return &http.Response{
 		Status:        response.Status,
 		StatusCode:    response.StatusCode,
@@ -161,6 +162,22 @@ func (t mediumBrowserTransport) RoundTrip(request *http.Request) (*http.Response
 		Trailer:       trailer,
 		Request:       request,
 	}, nil
+}
+
+func decodeBrowserProfileResponse(response *fhttp.Response) (string, bool) {
+	if response == nil || response.Uncompressed {
+		return "", false
+	}
+	contentEncoding := strings.ToLower(strings.TrimSpace(response.Header.Get("content-encoding")))
+	switch contentEncoding {
+	case "gzip", "br", "deflate", "zstd":
+		response.Body = fhttp.DecompressBody(response)
+		response.Header.Del("content-encoding")
+		response.Header.Del("content-length")
+		return contentEncoding, true
+	default:
+		return contentEncoding, false
+	}
 }
 
 func (t mediumBrowserTransport) CloseIdleConnections() {
