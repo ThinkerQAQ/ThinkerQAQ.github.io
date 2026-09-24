@@ -7,7 +7,7 @@ export const SITE = {
   url: "https://thinkerqaq.github.io",
   github: "https://github.com/ThinkerQAQ",
   repository: "https://github.com/ThinkerQAQ/ThinkerQAQ.github.io",
-  contact: "mailto:zhangshengkunz@gmail.com",
+  contact: "https://github.com/ThinkerQAQ",
   locale: "zh-CN",
 } as const;
 
