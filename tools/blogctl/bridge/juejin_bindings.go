@@ -181,8 +181,16 @@ func (s *Server) handleJuejinBindingPut(response http.ResponseWriter, request *h
 			break
 		}
 	}
+	if selected == nil && body.State == "draft" {
+		session, client, sessionErr := (bridgeNativePublisher{server: s}).publisherSession("juejin")
+		if sessionErr == nil {
+			if direct, lookupErr := publisher.JuejinLookupDraft(ctx, client, session, body.PostID); lookupErr == nil && !direct.Published {
+				selected = &direct
+			}
+		}
+	}
 	if selected == nil {
-		writeAPIError(response, http.StatusConflict, "candidate_missing", "Juejin list no longer contains the selected matching article", nil)
+		writeAPIError(response, http.StatusConflict, "candidate_missing", "Juejin could not verify the selected article id in the signed-in account", nil)
 		return
 	}
 

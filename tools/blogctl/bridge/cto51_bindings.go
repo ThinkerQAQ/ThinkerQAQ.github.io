@@ -125,9 +125,24 @@ func (s *Server) handleCto51BindingPut(response http.ResponseWriter, request *ht
 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	_, root, account, posts, binding, err := s.cto51Candidates(ctx, slug)
+	_, root, err := s.cnBlogsArticle(slug)
+	if err != nil {
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	session, client, err := (bridgeNativePublisher{server: s}).publisherSession("51cto")
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "session_unavailable", err.Error(), nil)
+		return
+	}
+	account, posts, err := publisher.Cto51ListDrafts(ctx, client, session)
 	if err != nil {
 		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
+		return
+	}
+	binding, _, err := publisher.LoadPublicationBinding(root, slug, "51cto")
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
 		return
 	}
 	var selected *publisher.Cto51Post

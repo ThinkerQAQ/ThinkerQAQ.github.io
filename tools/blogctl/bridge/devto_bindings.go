@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Server) devtoCandidateByID(ctx context.Context, slug, postID string) (devtoArticleCandidate, string, error) {
-	article, root, err := s.cnBlogsArticle(slug)
+	_, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return devtoArticleCandidate{}, "", err
 	}
@@ -56,9 +56,6 @@ func (s *Server) devtoCandidateByID(ctx context.Context, slug, postID string) (d
 		}
 		for _, candidate := range batch {
 			if candidate.ID == id {
-				if !devtoArticleMatches(candidate, slug, article.Title) {
-					return devtoArticleCandidate{}, "", errors.New("selected DEV.to article does not match the local article")
-				}
 				candidate.Published = devtoCandidatePublished(candidate)
 				return candidate, root, nil
 			}

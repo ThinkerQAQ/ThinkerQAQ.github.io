@@ -125,9 +125,24 @@ func (s *Server) handleOSChinaBindingPut(response http.ResponseWriter, request *
 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	_, root, account, posts, binding, err := s.osChinaCandidates(ctx, slug)
+	_, root, err := s.cnBlogsArticle(slug)
+	if err != nil {
+		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
+		return
+	}
+	session, client, err := (bridgeNativePublisher{server: s}).publisherSession("oschina")
+	if err != nil {
+		writeAPIError(response, http.StatusBadGateway, "session_unavailable", err.Error(), nil)
+		return
+	}
+	account, posts, err := publisher.OSChinaListPosts(ctx, client, session)
 	if err != nil {
 		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
+		return
+	}
+	binding, _, err := publisher.LoadPublicationBinding(root, slug, "oschina")
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
 		return
 	}
 	var selected *publisher.OSChinaPost
