@@ -105,9 +105,9 @@ func TestCSDNListPostsUsesSignedConsoleLists(t *testing.T) {
 
 func TestCSDNSignaturePathCanonicalizesEmptyQueryValues(t *testing.T) {
 	cases := map[string]string{
-		"/blog-console-api/v3/editor/getArticle?id=147578947&model_type=": "/blog-console-api/v3/editor/getArticle?id=147578947&model_type",
+		"/blog-console-api/v3/editor/getArticle?id=147578947&model_type=":       "/blog-console-api/v3/editor/getArticle?id=147578947&model_type",
 		"/blog/phoenix/console/v1/article/list?page=1&pageSize=20&status=draft": "/blog/phoenix/console/v1/article/list?page=1&pageSize=20&status=draft",
-		"/blog-console-api/v3/editor/getBaseInfo": "/blog-console-api/v3/editor/getBaseInfo",
+		"/blog-console-api/v3/editor/getBaseInfo":                               "/blog-console-api/v3/editor/getBaseInfo",
 	}
 	for input, want := range cases {
 		if got := csdnSignaturePath(input); got != want {
