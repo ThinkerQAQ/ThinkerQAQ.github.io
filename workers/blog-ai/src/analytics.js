@@ -276,24 +276,33 @@ function emptyWindow(startAt, endAt) {
   };
 }
 
-function pendingHours(lastFinalizedHourEnd, now) {
+function pendingHours(lastFinalizedHourEnd, now, graceMs = 0) {
   if (!Number.isFinite(lastFinalizedHourEnd)) return null;
-  const expectedHourEnd = floorHour(now - HEALTH_GRACE_MS);
+  const expectedHourEnd = floorHour(now - graceMs);
   return Math.max(
     0,
     Math.floor((expectedHourEnd - lastFinalizedHourEnd) / HOUR_MS),
   );
 }
 
-async function refreshLatest(kv, websiteId, generatedAt, lastFinalizedHourEnd) {
+async function refreshLatest(
+  kv,
+  websiteId,
+  generatedAt,
+  lastFinalizedHourEnd,
+  freshWindows = new Map(),
+) {
   if (!Number.isFinite(lastFinalizedHourEnd)) return null;
 
   const currentStart = lastFinalizedHourEnd - HOUR_MS;
   const previousStart = currentStart - HOUR_MS;
-  const current = await readJson(kv, hourKey(currentStart));
+  const current =
+    freshWindows.get(currentStart) ||
+    (await readJson(kv, hourKey(currentStart)));
   if (!current) return null;
 
   const previous =
+    freshWindows.get(previousStart) ||
     (await readJson(kv, hourKey(previousStart))) ||
     emptyWindow(previousStart, currentStart - 1);
 
@@ -327,6 +336,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
       nextHourEnd = finalHourEnd - HOUR_MS;
     }
 
+    const freshWindows = new Map();
     let processedHours = 0;
     while (
       nextHourEnd <= finalHourEnd &&
@@ -334,6 +344,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
     ) {
       const startAt = nextHourEnd - HOUR_MS;
       const window = await collectWindow(share, startAt, nextHourEnd - 1);
+      freshWindows.set(startAt, window);
       await writeJson(kv, hourKey(startAt), window);
 
       meta = {
@@ -354,6 +365,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
       share.websiteId,
       scheduledAt,
       meta.lastFinalizedHourEnd,
+      freshWindows,
     );
 
     meta = {
@@ -475,7 +487,11 @@ export async function handleAnalyticsRequest(request, env, ctx) {
   if (url.pathname === "/analytics/health") {
     const meta = (await readJson(kv, META_KEY)) || {};
     const now = Date.now();
-    const pending = pendingHours(meta.lastFinalizedHourEnd, now);
+    const pending = pendingHours(
+      meta.lastFinalizedHourEnd,
+      now,
+      HEALTH_GRACE_MS,
+    );
     const lastSuccessMs = Date.parse(meta.lastSuccessAt || "");
     const healthy =
       !meta.lastError &&
