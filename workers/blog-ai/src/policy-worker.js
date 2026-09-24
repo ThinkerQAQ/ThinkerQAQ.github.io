@@ -11,7 +11,7 @@ function policyAwareAi(ai) {
             if (index !== 0 || message?.role !== "system") return message;
             return {
               ...message,
-              content: `${String(message.content || "")}\n\n${formatTechnicalContext()}`,
+              content: `${String(message?.content || "")}\n\n${formatTechnicalContext()}`,
             };
           })
         : options.messages;
@@ -32,5 +32,9 @@ export default {
       configurable: true,
     });
     return worker.fetch(request, wrappedEnv, ctx);
+  },
+
+  scheduled(controller, env, ctx) {
+    return worker.scheduled(controller, env, ctx);
   },
 };
