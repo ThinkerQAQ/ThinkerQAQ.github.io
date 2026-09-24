@@ -35,3 +35,17 @@ jobs:
 
       - name: Deploy blog AI Worker
         run: npx --yes wrangler@latest deploy --config workers/blog-ai/wrangler.jsonc
+
+      - name: Verify analytics endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://thinkerqaq-blog-ai.blog-ai.workers.dev"
+          for path in analytics/health analytics/hourly analytics/today; do
+            output="$(mktemp)"
+            curl --fail --silent --show-error \
+              --retry 5 --retry-delay 2 --retry-connrefused \
+              "$base/$path" > "$output"
+            node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$output"
+            echo "$path: ok"
+          done
