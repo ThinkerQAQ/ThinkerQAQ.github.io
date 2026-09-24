@@ -1588,6 +1588,7 @@ async function handleMessage(message) {
     case "blogctl.job.start": {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
+      await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
       void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
