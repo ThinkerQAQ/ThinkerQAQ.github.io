@@ -918,6 +918,12 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		}
 		uploadCookieNames := cookieHeaderNames(requestCookieHeaders["upload.cnblogs.com"])
 		slog.Info("cnblogs browser session received", "operation", "session-sync", "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "requestCookieNames", cookieHeaderNames(body.RequestCookieHeader), "uploadCookieNames", uploadCookieNames, "cookieQueries", body.CookieQueries, "cookieStores", body.CookieStores)
+	} else if platform == "medium" || platform == "51cto" {
+		cookieNames := make([]string, 0, len(body.Cookies))
+		for _, cookie := range body.Cookies {
+			cookieNames = append(cookieNames, cookie.Name)
+		}
+		slog.Info("browser session received", "operation", "session-sync", "platform", platform, "cookieCount", len(body.Cookies), "cookieNames", cookieNames, "requestCookieNames", cookieHeaderNames(body.RequestCookieHeader), "userAgentChromeMajor", mediumChromeMajor(userAgent))
 	}
 	response.Header().Set("access-control-allow-origin", origin)
 	writeJSON(response, http.StatusOK, map[string]any{
