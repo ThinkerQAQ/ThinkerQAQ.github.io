@@ -15,15 +15,42 @@
     matchKey: "",
     cachedMatchTime: 0,
     refreshSerial: 0,
+    selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)),
+    platformSelectionInitialized: false,
     selectedMatchKeys: new Set(),
     bindingMutating: false,
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton;
-  let bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
+  let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
+  }
+
+  function selectedPlatformIDs() {
+    return [...state.selectedPlatformIDs];
+  }
+
+  function pruneSelectedMatchesToPlatforms() {
+    for (const key of [...state.selectedMatchKeys]) {
+      const platformID = key.split(":", 1)[0];
+      if (!state.selectedPlatformIDs.has(platformID)) state.selectedMatchKeys.delete(key);
+    }
+  }
+
+  function setSyncPlatforms(mode) {
+    if (!state.selectedSlug) return;
+    const selectable = (state.status?.platforms ?? [])
+      .filter((platform) => platformAvailability(selectedArticle(), platform).available);
+    state.selectedPlatformIDs = new Set(
+      selectable
+        .filter((platform) => mode === "all" ? true : !state.selectedPlatformIDs.has(platform.id))
+        .map((platform) => platform.id),
+    );
+    pruneSelectedMatchesToPlatforms();
+    BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
+    renderPlatforms();
   }
 
   function matchSelectionKey(platformID, item) {
@@ -42,6 +69,7 @@
     if (!state.selectedSlug || state.matchKey !== state.selectedSlug) return [];
     const selected = [];
     for (const platform of state.status?.platforms ?? []) {
+      if (!state.selectedPlatformIDs.has(platform.id)) continue;
       const match = state.matches[platform.id];
       for (const item of match?.items ?? []) {
         const key = matchSelectionKey(platform.id, item);
@@ -49,12 +77,6 @@
       }
     }
     return selected;
-  }
-
-  function detectablePlatformIDs() {
-    return (state.status?.platforms ?? [])
-      .filter((platform) => platformAvailability(selectedArticle(), platform).available)
-      .map((platform) => platform.id);
   }
 
   function canBindItem(item) {
@@ -81,7 +103,7 @@
 
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
-    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating;
+    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating || state.selectedPlatformIDs.size === 0;
     updateBulkActions();
   }
 
@@ -127,8 +149,21 @@
 
   function renderPlatformHeader(platform, article) {
     const availability = platformAvailability(article, platform);
-    const header = document.createElement("div");
-    header.className = "platform-choice platform-choice-static";
+    const header = document.createElement("label");
+    header.className = "platform-choice";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.dataset.platform = platform.id;
+    checkbox.checked = availability.available && state.selectedPlatformIDs.has(platform.id);
+    checkbox.disabled = !availability.available || state.bindingLoading || state.bindingMutating;
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) state.selectedPlatformIDs.add(platform.id);
+      else state.selectedPlatformIDs.delete(platform.id);
+      pruneSelectedMatchesToPlatforms();
+      BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
+      renderPlatforms();
+    });
 
     const text = document.createElement("span");
     text.className = "platform-choice-text";
@@ -158,7 +193,7 @@
     else if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
     else BlogCTLPopup.setStatus(status, "error", "未登录");
 
-    header.append(text, status);
+    header.append(checkbox, text, status);
     return header;
   }
 
@@ -298,8 +333,9 @@
       card.className = "platform-choice-card";
       card.append(renderPlatformHeader(platform, article));
 
+      const selected = state.selectedPlatformIDs.has(platform.id);
       const match = state.matches[platform.id];
-      if (match && state.matchKey === currentKey) {
+      if (selected && match && state.matchKey === currentKey) {
         const result = document.createElement("div");
         result.className = "article-match";
         const prefix = state.cachedMatchTime
@@ -312,9 +348,11 @@
         const note = document.createElement("div");
         note.className = "article-match";
         const availability = platformAvailability(article, platform);
-        note.textContent = availability.available
-          ? "点击左上角“检测文章关联”读取远端候选与本地绑定状态。"
-          : availability.reason;
+        note.textContent = !availability.available
+          ? availability.reason
+          : selected
+            ? "点击“检测文章关联”读取远端候选与本地绑定状态。"
+            : "未选择检测此平台。";
         card.append(note);
       }
 
@@ -339,10 +377,10 @@
 
   async function refreshArticleMatches(allowBridgeRestart = true) {
     const article = state.selectedSlug;
-    const platforms = detectablePlatformIDs();
+    const platforms = selectedPlatformIDs();
     if (!article) return;
     if (!platforms.length) {
-      BlogCTLPopup.setMessage(message, "当前没有可检测的平台。", "error");
+      BlogCTLPopup.setMessage(message, "请先选择至少一个需要检测的平台。", "error");
       return;
     }
 
@@ -515,7 +553,20 @@
       state.status = statusResponse.status;
       state.tools = toolsResponse.tools ?? [];
 
-            BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
+      const selectable = (state.status?.platforms ?? [])
+        .filter((platform) => platformAvailability(selectedArticle(), platform).available)
+        .map((platform) => platform.id);
+      if (!state.platformSelectionInitialized) {
+        const stored = selectedPlatformIDs().filter((id) => selectable.includes(id));
+        state.selectedPlatformIDs = new Set(stored.length ? stored : selectable);
+        state.platformSelectionInitialized = true;
+        BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
+      } else {
+        state.selectedPlatformIDs = new Set(selectedPlatformIDs().filter((id) => selectable.includes(id)));
+        pruneSelectedMatchesToPlatforms();
+      }
+
+      BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
 
       const previous = state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
       if (state.articles.some((item) => item.slug === previous)) {
@@ -553,6 +604,8 @@
     platformsContainer = document.getElementById("syncPlatforms");
     message = document.getElementById("syncMessage");
     refreshMatchesButton = document.getElementById("refreshArticleMatches");
+    selectAllButton = document.getElementById("selectAllSyncPlatforms");
+    invertButton = document.getElementById("invertSyncPlatforms");
     bulkActions = document.getElementById("bindingBulkActions");
     selectionSummary = document.getElementById("bindingSelectionSummary");
     bindSelectedButton = document.getElementById("bindSelectedMatches");
@@ -587,6 +640,8 @@
     });
 
     refreshMatchesButton.addEventListener("click", () => refreshArticleMatches());
+    selectAllButton.addEventListener("click", () => setSyncPlatforms("all"));
+    invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
     bindSelectedButton.addEventListener("click", () => runBulkBinding("bind"));
     unbindSelectedButton.addEventListener("click", () => runBulkBinding("unbind"));
     state.initialized = true;

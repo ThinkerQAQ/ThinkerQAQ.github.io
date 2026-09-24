@@ -29,10 +29,6 @@
     </nav>
 
     <section class="panel active" role="tabpanel" data-panel="binding">
-      <div class="binding-panel-toolbar">
-        <button id="refreshArticleMatches" class="primary inline-primary" type="button" disabled>检测文章关联</button>
-      </div>
-
       <section class="status-card">
         <div class="section-title">绑定</div>
         <p class="card-hint">只建立本地文章与远端草稿／文章的关系，不创建同步任务。</p>
@@ -43,7 +39,12 @@
 
       <section class="status-card">
         <div class="section-title">远端关联</div>
-        <p class="card-hint">检测会读取所有可用平台；勾选远端文章后，可在页面底部批量绑定或解绑。</p>
+        <div class="binding-detect-toolbar">
+          <button id="selectAllSyncPlatforms" class="secondary compact" type="button">全选</button>
+          <button id="invertSyncPlatforms" class="secondary compact" type="button">反选</button>
+          <button id="refreshArticleMatches" class="primary inline-primary" type="button" disabled>检测文章关联</button>
+        </div>
+        <p class="card-hint">勾选需要检测的平台，可多选；检测只读取所选平台。检测完成后勾选远端文章，在页面底部批量绑定或解绑。</p>
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
 
