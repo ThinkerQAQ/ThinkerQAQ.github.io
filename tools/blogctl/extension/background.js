@@ -814,10 +814,98 @@ function browserFetchHeaders(rawHeaders) {
   return headers;
 }
 
+let mediumBrowserFetchTabId = null;
+
+async function ensureMediumBrowserFetchTab() {
+  if (mediumBrowserFetchTabId !== null) {
+    try {
+      const tab = await chrome.tabs.get(mediumBrowserFetchTabId);
+      const parsed = new URL(String(tab?.url || ""));
+      if (parsed.hostname === "medium.com") {
+        if (tab.status !== "complete") await waitForTabLoaded(tab.id);
+        return tab.id;
+      }
+    } catch {}
+    mediumBrowserFetchTabId = null;
+  }
+  const tab = await chrome.tabs.create({ url: "https://medium.com/me/stories", active: false });
+  mediumBrowserFetchTabId = tab.id;
+  await waitForTabLoaded(tab.id, 25000);
+  return tab.id;
+}
+
+async function closeBrowserOperationTabs() {
+  const tabId = mediumBrowserFetchTabId;
+  mediumBrowserFetchTabId = null;
+  if (tabId !== null) {
+    try { await chrome.tabs.remove(tabId); } catch {}
+  }
+}
+
+async function executeMediumPageHTTP(payload) {
+  const tabId = await ensureMediumBrowserFetchTab();
+  const result = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: async (input) => {
+      const rawURL = String(input?.url || "").trim();
+      const parsed = new URL(rawURL);
+      if (parsed.hostname !== "medium.com") throw new Error("Medium browser proxy only accepts medium.com");
+      const blocked = new Set(["cookie", "user-agent", "host", "content-length", "origin", "referer"]);
+      const headers = new Headers();
+      for (const [name, values] of Object.entries(input?.headers ?? {})) {
+        if (blocked.has(String(name).toLowerCase())) continue;
+        for (const value of Array.isArray(values) ? values : [values]) {
+          if (value !== undefined && value !== null) headers.append(name, String(value));
+        }
+      }
+      const method = String(input?.method || "GET").toUpperCase();
+      const options = { method, headers, credentials: "include", redirect: "follow" };
+      if (!["GET", "HEAD"].includes(method) && input?.bodyBase64) {
+        const binary = atob(String(input.bodyBase64));
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        options.body = bytes;
+      }
+      const response = await fetch(rawURL, options);
+      const responseHeaders = {};
+      response.headers.forEach((value, name) => {
+        if (!responseHeaders[name]) responseHeaders[name] = [];
+        responseHeaders[name].push(value);
+      });
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      let binary = "";
+      const chunk = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + chunk)));
+      }
+      return {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        headers: responseHeaders,
+        bodyBase64: btoa(binary),
+      };
+    },
+    args: [payload ?? {}],
+  });
+  const response = result?.[0]?.result;
+  if (!response) throw new Error("Medium browser request returned no response");
+  try {
+    const xsrf = await chrome.cookies.get({ url: "https://medium.com/", name: "xsrf" });
+    if (xsrf?.value) {
+      response.headers = response.headers ?? {};
+      response.headers["set-cookie"] = [`xsrf=${xsrf.value}; Path=/; Secure`];
+    }
+  } catch {}
+  return response;
+}
+
 async function executeBrowserHTTP(payload) {
   const rawURL = String(payload?.url || "").trim();
   const target = new URL(rawURL);
   if (!["http:", "https:"].includes(target.protocol)) throw new Error("browser HTTP only supports http(s) URLs");
+  if (target.hostname === "medium.com") return executeMediumPageHTTP(payload);
 
   const method = String(payload?.method || "GET").toUpperCase();
   const options = {
@@ -1142,7 +1230,10 @@ function kickBrowserOperationPump() {
   if (browserOperationPumpPromise) return browserOperationPumpPromise;
   browserOperationPumpPromise = pumpBrowserOperations()
     .catch((error) => console.warn("[BlogCTL][browser-op] pump failed", errorMessage(error)))
-    .finally(() => { browserOperationPumpPromise = null; });
+    .finally(async () => {
+      browserOperationPumpPromise = null;
+      await closeBrowserOperationTabs();
+    });
   return browserOperationPumpPromise;
 }
 
