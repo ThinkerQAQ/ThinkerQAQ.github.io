@@ -1,6 +1,14 @@
-# BlogCTL v0.1.63
+# BlogCTL v0.1.73
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- Medium 文章检测改为 GraphQL 分页查询，每页遵守平台最多 25 条的限制。
+- Medium 图片上传保留完整浏览器 Cookie，并在 PNG 被拒绝时转换为 JPEG 重试。
+- 51CTO 草稿检测按当前 AJAX 契约请求；发布响应支持 gzip、br、deflate、zstd 解压后再解析 JSON。
+- 掘金、CSDN、知乎和开源中国支持从已发布文章解析可编辑草稿关系，并阻止无法安全更新的目标。
+- Browser Profile 请求日志补充响应压缩编码与解压状态，不记录正文、Cookie 或密钥。
 
 ## 浏览器插件功能
 
@@ -171,4 +179,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 - Windows / macOS / Linux 卸载脚本。
 - `SHA256SUMS`。
 
-版本：`0.1.63`
+版本：`0.1.73`
