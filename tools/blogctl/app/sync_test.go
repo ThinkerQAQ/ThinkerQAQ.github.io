@@ -235,10 +235,10 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	}
 	want := []SyncEvent{
 		{Platform: "juejin", State: "running"},
-		{Platform: "devto", State: "running"},
-		{Platform: "medium", State: "running"},
 		{Platform: "juejin", State: "completed", Result: "dry-run"},
+		{Platform: "devto", State: "running"},
 		{Platform: "devto", State: "completed", Result: "dry-run"},
+		{Platform: "medium", State: "running"},
 		{Platform: "medium", State: "completed", Result: "dry-run"},
 	}
 	if !reflect.DeepEqual(events, want) {
