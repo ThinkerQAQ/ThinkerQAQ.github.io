@@ -115,6 +115,9 @@ jobs:
               blockedHits: botObservation.blockedHits,
               largestClientPageviewShare: botObservation.largestClientPageviewShare,
               dominantSingleClient: botObservation.dominantSingleClient,
+              distributedScanCohorts: botObservation.distributedScanCohorts,
+              distributedBlockedHits: botObservation.distributedBlockedHits,
+              topDistributedSuspects: take(botObservation.topDistributedSuspects, 10),
               topSuspected: take(botObservation.topSuspected, 10),
             },
           };

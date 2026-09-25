@@ -210,3 +210,84 @@ test("classifies common crawler families without exposing full user agents", asy
   assert.equal("userAgent" in report.topSuspected[0], false);
   assert.equal("clientTag" in report.topSuspected[0], false);
 });
+
+
+test("blocks a distributed rotating-IP scan sharing one browser UA", async () => {
+  const kv = new MemoryKv();
+  const env = { ANALYTICS_KV: kv };
+  const base = Date.parse("2026-09-25T00:00:00Z");
+  const ua = "Mozilla/5.0 Chrome/153.0 Safari/537.36";
+  let firstBlockedAt = null;
+
+  for (let i = 0; i < 20; i += 1) {
+    const result = await observeAnalyticsBeacon(
+      requestFor({
+        ip: `203.0.113.${100 + i}`,
+        ua,
+        country: "SG",
+      }),
+      env,
+      pageview(`/notes/distributed-${i}/`),
+      base + i * 60_000,
+    );
+    if (result.shouldBlock && firstBlockedAt == null) firstBlockedAt = i + 1;
+  }
+
+  assert.equal(firstBlockedAt, 18);
+
+  const report = await buildBotObservationReport(env, base + 25 * 60_000);
+  assert.equal(report.distributedScanCohorts, 1);
+  assert.ok(report.distributedBlockedHits >= 3);
+  assert.equal(report.topDistributedSuspects[0].country, "SG");
+  assert.equal(report.topDistributedSuspects[0].distinctClients, 20);
+  assert.equal(report.topDistributedSuspects[0].distinctPaths, 20);
+  assert.ok(
+    report.topDistributedSuspects[0].reasons.includes(
+      "distributed_distinct_path_scan",
+    ),
+  );
+});
+
+test("does not flag a shared browser UA when readers generate engagement", async () => {
+  const kv = new MemoryKv();
+  const env = { ANALYTICS_KV: kv };
+  const base = Date.parse("2026-09-25T00:00:00Z");
+  const ua = "Mozilla/5.0 Chrome/153.0 Safari/537.36";
+
+  for (let i = 0; i < 18; i += 1) {
+    await observeAnalyticsBeacon(
+      requestFor({
+        ip: `198.51.100.${100 + i}`,
+        ua,
+        country: "SG",
+      }),
+      env,
+      pageview(`/notes/reader-${i}/`),
+      base + i * 60_000,
+    );
+
+    const eventBody = new TextEncoder().encode(
+      JSON.stringify({
+        type: "event",
+        payload: {
+          url: `/notes/reader-${i}/`,
+          name: "read_milestone",
+        },
+      }),
+    );
+    const result = await observeAnalyticsBeacon(
+      requestFor({
+        ip: `198.51.100.${100 + i}`,
+        ua,
+        country: "SG",
+      }),
+      env,
+      eventBody,
+      base + i * 60_000 + 5_000,
+    );
+    assert.equal(result.shouldBlock, false);
+  }
+
+  const report = await buildBotObservationReport(env, base + 25 * 60_000);
+  assert.equal(report.distributedScanCohorts, 0);
+});

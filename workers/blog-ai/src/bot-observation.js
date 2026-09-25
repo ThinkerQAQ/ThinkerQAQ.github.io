@@ -1,5 +1,6 @@
 const BOT_SALT_KEY = "analytics:bot:salt:v1";
 const BOT_CLIENT_PREFIX = "analytics:bot:client:v1:";
+const BOT_COHORT_PREFIX = "analytics:bot:cohort:v1:";
 const OBSERVATION_TTL_SECONDS = 24 * 60 * 60;
 const MAX_TRACKED_PATHS = 64;
 const ENGAGEMENT_EVENTS = new Set([
@@ -112,6 +113,33 @@ function parseUmamiPayload(bodyBytes) {
   }
 }
 
+function buildCohortReasons(state) {
+  const reasons = [];
+  const elapsedMs = Math.max(0, Date.parse(state.lastSeenAt) - Date.parse(state.firstSeenAt));
+
+  if (
+    state.pageviews >= 18 &&
+    state.distinctClients >= 12 &&
+    state.distinctPaths >= 18 &&
+    state.engagementEvents === 0 &&
+    elapsedMs <= 30 * 60 * 1000
+  ) {
+    reasons.push("distributed_distinct_path_scan");
+  }
+
+  if (
+    state.pageviews >= 35 &&
+    state.distinctClients >= 18 &&
+    state.distinctPaths >= 30 &&
+    state.engagementEvents === 0 &&
+    elapsedMs <= 60 * 60 * 1000
+  ) {
+    reasons.push("distributed_bulk_scan");
+  }
+
+  return reasons;
+}
+
 function buildReasons(state) {
   const reasons = [];
   const elapsedMs = Math.max(0, Date.parse(state.lastSeenAt) - Date.parse(state.firstSeenAt));
@@ -163,7 +191,10 @@ export async function observeAnalyticsBeacon(request, env, bodyBytes, now = Date
 
   const salt = await getOrCreateSalt(kv);
   const clientTag = await hmacTag(salt, `${ip}\n${userAgent}`);
+  const country = request.cf?.country ? String(request.cf.country) : "";
+  const uaTag = await hmacTag(salt, userAgent || "unknown");
   const key = `${BOT_CLIENT_PREFIX}${clientTag}`;
+  const cohortKey = `${BOT_COHORT_PREFIX}${country || "XX"}:${uaTag}`;
   const existingRaw = await kv.get(key);
   const existing = existingRaw ? JSON.parse(existingRaw) : null;
   const parsed = parseUmamiPayload(bodyBytes);
@@ -186,7 +217,7 @@ export async function observeAnalyticsBeacon(request, env, bodyBytes, now = Date
       Number(existing?.engagementEvents || 0) + (isEngagementEvent ? 1 : 0),
     paths: [...trackedPaths],
     distinctPaths: trackedPaths.size,
-    country: request.cf?.country ? String(request.cf.country) : existing?.country || "",
+    country: country || existing?.country || "",
     uaCategory: classifyUserAgent(userAgent),
     botFamily: classifyBotFamily(userAgent),
     obviousAutomation: Boolean(existing?.obviousAutomation) || obviousAutomation(userAgent),
@@ -195,9 +226,46 @@ export async function observeAnalyticsBeacon(request, env, bodyBytes, now = Date
     reasons: [],
   };
 
+  const cohortRaw = await kv.get(cohortKey);
+  const cohortExisting = cohortRaw ? JSON.parse(cohortRaw) : null;
+  const cohortClients = new Set(Array.isArray(cohortExisting?.clients) ? cohortExisting.clients : []);
+  const cohortPaths = new Set(Array.isArray(cohortExisting?.paths) ? cohortExisting.paths : []);
+  cohortClients.add(clientTag);
+  if (parsed.path && cohortPaths.size < MAX_TRACKED_PATHS) cohortPaths.add(parsed.path);
+
+  const cohort = {
+    firstSeenAt: cohortExisting?.firstSeenAt || nowIso(now),
+    lastSeenAt: nowIso(now),
+    hits: Number(cohortExisting?.hits || 0) + 1,
+    pageviews: Number(cohortExisting?.pageviews || 0) + (isCustomEvent ? 0 : 1),
+    customEvents: Number(cohortExisting?.customEvents || 0) + (isCustomEvent ? 1 : 0),
+    engagementEvents:
+      Number(cohortExisting?.engagementEvents || 0) + (isEngagementEvent ? 1 : 0),
+    clients: [...cohortClients].slice(-64),
+    paths: [...cohortPaths],
+    distinctClients: cohortClients.size,
+    distinctPaths: cohortPaths.size,
+    country: country || cohortExisting?.country || "",
+    uaCategory: classifyUserAgent(userAgent),
+    botFamily: classifyBotFamily(userAgent),
+    blockedHits: Number(cohortExisting?.blockedHits || 0),
+    reasons: [],
+  };
+  cohort.reasons = buildCohortReasons(cohort);
+
   state.reasons = buildReasons(state);
-  const shouldBlock = !verifiedBot && state.reasons.length > 0;
+  const distributedSuspicion = cohort.reasons.length > 0;
+  if (distributedSuspicion && !state.reasons.includes("distributed_scan_cohort")) {
+    state.reasons.push("distributed_scan_cohort");
+  }
+
+  const shouldBlock = !verifiedBot && (state.reasons.length > 0 || distributedSuspicion);
   if (shouldBlock) state.blockedHits += 1;
+  if (!verifiedBot && distributedSuspicion) cohort.blockedHits += 1;
+
+  await kv.put(cohortKey, JSON.stringify(cohort), {
+    expirationTtl: OBSERVATION_TTL_SECONDS,
+  });
 
   await kv.put(key, JSON.stringify(state), {
     expirationTtl: OBSERVATION_TTL_SECONDS,
@@ -210,13 +278,13 @@ export async function observeAnalyticsBeacon(request, env, bodyBytes, now = Date
   };
 }
 
-async function readClientStates(kv) {
+async function readStatesByPrefix(kv, prefix) {
   const states = [];
   let cursor;
 
   do {
     const page = await kv.list({
-      prefix: BOT_CLIENT_PREFIX,
+      prefix,
       limit: 1000,
       ...(cursor ? { cursor } : {}),
     });
@@ -232,6 +300,14 @@ async function readClientStates(kv) {
   } while (cursor);
 
   return states;
+}
+
+async function readClientStates(kv) {
+  return readStatesByPrefix(kv, BOT_CLIENT_PREFIX);
+}
+
+async function readCohortStates(kv) {
+  return readStatesByPrefix(kv, BOT_COHORT_PREFIX);
 }
 
 function publicClientSummary(state) {
@@ -254,10 +330,20 @@ function publicClientSummary(state) {
 export async function buildBotObservationReport(env, now = Date.now()) {
   const kv = requireKv(env);
   const states = await readClientStates(kv);
+  const cohortStates = await readCohortStates(kv);
   const active = states.filter(state => {
     const lastSeenMs = Date.parse(state.lastSeenAt || "");
     return Number.isFinite(lastSeenMs) && now - lastSeenMs <= OBSERVATION_TTL_SECONDS * 1000;
   });
+
+  const activeCohorts = cohortStates.filter(state => {
+    const lastSeenMs = Date.parse(state.lastSeenAt || "");
+    return Number.isFinite(lastSeenMs) && now - lastSeenMs <= OBSERVATION_TTL_SECONDS * 1000;
+  });
+
+  const distributedSuspects = activeCohorts
+    .filter(state => Array.isArray(state.reasons) && state.reasons.length > 0)
+    .sort((a, b) => Number(b.pageviews || 0) - Number(a.pageviews || 0));
 
   const suspected = active
     .filter(
@@ -286,6 +372,24 @@ export async function buildBotObservationReport(env, now = Date.now()) {
     largestClientPageviewShare: largestClientShare,
     dominantSingleClient:
       topPageviews >= 10 && largestClientShare >= 0.5,
+    distributedScanCohorts: distributedSuspects.length,
+    distributedBlockedHits: activeCohorts.reduce(
+      (sum, state) => sum + Number(state.blockedHits || 0),
+      0,
+    ),
+    topDistributedSuspects: distributedSuspects.slice(0, 10).map(state => ({
+      country: state.country || null,
+      uaCategory: state.uaCategory || "unknown",
+      botFamily: state.botFamily || "unknown",
+      firstSeenAt: state.firstSeenAt,
+      lastSeenAt: state.lastSeenAt,
+      pageviews: Number(state.pageviews || 0),
+      distinctClients: Number(state.distinctClients || 0),
+      distinctPaths: Number(state.distinctPaths || 0),
+      engagementEvents: Number(state.engagementEvents || 0),
+      blockedHits: Number(state.blockedHits || 0),
+      reasons: Array.isArray(state.reasons) ? state.reasons : [],
+    })),
     topSuspected: suspected.slice(0, 10).map(publicClientSummary),
   };
 }
@@ -313,6 +417,7 @@ export async function handleBotObservationRequest(request, env) {
 
 export const botObservationInternals = {
   BOT_CLIENT_PREFIX,
+  BOT_COHORT_PREFIX,
   BOT_SALT_KEY,
   classifyUserAgent,
   classifyBotFamily,
