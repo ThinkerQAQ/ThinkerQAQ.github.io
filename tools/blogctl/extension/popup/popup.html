@@ -24,6 +24,7 @@
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs">日志</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing">索引</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">环境与配置</button>
     </nav>
@@ -123,6 +124,28 @@
       </section>
       <p id="tasksMessage" class="message" role="status"></p>
     </section>
+
+    <section class="panel" role="tabpanel" data-panel="logs">
+      <section class="status-card">
+        <div class="status-row">
+          <div>
+            <div class="section-title">运行日志</div>
+            <p class="card-hint">实时查看 BlogCTL Bridge 结构化日志；日志目录和最低级别在「环境与配置 → 日志」中设置。</p>
+          </div>
+          <strong id="logsStatus" class="status checking">读取中</strong>
+        </div>
+        <div class="log-toolbar">
+          <label class="field log-filter"><span>显示级别</span><select id="logLevelFilter"><option value="">全部</option><option value="DEBUG">DEBUG</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option></select></label>
+          <label class="checkbox-row log-follow"><span>自动刷新</span><input id="logAutoRefresh" type="checkbox" checked></label>
+          <button id="refreshLogs" class="secondary compact" type="button">刷新</button>
+          <button id="clearLogs" class="secondary compact danger-action" type="button">清空</button>
+        </div>
+        <code id="logPath" class="path-value">-</code>
+        <pre id="logOutput" class="log-viewer">暂无日志</pre>
+      </section>
+      <p id="logsMessage" class="message" role="status"></p>
+    </section>
+
 
     <section class="panel" role="tabpanel" data-panel="indexing">
       <section class="status-card">
@@ -313,6 +336,7 @@
   <script src="publications.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
+  <script src="logs.js"></script>
   <script src="indexing.js"></script>
   <script src="publishing.js"></script>
   <script src="environment.js"></script>
