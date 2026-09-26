@@ -38,7 +38,9 @@
     catch (error) { button.disabled = false; button.textContent = "保存"; BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error"); }
   }
   async function runToolAction(tool, action, button) {
+    const originalText = button.textContent;
     button.disabled = true;
+    if (action.id === "update") button.textContent = "更新中…";
     BlogCTLPopup.setMessage(message, `正在执行 ${tool.displayName || tool.name}：${action.label || action.id}…`);
     try {
       const response = await BlogCTLPopup.send("blogctl.tool.action", { name: tool.name, action: action.id });
@@ -47,7 +49,8 @@
         renderTools();
       }
       const detail = response.detail && typeof response.detail === "object"
-        ? Object.entries(response.detail).filter(([, value]) => value !== "" && value !== null && value !== undefined)
+        ? Object.entries(response.detail)
+          .filter(([key, value]) => key !== "output" && value !== "" && value !== null && value !== undefined)
           .map(([key, value]) => `${key}: ${value}`).join(" · ")
         : "";
       const text = action.id === "restart"
@@ -59,6 +62,7 @@
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally {
       button.disabled = false;
+      button.textContent = originalText;
     }
   }
 
