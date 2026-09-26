@@ -205,6 +205,21 @@ export async function auditGoogleUrls(urls, {
   const results = [];
   for (let index = 0; index < selected.length; index += 1) {
     const inspectionUrl = selected[index];
+    const requestNumber = index + 1;
+    const absoluteIndex = offset + requestNumber;
+    if (typeof onProgress === "function") {
+      await onProgress({
+        type: "request_start",
+        offset,
+        inspected: index,
+        requestNumber,
+        absoluteIndex,
+        totalAvailable: urls.length,
+        url: inspectionUrl,
+        message: `开始检查 ${absoluteIndex} / ${urls.length}`,
+      });
+    }
+    const requestStartedAt = Date.now();
     const response = await inspectGoogleUrl({
       siteUrl,
       inspectionUrl,
@@ -213,18 +228,24 @@ export async function auditGoogleUrls(urls, {
       fetchImpl,
       endpoint,
     });
+    const durationMs = Date.now() - requestStartedAt;
     const normalized = normalizeInspectionResult(inspectionUrl, response);
     results.push(normalized);
     if (typeof onProgress === "function") {
       const inspected = index + 1;
       const absoluteNextOffset = offset + inspected;
       await onProgress({
+        type: "request_complete",
         offset,
         inspected,
+        requestNumber,
+        absoluteIndex,
+        durationMs,
         totalAvailable: urls.length,
         remaining: Math.max(0, urls.length - absoluteNextOffset),
         nextOffset: absoluteNextOffset < urls.length ? absoluteNextOffset : null,
         result: normalized,
+        message: `完成 ${absoluteIndex} / ${urls.length}，耗时 ${durationMs}ms`,
       });
     }
     if (requestDelayMs > 0 && index + 1 < selected.length) {
