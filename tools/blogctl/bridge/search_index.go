@@ -751,7 +751,6 @@ func googleRequestCandidate(result searchInspectionResult) bool {
 }
 
 func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIndexRequestQueue, now time.Time) googleIndexRequestQueue {
-	const requestCooldown = 7 * 24 * time.Hour
 	previousByURL := make(map[string]googleIndexRequestItem, len(previous.Items))
 	for _, item := range previous.Items {
 		previousByURL[item.URL] = item
@@ -769,11 +768,10 @@ func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIn
 		case "processing", "quota_blocked":
 			item.Status = "queued"
 			item.Error = ""
-		case "requested":
-			if requestedAt, err := time.Parse(time.RFC3339, item.RequestedAt); err == nil && now.Sub(requestedAt) >= requestCooldown {
-				item.Status = "queued"
-				item.Error = ""
-			}
+		case "requested", "indexed":
+			// Preserve successful outcomes indefinitely. Rebuilding the queue
+			// must never spend Google Request Indexing quota on the same URL
+			// again unless a future explicit reset/retry feature asks for it.
 		}
 		items = append(items, item)
 	}
