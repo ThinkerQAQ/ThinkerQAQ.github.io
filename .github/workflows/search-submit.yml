@@ -2,6 +2,17 @@ name: Submit all URLs to search engines
 
 on:
   workflow_dispatch:
+    inputs:
+      google_inspection_offset:
+        description: Zero-based offset into sitemap-all.txt for Google URL Inspection
+        required: false
+        default: 0
+        type: number
+      google_inspection_limit:
+        description: URLs to inspect in this run (max 2000 per site per day)
+        required: false
+        default: 2000
+        type: number
 
 permissions:
   contents: read
@@ -52,3 +63,21 @@ jobs:
           node tools/blogctl/search/node/cli.mjs submit \
             --providers google \
             --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"
+
+      - name: Inspect URLs with Google Search Console
+        run: |
+          node tools/blogctl/search/node/cli.mjs audit \
+            --provider google \
+            --urls-file "$RUNNER_TEMP/sitemap-all.txt" \
+            --offset "${{ inputs.google_inspection_offset }}" \
+            --limit "${{ inputs.google_inspection_limit }}" \
+            --output "$RUNNER_TEMP/google-url-inspection.json" \
+            --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"
+
+      - name: Upload Google URL Inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-url-inspection-${{ inputs.google_inspection_offset }}-${{ inputs.google_inspection_limit }}
+          path: ${{ runner.temp }}/google-url-inspection.json
+          if-no-files-found: error
+          retention-days: 7
