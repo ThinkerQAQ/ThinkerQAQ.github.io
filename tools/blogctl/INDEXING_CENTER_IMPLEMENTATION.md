@@ -724,7 +724,7 @@ localhost
 
 Search Node 通过 `HTTP_PROXY` / `HTTPS_PROXY` / `NODE_USE_ENV_PROXY=1` 使用同一代理；为防止静默直连，开启代理时要求 Node.js >= 22.21（或 >= 24）。
 
-Extension 通过 Chrome `proxy` API 应用同一 HTTP proxy。因为 Chrome proxy setting 属于 profile 级设置，启用 BlogCTL Network Proxy 时，regular profile 的外网请求会使用该代理；本机地址在 bypass list 中。
+Extension 通过 Chrome `proxy` API 安装 PAC 策略。Chrome 的设置仍然是 regular profile 级别，但 PAC 只把 BlogCTL 平台域名和 Google Search Console 依赖域名送入代理；其它普通浏览域名显式返回 `DIRECT`，本机地址也保持直连。这样 BlogCTL 可以控制浏览器侧 GSC / 发布流程，而不会把整个浏览器的日常流量都切到 BlogCTL proxy。
 
 如果 Browser proxy 无法被 Extension 控制，环境页必须显示「代理未覆盖全部组件」，并且远端 browser flow 不应静默直连。
 
