@@ -20,6 +20,34 @@ function decodePart(part) {
   return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
 }
 
+test("service-account parser rejects OAuth client credentials with an actionable message", () => {
+  assert.throws(
+    () => parseServiceAccountCredentials({
+      installed: {
+        client_id: "client-id",
+        client_secret: "secret",
+      },
+    }),
+    /OAuth Desktop Client credentials, not a Service Account JSON key/u,
+  );
+  assert.throws(
+    () => parseServiceAccountCredentials({
+      web: {
+        client_id: "client-id",
+        client_secret: "secret",
+      },
+    }),
+    /OAuth Web Client credentials, not a Service Account JSON key/u,
+  );
+});
+
+test("service-account parser reports exactly which required fields are missing", () => {
+  assert.throws(
+    () => parseServiceAccountCredentials({ type: "service_account" }),
+    /missing client_email, private_key/u,
+  );
+});
+
 test("service-account assertion contains Search Console scope and expected claims", () => {
   const { privateKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
