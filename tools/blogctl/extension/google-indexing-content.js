@@ -34,6 +34,10 @@
       "请求编入索引",
       "申请编入索引",
     ],
+    close: [
+      "close",
+      "关闭",
+    ],
     requested: [
       "indexing requested",
       "已请求编入索引",
@@ -317,6 +321,44 @@
     return "";
   }
 
+  function findRequestResultCloseButton() {
+    const nodes = [
+      ...document.querySelectorAll("button"),
+      ...document.querySelectorAll('[role="button"]'),
+    ];
+    const candidates = [...new Set(nodes)].filter((node) => {
+      if (!visible(node)) return false;
+      const text = normalizedText([
+        node?.textContent,
+        node?.getAttribute?.("aria-label"),
+        node?.getAttribute?.("title"),
+      ].filter(Boolean).join(" "));
+      return TEXT.close.some((candidate) => text === candidate);
+    });
+    if (!candidates.length) return null;
+
+    const dialogCandidate = candidates.find((node) => {
+      try {
+        return Boolean(node.closest?.('[role="dialog"], [aria-modal="true"]'));
+      } catch {
+        return false;
+      }
+    });
+    return dialogCandidate || candidates[0];
+  }
+
+  async function dismissRequestResultDialog({ waitForSurface = false } = {}) {
+    const closeButton = findRequestResultCloseButton();
+    if (!closeButton) return false;
+    closeButton.click();
+    emit("info", "gsc request result dialog closed", pageDiagnostic());
+    await sleep(350);
+    if (waitForSurface) {
+      await ensureInspectionInput(15000);
+    }
+    return true;
+  }
+
   function pageDiagnostic() {
     const inspectionState = detectPageState("")?.kind || "";
     return {
@@ -355,6 +397,11 @@
 
   async function inspectURL(url) {
     emit("info", "gsc ui inspection started", { url, ...pageDiagnostic() });
+
+    // A successful Request Indexing call leaves a modal over the GSC SPA.
+    // Close any stale result modal before trying the next URL; otherwise the
+    // inspection trigger/input can be present visually but not actionable.
+    await dismissRequestResultDialog();
 
     const existingState = detectPageState(url);
     if (existingState) {
@@ -491,6 +538,12 @@
     }
 
     emit("info", "gsc request indexing confirmed", { url });
+    const dialogClosed = await dismissRequestResultDialog({ waitForSurface: true });
+    emit("info", "gsc request indexing ready for next url", {
+      url,
+      dialogClosed,
+      ...pageDiagnostic(),
+    });
     return { ok: true, action: "requested_indexing", stage: "request_result", url };
   }
 
