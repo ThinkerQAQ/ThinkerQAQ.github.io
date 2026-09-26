@@ -25,7 +25,6 @@
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing">索引</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">平台配置</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">环境与配置</button>
     </nav>
 
@@ -237,50 +236,71 @@
       </section>
     </section>
 
-    <section class="panel" role="tabpanel" data-panel="publishing">
-      <section class="status-card">
-        <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
-
-        <div class="section-title">平台接入</div>
-        <div id="platformAccessConfig" class="platform-access-config"><div class="platform-loading">正在读取平台配置…</div></div>
-
-        <div class="section-title">Mermaid 与图片资产</div>
-        <div class="status-row"><span>R2 兜底状态</span><strong id="assetStatus" class="status checking">检测中</strong></div>
-        <p id="assetStatusDetail" class="card-hint">Mermaid 会先本地渲染；支持图片上传的平台优先使用平台图床，失败时再回退到 R2。</p>
-        <div class="publication-filters">
-          <label class="field"><span>PNG 宽度</span><input id="mermaidWidth" type="number" min="1" step="1"></label>
-          <label class="field"><span>渲染倍数</span><input id="mermaidScale" type="number" min="0.1" step="0.1"></label>
-        </div>
-        <label class="field"><span>R2 Bucket</span><input id="r2Bucket" type="text" placeholder="thinkerqaq-asset"></label>
-        <label class="field"><span>R2 Public Base URL</span><input id="r2PublicBaseUrl" type="url" placeholder="https://assets.example.com/"></label>
-        <p class="card-hint">敏感凭据不写入 BlogCTL 配置；Bridge 进程需提供 <code>R2_ACCESS_KEY_ID</code>、<code>R2_SECRET_ACCESS_KEY</code>，以及 <code>R2_ACCOUNT_ID</code> 或 <code>R2_ENDPOINT</code>。</p>
-
-        <label class="switch-row" for="publishingChangedOnly"><span><strong>仅更新内容有变化的草稿</strong><small>此平台已有草稿且内容未变时跳过；Medium 暂不支持更新已有草稿。</small></span><input id="publishingChangedOnly" type="checkbox"></label>
-
-        <label class="field"><span>内容语言</span><select id="publishingLanguage"><option value="zh-CN">中文</option><option value="en">English</option></select></label>
-
-        <div class="section-title">Footer</div>
-        <label class="switch-row" for="footerEnabled"><span><strong>启用 Footer</strong><small>同步时追加到平台文章末尾。</small></span><input id="footerEnabled" type="checkbox"></label>
-        <label class="field"><span>Footer 模板</span><textarea id="footerTemplate" placeholder="支持 {site} {title} {url}"></textarea></label>
-        <p class="card-hint">可用变量：<code>{site}</code> <code>{title}</code> <code>{url}</code></p>
-
-        <div class="section-title">Canonical</div>
-        <label class="field"><span>策略</span><select id="canonicalMode"><option value="native">Native canonical</option><option value="footer">Footer backlink</option><option value="none">Disabled</option></select></label>
-
-        <div class="section-title">Tracking</div>
-        <label class="switch-row" for="trackingEnabled"><span><strong>启用 Tracking</strong><small>为 Footer 中的原文链接追加 UTM 参数。</small></span><input id="trackingEnabled" type="checkbox"></label>
-        <label class="field"><span>Source</span><input id="trackingSource" type="text" placeholder="cnblogs"></label>
-        <label class="field"><span>Medium</span><input id="trackingMedium" type="text" placeholder="referral"></label>
-        <label class="field"><span>Campaign</span><input id="trackingCampaign" type="text" placeholder="article_syndication"></label>
-
-        <div class="preview-box"><div class="section-title">预览</div><pre id="publishingPreview"></pre></div>
-        <div class="button-row"><button id="resetPublishing" class="secondary" type="button">恢复默认</button><button id="savePublishing" class="primary inline-primary" type="button">保存</button></div>
-        <p id="publishingMessage" class="message" role="status"></p>
-      </section>
-    </section>
-
     <section class="panel" role="tabpanel" data-panel="environment">
-      <section class="status-card"><div class="section-title">环境与工具</div><div id="toolRegistry" class="tool-list"><div class="platform-loading">正在检测本机环境…</div></div></section>
+      <section class="status-card">
+        <div class="section-title">环境与工具</div>
+
+        <div id="environmentRuntimeTools" class="tool-list"><div class="platform-loading">正在检测本机环境…</div></div>
+
+        <details id="platformConfigEnvironmentCard" class="tool-card environment-large-card">
+          <summary class="status-row">
+            <strong>平台配置</strong>
+            <span class="status ok">已加载</span>
+          </summary>
+          <div class="tool-card-body environment-embedded-tool">
+            <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
+            
+            <div class="section-title">平台接入</div>
+            <div id="platformAccessConfig" class="platform-access-config"><div class="platform-loading">正在读取平台配置…</div></div>
+            
+            <div class="section-title">Mermaid 与图片资产</div>
+            <div class="status-row"><span>R2 兜底状态</span><strong id="assetStatus" class="status checking">检测中</strong></div>
+            <p id="assetStatusDetail" class="card-hint">Mermaid 会先本地渲染；支持图片上传的平台优先使用平台图床，失败时再回退到 R2。</p>
+            <div class="publication-filters">
+            <label class="field"><span>PNG 宽度</span><input id="mermaidWidth" type="number" min="1" step="1"></label>
+            <label class="field"><span>渲染倍数</span><input id="mermaidScale" type="number" min="0.1" step="0.1"></label>
+            </div>
+            <label class="field"><span>R2 Bucket</span><input id="r2Bucket" type="text" placeholder="thinkerqaq-asset"></label>
+            <label class="field"><span>R2 Public Base URL</span><input id="r2PublicBaseUrl" type="url" placeholder="https://assets.example.com/"></label>
+            <p class="card-hint">敏感凭据不写入 BlogCTL 配置；Bridge 进程需提供 <code>R2_ACCESS_KEY_ID</code>、<code>R2_SECRET_ACCESS_KEY</code>，以及 <code>R2_ACCOUNT_ID</code> 或 <code>R2_ENDPOINT</code>。</p>
+            
+            <label class="switch-row" for="publishingChangedOnly"><span><strong>仅更新内容有变化的草稿</strong><small>此平台已有草稿且内容未变时跳过；Medium 暂不支持更新已有草稿。</small></span><input id="publishingChangedOnly" type="checkbox"></label>
+            
+            <label class="field"><span>内容语言</span><select id="publishingLanguage"><option value="zh-CN">中文</option><option value="en">English</option></select></label>
+            
+            <div class="section-title">Footer</div>
+            <label class="switch-row" for="footerEnabled"><span><strong>启用 Footer</strong><small>同步时追加到平台文章末尾。</small></span><input id="footerEnabled" type="checkbox"></label>
+            <label class="field"><span>Footer 模板</span><textarea id="footerTemplate" placeholder="支持 {site} {title} {url}"></textarea></label>
+            <p class="card-hint">可用变量：<code>{site}</code> <code>{title}</code> <code>{url}</code></p>
+            
+            <div class="section-title">Canonical</div>
+            <label class="field"><span>策略</span><select id="canonicalMode"><option value="native">Native canonical</option><option value="footer">Footer backlink</option><option value="none">Disabled</option></select></label>
+            
+            <div class="section-title">Tracking</div>
+            <label class="switch-row" for="trackingEnabled"><span><strong>启用 Tracking</strong><small>为 Footer 中的原文链接追加 UTM 参数。</small></span><input id="trackingEnabled" type="checkbox"></label>
+            <label class="field"><span>Source</span><input id="trackingSource" type="text" placeholder="cnblogs"></label>
+            <label class="field"><span>Medium</span><input id="trackingMedium" type="text" placeholder="referral"></label>
+            <label class="field"><span>Campaign</span><input id="trackingCampaign" type="text" placeholder="article_syndication"></label>
+            
+            <div class="preview-box"><div class="section-title">预览</div><pre id="publishingPreview"></pre></div>
+            <div class="button-row"><button id="resetPublishing" class="secondary" type="button">恢复默认</button><button id="savePublishing" class="primary inline-primary" type="button">保存</button></div>
+            <p id="publishingMessage" class="message" role="status"></p>
+          </div>
+        </details>
+
+        <details id="searchEngineEnvironmentCard" class="tool-card environment-large-card">
+          <summary class="status-row">
+            <strong>搜索引擎</strong>
+            <span id="searchEngineEnvironmentStatus" class="status checking">检测中</span>
+          </summary>
+          <div class="tool-card-body">
+            <p class="card-hint">Bing / IndexNow 与 Google Search Console 的接入配置和连通性检测。</p>
+            <div id="searchEngineTools" class="tool-list environment-nested-tools"><div class="platform-loading">正在读取搜索引擎配置…</div></div>
+          </div>
+        </details>
+
+        <div id="environmentDependencyTools" class="tool-list"></div>
+      </section>
       <p id="environmentMessage" class="message" role="status"></p>
     </section>
   </main>
