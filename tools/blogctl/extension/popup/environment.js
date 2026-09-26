@@ -15,7 +15,8 @@
   })();
   const expandedTools = storedExpandedTools ?? new Set();
   let initializedExpansion = storedExpandedTools !== null;
-  let toolRegistry, message;
+  let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus;
+  let platformConfigCard, searchEngineCard, message;
 
   function persistExpandedTools() {
     localStorage.setItem(EXPANDED_TOOLS_KEY, JSON.stringify([...expandedTools]));
@@ -61,9 +62,141 @@
     }
   }
 
+  function trackExpansion(card, key) {
+    card.open = expandedTools.has(key);
+    card.addEventListener("toggle", () => {
+      if (card.open) expandedTools.add(key);
+      else expandedTools.delete(key);
+      persistExpandedTools();
+    });
+  }
+
+  function createToolCard(tool) {
+    const card = document.createElement("details");
+    card.className = "tool-card";
+    card.dataset.toolName = tool.name || "";
+    trackExpansion(card, tool.name);
+
+    const summary = document.createElement("summary");
+    summary.className = "status-row";
+    const name = document.createElement("strong");
+    name.textContent = tool.displayName || tool.name;
+    const status = document.createElement("span");
+    BlogCTLPopup.setStatus(
+      status,
+      healthKind(tool.health),
+      tool.health?.summary || tool.health?.status || "未知",
+      tool.health?.detail || "",
+    );
+    summary.append(name, status);
+
+    const body = document.createElement("div");
+    body.className = "tool-card-body";
+    if (tool.description) {
+      const description = document.createElement("p");
+      description.className = "card-hint";
+      description.textContent = tool.description;
+      body.append(description);
+    }
+
+    const versionText = tool.health?.version ? `版本 v${tool.health.version}` : "";
+    const detailText = [versionText, tool.health?.detail, tool.health?.path].filter(Boolean).join(" · ");
+    if (detailText) {
+      const detail = document.createElement("code");
+      detail.className = "path-value";
+      detail.textContent = detailText;
+      body.append(detail);
+    }
+
+    if (tool.config?.toggle) {
+      const toggleLabel = document.createElement("label");
+      toggleLabel.className = "switch-row";
+      const text = document.createElement("span");
+      const title = document.createElement("strong");
+      title.textContent = tool.config.toggle.label;
+      const detail = document.createElement("small");
+      detail.textContent = tool.config.toggle.description || "";
+      text.append(title, detail);
+      const toggle = document.createElement("input");
+      toggle.type = "checkbox";
+      toggle.dataset.toggleKey = tool.config.toggle.key;
+      toggle.checked = Boolean(tool.config.values?.[tool.config.toggle.key]);
+      toggleLabel.append(text, toggle);
+      body.append(toggleLabel);
+    }
+
+    for (const field of tool.config?.schema ?? []) body.append(makeConfigInput(tool, field));
+
+    const configurable = Boolean(tool.config?.toggle || (tool.config?.schema ?? []).length);
+    if (configurable) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary full-width";
+      button.textContent = "保存";
+      button.addEventListener("click", () => saveTool(tool, card, button));
+      body.append(button);
+    }
+
+    const actions = Array.isArray(tool.actions) ? tool.actions : [];
+    if (actions.length) {
+      const actionRow = document.createElement("div");
+      actionRow.className = "tool-actions";
+      for (const action of actions) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondary";
+        button.textContent = action.label || action.id;
+        button.title = action.description || "";
+        button.addEventListener("click", () => runToolAction(tool, action, button));
+        actionRow.append(button);
+      }
+      body.append(actionRow);
+    }
+
+    card.append(summary, body);
+    return card;
+  }
+
+  function renderToolList(container, tools, emptyText = "") {
+    container.replaceChildren();
+    for (const tool of tools) container.append(createToolCard(tool));
+    if (!container.childElementCount && emptyText) {
+      const empty = document.createElement("div");
+      empty.className = "platform-loading";
+      empty.textContent = emptyText;
+      container.append(empty);
+    }
+  }
+
+  function renderSearchEngineStatus(tools) {
+    if (!tools.length) {
+      BlogCTLPopup.setStatus(searchEngineStatus, "unknown", "无配置");
+      return;
+    }
+    const healthy = tools.filter((tool) => tool.health?.ok).length;
+    const failed = tools.filter((tool) =>
+      tool.health?.status === "missing" || tool.health?.status === "error"
+    ).length;
+    if (healthy === tools.length) {
+      BlogCTLPopup.setStatus(searchEngineStatus, "ok", `${healthy} / ${tools.length} 可用`);
+      return;
+    }
+    if (failed > 0) {
+      BlogCTLPopup.setStatus(searchEngineStatus, "error", `${healthy} / ${tools.length} 可用`);
+      return;
+    }
+    BlogCTLPopup.setStatus(searchEngineStatus, "unknown", `${healthy} / ${tools.length} 可用`);
+  }
+
   function renderTools() {
-    toolRegistry.replaceChildren();
     const tools = state.tools.filter((item) => item.kind !== "publishing");
+    const searchNames = new Set(["bing-indexnow", "google-search-console-api"]);
+    const searchTools = tools.filter((item) => searchNames.has(item.name));
+    const dependencyItems = tools.filter((item) => item.kind === "dependency");
+    const runtimeItems = tools.filter((item) =>
+      item.kind !== "dependency" && !searchNames.has(item.name)
+    );
+
     if (!initializedExpansion) {
       for (const tool of tools) {
         if (tool.config?.defaultExpanded) expandedTools.add(tool.name);
@@ -72,71 +205,12 @@
       persistExpandedTools();
     }
 
-    for (const tool of tools) {
-      const card = document.createElement("details");
-      card.className = "tool-card";
-      card.dataset.toolName = tool.name || "";
-      card.open = expandedTools.has(tool.name);
-      card.addEventListener("toggle", () => {
-        if (card.open) expandedTools.add(tool.name);
-        else expandedTools.delete(tool.name);
-        persistExpandedTools();
-      });
-
-      const summary = document.createElement("summary");
-      summary.className = "status-row";
-      const name = document.createElement("strong"); name.textContent = tool.displayName || tool.name;
-      const status = document.createElement("span");
-      BlogCTLPopup.setStatus(status, healthKind(tool.health), tool.health?.summary || tool.health?.status || "未知", tool.health?.detail || "");
-      summary.append(name, status);
-
-      const body = document.createElement("div");
-      body.className = "tool-card-body";
-      if (tool.description) {
-        const description = document.createElement("p");
-        description.className = "card-hint";
-        description.textContent = tool.description;
-        body.append(description);
-      }
-      const versionText = tool.health?.version ? `版本 v${tool.health.version}` : "";
-      const detailText = [versionText, tool.health?.detail, tool.health?.path].filter(Boolean).join(" · ");
-      if (detailText) {
-        const detail = document.createElement("code");
-        detail.className = "path-value";
-        detail.textContent = detailText;
-        body.append(detail);
-      }
-      if (tool.config?.toggle) {
-        const toggleLabel = document.createElement("label"); toggleLabel.className = "switch-row";
-        const text = document.createElement("span"); const title = document.createElement("strong"); title.textContent = tool.config.toggle.label; const detail = document.createElement("small"); detail.textContent = tool.config.toggle.description || ""; text.append(title, detail);
-        const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.dataset.toggleKey = tool.config.toggle.key; toggle.checked = Boolean(tool.config.values?.[tool.config.toggle.key]); toggleLabel.append(text, toggle); body.append(toggleLabel);
-      }
-      for (const field of tool.config?.schema ?? []) body.append(makeConfigInput(tool, field));
-      const configurable = Boolean(tool.config?.toggle || (tool.config?.schema ?? []).length);
-      if (configurable) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "secondary full-width";
-        button.textContent = "保存";
-        button.addEventListener("click", () => saveTool(tool, card, button));
-        body.append(button);
-      }
-      const actions = Array.isArray(tool.actions) ? tool.actions : [];
-      if (actions.length) {
-        const actionRow = document.createElement("div"); actionRow.className = "tool-actions";
-        for (const action of actions) {
-          const button = document.createElement("button"); button.type = "button"; button.className = "secondary"; button.textContent = action.label || action.id; button.title = action.description || "";
-          button.addEventListener("click", () => runToolAction(tool, action, button));
-          actionRow.append(button);
-        }
-        body.append(actionRow);
-      }
-
-      card.append(summary, body);
-      toolRegistry.append(card);
-    }
-    if (!toolRegistry.childElementCount) toolRegistry.innerHTML = '<div class="platform-loading">没有工具信息</div>';
+    renderToolList(runtimeTools, runtimeItems, "没有运行环境信息");
+    renderToolList(searchEngineTools, searchTools, "没有搜索引擎配置");
+    renderToolList(dependencyTools, dependencyItems);
+    renderSearchEngineStatus(searchTools);
   }
+
   async function refresh() {
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
@@ -146,18 +220,36 @@
       renderTools();
       BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     } catch (error) {
-      toolRegistry.innerHTML = '<div class="platform-loading">环境读取失败</div>';
+      runtimeTools.innerHTML = '<div class="platform-loading">环境读取失败</div>';
+      searchEngineTools.innerHTML = '<div class="platform-loading">环境读取失败</div>';
+      dependencyTools.replaceChildren();
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
       BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     }
   }
   function init() {
     if (state.initialized) return;
-    toolRegistry = document.getElementById("toolRegistry");
+    runtimeTools = document.getElementById("environmentRuntimeTools");
+    searchEngineTools = document.getElementById("searchEngineTools");
+    dependencyTools = document.getElementById("environmentDependencyTools");
+    searchEngineStatus = document.getElementById("searchEngineEnvironmentStatus");
+    platformConfigCard = document.getElementById("platformConfigEnvironmentCard");
+    searchEngineCard = document.getElementById("searchEngineEnvironmentCard");
     message = document.getElementById("environmentMessage");
+
+    BlogCTLPublishing.init();
+    trackExpansion(platformConfigCard, "platform-config");
+    trackExpansion(searchEngineCard, "search-engines");
     state.initialized = true;
   }
-  function activate() { state.active = true; refresh(); }
-  function deactivate() { state.active = false; }
+  function activate() {
+    state.active = true;
+    BlogCTLPublishing.activate();
+    refresh();
+  }
+  function deactivate() {
+    state.active = false;
+    BlogCTLPublishing.deactivate();
+  }
   root.BlogCTLEnvironment = { init, activate, deactivate, refresh };
 })(globalThis);
