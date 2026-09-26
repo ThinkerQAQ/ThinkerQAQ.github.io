@@ -1,10 +1,83 @@
 package bridge
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
+
+func TestGoogleInspectionTaskPersistsChunkProgress(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	calls := []googleInspectionTaskPayload{}
+	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
+		if command != "google-inspect" {
+			t.Fatalf("command = %q", command)
+		}
+		offset := int(input["offset"].(int))
+		limit := int(input["limit"].(int))
+		calls = append(calls, googleInspectionTaskPayload{Offset: offset, Limit: limit})
+		results := make([]searchInspectionResult, 0, limit)
+		for index := 0; index < limit; index++ {
+			results = append(results, searchInspectionResult{
+				URL:           fmt.Sprintf("https://thinkerqaq.github.io/test/%d/", offset+index),
+				Verdict:       "PASS",
+				IndexingState: "INDEXING_ALLOWED",
+			})
+		}
+		next := offset + limit
+		payload := map[string]any{
+			"offset":         offset,
+			"limit":          limit,
+			"inspected":      limit,
+			"totalAvailable": 2750,
+			"remaining":      2750 - next,
+			"nextOffset":     next,
+			"results":        results,
+		}
+		raw, err := json.Marshal(payload)
+		return raw, err
+	}
+
+	job, err := server.createDurableTaskJob(
+		"google-inspection",
+		"Google URL Inspection",
+		googleInspectionTaskPayload{Offset: 0, Limit: 150},
+		taskProgress{Current: 0, Total: 150, Unit: "URL", Message: "等待执行"},
+		taskCapabilities(true, false, false),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.markDurableTaskRunning(job.ID); err != nil {
+		t.Fatal(err)
+	}
+	rawPayload, _ := json.Marshal(googleInspectionTaskPayload{Offset: 0, Limit: 150})
+	if err := server.executeGoogleInspectionTask(context.Background(), job.ID, rawPayload); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(calls) != 2 || calls[0].Offset != 0 || calls[0].Limit != 100 || calls[1].Offset != 100 || calls[1].Limit != 50 {
+		t.Fatalf("inspection calls = %#v", calls)
+	}
+	restored := server.durableTaskJob(job.ID)
+	if restored == nil || restored.State != "completed" {
+		t.Fatalf("job = %#v", restored)
+	}
+	if restored.Progress.Current != 150 || restored.Progress.Total != 150 {
+		t.Fatalf("progress = %#v", restored.Progress)
+	}
+	state := loadSearchIndexState()
+	if state.Google.Inspection.Inspected != 150 || len(state.Google.Inspection.Results) != 150 {
+		t.Fatalf("inspection state = %#v", state.Google.Inspection)
+	}
+}
 
 func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
