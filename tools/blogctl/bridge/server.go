@@ -770,6 +770,36 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+
+	if action == "update" {
+		switch name {
+		case "node", "npm", "git", "java":
+		default:
+			writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported dependency update", map[string]any{"tool": name})
+			return
+		}
+		result, err := updateDependency(request.Context(), config, name)
+		if err != nil {
+			writeAPIError(response, http.StatusBadRequest, "tool_update_failed", err.Error(), map[string]any{"tool": name})
+			return
+		}
+		message := fmt.Sprintf("%s 更新完成", name)
+		if result.RestartNeeded {
+			message = fmt.Sprintf("%s 更新流程已完成；当前进程仍检测到原版本，请重启 Bridge/终端后重新检测", name)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"ok":      true,
+			"message": message,
+			"detail":  result,
+			"tools":   toolRegistry(config),
+		})
+		return
+	}
+
 	if action != "check" {
 		writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported tool action", map[string]any{"tool": name, "action": action})
 		return
@@ -786,9 +816,6 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 		return
 	}
 
-	s.mu.Lock()
-	config := s.config
-	s.mu.Unlock()
 	raw, err := s.runSearchNode(request.Context(), config, command, nil)
 	if err != nil {
 		writeAPIError(response, http.StatusBadRequest, "tool_check_failed", err.Error(), map[string]any{"tool": name})
