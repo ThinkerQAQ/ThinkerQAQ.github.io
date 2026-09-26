@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -72,6 +73,9 @@ func TestGoogleInspectionTaskPersistsPerURLProgress(t *testing.T) {
 	}
 	if restored.Progress.Current != 150 || restored.Progress.Total != 150 {
 		t.Fatalf("progress = %#v", restored.Progress)
+	}
+	if !strings.Contains(restored.Output, "[request] done") {
+		t.Fatalf("inspection task log missing request completion: %q", restored.Output)
 	}
 	state := loadSearchIndexState()
 	if state.Google.Inspection.Inspected != 150 || len(state.Google.Inspection.Results) != 150 {
