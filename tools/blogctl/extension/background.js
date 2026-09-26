@@ -1739,20 +1739,20 @@ async function handleMessage(message) {
     case "blogctl.index.bing.submit": {
       const mode = String(message.mode || "incremental");
       const result = await fetchJSON(
-        "/v1/search/index/bing/submit",
+        "/v1/search/index/jobs/bing",
         jsonOptions("POST", { mode }),
       );
-      return { ok: true, index: result?.index ?? {} };
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
     case "blogctl.index.google.sitemaps": {
-      const result = await fetchJSON("/v1/search/index/google/sitemaps", { method: "POST" });
-      return { ok: true, index: result?.index ?? {} };
+      const result = await fetchJSON("/v1/search/index/jobs/google/sitemaps", { method: "POST" });
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
     case "blogctl.index.google.inspect": {
       const offset = Number(message.offset ?? 0);
       const limit = Number(message.limit ?? 2000);
-      const result = await fetchJSON("/v1/search/index/google/inspect", jsonOptions("POST", { offset, limit }));
-      return { ok: true, index: result?.index ?? {} };
+      const result = await fetchJSON("/v1/search/index/jobs/google/inspect", jsonOptions("POST", { offset, limit }));
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
     case "blogctl.index.google.probe": {
       return { ok: true, google: await googleSearchConsoleProbe({ active: Boolean(message.active) }) };
@@ -1826,7 +1826,7 @@ async function handleMessage(message) {
       };
     }
     case "blogctl.jobs": {
-      const result = await fetchJSON("/v1/sync/jobs");
+      const result = await fetchJSON("/v1/jobs");
       return { ok: true, jobs: result?.jobs ?? [] };
     }
     case "blogctl.job.start": {
@@ -1838,31 +1838,47 @@ async function handleMessage(message) {
     case "blogctl.job.get": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.delete": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
       return { ok: true };
     }
     case "blogctl.jobs.clear": {
-      const result = await fetchJSON("/v1/sync/jobs", { method: "DELETE" });
+      const result = await fetchJSON("/v1/jobs", { method: "DELETE" });
       return { ok: true, jobs: result?.jobs ?? [], removed: Number(result?.removed || 0) };
     }
     case "blogctl.job.retry": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
-      await syncSessionsForPlatforms(current?.job?.platforms ?? []);
-      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
+      if (current?.job?.kind === "publishing") {
+        await syncSessionsForPlatforms(current?.job?.platforms ?? []);
+      }
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      return { ok: true, job: result?.job };
+    }
+    case "blogctl.job.pause": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/pause`, { method: "POST" });
+      return { ok: true, job: result?.job };
+    }
+    case "blogctl.job.resume": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/resume`, { method: "POST" });
+      if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.publish": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
       await prepareJobSessions(current?.job);
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
       return { ok: true, job: result?.job };
