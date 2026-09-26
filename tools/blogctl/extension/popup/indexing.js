@@ -67,6 +67,15 @@
     };
   }
 
+  function inspectionRequestCandidates(results) {
+    return (Array.isArray(results) ? results : []).filter((result) =>
+      String(result?.verdict || "").toUpperCase() !== "PASS" &&
+      String(result?.indexingState || "").toUpperCase() === "INDEXING_ALLOWED" &&
+      String(result?.robotsTxtState || "").toUpperCase() !== "DISALLOWED" &&
+      Boolean(String(result?.url || "").trim())
+    ).length;
+  }
+
   function queueStats(queue) {
     const items = Array.isArray(queue?.items) ? queue.items : [];
     const counts = { total: items.length, requested: 0, indexed: 0, queued: 0, failed: 0 };
@@ -100,6 +109,7 @@
     const queue = google.requestQueue || {};
     const iStats = inspectionStats(inspection.results);
     const qStats = queueStats(queue);
+    const requestCandidateCount = qStats.total || inspectionRequestCandidates(inspection.results);
 
     setText(elements.source, inventory.source || "https://thinkerqaq.github.io/sitemap-all.txt");
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
@@ -138,7 +148,7 @@
       setStatus(elements.googleGSCStatus, "disabled", "未检测");
     }
 
-    setText(elements.requestTotal, qStats.total);
+    setText(elements.requestTotal, requestCandidateCount);
     setText(elements.requestRequested, qStats.requested);
     setText(elements.requestIndexed, qStats.indexed);
     setText(elements.requestQueued, qStats.queued);
@@ -151,10 +161,12 @@
     elements.refreshInventory.disabled = state.busy.has("inventory");
     elements.bingSubmit.disabled = !inventoryReady || state.busy.has("bing");
     elements.googleSitemaps.disabled = !google.credentialsConfigured || state.busy.has("sitemaps");
-    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || state.busy.has("inspect");
+    const inspectionComplete = inventoryReady && iStats.checked >= Number(inventory.total || 0);
+    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || state.busy.has("inspect");
+    elements.googleInspect.textContent = inspectionComplete ? "Inspection 已完成" : "检查下一批";
 
     const queueState = String(queue.state || "idle");
-    elements.googleRequestStart.disabled = !inspectionReady || ["running"].includes(queueState) || state.busy.has("request");
+    elements.googleRequestStart.disabled = !inspectionReady || requestCandidateCount === 0 || ["running"].includes(queueState) || state.busy.has("request");
     elements.googleRequestPause.disabled = queueState !== "running" || state.busy.has("request");
     elements.googleRequestResume.disabled = !["paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
     elements.googleOpen.disabled = state.busy.has("gsc");
@@ -207,12 +219,16 @@
   async function inspectGoogle() {
     const inspection = state.index?.google?.inspection || {};
     const inventory = state.index?.inventory || {};
+    const total = Number(inventory.total || 0);
+    const checked = Array.isArray(inspection.results) ? inspection.results.length : Number(inspection.inspected || 0);
+    if (total > 0 && checked >= total) {
+      BlogCTLPopup.setMessage(elements.message, "Google URL Inspection 已覆盖全部 URL。", "ok");
+      return;
+    }
     const offset = Number.isInteger(inspection.nextOffset)
       ? inspection.nextOffset
-      : Number(inspection.remaining || 0) === 0 && Number(inspection.inspected || 0) > 0
-        ? 0
-        : Number(inspection.offset || 0);
-    const total = Number(inventory.total || 0);
+      : checked;
+
     const remaining = Math.max(0, total - offset);
     const limit = Math.min(2000, remaining || 2000);
     await run("inspect", {
