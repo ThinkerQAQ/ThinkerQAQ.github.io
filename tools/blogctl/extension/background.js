@@ -1,7 +1,6 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
-import { browserProxyMatches, browserProxyValue } from "./proxy-policy.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -87,7 +86,6 @@ function readPath(value, path) {
 }
 
 async function fetchWithTimeout(url, options = {}) {
-  await ensureBrowserProxyPolicy();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
   try {
@@ -548,10 +546,6 @@ function runtimeVersionHealth(version, expectedVersion, healthySummary, detail =
 
 async function environmentTools(serverTools = []) {
   const bridge = await bridgeStatus();
-  const browserProxy = await browserProxyHealth(bridge.config ?? {}).catch((error) => ({
-    ok: false,
-    detail: errorMessage(error),
-  }));
   const expectedVersion = bridge.extensionVersion || chrome.runtime.getManifest().version;
   const extensionTool = {
     name: "extension",
@@ -580,31 +574,6 @@ async function environmentTools(serverTools = []) {
     config: { scope: "native-host", values: {}, defaultExpanded: true },
   };
   const tools = serverTools.map((tool) => {
-    if (tool?.name === "network-proxy" && bridge.config?.proxyEnabled) {
-      const current = tool.health ?? {};
-      if (!browserProxy.ok) {
-        return {
-          ...tool,
-          health: {
-            ...current,
-            ok: false,
-            status: "error",
-            summary: "代理未覆盖全部组件",
-            detail: browserProxy.detail || "Chrome browser proxy is not active.",
-          },
-        };
-      }
-      return {
-        ...tool,
-        health: {
-          ...current,
-          ok: true,
-          status: "ok",
-          summary: bridge.networkMode || current.summary || "代理已启用",
-          detail: "Bridge HTTP + Search Node 使用同一代理；浏览器仅代理 BlogCTL 平台/GSC 域名，其他普通浏览流量 DIRECT。",
-        },
-      };
-    }
     if (tool?.name !== "bridge") return tool;
     const current = tool.health ?? {};
     const versionHealth = bridge.running
@@ -655,45 +624,12 @@ async function getStatus() {
   return { bridge, platforms: enrichedPlatforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
-function chromeProxyGet() {
-  if (!chrome.proxy?.settings) {
-    return Promise.reject(new Error("BlogCTL Extension 缺少 proxy 权限；请重新加载 v0.1.75 Extension"));
-  }
-  return new Promise((resolve, reject) => {
-    chrome.proxy.settings.get({ incognito: false }, (details) => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message));
-      else resolve(details || {});
-    });
-  });
-}
-
-function chromeProxySet(value) {
-  return new Promise((resolve, reject) => {
-    chrome.proxy.settings.set({ value, scope: "regular" }, () => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message));
-      else resolve();
-    });
-  });
-}
-
-function chromeProxyClear() {
-  return new Promise((resolve, reject) => {
-    chrome.proxy.settings.clear({ scope: "regular" }, () => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message));
-      else resolve();
-    });
-  });
-}
-
 function normalizedProxyConfig(config) {
   const enabled = Boolean(config?.proxyEnabled);
   const host = String(config?.proxyHost || "").trim();
   const port = Number(config?.proxyPort || 0);
   if (!enabled) return { enabled: false, host, port };
-  if (!host || host.includes("://") || /[\/?#@\s]/u.test(host)) {
+  if (!host || host.includes("://") || /[\\/?#@\\s]/u.test(host)) {
     throw new Error("代理主机只填写域名或 IP，不要包含协议、路径或端口");
   }
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -702,91 +638,14 @@ function normalizedProxyConfig(config) {
   return { enabled: true, host, port };
 }
 
-async function assertBrowserProxyControllable() {
-  const current = await chromeProxyGet();
-  const level = String(current?.levelOfControl || "");
-  if (!["controllable_by_this_extension", "controlled_by_this_extension"].includes(level)) {
-    throw new Error(`Chrome 代理当前不可由 BlogCTL 控制：${level || "unknown"}`);
-  }
-  return current;
-}
-
-async function applyBrowserProxyConfig(config) {
-  const proxy = normalizedProxyConfig(config);
-  const current = await chromeProxyGet();
-  const level = String(current?.levelOfControl || "");
-
-  if (!proxy.enabled) {
-    if (level === "controlled_by_this_extension") await chromeProxyClear();
-    return { enabled: false, levelOfControl: level || "unknown" };
-  }
-
-  await assertBrowserProxyControllable();
-  await chromeProxySet(browserProxyValue(proxy.host, proxy.port));
-  const applied = await chromeProxyGet();
-  return {
-    enabled: true,
-    levelOfControl: String(applied?.levelOfControl || ""),
-    host: proxy.host,
-    port: proxy.port,
-  };
-}
-
-async function browserProxyHealth(config) {
-  const proxy = normalizedProxyConfig(config);
-  if (!proxy.enabled) return { ok: true, enabled: false, detail: "BlogCTL proxy disabled" };
-
-  const current = await chromeProxyGet();
-  const level = String(current?.levelOfControl || "");
-  const value = current?.value || {};
-  const matches =
-    browserProxyMatches(value, proxy.host, proxy.port) &&
-    level === "controlled_by_this_extension";
-  return {
-    ok: matches,
-    enabled: true,
-    detail: matches
-      ? `Selective browser proxy ${proxy.host}:${proxy.port} · unrelated tabs DIRECT`
-      : `Chrome proxy mismatch: level=${level || "unknown"}, mode=${String(value?.mode || "unknown")}`,
-  };
-}
-
-async function syncBrowserProxyFromBridge() {
-  const result = await fetchJSON("/v1/config");
-  return applyBrowserProxyConfig(result?.config ?? {});
-}
-
 async function saveBridgeConfig(config) {
   const next = normalizedProxyConfig(config);
-  if (next.enabled) await assertBrowserProxyControllable();
-
-  const previous = await fetchJSON("/v1/config").catch(() => null);
   const payload = {
     proxyEnabled: next.enabled,
     proxyHost: next.host,
     proxyPort: next.port,
   };
-  const saved = await fetchJSON("/v1/config", jsonOptions("PUT", payload));
-  try {
-    await applyBrowserProxyConfig(payload);
-    browserProxySyncPromise = Promise.resolve({
-      enabled: payload.proxyEnabled,
-      host: payload.proxyHost,
-      port: payload.proxyPort,
-    });
-  } catch (error) {
-    if (previous?.config) {
-      const rollback = {
-        proxyEnabled: Boolean(previous.config.proxyEnabled),
-        proxyHost: String(previous.config.proxyHost || "").trim(),
-        proxyPort: Number(previous.config.proxyPort || 0),
-      };
-      await fetchJSON("/v1/config", jsonOptions("PUT", rollback)).catch(() => {});
-      await applyBrowserProxyConfig(rollback).catch(() => {});
-    }
-    throw error;
-  }
-  return saved;
+  return fetchJSON("/v1/config", jsonOptions("PUT", payload));
 }
 
 async function collectPlatformCookieBatches(definition, diagnostics) {
@@ -996,7 +855,6 @@ function browserFetchHeaders(rawHeaders) {
 }
 
 async function executeBrowserHTTP(payload) {
-  await ensureBrowserProxyPolicy();
   const rawURL = String(payload?.url || "").trim();
   const target = new URL(rawURL);
   if (!["http:", "https:"].includes(target.protocol)) throw new Error("browser HTTP only supports http(s) URLs");
@@ -1076,7 +934,6 @@ function googleSearchConsoleTabCandidate(tab) {
 }
 
 async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
-  await ensureBrowserProxyPolicy();
   let tab = null;
   if (googleSearchConsoleTabId !== null) {
     try {
@@ -1461,7 +1318,6 @@ async function waitForPublishedURL(tabId, platform, timeoutMs = 25000) {
 }
 
 async function segmentFaultPublishInBrowser(payload) {
-  await ensureBrowserProxyPolicy();
   const draftId = String(payload?.draftId || "").trim();
   if (!draftId) throw new Error("SegmentFault draft id is required");
   const tab = await chrome.tabs.create({
@@ -1546,7 +1402,6 @@ async function segmentFaultPublishInBrowser(payload) {
 }
 
 async function cto51PublishInBrowser(payload) {
-  await ensureBrowserProxyPolicy();
   const draftId = String(payload?.draftId || "").trim();
   if (!draftId) throw new Error("51CTO draft id is required");
   const tab = await chrome.tabs.create({
@@ -2279,29 +2134,6 @@ async function handleMessage(message) {
     default: return null;
   }
 }
-
-let browserProxySyncPromise = null;
-
-function scheduleProxyPolicySync() {
-  const task = syncBrowserProxyFromBridge().catch((error) => {
-    if (browserProxySyncPromise === task) browserProxySyncPromise = null;
-    throw error;
-  });
-  browserProxySyncPromise = task;
-  task.catch((error) => {
-    console.warn("[BlogCTL][proxy] browser proxy sync failed:", errorMessage(error));
-  });
-  return task;
-}
-
-async function ensureBrowserProxyPolicy() {
-  if (!browserProxySyncPromise) scheduleProxyPolicySync();
-  return browserProxySyncPromise;
-}
-
-chrome.runtime.onStartup.addListener(() => { scheduleProxyPolicySync(); });
-chrome.runtime.onInstalled.addListener(() => { scheduleProxyPolicySync(); });
-scheduleProxyPolicySync();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
