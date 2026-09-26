@@ -440,7 +440,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				Scope: "bridge",
 				Values: map[string]any{
 					"endpoint":    indexNowEndpoint(config),
-					"keyLocation": indexNowKeyLocation(config),
+					"keyLocation": config.IndexNowKeyLocation,
 				},
 				Schema: []toolField{
 					{
@@ -455,7 +455,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 					},
 					{
 						Key: "keyLocation", Label: "Key Location", Type: "text",
-						Placeholder: "https://thinkerqaq.github.io/<key>.txt",
+						Placeholder: indexNowKeyLocation(config),
 						Description: "公开 Key 文件 URL；留空时按站点根目录和 Key 自动推导。",
 					},
 				},
