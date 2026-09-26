@@ -61,6 +61,18 @@ function errorMessage(error) {
   return error?.message || String(error);
 }
 
+async function writeBridgeLog(level, message, fields = {}) {
+  try {
+    await fetchJSON("/v1/logs", jsonOptions("POST", {
+      level: String(level || "info"),
+      message: String(message || ""),
+      fields,
+    }));
+  } catch (error) {
+    console.warn("[BlogCTL][log] failed to write Bridge log", errorMessage(error));
+  }
+}
+
 function readPath(value, path) {
   return String(path || "").split(".").filter(Boolean).reduce((current, key) => current?.[key], value);
 }
@@ -1191,7 +1203,7 @@ async function pumpGoogleIndexQueue() {
     }));
     broadcastIndexProgress(updated?.index ?? {});
 
-    if (["quota_blocked", "rate_limited", "not_logged_in"].includes(action)) {
+    if (["quota_blocked", "rate_limited", "not_logged_in", "ui_changed", "timeout"].includes(action)) {
       return updated?.index ?? {};
     }
     await delay(1200);
@@ -1996,6 +2008,14 @@ async function handleMessage(message) {
         assets: result?.assets ?? {},
         assetStatus: result?.assetStatus ?? {},
       };
+    }
+    case "blogctl.google.index.event": {
+      await writeBridgeLog(
+        message.level || "info",
+        message.message || "Google Search Console automation",
+        message.fields || {},
+      );
+      return { ok: true };
     }
     case "blogctl.logs": {
       const limit = Math.max(1, Math.min(2000, Number(message.limit || 500)));
