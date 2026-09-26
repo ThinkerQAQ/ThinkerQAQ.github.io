@@ -1789,7 +1789,17 @@ async function handleMessage(message) {
         const bridge = await restartBridge();
         return { ok: true, bridge };
       }
-      throw new Error(`unsupported tool action: ${name}/${action}`);
+      if (!name || !action) throw new Error("tool name and action are required");
+      const result = await fetchJSON(
+        `/v1/tools/${encodeURIComponent(name)}/actions/${encodeURIComponent(action)}`,
+        { method: "POST" },
+      );
+      return {
+        ok: true,
+        message: result?.message || "操作已完成。",
+        detail: result?.detail || {},
+        tools: await environmentTools(result?.tools ?? []),
+      };
     }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");
