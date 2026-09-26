@@ -1335,7 +1335,7 @@ func (s *Server) runningSyncJobs() int {
 func (s *Server) deleteSyncJob(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	job := s.jobs[id]
+	job := s.restoreSyncJobLocked(id)
 	if job == nil {
 		return errors.New("sync job not found")
 	}
@@ -1376,7 +1376,7 @@ func (s *Server) clearFinishedSyncJobs() int {
 func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 	startedAt := s.now().UTC()
 	s.mu.Lock()
-	job := s.jobs[id]
+	job := s.restoreSyncJobLocked(id)
 	if job == nil {
 		s.mu.Unlock()
 		return nil, errors.New("sync job not found")
@@ -1404,7 +1404,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 
 func (s *Server) publishSyncJob(id string) (*syncJob, error) {
 	s.mu.Lock()
-	source := s.jobs[id]
+	source := s.restoreSyncJobLocked(id)
 	if source == nil {
 		s.mu.Unlock()
 		return nil, errors.New("sync job not found")
