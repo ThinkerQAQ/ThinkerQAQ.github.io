@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	logFileName      = "bridge.log"
-	defaultLogTail   = 500
-	maxLogTail       = 2000
-	maxLogReadBytes  = 2 * 1024 * 1024
+	logFileName     = "bridge.log"
+	defaultLogTail  = 500
+	maxLogTail      = 2000
+	maxLogReadBytes = 2 * 1024 * 1024
 )
 
 type logEntry struct {
