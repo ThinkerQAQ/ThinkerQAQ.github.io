@@ -895,7 +895,7 @@ async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
     tab = tabs.find((candidate) => {
       try {
         const parsed = new URL(candidate.url || "");
-        return parsed.hostname === "search.google.com" && parsed.pathname.startsWith("/search-console");
+        return parsed.hostname === "search.google.com" && /^(?:\/u\/\d+)?\/search-console(?:\/|$)/u.test(parsed.pathname);
       } catch {
         return false;
       }
