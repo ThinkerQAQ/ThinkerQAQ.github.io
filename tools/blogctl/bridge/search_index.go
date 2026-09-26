@@ -736,16 +736,18 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 }
 
 func googleRequestCandidate(result searchInspectionResult) bool {
-	if strings.EqualFold(result.Verdict, "PASS") {
-		return false
-	}
-	if !strings.EqualFold(result.IndexingState, "INDEXING_ALLOWED") {
+	if strings.TrimSpace(result.URL) == "" || strings.EqualFold(result.Verdict, "PASS") {
 		return false
 	}
 	if strings.EqualFold(result.RobotsTxtState, "DISALLOWED") {
 		return false
 	}
-	return strings.TrimSpace(result.URL) != ""
+	switch strings.ToUpper(strings.TrimSpace(result.IndexingState)) {
+	case "BLOCKED_BY_META_TAG", "BLOCKED_BY_HTTP_HEADER", "BLOCKED_BY_ROBOTS_TXT":
+		return false
+	default:
+		return true
+	}
 }
 
 func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIndexRequestQueue, now time.Time) googleIndexRequestQueue {
