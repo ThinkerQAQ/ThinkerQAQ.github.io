@@ -439,6 +439,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if path == "v1/logs" {
+		switch request.Method {
+		case http.MethodGet:
+			s.handleLogsGet(response, request)
+			return
+		case http.MethodDelete:
+			s.handleLogsClear(response, request)
+			return
+		}
+	}
+
+
 	if path == "v1/search/index" && request.Method == http.MethodGet {
 		s.handleSearchIndexGet(response, request)
 		return
@@ -863,7 +875,16 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
+	if name == "logging" {
+		if err := applyLoggingConfig(normalized); err != nil {
+			writeAPIError(response, http.StatusBadRequest, "invalid_log_config", err.Error(), nil)
+			return
+		}
+	}
 	if err := saveBridgeConfig(normalized); err != nil {
+		if name == "logging" {
+			_ = applyLoggingConfig(current)
+		}
 		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法保存 BlogCTL 配置", nil)
 		return
 	}
@@ -871,6 +892,10 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 	s.config = normalized
 	s.httpClient = client
 	s.mu.Unlock()
+	if name == "logging" {
+		path, _ := resolvedLogFilePath(normalized)
+		slog.Info("logging configuration updated", "operation", "logging-config", "level", normalized.LogLevel, "path", path)
+	}
 	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "tools": toolRegistry(normalized)})
 }
 
