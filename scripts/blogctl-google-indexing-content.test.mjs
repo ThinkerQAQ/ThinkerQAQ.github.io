@@ -159,28 +159,44 @@ test("GSC probe accepts an already-open Chinese inspection result page without a
   assert.equal(result.hasRequestButton, true);
 });
 
-test("Request Indexing resume reuses the current matching result and clicks 请求编入索引", async () => {
+test("Request Indexing closes the success dialog so the next URL can continue", async () => {
   const url = "https://thinkerqaq.github.io/about/";
-  let clicked = 0;
+  let requested = 0;
+  let closed = 0;
   const harness = await createHarness({
     bodyText: `${url} 网址尚未收录到 Google 请求编入索引`,
+  });
+  const closeButton = new FakeElement("button", {
+    text: "关闭",
+    onClick() {
+      closed += 1;
+      harness.body.innerText = "Google Search Console";
+      harness.nodes.push(new FakeInputElement({
+        attrs: { "aria-label": "检查网址", role: "searchbox" },
+      }));
+    },
   });
   const requestButton = new FakeElement("button", {
     text: "请求编入索引",
     onClick() {
-      clicked += 1;
-      harness.body.innerText = `${url} 已提交编入索引请求`;
+      requested += 1;
+      harness.body.innerText = `${url} 已提交编入索引请求 关闭`;
+      harness.nodes.push(closeButton);
     },
   });
   harness.nodes.push(requestButton);
 
   const result = await harness.send({ type: "blogctl.google.index.request", url });
-  assert.equal(clicked, 1);
+  assert.equal(requested, 1);
+  assert.equal(closed, 1);
   assert.equal(result.ok, true);
   assert.equal(result.action, "requested_indexing");
   assert.equal(result.stage, "request_result");
-});
 
+  const probe = await harness.send({ type: "blogctl.google.index.probe" });
+  assert.equal(probe.ready, true);
+  assert.equal(probe.inspectionInput, true);
+});
 test("GSC overview probe activates the custom 检查网址 control and discovers the real input", async () => {
   const harness = await createHarness({ bodyText: "Google Search Console 概述" });
   const trigger = new FakeElement("button", {
@@ -221,4 +237,8 @@ test("Request Indexing start/resume preflight GSC before moving the bridge queue
   }
   assert.match(source, /request-queue\/pause/u);
   assert.match(source, /gsc queue pump failed/u);
+  assert.match(source, /const maxPrepareAttempts = 3/u);
+  assert.match(source, /gsc transient ui miss; retrying same url/u);
+  assert.match(source, /await delay\(1200\);/u);
+  assert.doesNotMatch(source, /requested_indexing.*includes\(action\)/u);
 });
