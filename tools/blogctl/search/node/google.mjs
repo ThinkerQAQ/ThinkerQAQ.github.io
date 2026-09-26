@@ -4,6 +4,8 @@ export const GOOGLE_SEARCH_CONSOLE_API = "https://www.googleapis.com/webmasters/
 export const GOOGLE_URL_INSPECTION_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
 export const GOOGLE_DEFAULT_SITEMAPS = ["sitemap-index.xml", "sitemap-all.txt"];
 export const GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT = 2000;
+export const GOOGLE_URL_INSPECTION_PER_MINUTE_SITE_LIMIT = 600;
+export const GOOGLE_URL_INSPECTION_DEFAULT_DELAY_MS = 110;
 
 function googleApiError(prefix, response, text) {
   return new Error(`${prefix} failed with HTTP ${response.status}: ${String(text).slice(0, 500)}`);
@@ -114,28 +116,60 @@ export function normalizeInspectionResult(inspectionUrl, response) {
   };
 }
 
+export function summarizeGoogleInspection(results) {
+  const summary = {
+    total: results.length,
+    verdicts: {},
+    coverageStates: {},
+    withSitemap: 0,
+    withoutSitemap: 0,
+    neverCrawled: 0,
+  };
+  for (const result of results) {
+    const verdict = result.verdict || "UNKNOWN";
+    const coverageState = result.coverageState || "UNKNOWN";
+    summary.verdicts[verdict] = (summary.verdicts[verdict] || 0) + 1;
+    summary.coverageStates[coverageState] = (summary.coverageStates[coverageState] || 0) + 1;
+    if (result.sitemap.length > 0) summary.withSitemap += 1;
+    else summary.withoutSitemap += 1;
+    if (!result.lastCrawlTime) summary.neverCrawled += 1;
+  }
+  return summary;
+}
+
 export async function auditGoogleUrls(urls, {
   siteUrl,
   origin = DEFAULT_SITE_ORIGIN,
   accessToken,
+  offset = 0,
   limit = GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT,
   languageCode = "en-US",
   fetchImpl = fetch,
   endpoint = GOOGLE_URL_INSPECTION_API,
+  requestDelayMs = GOOGLE_URL_INSPECTION_DEFAULT_DELAY_MS,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 } = {}) {
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error("Google audit offset must be a non-negative integer");
+  }
   if (!Number.isInteger(limit) || limit <= 0 || limit > GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT) {
     throw new Error(`Google audit limit must be between 1 and ${GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT}`);
   }
+  if (!Number.isInteger(requestDelayMs) || requestDelayMs < 0) {
+    throw new Error("Google audit request delay must be a non-negative integer");
+  }
+
   const siteOrigin = normalizeSiteOrigin(origin);
   const selected = [];
-  for (const rawUrl of urls) {
-    const url = assertSiteUrl(rawUrl, siteOrigin, "Inspection URL");
+  const end = Math.min(urls.length, offset + limit);
+  for (let index = offset; index < end; index += 1) {
+    const url = assertSiteUrl(urls[index], siteOrigin, "Inspection URL");
     selected.push(url.toString());
-    if (selected.length >= limit) break;
   }
 
   const results = [];
-  for (const inspectionUrl of selected) {
+  for (let index = 0; index < selected.length; index += 1) {
+    const inspectionUrl = selected[index];
     const response = await inspectGoogleUrl({
       siteUrl,
       inspectionUrl,
@@ -145,11 +179,22 @@ export async function auditGoogleUrls(urls, {
       endpoint,
     });
     results.push(normalizeInspectionResult(inspectionUrl, response));
+    if (requestDelayMs > 0 && index + 1 < selected.length) {
+      await sleep(requestDelayMs);
+    }
   }
+
+  const inspected = results.length;
+  const nextOffset = offset + inspected;
   return {
     siteUrl: normalizeSearchConsoleSiteUrl(siteUrl),
-    inspected: results.length,
+    offset,
+    limit,
+    inspected,
     totalAvailable: urls.length,
+    remaining: Math.max(0, urls.length - nextOffset),
+    nextOffset: nextOffset < urls.length ? nextOffset : null,
+    summary: summarizeGoogleInspection(results),
     results,
   };
 }

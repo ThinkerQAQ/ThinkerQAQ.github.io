@@ -173,29 +173,46 @@ export async function runSubmit(argv = [], {
 export async function runAudit(argv = [], {
   env = process.env,
   fetchImpl = fetch,
+  sleep,
 } = {}) {
   const provider = optionValue(argv, "--provider", "");
   if (provider !== "google") {
     throw new Error("Only --provider google is currently supported for search audit");
   }
+
   const distRoot = optionValue(argv, "--dist", "dist");
+  const urlsFile = optionValue(argv, "--urls-file", "");
   const output = optionValue(argv, "--output", "");
+  const offsetValue = optionValue(argv, "--offset", "0");
   const limitValue = optionValue(argv, "--limit", String(GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT));
+  const requestDelayValue = optionValue(argv, "--request-delay-ms", "110");
+  const offset = Number(offsetValue);
   const limit = Number(limitValue);
+  const requestDelayMs = Number(requestDelayValue);
+
+  if (!Number.isInteger(offset) || offset < 0) throw new Error("--offset must be a non-negative integer");
   if (!Number.isInteger(limit)) throw new Error("--limit must be an integer");
+  if (!Number.isInteger(requestDelayMs) || requestDelayMs < 0) {
+    throw new Error("--request-delay-ms must be a non-negative integer");
+  }
 
   const siteUrl = normalizeSearchConsoleSiteUrl(siteUrlFromArgs(argv, env));
   const origin = siteUrl.startsWith("sc-domain:")
     ? `https://${siteUrl.slice("sc-domain:".length)}`
     : new URL(siteUrl).origin;
-  const inventory = await loadSearchInventory({ distRoot, expectedOrigin: origin });
+  const urls = urlsFile
+    ? await readUrlFile(urlsFile, { expectedOrigin: origin })
+    : (await loadSearchInventory({ distRoot, expectedOrigin: origin })).urlList;
   const accessToken = await googleAccessTokenOrSkip({ env, optional: false, fetchImpl });
-  const report = await auditGoogleUrls(inventory.urlList, {
+  const report = await auditGoogleUrls(urls, {
     siteUrl,
     origin,
     accessToken,
+    offset,
     limit,
+    requestDelayMs,
     fetchImpl,
+    sleep,
   });
 
   if (output) {
@@ -204,8 +221,12 @@ export async function runAudit(argv = [], {
     await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
     log("info", "google-search-console-audit", "written", {
       output: outputPath,
+      offset: report.offset,
       inspected: report.inspected,
       totalAvailable: report.totalAvailable,
+      remaining: report.remaining,
+      nextOffset: report.nextOffset,
+      summary: report.summary,
     });
   } else {
     console.log(JSON.stringify(report, null, 2));
