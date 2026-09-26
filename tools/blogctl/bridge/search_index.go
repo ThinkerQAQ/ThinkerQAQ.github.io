@@ -236,6 +236,11 @@ func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command
 	cmd := exec.CommandContext(ctx, node, script, command)
 	cmd.Dir = engineRoot
 	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env,
+		"INDEXNOW_ENDPOINT="+indexNowEndpoint(config),
+		"INDEXNOW_KEY="+indexNowKey(config),
+		"INDEXNOW_KEY_LOCATION="+indexNowKeyLocation(config),
+	)
 	if credential := googleSearchConsoleServiceJSON(config); credential != "" {
 		cmd.Env = append(cmd.Env, "GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON="+credential)
 	}
