@@ -54,11 +54,19 @@ Chrome 已登录的 Search Console 页面
 
 ## 3. URL Inventory
 
-唯一默认来源：
+默认 URL 来源：
 
 ```text
 https://thinkerqaq.github.io/sitemap-all.txt
 ```
+
+构建时同时生成：
+
+```text
+https://thinkerqaq.github.io/sitemap-inventory.json
+```
+
+其中保存每个索引 URL 对应静态 HTML 的 SHA-256 内容指纹，用于判断 URL 内容是否变化。
 
 读取后执行：
 
@@ -68,49 +76,91 @@ https://thinkerqaq.github.io/sitemap-all.txt
 4. 限制 origin 为 `https://thinkerqaq.github.io`；
 5. 去掉 hash；
 6. 去重；
-7. 稳定排序。
+7. 稳定排序；
+8. 校验 `sitemap-inventory.json` 的 URL 和 SHA-256。
 
-Bridge 持久化：
+Bridge UI 状态只保存 inventory 摘要；Bing 上一次成功提交的完整 URL + fingerprint baseline 单独持久化到：
 
-```json
-{
-  "source": "https://thinkerqaq.github.io/sitemap-all.txt",
-  "origin": "https://thinkerqaq.github.io",
-  "fetchedAt": "...",
-  "total": 2750,
-  "urls": []
-}
+```text
+<BlogCTL config dir>/bing-indexnow-snapshot.json
 ```
+
+如果 fingerprint manifest 暂时不存在，增量模式采用保守策略：已有 URL 视为可能变化，避免漏提；manifest 部署后才进入精确内容增量。
 
 刷新失败时不得覆盖上一份成功 inventory。
 
 ## 4. Bing
 
-复用已有 IndexNow 实现：
+默认行为改为 **增量提交**，同时保留手动 **全量重新提交**。
+
+增量 diff：
 
 ```text
-inventory.urls
-→ prepareIndexNowPayload
-→ https://www.bing.com/indexnow
-→ 200 / 202
+current sitemap-all.txt
++ current sitemap-inventory.json
++ previous successful Bing snapshot
+        ↓
+added   = current URL - previous URL
+changed = URL 相同但 SHA-256 不同
+deleted = previous URL - current URL
+        ↓
+IndexNow(added + changed + deleted)
 ```
 
-当前 IndexNow 单请求上限允许覆盖当前约 2750 URL；实现仍保留 batch 能力。
+删除 URL 也提交给 IndexNow，使 Bing 重新抓取并观察当前 404/410 状态。
+
+如果没有历史 snapshot：
+
+```text
+第一次增量提交 = 当前全部 URL
+```
+
+如果 fingerprint manifest 缺失：
+
+```text
+已有 URL 保守视为 changed
+```
+
+这样不会因无法判断内容变化而漏掉更新。
+
+全量模式：
+
+```text
+当前全部 URL
++ 自上次 snapshot 后删除的 URL
+→ Bing IndexNow
+```
+
+只有 IndexNow 操作成功后才更新 baseline；失败时保持旧 snapshot，使下一次可以重试同一批变化。
 
 Bridge endpoint：
 
 ```http
 POST /v1/search/index/bing/submit
+
+{
+  "mode": "incremental"
+}
 ```
 
-持久化：
+或：
 
-- state；
-- startedAt；
-- finishedAt；
-- URL count；
-- HTTP status；
-- error。
+```json
+{
+  "mode": "full"
+}
+```
+
+UI 显示：
+
+- 实际提交 URL 数；
+- added；
+- changed；
+- deleted；
+- unchanged；
+- submission mode；
+- HTTP status。
+
 
 ## 5. Google Sitemap
 
@@ -386,10 +436,13 @@ Tab：
 ### Bing / IndexNow
 
 - state；
-- count；
+- mode；
+- 实际提交 count；
+- added / changed / deleted / unchanged；
 - HTTP；
 - 上次提交；
-- 全量提交按钮。
+- 默认「提交增量」；
+- 手动「全量重新提交」。
 
 ### Google / Sitemap
 
@@ -435,6 +488,9 @@ Google Web UI automation 不读取 Google Cookie。
 Node：
 
 - remote inventory normalize；
+- fingerprint manifest generation / validation；
+- incremental added / changed / deleted diff；
+- missing fingerprint conservative fallback；
 - cross-origin reject；
 - bridge inventory；
 - credential-presence response 不泄漏 secret；
