@@ -186,22 +186,25 @@ func New(token string) (*Server, error) {
 		return nil, err
 	}
 	taskJobs, taskJobOrder := loadDurableTaskStore()
+	if normalizeRecoveredDurableTaskJobs(taskJobs, time.Now()) {
+		// Persisted below after Server construction.
+	}
+	syncJobs, syncJobOrder := restoreSyncJobsFromDurable(taskJobs, taskJobOrder)
 	server := &Server{
 		token:        token,
 		now:          time.Now,
 		httpClient:   client,
 		config:       config,
 		sessions:     make(map[string]platformSession),
-		jobs:         make(map[string]*syncJob),
+		jobs:         syncJobs,
+		jobOrder:     syncJobOrder,
 		taskJobs:     taskJobs,
 		taskJobOrder: taskJobOrder,
 		browserOps:   make(map[string]*browserOperation),
 	}
-	if normalizeRecoveredDurableTaskJobs(server.taskJobs, server.now()) {
-		server.mu.Lock()
-		_ = server.persistDurableTasksLocked()
-		server.mu.Unlock()
-	}
+	server.mu.Lock()
+	_ = server.persistDurableTasksLocked()
+	server.mu.Unlock()
 	recoverSearchTasksAfterRestart(server)
 	return server, nil
 }
