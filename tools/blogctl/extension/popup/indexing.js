@@ -180,7 +180,7 @@
     elements.googleInspect.textContent = inspectionComplete ? "Inspection 已完成" : "检查下一批";
 
     const queueState = String(queue.state || "idle");
-    elements.googleRequestStart.disabled = !inspectionReady || requestPendingCount === 0 || ["running"].includes(queueState) || state.busy.has("request");
+    elements.googleRequestStart.disabled = !inspectionReady || requestPendingCount === 0 || ["running", "paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
     elements.googleRequestPause.disabled = queueState !== "running" || state.busy.has("request");
     elements.googleRequestResume.disabled = !["paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
     elements.googleOpen.disabled = state.busy.has("gsc");
