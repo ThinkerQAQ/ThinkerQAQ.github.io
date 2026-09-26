@@ -5,15 +5,29 @@
   globalThis.__BLOGCTL_GOOGLE_INDEXING_CONTENT__ = true;
 
   const TEXT = {
+    inspect: [
+      "inspect any url",
+      "inspect url",
+      "url inspection",
+      "检查网址",
+      "检查 url",
+      "网址检查",
+    ],
     indexed: [
       "url is on google",
       "网址在 google 上",
       "网址已在 google 上",
+      "网址已收录到 google",
+      "网页已收录到 google",
+      "已编入索引",
     ],
     notIndexed: [
       "url is not on google",
       "网址不在 google 上",
       "网址未在 google 上",
+      "网址尚未收录到 google",
+      "网页尚未收录到 google",
+      "此网页未编入索引",
     ],
     request: [
       "request indexing",
@@ -101,6 +115,7 @@
       ...document.querySelectorAll("textarea"),
       ...document.querySelectorAll('[role="textbox"]'),
       ...document.querySelectorAll('[role="combobox"]'),
+      ...document.querySelectorAll('[role="searchbox"]'),
       ...document.querySelectorAll('[contenteditable="true"]'),
     ];
     return [...new Set(nodes)].filter(visible);
@@ -128,6 +143,64 @@
 
     if (ranked[0]?.score > 0) return ranked[0].input;
     return ranked[0]?.input || null;
+  }
+
+  function inspectionTriggerCandidates() {
+    const nodes = [
+      ...document.querySelectorAll("button"),
+      ...document.querySelectorAll('[role="button"]'),
+      ...document.querySelectorAll('[role="search"]'),
+      ...document.querySelectorAll('[tabindex="0"]'),
+      ...document.querySelectorAll("[aria-label]"),
+      ...document.querySelectorAll("[title]"),
+    ];
+    return [...new Set(nodes)].filter(visible);
+  }
+
+  function findInspectionTrigger() {
+    const ranked = inspectionTriggerCandidates()
+      .filter((node) => !textMatches(node, TEXT.request))
+      .map((node) => {
+        const haystack = normalizedText([
+          node?.textContent,
+          node?.getAttribute?.("aria-label"),
+          node?.getAttribute?.("placeholder"),
+          node?.getAttribute?.("title"),
+          node?.getAttribute?.("data-tooltip"),
+        ].filter(Boolean).join(" "));
+        let score = 0;
+        if (haystack.includes("inspect")) score += 7;
+        if (haystack.includes("url")) score += 5;
+        if (haystack.includes("检查")) score += 7;
+        if (haystack.includes("网址")) score += 5;
+        if (haystack.includes("search console")) score += 1;
+        return { node, score };
+      })
+      .filter((entry) => entry.score >= 7)
+      .sort((a, b) => b.score - a.score);
+    return ranked[0]?.node || null;
+  }
+
+  async function ensureInspectionInput(timeoutMs = 30000) {
+    let input = findInspectionInput();
+    if (input) return input;
+
+    const startedAt = Date.now();
+    const trigger = await waitFor(findInspectionTrigger, Math.min(5000, timeoutMs), 250);
+    if (trigger) {
+      try {
+        trigger.click();
+        trigger.focus?.();
+        emit("info", "gsc inspection trigger activated", pageDiagnostic());
+      } catch (error) {
+        emit("warn", "gsc inspection trigger activation failed", { error: error?.message || String(error) });
+      }
+      await sleep(200);
+    }
+
+    const remaining = Math.max(0, timeoutMs - (Date.now() - startedAt));
+    if (remaining === 0) return findInspectionInput();
+    return waitFor(findInspectionInput, remaining, 300);
   }
 
   function setInputValue(input, value) {
@@ -245,26 +318,36 @@
   }
 
   function pageDiagnostic() {
+    const inspectionState = detectPageState("")?.kind || "";
     return {
       hostname: location.hostname,
       pathname: location.pathname,
       title: document.title || "",
       controls: inspectionControls().length,
+      hasInspectionTrigger: Boolean(findInspectionTrigger()),
       hasRequestButton: Boolean(findRequestIndexingButton()),
+      inspectionState,
     };
   }
 
   async function probe() {
     emit("debug", "gsc probe started", pageDiagnostic());
-    const input = await waitFor(findInspectionInput, 15000, 300);
-    const diagnostic = pageDiagnostic();
+    let input = findInspectionInput();
+    let diagnostic = pageDiagnostic();
+    let ready = Boolean(input || diagnostic.hasRequestButton || diagnostic.inspectionState);
+    if (!ready) {
+      input = await ensureInspectionInput(15000);
+      diagnostic = pageDiagnostic();
+      ready = Boolean(input || diagnostic.hasRequestButton || diagnostic.inspectionState);
+    }
     emit(
-      input ? "info" : "warn",
-      input ? "gsc inspection control ready" : "gsc inspection control missing",
+      ready ? "info" : "warn",
+      ready ? "gsc inspection surface ready" : "gsc inspection surface missing",
       diagnostic,
     );
     return {
-      ok: Boolean(input),
+      ok: ready,
+      ready,
       inspectionInput: Boolean(input),
       ...diagnostic,
     };
@@ -273,7 +356,25 @@
   async function inspectURL(url) {
     emit("info", "gsc ui inspection started", { url, ...pageDiagnostic() });
 
-    const input = await waitFor(findInspectionInput, 30000, 300);
+    const existingState = detectPageState(url);
+    if (existingState) {
+      if (existingState.kind === "rate_limited") {
+        emit("warn", "gsc existing inspection page is rate limited", { url });
+        return { ok: false, action: "rate_limited", stage: "inspection_result_reused", url, error: "Google Search Console returned too many requests" };
+      }
+      if (existingState.kind === "quota_blocked") {
+        emit("warn", "gsc existing inspection page is quota blocked", { url });
+        return { ok: false, action: "quota_blocked", stage: "inspection_result_reused", url, error: "Google Search Console quota was exhausted" };
+      }
+      if (existingState.kind === "failed") {
+        emit("error", "gsc existing inspection page contains an error", { url });
+        return { ok: false, action: "failed", stage: "inspection_result_reused", url, error: "Google Search Console returned an inspection error" };
+      }
+      emit("info", "gsc existing inspection result reused", { url, action: existingState.kind });
+      return { ok: true, action: existingState.kind, stage: "inspection_result_reused", url };
+    }
+
+    const input = await ensureInspectionInput(30000);
     if (!input) {
       const diagnostic = pageDiagnostic();
       emit("error", "gsc inspection control not found", { url, ...diagnostic });
