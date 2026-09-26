@@ -72,7 +72,6 @@ func TestBuildGoogleRequestQueueNeverAutoRequeuesRequestedURL(t *testing.T) {
 	}
 }
 
-
 func TestSearchIndexWriteRequiresBridgeAuthorization(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
