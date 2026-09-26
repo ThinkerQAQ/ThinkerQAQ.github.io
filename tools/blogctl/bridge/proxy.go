@@ -52,7 +52,7 @@ func removeEnvironmentKeys(values []string, names ...string) []string {
 func processEnvironmentForConfig(config bridgeConfig) ([]string, error) {
 	env := removeEnvironmentKeys(
 		os.Environ(),
-		"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "NODE_USE_ENV_PROXY",
+		"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "NODE_USE_ENV_PROXY", "BLOGCTL_PROXY_REQUIRED",
 	)
 	if !config.ProxyEnabled {
 		return env, nil
@@ -67,6 +67,7 @@ func processEnvironmentForConfig(config bridgeConfig) ([]string, error) {
 		"ALL_PROXY="+address,
 		"NO_PROXY=localhost,127.0.0.1,::1,[::1]",
 		"NODE_USE_ENV_PROXY=1",
+		"BLOGCTL_PROXY_REQUIRED=1",
 	)
 	return env, nil
 }
