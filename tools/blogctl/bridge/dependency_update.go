@@ -90,14 +90,21 @@ func dependencyVersion(config bridgeConfig, name string) (string, string) {
 		return "", strings.TrimSpace(output.String())
 	}
 	raw := strings.TrimSpace(output.String())
+	fields := strings.Fields(raw)
 	switch name {
 	case "node":
-		return strings.TrimPrefix(strings.Fields(raw)[0], "v"), raw
+		if len(fields) > 0 {
+			return strings.TrimPrefix(fields[0], "v"), raw
+		}
 	case "npm":
-		return strings.Fields(raw)[0], raw
+		if len(fields) > 0 {
+			return fields[0], raw
+		}
 	case "git":
 		value := strings.TrimSpace(strings.TrimPrefix(raw, "git version"))
-		return strings.Fields(value)[0], raw
+		if values := strings.Fields(value); len(values) > 0 {
+			return values[0], raw
+		}
 	case "java":
 		for _, line := range strings.Split(raw, "\n") {
 			line = strings.TrimSpace(line)
@@ -213,12 +220,8 @@ func javaVendorAndMajor(config bridgeConfig) (string, int, error) {
 	return vendor, major, nil
 }
 
-func javaWingetPackage(config bridgeConfig) (string, error) {
-	vendor, major, err := javaVendorAndMajor(config)
-	if err != nil {
-		return "", err
-	}
-	lower := strings.ToLower(vendor)
+func javaWingetPackageForVendor(vendor string, major int) (string, error) {
+	lower := strings.ToLower(strings.TrimSpace(vendor))
 	switch {
 	case strings.Contains(lower, "adoptium"), strings.Contains(lower, "temurin"):
 		return fmt.Sprintf("EclipseAdoptium.Temurin.%d.JDK", major), nil
@@ -231,6 +234,22 @@ func javaWingetPackage(config bridgeConfig) (string, error) {
 	default:
 		return "", fmt.Errorf("当前 Java vendor %q 未配置安全的自动更新映射；不会擅自切换 JDK 发行版", vendor)
 	}
+}
+
+func javaWingetPackage(config bridgeConfig) (string, error) {
+	vendor, major, err := javaVendorAndMajor(config)
+	if err != nil {
+		return "", err
+	}
+	return javaWingetPackageForVendor(vendor, major)
+}
+
+func compactDependencyOutput(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) <= 500 {
+		return value
+	}
+	return value[len(value)-500:]
 }
 
 func updateDependency(ctx context.Context, config bridgeConfig, name string) (dependencyUpdateResult, error) {
@@ -269,7 +288,7 @@ func updateDependency(ctx context.Context, config bridgeConfig, name string) (de
 	if err != nil {
 		return result, err
 	}
-	result.Output = strings.TrimSpace(output)
+	result.Output = compactDependencyOutput(output)
 	result.Current, _ = dependencyVersion(config, name)
 	result.RestartNeeded = result.Current == result.Previous
 	return result, nil
