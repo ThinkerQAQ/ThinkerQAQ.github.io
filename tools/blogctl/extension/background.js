@@ -1139,24 +1139,71 @@ async function googleSearchConsoleProbe({ active = false } = {}) {
   }
 }
 
+async function googleProbeTab(tab) {
+  const result = await chrome.tabs.sendMessage(tab.id, { type: "blogctl.google.index.probe" });
+  await writeBridgeLog(
+    result?.inspectionInput ? "info" : "warn",
+    "gsc probe result",
+    {
+      inspectionInput: Boolean(result?.inspectionInput),
+      pathname: result?.pathname || "",
+      title: result?.title || "",
+      controls: Number(result?.controls || 0),
+    },
+  );
+  return result;
+}
+
 async function googleRequestIndexingURL(url) {
   let tab;
   try {
-    tab = await googleSearchConsoleTab({ active: true, reset: true });
+    // Reuse the already-open GSC SPA when it is healthy. A full reload for
+    // every URL is slow and was also racing the page's asynchronous render.
+    tab = await googleSearchConsoleTab({ active: true, reset: false });
+    let probe = await googleProbeTab(tab);
+    if (!probe?.inspectionInput) {
+      await writeBridgeLog("warn", "gsc page not ready; resetting once", { url });
+      tab = await googleSearchConsoleTab({ active: true, reset: true });
+      probe = await googleProbeTab(tab);
+    }
+    if (!probe?.inspectionInput) {
+      return {
+        ok: false,
+        action: "ui_changed",
+        stage: "inspection_control",
+        url,
+        error: "Google Search Console is open, but the URL inspection control is unavailable",
+      };
+    }
   } catch (error) {
-    return { ok: false, action: "not_logged_in", url, error: errorMessage(error) };
+    await writeBridgeLog("error", "gsc page preparation failed", { url, error: errorMessage(error) });
+    return { ok: false, action: "not_logged_in", stage: "page_prepare", url, error: errorMessage(error) };
   }
+
   try {
+    await writeBridgeLog("info", "gsc request workflow started", { url });
     const result = await chrome.tabs.sendMessage(tab.id, {
       type: "blogctl.google.index.request",
       url,
     });
     if (!result || typeof result !== "object") {
-      return { ok: false, action: "failed", url, error: "Google Search Console returned no result" };
+      await writeBridgeLog("error", "gsc request workflow returned no result", { url });
+      return { ok: false, action: "failed", stage: "workflow_result", url, error: "Google Search Console returned no result" };
     }
+    await writeBridgeLog(
+      result.ok ? "info" : "error",
+      "gsc request workflow finished",
+      {
+        url,
+        action: String(result.action || ""),
+        stage: String(result.stage || ""),
+        error: String(result.error || ""),
+      },
+    );
     return { ...result, url };
   } catch (error) {
-    return { ok: false, action: "failed", url, error: errorMessage(error) };
+    await writeBridgeLog("error", "gsc request workflow exception", { url, error: errorMessage(error) });
+    return { ok: false, action: "failed", stage: "workflow_exception", url, error: errorMessage(error) };
   }
 }
 
@@ -1196,10 +1243,12 @@ async function pumpGoogleIndexQueue() {
     broadcastIndexProgress(index);
     const result = await googleRequestIndexingURL(item.url);
     const action = String(result?.action || "failed");
+    const stage = String(result?.stage || "").trim();
+    const errorText = String(result?.error || "").trim();
     const updated = await fetchJSON("/v1/search/index/google/request-queue/result", jsonOptions("POST", {
       url: item.url,
       result: action,
-      error: String(result?.error || ""),
+      error: stage && errorText ? `[${stage}] ${errorText}` : errorText,
     }));
     broadcastIndexProgress(updated?.index ?? {});
 
