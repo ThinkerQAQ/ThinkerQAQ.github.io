@@ -6,7 +6,7 @@ body { margin: 0; min-width: 0; width: 100%; background: #f7f7f8; }
 .brand-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 h1 { margin: 0; font-size: 17px; line-height: 1.3; } h1 span { color: #6b7280; font-size: 12px; font-weight: 600; }
 .header p, .card-hint { margin: 4px 0 0; color: #6b7280; font-size: 12px; line-height: 1.5; }
-.tabs { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px; padding: 4px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+.tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 12px; padding: 4px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
 .tab { padding: 8px 6px; background: transparent; color: #6b7280; font-size: 12px; font-weight: 700; } .tab.active { background: #111827; color: #fff; }
 @media (max-width: 620px) { .tabs { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 390px) { .tabs { grid-template-columns: repeat(2, 1fr); } .app { padding: 10px; } }
@@ -128,3 +128,9 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .index-action-row .primary, .index-action-row .secondary { width: auto; }
 @media (max-width: 520px) { .index-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 360px) { .index-stat-grid { grid-template-columns: 1fr; } }
+
+.environment-large-card { margin-top: 9px; background: #fff; }
+.environment-embedded-tool { gap: 10px; }
+.environment-nested-tools { padding-top: 2px; }
+.environment-nested-tools .tool-card { background: #f9fafb; }
+.environment-nested-tools .tool-card + .tool-card { margin-top: 0; }
