@@ -240,13 +240,14 @@ func (s *Server) taskViews() []taskJobView {
 	}
 	s.mu.Unlock()
 
-	views := make([]taskJobView, 0, len(durableOrder)+len(s.jobs))
+	syncJobs := s.syncJobs()
+	views := make([]taskJobView, 0, len(durableOrder)+len(syncJobs))
 	for _, id := range durableOrder {
 		if job := durable[id]; job != nil {
 			views = append(views, durableTaskView(job))
 		}
 	}
-	for _, job := range s.syncJobs() {
+	for _, job := range syncJobs {
 		views = append(views, syncTaskView(job))
 	}
 	sort.SliceStable(views, func(i, j int) bool {
@@ -345,7 +346,7 @@ func (s *Server) clearFinishedDurableTaskJobs() int {
 	removed := 0
 	for _, id := range s.taskJobOrder {
 		job := s.taskJobs[id]
-		if job != nil && (job.State == "running" || job.State == "queued") {
+		if job != nil && (job.State == "running" || job.State == "queued" || job.State == "paused") {
 			kept = append(kept, id)
 			continue
 		}
