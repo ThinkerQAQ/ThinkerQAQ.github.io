@@ -137,17 +137,17 @@ export async function fetchRemoteInventory({
 
   let fingerprints = {};
   let resolvedFingerprintSource = "";
+  let fingerprintResponse = null;
   try {
-    const fingerprintResponse = await fetchImpl(fingerprintURL, {
+    fingerprintResponse = await fetchImpl(fingerprintURL, {
       headers: { accept: "application/json,*/*;q=0.8" },
     });
-    if (fingerprintResponse.ok) {
-      fingerprints = normalizeFingerprintManifest(await fingerprintResponse.text(), urls, siteOrigin);
-      resolvedFingerprintSource = fingerprintURL;
-    }
   } catch {
-    // The manifest is additive. Before the feature is deployed, incremental
-    // Bing submission falls back to conservative changed detection.
+    // Network failure is tolerated because the fingerprint manifest is additive.
+  }
+  if (fingerprintResponse?.ok) {
+    fingerprints = normalizeFingerprintManifest(await fingerprintResponse.text(), urls, siteOrigin);
+    resolvedFingerprintSource = fingerprintURL;
   }
 
   return {
