@@ -210,6 +210,43 @@ func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	}
 }
 
+func TestEnvironmentIntegrationChecksUseSearchBridge(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := []string{}
+	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, _ map[string]any) (json.RawMessage, error) {
+		commands = append(commands, command)
+		switch command {
+		case "bing-check":
+			return json.RawMessage("{\"endpoint\":\"https://www.bing.com/indexnow\",\"keyLocation\":\"https://thinkerqaq.github.io/key.txt\",\"keyFileStatus\":200}"), nil
+		case "google-check":
+			return json.RawMessage("{\"siteUrl\":\"https://thinkerqaq.github.io/\",\"permissionLevel\":\"siteFullUser\",\"httpStatus\":200}"), nil
+		default:
+			t.Fatalf("unexpected command %q", command)
+			return nil, nil
+		}
+	}
+
+	for _, path := range []string{
+		"/v1/tools/bing-indexnow/actions/check",
+		"/v1/tools/google-search-console-api/actions/check",
+	} {
+		request := httptest.NewRequest(http.MethodPost, path, nil)
+		setExtensionAuth(request, "token")
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body=%s", path, response.Code, response.Body.String())
+		}
+	}
+	if len(commands) != 2 || commands[0] != "bing-check" || commands[1] != "google-check" {
+		t.Fatalf("commands = %#v", commands)
+	}
+}
+
 func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	t.Setenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", "{\"private_key\":\"TOP-SECRET\"}")
