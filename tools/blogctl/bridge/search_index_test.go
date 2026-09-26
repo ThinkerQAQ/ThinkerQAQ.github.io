@@ -97,8 +97,11 @@ func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 	state := loadSearchIndexState()
-	if state.Inventory.Total != 2 || len(state.Inventory.URLs) != 2 {
+	if state.Inventory.Total != 2 {
 		t.Fatalf("inventory = %#v", state.Inventory)
+	}
+	if len(state.Inventory.URLs) != 0 || len(state.Inventory.Fingerprints) != 0 {
+		t.Fatalf("main search state should keep only inventory summary: %#v", state.Inventory)
 	}
 }
 
