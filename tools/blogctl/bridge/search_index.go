@@ -83,6 +83,7 @@ type googleIndexRequestItem struct {
 }
 
 type googleIndexRequestQueue struct {
+	JobID             string                   `json:"jobId,omitempty"`
 	State             string                   `json:"state"`
 	CreatedAt         string                   `json:"createdAt,omitempty"`
 	UpdatedAt         string                   `json:"updatedAt,omitempty"`
