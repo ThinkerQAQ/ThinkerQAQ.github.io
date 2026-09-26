@@ -734,7 +734,15 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 		writeError(response, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
+	var job *durableTaskJob
+	if queue.JobID != "" {
+		job, _ = s.updateGoogleRequestTaskFromQueue(*queue)
+	}
+	payload := map[string]any{"ok": true, "index": state}
+	if job != nil {
+		payload["job"] = durableTaskView(job)
+	}
+	writeJSON(response, http.StatusOK, payload)
 }
 
 func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWriter, request *http.Request, action string) {
@@ -764,6 +772,10 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 		}
 		queue.State = "running"
 		queue.LastError = ""
+		if _, err := s.ensureGoogleRequestTask(queue); err != nil {
+			writeError(response, err)
+			return
+		}
 	case "pause":
 		queue.State = "paused"
 	default:
@@ -775,5 +787,13 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 		writeError(response, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
+	var job *durableTaskJob
+	if queue.JobID != "" {
+		job, _ = s.updateGoogleRequestTaskFromQueue(*queue)
+	}
+	payload := map[string]any{"ok": true, "index": state}
+	if job != nil {
+		payload["job"] = durableTaskView(job)
+	}
+	writeJSON(response, http.StatusOK, payload)
 }
