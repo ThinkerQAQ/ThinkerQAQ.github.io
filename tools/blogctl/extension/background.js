@@ -10,6 +10,14 @@ const GOOGLE_SEARCH_CONSOLE_URL = `https://search.google.com/search-console?reso
 let bridgeSession = null;
 let googleSearchConsoleTabId = null;
 let googleIndexPumpPromise = null;
+let googleSearchConsoleStatus = {
+  known: false,
+  loggedIn: false,
+  ready: false,
+  tabId: null,
+  error: "",
+  code: "",
+};
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
@@ -1062,26 +1070,37 @@ async function waitForTabLoaded(tabId, timeoutMs = 20000) {
   throw new Error("browser publish page load timed out");
 }
 
+function googleSearchConsoleTabCandidate(tab) {
+  try {
+    const parsed = new URL(tab?.url || "");
+    if (parsed.hostname !== "search.google.com" || !/^(?:\/u\/\d+)?\/search-console(?:\/|$)/u.test(parsed.pathname)) {
+      return { matches: false, property: false };
+    }
+    const resourceID = String(parsed.searchParams.get("resource_id") || "").trim();
+    return {
+      matches: true,
+      property: !resourceID || resourceID === GOOGLE_SEARCH_CONSOLE_PROPERTY,
+    };
+  } catch {
+    return { matches: false, property: false };
+  }
+}
+
 async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
   await ensureBrowserProxyPolicy();
   let tab = null;
   if (googleSearchConsoleTabId !== null) {
     try {
-      tab = await chrome.tabs.get(googleSearchConsoleTabId);
+      const current = await chrome.tabs.get(googleSearchConsoleTabId);
+      if (googleSearchConsoleTabCandidate(current).property) tab = current;
+      else googleSearchConsoleTabId = null;
     } catch {
       googleSearchConsoleTabId = null;
     }
   }
   if (!tab) {
     const tabs = await chrome.tabs.query({});
-    tab = tabs.find((candidate) => {
-      try {
-        const parsed = new URL(candidate.url || "");
-        return parsed.hostname === "search.google.com" && /^(?:\/u\/\d+)?\/search-console(?:\/|$)/u.test(parsed.pathname);
-      } catch {
-        return false;
-      }
-    }) || null;
+    tab = tabs.find((candidate) => googleSearchConsoleTabCandidate(candidate).property) || null;
   }
   if (!tab) {
     tab = await chrome.tabs.create({ url: GOOGLE_SEARCH_CONSOLE_URL, active });
@@ -1118,66 +1137,103 @@ async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
   return chrome.tabs.get(googleSearchConsoleTabId);
 }
 
-async function googleSearchConsoleProbe({ active = false } = {}) {
-  try {
-    const tab = await googleSearchConsoleTab({ active, reset: false });
-    const result = await chrome.tabs.sendMessage(tab.id, { type: "blogctl.google.index.probe" });
-    return {
-      loggedIn: Boolean(result?.ok && result?.inspectionInput),
-      known: true,
-      tabId: tab.id,
-      error: result?.inspectionInput ? "" : "未找到 URL Inspection 输入框",
-    };
-  } catch (error) {
-    return {
-      loggedIn: false,
-      known: true,
-      tabId: googleSearchConsoleTabId,
-      error: errorMessage(error),
-      code: error?.code || "",
-    };
-  }
+function updateGoogleSearchConsoleStatus(status = {}) {
+  googleSearchConsoleStatus = {
+    known: true,
+    loggedIn: Boolean(status.loggedIn),
+    ready: Boolean(status.ready ?? status.loggedIn),
+    tabId: status.tabId ?? googleSearchConsoleTabId,
+    error: String(status.error || ""),
+    code: String(status.code || ""),
+  };
+  chrome.runtime.sendMessage({
+    type: "blogctl.index.gsc",
+    google: googleSearchConsoleStatus,
+  }).catch(() => {});
+  return googleSearchConsoleStatus;
 }
 
 async function googleProbeTab(tab) {
   const result = await chrome.tabs.sendMessage(tab.id, { type: "blogctl.google.index.probe" });
+  const ready = Boolean(result?.ok && (result?.ready || result?.inspectionInput || result?.hasRequestButton || result?.inspectionState));
   await writeBridgeLog(
-    result?.inspectionInput ? "info" : "warn",
+    ready ? "info" : "warn",
     "gsc probe result",
     {
+      ready,
       inspectionInput: Boolean(result?.inspectionInput),
+      inspectionState: String(result?.inspectionState || ""),
+      hasInspectionTrigger: Boolean(result?.hasInspectionTrigger),
+      hasRequestButton: Boolean(result?.hasRequestButton),
       pathname: result?.pathname || "",
       title: result?.title || "",
       controls: Number(result?.controls || 0),
     },
   );
-  return result;
+  return { ...result, ready };
+}
+
+async function ensureGoogleSearchConsoleReady({ active = false, allowReset = true } = {}) {
+  let tab;
+  try {
+    tab = await googleSearchConsoleTab({ active, reset: false });
+    let probe = await googleProbeTab(tab);
+    if (!probe?.ready && allowReset) {
+      await writeBridgeLog("warn", "gsc surface not ready; resetting once", {
+        pathname: probe?.pathname || "",
+        title: probe?.title || "",
+      });
+      tab = await googleSearchConsoleTab({ active, reset: true });
+      probe = await googleProbeTab(tab);
+    }
+    if (!probe?.ready) {
+      const error = new Error("Google Search Console 页面已打开，但 URL Inspection 界面仍未就绪");
+      error.code = "google_search_console_not_ready";
+      throw error;
+    }
+    const status = updateGoogleSearchConsoleStatus({
+      loggedIn: true,
+      ready: true,
+      tabId: tab.id,
+    });
+    return { tab, probe, status };
+  } catch (error) {
+    const status = updateGoogleSearchConsoleStatus({
+      loggedIn: false,
+      ready: false,
+      tabId: googleSearchConsoleTabId,
+      error: errorMessage(error),
+      code: error?.code || "google_search_console_not_ready",
+    });
+    error.googleStatus = status;
+    throw error;
+  }
+}
+
+async function googleSearchConsoleProbe({ active = false } = {}) {
+  try {
+    const prepared = await ensureGoogleSearchConsoleReady({ active, allowReset: false });
+    return prepared.status;
+  } catch (error) {
+    return error.googleStatus || googleSearchConsoleStatus;
+  }
 }
 
 async function googleRequestIndexingURL(url) {
   let tab;
   try {
-    // Reuse the already-open GSC SPA when it is healthy. A full reload for
-    // every URL is slow and was also racing the page's asynchronous render.
-    tab = await googleSearchConsoleTab({ active: true, reset: false });
-    let probe = await googleProbeTab(tab);
-    if (!probe?.inspectionInput) {
-      await writeBridgeLog("warn", "gsc page not ready; resetting once", { url });
-      tab = await googleSearchConsoleTab({ active: true, reset: true });
-      probe = await googleProbeTab(tab);
-    }
-    if (!probe?.inspectionInput) {
-      return {
-        ok: false,
-        action: "ui_changed",
-        stage: "inspection_control",
-        url,
-        error: "Google Search Console is open, but the URL inspection control is unavailable",
-      };
-    }
+    // Reuse an existing inspection result when possible. The GSC result page
+    // may not expose a textbox until its "Inspect URL" surface is activated.
+    const prepared = await ensureGoogleSearchConsoleReady({ active: true, allowReset: true });
+    tab = prepared.tab;
   } catch (error) {
-    await writeBridgeLog("error", "gsc page preparation failed", { url, error: errorMessage(error) });
-    return { ok: false, action: "not_logged_in", stage: "page_prepare", url, error: errorMessage(error) };
+    await writeBridgeLog("error", "gsc page preparation failed", {
+      url,
+      code: error?.code || "",
+      error: errorMessage(error),
+    });
+    const action = error?.code === "google_search_console_not_logged_in" ? "not_logged_in" : "ui_changed";
+    return { ok: false, action, stage: "page_prepare", url, error: errorMessage(error) };
   }
 
   try {
@@ -1208,7 +1264,11 @@ async function googleRequestIndexingURL(url) {
 }
 
 function broadcastIndexProgress(index) {
-  chrome.runtime.sendMessage({ type: "blogctl.index.progress", index }).catch(() => {});
+  chrome.runtime.sendMessage({
+    type: "blogctl.index.progress",
+    index,
+    google: googleSearchConsoleStatus,
+  }).catch(() => {});
 }
 
 async function googleIndexQueueSnapshot() {
@@ -1262,7 +1322,19 @@ async function pumpGoogleIndexQueue() {
 function kickGoogleIndexQueuePump() {
   if (googleIndexPumpPromise) return googleIndexPumpPromise;
   googleIndexPumpPromise = pumpGoogleIndexQueue()
-    .catch((error) => console.warn("[BlogCTL][google-index] queue pump failed", errorMessage(error)))
+    .catch(async (error) => {
+      console.warn("[BlogCTL][google-index] queue pump failed", errorMessage(error));
+      await writeBridgeLog("error", "gsc queue pump failed", { error: errorMessage(error) });
+      try {
+        const paused = await fetchJSON("/v1/search/index/google/request-queue/pause", { method: "POST" });
+        broadcastIndexProgress(paused?.index ?? {});
+      } catch (pauseError) {
+        await writeBridgeLog("error", "gsc queue pump could not pause queue", {
+          error: errorMessage(pauseError),
+        });
+      }
+      return null;
+    })
     .finally(() => {
       googleIndexPumpPromise = null;
     });
@@ -1963,7 +2035,7 @@ async function handleMessage(message) {
       if (index?.google?.requestQueue?.state === "running" && !googleIndexPumpPromise) {
         kickGoogleIndexQueuePump();
       }
-      return { ok: true, index };
+      return { ok: true, index, google: googleSearchConsoleStatus };
     }
     case "blogctl.index.inventory.refresh": {
       const result = await fetchJSON("/v1/search/index/inventory/refresh", { method: "POST" });
@@ -1996,18 +2068,20 @@ async function handleMessage(message) {
     }
     case "blogctl.index.google.request.start": {
       await fetchJSON("/v1/search/index/google/request-queue", { method: "POST" });
+      const prepared = await ensureGoogleSearchConsoleReady({ active: true, allowReset: true });
       const result = await fetchJSON("/v1/search/index/google/request-queue/start", { method: "POST" });
       kickGoogleIndexQueuePump();
-      return { ok: true, index: result?.index ?? {}, job: result?.job };
+      return { ok: true, index: result?.index ?? {}, job: result?.job, google: prepared.status };
     }
     case "blogctl.index.google.request.pause": {
       const result = await fetchJSON("/v1/search/index/google/request-queue/pause", { method: "POST" });
       return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
     case "blogctl.index.google.request.resume": {
+      const prepared = await ensureGoogleSearchConsoleReady({ active: true, allowReset: true });
       const result = await fetchJSON("/v1/search/index/google/request-queue/resume", { method: "POST" });
       kickGoogleIndexQueuePump();
-      return { ok: true, index: result?.index ?? {}, job: result?.job };
+      return { ok: true, index: result?.index ?? {}, job: result?.job, google: prepared.status };
     }
     case "blogctl.tool.save": {
       const name = String(message.name || "").trim();
@@ -2113,9 +2187,13 @@ async function handleMessage(message) {
       if (current?.job?.kind === "publishing") {
         await syncSessionsForPlatforms(current?.job?.platforms ?? []);
       }
+      let google = null;
+      if (current?.job?.type === "google-request-indexing") {
+        google = (await ensureGoogleSearchConsoleReady({ active: true, allowReset: true })).status;
+      }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
-      return { ok: true, job: result?.job };
+      return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.pause": {
       const id = String(message.id || "").trim();
@@ -2126,9 +2204,14 @@ async function handleMessage(message) {
     case "blogctl.job.resume": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
+      const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
+      let google = null;
+      if (current?.job?.type === "google-request-indexing") {
+        google = (await ensureGoogleSearchConsoleReady({ active: true, allowReset: true })).status;
+      }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/resume`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
-      return { ok: true, job: result?.job };
+      return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.publish": {
       const id = String(message.id || "").trim();
