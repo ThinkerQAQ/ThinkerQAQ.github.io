@@ -1724,6 +1724,50 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/tools");
       return { ok: true, tools: await environmentTools(result?.tools ?? []) };
     }
+    case "blogctl.index.get": {
+      const result = await fetchJSON("/v1/search/index");
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.inventory.refresh": {
+      const result = await fetchJSON("/v1/search/index/inventory/refresh", { method: "POST" });
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.bing.submit": {
+      const result = await fetchJSON("/v1/search/index/bing/submit", { method: "POST" });
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.google.sitemaps": {
+      const result = await fetchJSON("/v1/search/index/google/sitemaps", { method: "POST" });
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.google.inspect": {
+      const offset = Number(message.offset ?? 0);
+      const limit = Number(message.limit ?? 2000);
+      const result = await fetchJSON("/v1/search/index/google/inspect", jsonOptions("POST", { offset, limit }));
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.google.probe": {
+      return { ok: true, google: await googleSearchConsoleProbe({ active: Boolean(message.active) }) };
+    }
+    case "blogctl.index.google.open": {
+      const google = await googleSearchConsoleProbe({ active: true });
+      return { ok: true, google };
+    }
+    case "blogctl.index.google.request.start": {
+      await fetchJSON("/v1/search/index/google/request-queue", { method: "POST" });
+      const result = await fetchJSON("/v1/search/index/google/request-queue/start", { method: "POST" });
+      kickGoogleIndexQueuePump();
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.google.request.pause": {
+      const result = await fetchJSON("/v1/search/index/google/request-queue/pause", { method: "POST" });
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.google.request.resume": {
+      const result = await fetchJSON("/v1/search/index/google/request-queue/resume", { method: "POST" });
+      kickGoogleIndexQueuePump();
+      return { ok: true, index: result?.index ?? {} };
+    }
     case "blogctl.tool.save": {
       const name = String(message.name || "").trim();
       if (!name) throw new Error("tool name is required");
