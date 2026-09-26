@@ -1,6 +1,7 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
+import { browserProxyMatches, browserProxyValue } from "./proxy-policy.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -654,8 +655,6 @@ async function getStatus() {
   return { bridge, platforms: enrichedPlatforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
-const BROWSER_PROXY_BYPASS = ["<local>", "localhost", "127.0.0.1", "::1", "[::1]"];
-
 function chromeProxyGet() {
   if (!chrome.proxy?.settings) {
     return Promise.reject(new Error("BlogCTL Extension 缺少 proxy 权限；请重新加载 v0.1.75 Extension"));
@@ -723,13 +722,7 @@ async function applyBrowserProxyConfig(config) {
   }
 
   await assertBrowserProxyControllable();
-  await chromeProxySet({
-    mode: "fixed_servers",
-    rules: {
-      singleProxy: { scheme: "http", host: proxy.host, port: proxy.port },
-      bypassList: BROWSER_PROXY_BYPASS,
-    },
-  });
+  await chromeProxySet(browserProxyValue(proxy.host, proxy.port));
   const applied = await chromeProxyGet();
   return {
     enabled: true,
@@ -746,18 +739,14 @@ async function browserProxyHealth(config) {
   const current = await chromeProxyGet();
   const level = String(current?.levelOfControl || "");
   const value = current?.value || {};
-  const single = value?.rules?.singleProxy || {};
   const matches =
-    value?.mode === "fixed_servers" &&
-    String(single?.scheme || "") === "http" &&
-    String(single?.host || "") === proxy.host &&
-    Number(single?.port || 0) === proxy.port &&
+    browserProxyMatches(value, proxy.host, proxy.port) &&
     level === "controlled_by_this_extension";
   return {
     ok: matches,
     enabled: true,
     detail: matches
-      ? `Chrome browser proxy ${proxy.host}:${proxy.port}`
+      ? `Selective browser proxy ${proxy.host}:${proxy.port} · unrelated tabs DIRECT`
       : `Chrome proxy mismatch: level=${level || "unknown"}, mode=${String(value?.mode || "unknown")}`,
   };
 }
