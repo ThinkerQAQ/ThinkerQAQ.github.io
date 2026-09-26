@@ -210,14 +210,15 @@ export async function runBridgeCommand(command, input = {}, {
   const origin = siteUrl.startsWith("sc-domain:")
     ? `https://${siteUrl.slice("sc-domain:".length)}`
     : new URL(siteUrl).origin;
-  const inventory = command === "status"
-    ? null
-    : await fetchRemoteInventory({
+  const needsInventory = !["status", "bing-check", "google-check"].includes(command);
+  const inventory = needsInventory
+    ? await fetchRemoteInventory({
       origin,
       source: input.source,
       fingerprintSource: input.fingerprintSource,
       fetchImpl,
-    });
+    })
+    : null;
 
   if (command === "status") {
     return {
