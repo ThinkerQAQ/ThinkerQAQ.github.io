@@ -47,6 +47,36 @@ func TestBuildGoogleRequestQueuePreservesRequestedState(t *testing.T) {
 	}
 }
 
+func TestBuildGoogleRequestQueueRequeuesRequestedURLAfterCooldown(t *testing.T) {
+	now := time.Date(2026, 9, 26, 3, 0, 0, 0, time.UTC)
+	url := "https://thinkerqaq.github.io/a/"
+	previous := googleIndexRequestQueue{
+		Items: []googleIndexRequestItem{{
+			URL: url, Status: "requested", RequestedAt: now.Add(-8 * 24 * time.Hour).Format(time.RFC3339),
+		}},
+	}
+	queue := buildGoogleRequestQueue([]searchInspectionResult{{
+		URL: url, Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED",
+	}}, previous, now)
+	if len(queue.Items) != 1 || queue.Items[0].Status != "queued" || queue.CurrentIndex != 0 {
+		t.Fatalf("queue = %#v", queue)
+	}
+}
+
+func TestSearchIndexWriteRequiresBridgeAuthorization(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/inventory/refresh", nil)
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.Code)
+	}
+}
+
 func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
