@@ -1,0 +1,54 @@
+name: Submit all URLs to search engines
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-submit
+  cancel-in-progress: false
+
+env:
+  GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'https://thinkerqaq.github.io/' }}
+
+jobs:
+  submit:
+    if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - name: Checkout search tooling
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Download live URL inventory
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-all-errors \
+            "https://thinkerqaq.github.io/sitemap-all.txt" \
+            --output "$RUNNER_TEMP/sitemap-all.txt"
+          test -s "$RUNNER_TEMP/sitemap-all.txt"
+          echo "Live URL count: $(grep -cve '^[[:space:]]*$' "$RUNNER_TEMP/sitemap-all.txt")"
+
+      - name: Submit all URLs to Bing via IndexNow
+        env:
+          INDEXNOW_ENDPOINT: https://www.bing.com/indexnow
+        run: |
+          node tools/blogctl/search/node/cli.mjs submit \
+            --providers indexnow \
+            --urls-file "$RUNNER_TEMP/sitemap-all.txt" \
+            --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL" \
+            --public public
+
+      - name: Submit sitemaps to Google Search Console
+        run: |
+          node tools/blogctl/search/node/cli.mjs submit \
+            --providers google \
+            --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"
