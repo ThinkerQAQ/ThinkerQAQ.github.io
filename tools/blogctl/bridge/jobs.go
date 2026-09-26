@@ -482,7 +482,7 @@ func (s *Server) clearFinishedDurableTaskJobs() int {
 	removed := 0
 	for _, id := range s.taskJobOrder {
 		job := s.taskJobs[id]
-		if job != nil && (job.Kind == "publishing" || job.State == "running" || job.State == "queued" || job.State == "paused") {
+		if job != nil && (job.State == "running" || job.State == "queued" || job.State == "paused") {
 			kept = append(kept, id)
 			continue
 		}
@@ -516,7 +516,7 @@ func (s *Server) handleTaskJobsClear(response http.ResponseWriter, request *http
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
-	removed := s.clearFinishedDurableTaskJobs() + s.clearFinishedSyncJobs()
+	removed := s.clearFinishedSyncJobs() + s.clearFinishedDurableTaskJobs()
 	writeJSON(response, http.StatusOK, map[string]any{"removed": removed, "jobs": s.taskViews()})
 }
 
