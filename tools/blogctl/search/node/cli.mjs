@@ -6,6 +6,7 @@ import {
   DEFAULT_SITE_ORIGIN,
   loadSearchInventory,
   readUrlFile,
+  writeFingerprintInventory,
   writeTextSitemap,
 } from "./inventory.mjs";
 import {
@@ -65,7 +66,19 @@ function siteUrlFromArgs(argv, env = process.env) {
 export async function runBuild(argv = []) {
   const distRoot = optionValue(argv, "--dist", "dist");
   const output = optionValue(argv, "--output", "sitemap-all.txt");
-  const result = await writeTextSitemap({ distRoot, output });
+  const fingerprintOutput = optionValue(argv, "--fingerprint-output", "sitemap-inventory.json");
+  const inventory = await loadSearchInventory({ distRoot });
+  const textSitemap = await writeTextSitemap({ distRoot, output, inventory });
+  const fingerprintManifest = await writeFingerprintInventory({
+    distRoot,
+    output: fingerprintOutput,
+    inventory,
+  });
+  const result = {
+    ...textSitemap,
+    fingerprintOutput: fingerprintManifest.output,
+    fingerprintUrlCount: fingerprintManifest.urlCount,
+  };
   log("info", "search-build", "completed", result);
   return result;
 }
