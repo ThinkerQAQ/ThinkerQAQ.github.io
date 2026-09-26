@@ -438,9 +438,60 @@ func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) 
 	state.Google.CredentialsConfigured = true
 }
 
+func applyActiveTaskToOperation(state *searchOperationState, job *durableTaskJob) {
+	if state == nil || job == nil {
+		return
+	}
+	switch job.State {
+	case "queued", "running":
+		state.State = job.State
+		state.Error = ""
+		state.FinishedAt = ""
+		if job.StartedAt != "" {
+			state.StartedAt = job.StartedAt
+		}
+	}
+}
+
+func applyActiveTaskToInspection(state *searchInspectionState, job *durableTaskJob) {
+	if state == nil || job == nil {
+		return
+	}
+	switch job.State {
+	case "queued", "running":
+		state.State = job.State
+		state.Error = ""
+		state.FinishedAt = ""
+		if job.StartedAt != "" {
+			state.StartedAt = job.StartedAt
+		}
+		if job.Progress.Total > 0 {
+			state.Limit = job.Progress.Total
+		}
+	}
+}
+
+func (s *Server) reconcileSearchStateWithDurableTasks(state *searchIndexState) {
+	if state == nil {
+		return
+	}
+	applyActiveTaskToOperation(&state.Bing, s.latestDurableSearchTask("bing-indexnow"))
+	applyActiveTaskToOperation(&state.Google.Sitemaps, s.latestDurableSearchTask("google-sitemaps"))
+	applyActiveTaskToInspection(&state.Google.Inspection, s.latestDurableSearchTask("google-inspection"))
+
+	if job := s.latestDurableSearchTask("google-request-indexing"); job != nil && job.State == "running" {
+		state.Google.RequestQueue.State = "running"
+		state.Google.RequestQueue.LastError = ""
+		if state.Google.RequestQueue.JobID == "" {
+			state.Google.RequestQueue.JobID = job.ID
+		}
+	}
+}
+
 func (s *Server) searchState() searchIndexState {
 	state := loadSearchIndexState()
 	refreshSearchCredentialsFlag(&state, s.config)
+	s.reconcileSearchStateWithDurableTasks(&state)
 	return state
 }
 

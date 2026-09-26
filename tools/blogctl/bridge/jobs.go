@@ -197,6 +197,19 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 	return changed
 }
 
+func (s *Server) latestDurableSearchTask(taskType string) *durableTaskJob {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := len(s.taskJobOrder) - 1; index >= 0; index-- {
+		job := s.taskJobs[s.taskJobOrder[index]]
+		if job == nil || job.Kind != "search" || job.Type != taskType {
+			continue
+		}
+		return cloneDurableTaskJob(job)
+	}
+	return nil
+}
+
 func cloneDurableTaskJob(job *durableTaskJob) *durableTaskJob {
 	if job == nil {
 		return nil

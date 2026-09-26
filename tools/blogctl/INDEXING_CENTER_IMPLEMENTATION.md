@@ -687,34 +687,27 @@ ui_changed
 → paused
 ```
 
-## 15.1 Network Proxy 全局策略
+## 15.1 Network Proxy 组件级策略
 
-`环境与配置 → Network Proxy` 是 BlogCTL 的统一外网策略。
+`环境与配置 → Network Proxy` 只控制 BlogCTL 自己的网络组件，不修改浏览器或系统代理。实现原则与 DownKit 一致：代理显式注入组件，而不是接管宿主环境。
 
-启用后必须覆盖：
+启用后覆盖：
 
 ```text
-Bridge Go HTTP
+BlogCTL Bridge Go HTTP
 ├── 平台 API
 ├── R2
-└── Browser-profile transport
-
-Search Node child runtime
-├── sitemap inventory
 ├── Bing / IndexNow
-├── Google OAuth
-├── Google Sitemap
-└── Google URL Inspection
+├── Google API
+└── 其他 Bridge 发起的 HTTP/HTTPS
 
-Extension / Browser
-├── 登录态探测
-├── browser HTTP relay
-├── Medium GraphQL
-├── 平台浏览器发布页面
-└── Google Search Console / Request Indexing
+BlogCTL child runtime
+├── Search Node
+├── npm / Node publishing scripts
+└── 需要继承网络配置的工具子进程
 ```
 
-本机通信保持直连：
+本机控制通信保持直连：
 
 ```text
 localhost
@@ -722,11 +715,28 @@ localhost
 ::1
 ```
 
-Search Node 通过 `HTTP_PROXY` / `HTTPS_PROXY` / `NODE_USE_ENV_PROXY=1` 使用同一代理；为防止静默直连，开启代理时要求 Node.js >= 22.21（或 >= 24）。
+Bridge 使用显式 `http.Transport.Proxy = http.ProxyURL(...)`；关闭代理时显式 `Proxy = nil`，避免继承桌面环境变量。
 
-Extension 通过 Chrome `proxy` API 应用同一 HTTP proxy。因为 Chrome proxy setting 属于 profile 级设置，启用 BlogCTL Network Proxy 时，regular profile 的外网请求会使用该代理；本机地址在 bypass list 中。
+Search Node / Node 子进程只在创建进程时注入：
 
-如果 Browser proxy 无法被 Extension 控制，环境页必须显示「代理未覆盖全部组件」，并且远端 browser flow 不应静默直连。
+```text
+HTTP_PROXY
+HTTPS_PROXY
+ALL_PROXY
+NO_PROXY
+NODE_USE_ENV_PROXY=1
+BLOGCTL_PROXY_REQUIRED=1
+```
+
+不会执行：
+
+```text
+chrome.proxy.settings.set
+系统代理修改
+浏览器 PAC / fixed_servers
+```
+
+因此浏览器内的 Google Search Console / Request Indexing、平台登录页和用户其它标签页继续使用浏览器原有网络设置。Network Proxy 的健康检查也只检查 BlogCTL runtime，不再要求浏览器代理状态。
 
 ## 15.2 Dependency 一键更新
 
