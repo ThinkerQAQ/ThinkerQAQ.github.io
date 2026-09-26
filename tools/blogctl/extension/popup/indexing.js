@@ -114,12 +114,23 @@
 
     setText(elements.source, inventory.source || "https://thinkerqaq.github.io/sitemap-all.txt");
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
+    const fingerprintCoverage = Number(inventory.fingerprintCoverage || 0);
+    const inventoryTotal = Number(inventory.total || 0);
+    setText(
+      elements.inventoryFingerprintCoverage,
+      inventoryTotal ? `${fingerprintCoverage} / ${inventoryTotal}` : "-"
+    );
     setText(elements.inventoryFetchedAt, formatDate(inventory.fetchedAt));
 
     setStatus(elements.bingStatus, operationKind(bing.state), operationLabel(bing.state), bing.error || "");
     setText(elements.bingFinishedAt, formatDate(bing.finishedAt));
-    setText(elements.bingCount, Number(bing.count || 0) || "-");
-    setText(elements.bingHTTP, bing.httpStatus || "-");
+    setText(elements.bingMode, bing.mode === "full" ? "全量" : bing.mode === "incremental" ? "增量" : "-");
+    setText(elements.bingCount, Number.isFinite(Number(bing.count)) ? Number(bing.count) : "-");
+    setText(elements.bingNewCount, Number.isFinite(Number(bing.newCount)) ? Number(bing.newCount) : "-");
+    setText(elements.bingChangedCount, Number.isFinite(Number(bing.changedCount)) ? Number(bing.changedCount) : "-");
+    setText(elements.bingDeletedCount, Number.isFinite(Number(bing.deletedCount)) ? Number(bing.deletedCount) : "-");
+    setText(elements.bingUnchangedCount, Number.isFinite(Number(bing.unchangedCount)) ? Number(bing.unchangedCount) : "-");
+    setText(elements.bingHTTP, bing.httpStatus || (bing.state === "completed" && Number(bing.count || 0) === 0 ? "未请求" : "-"));
 
     setStatus(
       elements.googleCredentials,
@@ -160,7 +171,8 @@
     const inventoryReady = Number(inventory.total || 0) > 0;
     const inspectionReady = iStats.checked > 0;
     elements.refreshInventory.disabled = state.busy.has("inventory");
-    elements.bingSubmit.disabled = !inventoryReady || state.busy.has("bing");
+    elements.bingSubmitIncremental.disabled = !inventoryReady || state.busy.has("bing");
+    elements.bingSubmitFull.disabled = !inventoryReady || state.busy.has("bing");
     elements.googleSitemaps.disabled = !google.credentialsConfigured || state.busy.has("sitemaps");
     const inspectionComplete = inventoryReady && iStats.checked >= Number(inventory.total || 0);
     elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || state.busy.has("inspect");
@@ -209,8 +221,12 @@
     await run("inventory", { type: "blogctl.index.inventory.refresh" }, "URL Inventory 已刷新。");
   }
 
-  async function submitBing() {
-    await run("bing", { type: "blogctl.index.bing.submit" }, "Bing / IndexNow 全量提交完成。");
+  async function submitBing(mode) {
+    const label = mode === "full" ? "全量" : "增量";
+    await run("bing", {
+      type: "blogctl.index.bing.submit",
+      payload: { mode },
+    }, `Bing / IndexNow ${label}提交完成。`);
   }
 
   async function submitGoogleSitemaps() {
@@ -265,13 +281,20 @@
     elements = {
       source: el("indexSource"),
       inventoryTotal: el("indexInventoryTotal"),
+      inventoryFingerprintCoverage: el("indexInventoryFingerprintCoverage"),
       inventoryFetchedAt: el("indexInventoryFetchedAt"),
       refreshInventory: el("indexRefreshInventory"),
       bingStatus: el("indexBingStatus"),
       bingFinishedAt: el("indexBingFinishedAt"),
+      bingMode: el("indexBingMode"),
       bingCount: el("indexBingCount"),
+      bingNewCount: el("indexBingNewCount"),
+      bingChangedCount: el("indexBingChangedCount"),
+      bingDeletedCount: el("indexBingDeletedCount"),
+      bingUnchangedCount: el("indexBingUnchangedCount"),
       bingHTTP: el("indexBingHTTP"),
-      bingSubmit: el("indexBingSubmit"),
+      bingSubmitIncremental: el("indexBingSubmitIncremental"),
+      bingSubmitFull: el("indexBingSubmitFull"),
       googleCredentials: el("indexGoogleCredentials"),
       googleSitemapStatus: el("indexGoogleSitemapStatus"),
       googleSitemapFinishedAt: el("indexGoogleSitemapFinishedAt"),
@@ -301,7 +324,8 @@
     };
 
     elements.refreshInventory.addEventListener("click", refreshInventory);
-    elements.bingSubmit.addEventListener("click", submitBing);
+    elements.bingSubmitIncremental.addEventListener("click", () => submitBing("incremental"));
+    elements.bingSubmitFull.addEventListener("click", () => submitBing("full"));
     elements.googleSitemaps.addEventListener("click", submitGoogleSitemaps);
     elements.googleInspect.addEventListener("click", inspectGoogle);
     elements.googleOpen.addEventListener("click", openGSC);
