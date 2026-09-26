@@ -351,8 +351,7 @@
   }
 
   function requestResultDialogPresent() {
-    const text = bodyText();
-    return includesAny(text, TEXT.requested) && Boolean(findRequestResultCloseButton());
+    return includesAny(bodyText(), TEXT.requested);
   }
 
   async function dismissRequestResultDialog() {
