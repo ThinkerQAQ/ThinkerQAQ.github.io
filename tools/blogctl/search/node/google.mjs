@@ -6,6 +6,11 @@ export const GOOGLE_DEFAULT_SITEMAPS = ["sitemap-index.xml", "sitemap-all.txt"];
 export const GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT = 2000;
 export const GOOGLE_URL_INSPECTION_PER_MINUTE_SITE_LIMIT = 600;
 export const GOOGLE_URL_INSPECTION_DEFAULT_DELAY_MS = 110;
+export const GOOGLE_REQUEST_TIMEOUT_MS = 30_000;
+
+function timeoutSignal(ms = GOOGLE_REQUEST_TIMEOUT_MS) {
+  return AbortSignal.timeout(ms);
+}
 
 function googleApiError(prefix, response, text) {
   return new Error(`${prefix} failed with HTTP ${response.status}: ${String(text).slice(0, 500)}`);
@@ -36,6 +41,7 @@ export async function checkGoogleSearchConsoleSite({
   const response = await fetchImpl(endpoint, {
     method: "GET",
     headers: { authorization: `Bearer ${accessToken}` },
+    signal: timeoutSignal(),
   });
   const text = await response.text();
   if (!response.ok) throw googleApiError("Google Search Console property check", response, text);
@@ -63,6 +69,7 @@ export async function submitGoogleSitemap({
   const response = await fetchImpl(endpoint, {
     method: "PUT",
     headers: { authorization: `Bearer ${accessToken}` },
+    signal: timeoutSignal(),
   });
   const text = await response.text();
   if (!response.ok) throw googleApiError("Google sitemap submission", response, text);
@@ -108,6 +115,7 @@ export async function inspectGoogleUrl({
       authorization: `Bearer ${accessToken}`,
       "content-type": "application/json; charset=utf-8",
     },
+    signal: timeoutSignal(),
     body: JSON.stringify({
       inspectionUrl,
       siteUrl: normalizedSiteUrl,
