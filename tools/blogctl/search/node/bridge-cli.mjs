@@ -14,6 +14,7 @@ import { resolveIndexNowConfig, submitIndexNowUrls } from "./indexnow.mjs";
 
 export const RESULT_PREFIX = "__BLOGCTL_SEARCH_RESULT__";
 export const PROGRESS_PREFIX = "__BLOGCTL_SEARCH_PROGRESS__";
+export const SEARCH_FETCH_TIMEOUT_MS = 30_000;
 
 export function nodeSupportsEnvironmentProxy(version = process.versions.node) {
   const [major = 0, minor = 0] = String(version || "").split(".").map(Number);
@@ -143,7 +144,10 @@ export async function fetchRemoteInventory({
   assertSiteUrl(sourceURL, siteOrigin, "Sitemap source");
   assertSiteUrl(fingerprintURL, siteOrigin, "Fingerprint source");
 
-  const response = await fetchImpl(sourceURL, { headers: { accept: "text/plain,*/*;q=0.8" } });
+  const response = await fetchImpl(sourceURL, {
+    headers: { accept: "text/plain,*/*;q=0.8" },
+    signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
+  });
   const text = await response.text();
   if (!response.ok) {
     throw new Error(`sitemap-all.txt fetch failed with HTTP ${response.status}: ${text.slice(0, 300)}`);
@@ -157,6 +161,7 @@ export async function fetchRemoteInventory({
   try {
     fingerprintResponse = await fetchImpl(fingerprintURL, {
       headers: { accept: "application/json,*/*;q=0.8" },
+      signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
     });
   } catch {
     // Network failure is tolerated because the fingerprint manifest is additive.
@@ -228,6 +233,9 @@ export async function runBridgeCommand(command, input = {}, {
     ? `https://${siteUrl.slice("sc-domain:".length)}`
     : new URL(siteUrl).origin;
   const needsInventory = !["status", "bing-check", "google-check"].includes(command);
+  if (command === "google-inspect" && typeof onProgress === "function") {
+    await onProgress({ type: "stage", stage: "inventory_start", message: "正在读取 URL inventory" });
+  }
   const inventory = needsInventory
     ? await fetchRemoteInventory({
       origin,
@@ -236,6 +244,14 @@ export async function runBridgeCommand(command, input = {}, {
       fetchImpl,
     })
     : null;
+  if (command === "google-inspect" && typeof onProgress === "function") {
+    await onProgress({
+      type: "stage",
+      stage: "inventory_ready",
+      message: `URL inventory 已读取：${inventory.total} URLs`,
+      total: inventory.total,
+    });
+  }
 
   if (command === "status") {
     return {
@@ -302,7 +318,13 @@ export async function runBridgeCommand(command, input = {}, {
     const offset = Number(input.offset ?? 0);
     const limit = Number(input.limit ?? GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT);
     const requestDelayMs = Number(input.requestDelayMs ?? 110);
+    if (typeof onProgress === "function") {
+      await onProgress({ type: "stage", stage: "oauth_start", message: "正在获取 Google OAuth token" });
+    }
     const accessToken = await googleAccessToken(env);
+    if (typeof onProgress === "function") {
+      await onProgress({ type: "stage", stage: "oauth_ready", message: "Google OAuth token 已获取" });
+    }
     return auditGoogleUrls(inventory.urls, {
       siteUrl,
       origin,
