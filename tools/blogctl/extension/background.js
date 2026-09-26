@@ -637,6 +637,9 @@ async function getStatus() {
 const BROWSER_PROXY_BYPASS = ["<local>", "localhost", "127.0.0.1", "::1", "[::1]"];
 
 function chromeProxyGet() {
+  if (!chrome.proxy?.settings) {
+    return Promise.reject(new Error("BlogCTL Extension 缺少 proxy 权限；请重新加载 v0.1.75 Extension"));
+  }
   return new Promise((resolve, reject) => {
     chrome.proxy.settings.get({ incognito: false }, (details) => {
       const error = chrome.runtime.lastError;
@@ -2059,11 +2062,15 @@ async function handleMessage(message) {
 let browserProxySyncPromise = null;
 
 function scheduleProxyPolicySync() {
-  browserProxySyncPromise = syncBrowserProxyFromBridge();
-  browserProxySyncPromise.catch((error) => {
+  const task = syncBrowserProxyFromBridge().catch((error) => {
+    if (browserProxySyncPromise === task) browserProxySyncPromise = null;
+    throw error;
+  });
+  browserProxySyncPromise = task;
+  task.catch((error) => {
     console.warn("[BlogCTL][proxy] browser proxy sync failed:", errorMessage(error));
   });
-  return browserProxySyncPromise;
+  return task;
 }
 
 async function ensureBrowserProxyPolicy() {
