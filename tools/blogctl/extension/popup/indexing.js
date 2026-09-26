@@ -136,7 +136,12 @@
     setStatus(
       elements.googleCredentials,
       google.credentialsConfigured ? "ok" : "error",
-      google.credentialsConfigured ? "Service Account 已配置" : "Service Account 未配置",
+      google.credentialsConfigured
+        ? "Service Account 已配置"
+        : google.credentialsError
+          ? "Service Account 配置无效"
+          : "Service Account 未配置",
+      google.credentialsError || "",
     );
     setStatus(elements.googleSitemapStatus, operationKind(sitemaps.state), operationLabel(sitemaps.state), sitemaps.error || "");
     setText(elements.googleSitemapFinishedAt, formatDate(sitemaps.finishedAt));
