@@ -325,17 +325,7 @@ func (s *Server) mirrorSyncJobLocked(job *syncJob) {
 	}
 	s.taskJobs[job.ID] = publishingDurableTask(job, s.taskJobs[job.ID], s.now())
 	s.taskJobOrder = moveJobToFront(s.taskJobOrder, job.ID)
-	if len(s.taskJobOrder) > 100 {
-		for _, id := range s.taskJobOrder[100:] {
-			if candidate := s.taskJobs[id]; candidate != nil && (candidate.State == "running" || candidate.State == "queued" || candidate.State == "paused") {
-				continue
-			}
-			delete(s.taskJobs, id)
-		}
-		if len(s.taskJobOrder) > 100 {
-			s.taskJobOrder = s.taskJobOrder[:100]
-		}
-	}
+	s.pruneDurableTaskHistoryLocked(100)
 	_ = s.persistDurableTasksLocked()
 }
 
@@ -400,6 +390,23 @@ func (s *Server) taskViews() []taskJobView {
 	return views
 }
 
+func (s *Server) pruneDurableTaskHistoryLocked(limit int) {
+	if limit < 1 || len(s.taskJobOrder) <= limit {
+		return
+	}
+	kept := make([]string, 0, len(s.taskJobOrder))
+	for _, id := range s.taskJobOrder {
+		job := s.taskJobs[id]
+		active := job != nil && (job.State == "running" || job.State == "queued" || job.State == "paused")
+		if len(kept) < limit || active {
+			kept = append(kept, id)
+			continue
+		}
+		delete(s.taskJobs, id)
+	}
+	s.taskJobOrder = kept
+}
+
 func (s *Server) createDurableTaskJob(jobType, title string, payload any, progress taskProgress, capabilities struct {
 	Retry  bool
 	Pause  bool
@@ -421,12 +428,7 @@ func (s *Server) createDurableTaskJob(jobType, title string, payload any, progre
 	}
 	s.taskJobs[job.ID] = job
 	s.taskJobOrder = append([]string{job.ID}, s.taskJobOrder...)
-	if len(s.taskJobOrder) > 100 {
-		for _, id := range s.taskJobOrder[100:] {
-			delete(s.taskJobs, id)
-		}
-		s.taskJobOrder = s.taskJobOrder[:100]
-	}
+	s.pruneDurableTaskHistoryLocked(100)
 	err = s.persistDurableTasksLocked()
 	result := cloneDurableTaskJob(job)
 	s.mu.Unlock()
