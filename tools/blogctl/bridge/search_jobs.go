@@ -442,7 +442,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 				))
 			})
 			return err
-		}		},
+		},
 	)
 	if err != nil {
 		state = loadSearchIndexState()
