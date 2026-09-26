@@ -136,6 +136,7 @@
         </div>
         <div class="index-stat-grid">
           <div><span>URL 总数</span><strong id="indexInventoryTotal">-</strong></div>
+          <div><span>内容指纹</span><strong id="indexInventoryFingerprintCoverage">-</strong></div>
           <div><span>最后刷新</span><strong id="indexInventoryFetchedAt">-</strong></div>
         </div>
       </section>
@@ -144,16 +145,24 @@
         <div class="status-row">
           <div>
             <div class="section-title">Bing / IndexNow</div>
-            <p class="card-hint">从 <code>sitemap-all.txt</code> 读取全量 URL 并提交到 Bing IndexNow。</p>
+            <p class="card-hint">默认只提交新增、内容已变化和已删除 URL；需要时可手动全量重新提交。</p>
           </div>
           <strong id="indexBingStatus" class="status disabled">未运行</strong>
         </div>
         <div class="index-stat-grid">
           <div><span>上次提交</span><strong id="indexBingFinishedAt">-</strong></div>
-          <div><span>URL 数</span><strong id="indexBingCount">-</strong></div>
+          <div><span>模式</span><strong id="indexBingMode">-</strong></div>
+          <div><span>实际提交</span><strong id="indexBingCount">-</strong></div>
+          <div><span>新增</span><strong id="indexBingNewCount">-</strong></div>
+          <div><span>更新</span><strong id="indexBingChangedCount">-</strong></div>
+          <div><span>删除</span><strong id="indexBingDeletedCount">-</strong></div>
+          <div><span>未变化</span><strong id="indexBingUnchangedCount">-</strong></div>
           <div><span>HTTP</span><strong id="indexBingHTTP">-</strong></div>
         </div>
-        <button id="indexBingSubmit" class="primary" type="button">提交全部 URL 到 Bing</button>
+        <div class="index-action-row">
+          <button id="indexBingSubmitIncremental" class="primary inline-primary" type="button">提交增量</button>
+          <button id="indexBingSubmitFull" class="secondary" type="button">全量重新提交</button>
+        </div>
       </section>
 
       <section class="status-card">
