@@ -35,7 +35,6 @@
     ],
     rateLimited: [
       "too many requests",
-      "429",
       "请求过多",
     ],
   };
