@@ -162,6 +162,7 @@ type Server struct {
 	restart      func()
 	syncRunner   syncRunner
 	searchRunner searchNodeRunner
+	searchMu     sync.Mutex
 
 	mu                  sync.Mutex
 	distributionMu      sync.Mutex
