@@ -325,6 +325,9 @@
     const nodes = [
       ...document.querySelectorAll("button"),
       ...document.querySelectorAll('[role="button"]'),
+      ...document.querySelectorAll("a"),
+      ...document.querySelectorAll("[tabindex]"),
+      ...document.querySelectorAll("[jsaction]"),
     ];
     const candidates = [...new Set(nodes)].filter((node) => {
       if (!visible(node)) return false;
@@ -347,16 +350,42 @@
     return dialogCandidate || candidates[0];
   }
 
-  async function dismissRequestResultDialog({ waitForSurface = false } = {}) {
-    const closeButton = findRequestResultCloseButton();
-    if (!closeButton) return false;
-    closeButton.click();
-    emit("info", "gsc request result dialog closed", pageDiagnostic());
-    await sleep(350);
-    if (waitForSurface) {
-      await ensureInspectionInput(15000);
+  function requestResultDialogPresent() {
+    const text = bodyText();
+    return includesAny(text, TEXT.requested) && Boolean(findRequestResultCloseButton());
+  }
+
+  async function dismissRequestResultDialog() {
+    const before = requestResultDialogPresent();
+    if (!before) {
+      return { found: false, closed: true, dialogPresent: false };
     }
-    return true;
+
+    const closeButton = findRequestResultCloseButton();
+    if (!closeButton) {
+      return { found: false, closed: false, dialogPresent: true };
+    }
+
+    try {
+      closeButton.click();
+    } catch (error) {
+      emit("warn", "gsc request result dialog close click failed", {
+        error: error?.message || String(error),
+      });
+      return { found: true, closed: false, dialogPresent: true };
+    }
+
+    const closed = Boolean(await waitFor(() => !requestResultDialogPresent(), 2000, 100));
+    emit(
+      closed ? "info" : "warn",
+      closed ? "gsc request result dialog closed" : "gsc request result dialog still open",
+      pageDiagnostic(),
+    );
+    return {
+      found: true,
+      closed,
+      dialogPresent: !closed,
+    };
   }
 
   function pageDiagnostic() {
@@ -401,7 +430,21 @@
     // A successful Request Indexing call leaves a modal over the GSC SPA.
     // Close any stale result modal before trying the next URL; otherwise the
     // inspection trigger/input can be present visually but not actionable.
-    await dismissRequestResultDialog();
+    const staleDialogCleanup = await dismissRequestResultDialog();
+    if (staleDialogCleanup.dialogPresent) {
+      emit("warn", "gsc stale request result dialog blocks next inspection", {
+        url,
+        ...staleDialogCleanup,
+      });
+      return {
+        ok: false,
+        action: "ui_changed",
+        stage: "request_dialog",
+        url,
+        error: "Google Search Console Request Indexing result dialog is still open",
+        cleanup: staleDialogCleanup,
+      };
+    }
 
     const existingState = detectPageState(url);
     if (existingState) {
@@ -538,13 +581,25 @@
     }
 
     emit("info", "gsc request indexing confirmed", { url });
-    const dialogClosed = await dismissRequestResultDialog({ waitForSurface: true });
-    emit("info", "gsc request indexing ready for next url", {
+    const cleanup = await dismissRequestResultDialog();
+    emit(
+      cleanup.dialogPresent ? "warn" : "info",
+      cleanup.dialogPresent
+        ? "gsc request indexing succeeded but dialog cleanup needs fallback"
+        : "gsc request indexing ready for next url",
+      {
+        url,
+        ...cleanup,
+        ...pageDiagnostic(),
+      },
+    );
+    return {
+      ok: true,
+      action: "requested_indexing",
+      stage: "request_result",
       url,
-      dialogClosed,
-      ...pageDiagnostic(),
-    });
-    return { ok: true, action: "requested_indexing", stage: "request_result", url };
+      cleanup,
+    };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
