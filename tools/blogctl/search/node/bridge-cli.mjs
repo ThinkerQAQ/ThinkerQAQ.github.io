@@ -5,6 +5,7 @@ import { accessTokenFromEnvironment } from "./google-auth.mjs";
 import {
   GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT,
   auditGoogleUrls,
+  checkGoogleSearchConsoleSite,
   normalizeSearchConsoleSiteUrl,
   submitGoogleSitemaps,
 } from "./google.mjs";
@@ -162,6 +163,35 @@ export async function fetchRemoteInventory({
   };
 }
 
+async function checkBingIndexNow({
+  origin,
+  publicRoot = "public",
+  env = process.env,
+  fetchImpl = fetch,
+} = {}) {
+  const config = await resolveIndexNowConfig({
+    origin,
+    publicRoot,
+    env,
+    verifyKeyFile: false,
+  });
+  const response = await fetchImpl(config.keyLocation, {
+    headers: { accept: "text/plain,*/*;q=0.8" },
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`IndexNow key location check failed with HTTP ${response.status}`);
+  }
+  if (text.trim() !== config.key) {
+    throw new Error("IndexNow key location content does not match configured key");
+  }
+  return {
+    endpoint: config.endpoint,
+    keyLocation: config.keyLocation,
+    keyFileStatus: response.status,
+  };
+}
+
 async function googleAccessToken(env = process.env) {
   const token = await accessTokenFromEnvironment(env);
   if (!token?.accessToken) {
@@ -196,6 +226,24 @@ export async function runBridgeCommand(command, input = {}, {
       googleCredentialsConfigured: Boolean(String(env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON || "").trim()),
       indexNowConfigured: true,
     };
+  }
+
+  if (command === "bing-check") {
+    return checkBingIndexNow({
+      origin,
+      publicRoot: input.publicRoot || "public",
+      env,
+      fetchImpl,
+    });
+  }
+
+  if (command === "google-check") {
+    const accessToken = await googleAccessToken(env);
+    return checkGoogleSearchConsoleSite({
+      siteUrl,
+      accessToken,
+      fetchImpl,
+    });
   }
 
   if (command === "inventory") return inventory;
