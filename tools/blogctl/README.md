@@ -149,7 +149,9 @@ BlogCTL follows the same proxy model as DownKit: proxy configuration belongs to 
 The configuration is stored under the operating system user-config directory in `BlogCTL/config.json`. When a Bridge starts, it loads that file automatically. Changing the proxy while the Bridge is running rebuilds the Bridge HTTP client immediately.
 
 - Enabled: Bridge-originated external HTTP/HTTPS traffic uses the configured HTTP proxy; HTTPS destinations use CONNECT through it.
-- Disabled: the configured host and port are retained, while Bridge external traffic uses explicit direct mode.
+- Search Node child processes receive the same proxy through `HTTP_PROXY` / `HTTPS_PROXY` / `NODE_USE_ENV_PROXY=1`.
+- Browser-side routing uses a PAC policy: only BlogCTL platform domains plus Google Search Console dependencies use the BlogCTL proxy; unrelated browser tabs stay `DIRECT`.
+- Disabled: the configured host and port are retained, while BlogCTL external traffic uses direct mode and the Extension releases its browser proxy policy.
 - Loopback communication between the CLI, Extension, and Bridge never uses the configured external proxy.
 - `HTTP_PROXY`, `HTTPS_PROXY`, and a per-command `--proxy` flag are not required for normal BlogCTL operation.
 
