@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  diffRemoteInventories,
   fetchRemoteInventory,
+  normalizeFingerprintManifest,
   normalizeRemoteInventory,
   runBridgeCommand,
 } from "./bridge-cli.mjs";
@@ -33,19 +35,110 @@ test("normalizeRemoteInventory rejects cross-origin URLs", () => {
   );
 });
 
-test("fetchRemoteInventory reads live text sitemap semantics", async () => {
+test("fetchRemoteInventory reads text sitemap plus optional fingerprints", async () => {
+  const hashes = {
+    "https://thinkerqaq.github.io/a/": "a".repeat(64),
+    "https://thinkerqaq.github.io/b/": "b".repeat(64),
+  };
   const inventory = await fetchRemoteInventory({
     origin: "https://thinkerqaq.github.io",
     fetchImpl: async (url) => {
-      assert.equal(url, "https://thinkerqaq.github.io/sitemap-all.txt");
-      return new Response(
-        "https://thinkerqaq.github.io/a/\nhttps://thinkerqaq.github.io/b/\n",
-        { status: 200 },
-      );
+      if (url === "https://thinkerqaq.github.io/sitemap-all.txt") {
+        return new Response(
+          "https://thinkerqaq.github.io/a/\nhttps://thinkerqaq.github.io/b/\n",
+          { status: 200 },
+        );
+      }
+      assert.equal(url, "https://thinkerqaq.github.io/sitemap-inventory.json");
+      return new Response(JSON.stringify({
+        origin: "https://thinkerqaq.github.io",
+        fingerprints: hashes,
+      }), { status: 200 });
     },
   });
   assert.equal(inventory.total, 2);
+  assert.equal(inventory.fingerprintCoverage, 2);
+  assert.deepEqual(inventory.fingerprints, hashes);
   assert.deepEqual(inventory.urls, [
+    "https://thinkerqaq.github.io/a/",
+    "https://thinkerqaq.github.io/b/",
+  ]);
+});
+
+test("normalizeFingerprintManifest rejects invalid hashes and ignores stale URLs", () => {
+  const urls = ["https://thinkerqaq.github.io/a/"];
+  assert.throws(
+    () => normalizeFingerprintManifest({
+      origin: "https://thinkerqaq.github.io",
+      fingerprints: { "https://thinkerqaq.github.io/a/": "bad" },
+    }, urls, "https://thinkerqaq.github.io"),
+    /Invalid SHA-256 fingerprint/u,
+  );
+  assert.deepEqual(
+    normalizeFingerprintManifest({
+      origin: "https://thinkerqaq.github.io",
+      fingerprints: {
+        "https://thinkerqaq.github.io/a/": "a".repeat(64),
+        "https://thinkerqaq.github.io/removed/": "b".repeat(64),
+      },
+    }, urls, "https://thinkerqaq.github.io"),
+    { "https://thinkerqaq.github.io/a/": "a".repeat(64) },
+  );
+});
+
+test("diffRemoteInventories submits only added changed and deleted URLs in incremental mode", () => {
+  const previous = {
+    urls: [
+      "https://thinkerqaq.github.io/a/",
+      "https://thinkerqaq.github.io/b/",
+      "https://thinkerqaq.github.io/deleted/",
+    ],
+    fingerprints: {
+      "https://thinkerqaq.github.io/a/": "a".repeat(64),
+      "https://thinkerqaq.github.io/b/": "b".repeat(64),
+      "https://thinkerqaq.github.io/deleted/": "d".repeat(64),
+    },
+  };
+  const current = {
+    urls: [
+      "https://thinkerqaq.github.io/a/",
+      "https://thinkerqaq.github.io/b/",
+      "https://thinkerqaq.github.io/new/",
+    ],
+    fingerprints: {
+      "https://thinkerqaq.github.io/a/": "a".repeat(64),
+      "https://thinkerqaq.github.io/b/": "c".repeat(64),
+      "https://thinkerqaq.github.io/new/": "n".repeat(64),
+    },
+  };
+  const diff = diffRemoteInventories(previous, current, { mode: "incremental" });
+  assert.deepEqual(diff.selected, [
+    "https://thinkerqaq.github.io/b/",
+    "https://thinkerqaq.github.io/deleted/",
+    "https://thinkerqaq.github.io/new/",
+  ]);
+  assert.equal(diff.addedCount, 1);
+  assert.equal(diff.changedCount, 1);
+  assert.equal(diff.deletedCount, 1);
+  assert.equal(diff.unchangedCount, 1);
+});
+
+test("diffRemoteInventories treats missing hashes conservatively and full mode resubmits current URLs", () => {
+  const previous = {
+    urls: ["https://thinkerqaq.github.io/a/"],
+    fingerprints: {},
+  };
+  const current = {
+    urls: ["https://thinkerqaq.github.io/a/", "https://thinkerqaq.github.io/b/"],
+    fingerprints: {},
+  };
+  const incremental = diffRemoteInventories(previous, current, { mode: "incremental" });
+  assert.equal(incremental.changedCount, 1);
+  assert.equal(incremental.addedCount, 1);
+  assert.equal(incremental.selectedCount, 2);
+
+  const full = diffRemoteInventories(previous, current, { mode: "full" });
+  assert.deepEqual(full.selected, [
     "https://thinkerqaq.github.io/a/",
     "https://thinkerqaq.github.io/b/",
   ]);
