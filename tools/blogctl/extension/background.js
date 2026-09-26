@@ -66,6 +66,7 @@ function readPath(value, path) {
 }
 
 async function fetchWithTimeout(url, options = {}) {
+  await ensureBrowserProxyPolicy();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
   try {
@@ -756,6 +757,11 @@ async function saveBridgeConfig(config) {
   const saved = await fetchJSON("/v1/config", jsonOptions("PUT", payload));
   try {
     await applyBrowserProxyConfig(payload);
+    browserProxySyncPromise = Promise.resolve({
+      enabled: payload.proxyEnabled,
+      host: payload.proxyHost,
+      port: payload.proxyPort,
+    });
   } catch (error) {
     if (previous?.config) {
       const rollback = {
@@ -978,6 +984,7 @@ function browserFetchHeaders(rawHeaders) {
 }
 
 async function executeBrowserHTTP(payload) {
+  await ensureBrowserProxyPolicy();
   const rawURL = String(payload?.url || "").trim();
   const target = new URL(rawURL);
   if (!["http:", "https:"].includes(target.protocol)) throw new Error("browser HTTP only supports http(s) URLs");
@@ -1041,6 +1048,7 @@ async function waitForTabLoaded(tabId, timeoutMs = 20000) {
 }
 
 async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
+  await ensureBrowserProxyPolicy();
   let tab = null;
   if (googleSearchConsoleTabId !== null) {
     try {
@@ -1262,6 +1270,7 @@ async function waitForPublishedURL(tabId, platform, timeoutMs = 25000) {
 }
 
 async function segmentFaultPublishInBrowser(payload) {
+  await ensureBrowserProxyPolicy();
   const draftId = String(payload?.draftId || "").trim();
   if (!draftId) throw new Error("SegmentFault draft id is required");
   const tab = await chrome.tabs.create({
@@ -1346,6 +1355,7 @@ async function segmentFaultPublishInBrowser(payload) {
 }
 
 async function cto51PublishInBrowser(payload) {
+  await ensureBrowserProxyPolicy();
   const draftId = String(payload?.draftId || "").trim();
   if (!draftId) throw new Error("51CTO draft id is required");
   const tab = await chrome.tabs.create({
@@ -2046,14 +2056,23 @@ async function handleMessage(message) {
   }
 }
 
+let browserProxySyncPromise = null;
+
 function scheduleProxyPolicySync() {
-  void syncBrowserProxyFromBridge().catch((error) => {
+  browserProxySyncPromise = syncBrowserProxyFromBridge();
+  browserProxySyncPromise.catch((error) => {
     console.warn("[BlogCTL][proxy] browser proxy sync failed:", errorMessage(error));
   });
+  return browserProxySyncPromise;
 }
 
-chrome.runtime.onStartup.addListener(scheduleProxyPolicySync);
-chrome.runtime.onInstalled.addListener(scheduleProxyPolicySync);
+async function ensureBrowserProxyPolicy() {
+  if (!browserProxySyncPromise) scheduleProxyPolicySync();
+  return browserProxySyncPromise;
+}
+
+chrome.runtime.onStartup.addListener(() => { scheduleProxyPolicySync(); });
+chrome.runtime.onInstalled.addListener(() => { scheduleProxyPolicySync(); });
 scheduleProxyPolicySync();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
