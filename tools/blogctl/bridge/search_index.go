@@ -442,11 +442,20 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 	for index := range report.Results {
 		report.Results[index].CheckedAt = checkedAt
 	}
+	mergedResults := mergeInspectionResults(state.Google.Inspection.Results, report.Results)
+	remaining := report.TotalAvailable - len(mergedResults)
+	if remaining < 0 {
+		remaining = 0
+	}
+	nextOffset := report.NextOffset
+	if remaining == 0 {
+		nextOffset = nil
+	}
 	state.Google.Inspection = searchInspectionState{
 		State: "completed", StartedAt: started.Format(time.RFC3339), FinishedAt: checkedAt,
-		Offset: report.Offset, Limit: report.Limit, Inspected: report.Inspected,
-		Total: report.TotalAvailable, Remaining: report.Remaining, NextOffset: report.NextOffset,
-		Results: mergeInspectionResults(state.Google.Inspection.Results, report.Results),
+		Offset: report.Offset, Limit: report.Limit, Inspected: len(mergedResults),
+		Total: report.TotalAvailable, Remaining: remaining, NextOffset: nextOffset,
+		Results: mergedResults,
 	}
 	refreshSearchCredentialsFlag(&state)
 	if err := saveSearchIndexState(state); err != nil {
