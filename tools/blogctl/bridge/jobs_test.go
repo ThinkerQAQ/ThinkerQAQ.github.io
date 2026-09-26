@@ -257,3 +257,72 @@ func TestPublishingTaskPayloadCanRestoreAfterMemoryPrune(t *testing.T) {
 		t.Fatalf("stored request = %#v", storedRequest)
 	}
 }
+
+
+func TestSearchStateUsesRunningDurableTaskAsLiveStatus(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	state := defaultSearchIndexState()
+	state.Google.Inspection.State = "idle"
+	state.Google.RequestQueue.State = "idle"
+	if err := saveSearchIndexState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	inspectionJob, err := server.createDurableTaskJob(
+		"google-inspection",
+		"Google URL Inspection",
+		googleInspectionTaskPayload{Offset: 900, Limit: 933},
+		taskProgress{Current: 35, Total: 933, Unit: "URL", Message: "正在检查"},
+		taskCapabilities(true, false, false),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.updateDurableTaskJob(inspectionJob.ID, func(current *durableTaskJob) {
+		current.State = "running"
+		current.StartedAt = "2026-09-26T11:40:00Z"
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	requestJob, err := server.createDurableTaskJob(
+		"google-request-indexing",
+		"Google Request Indexing",
+		map[string]any{},
+		taskProgress{Current: 10, Total: 387, Unit: "URL"},
+		taskCapabilities(false, true, false),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.updateDurableTaskJob(requestJob.ID, func(current *durableTaskJob) {
+		current.State = "running"
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	live := server.searchState()
+	if live.Google.Inspection.State != "running" {
+		t.Fatalf("inspection state = %q, want running", live.Google.Inspection.State)
+	}
+	if live.Google.Inspection.Limit != 933 {
+		t.Fatalf("inspection limit = %d, want 933", live.Google.Inspection.Limit)
+	}
+	if live.Google.RequestQueue.State != "running" {
+		t.Fatalf("request queue state = %q, want running", live.Google.RequestQueue.State)
+	}
+	if live.Google.RequestQueue.JobID != requestJob.ID {
+		t.Fatalf("request queue jobId = %q, want %q", live.Google.RequestQueue.JobID, requestJob.ID)
+	}
+
+	persisted := loadSearchIndexState()
+	if persisted.Google.Inspection.State != "idle" || persisted.Google.RequestQueue.State != "idle" {
+		t.Fatalf("live reconciliation must not mutate persisted search state: %#v", persisted.Google)
+	}
+}
