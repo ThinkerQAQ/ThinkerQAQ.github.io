@@ -29,7 +29,7 @@ test("normalizeRemoteInventory rejects cross-origin URLs", () => {
       "https://example.com/a/",
       "https://thinkerqaq.github.io",
     ),
-    /must use origin/u,
+    /must use https:\\/\\/thinkerqaq\\.github\\.io/u,
   );
 });
 
