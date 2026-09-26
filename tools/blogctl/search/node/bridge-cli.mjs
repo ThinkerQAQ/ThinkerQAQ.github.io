@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { accessTokenFromEnvironment } from "./google-auth.mjs";
 import {
@@ -83,7 +84,7 @@ export async function runBridgeCommand(command, input = {}, {
       siteUrl,
       origin,
       googleCredentialsConfigured: Boolean(String(env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON || "").trim()),
-      indexNowConfigured: Boolean(String(env.INDEXNOW_KEY || "").trim()) || true,
+      indexNowConfigured: true,
     };
   }
 
@@ -138,7 +139,8 @@ async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`${RESULT_PREFIX}${JSON.stringify(result)}\n`);
 }
 
-if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+const invoked = process.argv[1] ? path.resolve(process.argv[1]) : "";
+if (invoked && fileURLToPath(import.meta.url) === invoked) {
   main().catch((error) => {
     process.stderr.write(`${error?.stack || error?.message || String(error)}\n`);
     process.exitCode = 1;
