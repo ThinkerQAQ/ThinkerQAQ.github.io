@@ -1189,6 +1189,7 @@ func (s *Server) recordSyncEvent(jobID string, event blogapp.SyncEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	applySyncEventToJob(s.jobs[jobID], event, s.now())
+	s.mirrorSyncJobLocked(s.jobs[jobID])
 }
 
 func moveJobToFront(order []string, id string) []string {
@@ -1263,10 +1264,12 @@ func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeC
 					Platform: platform, State: "failed", Message: err.Error(),
 				}, s.now())
 			}
+			s.mirrorSyncJobLocked(stored)
 			s.pruneSyncJobHistoryLocked(20)
 			return
 		}
 		stored.State = "completed"
+		s.mirrorSyncJobLocked(stored)
 		s.pruneSyncJobHistoryLocked(20)
 	}()
 }
@@ -1281,6 +1284,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	}
 	s.jobs[job.ID] = job
 	s.jobOrder = append([]string{job.ID}, s.jobOrder...)
+	s.mirrorSyncJobLocked(job)
 	s.pruneSyncJobHistoryLocked(20)
 	config := s.config
 	response := cloneSyncJob(job)
@@ -1346,6 +1350,7 @@ func (s *Server) deleteSyncJob(id string) error {
 		}
 	}
 	s.jobOrder = filtered
+	s.removeMirroredSyncJobLocked(id)
 	return nil
 }
 
@@ -1361,6 +1366,7 @@ func (s *Server) clearFinishedSyncJobs() int {
 			continue
 		}
 		delete(s.jobs, id)
+		s.removeMirroredSyncJobLocked(id)
 		removed++
 	}
 	s.jobOrder = kept
@@ -1387,6 +1393,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 	replacement := newSyncJob(id, request, startedAt)
 	s.jobs[id] = replacement
 	s.jobOrder = moveJobToFront(s.jobOrder, id)
+	s.mirrorSyncJobLocked(replacement)
 	config := s.config
 	response := cloneSyncJob(replacement)
 	s.mu.Unlock()
