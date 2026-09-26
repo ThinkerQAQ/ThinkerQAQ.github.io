@@ -300,6 +300,51 @@ func devtoAPIPlaceholder(config bridgeConfig) string {
 	return "DEV.to API Key"
 }
 
+func indexNowEndpoint(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.IndexNowEndpoint); configured != "" {
+		return configured
+	}
+	return "https://www.bing.com/indexnow"
+}
+
+func indexNowKey(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.IndexNowKey); configured != "" {
+		return configured
+	}
+	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY")); env != "" {
+		return env
+	}
+	return "fb26fca3ba9449c6816b6d79b0a41cec"
+}
+
+func indexNowKeyLocation(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.IndexNowKeyLocation); configured != "" {
+		return configured
+	}
+	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY_LOCATION")); env != "" {
+		return env
+	}
+	return "https://thinkerqaq.github.io/" + indexNowKey(config) + ".txt"
+}
+
+func indexNowHealth(config bridgeConfig) toolHealth {
+	key := indexNowKey(config)
+	if key == "" {
+		return toolHealth{Status: "missing", Summary: "Key 未配置"}
+	}
+	return toolHealth{
+		OK: true, Status: "ok", Summary: "已配置",
+		Detail: fmt.Sprintf("%s · %s", indexNowEndpoint(config), indexNowKeyLocation(config)),
+	}
+}
+
+func indexNowKeyPlaceholder(config bridgeConfig) string {
+	if indexNowKey(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "IndexNow key"
+}
+
 func googleSearchConsoleServiceJSON(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.GoogleSearchConsoleServiceJSON); configured != "" {
 		return configured
@@ -384,16 +429,53 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "bing-indexnow", DisplayName: "Bing / IndexNow", Kind: "runtime", Required: false,
+			Description: "Bing 索引通知通过 IndexNow HTTP API。检测只验证 Endpoint 配置和站点 Key 文件，不会提交测试 URL。",
+			Health:      indexNowHealth(config),
+			Actions: []toolAction{{
+				ID: "check", Label: "检测配置",
+				Description: "验证 IndexNow Key Location 可访问且内容与配置 Key 一致。",
+			}},
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{
+					"endpoint":    indexNowEndpoint(config),
+					"keyLocation": indexNowKeyLocation(config),
+				},
+				Schema: []toolField{
+					{
+						Key: "endpoint", Label: "Endpoint", Type: "text",
+						Placeholder: "https://www.bing.com/indexnow",
+						Description: "Bing IndexNow endpoint；通常保持默认值。",
+					},
+					{
+						Key: "key", Label: "IndexNow Key", Type: "secret",
+						Placeholder: indexNowKeyPlaceholder(config),
+						Description: "留空保存时保持当前 Key；对应 Key 文件必须可从站点公开访问。",
+					},
+					{
+						Key: "keyLocation", Label: "Key Location", Type: "text",
+						Placeholder: "https://thinkerqaq.github.io/<key>.txt",
+						Description: "公开 Key 文件 URL；留空时按站点根目录和 Key 自动推导。",
+					},
+				},
+			},
+		},
+		{
 			Name: "google-search-console-api", DisplayName: "Google Search Console API", Kind: "runtime", Required: false,
-			Description: "URL Inspection 与 Sitemap API 使用的 Service Account。凭据仅保存在本机 BlogCTL 配置中，不返回给 Extension。",
+			Description: "Sitemap 与 URL Inspection 使用 Service Account。先在 Google Cloud 启用 Search Console API、创建 Service Account JSON，再把 JSON 中 client_email 加到对应 Search Console Property 的 Users and permissions（Full user）。凭据只保存在本机 Bridge。",
 			Health:      googleSearchConsoleAPIHealth(config),
+			Actions: []toolAction{{
+				ID: "check", Label: "检测配置",
+				Description: "交换 OAuth token，并验证 Service Account 能访问 https://thinkerqaq.github.io/ Search Console Property。",
+			}},
 			Config: toolConfigView{
 				Scope:  "bridge",
 				Values: map[string]any{},
 				Schema: []toolField{{
 					Key: "serviceAccountJson", Label: "Service Account JSON", Type: "secret",
 					Placeholder: googleSearchConsoleAPIPlaceholder(config),
-					Description: "粘贴完整 Google service-account JSON；留空保存时保持不变。",
+					Description: "粘贴完整 JSON；留空保存时保持不变。JSON 中 client_email 还必须加入 Search Console Property 权限。",
 				}},
 			},
 		},
@@ -455,6 +537,16 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 	case "devto-api":
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
+		}
+	case "bing-indexnow":
+		if endpoint := stringConfig(values, "endpoint"); endpoint != "" {
+			config.IndexNowEndpoint = endpoint
+		}
+		if key := stringConfig(values, "key"); key != "" {
+			config.IndexNowKey = key
+		}
+		if keyLocation := stringConfig(values, "keyLocation"); keyLocation != "" {
+			config.IndexNowKeyLocation = keyLocation
 		}
 	case "google-search-console-api":
 		if value := stringConfig(values, "serviceAccountJson"); value != "" {
