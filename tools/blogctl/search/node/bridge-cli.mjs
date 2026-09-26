@@ -14,6 +14,20 @@ import { resolveIndexNowConfig, submitIndexNowUrls } from "./indexnow.mjs";
 
 export const RESULT_PREFIX = "__BLOGCTL_SEARCH_RESULT__";
 
+export function nodeSupportsEnvironmentProxy(version = process.versions.node) {
+  const [major = 0, minor = 0] = String(version || "").split(".").map(Number);
+  return major >= 24 || (major === 22 && minor >= 21);
+}
+
+export function assertProxyRuntimeSupport(env = process.env, version = process.versions.node) {
+  if (String(env.BLOGCTL_PROXY_REQUIRED || "") !== "1") return;
+  if (!nodeSupportsEnvironmentProxy(version)) {
+    throw new Error(
+      `BlogCTL Network Proxy requires Node.js 22.21+ (or 24+) for fetch proxy support; current Node.js is ${version}`,
+    );
+  }
+}
+
 async function readInput(stream = process.stdin) {
   let raw = "";
   for await (const chunk of stream) raw += chunk;
@@ -204,6 +218,7 @@ export async function runBridgeCommand(command, input = {}, {
   env = process.env,
   fetchImpl = fetch,
 } = {}) {
+  assertProxyRuntimeSupport(env);
   const siteUrl = normalizeSearchConsoleSiteUrl(
     input.siteUrl || env.GOOGLE_SEARCH_CONSOLE_SITE_URL || `${DEFAULT_SITE_ORIGIN}/`,
   );
