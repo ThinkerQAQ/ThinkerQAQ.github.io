@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -52,6 +53,11 @@ func appendTaskOutput(job *durableTaskJob, line string) {
 		}
 		job.Output = trimmed
 	}
+	if strings.HasPrefix(line, "[stage]") {
+		slog.Info("search task stage", "jobId", job.ID, "taskType", job.Type, "detail", line)
+	} else {
+		slog.Debug("search task detail", "jobId", job.ID, "taskType", job.Type, "detail", line)
+	}
 }
 
 func (s *Server) markDurableTaskRunning(id string) (*durableTaskJob, error) {
@@ -82,6 +88,7 @@ func (s *Server) completeDurableTask(id string, progress taskProgress, detail ma
 		job.CanRetry = false
 		job.CanPause = false
 		job.CanResume = false
+		slog.Info("task completed", "jobId", job.ID, "kind", job.Kind, "taskType", job.Type, "current", progress.Current, "total", progress.Total)
 	})
 }
 
@@ -93,6 +100,7 @@ func (s *Server) failDurableTask(id string, err error) {
 		job.CanRetry = true
 		job.CanPause = false
 		job.CanResume = false
+		slog.Error("task failed", "jobId", job.ID, "kind", job.Kind, "taskType", job.Type, "error", err.Error())
 	})
 }
 
@@ -105,8 +113,10 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 		s.searchMu.Lock()
 		defer s.searchMu.Unlock()
 		if _, err := s.markDurableTaskRunning(jobID); err != nil {
+			slog.Error("task start failed", "jobId", jobID, "taskType", job.Type, "error", err.Error())
 			return
 		}
+		slog.Info("task started", "jobId", jobID, "kind", job.Kind, "taskType", job.Type)
 
 		var err error
 		switch job.Type {
