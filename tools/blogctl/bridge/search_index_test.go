@@ -56,21 +56,22 @@ func TestBuildGoogleRequestQueuePreservesRequestedState(t *testing.T) {
 	}
 }
 
-func TestBuildGoogleRequestQueueRequeuesRequestedURLAfterCooldown(t *testing.T) {
+func TestBuildGoogleRequestQueueNeverAutoRequeuesRequestedURL(t *testing.T) {
 	now := time.Date(2026, 9, 26, 3, 0, 0, 0, time.UTC)
 	url := "https://thinkerqaq.github.io/a/"
 	previous := googleIndexRequestQueue{
 		Items: []googleIndexRequestItem{{
-			URL: url, Status: "requested", RequestedAt: now.Add(-8 * 24 * time.Hour).Format(time.RFC3339),
+			URL: url, Status: "requested", RequestedAt: now.Add(-30 * 24 * time.Hour).Format(time.RFC3339),
 		}},
 	}
 	queue := buildGoogleRequestQueue([]searchInspectionResult{{
 		URL: url, Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED",
 	}}, previous, now)
-	if len(queue.Items) != 1 || queue.Items[0].Status != "queued" || queue.CurrentIndex != 0 {
+	if len(queue.Items) != 1 || queue.Items[0].Status != "requested" || queue.CurrentIndex != 1 {
 		t.Fatalf("queue = %#v", queue)
 	}
 }
+
 
 func TestSearchIndexWriteRequiresBridgeAuthorization(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
