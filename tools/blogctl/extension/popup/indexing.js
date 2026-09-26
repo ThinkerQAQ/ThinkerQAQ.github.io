@@ -7,6 +7,7 @@
     index: {},
     gsc: { known: false, loggedIn: false, error: "" },
     busy: new Set(),
+    pollTimer: null,
   };
 
   let elements = {};
@@ -193,7 +194,10 @@
       if (response.index) state.index = response.index;
       if (response.google) state.gsc = response.google;
       render();
-      if (successMessage) BlogCTLPopup.setMessage(elements.message, successMessage, "ok");
+      if (successMessage) {
+        const jobSuffix = response.job?.id ? ` · 已加入任务 ${response.job.id}` : "";
+        BlogCTLPopup.setMessage(elements.message, successMessage + jobSuffix, "ok");
+      }
       return response;
     } catch (error) {
       BlogCTLPopup.setMessage(elements.message, BlogCTLPopup.errorMessage(error), "error");
@@ -226,11 +230,11 @@
     await run("bing", {
       type: "blogctl.index.bing.submit",
       payload: { mode },
-    }, `Bing / IndexNow ${label}提交完成。`);
+    }, `Bing / IndexNow ${label}任务已创建。`);
   }
 
   async function submitGoogleSitemaps() {
-    await run("sitemaps", { type: "blogctl.index.google.sitemaps" }, "Google 两个 Sitemap 已提交。");
+    await run("sitemaps", { type: "blogctl.index.google.sitemaps" }, "Google Sitemap 任务已创建。");
   }
 
   async function inspectGoogle() {
@@ -251,7 +255,7 @@
     await run("inspect", {
       type: "blogctl.index.google.inspect",
       payload: { offset, limit },
-    }, `Google URL Inspection 已完成：offset ${offset}, limit ${limit}。`);
+    }, `Google URL Inspection 任务已创建：offset ${offset}, limit ${limit}。`);
   }
 
   async function openGSC() {
@@ -340,10 +344,15 @@
   function activate() {
     state.active = true;
     refresh();
+    if (!state.pollTimer) state.pollTimer = setInterval(() => refresh(), 2500);
   }
 
   function deactivate() {
     state.active = false;
+    if (state.pollTimer) {
+      clearInterval(state.pollTimer);
+      state.pollTimer = null;
+    }
   }
 
   root.BlogCTLIndexing = { init, activate, deactivate, refresh };
