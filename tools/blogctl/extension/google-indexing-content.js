@@ -37,6 +37,14 @@
       "too many requests",
       "请求过多",
     ],
+    failed: [
+      "something went wrong",
+      "an error occurred",
+      "something went wrong. please try again",
+      "出现错误",
+      "发生错误",
+      "请稍后重试",
+    ],
   };
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -57,44 +65,96 @@
     if (!(node instanceof Element)) return false;
     const style = getComputedStyle(node);
     const rect = node.getBoundingClientRect();
-    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    return style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      Number(style.opacity || 1) !== 0 &&
+      rect.width > 0 &&
+      rect.height > 0;
   }
 
   function textMatches(node, candidates) {
-    const text = normalizedText(node?.textContent || node?.getAttribute?.("aria-label") || "");
+    const text = normalizedText([
+      node?.textContent,
+      node?.getAttribute?.("aria-label"),
+      node?.getAttribute?.("title"),
+    ].filter(Boolean).join(" "));
     return candidates.some((candidate) => text.includes(candidate));
   }
 
+  function emit(level, message, fields = {}) {
+    try {
+      chrome.runtime.sendMessage({
+        type: "blogctl.google.index.event",
+        level,
+        message,
+        fields: {
+          pagePath: location.pathname,
+          ...fields,
+        },
+      }).catch(() => {});
+    } catch {}
+  }
+
+  function inspectionControls() {
+    const nodes = [
+      ...document.querySelectorAll('input:not([type="hidden"])'),
+      ...document.querySelectorAll("textarea"),
+      ...document.querySelectorAll('[role="textbox"]'),
+      ...document.querySelectorAll('[role="combobox"]'),
+      ...document.querySelectorAll('[contenteditable="true"]'),
+    ];
+    return [...new Set(nodes)].filter(visible);
+  }
+
   function findInspectionInput() {
-    const inputs = [...document.querySelectorAll('input:not([type="hidden"])')].filter(visible);
-    const ranked = inputs.map((input) => {
+    const ranked = inspectionControls().map((input) => {
       const haystack = normalizedText([
-        input.getAttribute("aria-label"),
-        input.getAttribute("placeholder"),
-        input.getAttribute("role"),
-        input.name,
+        input.getAttribute?.("aria-label"),
+        input.getAttribute?.("placeholder"),
+        input.getAttribute?.("title"),
+        input.getAttribute?.("data-tooltip"),
+        input.getAttribute?.("role"),
+        input.getAttribute?.("name"),
       ].filter(Boolean).join(" "));
       let score = 0;
-      if (haystack.includes("inspect")) score += 5;
-      if (haystack.includes("url")) score += 4;
-      if (haystack.includes("网址")) score += 4;
+      if (haystack.includes("inspect")) score += 7;
+      if (haystack.includes("url")) score += 5;
+      if (haystack.includes("网址")) score += 5;
       if (haystack.includes("search console")) score += 2;
-      if (input.getAttribute("role") === "combobox") score += 1;
+      if (input.getAttribute?.("role") === "combobox") score += 1;
+      if (input.getAttribute?.("role") === "textbox") score += 1;
       return { input, score };
     }).sort((a, b) => b.score - a.score);
+
     if (ranked[0]?.score > 0) return ranked[0].input;
-    return ranked.find(({ input }) => input.type === "text" || input.getAttribute("role") === "combobox")?.input || null;
+    return ranked[0]?.input || null;
   }
 
   function setInputValue(input, value) {
-    if (typeof input.select === "function") input.select();
-    let inserted = false;
-    try {
-      inserted = document.execCommand("insertText", false, value) === true;
-    } catch {}
-    if (!inserted || input.value !== value) {
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
-      descriptor?.set?.call(input, value);
+    input.click();
+    input.focus();
+
+    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+      if (typeof input.select === "function") input.select();
+      let inserted = false;
+      try {
+        inserted = document.execCommand("insertText", false, value) === true;
+      } catch {}
+      if (!inserted || input.value !== value) {
+        const prototype = input instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+        descriptor?.set?.call(input, value);
+        input.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          inputType: "insertText",
+          data: value,
+        }));
+      }
+    } else {
+      if (typeof input.focus === "function") input.focus();
+      input.textContent = value;
       input.dispatchEvent(new InputEvent("input", {
         bubbles: true,
         inputType: "insertText",
@@ -126,13 +186,40 @@
     return null;
   }
 
-  function detectPageState() {
+  function urlVariants(url) {
+    const values = new Set([normalizedText(url)]);
+    try {
+      values.add(normalizedText(decodeURIComponent(url)));
+    } catch {}
+    try {
+      const parsed = new URL(url);
+      values.add(normalizedText(parsed.href));
+      values.add(normalizedText(decodeURIComponent(parsed.href)));
+    } catch {}
+    return [...values].filter(Boolean);
+  }
+
+  function pageMentionsURL(url) {
+    const text = bodyText();
+    return urlVariants(url).some((candidate) => text.includes(candidate));
+  }
+
+  function detectPageState(url = "") {
     const text = bodyText();
     if (includesAny(text, TEXT.rateLimited)) return { kind: "rate_limited" };
     if (includesAny(text, TEXT.quota)) return { kind: "quota_blocked" };
-    if (includesAny(text, TEXT.notIndexed)) return { kind: "not_indexed" };
-    if (includesAny(text, TEXT.indexed)) return { kind: "already_indexed" };
-    return null;
+    if (includesAny(text, TEXT.failed)) return { kind: "failed" };
+
+    const state = includesAny(text, TEXT.notIndexed)
+      ? { kind: "not_indexed" }
+      : includesAny(text, TEXT.indexed)
+        ? { kind: "already_indexed" }
+        : null;
+    if (!state) return null;
+
+    // Never accept a stale result left on the page for the previous URL.
+    if (url && !pageMentionsURL(url)) return null;
+    return state;
   }
 
   function findRequestIndexingButton() {
@@ -140,73 +227,170 @@
       ...document.querySelectorAll("button"),
       ...document.querySelectorAll('[role="button"]'),
     ];
-    return nodes.find((node) => visible(node) && textMatches(node, TEXT.request) && !node.hasAttribute("disabled")) || null;
+    return nodes.find((node) =>
+      visible(node) &&
+      textMatches(node, TEXT.request) &&
+      !node.hasAttribute("disabled") &&
+      node.getAttribute("aria-disabled") !== "true"
+    ) || null;
   }
 
-  function findSuccessDialogState() {
+  function findSuccessDialogState(beforeText = "") {
     const text = bodyText();
     if (includesAny(text, TEXT.rateLimited)) return "rate_limited";
     if (includesAny(text, TEXT.quota)) return "quota_blocked";
-    if (includesAny(text, TEXT.requested)) return "requested_indexing";
+    if (includesAny(text, TEXT.failed) && text !== beforeText) return "failed";
+    if (includesAny(text, TEXT.requested) && text !== beforeText) return "requested_indexing";
     return "";
   }
 
-  async function probe() {
-    const input = await waitFor(findInspectionInput, 15000, 300);
+  function pageDiagnostic() {
     return {
-      ok: true,
       hostname: location.hostname,
       pathname: location.pathname,
+      title: document.title || "",
+      controls: inspectionControls().length,
+      hasRequestButton: Boolean(findRequestIndexingButton()),
+    };
+  }
+
+  async function probe() {
+    emit("debug", "gsc probe started", pageDiagnostic());
+    const input = await waitFor(findInspectionInput, 15000, 300);
+    const diagnostic = pageDiagnostic();
+    emit(
+      input ? "info" : "warn",
+      input ? "gsc inspection control ready" : "gsc inspection control missing",
+      diagnostic,
+    );
+    return {
+      ok: Boolean(input),
       inspectionInput: Boolean(input),
+      ...diagnostic,
     };
   }
 
   async function inspectURL(url) {
+    emit("info", "gsc ui inspection started", { url, ...pageDiagnostic() });
+
     const input = await waitFor(findInspectionInput, 30000, 300);
     if (!input) {
-      return { ok: false, action: "ui_changed", error: "Google Search Console URL inspection input was not found" };
+      const diagnostic = pageDiagnostic();
+      emit("error", "gsc inspection control not found", { url, ...diagnostic });
+      return {
+        ok: false,
+        action: "ui_changed",
+        stage: "inspection_control",
+        url,
+        error: "Google Search Console URL inspection input was not found",
+        diagnostic,
+      };
     }
-    input.click();
-    input.focus();
-    if (typeof input.select === "function") input.select();
+
+    const beforeText = bodyText();
     setInputValue(input, url);
     await sleep(150);
     pressEnter(input);
+    emit("info", "gsc inspection submitted", { url });
 
-    const state = await waitFor(detectPageState, 90000, 500);
+    const state = await waitFor(() => detectPageState(url), 90000, 500);
     if (!state) {
-      return { ok: false, action: "timeout", error: "Google Search Console inspection timed out" };
+      const diagnostic = pageDiagnostic();
+      emit("error", "gsc inspection result timed out", { url, ...diagnostic });
+      return {
+        ok: false,
+        action: "timeout",
+        stage: "inspection_result",
+        url,
+        error: "Google Search Console inspection result did not arrive for the requested URL",
+        diagnostic,
+      };
     }
+
     if (state.kind === "rate_limited") {
-      return { ok: false, action: "rate_limited", error: "Google Search Console returned 429 / too many requests" };
+      emit("warn", "gsc inspection rate limited", { url });
+      return { ok: false, action: "rate_limited", stage: "inspection_result", url, error: "Google Search Console returned too many requests" };
     }
     if (state.kind === "quota_blocked") {
-      return { ok: false, action: "quota_blocked", error: "Google Search Console quota was exhausted" };
+      emit("warn", "gsc inspection quota blocked", { url });
+      return { ok: false, action: "quota_blocked", stage: "inspection_result", url, error: "Google Search Console quota was exhausted" };
     }
-    return { ok: true, action: state.kind, url };
+    if (state.kind === "failed") {
+      emit("error", "gsc inspection returned error", { url });
+      return { ok: false, action: "failed", stage: "inspection_result", url, error: "Google Search Console returned an inspection error" };
+    }
+
+    // A matching target URL plus a concrete indexed/not-indexed state is the
+    // acknowledgement that the GSC UI has finished inspecting this URL.
+    emit("info", "gsc inspection result received", { url, action: state.kind, bodyChanged: beforeText !== bodyText() });
+    return { ok: true, action: state.kind, stage: "inspection_result", url };
   }
 
   async function requestIndexing(url) {
     const inspected = await inspectURL(url);
-    if (!inspected.ok || inspected.action === "already_indexed") return inspected;
+    if (!inspected.ok) return inspected;
+
+    if (inspected.action === "already_indexed") {
+      emit("info", "gsc request indexing skipped because URL is indexed", { url });
+      return inspected;
+    }
+    if (inspected.action !== "not_indexed") {
+      emit("error", "gsc inspection returned unexpected state", { url, action: inspected.action });
+      return {
+        ok: false,
+        action: "failed",
+        stage: "inspection_result",
+        url,
+        error: `Unexpected Google Search Console inspection state: ${inspected.action}`,
+      };
+    }
 
     const button = await waitFor(findRequestIndexingButton, 30000, 500);
     if (!button) {
-      return { ok: false, action: "ui_changed", url, error: "Request indexing button was not found" };
+      const diagnostic = pageDiagnostic();
+      emit("error", "gsc request indexing button not found", { url, ...diagnostic });
+      return {
+        ok: false,
+        action: "ui_changed",
+        stage: "request_button",
+        url,
+        error: "Google Search Console confirmed the URL is not indexed, but Request indexing button was not found",
+        diagnostic,
+      };
     }
-    button.click();
 
-    const result = await waitFor(findSuccessDialogState, 180000, 500);
+    const beforeText = bodyText();
+    button.click();
+    emit("info", "gsc request indexing clicked", { url });
+
+    const result = await waitFor(() => findSuccessDialogState(beforeText), 180000, 500);
     if (!result) {
-      return { ok: false, action: "timeout", url, error: "Google Request Indexing timed out" };
+      const diagnostic = pageDiagnostic();
+      emit("error", "gsc request indexing result timed out", { url, ...diagnostic });
+      return {
+        ok: false,
+        action: "timeout",
+        stage: "request_result",
+        url,
+        error: "Google Request Indexing did not return a result",
+        diagnostic,
+      };
     }
     if (result === "quota_blocked") {
-      return { ok: false, action: result, url, error: "Google Request Indexing daily quota was exhausted" };
+      emit("warn", "gsc request indexing quota blocked", { url });
+      return { ok: false, action: result, stage: "request_result", url, error: "Google Request Indexing daily quota was exhausted" };
     }
     if (result === "rate_limited") {
-      return { ok: false, action: result, url, error: "Google Search Console rate limited Request Indexing" };
+      emit("warn", "gsc request indexing rate limited", { url });
+      return { ok: false, action: result, stage: "request_result", url, error: "Google Search Console rate limited Request Indexing" };
     }
-    return { ok: true, action: "requested_indexing", url };
+    if (result === "failed") {
+      emit("error", "gsc request indexing returned error", { url });
+      return { ok: false, action: "failed", stage: "request_result", url, error: "Google Search Console returned a Request Indexing error" };
+    }
+
+    emit("info", "gsc request indexing confirmed", { url });
+    return { ok: true, action: "requested_indexing", stage: "request_result", url };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -218,7 +402,10 @@
     if (!task) return false;
     Promise.resolve(task)
       .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, action: "failed", error: error?.message || String(error) }));
+      .catch((error) => {
+        emit("error", "gsc automation exception", { error: error?.message || String(error) });
+        sendResponse({ ok: false, action: "failed", error: error?.message || String(error) });
+      });
     return true;
   });
 })();
