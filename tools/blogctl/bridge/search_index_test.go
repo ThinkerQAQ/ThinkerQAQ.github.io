@@ -31,7 +31,7 @@ func TestBuildGoogleRequestQueuePreservesRequestedState(t *testing.T) {
 	now := time.Date(2026, 9, 26, 3, 0, 0, 0, time.UTC)
 	url := "https://thinkerqaq.github.io/a/"
 	previous := googleIndexRequestQueue{
-		JobID: "request-job-1",
+		JobID:     "request-job-1",
 		CreatedAt: "2026-09-25T00:00:00Z",
 		Items: []googleIndexRequestItem{{
 			URL: url, Status: "requested", RequestedAt: "2026-09-25T01:00:00Z",
