@@ -52,7 +52,7 @@ func TestPublishingTaskMirrorSurvivesBridgeRestart(t *testing.T) {
 	}
 	now := time.Date(2026, 9, 26, 5, 0, 0, 0, time.UTC)
 	request := syncRequest{
-		Article: "articles/concurrency",
+		Article:   "articles/concurrency",
 		Platforms: []string{"devto"},
 		Operation: "draft",
 	}
@@ -112,8 +112,8 @@ func TestRunningRequestIndexingTaskRecoversPaused(t *testing.T) {
 
 	state := defaultSearchIndexState()
 	state.Google.RequestQueue = googleIndexRequestQueue{
-		JobID: job.ID,
-		State: "running",
+		JobID:        job.ID,
+		State:        "running",
 		CurrentIndex: 1,
 		Items: []googleIndexRequestItem{
 			{URL: "https://thinkerqaq.github.io/a/", Status: "requested"},
@@ -149,7 +149,7 @@ func TestPublishingTaskPayloadCanRestoreAfterMemoryPrune(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := syncRequest{
-		Article: "articles/test",
+		Article:   "articles/test",
 		Platforms: []string{"devto"},
 		Operation: "draft",
 	}
