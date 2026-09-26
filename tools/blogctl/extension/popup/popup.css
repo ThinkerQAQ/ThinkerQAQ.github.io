@@ -3,6 +3,8 @@
 body { margin: 0; min-width: 0; width: 100%; background: #f7f7f8; }
 .app { padding: 14px; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-icon { width: 40px; height: 40px; flex: 0 0 auto; border-radius: 10px; }
 .brand-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 h1 { margin: 0; font-size: 17px; line-height: 1.3; } h1 span { color: #6b7280; font-size: 12px; font-weight: 600; }
 .header p, .card-hint { margin: 4px 0 0; color: #6b7280; font-size: 12px; line-height: 1.5; }
