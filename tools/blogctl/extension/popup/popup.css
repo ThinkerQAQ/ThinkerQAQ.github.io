@@ -6,7 +6,7 @@ body { margin: 0; min-width: 0; width: 100%; background: #f7f7f8; }
 .brand-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 h1 { margin: 0; font-size: 17px; line-height: 1.3; } h1 span { color: #6b7280; font-size: 12px; font-weight: 600; }
 .header p, .card-hint { margin: 4px 0 0; color: #6b7280; font-size: 12px; line-height: 1.5; }
-.tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 12px; padding: 4px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+.tabs { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px; padding: 4px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
 .tab { padding: 8px 6px; background: transparent; color: #6b7280; font-size: 12px; font-weight: 700; } .tab.active { background: #111827; color: #fff; }
 @media (max-width: 620px) { .tabs { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 390px) { .tabs { grid-template-columns: repeat(2, 1fr); } .app { padding: 10px; } }
@@ -135,3 +135,10 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .environment-nested-tools { padding-top: 2px; }
 .environment-nested-tools .tool-card { background: #f9fafb; }
 .environment-nested-tools .tool-card + .tool-card { margin-top: 0; }
+
+.log-toolbar { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto auto; gap: 8px; align-items: end; }
+.log-filter { min-width: 0; }
+.log-follow { min-height: 34px; justify-content: flex-start; white-space: nowrap; }
+.log-follow input { width: 18px; height: 18px; flex: 0 0 auto; }
+.log-viewer { min-height: 320px; max-height: 520px; overflow: auto; margin: 0; padding: 10px; border-radius: 8px; background: #111827; color: #f9fafb; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; line-height: 1.5; tab-size: 2; }
+@media (max-width: 520px) { .log-toolbar { grid-template-columns: 1fr 1fr; } .log-viewer { min-height: 260px; } }
