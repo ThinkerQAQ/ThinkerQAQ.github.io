@@ -24,6 +24,7 @@
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing">索引</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publishing">平台配置</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">环境与配置</button>
     </nav>
@@ -124,6 +125,109 @@
       <p id="tasksMessage" class="message" role="status"></p>
     </section>
 
+    <section class="panel" role="tabpanel" data-panel="indexing">
+      <section class="status-card">
+        <div class="status-row">
+          <div>
+            <div class="section-title">URL 来源</div>
+            <p class="card-hint"><code id="indexSource">https://thinkerqaq.github.io/sitemap-all.txt</code></p>
+          </div>
+          <button id="indexRefreshInventory" class="secondary compact" type="button">刷新 URL</button>
+        </div>
+        <div class="index-stat-grid">
+          <div><span>URL 总数</span><strong id="indexInventoryTotal">-</strong></div>
+          <div><span>最后刷新</span><strong id="indexInventoryFetchedAt">-</strong></div>
+        </div>
+      </section>
+
+      <section class="status-card">
+        <div class="status-row">
+          <div>
+            <div class="section-title">Bing / IndexNow</div>
+            <p class="card-hint">从 <code>sitemap-all.txt</code> 读取全量 URL 并提交到 Bing IndexNow。</p>
+          </div>
+          <strong id="indexBingStatus" class="status disabled">未运行</strong>
+        </div>
+        <div class="index-stat-grid">
+          <div><span>上次提交</span><strong id="indexBingFinishedAt">-</strong></div>
+          <div><span>URL 数</span><strong id="indexBingCount">-</strong></div>
+          <div><span>HTTP</span><strong id="indexBingHTTP">-</strong></div>
+        </div>
+        <button id="indexBingSubmit" class="primary" type="button">提交全部 URL 到 Bing</button>
+      </section>
+
+      <section class="status-card">
+        <div class="status-row">
+          <div>
+            <div class="section-title">Google Search Console</div>
+            <p class="card-hint">保留 Sitemap、官方 URL Inspection 和 GSC Request Indexing 三层流程。</p>
+          </div>
+          <strong id="indexGoogleCredentials" class="status disabled">凭据未知</strong>
+        </div>
+
+        <div class="index-subcard">
+          <div class="status-row">
+            <div>
+              <strong>Sitemap</strong>
+              <p class="card-hint"><code>sitemap-index.xml</code> + <code>sitemap-all.txt</code> 始终同时提交。</p>
+            </div>
+            <strong id="indexGoogleSitemapStatus" class="status disabled">未运行</strong>
+          </div>
+          <div class="index-stat-grid">
+            <div><span>上次提交</span><strong id="indexGoogleSitemapFinishedAt">-</strong></div>
+            <div><span>提交数量</span><strong id="indexGoogleSitemapCount">-</strong></div>
+          </div>
+          <button id="indexGoogleSitemaps" class="secondary full-width" type="button">重新提交两个 Sitemap</button>
+        </div>
+
+        <div class="index-subcard">
+          <div class="status-row">
+            <div>
+              <strong>URL Inspection</strong>
+              <p class="card-hint">使用官方 Search Console URL Inspection API；单日按站点最多检查 2000 个 URL。</p>
+            </div>
+            <strong id="indexGoogleInspectionStatus" class="status disabled">未运行</strong>
+          </div>
+          <div class="index-stat-grid">
+            <div><span>已检查</span><strong id="indexInspectionInspected">0</strong></div>
+            <div><span>已收录</span><strong id="indexInspectionIndexed">0</strong></div>
+            <div><span>未收录/未知</span><strong id="indexInspectionNotIndexed">0</strong></div>
+            <div><span>从未抓取</span><strong id="indexInspectionNeverCrawled">0</strong></div>
+            <div><span>未关联 Sitemap</span><strong id="indexInspectionWithoutSitemap">0</strong></div>
+            <div><span>剩余</span><strong id="indexInspectionRemaining">-</strong></div>
+          </div>
+          <button id="indexGoogleInspect" class="secondary full-width" type="button">检查下一批</button>
+        </div>
+
+        <div class="index-subcard">
+          <div class="status-row">
+            <div>
+              <strong>Request Indexing</strong>
+              <p class="card-hint">只处理 Inspection 判断为未收录且允许索引的 URL。通过真实 GSC 页面点击请求，不读取或保存 Google Cookie value。</p>
+            </div>
+            <strong id="indexGoogleGSCStatus" class="status disabled">未检测</strong>
+          </div>
+          <div class="index-stat-grid">
+            <div><span>候选</span><strong id="indexRequestTotal">0</strong></div>
+            <div><span>已请求</span><strong id="indexRequestRequested">0</strong></div>
+            <div><span>已收录跳过</span><strong id="indexRequestIndexed">0</strong></div>
+            <div><span>待处理</span><strong id="indexRequestQueued">0</strong></div>
+            <div><span>失败</span><strong id="indexRequestFailed">0</strong></div>
+            <div><span>队列位置</span><strong id="indexRequestPosition">-</strong></div>
+          </div>
+          <p id="indexRequestError" class="card-hint"></p>
+          <div class="index-action-row">
+            <button id="indexGoogleOpen" class="secondary" type="button">打开 / 检测 GSC</button>
+            <button id="indexGoogleRequestStart" class="primary inline-primary" type="button">开始请求索引</button>
+            <button id="indexGoogleRequestPause" class="secondary" type="button">暂停</button>
+            <button id="indexGoogleRequestResume" class="secondary" type="button">继续</button>
+          </div>
+        </div>
+
+        <p id="indexingMessage" class="message" role="status"></p>
+      </section>
+    </section>
+
     <section class="panel" role="tabpanel" data-panel="publishing">
       <section class="status-card">
         <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
@@ -180,6 +284,7 @@
   <script src="publications.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
+  <script src="indexing.js"></script>
   <script src="publishing.js"></script>
   <script src="environment.js"></script>
   <script src="popup.js"></script>
