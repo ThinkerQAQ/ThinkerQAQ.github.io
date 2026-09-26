@@ -110,6 +110,7 @@
     const iStats = inspectionStats(inspection.results);
     const qStats = queueStats(queue);
     const requestCandidateCount = qStats.total || inspectionRequestCandidates(inspection.results);
+    const requestPendingCount = qStats.total ? qStats.queued + qStats.failed : requestCandidateCount;
 
     setText(elements.source, inventory.source || "https://thinkerqaq.github.io/sitemap-all.txt");
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
@@ -166,7 +167,7 @@
     elements.googleInspect.textContent = inspectionComplete ? "Inspection 已完成" : "检查下一批";
 
     const queueState = String(queue.state || "idle");
-    elements.googleRequestStart.disabled = !inspectionReady || requestCandidateCount === 0 || ["running"].includes(queueState) || state.busy.has("request");
+    elements.googleRequestStart.disabled = !inspectionReady || requestPendingCount === 0 || ["running"].includes(queueState) || state.busy.has("request");
     elements.googleRequestPause.disabled = queueState !== "running" || state.busy.has("request");
     elements.googleRequestResume.disabled = !["paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
     elements.googleOpen.disabled = state.busy.has("gsc");
