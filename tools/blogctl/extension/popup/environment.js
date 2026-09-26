@@ -40,9 +40,20 @@
     button.disabled = true;
     BlogCTLPopup.setMessage(message, `正在执行 ${tool.displayName || tool.name}：${action.label || action.id}…`);
     try {
-      await BlogCTLPopup.send("blogctl.tool.action", { name: tool.name, action: action.id });
-      BlogCTLPopup.setMessage(message, action.id === "restart" ? "Bridge 已重启并重新连接。" : "操作已完成。", "ok");
-      await refresh();
+      const response = await BlogCTLPopup.send("blogctl.tool.action", { name: tool.name, action: action.id });
+      if (Array.isArray(response.tools)) {
+        state.tools = response.tools;
+        renderTools();
+      }
+      const detail = response.detail && typeof response.detail === "object"
+        ? Object.entries(response.detail).filter(([, value]) => value !== "" && value !== null && value !== undefined)
+          .map(([key, value]) => `${key}: ${value}`).join(" · ")
+        : "";
+      const text = action.id === "restart"
+        ? "Bridge 已重启并重新连接。"
+        : [response.message || "操作已完成。", detail].filter(Boolean).join(" · ");
+      BlogCTLPopup.setMessage(message, text, "ok");
+      if (!Array.isArray(response.tools)) await refresh();
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally {
