@@ -118,6 +118,7 @@ func CloseLogging() {
 	file := bridgeLoggingState.file
 	bridgeLoggingState.file = nil
 	bridgeLoggingState.path = ""
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	bridgeLoggingState.Unlock()
 	if file != nil {
 		_ = file.Close()
