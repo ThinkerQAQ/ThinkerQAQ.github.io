@@ -270,3 +270,44 @@ func (s *Server) handleLogsClear(response http.ResponseWriter, request *http.Req
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "path": path})
 }
+
+func (s *Server) handleLogsEvent(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	var input struct {
+		Level   string         `json:"level"`
+		Message string         `json:"message"`
+		Fields  map[string]any `json:"fields"`
+	}
+	if err := readJSON(request, maxBodyBytes, &input); err != nil {
+		writeError(response, err)
+		return
+	}
+	input.Level = strings.ToLower(strings.TrimSpace(input.Level))
+	input.Message = strings.TrimSpace(input.Message)
+	if input.Message == "" {
+		writeAPIError(response, http.StatusBadRequest, "invalid_log_event", "message is required", nil)
+		return
+	}
+	attrs := make([]any, 0, len(input.Fields)*2+2)
+	attrs = append(attrs, "source", "extension")
+	for key, value := range input.Fields {
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "cookie", "authorization", "token", "private_key", "serviceaccountjson":
+			continue
+		}
+		attrs = append(attrs, key, value)
+	}
+	switch input.Level {
+	case "debug":
+		slog.Debug(input.Message, attrs...)
+	case "warn":
+		slog.Warn(input.Message, attrs...)
+	case "error":
+		slog.Error(input.Message, attrs...)
+	default:
+		slog.Info(input.Message, attrs...)
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true})
+}
