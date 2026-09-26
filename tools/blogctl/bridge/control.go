@@ -454,7 +454,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "network-proxy", DisplayName: "Network Proxy", Kind: "runtime", Required: false,
-			Description: "启用后统一代理 BlogCTL 的外部 HTTP/HTTPS：Bridge、Search Node 子进程以及 Extension/浏览器侧请求；localhost/127.0.0.1 保持直连。",
+			Description: "启用后统一代理 BlogCTL 的外部 HTTP/HTTPS：Bridge、Search Node 子进程，以及浏览器中 BlogCTL 需要访问的平台/GSC 域名；其他普通浏览流量保持 DIRECT。",
 			Health: func() toolHealth {
 				if !config.ProxyEnabled {
 					return toolHealth{OK: true, Status: "disabled", Summary: "直连"}
@@ -463,7 +463,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			}(),
 			Config: toolConfigView{
 				Scope: "bridge", Values: map[string]any{"proxyEnabled": config.ProxyEnabled, "proxyHost": config.ProxyHost, "proxyPort": config.ProxyPort},
-				Toggle: &toolToggle{Key: "proxyEnabled", Label: "启用代理", Description: "BlogCTL 所有外网请求使用同一代理；本机 Bridge 通信保持直连"},
+				Toggle: &toolToggle{Key: "proxyEnabled", Label: "启用代理", Description: "BlogCTL 网络请求使用同一代理；浏览器仅代理 BlogCTL 目标域名，其他标签页保持直连"},
 				Schema: []toolField{
 					{Key: "proxyHost", Label: "代理主机", Type: "text", Placeholder: "127.0.0.1"},
 					{Key: "proxyPort", Label: "代理端口", Type: "integer", Placeholder: "7890", Min: 1, Max: 65535},
