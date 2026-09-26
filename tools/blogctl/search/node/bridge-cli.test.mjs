@@ -159,6 +159,25 @@ test("bridge inventory command does not require Google credentials", async () =>
   assert.equal(result.urls[0], "https://thinkerqaq.github.io/a/");
 });
 
+test("Bing integration check validates the key file without fetching sitemap inventory", async () => {
+  const seen = [];
+  const result = await runBridgeCommand("bing-check", {}, {
+    env: {
+      INDEXNOW_ENDPOINT: "https://www.bing.com/indexnow",
+      INDEXNOW_KEY: "abcdefgh12345678",
+      INDEXNOW_KEY_LOCATION: "https://thinkerqaq.github.io/abcdefgh12345678.txt",
+    },
+    fetchImpl: async (url) => {
+      seen.push(url);
+      assert.equal(url, "https://thinkerqaq.github.io/abcdefgh12345678.txt");
+      return new Response("abcdefgh12345678\n", { status: 200 });
+    },
+  });
+  assert.deepEqual(seen, ["https://thinkerqaq.github.io/abcdefgh12345678.txt"]);
+  assert.equal(result.keyFileStatus, 200);
+  assert.equal(result.endpoint, "https://www.bing.com/indexnow");
+});
+
 test("bridge status reports Google credential availability without exposing credentials", async () => {
   const result = await runBridgeCommand("status", {}, {
     env: {
