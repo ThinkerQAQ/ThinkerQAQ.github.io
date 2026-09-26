@@ -155,10 +155,10 @@ func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []br
 }
 
 type Server struct {
-	token      string
-	now        func() time.Time
-	httpClient *http.Client
-	config     bridgeConfig
+	token        string
+	now          func() time.Time
+	httpClient   *http.Client
+	config       bridgeConfig
 	restart      func()
 	syncRunner   syncRunner
 	searchRunner searchNodeRunner
