@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 )
 
 const searchBridgeResultPrefix = "__BLOGCTL_SEARCH_RESULT__"
+const searchBridgeProgressPrefix = "__BLOGCTL_SEARCH_PROGRESS__"
 
 type searchNodeRunner func(context.Context, bridgeConfig, string, map[string]any) (json.RawMessage, error)
 
@@ -275,6 +277,151 @@ func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command
 		return json.RawMessage(raw), nil
 	}
 	return nil, errors.New("search bridge did not return a result")
+}
+
+func (s *Server) runSearchNodeWithProgress(
+	ctx context.Context,
+	config bridgeConfig,
+	command string,
+	input map[string]any,
+	onProgress func(json.RawMessage) error,
+) (json.RawMessage, error) {
+	runner := s.searchRunner
+	if runner != nil {
+		raw, err := runner(ctx, config, command, input)
+		if err != nil {
+			return nil, err
+		}
+		if command == "google-inspect" && onProgress != nil {
+			var report struct {
+				Offset         int                      `json:"offset"`
+				Inspected      int                      `json:"inspected"`
+				TotalAvailable int                      `json:"totalAvailable"`
+				Results        []searchInspectionResult `json:"results"`
+			}
+			if err := decodeSearchResult(raw, &report); err != nil {
+				return nil, err
+			}
+			for index, result := range report.Results {
+				nextOffset := report.Offset + index + 1
+				var next *int
+				if nextOffset < report.TotalAvailable {
+					value := nextOffset
+					next = &value
+				}
+				progress, err := json.Marshal(map[string]any{
+					"offset":         report.Offset,
+					"inspected":      index + 1,
+					"totalAvailable": report.TotalAvailable,
+					"remaining":      max(0, report.TotalAvailable-nextOffset),
+					"nextOffset":     next,
+					"result":         result,
+				})
+				if err != nil {
+					return nil, err
+				}
+				if err := onProgress(progress); err != nil {
+					return nil, err
+				}
+			}
+		}
+		return raw, nil
+	}
+
+	node, err := configuredExecutable(config, "node")
+	if err != nil {
+		return nil, err
+	}
+	engineRoot := strings.TrimSpace(config.EngineRoot)
+	if engineRoot == "" {
+		return nil, errors.New("Public Engine path is not configured")
+	}
+	script := filepath.Join(engineRoot, "tools", "blogctl", "search", "node", "bridge-cli.mjs")
+	if !filePresent(script) {
+		return nil, fmt.Errorf("BlogCTL search bridge runtime was not found: %s", script)
+	}
+	if input == nil {
+		input = map[string]any{}
+	}
+	input["publicRoot"] = filepath.Join(engineRoot, "public")
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.CommandContext(ctx, node, script, command)
+	cmd.Dir = engineRoot
+	cmd.Env, err = processEnvironmentForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	cmd.Env = append(cmd.Env,
+		"INDEXNOW_ENDPOINT="+indexNowEndpoint(config),
+		"INDEXNOW_KEY="+indexNowKey(config),
+		"INDEXNOW_KEY_LOCATION="+indexNowKeyLocation(config),
+	)
+	if credential := googleSearchConsoleServiceJSON(config); credential != "" {
+		cmd.Env = append(cmd.Env, "GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON="+credential)
+	}
+	cmd.Stdin = bytes.NewReader(payload)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 64*1024), 32*1024*1024)
+	var result json.RawMessage
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, searchBridgeProgressPrefix):
+			if onProgress == nil {
+				continue
+			}
+			raw := strings.TrimPrefix(line, searchBridgeProgressPrefix)
+			if !json.Valid([]byte(raw)) {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+				return nil, errors.New("search bridge returned invalid progress JSON")
+			}
+			if err := onProgress(json.RawMessage(raw)); err != nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+				return nil, err
+			}
+		case strings.HasPrefix(line, searchBridgeResultPrefix):
+			raw := strings.TrimPrefix(line, searchBridgeResultPrefix)
+			if !json.Valid([]byte(raw)) {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+				return nil, errors.New("search bridge returned invalid JSON")
+			}
+			result = append(json.RawMessage(nil), []byte(raw)...)
+		}
+	}
+	scanErr := scanner.Err()
+	waitErr := cmd.Wait()
+	if scanErr != nil {
+		return nil, fmt.Errorf("search %s output failed: %w", command, scanErr)
+	}
+	if waitErr != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			detail = waitErr.Error()
+		}
+		return nil, fmt.Errorf("search %s failed: %s", command, detail)
+	}
+	if len(result) == 0 {
+		return nil, errors.New("search bridge did not return a result")
+	}
+	return result, nil
 }
 
 func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) {
