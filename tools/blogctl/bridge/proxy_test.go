@@ -80,6 +80,9 @@ func TestProcessEnvironmentUsesConfiguredProxyForChildRuntimes(t *testing.T) {
 	if got := envValue(env, "NODE_USE_ENV_PROXY"); got != "1" {
 		t.Fatalf("NODE_USE_ENV_PROXY = %q", got)
 	}
+	if got := envValue(env, "BLOGCTL_PROXY_REQUIRED"); got != "1" {
+		t.Fatalf("BLOGCTL_PROXY_REQUIRED = %q", got)
+	}
 	if got := envValue(env, "NO_PROXY"); !strings.Contains(got, "127.0.0.1") || !strings.Contains(got, "localhost") {
 		t.Fatalf("NO_PROXY = %q", got)
 	}
@@ -95,7 +98,7 @@ func TestProcessEnvironmentIsDirectWhenProxyDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NODE_USE_ENV_PROXY"} {
+	for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NODE_USE_ENV_PROXY", "BLOGCTL_PROXY_REQUIRED"} {
 		if got := envValue(env, key); got != "" {
 			t.Fatalf("%s = %q; child runtime should be direct", key, got)
 		}
