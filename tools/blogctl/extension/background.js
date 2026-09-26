@@ -1726,7 +1726,11 @@ async function handleMessage(message) {
     }
     case "blogctl.index.get": {
       const result = await fetchJSON("/v1/search/index");
-      return { ok: true, index: result?.index ?? {} };
+      const index = result?.index ?? {};
+      if (index?.google?.requestQueue?.state === "running" && !googleIndexPumpPromise) {
+        kickGoogleIndexQueuePump();
+      }
+      return { ok: true, index };
     }
     case "blogctl.index.inventory.refresh": {
       const result = await fetchJSON("/v1/search/index/inventory/refresh", { method: "POST" });
