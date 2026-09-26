@@ -23,11 +23,37 @@
   }
   function healthKind(health) { if (health?.status === "disabled") return "disabled"; if (health?.ok) return "ok"; if (health?.status === "missing" || health?.status === "error") return "error"; return "unknown"; }
   function makeConfigInput(tool, field) {
-    const label = document.createElement("label"); label.className = "field";
-    const title = document.createElement("span"); title.textContent = field.label || field.key;
-    const input = document.createElement("input"); input.dataset.configKey = field.key; input.type = field.type === "integer" ? "number" : field.type === "secret" ? "password" : "text"; if (field.type === "secret") input.autocomplete = "off"; if (field.min) input.min = String(field.min); if (field.max) input.max = String(field.max); if (field.placeholder) input.placeholder = field.placeholder; input.value = tool.config?.values?.[field.key] ?? "";
+    const label = document.createElement("label");
+    label.className = "field";
+    const title = document.createElement("span");
+    title.textContent = field.label || field.key;
+
+    let input;
+    if (field.type === "select") {
+      input = document.createElement("select");
+      for (const optionValue of field.options ?? []) {
+        const option = document.createElement("option");
+        option.value = String(optionValue);
+        option.textContent = String(optionValue).toUpperCase();
+        input.append(option);
+      }
+    } else {
+      input = document.createElement("input");
+      input.type = field.type === "integer" ? "number" : field.type === "secret" ? "password" : "text";
+      if (field.type === "secret") input.autocomplete = "off";
+      if (field.min) input.min = String(field.min);
+      if (field.max) input.max = String(field.max);
+      if (field.placeholder) input.placeholder = field.placeholder;
+    }
+    input.dataset.configKey = field.key;
+    input.value = tool.config?.values?.[field.key] ?? "";
     label.append(title, input);
-    if (field.description) { const hint = document.createElement("small"); hint.className = "field-hint"; hint.textContent = field.description; label.append(hint); }
+    if (field.description) {
+      const hint = document.createElement("small");
+      hint.className = "field-hint";
+      hint.textContent = field.description;
+      label.append(hint);
+    }
     return label;
   }
   async function saveTool(tool, card, button) {
