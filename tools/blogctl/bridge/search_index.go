@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -237,7 +236,10 @@ func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command
 	}
 	cmd := exec.CommandContext(ctx, node, script, command)
 	cmd.Dir = engineRoot
-	cmd.Env = os.Environ()
+	cmd.Env, err = processEnvironmentForConfig(config)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Env = append(cmd.Env,
 		"INDEXNOW_ENDPOINT="+indexNowEndpoint(config),
 		"INDEXNOW_KEY="+indexNowKey(config),
