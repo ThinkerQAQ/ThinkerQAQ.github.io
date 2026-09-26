@@ -444,6 +444,9 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		case http.MethodGet:
 			s.handleLogsGet(response, request)
 			return
+		case http.MethodPost:
+			s.handleLogsEvent(response, request)
+			return
 		case http.MethodDelete:
 			s.handleLogsClear(response, request)
 			return
