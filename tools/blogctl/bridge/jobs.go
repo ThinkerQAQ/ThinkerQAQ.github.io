@@ -269,10 +269,10 @@ func publishingDurableTask(job *syncJob, existing *durableTaskJob, now time.Time
 		FinishedAt: job.FinishedAt, Error: job.Error,
 		CanRetry: job.State == "failed" && job.Operation != "publish",
 		Progress: taskProgress{Current: completedSyncPlatforms(*job), Total: len(job.Platforms), Unit: "platform"},
-		Payload: payload,
-		Article: job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
+		Payload:  payload,
+		Article:  job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
 		Results: make(map[string]syncPlatformResult, len(job.Results)),
-		Events: append([]syncJobEvent{}, job.Events...), Output: job.Output, DryRun: job.DryRun,
+		Events:  append([]syncJobEvent{}, job.Events...), Output: job.Output, DryRun: job.DryRun,
 	}
 	for platform, value := range job.Results {
 		result.Results[platform] = value
