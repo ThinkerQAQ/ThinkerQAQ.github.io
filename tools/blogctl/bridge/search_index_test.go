@@ -262,7 +262,7 @@ func TestEnvironmentIntegrationChecksUseSearchBridge(t *testing.T) {
 
 func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
-	t.Setenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", "{\"private_key\":\"TOP-SECRET\"}")
+	t.Setenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", "{\"type\":\"service_account\",\"client_email\":\"search@example.iam.gserviceaccount.com\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\nTOP-SECRET\\n-----END PRIVATE KEY-----\\n\"}")
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
