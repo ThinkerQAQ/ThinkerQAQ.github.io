@@ -664,6 +664,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 
 func publicBridgeConfig(config bridgeConfig) bridgeConfig {
 	config.DevtoAPIKey = ""
+	config.IndexNowKey = ""
 	config.GoogleSearchConsoleServiceJSON = ""
 	return config
 }
