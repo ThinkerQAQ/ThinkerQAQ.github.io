@@ -624,7 +624,7 @@ func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIn
 		}
 	}
 	queue := googleIndexRequestQueue{
-		State: "idle", CreatedAt: previous.CreatedAt, UpdatedAt: now.UTC().Format(time.RFC3339),
+		JobID: previous.JobID, State: "idle", CreatedAt: previous.CreatedAt, UpdatedAt: now.UTC().Format(time.RFC3339),
 		CurrentIndex: currentIndex, Items: items,
 	}
 	if queue.CreatedAt == "" {
