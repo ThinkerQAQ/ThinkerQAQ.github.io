@@ -1997,6 +1997,20 @@ async function handleMessage(message) {
         assetStatus: result?.assetStatus ?? {},
       };
     }
+    case "blogctl.logs": {
+      const limit = Math.max(1, Math.min(2000, Number(message.limit || 500)));
+      const result = await fetchJSON(`/v1/logs?limit=${encodeURIComponent(limit)}`);
+      return {
+        ok: true,
+        path: result?.path || "",
+        level: result?.level || "info",
+        entries: Array.isArray(result?.entries) ? result.entries : [],
+      };
+    }
+    case "blogctl.logs.clear": {
+      const result = await fetchJSON("/v1/logs", { method: "DELETE" });
+      return { ok: true, path: result?.path || "" };
+    }
     case "blogctl.jobs": {
       const result = await fetchJSON("/v1/jobs");
       return { ok: true, jobs: result?.jobs ?? [] };
