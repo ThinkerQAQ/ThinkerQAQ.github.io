@@ -13,6 +13,7 @@ import { DEFAULT_SITE_ORIGIN, assertSiteUrl, normalizeSiteOrigin } from "./inven
 import { resolveIndexNowConfig, submitIndexNowUrls } from "./indexnow.mjs";
 
 export const RESULT_PREFIX = "__BLOGCTL_SEARCH_RESULT__";
+export const PROGRESS_PREFIX = "__BLOGCTL_SEARCH_PROGRESS__";
 
 export function nodeSupportsEnvironmentProxy(version = process.versions.node) {
   const [major = 0, minor = 0] = String(version || "").split(".").map(Number);
@@ -217,6 +218,7 @@ async function googleAccessToken(env = process.env) {
 export async function runBridgeCommand(command, input = {}, {
   env = process.env,
   fetchImpl = fetch,
+  onProgress = null,
 } = {}) {
   assertProxyRuntimeSupport(env);
   const siteUrl = normalizeSearchConsoleSiteUrl(
@@ -309,6 +311,7 @@ export async function runBridgeCommand(command, input = {}, {
       limit,
       requestDelayMs,
       fetchImpl,
+      onProgress,
     });
   }
 
@@ -319,7 +322,13 @@ async function main(argv = process.argv.slice(2)) {
   const command = String(argv[0] || "").trim();
   if (!command) throw new Error("search bridge command is required");
   const input = await readInput();
-  const result = await runBridgeCommand(command, input);
+  const result = await runBridgeCommand(command, input, {
+    onProgress: command === "google-inspect"
+      ? async (progress) => {
+          process.stdout.write(`${PROGRESS_PREFIX}${JSON.stringify(progress)}\n`);
+        }
+      : null,
+  });
   process.stdout.write(`${RESULT_PREFIX}${JSON.stringify(result)}\n`);
 }
 
