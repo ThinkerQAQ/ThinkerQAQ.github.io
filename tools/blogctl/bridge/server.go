@@ -450,7 +450,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 	}
 
-
 	if path == "v1/search/index" && request.Method == http.MethodGet {
 		s.handleSearchIndexGet(response, request)
 		return
