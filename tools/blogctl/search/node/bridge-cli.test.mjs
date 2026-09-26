@@ -2,12 +2,27 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assertProxyRuntimeSupport,
   diffRemoteInventories,
   fetchRemoteInventory,
   normalizeFingerprintManifest,
   normalizeRemoteInventory,
+  nodeSupportsEnvironmentProxy,
   runBridgeCommand,
 } from "./bridge-cli.mjs";
+
+test("proxy runtime support requires Node 22.21+ or 24+", () => {
+  assert.equal(nodeSupportsEnvironmentProxy("22.20.0"), false);
+  assert.equal(nodeSupportsEnvironmentProxy("22.21.0"), true);
+  assert.equal(nodeSupportsEnvironmentProxy("23.9.0"), false);
+  assert.equal(nodeSupportsEnvironmentProxy("24.0.0"), true);
+  assert.doesNotThrow(() => assertProxyRuntimeSupport({ BLOGCTL_PROXY_REQUIRED: "1" }, "22.21.0"));
+  assert.throws(
+    () => assertProxyRuntimeSupport({ BLOGCTL_PROXY_REQUIRED: "1" }, "22.20.0"),
+    /requires Node\.js 22\.21\+/u,
+  );
+  assert.doesNotThrow(() => assertProxyRuntimeSupport({}, "22.20.0"));
+});
 
 test("normalizeRemoteInventory deduplicates, sorts, strips hashes, and keeps site URLs", () => {
   const urls = normalizeRemoteInventory(
