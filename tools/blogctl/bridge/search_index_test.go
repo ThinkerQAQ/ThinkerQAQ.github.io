@@ -15,15 +15,20 @@ func TestBuildGoogleRequestQueueKeepsOnlyEligibleNotIndexedURLs(t *testing.T) {
 	results := []searchInspectionResult{
 		{URL: "https://thinkerqaq.github.io/indexed/", Verdict: "PASS", IndexingState: "INDEXING_ALLOWED"},
 		{URL: "https://thinkerqaq.github.io/ok/", Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED", RobotsTxtState: "ALLOWED"},
+		{URL: "https://thinkerqaq.github.io/never-crawled/", Verdict: "NEUTRAL", IndexingState: "INDEXING_STATE_UNSPECIFIED", RobotsTxtState: "ROBOTS_TXT_STATE_UNSPECIFIED"},
 		{URL: "https://thinkerqaq.github.io/meta/", Verdict: "FAIL", IndexingState: "BLOCKED_BY_META_TAG"},
+		{URL: "https://thinkerqaq.github.io/header/", Verdict: "FAIL", IndexingState: "BLOCKED_BY_HTTP_HEADER"},
 		{URL: "https://thinkerqaq.github.io/robots/", Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED", RobotsTxtState: "DISALLOWED"},
 	}
 	queue := buildGoogleRequestQueue(results, googleIndexRequestQueue{}, now)
-	if len(queue.Items) != 1 {
+	if len(queue.Items) != 2 {
 		t.Fatalf("queue items = %#v", queue.Items)
 	}
-	if queue.Items[0].URL != "https://thinkerqaq.github.io/ok/" || queue.Items[0].Status != "queued" {
-		t.Fatalf("queue item = %#v", queue.Items[0])
+	if queue.Items[0].URL != "https://thinkerqaq.github.io/never-crawled/" || queue.Items[0].Status != "queued" {
+		t.Fatalf("queue item 0 = %#v", queue.Items[0])
+	}
+	if queue.Items[1].URL != "https://thinkerqaq.github.io/ok/" || queue.Items[1].Status != "queued" {
+		t.Fatalf("queue item 1 = %#v", queue.Items[1])
 	}
 }
 
