@@ -213,10 +213,15 @@ test("auditGoogleUrls reports progress after every inspected URL", async () => {
     }), { status: 200 }),
   });
   assert.equal(result.inspected, 3);
-  assert.deepEqual(progress.map((event) => event.inspected), [1, 2, 3]);
-  assert.deepEqual(progress.map((event) => event.result.url), urls);
-  assert.equal(progress[0].nextOffset, 1);
-  assert.equal(progress[2].nextOffset, null);
+  const starts = progress.filter((event) => event.type === "request_start");
+  const completed = progress.filter((event) => event.type === "request_complete");
+  assert.equal(starts.length, 3);
+  assert.deepEqual(starts.map((event) => event.url), urls);
+  assert.deepEqual(completed.map((event) => event.inspected), [1, 2, 3]);
+  assert.deepEqual(completed.map((event) => event.result.url), urls);
+  assert.equal(completed[0].nextOffset, 1);
+  assert.equal(completed[2].nextOffset, null);
+  assert.ok(completed.every((event) => event.durationMs >= 0));
 });
 
 test("auditGoogleUrls supports offset and returns resume metadata", async () => {
