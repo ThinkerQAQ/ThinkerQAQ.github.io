@@ -473,7 +473,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		{
 			Name: "logging", DisplayName: "日志", Kind: "runtime", Required: false,
 			Description: "BlogCTL Bridge 的结构化运行日志。可配置日志目录和最低日志级别；日志页实时读取当前日志文件。",
-			Health: loggingHealth(config),
+			Health:      loggingHealth(config),
 			Config: toolConfigView{
 				Scope: "bridge",
 				Values: map[string]any{
@@ -494,7 +494,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 					{
 						Key: "level", Label: "日志级别", Type: "select",
 						Description: "只记录该级别及以上日志。排查问题时使用 debug。",
-						Options: []string{"debug", "info", "warn", "error"},
+						Options:     []string{"debug", "info", "warn", "error"},
 					},
 				},
 			},
