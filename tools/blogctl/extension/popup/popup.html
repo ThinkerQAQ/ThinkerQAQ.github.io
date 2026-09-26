@@ -234,8 +234,12 @@
           <div class="status-row">
             <div>
               <strong>Request Indexing</strong>
-              <p class="card-hint">只处理 Inspection 判断为未收录且允许索引的 URL。通过真实 GSC 页面点击请求，不读取或保存 Google Cookie value。</p>
+              <p class="card-hint">Inspection 一旦产出未收录 URL，就可以独立开始 Request Indexing；不需要等待整批 Inspection 完成。</p>
             </div>
+            <strong id="indexGoogleRequestStatus" class="status disabled">未运行</strong>
+          </div>
+          <div class="status-row">
+            <span>GSC 会话</span>
             <strong id="indexGoogleGSCStatus" class="status disabled">未检测</strong>
           </div>
           <div class="index-stat-grid">
