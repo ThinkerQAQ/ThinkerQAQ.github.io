@@ -352,9 +352,57 @@ func googleSearchConsoleServiceJSON(config bridgeConfig) string {
 	return strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON"))
 }
 
+type googleServiceAccountConfig struct {
+	Type        string `json:"type"`
+	ClientEmail string `json:"client_email"`
+	PrivateKey  string `json:"private_key"`
+}
+
+func validateGoogleServiceAccountJSON(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return errors.New("Service Account JSON 未配置")
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &probe); err != nil {
+		return fmt.Errorf("Service Account JSON 不是有效 JSON: %w", err)
+	}
+	if _, ok := probe["installed"]; ok {
+		return errors.New("当前 JSON 是 OAuth Desktop Client 凭据，不是 Service Account JSON；请在 Google Cloud → IAM & Admin → Service Accounts 创建 JSON Key")
+	}
+	if _, ok := probe["web"]; ok {
+		return errors.New("当前 JSON 是 OAuth Web Client 凭据，不是 Service Account JSON；请在 Google Cloud → IAM & Admin → Service Accounts 创建 JSON Key")
+	}
+	var credentials googleServiceAccountConfig
+	if err := json.Unmarshal([]byte(raw), &credentials); err != nil {
+		return fmt.Errorf("Service Account JSON 解析失败: %w", err)
+	}
+	if value := strings.TrimSpace(credentials.Type); value != "" && value != "service_account" {
+		return fmt.Errorf("Google 凭据类型是 %q，不是 service_account", value)
+	}
+	missing := []string{}
+	if strings.TrimSpace(credentials.ClientEmail) == "" {
+		missing = append(missing, "client_email")
+	}
+	if strings.TrimSpace(credentials.PrivateKey) == "" {
+		missing = append(missing, "private_key")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("Service Account JSON 缺少字段：%s；请粘贴完整的 Service Account JSON Key 文件内容", strings.Join(missing, ", "))
+	}
+	if !strings.Contains(credentials.PrivateKey, "PRIVATE KEY") {
+		return errors.New("Service Account JSON 的 private_key 格式无效")
+	}
+	return nil
+}
+
 func googleSearchConsoleAPIHealth(config bridgeConfig) toolHealth {
-	if googleSearchConsoleServiceJSON(config) == "" {
+	raw := googleSearchConsoleServiceJSON(config)
+	if raw == "" {
 		return toolHealth{Status: "missing", Summary: "Service Account 未配置"}
+	}
+	if err := validateGoogleServiceAccountJSON(raw); err != nil {
+		return toolHealth{Status: "error", Summary: "Service Account 配置无效", Detail: err.Error()}
 	}
 	return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
 }
@@ -550,6 +598,9 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		}
 	case "google-search-console-api":
 		if value := stringConfig(values, "serviceAccountJson"); value != "" {
+			if err := validateGoogleServiceAccountJSON(value); err != nil {
+				return config, err
+			}
 			config.GoogleSearchConsoleServiceJSON = value
 		}
 	case "node", "npm", "git", "java":
