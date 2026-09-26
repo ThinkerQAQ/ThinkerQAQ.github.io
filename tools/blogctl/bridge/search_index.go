@@ -236,6 +236,9 @@ func (s *Server) handleSearchIndexGet(response http.ResponseWriter, request *htt
 }
 
 func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, request *http.Request) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
 	raw, err := s.runSearchNode(request.Context(), s.config, "inventory", nil)
 	if err != nil {
 		writeError(response, err)
@@ -269,6 +272,9 @@ func aggregateHTTPStatus(results []struct {
 }
 
 func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *http.Request) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
 	state := loadSearchIndexState()
 	started := s.now().UTC()
 	state.Bing = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
@@ -312,6 +318,9 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 }
 
 func (s *Server) handleSearchGoogleSitemaps(response http.ResponseWriter, request *http.Request) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
 	state := loadSearchIndexState()
 	started := s.now().UTC()
 	state.Google.Sitemaps = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
@@ -376,6 +385,9 @@ func mergeInspectionResults(existing, incoming []searchInspectionResult) []searc
 }
 
 func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request *http.Request) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
 	var input struct {
 		Offset int `json:"offset"`
 		Limit  int `json:"limit"`
@@ -448,7 +460,7 @@ func googleRequestCandidate(result searchInspectionResult) bool {
 	if strings.EqualFold(result.Verdict, "PASS") {
 		return false
 	}
-	if result.IndexingState != "" && !strings.EqualFold(result.IndexingState, "INDEXING_ALLOWED") {
+	if !strings.EqualFold(result.IndexingState, "INDEXING_ALLOWED") {
 		return false
 	}
 	if strings.EqualFold(result.RobotsTxtState, "DISALLOWED") {
@@ -458,6 +470,7 @@ func googleRequestCandidate(result searchInspectionResult) bool {
 }
 
 func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIndexRequestQueue, now time.Time) googleIndexRequestQueue {
+	const requestCooldown = 7 * 24 * time.Hour
 	previousByURL := make(map[string]googleIndexRequestItem, len(previous.Items))
 	for _, item := range previous.Items {
 		previousByURL[item.URL] = item
@@ -471,25 +484,44 @@ func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIn
 		if item.URL == "" {
 			item = googleIndexRequestItem{URL: result.URL, Status: "queued"}
 		}
-		if item.Status == "processing" {
+		switch item.Status {
+		case "processing", "quota_blocked":
 			item.Status = "queued"
+			item.Error = ""
+		case "requested":
+			if requestedAt, err := time.Parse(time.RFC3339, item.RequestedAt); err == nil && now.Sub(requestedAt) >= requestCooldown {
+				item.Status = "queued"
+				item.Error = ""
+			}
 		}
 		items = append(items, item)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].URL < items[j].URL })
+
+	currentIndex := len(items)
+	for index, item := range items {
+		if item.Status == "queued" || item.Status == "failed" {
+			currentIndex = index
+			break
+		}
+	}
 	queue := googleIndexRequestQueue{
-		State: "idle", CreatedAt: previous.CreatedAt, UpdatedAt: now.UTC().Format(time.RFC3339), Items: items,
+		State: "idle", CreatedAt: previous.CreatedAt, UpdatedAt: now.UTC().Format(time.RFC3339),
+		CurrentIndex: currentIndex, Items: items,
 	}
 	if queue.CreatedAt == "" {
 		queue.CreatedAt = queue.UpdatedAt
 	}
-	if len(items) == 0 {
+	if len(items) == 0 || currentIndex >= len(items) {
 		queue.State = "completed"
 	}
 	return queue
 }
 
 func (s *Server) handleSearchGoogleRequestQueueCreate(response http.ResponseWriter, request *http.Request) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
 	state := loadSearchIndexState()
 	state.Google.RequestQueue = buildGoogleRequestQueue(
 		state.Google.Inspection.Results,
@@ -504,6 +536,9 @@ func (s *Server) handleSearchGoogleRequestQueueCreate(response http.ResponseWrit
 }
 
 func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWriter, request *http.Request) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
 	var input struct {
 		URL    string `json:"url"`
 		Result string `json:"result"`
@@ -535,6 +570,7 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 	item := &queue.Items[found]
 	item.LastAttemptAt = s.now().UTC().Format(time.RFC3339)
 	item.Error = strings.TrimSpace(input.Error)
+	advance := true
 	switch input.Result {
 	case "requested_indexing":
 		item.Status = "requested"
@@ -547,11 +583,18 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 		item.Status = "quota_blocked"
 		queue.State = "quota_blocked"
 		queue.LastError = item.Error
+		advance = false
 	case "rate_limited":
 		item.Status = "failed"
 		queue.State = "paused"
 		queue.LastError = item.Error
-	case "failed", "ui_changed", "timeout", "not_logged_in":
+		advance = false
+	case "not_logged_in":
+		item.Status = "failed"
+		queue.State = "paused"
+		queue.LastError = item.Error
+		advance = false
+	case "failed", "ui_changed", "timeout":
 		item.Status = "failed"
 		queue.ConsecutiveErrors++
 		queue.LastError = item.Error
@@ -562,10 +605,10 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 		writeAPIError(response, http.StatusBadRequest, "invalid_google_index_result", "unsupported Google request-indexing result", map[string]any{"result": input.Result})
 		return
 	}
-	if found >= queue.CurrentIndex && item.Status != "queued" && item.Status != "processing" {
+	if advance && found >= queue.CurrentIndex {
 		queue.CurrentIndex = found + 1
 	}
-	if queue.CurrentIndex >= len(queue.Items) && queue.State != "quota_blocked" {
+	if queue.CurrentIndex >= len(queue.Items) && queue.State != "quota_blocked" && queue.State != "paused" {
 		queue.State = "completed"
 	}
 	queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
@@ -577,13 +620,21 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 }
 
 func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWriter, request *http.Request, action string) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
 	state := loadSearchIndexState()
 	queue := &state.Google.RequestQueue
 	switch action {
 	case "start", "resume":
-		if len(queue.Items) == 0 {
-			writeAPIError(response, http.StatusConflict, "google_index_queue_empty", "Google request-indexing queue is empty", nil)
+		if len(queue.Items) == 0 || queue.CurrentIndex >= len(queue.Items) {
+			writeAPIError(response, http.StatusConflict, "google_index_queue_empty", "Google request-indexing queue has no pending URLs", nil)
 			return
+		}
+		current := &queue.Items[queue.CurrentIndex]
+		if current.Status == "quota_blocked" {
+			current.Status = "queued"
+			current.Error = ""
 		}
 		queue.State = "running"
 		queue.LastError = ""
