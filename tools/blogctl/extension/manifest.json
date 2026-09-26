@@ -30,7 +30,9 @@
     "https://zhihu.com/*",
     "https://51cto.com/*",
     "https://oschina.net/*",
-    "https://toutiao.com/*"
+    "https://toutiao.com/*",
+    "https://search.google.com/*",
+    "https://accounts.google.com/*"
   ],
   "background": {
     "service_worker": "background.js",
