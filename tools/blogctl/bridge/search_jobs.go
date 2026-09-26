@@ -218,11 +218,17 @@ func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) er
 	if err := decodeSearchResult(raw, &payload); err != nil {
 		return err
 	}
+	httpStatus := 0
+	for _, result := range payload.Result {
+		if result.HTTPStatus > httpStatus {
+			httpStatus = result.HTTPStatus
+		}
+	}
 	state.Inventory = payload.Inventory
 	state.Google.Sitemaps = searchOperationState{
 		State: "completed", StartedAt: started.Format(time.RFC3339),
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: len(payload.Result),
-		HTTPStatus: aggregateHTTPStatus(payload.Result),
+		HTTPStatus: httpStatus,
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
