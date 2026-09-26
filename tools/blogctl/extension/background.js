@@ -604,12 +604,119 @@ async function getStatus() {
   return { bridge, platforms: enrichedPlatforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
+const BROWSER_PROXY_BYPASS = ["<local>", "localhost", "127.0.0.1", "::1", "[::1]"];
+
+function chromeProxyGet() {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.get({ incognito: false }, (details) => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve(details || {});
+    });
+  });
+}
+
+function chromeProxySet(value) {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.set({ value, scope: "regular" }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+}
+
+function chromeProxyClear() {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.clear({ scope: "regular" }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+}
+
+function normalizedProxyConfig(config) {
+  const enabled = Boolean(config?.proxyEnabled);
+  const host = String(config?.proxyHost || "").trim();
+  const port = Number(config?.proxyPort || 0);
+  if (!enabled) return { enabled: false, host, port };
+  if (!host || host.includes("://") || /[\/?#@\s]/u.test(host)) {
+    throw new Error("代理主机只填写域名或 IP，不要包含协议、路径或端口");
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("代理端口必须在 1 到 65535 之间");
+  }
+  return { enabled: true, host, port };
+}
+
+async function assertBrowserProxyControllable() {
+  const current = await chromeProxyGet();
+  const level = String(current?.levelOfControl || "");
+  if (!["controllable_by_this_extension", "controlled_by_this_extension"].includes(level)) {
+    throw new Error(`Chrome 代理当前不可由 BlogCTL 控制：${level || "unknown"}`);
+  }
+  return current;
+}
+
+async function applyBrowserProxyConfig(config) {
+  const proxy = normalizedProxyConfig(config);
+  const current = await chromeProxyGet();
+  const level = String(current?.levelOfControl || "");
+
+  if (!proxy.enabled) {
+    if (level === "controlled_by_this_extension") await chromeProxyClear();
+    return { enabled: false, levelOfControl: level || "unknown" };
+  }
+
+  await assertBrowserProxyControllable();
+  await chromeProxySet({
+    mode: "fixed_servers",
+    rules: {
+      singleProxy: { scheme: "http", host: proxy.host, port: proxy.port },
+      bypassList: BROWSER_PROXY_BYPASS,
+    },
+  });
+  const applied = await chromeProxyGet();
+  return {
+    enabled: true,
+    levelOfControl: String(applied?.levelOfControl || ""),
+    host: proxy.host,
+    port: proxy.port,
+  };
+}
+
+async function syncBrowserProxyFromBridge() {
+  const result = await fetchJSON("/v1/config");
+  return applyBrowserProxyConfig(result?.config ?? {});
+}
+
 async function saveBridgeConfig(config) {
-  return fetchJSON("/v1/config", jsonOptions("PUT", {
-    proxyEnabled: Boolean(config?.proxyEnabled),
-    proxyHost: String(config?.proxyHost || "").trim(),
-    proxyPort: Number(config?.proxyPort || 0),
-  }));
+  const next = normalizedProxyConfig(config);
+  if (next.enabled) await assertBrowserProxyControllable();
+
+  const previous = await fetchJSON("/v1/config").catch(() => null);
+  const payload = {
+    proxyEnabled: next.enabled,
+    proxyHost: next.host,
+    proxyPort: next.port,
+  };
+  const saved = await fetchJSON("/v1/config", jsonOptions("PUT", payload));
+  try {
+    await applyBrowserProxyConfig(payload);
+  } catch (error) {
+    if (previous?.config) {
+      const rollback = {
+        proxyEnabled: Boolean(previous.config.proxyEnabled),
+        proxyHost: String(previous.config.proxyHost || "").trim(),
+        proxyPort: Number(previous.config.proxyPort || 0),
+      };
+      await fetchJSON("/v1/config", jsonOptions("PUT", rollback)).catch(() => {});
+      await applyBrowserProxyConfig(rollback).catch(() => {});
+    }
+    throw error;
+  }
+  return saved;
 }
 
 async function collectPlatformCookieBatches(definition, diagnostics) {
@@ -1886,6 +1993,16 @@ async function handleMessage(message) {
     default: return null;
   }
 }
+
+function scheduleProxyPolicySync() {
+  void syncBrowserProxyFromBridge().catch((error) => {
+    console.warn("[BlogCTL][proxy] browser proxy sync failed:", errorMessage(error));
+  });
+}
+
+chrome.runtime.onStartup.addListener(scheduleProxyPolicySync);
+chrome.runtime.onInstalled.addListener(scheduleProxyPolicySync);
+scheduleProxyPolicySync();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
