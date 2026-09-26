@@ -24,6 +24,32 @@ export function normalizeSearchConsoleSiteUrl(value = `${DEFAULT_SITE_ORIGIN}/`)
   return url.toString();
 }
 
+export async function checkGoogleSearchConsoleSite({
+  siteUrl,
+  accessToken,
+  fetchImpl = fetch,
+  apiBase = GOOGLE_SEARCH_CONSOLE_API,
+}) {
+  if (!accessToken) throw new Error("Google Search Console access token is required");
+  const normalizedSiteUrl = normalizeSearchConsoleSiteUrl(siteUrl);
+  const endpoint = `${apiBase}/sites/${encodeURIComponent(normalizedSiteUrl)}`;
+  const response = await fetchImpl(endpoint, {
+    method: "GET",
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  const text = await response.text();
+  if (!response.ok) throw googleApiError("Google Search Console property check", response, text);
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {}
+  return {
+    siteUrl: normalizedSiteUrl,
+    permissionLevel: String(payload?.permissionLevel || ""),
+    httpStatus: response.status,
+  };
+}
+
 export async function submitGoogleSitemap({
   siteUrl,
   feedPath,
