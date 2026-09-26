@@ -88,13 +88,20 @@
   }
 
   function setInputValue(input, value) {
-    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
-    descriptor?.set?.call(input, value);
-    input.dispatchEvent(new InputEvent("input", {
-      bubbles: true,
-      inputType: "insertText",
-      data: value,
-    }));
+    if (typeof input.select === "function") input.select();
+    let inserted = false;
+    try {
+      inserted = document.execCommand("insertText", false, value) === true;
+    } catch {}
+    if (!inserted || input.value !== value) {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      descriptor?.set?.call(input, value);
+      input.dispatchEvent(new InputEvent("input", {
+        bubbles: true,
+        inputType: "insertText",
+        data: value,
+      }));
+    }
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
