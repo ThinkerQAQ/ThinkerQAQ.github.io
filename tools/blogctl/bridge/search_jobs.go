@@ -31,6 +31,29 @@ func taskCapabilities(retry, pause, resume bool) struct {
 	}{Retry: retry, Pause: pause, Resume: resume}
 }
 
+func appendTaskOutput(job *durableTaskJob, line string) {
+	if job == nil {
+		return
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return
+	}
+	stamp := time.Now().UTC().Format(time.RFC3339)
+	if job.Output != "" {
+		job.Output += "\n"
+	}
+	job.Output += stamp + " " + line
+	const maxBytes = 32 * 1024
+	if len(job.Output) > maxBytes {
+		trimmed := job.Output[len(job.Output)-maxBytes:]
+		if index := strings.IndexByte(trimmed, '\n'); index >= 0 {
+			trimmed = trimmed[index+1:]
+		}
+		job.Output = trimmed
+	}
+}
+
 func (s *Server) markDurableTaskRunning(id string) (*durableTaskJob, error) {
 	return s.updateDurableTaskJob(id, func(job *durableTaskJob) {
 		now := s.now().UTC().Format(time.RFC3339)
@@ -289,30 +312,78 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 			"limit":  input.Limit,
 		},
 		func(progressRaw json.RawMessage) error {
-			var progress struct {
+			var event struct {
+				Type           string                 `json:"type"`
+				Stage          string                 `json:"stage"`
+				Message        string                 `json:"message"`
+				URL            string                 `json:"url"`
 				Offset         int                    `json:"offset"`
 				Inspected      int                    `json:"inspected"`
+				RequestNumber  int                    `json:"requestNumber"`
+				AbsoluteIndex  int                    `json:"absoluteIndex"`
+				DurationMS     int64                  `json:"durationMs"`
 				TotalAvailable int                    `json:"totalAvailable"`
 				Remaining      int                    `json:"remaining"`
 				NextOffset     *int                   `json:"nextOffset"`
 				Result         searchInspectionResult `json:"result"`
 			}
-			if err := json.Unmarshal(progressRaw, &progress); err != nil {
+			if err := json.Unmarshal(progressRaw, &event); err != nil {
 				return err
 			}
-			if progress.Inspected <= 0 || strings.TrimSpace(progress.Result.URL) == "" {
+
+			switch event.Type {
+			case "stage":
+				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+					job.Progress.Message = event.Message
+					job.Detail = map[string]any{
+						"phase": event.Stage,
+					}
+					appendTaskOutput(job, "[stage] "+event.Message)
+				})
+				return err
+			case "request_start":
+				if strings.TrimSpace(event.URL) == "" {
+					return errors.New("Google URL Inspection request_start missing URL")
+				}
+				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+					job.Progress.Message = fmt.Sprintf(
+						"正在检查 %d / %d · %s",
+						event.AbsoluteIndex,
+						taskTotal,
+						event.URL,
+					)
+					job.Detail = map[string]any{
+						"phase":         "request",
+						"currentUrl":    event.URL,
+						"absoluteIndex": event.AbsoluteIndex,
+						"inspected":     lastProgress,
+					}
+					appendTaskOutput(job, fmt.Sprintf(
+						"[request] start #%d %s",
+						event.AbsoluteIndex,
+						event.URL,
+					))
+				})
+				return err
+			case "", "request_complete":
+				// Backward compatible with the earlier progress record shape where type was absent.
+			default:
+				return fmt.Errorf("unknown Google URL Inspection progress event: %s", event.Type)
+			}
+
+			if event.Inspected <= 0 || strings.TrimSpace(event.Result.URL) == "" {
 				return errors.New("Google URL Inspection progress record is invalid")
 			}
 
 			checkedAt := s.now().UTC().Format(time.RFC3339)
-			progress.Result.CheckedAt = checkedAt
-			current := baseCompleted + progress.Inspected
+			event.Result.CheckedAt = checkedAt
+			current := baseCompleted + event.Inspected
 			if current > taskTotal {
 				current = taskTotal
 			}
 			lastProgress = current
-			totalAvailable = progress.TotalAvailable
-			currentOffset := input.Offset + progress.Inspected
+			totalAvailable = event.TotalAvailable
+			currentOffset := input.Offset + event.Inspected
 			remainingTask := taskTotal - current
 			if remainingTask < 0 {
 				remainingTask = 0
@@ -321,9 +392,9 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 			state = loadSearchIndexState()
 			state.Google.Inspection.Results = mergeInspectionResults(
 				state.Google.Inspection.Results,
-				[]searchInspectionResult{progress.Result},
+				[]searchInspectionResult{event.Result},
 			)
-			globalRemaining := progress.TotalAvailable - len(state.Google.Inspection.Results)
+			globalRemaining := event.TotalAvailable - len(state.Google.Inspection.Results)
 			if globalRemaining < 0 {
 				globalRemaining = 0
 			}
@@ -332,9 +403,9 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 			state.Google.Inspection.Offset = input.Offset
 			state.Google.Inspection.Limit = taskTotal
 			state.Google.Inspection.Inspected = len(state.Google.Inspection.Results)
-			state.Google.Inspection.Total = progress.TotalAvailable
+			state.Google.Inspection.Total = event.TotalAvailable
 			state.Google.Inspection.Remaining = globalRemaining
-			state.Google.Inspection.NextOffset = progress.NextOffset
+			state.Google.Inspection.NextOffset = event.NextOffset
 			state.Google.Inspection.Error = ""
 			refreshSearchCredentialsFlag(&state, s.config)
 			if err := saveSearchIndexState(state); err != nil {
@@ -350,19 +421,28 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 					Current: current,
 					Total:   taskTotal,
 					Unit:    "URL",
-					Message: fmt.Sprintf("已检查 %d / %d · %s", current, taskTotal, progress.Result.URL),
+					Message: fmt.Sprintf("已检查 %d / %d · %s", current, taskTotal, event.Result.URL),
 				}
 				job.Payload = nextPayload
 				job.Detail = map[string]any{
-					"currentUrl":     progress.Result.URL,
+					"phase":          "completed_request",
+					"currentUrl":     event.Result.URL,
 					"currentOffset":  currentOffset,
 					"inspected":      current,
-					"totalAvailable": progress.TotalAvailable,
+					"durationMs":     event.DurationMS,
+					"totalAvailable": event.TotalAvailable,
 					"remaining":      globalRemaining,
 				}
+				appendTaskOutput(job, fmt.Sprintf(
+					"[request] done #%d %s duration=%dms verdict=%s",
+					event.AbsoluteIndex,
+					event.Result.URL,
+					event.DurationMS,
+					event.Result.Verdict,
+				))
 			})
 			return err
-		},
+		}		},
 	)
 	if err != nil {
 		state = loadSearchIndexState()
