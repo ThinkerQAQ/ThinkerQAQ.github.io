@@ -276,7 +276,14 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 	if err != nil {
 		return toolHealth{Status: "missing", Summary: "未检测到", Detail: err.Error()}
 	}
-	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
+	version, detail := dependencyVersion(config, name)
+	if name == "node" && config.ProxyEnabled && version != "" && !nodeVersionSupportsProxy(version) {
+		return toolHealth{
+			Status: "error", Summary: "版本不兼容", Path: path, Version: version,
+			Detail: "BlogCTL Network Proxy 需要 Node.js 22.21+ 或 24+；请点击更新切换到当前 LTS。",
+		}
+	}
+	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path, Version: version, Detail: detail}
 }
 
 func devtoAPIKey(config bridgeConfig) string {
@@ -529,24 +536,41 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "node", DisplayName: "Node.js", Kind: "dependency", Required: true,
-			Description: "执行 BlogCTL publishing scripts。", Health: executableHealth(config, "node"),
+			Description: "执行 BlogCTL publishing scripts；Network Proxy 需要 Node.js 22.21+ 或 24+。",
+			Health:      executableHealth(config, "node"),
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "升级到当前 Node.js LTS；Windows 使用 WinGet，并沿用 BlogCTL Network Proxy。",
+			}},
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["node"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 node")},
 		},
 		{
 			Name: "npm", DisplayName: "npm", Kind: "dependency", Required: true,
 			Description: "准备 Public Engine 的 Node dependencies。", Health: executableHealth(config, "npm"),
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "执行 npm install -g npm@latest，并沿用 BlogCTL Network Proxy。",
+			}},
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["npm"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 npm")},
 		},
 		{
 			Name: "git", DisplayName: "Git", Kind: "dependency", Required: true,
 			Description: "BlogCTL developer workflow dependency。", Health: executableHealth(config, "git"),
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "升级 Git for Windows；Windows 使用 WinGet，并沿用 BlogCTL Network Proxy。",
+			}},
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
 		},
 		{
 			Name: "java", DisplayName: "Java", Kind: "dependency", Required: false,
 			Description: "仅在发布文章包含 PlantUML（puml / plantuml / UML）时用于编译图表。",
 			Health:      executableHealth(config, "java"),
-			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "按当前 JDK vendor/major 识别 WinGet 包后升级；无法安全识别时不会切换发行版。",
+			}},
+			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
 		},
 	}
 }
