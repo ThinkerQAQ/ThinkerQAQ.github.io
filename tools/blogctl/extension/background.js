@@ -1267,7 +1267,7 @@ async function googleRequestIndexingURL(url) {
 
       const action = String(result.action || "");
       const stage = String(result.stage || "");
-      const safeToRetry = action === "ui_changed" && ["inspection_control", "request_button"].includes(stage);
+      const safeToRetry = action === "ui_changed" && ["inspection_control", "request_button", "request_dialog"].includes(stage);
       await writeBridgeLog(
         result.ok ? "info" : safeToRetry && attempt < maxPrepareAttempts ? "warn" : "error",
         "gsc request workflow finished",
@@ -1291,6 +1291,29 @@ async function googleRequestIndexingURL(url) {
         } catch {}
         await delay(500);
         continue;
+      }
+
+      if (action === "requested_indexing") {
+        const cleanup = result.cleanup || {};
+        if (cleanup.dialogPresent || cleanup.closed === false) {
+          await writeBridgeLog("warn", "gsc request succeeded; forcing clean page for next url", {
+            url,
+            attempt,
+            dialogPresent: Boolean(cleanup.dialogPresent),
+            closed: cleanup.closed !== false,
+          });
+          try {
+            await googleSearchConsoleTab({ active: true, reset: true });
+          } catch (cleanupError) {
+            // The indexing request already succeeded. Never downgrade it to a
+            // failed queue item just because page cleanup failed; the next URL
+            // will run its own recovery path.
+            await writeBridgeLog("warn", "gsc post-request cleanup reset failed", {
+              url,
+              error: errorMessage(cleanupError),
+            });
+          }
+        }
       }
       return { ...result, url };
     } catch (error) {
