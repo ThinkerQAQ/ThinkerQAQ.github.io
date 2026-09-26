@@ -19,22 +19,22 @@ type taskProgress struct {
 }
 
 type durableTaskJob struct {
-	ID         string         `json:"id"`
-	Kind       string         `json:"kind"`
-	Type       string         `json:"type"`
-	Title      string         `json:"title"`
-	State      string         `json:"state"`
-	CreatedAt  string         `json:"createdAt"`
-	StartedAt  string         `json:"startedAt,omitempty"`
-	UpdatedAt  string         `json:"updatedAt"`
-	FinishedAt string         `json:"finishedAt,omitempty"`
-	RetryAt    string         `json:"retryAt,omitempty"`
-	Error      string         `json:"error,omitempty"`
-	CanRetry   bool           `json:"canRetry,omitempty"`
-	CanPause   bool           `json:"canPause,omitempty"`
-	CanResume  bool           `json:"canResume,omitempty"`
-	Progress   taskProgress   `json:"progress"`
-	Detail     map[string]any `json:"detail,omitempty"`
+	ID         string          `json:"id"`
+	Kind       string          `json:"kind"`
+	Type       string          `json:"type"`
+	Title      string          `json:"title"`
+	State      string          `json:"state"`
+	CreatedAt  string          `json:"createdAt"`
+	StartedAt  string          `json:"startedAt,omitempty"`
+	UpdatedAt  string          `json:"updatedAt"`
+	FinishedAt string          `json:"finishedAt,omitempty"`
+	RetryAt    string          `json:"retryAt,omitempty"`
+	Error      string          `json:"error,omitempty"`
+	CanRetry   bool            `json:"canRetry,omitempty"`
+	CanPause   bool            `json:"canPause,omitempty"`
+	CanResume  bool            `json:"canResume,omitempty"`
+	Progress   taskProgress    `json:"progress"`
+	Detail     map[string]any  `json:"detail,omitempty"`
 	Payload    json.RawMessage `json:"payload,omitempty"`
 }
 
@@ -45,22 +45,22 @@ type durableTaskStore struct {
 }
 
 type taskJobView struct {
-	ID         string                        `json:"id"`
-	Kind       string                        `json:"kind"`
-	Type       string                        `json:"type,omitempty"`
-	Title      string                        `json:"title,omitempty"`
-	State      string                        `json:"state"`
-	CreatedAt  string                        `json:"createdAt,omitempty"`
-	StartedAt  string                        `json:"startedAt,omitempty"`
-	UpdatedAt  string                        `json:"updatedAt,omitempty"`
-	FinishedAt string                        `json:"finishedAt,omitempty"`
-	RetryAt    string                        `json:"retryAt,omitempty"`
-	Error      string                        `json:"error,omitempty"`
-	CanRetry   bool                          `json:"canRetry,omitempty"`
-	CanPause   bool                          `json:"canPause,omitempty"`
-	CanResume  bool                          `json:"canResume,omitempty"`
-	Progress   taskProgress                  `json:"progress"`
-	Detail     map[string]any                `json:"detail,omitempty"`
+	ID         string         `json:"id"`
+	Kind       string         `json:"kind"`
+	Type       string         `json:"type,omitempty"`
+	Title      string         `json:"title,omitempty"`
+	State      string         `json:"state"`
+	CreatedAt  string         `json:"createdAt,omitempty"`
+	StartedAt  string         `json:"startedAt,omitempty"`
+	UpdatedAt  string         `json:"updatedAt,omitempty"`
+	FinishedAt string         `json:"finishedAt,omitempty"`
+	RetryAt    string         `json:"retryAt,omitempty"`
+	Error      string         `json:"error,omitempty"`
+	CanRetry   bool           `json:"canRetry,omitempty"`
+	CanPause   bool           `json:"canPause,omitempty"`
+	CanResume  bool           `json:"canResume,omitempty"`
+	Progress   taskProgress   `json:"progress"`
+	Detail     map[string]any `json:"detail,omitempty"`
 
 	Article   string                        `json:"article,omitempty"`
 	Platforms []string                      `json:"platforms,omitempty"`
@@ -216,7 +216,7 @@ func syncTaskView(job syncJob) taskJobView {
 		StartedAt: job.StartedAt, UpdatedAt: job.FinishedAt, FinishedAt: job.FinishedAt,
 		Error: job.Error, CanRetry: job.State == "failed" && job.Operation != "publish",
 		Progress: taskProgress{Current: completedSyncPlatforms(job), Total: len(job.Platforms), Unit: "platform"},
-		Article: job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
+		Article:  job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
 		Results: job.Results, Events: job.Events, Output: job.Output, DryRun: job.DryRun,
 	}
 }
