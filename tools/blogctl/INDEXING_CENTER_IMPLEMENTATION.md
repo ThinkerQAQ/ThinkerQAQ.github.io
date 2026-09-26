@@ -728,6 +728,32 @@ Extension 通过 Chrome `proxy` API 应用同一 HTTP proxy。因为 Chrome prox
 
 如果 Browser proxy 无法被 Extension 控制，环境页必须显示「代理未覆盖全部组件」，并且远端 browser flow 不应静默直连。
 
+## 15.2 Dependency 一键更新
+
+环境页的依赖组件统一展示当前版本，并提供「更新」操作：
+
+```text
+Node.js
+npm
+Git
+Java
+```
+
+Windows 更新策略：
+
+- Node.js：通过 WinGet 安装/升级 `OpenJS.NodeJS.LTS`，用于把非兼容的 Node 23 等版本切换到当前 LTS；
+- npm：执行 `npm install --global npm@latest`；
+- Git：通过 WinGet 安装/升级 `Git.Git`；
+- Java：先识别当前 `java.vendor` 和 major，只更新同一发行版/major；无法安全识别时停止，不擅自替换 JDK。
+
+如果启用了 BlogCTL Network Proxy：
+
+- npm 子进程继承统一 `HTTP_PROXY / HTTPS_PROXY`；
+- WinGet 命令显式传入 `--proxy`；
+- 不允许组件更新动作绕过 BlogCTL 网络策略。
+
+Node.js 健康检查不再只判断 executable 是否存在。启用 Network Proxy 时，Node 版本不支持 fetch proxy 会显示「版本不兼容」，并提示直接点击更新。
+
 ## 16. Merge Gate
 
 合入 `main` 前至少满足：
