@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   auditGoogleUrls,
+  checkGoogleSearchConsoleSite,
   normalizeInspectionResult,
   submitGoogleSitemap,
   submitGoogleSitemaps,
@@ -70,6 +71,26 @@ test("fetchGoogleAccessToken performs OAuth JWT exchange", async () => {
   assert.equal(request.options.method, "POST");
   assert.match(String(request.options.body), /grant_type=/u);
   assert.match(String(request.options.body), /assertion=/u);
+});
+
+test("checkGoogleSearchConsoleSite verifies property access", async () => {
+  let request;
+  const result = await checkGoogleSearchConsoleSite({
+    siteUrl: "https://thinkerqaq.github.io/",
+    accessToken: "token",
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({
+        siteUrl: "https://thinkerqaq.github.io/",
+        permissionLevel: "siteFullUser",
+      }), { status: 200 });
+    },
+  });
+  assert.equal(result.httpStatus, 200);
+  assert.equal(result.permissionLevel, "siteFullUser");
+  assert.match(request.url, /sites\/https%3A%2F%2Fthinkerqaq\.github\.io%2F$/u);
+  assert.equal(request.options.method, "GET");
+  assert.equal(request.options.headers.authorization, "Bearer token");
 });
 
 test("submitGoogleSitemap uses Search Console PUT endpoint", async () => {
