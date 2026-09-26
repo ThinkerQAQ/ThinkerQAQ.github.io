@@ -387,11 +387,19 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 		} `json:"result"`
 	}
 	if err := decodeSearchResult(raw, &payload); err != nil {
+		state.Bing.State = "failed"
+		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.Bing.Error = err.Error()
+		_ = saveSearchIndexState(state)
 		writeError(response, err)
 		return
 	}
 
 	if err := saveBingIndexSnapshot(payload.Inventory); err != nil {
+		state.Bing.State = "failed"
+		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.Bing.Error = err.Error()
+		_ = saveSearchIndexState(state)
 		writeError(response, err)
 		return
 	}
