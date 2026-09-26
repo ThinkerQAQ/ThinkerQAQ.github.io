@@ -60,8 +60,11 @@ function matchesSelector(node, selector) {
   }
   if (selector === "textarea") return node.tagName === "TEXTAREA";
   if (selector === '[contenteditable="true"]') return node.getAttribute("contenteditable") === "true";
+  if (selector === "a") return node.tagName === "A";
   if (selector === "[aria-label]") return node.getAttribute("aria-label") !== null;
   if (selector === "[title]") return node.getAttribute("title") !== null;
+  if (selector === "[tabindex]") return node.getAttribute("tabindex") !== null;
+  if (selector === "[jsaction]") return node.getAttribute("jsaction") !== null;
   const role = selector.match(/^\[role="([^"]+)"\]$/u)?.[1];
   if (role) return node.getAttribute("role") === role;
   const tabindex = selector.match(/^\[tabindex="([^"]+)"\]$/u)?.[1];
@@ -197,6 +200,28 @@ test("Request Indexing closes the success dialog so the next URL can continue", 
   assert.equal(probe.ready, true);
   assert.equal(probe.inspectionInput, true);
 });
+
+test("Request Indexing reports cleanup fallback when the Google success modal cannot be closed", async () => {
+  const url = "https://thinkerqaq.github.io/articles/";
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 请求编入索引`,
+  });
+  const requestButton = new FakeElement("button", {
+    text: "请求编入索引",
+    onClick() {
+      harness.body.innerText = `${url} 已提交编入索引请求 关闭`;
+      // Deliberately do not expose a clickable close control. The background
+      // worker must force-reset GSC after recording this successful request.
+    },
+  });
+  harness.nodes.push(requestButton);
+
+  const result = await harness.send({ type: "blogctl.google.index.request", url });
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "requested_indexing");
+  assert.equal(result.cleanup.closed, false);
+  assert.equal(result.cleanup.dialogPresent, true);
+});
 test("GSC overview probe activates the custom 检查网址 control and discovers the real input", async () => {
   const harness = await createHarness({ bodyText: "Google Search Console 概述" });
   const trigger = new FakeElement("button", {
@@ -239,6 +264,8 @@ test("Request Indexing start/resume preflight GSC before moving the bridge queue
   assert.match(source, /gsc queue pump failed/u);
   assert.match(source, /const maxPrepareAttempts = 3/u);
   assert.match(source, /gsc transient ui miss; retrying same url/u);
+  assert.match(source, /gsc request succeeded; forcing clean page for next url/u);
+  assert.match(source, /cleanup\.dialogPresent \|\| cleanup\.closed === false/u);
   assert.match(source, /await delay\(1200\);/u);
   assert.doesNotMatch(source, /requested_indexing.*includes\(action\)/u);
 });
