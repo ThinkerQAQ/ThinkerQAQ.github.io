@@ -19,11 +19,30 @@ export function parseServiceAccountCredentials(raw) {
   } catch (error) {
     throw new Error(`Invalid Google service-account JSON: ${error.message}`);
   }
+  if (credentials?.installed) {
+    throw new Error(
+      "Google credentials are OAuth Desktop Client credentials, not a Service Account JSON key. Create a JSON key under Google Cloud → IAM & Admin → Service Accounts.",
+    );
+  }
+  if (credentials?.web) {
+    throw new Error(
+      "Google credentials are OAuth Web Client credentials, not a Service Account JSON key. Create a JSON key under Google Cloud → IAM & Admin → Service Accounts.",
+    );
+  }
+  const credentialType = String(credentials?.type || "").trim();
+  if (credentialType && credentialType !== "service_account") {
+    throw new Error(`Google credentials type is "${credentialType}", expected "service_account"`);
+  }
   const clientEmail = String(credentials?.client_email || "").trim();
   const privateKey = String(credentials?.private_key || "").trim();
   const tokenUri = String(credentials?.token_uri || GOOGLE_DEFAULT_TOKEN_URI).trim();
-  if (!clientEmail || !privateKey) {
-    throw new Error("Google service-account credentials require client_email and private_key");
+  const missing = [];
+  if (!clientEmail) missing.push("client_email");
+  if (!privateKey) missing.push("private_key");
+  if (missing.length > 0) {
+    throw new Error(
+      `Google Service Account JSON is missing ${missing.join(", ")}. Paste the complete JSON key file downloaded from Google Cloud Service Accounts.`,
+    );
   }
   const parsedTokenUri = new URL(tokenUri);
   if (parsedTokenUri.protocol !== "https:") {
