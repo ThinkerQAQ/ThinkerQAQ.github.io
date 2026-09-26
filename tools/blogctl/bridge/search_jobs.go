@@ -172,12 +172,12 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 	}
 
 	detail := map[string]any{
-		"mode":      payload.Diff.Mode,
-		"submitted": payload.Result.URLCount,
-		"added":     payload.Diff.AddedCount,
-		"changed":   payload.Diff.ChangedCount,
-		"deleted":   payload.Diff.DeletedCount,
-		"unchanged": payload.Diff.UnchangedCount,
+		"mode":       payload.Diff.Mode,
+		"submitted":  payload.Result.URLCount,
+		"added":      payload.Diff.AddedCount,
+		"changed":    payload.Diff.ChangedCount,
+		"deleted":    payload.Diff.DeletedCount,
+		"unchanged":  payload.Diff.UnchangedCount,
 		"httpStatus": state.Bing.HTTPStatus,
 	}
 	s.completeDurableTask(jobID, taskProgress{
@@ -229,7 +229,7 @@ func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) er
 		return err
 	}
 	detail := map[string]any{
-		"submitted": len(payload.Result),
+		"submitted":  len(payload.Result),
 		"httpStatus": state.Google.Sitemaps.HTTPStatus,
 	}
 	s.completeDurableTask(jobID, taskProgress{
@@ -542,7 +542,7 @@ func (s *Server) updateGoogleRequestTaskFromQueue(queue googleIndexRequestQueue)
 			Unit:    "URL",
 		}
 		job.Detail = map[string]any{
-			"queueState":         queue.State,
+			"queueState":        queue.State,
 			"consecutiveErrors": queue.ConsecutiveErrors,
 			"lastError":         queue.LastError,
 		}
