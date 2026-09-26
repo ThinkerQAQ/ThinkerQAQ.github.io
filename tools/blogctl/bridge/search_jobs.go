@@ -39,6 +39,9 @@ func (s *Server) markDurableTaskRunning(id string) (*durableTaskJob, error) {
 		job.RetryAt = ""
 		job.CanPause = job.Type == "google-request-indexing"
 		job.CanResume = false
+		if job.Progress.Message == "" || job.Progress.Message == "等待执行" || job.Progress.Message == "等待重试" {
+			job.Progress.Message = "正在执行"
+		}
 		if job.StartedAt == "" {
 			job.StartedAt = now
 		}
@@ -241,6 +244,8 @@ func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) er
 }
 
 func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, rawPayload json.RawMessage) error {
+	const chunkSize = 100
+
 	var input googleInspectionTaskPayload
 	if err := json.Unmarshal(rawPayload, &input); err != nil {
 		return err
@@ -252,73 +257,173 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		return errors.New("Google inspection requires offset >= 0 and 1 <= limit <= 2000")
 	}
 
+	job := s.durableTaskJob(jobID)
+	baseCompleted := 0
+	taskTotal := input.Limit
+	if job != nil {
+		baseCompleted = job.Progress.Current
+		if job.Progress.Total > 0 {
+			taskTotal = job.Progress.Total
+		}
+	}
+
 	state := loadSearchIndexState()
 	started := s.now().UTC()
+	if state.Google.Inspection.StartedAt == "" {
+		state.Google.Inspection.StartedAt = started.Format(time.RFC3339)
+	}
 	state.Google.Inspection.State = "running"
-	state.Google.Inspection.StartedAt = started.Format(time.RFC3339)
+	state.Google.Inspection.FinishedAt = ""
 	state.Google.Inspection.Offset = input.Offset
 	state.Google.Inspection.Limit = input.Limit
 	state.Google.Inspection.Error = ""
 	_ = saveSearchIndexState(state)
 
-	raw, err := s.runSearchNode(ctx, s.config, "google-inspect", map[string]any{
-		"offset": input.Offset,
-		"limit":  input.Limit,
-	})
-	if err != nil {
-		state.Google.Inspection.State = "failed"
-		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Google.Inspection.Error = err.Error()
+	currentOffset := input.Offset
+	remainingTask := input.Limit
+	completedThisRun := 0
+	totalAvailable := state.Google.Inspection.Total
+
+	for remainingTask > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		limit := chunkSize
+		if remainingTask < limit {
+			limit = remainingTask
+		}
+
+		raw, err := s.runSearchNode(ctx, s.config, "google-inspect", map[string]any{
+			"offset": currentOffset,
+			"limit":  limit,
+		})
+		if err != nil {
+			state = loadSearchIndexState()
+			state.Google.Inspection.State = "failed"
+			state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
+			state.Google.Inspection.Error = err.Error()
+			refreshSearchCredentialsFlag(&state, s.config)
+			_ = saveSearchIndexState(state)
+			return err
+		}
+
+		var report struct {
+			Offset         int                      `json:"offset"`
+			Limit          int                      `json:"limit"`
+			Inspected      int                      `json:"inspected"`
+			TotalAvailable int                      `json:"totalAvailable"`
+			Remaining      int                      `json:"remaining"`
+			NextOffset     *int                     `json:"nextOffset"`
+			Results        []searchInspectionResult `json:"results"`
+		}
+		if err := decodeSearchResult(raw, &report); err != nil {
+			return err
+		}
+		if report.Inspected <= 0 {
+			return errors.New("Google URL Inspection returned no progress")
+		}
+
+		checkedAt := s.now().UTC().Format(time.RFC3339)
+		for index := range report.Results {
+			report.Results[index].CheckedAt = checkedAt
+		}
+
+		state = loadSearchIndexState()
+		mergedResults := mergeInspectionResults(state.Google.Inspection.Results, report.Results)
+		totalAvailable = report.TotalAvailable
+		globalRemaining := totalAvailable - len(mergedResults)
+		if globalRemaining < 0 {
+			globalRemaining = 0
+		}
+
+		completedThisRun += report.Inspected
+		currentOffset += report.Inspected
+		remainingTask -= report.Inspected
+		if remainingTask < 0 {
+			remainingTask = 0
+		}
+
+		nextOffset := currentOffset
+		if currentOffset >= totalAvailable || report.NextOffset == nil {
+			nextOffset = totalAvailable
+			remainingTask = 0
+		}
+
+		state.Google.Inspection.State = "running"
+		state.Google.Inspection.FinishedAt = ""
+		state.Google.Inspection.Offset = input.Offset
+		state.Google.Inspection.Limit = taskTotal
+		state.Google.Inspection.Inspected = len(mergedResults)
+		state.Google.Inspection.Total = totalAvailable
+		state.Google.Inspection.Remaining = globalRemaining
+		if nextOffset < totalAvailable {
+			value := nextOffset
+			state.Google.Inspection.NextOffset = &value
+		} else {
+			state.Google.Inspection.NextOffset = nil
+		}
+		state.Google.Inspection.Results = mergedResults
+		state.Google.Inspection.Error = ""
 		refreshSearchCredentialsFlag(&state, s.config)
-		_ = saveSearchIndexState(state)
-		return err
+		if err := saveSearchIndexState(state); err != nil {
+			return err
+		}
+
+		progressCurrent := baseCompleted + completedThisRun
+		if progressCurrent > taskTotal {
+			progressCurrent = taskTotal
+		}
+		nextPayload, _ := json.Marshal(googleInspectionTaskPayload{
+			Offset: currentOffset,
+			Limit:  remainingTask,
+		})
+		_, err = s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+			job.Progress = taskProgress{
+				Current: progressCurrent,
+				Total:   taskTotal,
+				Unit:    "URL",
+				Message: fmt.Sprintf("已检查 %d / %d URL", progressCurrent, taskTotal),
+			}
+			job.Payload = nextPayload
+			job.Detail = map[string]any{
+				"offset":         input.Offset,
+				"currentOffset":  currentOffset,
+				"inspected":      progressCurrent,
+				"totalAvailable": totalAvailable,
+				"remaining":      globalRemaining,
+			}
+		})
+		if err != nil {
+			return err
+		}
 	}
-	var report struct {
-		Offset         int                      `json:"offset"`
-		Limit          int                      `json:"limit"`
-		Inspected      int                      `json:"inspected"`
-		TotalAvailable int                      `json:"totalAvailable"`
-		Remaining      int                      `json:"remaining"`
-		NextOffset     *int                     `json:"nextOffset"`
-		Results        []searchInspectionResult `json:"results"`
-	}
-	if err := decodeSearchResult(raw, &report); err != nil {
-		return err
-	}
-	checkedAt := s.now().UTC().Format(time.RFC3339)
-	for index := range report.Results {
-		report.Results[index].CheckedAt = checkedAt
-	}
-	mergedResults := mergeInspectionResults(state.Google.Inspection.Results, report.Results)
-	remaining := report.TotalAvailable - len(mergedResults)
-	if remaining < 0 {
-		remaining = 0
-	}
-	nextOffset := report.NextOffset
-	if remaining == 0 {
-		nextOffset = nil
-	}
-	state.Google.Inspection = searchInspectionState{
-		State: "completed", StartedAt: started.Format(time.RFC3339), FinishedAt: checkedAt,
-		Offset: report.Offset, Limit: report.Limit, Inspected: len(mergedResults),
-		Total: report.TotalAvailable, Remaining: remaining, NextOffset: nextOffset,
-		Results: mergedResults,
-	}
+
+	state = loadSearchIndexState()
+	state.Google.Inspection.State = "completed"
+	state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
+	state.Google.Inspection.Error = ""
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		return err
 	}
+
+	finalCurrent := baseCompleted + completedThisRun
+	if finalCurrent > taskTotal {
+		finalCurrent = taskTotal
+	}
 	s.completeDurableTask(jobID, taskProgress{
-		Current: report.Inspected,
-		Total:   report.Limit,
+		Current: finalCurrent,
+		Total:   taskTotal,
 		Unit:    "URL",
 		Message: "URL Inspection batch completed",
 	}, map[string]any{
-		"offset":         report.Offset,
-		"limit":          report.Limit,
-		"inspected":      report.Inspected,
-		"totalAvailable": report.TotalAvailable,
-		"remaining":      remaining,
+		"offset":         input.Offset,
+		"inspected":      finalCurrent,
+		"totalAvailable": totalAvailable,
+		"remaining":      state.Google.Inspection.Remaining,
 	})
 	return nil
 }
@@ -442,7 +547,9 @@ func (s *Server) retrySearchTaskJob(job *durableTaskJob) (*durableTaskJob, error
 			current.State = "queued"
 			current.Error = ""
 			current.FinishedAt = ""
-			current.Progress.Current = 0
+			if current.Type != "google-inspection" {
+				current.Progress.Current = 0
+			}
 			current.Progress.Message = "等待重试"
 			current.CanRetry = true
 			current.CanPause = false
