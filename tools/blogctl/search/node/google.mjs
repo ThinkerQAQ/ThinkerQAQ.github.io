@@ -182,6 +182,7 @@ export async function auditGoogleUrls(urls, {
   endpoint = GOOGLE_URL_INSPECTION_API,
   requestDelayMs = GOOGLE_URL_INSPECTION_DEFAULT_DELAY_MS,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  onProgress = null,
 } = {}) {
   if (!Number.isInteger(offset) || offset < 0) {
     throw new Error("Google audit offset must be a non-negative integer");
@@ -212,7 +213,20 @@ export async function auditGoogleUrls(urls, {
       fetchImpl,
       endpoint,
     });
-    results.push(normalizeInspectionResult(inspectionUrl, response));
+    const normalized = normalizeInspectionResult(inspectionUrl, response);
+    results.push(normalized);
+    if (typeof onProgress === "function") {
+      const inspected = index + 1;
+      const absoluteNextOffset = offset + inspected;
+      await onProgress({
+        offset,
+        inspected,
+        totalAvailable: urls.length,
+        remaining: Math.max(0, urls.length - absoluteNextOffset),
+        nextOffset: absoluteNextOffset < urls.length ? absoluteNextOffset : null,
+        result: normalized,
+      });
+    }
     if (requestDelayMs > 0 && index + 1 < selected.length) {
       await sleep(requestDelayMs);
     }
