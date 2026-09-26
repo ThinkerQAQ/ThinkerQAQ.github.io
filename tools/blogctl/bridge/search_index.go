@@ -873,7 +873,13 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 		queue.State = "paused"
 		queue.LastError = item.Error
 		advance = false
-	case "failed", "ui_changed", "timeout":
+	case "ui_changed", "timeout":
+		item.Status = "failed"
+		queue.ConsecutiveErrors++
+		queue.State = "paused"
+		queue.LastError = item.Error
+		advance = false
+	case "failed":
 		item.Status = "failed"
 		queue.ConsecutiveErrors++
 		queue.LastError = item.Error
