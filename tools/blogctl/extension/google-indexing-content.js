@@ -153,11 +153,12 @@
   }
 
   async function probe() {
+    const input = await waitFor(findInspectionInput, 15000, 300);
     return {
       ok: true,
       hostname: location.hostname,
       pathname: location.pathname,
-      inspectionInput: Boolean(findInspectionInput()),
+      inspectionInput: Boolean(input),
     };
   }
 
