@@ -36,6 +36,14 @@ type durableTaskJob struct {
 	Progress   taskProgress    `json:"progress"`
 	Detail     map[string]any  `json:"detail,omitempty"`
 	Payload    json.RawMessage `json:"payload,omitempty"`
+
+	Article   string                        `json:"article,omitempty"`
+	Platforms []string                      `json:"platforms,omitempty"`
+	Operation string                        `json:"operation,omitempty"`
+	Results   map[string]syncPlatformResult `json:"results,omitempty"`
+	Events    []syncJobEvent                `json:"events,omitempty"`
+	Output    string                        `json:"output,omitempty"`
+	DryRun    bool                          `json:"dryRun,omitempty"`
 }
 
 type durableTaskStore struct {
@@ -168,7 +176,7 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 				job.Detail["recovered"] = "Bridge restarted; waiting for browser resume"
 			} else {
 				job.State = "failed"
-				job.CanRetry = true
+				job.CanRetry = job.Kind != "publishing" || job.Operation != "publish"
 				job.Error = "Bridge restarted before the task completed"
 			}
 			job.UpdatedAt = stamp
@@ -190,6 +198,14 @@ func cloneDurableTaskJob(job *durableTaskJob) *durableTaskJob {
 			clone.Detail[key] = value
 		}
 	}
+	clone.Platforms = append([]string{}, job.Platforms...)
+	clone.Events = append([]syncJobEvent{}, job.Events...)
+	if job.Results != nil {
+		clone.Results = make(map[string]syncPlatformResult, len(job.Results))
+		for platform, result := range job.Results {
+			clone.Results[platform] = result
+		}
+	}
 	return &clone
 }
 
@@ -203,6 +219,8 @@ func durableTaskView(job *durableTaskJob) taskJobView {
 		FinishedAt: job.FinishedAt, RetryAt: job.RetryAt, Error: job.Error,
 		CanRetry: job.CanRetry, CanPause: job.CanPause, CanResume: job.CanResume,
 		Progress: job.Progress, Detail: job.Detail,
+		Article: job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
+		Results: job.Results, Events: append([]syncJobEvent{}, job.Events...), Output: job.Output, DryRun: job.DryRun,
 	}
 }
 
@@ -219,6 +237,110 @@ func syncTaskView(job syncJob) taskJobView {
 		Article:  job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
 		Results: job.Results, Events: job.Events, Output: job.Output, DryRun: job.DryRun,
 	}
+}
+
+func publishingDurableTask(job *syncJob, existing *durableTaskJob, now time.Time) *durableTaskJob {
+	if job == nil {
+		return nil
+	}
+	createdAt := job.StartedAt
+	if existing != nil && existing.CreatedAt != "" {
+		createdAt = existing.CreatedAt
+	}
+	payload, _ := json.Marshal(job.Request)
+	title := job.Article
+	if title == "" {
+		title = "发布任务"
+	}
+	result := &durableTaskJob{
+		ID: job.ID, Kind: "publishing", Type: job.Operation, Title: title, State: job.State,
+		CreatedAt: createdAt, StartedAt: job.StartedAt, UpdatedAt: now.UTC().Format(time.RFC3339),
+		FinishedAt: job.FinishedAt, Error: job.Error,
+		CanRetry: job.State == "failed" && job.Operation != "publish",
+		Progress: taskProgress{Current: completedSyncPlatforms(*job), Total: len(job.Platforms), Unit: "platform"},
+		Payload: payload,
+		Article: job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
+		Results: make(map[string]syncPlatformResult, len(job.Results)),
+		Events: append([]syncJobEvent{}, job.Events...), Output: job.Output, DryRun: job.DryRun,
+	}
+	for platform, value := range job.Results {
+		result.Results[platform] = value
+	}
+	return result
+}
+
+func restoreSyncJobsFromDurable(jobs map[string]*durableTaskJob, order []string) (map[string]*syncJob, []string) {
+	syncJobs := map[string]*syncJob{}
+	syncOrder := []string{}
+	for _, id := range order {
+		job := jobs[id]
+		if job == nil || job.Kind != "publishing" {
+			continue
+		}
+		var request syncRequest
+		if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &request) != nil {
+			continue
+		}
+		if request.Article == "" {
+			request.Article = job.Article
+		}
+		if len(request.Platforms) == 0 {
+			request.Platforms = append([]string{}, job.Platforms...)
+		}
+		if request.Operation == "" {
+			request.Operation = job.Operation
+		}
+		restored := &syncJob{
+			ID: job.ID, Article: job.Article, Platforms: append([]string{}, job.Platforms...),
+			Operation: job.Operation, Request: request, Results: make(map[string]syncPlatformResult, len(job.Results)),
+			Events: append([]syncJobEvent{}, job.Events...), State: job.State, StartedAt: job.StartedAt,
+			FinishedAt: job.FinishedAt, Output: job.Output, Error: job.Error, DryRun: job.DryRun,
+		}
+		for platform, value := range job.Results {
+			restored.Results[platform] = value
+		}
+		syncJobs[id] = restored
+		syncOrder = append(syncOrder, id)
+	}
+	return syncJobs, syncOrder
+}
+
+func (s *Server) mirrorSyncJobLocked(job *syncJob) {
+	if job == nil {
+		return
+	}
+	if s.taskJobs == nil {
+		s.taskJobs = map[string]*durableTaskJob{}
+	}
+	s.taskJobs[job.ID] = publishingDurableTask(job, s.taskJobs[job.ID], s.now())
+	s.taskJobOrder = moveJobToFront(s.taskJobOrder, job.ID)
+	if len(s.taskJobOrder) > 100 {
+		for _, id := range s.taskJobOrder[100:] {
+			if candidate := s.taskJobs[id]; candidate != nil && (candidate.State == "running" || candidate.State == "queued" || candidate.State == "paused") {
+				continue
+			}
+			delete(s.taskJobs, id)
+		}
+		if len(s.taskJobOrder) > 100 {
+			s.taskJobOrder = s.taskJobOrder[:100]
+		}
+	}
+	_ = s.persistDurableTasksLocked()
+}
+
+func (s *Server) removeMirroredSyncJobLocked(id string) {
+	if s.taskJobs[id] == nil {
+		return
+	}
+	delete(s.taskJobs, id)
+	filtered := s.taskJobOrder[:0]
+	for _, candidate := range s.taskJobOrder {
+		if candidate != id {
+			filtered = append(filtered, candidate)
+		}
+	}
+	s.taskJobOrder = filtered
+	_ = s.persistDurableTasksLocked()
 }
 
 func completedSyncPlatforms(job syncJob) int {
@@ -248,6 +370,9 @@ func (s *Server) taskViews() []taskJobView {
 		}
 	}
 	for _, job := range syncJobs {
+		if durable[job.ID] != nil {
+			continue
+		}
 		views = append(views, syncTaskView(job))
 	}
 	sort.SliceStable(views, func(i, j int) bool {
@@ -388,8 +513,14 @@ func (s *Server) handleTaskJobDelete(response http.ResponseWriter, request *http
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
-	if s.durableTaskJob(id) != nil {
-		if err := s.deleteDurableTaskJob(id); err != nil {
+	if job := s.durableTaskJob(id); job != nil {
+		var err error
+		if job.Kind == "publishing" {
+			err = s.deleteSyncJob(id)
+		} else {
+			err = s.deleteDurableTaskJob(id)
+		}
+		if err != nil {
 			writeAPIError(response, http.StatusConflict, "task_delete_failed", err.Error(), nil)
 			return
 		}
@@ -404,6 +535,15 @@ func (s *Server) handleTaskJobRetry(response http.ResponseWriter, request *http.
 		return
 	}
 	if job := s.durableTaskJob(id); job != nil {
+		if job.Kind == "publishing" {
+			if _, err := s.retrySyncJob(id); err != nil {
+				writeAPIError(response, http.StatusConflict, "task_retry_failed", err.Error(), nil)
+				return
+			}
+			refreshed := s.durableTaskJob(id)
+			writeJSON(response, http.StatusAccepted, map[string]any{"job": durableTaskView(refreshed)})
+			return
+		}
 		retried, err := s.retrySearchTaskJob(job)
 		if err != nil {
 			writeAPIError(response, http.StatusConflict, "task_retry_failed", err.Error(), nil)
