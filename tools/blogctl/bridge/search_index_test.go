@@ -105,6 +105,61 @@ func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
 	}
 }
 
+func TestBingIncrementalSubmitPersistsSuccessfulSnapshot(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
+		if command != "bing-submit" {
+			t.Fatalf("command = %q", command)
+		}
+		calls++
+		if input["mode"] != "incremental" {
+			t.Fatalf("mode = %#v", input["mode"])
+		}
+		previous, ok := input["previous"].(searchInventoryState)
+		if !ok {
+			t.Fatalf("previous type = %T", input["previous"])
+		}
+		if calls == 1 && len(previous.URLs) != 0 {
+			t.Fatalf("first previous = %#v", previous)
+		}
+		if calls == 2 && len(previous.URLs) != 2 {
+			t.Fatalf("second previous = %#v", previous)
+		}
+		if calls == 1 {
+			return json.RawMessage("{\"inventory\":{\"source\":\"https://thinkerqaq.github.io/sitemap-all.txt\",\"fingerprintSource\":\"https://thinkerqaq.github.io/sitemap-inventory.json\",\"fingerprintCoverage\":2,\"origin\":\"https://thinkerqaq.github.io\",\"fetchedAt\":\"2026-09-26T04:00:00Z\",\"total\":2,\"urls\":[\"https://thinkerqaq.github.io/a/\",\"https://thinkerqaq.github.io/b/\"],\"fingerprints\":{\"https://thinkerqaq.github.io/a/\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"https://thinkerqaq.github.io/b/\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}},\"diff\":{\"mode\":\"incremental\",\"selectedCount\":2,\"addedCount\":2,\"changedCount\":0,\"deletedCount\":0,\"unchangedCount\":0},\"result\":{\"urlCount\":2,\"batchCount\":1,\"results\":[{\"httpStatus\":200}]}}"), nil
+		}
+		return json.RawMessage("{\"inventory\":{\"source\":\"https://thinkerqaq.github.io/sitemap-all.txt\",\"fingerprintSource\":\"https://thinkerqaq.github.io/sitemap-inventory.json\",\"fingerprintCoverage\":2,\"origin\":\"https://thinkerqaq.github.io\",\"fetchedAt\":\"2026-09-26T04:05:00Z\",\"total\":2,\"urls\":[\"https://thinkerqaq.github.io/a/\",\"https://thinkerqaq.github.io/b/\"],\"fingerprints\":{\"https://thinkerqaq.github.io/a/\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"https://thinkerqaq.github.io/b/\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}},\"diff\":{\"mode\":\"incremental\",\"selectedCount\":0,\"addedCount\":0,\"changedCount\":0,\"deletedCount\":0,\"unchangedCount\":2},\"result\":{\"urlCount\":0,\"batchCount\":0,\"results\":[]}}"), nil
+	}
+
+	for run := 0; run < 2; run++ {
+		request := httptest.NewRequest(http.MethodPost, "/v1/search/index/bing/submit", strings.NewReader("{\"mode\":\"incremental\"}"))
+		setExtensionAuth(request, "token")
+		request.Header.Set("content-type", "application/json")
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("run %d status = %d body=%s", run, response.Code, response.Body.String())
+		}
+	}
+
+	state := loadSearchIndexState()
+	if state.Bing.Mode != "incremental" || state.Bing.Count != 0 || state.Bing.UnchangedCount != 2 {
+		t.Fatalf("bing state = %#v", state.Bing)
+	}
+	snapshot := loadBingIndexSnapshot()
+	if len(snapshot.URLs) != 2 || len(snapshot.Fingerprints) != 2 {
+		t.Fatalf("snapshot = %#v", snapshot)
+	}
+	if len(state.Inventory.URLs) != 0 || len(state.Inventory.Fingerprints) != 0 {
+		t.Fatalf("public inventory leaked baseline details: %#v", state.Inventory)
+	}
+}
+
 func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
