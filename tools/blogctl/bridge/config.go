@@ -72,11 +72,18 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
-	ContentRoot string            `json:"contentRoot"`
-	EngineRoot  string            `json:"engineRoot"`
-	ToolPaths   map[string]string `json:"toolPaths"`
-	DevtoAPIKey string            `json:"devtoApiKey,omitempty"`
-	Publishing  publishingConfig  `json:"publishing"`
+	LogDirectory string `json:"logDirectory,omitempty"`
+	LogLevel     string `json:"logLevel,omitempty"`
+
+	ContentRoot                    string            `json:"contentRoot"`
+	EngineRoot                     string            `json:"engineRoot"`
+	ToolPaths                      map[string]string `json:"toolPaths"`
+	DevtoAPIKey                    string            `json:"devtoApiKey,omitempty"`
+	IndexNowEndpoint               string            `json:"indexNowEndpoint,omitempty"`
+	IndexNowKey                    string            `json:"indexNowKey,omitempty"`
+	IndexNowKeyLocation            string            `json:"indexNowKeyLocation,omitempty"`
+	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty"`
+	Publishing                     publishingConfig  `json:"publishing"`
 }
 
 var publishingPlatformOrder = blogplatform.IDs()
@@ -141,8 +148,10 @@ func defaultPublishingConfig() publishingConfig {
 
 func defaultBridgeConfig() bridgeConfig {
 	return bridgeConfig{
-		ToolPaths:  map[string]string{},
-		Publishing: defaultPublishingConfig(),
+		LogLevel:         "info",
+		ToolPaths:        map[string]string{},
+		IndexNowEndpoint: "https://www.bing.com/indexnow",
+		Publishing:       defaultPublishingConfig(),
 	}
 }
 
@@ -196,6 +205,12 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	if config.Publishing.Assets.R2.PublicBaseURL == "" {
 		config.Publishing.Assets.R2.PublicBaseURL = defaults.Publishing.Assets.R2.PublicBaseURL
 	}
+	if config.IndexNowEndpoint == "" {
+		config.IndexNowEndpoint = defaults.IndexNowEndpoint
+	}
+	if strings.TrimSpace(config.LogLevel) == "" {
+		config.LogLevel = defaults.LogLevel
+	}
 	if config.ToolPaths == nil {
 		config.ToolPaths = map[string]string{}
 	}
@@ -236,6 +251,17 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
 	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
+	config.IndexNowEndpoint = strings.TrimSpace(config.IndexNowEndpoint)
+	config.IndexNowKey = strings.TrimSpace(config.IndexNowKey)
+	config.IndexNowKeyLocation = strings.TrimSpace(config.IndexNowKeyLocation)
+	config.GoogleSearchConsoleServiceJSON = strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
+	config.LogDirectory = normalizeStoredPath(config.LogDirectory)
+	config.LogLevel = strings.ToLower(strings.TrimSpace(config.LogLevel))
+	switch config.LogLevel {
+	case "debug", "info", "warn", "error":
+	default:
+		return config, errors.New("log level must be debug, info, warn, or error")
+	}
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
@@ -249,6 +275,18 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.ProxyPort = port
 	if config.ProxyEnabled && config.ProxyHost == "" {
 		return config, errors.New("启用代理前请填写代理主机和端口")
+	}
+	if config.IndexNowEndpoint != "" {
+		endpoint, err := url.Parse(config.IndexNowEndpoint)
+		if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
+			return config, errors.New("IndexNow endpoint must be an HTTPS URL")
+		}
+	}
+	if config.IndexNowKeyLocation != "" {
+		keyLocation, err := url.Parse(config.IndexNowKeyLocation)
+		if err != nil || keyLocation.Scheme != "https" || keyLocation.Host == "" {
+			return config, errors.New("IndexNow key location must be an HTTPS URL")
+		}
 	}
 	config.Publishing.Compiler.Mermaid.Format = strings.ToLower(strings.TrimSpace(config.Publishing.Compiler.Mermaid.Format))
 	if config.Publishing.Compiler.Mermaid.Format != "png" {

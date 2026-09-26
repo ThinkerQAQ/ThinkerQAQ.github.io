@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   auditGoogleUrls,
+  checkGoogleSearchConsoleSite,
   normalizeInspectionResult,
   submitGoogleSitemap,
   submitGoogleSitemaps,
@@ -18,6 +19,34 @@ function decodePart(part) {
   const padded = part.replaceAll("-", "+").replaceAll("_", "/");
   return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
 }
+
+test("service-account parser rejects OAuth client credentials with an actionable message", () => {
+  assert.throws(
+    () => parseServiceAccountCredentials({
+      installed: {
+        client_id: "client-id",
+        client_secret: "secret",
+      },
+    }),
+    /OAuth Desktop Client credentials, not a Service Account JSON key/u,
+  );
+  assert.throws(
+    () => parseServiceAccountCredentials({
+      web: {
+        client_id: "client-id",
+        client_secret: "secret",
+      },
+    }),
+    /OAuth Web Client credentials, not a Service Account JSON key/u,
+  );
+});
+
+test("service-account parser reports exactly which required fields are missing", () => {
+  assert.throws(
+    () => parseServiceAccountCredentials({ type: "service_account" }),
+    /missing client_email, private_key/u,
+  );
+});
 
 test("service-account assertion contains Search Console scope and expected claims", () => {
   const { privateKey } = generateKeyPairSync("rsa", {
@@ -70,6 +99,26 @@ test("fetchGoogleAccessToken performs OAuth JWT exchange", async () => {
   assert.equal(request.options.method, "POST");
   assert.match(String(request.options.body), /grant_type=/u);
   assert.match(String(request.options.body), /assertion=/u);
+});
+
+test("checkGoogleSearchConsoleSite verifies property access", async () => {
+  let request;
+  const result = await checkGoogleSearchConsoleSite({
+    siteUrl: "https://thinkerqaq.github.io/",
+    accessToken: "token",
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({
+        siteUrl: "https://thinkerqaq.github.io/",
+        permissionLevel: "siteFullUser",
+      }), { status: 200 });
+    },
+  });
+  assert.equal(result.httpStatus, 200);
+  assert.equal(result.permissionLevel, "siteFullUser");
+  assert.match(request.url, /sites\/https%3A%2F%2Fthinkerqaq\.github\.io%2F$/u);
+  assert.equal(request.options.method, "GET");
+  assert.equal(request.options.headers.authorization, "Bearer token");
 });
 
 test("submitGoogleSitemap uses Search Console PUT endpoint", async () => {
@@ -137,6 +186,42 @@ test("normalizeInspectionResult keeps the operational index fields", () => {
       sitemap: ["https://thinkerqaq.github.io/sitemap-all.txt"],
     },
   );
+});
+
+test("auditGoogleUrls reports progress after every inspected URL", async () => {
+  const urls = [
+    "https://thinkerqaq.github.io/a/",
+    "https://thinkerqaq.github.io/b/",
+    "https://thinkerqaq.github.io/c/",
+  ];
+  const progress = [];
+  const result = await auditGoogleUrls(urls, {
+    siteUrl: "https://thinkerqaq.github.io/",
+    accessToken: "token",
+    requestDelayMs: 0,
+    onProgress: async (event) => progress.push(event),
+    fetchImpl: async () => new Response(JSON.stringify({
+      inspectionResult: {
+        indexStatusResult: {
+          verdict: "PASS",
+          coverageState: "Submitted and indexed",
+          robotsTxtState: "ALLOWED",
+          indexingState: "INDEXING_ALLOWED",
+          pageFetchState: "SUCCESSFUL",
+        },
+      },
+    }), { status: 200 }),
+  });
+  assert.equal(result.inspected, 3);
+  const starts = progress.filter((event) => event.type === "request_start");
+  const completed = progress.filter((event) => event.type === "request_complete");
+  assert.equal(starts.length, 3);
+  assert.deepEqual(starts.map((event) => event.url), urls);
+  assert.deepEqual(completed.map((event) => event.inspected), [1, 2, 3]);
+  assert.deepEqual(completed.map((event) => event.result.url), urls);
+  assert.equal(completed[0].nextOffset, 1);
+  assert.equal(completed[2].nextOffset, null);
+  assert.ok(completed.every((event) => event.durationMs >= 0));
 });
 
 test("auditGoogleUrls supports offset and returns resume metadata", async () => {

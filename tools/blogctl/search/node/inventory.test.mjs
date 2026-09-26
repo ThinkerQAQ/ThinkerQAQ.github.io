@@ -5,10 +5,12 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  buildFingerprintInventory,
   extractLocations,
   loadSearchInventory,
   readUrlFile,
   sitemapFileForUrl,
+  writeFingerprintInventory,
   writeTextSitemap,
 } from "./inventory.mjs";
 
@@ -58,6 +60,43 @@ test("loadSearchInventory reads child sitemaps, validates origin, deduplicates a
       await readFile(path.join(root, "sitemap-all.txt"), "utf8"),
       `${inventory.urlList.join("\n")}\n`,
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("writeFingerprintInventory hashes generated HTML for every sitemap URL", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "search-fingerprints-"));
+  try {
+    const inventory = {
+      origin: "https://thinkerqaq.github.io",
+      urlList: [
+        "https://thinkerqaq.github.io/",
+        "https://thinkerqaq.github.io/articles/b/",
+        "https://thinkerqaq.github.io/en/",
+      ],
+    };
+    await mkdir(path.join(root, "articles", "b"), { recursive: true });
+    await mkdir(path.join(root, "en"), { recursive: true });
+    await writeFile(path.join(root, "index.html"), "<html>home</html>");
+    await writeFile(path.join(root, "articles", "b", "index.html"), "<html>b</html>");
+    await writeFile(path.join(root, "en", "index.html"), "<html>en</html>");
+
+    const first = await buildFingerprintInventory({ distRoot: root, inventory });
+    assert.equal(Object.keys(first.fingerprints).length, 3);
+    assert.match(first.fingerprints["https://thinkerqaq.github.io/"], /^[a-f0-9]{64}$/u);
+
+    await writeFile(path.join(root, "articles", "b", "index.html"), "<html>b changed</html>");
+    const second = await buildFingerprintInventory({ distRoot: root, inventory });
+    assert.notEqual(
+      second.fingerprints["https://thinkerqaq.github.io/articles/b/"],
+      first.fingerprints["https://thinkerqaq.github.io/articles/b/"],
+    );
+
+    const written = await writeFingerprintInventory({ distRoot: root, inventory });
+    assert.equal(written.urlCount, 3);
+    const persisted = JSON.parse(await readFile(path.join(root, "sitemap-inventory.json"), "utf8"));
+    assert.equal(Object.keys(persisted.fingerprints).length, 3);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

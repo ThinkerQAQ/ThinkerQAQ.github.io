@@ -6,6 +6,11 @@ export const GOOGLE_DEFAULT_SITEMAPS = ["sitemap-index.xml", "sitemap-all.txt"];
 export const GOOGLE_URL_INSPECTION_DAILY_SITE_LIMIT = 2000;
 export const GOOGLE_URL_INSPECTION_PER_MINUTE_SITE_LIMIT = 600;
 export const GOOGLE_URL_INSPECTION_DEFAULT_DELAY_MS = 110;
+export const GOOGLE_REQUEST_TIMEOUT_MS = 30_000;
+
+function timeoutSignal(ms = GOOGLE_REQUEST_TIMEOUT_MS) {
+  return AbortSignal.timeout(ms);
+}
 
 function googleApiError(prefix, response, text) {
   return new Error(`${prefix} failed with HTTP ${response.status}: ${String(text).slice(0, 500)}`);
@@ -24,6 +29,33 @@ export function normalizeSearchConsoleSiteUrl(value = `${DEFAULT_SITE_ORIGIN}/`)
   return url.toString();
 }
 
+export async function checkGoogleSearchConsoleSite({
+  siteUrl,
+  accessToken,
+  fetchImpl = fetch,
+  apiBase = GOOGLE_SEARCH_CONSOLE_API,
+}) {
+  if (!accessToken) throw new Error("Google Search Console access token is required");
+  const normalizedSiteUrl = normalizeSearchConsoleSiteUrl(siteUrl);
+  const endpoint = `${apiBase}/sites/${encodeURIComponent(normalizedSiteUrl)}`;
+  const response = await fetchImpl(endpoint, {
+    method: "GET",
+    headers: { authorization: `Bearer ${accessToken}` },
+    signal: timeoutSignal(),
+  });
+  const text = await response.text();
+  if (!response.ok) throw googleApiError("Google Search Console property check", response, text);
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {}
+  return {
+    siteUrl: normalizedSiteUrl,
+    permissionLevel: String(payload?.permissionLevel || ""),
+    httpStatus: response.status,
+  };
+}
+
 export async function submitGoogleSitemap({
   siteUrl,
   feedPath,
@@ -37,6 +69,7 @@ export async function submitGoogleSitemap({
   const response = await fetchImpl(endpoint, {
     method: "PUT",
     headers: { authorization: `Bearer ${accessToken}` },
+    signal: timeoutSignal(),
   });
   const text = await response.text();
   if (!response.ok) throw googleApiError("Google sitemap submission", response, text);
@@ -82,6 +115,7 @@ export async function inspectGoogleUrl({
       authorization: `Bearer ${accessToken}`,
       "content-type": "application/json; charset=utf-8",
     },
+    signal: timeoutSignal(),
     body: JSON.stringify({
       inspectionUrl,
       siteUrl: normalizedSiteUrl,
@@ -148,6 +182,7 @@ export async function auditGoogleUrls(urls, {
   endpoint = GOOGLE_URL_INSPECTION_API,
   requestDelayMs = GOOGLE_URL_INSPECTION_DEFAULT_DELAY_MS,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  onProgress = null,
 } = {}) {
   if (!Number.isInteger(offset) || offset < 0) {
     throw new Error("Google audit offset must be a non-negative integer");
@@ -170,6 +205,21 @@ export async function auditGoogleUrls(urls, {
   const results = [];
   for (let index = 0; index < selected.length; index += 1) {
     const inspectionUrl = selected[index];
+    const requestNumber = index + 1;
+    const absoluteIndex = offset + requestNumber;
+    if (typeof onProgress === "function") {
+      await onProgress({
+        type: "request_start",
+        offset,
+        inspected: index,
+        requestNumber,
+        absoluteIndex,
+        totalAvailable: urls.length,
+        url: inspectionUrl,
+        message: `开始检查 ${absoluteIndex} / ${urls.length}`,
+      });
+    }
+    const requestStartedAt = Date.now();
     const response = await inspectGoogleUrl({
       siteUrl,
       inspectionUrl,
@@ -178,7 +228,26 @@ export async function auditGoogleUrls(urls, {
       fetchImpl,
       endpoint,
     });
-    results.push(normalizeInspectionResult(inspectionUrl, response));
+    const durationMs = Date.now() - requestStartedAt;
+    const normalized = normalizeInspectionResult(inspectionUrl, response);
+    results.push(normalized);
+    if (typeof onProgress === "function") {
+      const inspected = index + 1;
+      const absoluteNextOffset = offset + inspected;
+      await onProgress({
+        type: "request_complete",
+        offset,
+        inspected,
+        requestNumber,
+        absoluteIndex,
+        durationMs,
+        totalAvailable: urls.length,
+        remaining: Math.max(0, urls.length - absoluteNextOffset),
+        nextOffset: absoluteNextOffset < urls.length ? absoluteNextOffset : null,
+        result: normalized,
+        message: `完成 ${absoluteIndex} / ${urls.length}，耗时 ${durationMs}ms`,
+      });
+    }
     if (requestDelayMs > 0 && index + 1 < selected.length) {
       await sleep(requestDelayMs);
     }

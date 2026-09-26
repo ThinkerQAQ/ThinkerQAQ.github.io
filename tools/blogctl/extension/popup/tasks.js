@@ -16,7 +16,15 @@
   let list, refreshButton, clearButton, message;
 
   function stateLabel(job) {
-    return BlogCTLSyncModel.statePresentation(job.state);
+    if (job?.kind !== "search") return BlogCTLSyncModel.statePresentation(job.state);
+    switch (String(job.state || "")) {
+      case "completed": return { kind: "ok", label: "完成" };
+      case "running": return { kind: "checking", label: "运行中" };
+      case "queued": return { kind: "unknown", label: "排队中" };
+      case "paused": return { kind: "unknown", label: "已暂停" };
+      case "failed": return { kind: "error", label: "失败" };
+      default: return { kind: "disabled", label: job.state || "未知" };
+    }
   }
 
   function platformRows(job) {
@@ -78,6 +86,45 @@
     card.append(container);
   }
 
+  function renderSearchTask(job, card) {
+    const progress = job.progress || {};
+    const current = Number(progress.current || 0);
+    const total = Number(progress.total || 0);
+    const unit = String(progress.unit || "");
+    const block = document.createElement("div");
+    block.className = "job-platform-results";
+
+    const row = document.createElement("div");
+    row.className = "job-platform-result";
+    const main = document.createElement("div");
+    main.className = "job-platform-main";
+    const name = document.createElement("strong");
+    name.textContent = total > 0 ? `进度 ${current} / ${total}${unit ? " " + unit : ""}` : "进度";
+    const status = document.createElement("span");
+    const presentation = stateLabel(job);
+    BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
+    main.append(name, status);
+    row.append(main);
+
+    if (progress.message) {
+      const message = document.createElement("small");
+      message.className = "job-platform-message";
+      message.textContent = progress.message;
+      row.append(message);
+    }
+    block.append(row);
+
+    const detailEntries = Object.entries(job.detail || {}).filter(([, value]) =>
+      value !== "" && value !== null && value !== undefined);
+    if (detailEntries.length) {
+      const detail = document.createElement("div");
+      detail.className = "job-meta";
+      detail.textContent = detailEntries.map(([key, value]) => `${key}: ${value}`).join(" · ");
+      block.append(detail);
+    }
+    card.append(block);
+  }
+
   function renderDebugOutput(job, card) {
     if (!job.output) return;
     const details = document.createElement("details");
@@ -115,7 +162,43 @@
     }
   }
 
+  async function controlJob(job, action, button) {
+    button.disabled = true;
+    const labels = { pause: "暂停", resume: "继续", retry: "重试" };
+    BlogCTLPopup.setMessage(message, `正在${labels[action] || action}任务 ${job.id}…`);
+    try {
+      const response = await BlogCTLPopup.send(`blogctl.job.${action}`, { id: job.id });
+      if (response.job?.id) state.ui.setJobExpanded(response.job.id, true);
+      BlogCTLPopup.setMessage(message, `任务已${labels[action] || action}。`, "ok");
+      await refresh();
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+      button.disabled = false;
+    }
+  }
+
   function renderActions(job, card) {
+    if (job.kind === "search") {
+      const actions = document.createElement("div");
+      actions.className = "task-actions";
+      if (job.canRetry) {
+        let retry;
+        retry = actionButton("重试", "secondary compact", () => controlJob(job, "retry", retry));
+        actions.append(retry);
+      }
+      if (job.canPause) {
+        let pause;
+        pause = actionButton("暂停", "secondary compact", () => controlJob(job, "pause", pause));
+        actions.append(pause);
+      }
+      if (job.canResume) {
+        let resume;
+        resume = actionButton("继续", "secondary compact", () => controlJob(job, "resume", resume));
+        actions.append(resume);
+      }
+      if (actions.childElementCount) card.append(actions);
+      return;
+    }
     if (job.state !== "failed" || job.operation === "publish") return;
     const actions = document.createElement("div");
     actions.className = "task-actions";
@@ -168,7 +251,9 @@
 
       const summary = document.createElement("summary");
       const title = document.createElement("span");
-      title.textContent = `${job.article} · ${(job.platforms ?? []).length} 个平台`;
+      title.textContent = job.kind === "search"
+        ? (job.title || job.type || "索引任务")
+        : `${job.article} · ${(job.platforms ?? []).length} 个平台`;
       const status = document.createElement("strong");
       const presentation = stateLabel(job);
       BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
@@ -177,17 +262,20 @@
 
       const meta = document.createElement("div");
       meta.className = "job-meta";
-      const started = BlogCTLPopup.formatTime(job.startedAt);
+      const started = BlogCTLPopup.formatTime(job.startedAt || job.createdAt);
       const finished = BlogCTLPopup.formatTime(job.finishedAt);
       meta.textContent = [
         started ? `开始 ${started}` : "",
         finished ? `结束 ${finished}` : "",
-        job.operation === "publish" ? "发布" : job.operation === "update-published" ? "更新" : job.operation ? "保存" : "",
+        job.kind === "search"
+          ? (job.type || "索引")
+          : job.operation === "publish" ? "发布" : job.operation === "update-published" ? "更新" : job.operation ? "保存" : "",
         job.id ? `ID ${job.id}` : "",
       ].filter(Boolean).join(" · ");
       card.append(meta);
 
-      renderPlatformResults(job, card);
+      if (job.kind === "search") renderSearchTask(job, card);
+      else renderPlatformResults(job, card);
       if (job.error) {
         const error = document.createElement("pre");
         error.className = "job-output error-output";

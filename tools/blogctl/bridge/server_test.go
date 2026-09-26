@@ -332,6 +332,8 @@ func TestBridgeConfigResponseNeverExposesDevtoAPIKey(t *testing.T) {
 	}
 	server.mu.Lock()
 	server.config.DevtoAPIKey = "top-secret-devto-key"
+	server.config.IndexNowKey = "top-secret-indexnow-key"
+	server.config.GoogleSearchConsoleServiceJSON = "top-secret-google-service-account"
 	server.mu.Unlock()
 	handler := httptest.NewServer(server.Handler())
 	defer handler.Close()
@@ -349,6 +351,12 @@ func TestBridgeConfigResponseNeverExposesDevtoAPIKey(t *testing.T) {
 	}
 	if bytes.Contains(raw, []byte("top-secret-devto-key")) || bytes.Contains(raw, []byte("devtoApiKey")) {
 		t.Fatalf("config response exposed DEV.to credential: %s", raw)
+	}
+	if bytes.Contains(raw, []byte("top-secret-indexnow-key")) || bytes.Contains(raw, []byte("indexNowKey")) {
+		t.Fatalf("config response exposed IndexNow credential: %s", raw)
+	}
+	if bytes.Contains(raw, []byte("top-secret-google-service-account")) || bytes.Contains(raw, []byte("googleSearchConsoleServiceJson")) {
+		t.Fatalf("config response exposed Google Search Console credential: %s", raw)
 	}
 }
 

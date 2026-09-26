@@ -5,7 +5,8 @@ const modules = {
   drafts: BlogCTLDrafts,
   publications: BlogCTLPublications,
   tasks: BlogCTLTasks,
-  publishing: BlogCTLPublishing,
+  logs: BlogCTLLogs,
+  indexing: BlogCTLIndexing,
   environment: BlogCTLEnvironment,
 };
 
@@ -73,7 +74,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
   const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
-  const normalizedTab = savedTab === "sync" ? "binding" : savedTab;
+  const normalizedTab = savedTab === "sync"
+    ? "binding"
+    : savedTab === "publishing"
+      ? "environment"
+      : savedTab;
   activateTab(modules[normalizedTab] ? normalizedTab : "binding");
 });
 

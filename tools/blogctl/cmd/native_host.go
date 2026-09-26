@@ -164,12 +164,10 @@ func ensureBridgeProcess() (bridgeState, error) {
 }
 
 func runBridgeProcess() error {
-	logFile, err := openBridgeLog()
-	if err != nil {
-		return fmt.Errorf("open bridge log: %w", err)
+	if err := bridge.ConfigureLogging(); err != nil {
+		return fmt.Errorf("configure bridge logging: %w", err)
 	}
-	defer logFile.Close()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(logFile, nil)))
+	defer bridge.CloseLogging()
 	slog.Info("bridge starting", "operation", "startup", "pid", os.Getpid())
 	token, err := randomToken()
 	if err != nil {

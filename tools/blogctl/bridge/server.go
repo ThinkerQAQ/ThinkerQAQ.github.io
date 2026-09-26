@@ -155,18 +155,22 @@ func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []br
 }
 
 type Server struct {
-	token      string
-	now        func() time.Time
-	httpClient *http.Client
-	config     bridgeConfig
-	restart    func()
-	syncRunner syncRunner
+	token        string
+	now          func() time.Time
+	httpClient   *http.Client
+	config       bridgeConfig
+	restart      func()
+	syncRunner   syncRunner
+	searchRunner searchNodeRunner
+	searchMu     sync.Mutex
 
 	mu                  sync.Mutex
 	distributionMu      sync.Mutex
 	sessions            map[string]platformSession
 	jobs                map[string]*syncJob
 	jobOrder            []string
+	taskJobs            map[string]*durableTaskJob
+	taskJobOrder        []string
 	browserOps          map[string]*browserOperation
 	browserOpOrder      []string
 	browserOpsAvailable bool
@@ -181,15 +185,28 @@ func New(token string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
-		token:      token,
-		now:        time.Now,
-		httpClient: client,
-		config:     config,
-		sessions:   make(map[string]platformSession),
-		jobs:       make(map[string]*syncJob),
-		browserOps: make(map[string]*browserOperation),
-	}, nil
+	taskJobs, taskJobOrder := loadDurableTaskStore()
+	if normalizeRecoveredDurableTaskJobs(taskJobs, time.Now()) {
+		// Persisted below after Server construction.
+	}
+	syncJobs, syncJobOrder := restoreSyncJobsFromDurable(taskJobs, taskJobOrder)
+	server := &Server{
+		token:        token,
+		now:          time.Now,
+		httpClient:   client,
+		config:       config,
+		sessions:     make(map[string]platformSession),
+		jobs:         syncJobs,
+		jobOrder:     syncJobOrder,
+		taskJobs:     taskJobs,
+		taskJobOrder: taskJobOrder,
+		browserOps:   make(map[string]*browserOperation),
+	}
+	server.mu.Lock()
+	_ = server.persistDurableTasksLocked()
+	server.mu.Unlock()
+	recoverSearchTasksAfterRestart(server)
+	return server, nil
 }
 
 func (s *Server) Handler() http.Handler { return http.HandlerFunc(s.serveHTTP) }
@@ -422,12 +439,75 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if path == "v1/logs" {
+		switch request.Method {
+		case http.MethodGet:
+			s.handleLogsGet(response, request)
+			return
+		case http.MethodPost:
+			s.handleLogsEvent(response, request)
+			return
+		case http.MethodDelete:
+			s.handleLogsClear(response, request)
+			return
+		}
+	}
+
+	if path == "v1/search/index" && request.Method == http.MethodGet {
+		s.handleSearchIndexGet(response, request)
+		return
+	}
+	if path == "v1/search/index/inventory/refresh" && request.Method == http.MethodPost {
+		s.handleSearchInventoryRefresh(response, request)
+		return
+	}
+	if path == "v1/search/index/jobs/bing" && request.Method == http.MethodPost {
+		s.handleSearchBingJobStart(response, request)
+		return
+	}
+	if path == "v1/search/index/jobs/google/sitemaps" && request.Method == http.MethodPost {
+		s.handleSearchGoogleSitemapsJobStart(response, request)
+		return
+	}
+	if path == "v1/search/index/jobs/google/inspect" && request.Method == http.MethodPost {
+		s.handleSearchGoogleInspectionJobStart(response, request)
+		return
+	}
+	if path == "v1/search/index/bing/submit" && request.Method == http.MethodPost {
+		s.handleSearchBingSubmit(response, request)
+		return
+	}
+	if path == "v1/search/index/google/sitemaps" && request.Method == http.MethodPost {
+		s.handleSearchGoogleSitemaps(response, request)
+		return
+	}
+	if path == "v1/search/index/google/inspect" && request.Method == http.MethodPost {
+		s.handleSearchGoogleInspect(response, request)
+		return
+	}
+	if path == "v1/search/index/google/request-queue" && request.Method == http.MethodPost {
+		s.handleSearchGoogleRequestQueueCreate(response, request)
+		return
+	}
+	if path == "v1/search/index/google/request-queue/result" && request.Method == http.MethodPost {
+		s.handleSearchGoogleRequestQueueUpdate(response, request)
+		return
+	}
+	if len(parts) == 6 && parts[0] == "v1" && parts[1] == "search" && parts[2] == "index" && parts[3] == "google" && parts[4] == "request-queue" && request.Method == http.MethodPost {
+		s.handleSearchGoogleRequestQueueControl(response, request, parts[5])
+		return
+	}
+
 	if path == "v1/restart" && request.Method == http.MethodPost {
 		s.handleRestart(response, request)
 		return
 	}
 	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "tools" && request.Method == http.MethodPut {
 		s.handleToolConfigPut(response, request, parts[2])
+		return
+	}
+	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "tools" && parts[3] == "actions" && request.Method == http.MethodPost {
+		s.handleToolAction(response, request, parts[2], parts[4])
 		return
 	}
 
@@ -456,6 +536,40 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "browser-ops" && request.Method == http.MethodPost {
 		s.handleBrowserOperationComplete(response, request, parts[2])
 		return
+	}
+
+	if path == "v1/jobs" {
+		switch request.Method {
+		case http.MethodGet:
+			s.handleTaskJobsGet(response, request)
+			return
+		case http.MethodDelete:
+			s.handleTaskJobsClear(response, request)
+			return
+		}
+	}
+	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "jobs" {
+		switch request.Method {
+		case http.MethodGet:
+			s.handleTaskJobGet(response, request, parts[2])
+			return
+		case http.MethodDelete:
+			s.handleTaskJobDelete(response, request, parts[2])
+			return
+		}
+	}
+	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "jobs" && request.Method == http.MethodPost {
+		switch parts[3] {
+		case "retry":
+			s.handleTaskJobRetry(response, request, parts[2])
+			return
+		case "pause":
+			s.handleTaskJobPause(response, request, parts[2])
+			return
+		case "resume":
+			s.handleTaskJobResume(response, request, parts[2])
+			return
+		}
 	}
 
 	if path == "v1/sync/jobs" {
@@ -567,6 +681,8 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 
 func publicBridgeConfig(config bridgeConfig) bridgeConfig {
 	config.DevtoAPIKey = ""
+	config.IndexNowKey = ""
+	config.GoogleSearchConsoleServiceJSON = ""
 	return config
 }
 
@@ -664,6 +780,81 @@ func (s *Server) handleRestart(response http.ResponseWriter, request *http.Reque
 	}()
 }
 
+func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Request, name, action string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+
+	if action == "update" {
+		switch name {
+		case "node", "npm", "git", "java":
+		default:
+			writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported dependency update", map[string]any{"tool": name})
+			return
+		}
+		result, err := updateDependency(request.Context(), config, name)
+		if err != nil {
+			writeAPIError(response, http.StatusBadRequest, "tool_update_failed", err.Error(), map[string]any{"tool": name})
+			return
+		}
+		message := fmt.Sprintf("%s 更新完成", name)
+		if result.RestartNeeded {
+			message = fmt.Sprintf("%s 更新流程已完成；当前进程仍检测到原版本，请重启 Bridge/终端后重新检测", name)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"ok":      true,
+			"message": message,
+			"detail":  result,
+			"tools":   toolRegistry(config),
+		})
+		return
+	}
+
+	if action != "check" {
+		writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported tool action", map[string]any{"tool": name, "action": action})
+		return
+	}
+
+	var command string
+	switch name {
+	case "bing-indexnow":
+		command = "bing-check"
+	case "google-search-console-api":
+		command = "google-check"
+	default:
+		writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported tool check", map[string]any{"tool": name})
+		return
+	}
+
+	raw, err := s.runSearchNode(request.Context(), config, command, nil)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "tool_check_failed", err.Error(), map[string]any{"tool": name})
+		return
+	}
+	var detail map[string]any
+	if err := decodeSearchResult(raw, &detail); err != nil {
+		writeError(response, err)
+		return
+	}
+	message := "配置检测通过"
+	if name == "bing-indexnow" {
+		message = "Bing / IndexNow 配置检测通过"
+	}
+	if name == "google-search-console-api" {
+		message = "Google Search Console API 配置检测通过"
+	}
+	writeJSON(response, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": message,
+		"detail":  detail,
+		"tools":   toolRegistry(config),
+	})
+}
+
 func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http.Request, name string) {
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
@@ -686,7 +877,16 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
+	if name == "logging" {
+		if err := applyLoggingConfig(normalized); err != nil {
+			writeAPIError(response, http.StatusBadRequest, "invalid_log_config", err.Error(), nil)
+			return
+		}
+	}
 	if err := saveBridgeConfig(normalized); err != nil {
+		if name == "logging" {
+			_ = applyLoggingConfig(current)
+		}
 		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法保存 BlogCTL 配置", nil)
 		return
 	}
@@ -694,6 +894,10 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 	s.config = normalized
 	s.httpClient = client
 	s.mu.Unlock()
+	if name == "logging" {
+		path, _ := resolvedLogFilePath(normalized)
+		slog.Info("logging configuration updated", "operation", "logging-config", "level", normalized.LogLevel, "path", path)
+	}
 	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "tools": toolRegistry(normalized)})
 }
 

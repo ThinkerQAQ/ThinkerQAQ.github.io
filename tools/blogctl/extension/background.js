@@ -5,7 +5,19 @@ import { toError } from "./errors.js";
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
+const GOOGLE_SEARCH_CONSOLE_PROPERTY = "https://thinkerqaq.github.io/";
+const GOOGLE_SEARCH_CONSOLE_URL = `https://search.google.com/search-console?resource_id=${encodeURIComponent(GOOGLE_SEARCH_CONSOLE_PROPERTY)}`;
 let bridgeSession = null;
+let googleSearchConsoleTabId = null;
+let googleIndexPumpPromise = null;
+let googleSearchConsoleStatus = {
+  known: false,
+  loggedIn: false,
+  ready: false,
+  tabId: null,
+  error: "",
+  code: "",
+};
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
@@ -57,11 +69,24 @@ function errorMessage(error) {
   return error?.message || String(error);
 }
 
+async function writeBridgeLog(level, message, fields = {}) {
+  try {
+    await fetchJSON("/v1/logs", jsonOptions("POST", {
+      level: String(level || "info"),
+      message: String(message || ""),
+      fields,
+    }));
+  } catch (error) {
+    console.warn("[BlogCTL][log] failed to write Bridge log", errorMessage(error));
+  }
+}
+
 function readPath(value, path) {
   return String(path || "").split(".").filter(Boolean).reduce((current, key) => current?.[key], value);
 }
 
 async function fetchWithTimeout(url, options = {}) {
+  await ensureBrowserProxyPolicy();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
   try {
@@ -522,6 +547,10 @@ function runtimeVersionHealth(version, expectedVersion, healthySummary, detail =
 
 async function environmentTools(serverTools = []) {
   const bridge = await bridgeStatus();
+  const browserProxy = await browserProxyHealth(bridge.config ?? {}).catch((error) => ({
+    ok: false,
+    detail: errorMessage(error),
+  }));
   const expectedVersion = bridge.extensionVersion || chrome.runtime.getManifest().version;
   const extensionTool = {
     name: "extension",
@@ -550,6 +579,31 @@ async function environmentTools(serverTools = []) {
     config: { scope: "native-host", values: {}, defaultExpanded: true },
   };
   const tools = serverTools.map((tool) => {
+    if (tool?.name === "network-proxy" && bridge.config?.proxyEnabled) {
+      const current = tool.health ?? {};
+      if (!browserProxy.ok) {
+        return {
+          ...tool,
+          health: {
+            ...current,
+            ok: false,
+            status: "error",
+            summary: "代理未覆盖全部组件",
+            detail: browserProxy.detail || "Chrome browser proxy is not active.",
+          },
+        };
+      }
+      return {
+        ...tool,
+        health: {
+          ...current,
+          ok: true,
+          status: "ok",
+          summary: bridge.networkMode || current.summary || "代理已启用",
+          detail: "Bridge HTTP + Search Node + Browser/Extension 均使用同一代理；localhost 保持直连。",
+        },
+      };
+    }
     if (tool?.name !== "bridge") return tool;
     const current = tool.health ?? {};
     const versionHealth = bridge.running
@@ -600,12 +654,150 @@ async function getStatus() {
   return { bridge, platforms: enrichedPlatforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
+const BROWSER_PROXY_BYPASS = ["<local>", "localhost", "127.0.0.1", "::1", "[::1]"];
+
+function chromeProxyGet() {
+  if (!chrome.proxy?.settings) {
+    return Promise.reject(new Error("BlogCTL Extension 缺少 proxy 权限；请重新加载 v0.1.75 Extension"));
+  }
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.get({ incognito: false }, (details) => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve(details || {});
+    });
+  });
+}
+
+function chromeProxySet(value) {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.set({ value, scope: "regular" }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+}
+
+function chromeProxyClear() {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.clear({ scope: "regular" }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+}
+
+function normalizedProxyConfig(config) {
+  const enabled = Boolean(config?.proxyEnabled);
+  const host = String(config?.proxyHost || "").trim();
+  const port = Number(config?.proxyPort || 0);
+  if (!enabled) return { enabled: false, host, port };
+  if (!host || host.includes("://") || /[\/?#@\s]/u.test(host)) {
+    throw new Error("代理主机只填写域名或 IP，不要包含协议、路径或端口");
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("代理端口必须在 1 到 65535 之间");
+  }
+  return { enabled: true, host, port };
+}
+
+async function assertBrowserProxyControllable() {
+  const current = await chromeProxyGet();
+  const level = String(current?.levelOfControl || "");
+  if (!["controllable_by_this_extension", "controlled_by_this_extension"].includes(level)) {
+    throw new Error(`Chrome 代理当前不可由 BlogCTL 控制：${level || "unknown"}`);
+  }
+  return current;
+}
+
+async function applyBrowserProxyConfig(config) {
+  const proxy = normalizedProxyConfig(config);
+  const current = await chromeProxyGet();
+  const level = String(current?.levelOfControl || "");
+
+  if (!proxy.enabled) {
+    if (level === "controlled_by_this_extension") await chromeProxyClear();
+    return { enabled: false, levelOfControl: level || "unknown" };
+  }
+
+  await assertBrowserProxyControllable();
+  await chromeProxySet({
+    mode: "fixed_servers",
+    rules: {
+      singleProxy: { scheme: "http", host: proxy.host, port: proxy.port },
+      bypassList: BROWSER_PROXY_BYPASS,
+    },
+  });
+  const applied = await chromeProxyGet();
+  return {
+    enabled: true,
+    levelOfControl: String(applied?.levelOfControl || ""),
+    host: proxy.host,
+    port: proxy.port,
+  };
+}
+
+async function browserProxyHealth(config) {
+  const proxy = normalizedProxyConfig(config);
+  if (!proxy.enabled) return { ok: true, enabled: false, detail: "BlogCTL proxy disabled" };
+
+  const current = await chromeProxyGet();
+  const level = String(current?.levelOfControl || "");
+  const value = current?.value || {};
+  const single = value?.rules?.singleProxy || {};
+  const matches =
+    value?.mode === "fixed_servers" &&
+    String(single?.scheme || "") === "http" &&
+    String(single?.host || "") === proxy.host &&
+    Number(single?.port || 0) === proxy.port &&
+    level === "controlled_by_this_extension";
+  return {
+    ok: matches,
+    enabled: true,
+    detail: matches
+      ? `Chrome browser proxy ${proxy.host}:${proxy.port}`
+      : `Chrome proxy mismatch: level=${level || "unknown"}, mode=${String(value?.mode || "unknown")}`,
+  };
+}
+
+async function syncBrowserProxyFromBridge() {
+  const result = await fetchJSON("/v1/config");
+  return applyBrowserProxyConfig(result?.config ?? {});
+}
+
 async function saveBridgeConfig(config) {
-  return fetchJSON("/v1/config", jsonOptions("PUT", {
-    proxyEnabled: Boolean(config?.proxyEnabled),
-    proxyHost: String(config?.proxyHost || "").trim(),
-    proxyPort: Number(config?.proxyPort || 0),
-  }));
+  const next = normalizedProxyConfig(config);
+  if (next.enabled) await assertBrowserProxyControllable();
+
+  const previous = await fetchJSON("/v1/config").catch(() => null);
+  const payload = {
+    proxyEnabled: next.enabled,
+    proxyHost: next.host,
+    proxyPort: next.port,
+  };
+  const saved = await fetchJSON("/v1/config", jsonOptions("PUT", payload));
+  try {
+    await applyBrowserProxyConfig(payload);
+    browserProxySyncPromise = Promise.resolve({
+      enabled: payload.proxyEnabled,
+      host: payload.proxyHost,
+      port: payload.proxyPort,
+    });
+  } catch (error) {
+    if (previous?.config) {
+      const rollback = {
+        proxyEnabled: Boolean(previous.config.proxyEnabled),
+        proxyHost: String(previous.config.proxyHost || "").trim(),
+        proxyPort: Number(previous.config.proxyPort || 0),
+      };
+      await fetchJSON("/v1/config", jsonOptions("PUT", rollback)).catch(() => {});
+      await applyBrowserProxyConfig(rollback).catch(() => {});
+    }
+    throw error;
+  }
+  return saved;
 }
 
 async function collectPlatformCookieBatches(definition, diagnostics) {
@@ -815,6 +1007,7 @@ function browserFetchHeaders(rawHeaders) {
 }
 
 async function executeBrowserHTTP(payload) {
+  await ensureBrowserProxyPolicy();
   const rawURL = String(payload?.url || "").trim();
   const target = new URL(rawURL);
   if (!["http:", "https:"].includes(target.protocol)) throw new Error("browser HTTP only supports http(s) URLs");
@@ -875,6 +1068,343 @@ async function waitForTabLoaded(tabId, timeoutMs = 20000) {
     await delay(150);
   }
   throw new Error("browser publish page load timed out");
+}
+
+function googleSearchConsoleTabCandidate(tab) {
+  try {
+    const parsed = new URL(tab?.url || "");
+    if (parsed.hostname !== "search.google.com" || !/^(?:\/u\/\d+)?\/search-console(?:\/|$)/u.test(parsed.pathname)) {
+      return { matches: false, property: false };
+    }
+    const resourceID = String(parsed.searchParams.get("resource_id") || "").trim();
+    return {
+      matches: true,
+      property: !resourceID || resourceID === GOOGLE_SEARCH_CONSOLE_PROPERTY,
+    };
+  } catch {
+    return { matches: false, property: false };
+  }
+}
+
+async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
+  await ensureBrowserProxyPolicy();
+  let tab = null;
+  if (googleSearchConsoleTabId !== null) {
+    try {
+      const current = await chrome.tabs.get(googleSearchConsoleTabId);
+      if (googleSearchConsoleTabCandidate(current).property) tab = current;
+      else googleSearchConsoleTabId = null;
+    } catch {
+      googleSearchConsoleTabId = null;
+    }
+  }
+  if (!tab) {
+    const tabs = await chrome.tabs.query({});
+    tab = tabs.find((candidate) => googleSearchConsoleTabCandidate(candidate).property) || null;
+  }
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: GOOGLE_SEARCH_CONSOLE_URL, active });
+    googleSearchConsoleTabId = tab.id;
+    await waitForTabLoaded(tab.id, 30000);
+  } else {
+    googleSearchConsoleTabId = tab.id;
+    if (active && !tab.active) await chrome.tabs.update(tab.id, { active: true });
+    if (reset) {
+      tab = await chrome.tabs.update(tab.id, { url: GOOGLE_SEARCH_CONSOLE_URL, active });
+      await waitForTabLoaded(tab.id, 30000);
+    } else if (tab.status !== "complete") {
+      await waitForTabLoaded(tab.id, 30000);
+    }
+  }
+
+  const current = await chrome.tabs.get(googleSearchConsoleTabId);
+  let hostname = "";
+  try { hostname = new URL(current.url || "").hostname; } catch {}
+  if (hostname === "accounts.google.com") {
+    const error = new Error("Google Search Console 尚未登录");
+    error.code = "google_search_console_not_logged_in";
+    throw error;
+  }
+  if (hostname !== "search.google.com") {
+    const error = new Error("Google Search Console 页面未就绪");
+    error.code = "google_search_console_not_ready";
+    throw error;
+  }
+  await chrome.scripting.executeScript({
+    target: { tabId: googleSearchConsoleTabId },
+    files: ["google-indexing-content.js"],
+  });
+  return chrome.tabs.get(googleSearchConsoleTabId);
+}
+
+function updateGoogleSearchConsoleStatus(status = {}) {
+  googleSearchConsoleStatus = {
+    known: true,
+    loggedIn: Boolean(status.loggedIn),
+    ready: Boolean(status.ready ?? status.loggedIn),
+    tabId: status.tabId ?? googleSearchConsoleTabId,
+    error: String(status.error || ""),
+    code: String(status.code || ""),
+  };
+  chrome.runtime.sendMessage({
+    type: "blogctl.index.gsc",
+    google: googleSearchConsoleStatus,
+  }).catch(() => {});
+  return googleSearchConsoleStatus;
+}
+
+async function googleProbeTab(tab) {
+  const result = await chrome.tabs.sendMessage(tab.id, { type: "blogctl.google.index.probe" });
+  const ready = Boolean(result?.ok && (result?.ready || result?.inspectionInput || result?.hasRequestButton || result?.inspectionState));
+  await writeBridgeLog(
+    ready ? "info" : "warn",
+    "gsc probe result",
+    {
+      ready,
+      inspectionInput: Boolean(result?.inspectionInput),
+      inspectionState: String(result?.inspectionState || ""),
+      hasInspectionTrigger: Boolean(result?.hasInspectionTrigger),
+      hasRequestButton: Boolean(result?.hasRequestButton),
+      pathname: result?.pathname || "",
+      title: result?.title || "",
+      controls: Number(result?.controls || 0),
+    },
+  );
+  return { ...result, ready };
+}
+
+async function ensureGoogleSearchConsoleReady({ active = false, allowReset = true } = {}) {
+  let tab;
+  try {
+    tab = await googleSearchConsoleTab({ active, reset: false });
+    let probe = await googleProbeTab(tab);
+    if (!probe?.ready && allowReset) {
+      await writeBridgeLog("warn", "gsc surface not ready; resetting once", {
+        pathname: probe?.pathname || "",
+        title: probe?.title || "",
+      });
+      tab = await googleSearchConsoleTab({ active, reset: true });
+      probe = await googleProbeTab(tab);
+    }
+    if (!probe?.ready) {
+      const error = new Error("Google Search Console 页面已打开，但 URL Inspection 界面仍未就绪");
+      error.code = "google_search_console_not_ready";
+      throw error;
+    }
+    const status = updateGoogleSearchConsoleStatus({
+      loggedIn: true,
+      ready: true,
+      tabId: tab.id,
+    });
+    return { tab, probe, status };
+  } catch (error) {
+    const status = updateGoogleSearchConsoleStatus({
+      loggedIn: false,
+      ready: false,
+      tabId: googleSearchConsoleTabId,
+      error: errorMessage(error),
+      code: error?.code || "google_search_console_not_ready",
+    });
+    error.googleStatus = status;
+    throw error;
+  }
+}
+
+async function googleSearchConsoleProbe({ active = false } = {}) {
+  try {
+    const prepared = await ensureGoogleSearchConsoleReady({ active, allowReset: false });
+    return prepared.status;
+  } catch (error) {
+    return error.googleStatus || googleSearchConsoleStatus;
+  }
+}
+
+async function googleRequestIndexingURL(url) {
+  const maxPrepareAttempts = 3;
+  for (let attempt = 1; attempt <= maxPrepareAttempts; attempt += 1) {
+    let tab;
+    try {
+      // Reuse an existing inspection result when possible. The GSC result
+      // page may not expose a textbox until its "Inspect URL" surface is
+      // activated. After a transient UI miss, force one clean reset before
+      // retrying the same URL; this is still before Request Indexing is
+      // clicked, so it does not consume duplicate request quota.
+      const prepared = await ensureGoogleSearchConsoleReady({
+        active: true,
+        allowReset: true,
+      });
+      tab = prepared.tab;
+    } catch (error) {
+      await writeBridgeLog(attempt < maxPrepareAttempts ? "warn" : "error", "gsc page preparation failed", {
+        url,
+        attempt,
+        code: error?.code || "",
+        error: errorMessage(error),
+      });
+      if (error?.code === "google_search_console_not_logged_in") {
+        return { ok: false, action: "not_logged_in", stage: "page_prepare", url, error: errorMessage(error) };
+      }
+      if (attempt < maxPrepareAttempts) {
+        try {
+          await googleSearchConsoleTab({ active: true, reset: true });
+        } catch {}
+        await delay(500);
+        continue;
+      }
+      return { ok: false, action: "ui_changed", stage: "page_prepare", url, error: errorMessage(error) };
+    }
+
+    try {
+      await writeBridgeLog("info", "gsc request workflow started", { url, attempt });
+      const result = await chrome.tabs.sendMessage(tab.id, {
+        type: "blogctl.google.index.request",
+        url,
+      });
+      if (!result || typeof result !== "object") {
+        await writeBridgeLog("error", "gsc request workflow returned no result", { url, attempt });
+        return { ok: false, action: "failed", stage: "workflow_result", url, error: "Google Search Console returned no result" };
+      }
+
+      const action = String(result.action || "");
+      const stage = String(result.stage || "");
+      const safeToRetry = action === "ui_changed" && ["inspection_control", "request_button", "request_dialog"].includes(stage);
+      await writeBridgeLog(
+        result.ok ? "info" : safeToRetry && attempt < maxPrepareAttempts ? "warn" : "error",
+        "gsc request workflow finished",
+        {
+          url,
+          attempt,
+          action,
+          stage,
+          error: String(result.error || ""),
+        },
+      );
+
+      if (safeToRetry && attempt < maxPrepareAttempts) {
+        await writeBridgeLog("warn", "gsc transient ui miss; retrying same url", {
+          url,
+          attempt,
+          stage,
+        });
+        try {
+          await googleSearchConsoleTab({ active: true, reset: true });
+        } catch {}
+        await delay(500);
+        continue;
+      }
+
+      if (action === "requested_indexing") {
+        const cleanup = result.cleanup || {};
+        if (cleanup.dialogPresent || cleanup.closed === false) {
+          await writeBridgeLog("warn", "gsc request succeeded; forcing clean page for next url", {
+            url,
+            attempt,
+            dialogPresent: Boolean(cleanup.dialogPresent),
+            closed: cleanup.closed !== false,
+          });
+          try {
+            await googleSearchConsoleTab({ active: true, reset: true });
+          } catch (cleanupError) {
+            // The indexing request already succeeded. Never downgrade it to a
+            // failed queue item just because page cleanup failed; the next URL
+            // will run its own recovery path.
+            await writeBridgeLog("warn", "gsc post-request cleanup reset failed", {
+              url,
+              error: errorMessage(cleanupError),
+            });
+          }
+        }
+      }
+      return { ...result, url };
+    } catch (error) {
+      await writeBridgeLog("error", "gsc request workflow exception", {
+        url,
+        attempt,
+        error: errorMessage(error),
+      });
+      return { ok: false, action: "failed", stage: "workflow_exception", url, error: errorMessage(error) };
+    }
+  }
+
+  return { ok: false, action: "ui_changed", stage: "page_prepare", url, error: "Google Search Console did not become ready" };
+}
+
+function broadcastIndexProgress(index) {
+  chrome.runtime.sendMessage({
+    type: "blogctl.index.progress",
+    index,
+    google: googleSearchConsoleStatus,
+  }).catch(() => {});
+}
+
+async function googleIndexQueueSnapshot() {
+  const result = await fetchJSON("/v1/search/index");
+  return result?.index ?? {};
+}
+
+async function pumpGoogleIndexQueue() {
+  while (true) {
+    const index = await googleIndexQueueSnapshot();
+    const queue = index?.google?.requestQueue ?? {};
+    if (queue.state !== "running") {
+      broadcastIndexProgress(index);
+      return index;
+    }
+    const items = Array.isArray(queue.items) ? queue.items : [];
+    const currentIndex = Number(queue.currentIndex || 0);
+    const item = items[currentIndex];
+    if (!item) {
+      broadcastIndexProgress(index);
+      return index;
+    }
+    if (!["queued", "failed"].includes(String(item.status || "queued"))) {
+      await fetchJSON("/v1/search/index/google/request-queue/result", jsonOptions("POST", {
+        url: item.url,
+        result: item.status === "requested" ? "requested_indexing" : item.status === "indexed" ? "already_indexed" : "failed",
+        error: "",
+      }));
+      continue;
+    }
+
+    broadcastIndexProgress(index);
+    const result = await googleRequestIndexingURL(item.url);
+    const action = String(result?.action || "failed");
+    const stage = String(result?.stage || "").trim();
+    const errorText = String(result?.error || "").trim();
+    const updated = await fetchJSON("/v1/search/index/google/request-queue/result", jsonOptions("POST", {
+      url: item.url,
+      result: action,
+      error: stage && errorText ? `[${stage}] ${errorText}` : errorText,
+    }));
+    broadcastIndexProgress(updated?.index ?? {});
+
+    if (["quota_blocked", "rate_limited", "not_logged_in", "ui_changed", "timeout"].includes(action)) {
+      return updated?.index ?? {};
+    }
+    await delay(1200);
+  }
+}
+
+function kickGoogleIndexQueuePump() {
+  if (googleIndexPumpPromise) return googleIndexPumpPromise;
+  googleIndexPumpPromise = pumpGoogleIndexQueue()
+    .catch(async (error) => {
+      console.warn("[BlogCTL][google-index] queue pump failed", errorMessage(error));
+      await writeBridgeLog("error", "gsc queue pump failed", { error: errorMessage(error) });
+      try {
+        const paused = await fetchJSON("/v1/search/index/google/request-queue/pause", { method: "POST" });
+        broadcastIndexProgress(paused?.index ?? {});
+      } catch (pauseError) {
+        await writeBridgeLog("error", "gsc queue pump could not pause queue", {
+          error: errorMessage(pauseError),
+        });
+      }
+      return null;
+    })
+    .finally(() => {
+      googleIndexPumpPromise = null;
+    });
+  return googleIndexPumpPromise;
 }
 
 async function waitForPublishedURL(tabId, platform, timeoutMs = 25000) {
@@ -942,6 +1472,7 @@ async function waitForPublishedURL(tabId, platform, timeoutMs = 25000) {
 }
 
 async function segmentFaultPublishInBrowser(payload) {
+  await ensureBrowserProxyPolicy();
   const draftId = String(payload?.draftId || "").trim();
   if (!draftId) throw new Error("SegmentFault draft id is required");
   const tab = await chrome.tabs.create({
@@ -1026,6 +1557,7 @@ async function segmentFaultPublishInBrowser(payload) {
 }
 
 async function cto51PublishInBrowser(payload) {
+  await ensureBrowserProxyPolicy();
   const draftId = String(payload?.draftId || "").trim();
   if (!draftId) throw new Error("51CTO draft id is required");
   const tab = await chrome.tabs.create({
@@ -1563,6 +2095,60 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/tools");
       return { ok: true, tools: await environmentTools(result?.tools ?? []) };
     }
+    case "blogctl.index.get": {
+      const result = await fetchJSON("/v1/search/index");
+      const index = result?.index ?? {};
+      if (index?.google?.requestQueue?.state === "running" && !googleIndexPumpPromise) {
+        kickGoogleIndexQueuePump();
+      }
+      return { ok: true, index, google: googleSearchConsoleStatus };
+    }
+    case "blogctl.index.inventory.refresh": {
+      const result = await fetchJSON("/v1/search/index/inventory/refresh", { method: "POST" });
+      return { ok: true, index: result?.index ?? {} };
+    }
+    case "blogctl.index.bing.submit": {
+      const mode = String(message.mode || "incremental");
+      const result = await fetchJSON(
+        "/v1/search/index/jobs/bing",
+        jsonOptions("POST", { mode }),
+      );
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
+    }
+    case "blogctl.index.google.sitemaps": {
+      const result = await fetchJSON("/v1/search/index/jobs/google/sitemaps", { method: "POST" });
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
+    }
+    case "blogctl.index.google.inspect": {
+      const offset = Number(message.offset ?? 0);
+      const limit = Number(message.limit ?? 2000);
+      const result = await fetchJSON("/v1/search/index/jobs/google/inspect", jsonOptions("POST", { offset, limit }));
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
+    }
+    case "blogctl.index.google.probe": {
+      return { ok: true, google: await googleSearchConsoleProbe({ active: Boolean(message.active) }) };
+    }
+    case "blogctl.index.google.open": {
+      const google = await googleSearchConsoleProbe({ active: true });
+      return { ok: true, google };
+    }
+    case "blogctl.index.google.request.start": {
+      await fetchJSON("/v1/search/index/google/request-queue", { method: "POST" });
+      const prepared = await ensureGoogleSearchConsoleReady({ active: true, allowReset: true });
+      const result = await fetchJSON("/v1/search/index/google/request-queue/start", { method: "POST" });
+      kickGoogleIndexQueuePump();
+      return { ok: true, index: result?.index ?? {}, job: result?.job, google: prepared.status };
+    }
+    case "blogctl.index.google.request.pause": {
+      const result = await fetchJSON("/v1/search/index/google/request-queue/pause", { method: "POST" });
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
+    }
+    case "blogctl.index.google.request.resume": {
+      const prepared = await ensureGoogleSearchConsoleReady({ active: true, allowReset: true });
+      const result = await fetchJSON("/v1/search/index/google/request-queue/resume", { method: "POST" });
+      kickGoogleIndexQueuePump();
+      return { ok: true, index: result?.index ?? {}, job: result?.job, google: prepared.status };
+    }
     case "blogctl.tool.save": {
       const name = String(message.name || "").trim();
       if (!name) throw new Error("tool name is required");
@@ -1576,7 +2162,17 @@ async function handleMessage(message) {
         const bridge = await restartBridge();
         return { ok: true, bridge };
       }
-      throw new Error(`unsupported tool action: ${name}/${action}`);
+      if (!name || !action) throw new Error("tool name and action are required");
+      const result = await fetchJSON(
+        `/v1/tools/${encodeURIComponent(name)}/actions/${encodeURIComponent(action)}`,
+        { method: "POST" },
+      );
+      return {
+        ok: true,
+        message: result?.message || "操作已完成。",
+        detail: result?.detail || {},
+        tools: await environmentTools(result?.tools ?? []),
+      };
     }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");
@@ -1602,8 +2198,30 @@ async function handleMessage(message) {
         assetStatus: result?.assetStatus ?? {},
       };
     }
+    case "blogctl.google.index.event": {
+      await writeBridgeLog(
+        message.level || "info",
+        message.message || "Google Search Console automation",
+        message.fields || {},
+      );
+      return { ok: true };
+    }
+    case "blogctl.logs": {
+      const limit = Math.max(1, Math.min(2000, Number(message.limit || 500)));
+      const result = await fetchJSON(`/v1/logs?limit=${encodeURIComponent(limit)}`);
+      return {
+        ok: true,
+        path: result?.path || "",
+        level: result?.level || "info",
+        entries: Array.isArray(result?.entries) ? result.entries : [],
+      };
+    }
+    case "blogctl.logs.clear": {
+      const result = await fetchJSON("/v1/logs", { method: "DELETE" });
+      return { ok: true, path: result?.path || "" };
+    }
     case "blogctl.jobs": {
-      const result = await fetchJSON("/v1/sync/jobs");
+      const result = await fetchJSON("/v1/jobs");
       return { ok: true, jobs: result?.jobs ?? [] };
     }
     case "blogctl.job.start": {
@@ -1615,31 +2233,56 @@ async function handleMessage(message) {
     case "blogctl.job.get": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.delete": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
       return { ok: true };
     }
     case "blogctl.jobs.clear": {
-      const result = await fetchJSON("/v1/sync/jobs", { method: "DELETE" });
+      const result = await fetchJSON("/v1/jobs", { method: "DELETE" });
       return { ok: true, jobs: result?.jobs ?? [], removed: Number(result?.removed || 0) };
     }
     case "blogctl.job.retry": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
-      await syncSessionsForPlatforms(current?.job?.platforms ?? []);
-      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
+      if (current?.job?.kind === "publishing") {
+        await syncSessionsForPlatforms(current?.job?.platforms ?? []);
+      }
+      let google = null;
+      if (current?.job?.type === "google-request-indexing") {
+        google = (await ensureGoogleSearchConsoleReady({ active: true, allowReset: true })).status;
+      }
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      return { ok: true, job: result?.job, ...(google ? { google } : {}) };
+    }
+    case "blogctl.job.pause": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/pause`, { method: "POST" });
       return { ok: true, job: result?.job };
+    }
+    case "blogctl.job.resume": {
+      const id = String(message.id || "").trim();
+      if (!id) throw new Error("job id is required");
+      const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
+      let google = null;
+      if (current?.job?.type === "google-request-indexing") {
+        google = (await ensureGoogleSearchConsoleReady({ active: true, allowReset: true })).status;
+      }
+      const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/resume`, { method: "POST" });
+      if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.publish": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
-      const current = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}`);
+      const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
       await prepareJobSessions(current?.job);
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
       return { ok: true, job: result?.job };
@@ -1647,6 +2290,29 @@ async function handleMessage(message) {
     default: return null;
   }
 }
+
+let browserProxySyncPromise = null;
+
+function scheduleProxyPolicySync() {
+  const task = syncBrowserProxyFromBridge().catch((error) => {
+    if (browserProxySyncPromise === task) browserProxySyncPromise = null;
+    throw error;
+  });
+  browserProxySyncPromise = task;
+  task.catch((error) => {
+    console.warn("[BlogCTL][proxy] browser proxy sync failed:", errorMessage(error));
+  });
+  return task;
+}
+
+async function ensureBrowserProxyPolicy() {
+  if (!browserProxySyncPromise) scheduleProxyPolicySync();
+  return browserProxySyncPromise;
+}
+
+chrome.runtime.onStartup.addListener(() => { scheduleProxyPolicySync(); });
+chrome.runtime.onInstalled.addListener(() => { scheduleProxyPolicySync(); });
+scheduleProxyPolicySync();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;

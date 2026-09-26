@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const DEFAULT_SITE_ORIGIN = "https://thinkerqaq.github.io";
 export const DEFAULT_SITEMAP_INDEX = "sitemap-index.xml";
 export const DEFAULT_TEXT_SITEMAP = "sitemap-all.txt";
+export const DEFAULT_FINGERPRINT_MANIFEST = "sitemap-inventory.json";
 export const MAX_TEXT_SITEMAP_URLS = 50_000;
 
 export function decodeXml(value) {
@@ -86,6 +88,74 @@ export async function loadSearchInventory({
     sitemapIndexUrl: new URL(`/${sitemapIndex}`, `${origin}/`).toString(),
     sitemapUrls: [...new Set(sitemapUrls)].sort(),
     urlList: [...urlList].sort(),
+  };
+}
+
+
+function safeDistPath(distRoot, relative, label) {
+  const root = path.resolve(distRoot);
+  const candidate = path.resolve(root, relative);
+  const prefix = `${root}${path.sep}`;
+  if (candidate !== root && !candidate.startsWith(prefix)) {
+    throw new Error(`${label} escapes dist root: ${relative}`);
+  }
+  return candidate;
+}
+
+export async function pageFileForUrl(distRoot, rawUrl, origin) {
+  const url = assertSiteUrl(rawUrl, origin, "Page URL");
+  const decodedPath = decodeURIComponent(url.pathname);
+  const relative = decodedPath.replace(/^\/+/, "");
+  const candidates = decodedPath === "/"
+    ? ["index.html"]
+    : decodedPath.endsWith("/")
+      ? [path.join(relative, "index.html")]
+      : [`${relative}.html`, path.join(relative, "index.html")];
+
+  let lastError = null;
+  for (const candidate of candidates) {
+    const file = safeDistPath(distRoot, candidate, "Page path");
+    try {
+      await readFile(file);
+      return file;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`Generated page file was not found for ${rawUrl}: ${lastError?.message || "missing"}`);
+}
+
+export async function buildFingerprintInventory({
+  distRoot = "dist",
+  inventory,
+} = {}) {
+  const resolvedInventory = inventory ?? await loadSearchInventory({ distRoot });
+  const fingerprints = {};
+  for (const url of resolvedInventory.urlList) {
+    const file = await pageFileForUrl(distRoot, url, resolvedInventory.origin);
+    const bytes = await readFile(file);
+    fingerprints[url] = createHash("sha256").update(bytes).digest("hex");
+  }
+  return {
+    version: 1,
+    origin: resolvedInventory.origin,
+    generatedAt: new Date().toISOString(),
+    fingerprints,
+  };
+}
+
+export async function writeFingerprintInventory({
+  distRoot = "dist",
+  output = DEFAULT_FINGERPRINT_MANIFEST,
+  inventory,
+} = {}) {
+  const manifest = await buildFingerprintInventory({ distRoot, inventory });
+  const outputPath = safeDistPath(distRoot, output, "Fingerprint manifest output");
+  await writeFile(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  return {
+    output: outputPath,
+    urlCount: Object.keys(manifest.fingerprints).length,
+    origin: manifest.origin,
   };
 }
 

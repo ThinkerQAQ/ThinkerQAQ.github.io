@@ -78,14 +78,15 @@ type syncJob struct {
 }
 
 type toolField struct {
-	Key         string `json:"key"`
-	Label       string `json:"label"`
-	Type        string `json:"type"`
-	Description string `json:"description,omitempty"`
-	Placeholder string `json:"placeholder,omitempty"`
-	Default     any    `json:"default,omitempty"`
-	Min         int    `json:"min,omitempty"`
-	Max         int    `json:"max,omitempty"`
+	Key         string   `json:"key"`
+	Label       string   `json:"label"`
+	Type        string   `json:"type"`
+	Description string   `json:"description,omitempty"`
+	Placeholder string   `json:"placeholder,omitempty"`
+	Default     any      `json:"default,omitempty"`
+	Min         int      `json:"min,omitempty"`
+	Max         int      `json:"max,omitempty"`
+	Options     []string `json:"options,omitempty"`
 }
 
 type toolToggle struct {
@@ -276,7 +277,14 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 	if err != nil {
 		return toolHealth{Status: "missing", Summary: "未检测到", Detail: err.Error()}
 	}
-	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
+	version, detail := dependencyVersion(config, name)
+	if name == "node" && config.ProxyEnabled && version != "" && !nodeVersionSupportsProxy(version) {
+		return toolHealth{
+			Status: "error", Summary: "版本不兼容", Path: path, Version: version,
+			Detail: "BlogCTL Network Proxy 需要 Node.js 22.21+ 或 24+；请点击更新切换到当前 LTS。",
+		}
+	}
+	return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path, Version: version, Detail: detail}
 }
 
 func devtoAPIKey(config bridgeConfig) string {
@@ -298,6 +306,120 @@ func devtoAPIPlaceholder(config bridgeConfig) string {
 		return "已配置；留空保存时保持不变"
 	}
 	return "DEV.to API Key"
+}
+
+func indexNowEndpoint(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.IndexNowEndpoint); configured != "" {
+		return configured
+	}
+	return "https://www.bing.com/indexnow"
+}
+
+func indexNowKey(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.IndexNowKey); configured != "" {
+		return configured
+	}
+	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY")); env != "" {
+		return env
+	}
+	return "fb26fca3ba9449c6816b6d79b0a41cec"
+}
+
+func indexNowKeyLocation(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.IndexNowKeyLocation); configured != "" {
+		return configured
+	}
+	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY_LOCATION")); env != "" {
+		return env
+	}
+	return "https://thinkerqaq.github.io/" + indexNowKey(config) + ".txt"
+}
+
+func indexNowHealth(config bridgeConfig) toolHealth {
+	key := indexNowKey(config)
+	if key == "" {
+		return toolHealth{Status: "missing", Summary: "Key 未配置"}
+	}
+	return toolHealth{
+		OK: true, Status: "ok", Summary: "已配置",
+		Detail: fmt.Sprintf("%s · %s", indexNowEndpoint(config), indexNowKeyLocation(config)),
+	}
+}
+
+func indexNowKeyPlaceholder(config bridgeConfig) string {
+	if indexNowKey(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "IndexNow key"
+}
+
+func googleSearchConsoleServiceJSON(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.GoogleSearchConsoleServiceJSON); configured != "" {
+		return configured
+	}
+	return strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON"))
+}
+
+type googleServiceAccountConfig struct {
+	Type        string `json:"type"`
+	ClientEmail string `json:"client_email"`
+	PrivateKey  string `json:"private_key"`
+}
+
+func validateGoogleServiceAccountJSON(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return errors.New("Service Account JSON 未配置")
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &probe); err != nil {
+		return fmt.Errorf("Service Account JSON 不是有效 JSON: %w", err)
+	}
+	if _, ok := probe["installed"]; ok {
+		return errors.New("当前 JSON 是 OAuth Desktop Client 凭据，不是 Service Account JSON；请在 Google Cloud → IAM & Admin → Service Accounts 创建 JSON Key")
+	}
+	if _, ok := probe["web"]; ok {
+		return errors.New("当前 JSON 是 OAuth Web Client 凭据，不是 Service Account JSON；请在 Google Cloud → IAM & Admin → Service Accounts 创建 JSON Key")
+	}
+	var credentials googleServiceAccountConfig
+	if err := json.Unmarshal([]byte(raw), &credentials); err != nil {
+		return fmt.Errorf("Service Account JSON 解析失败: %w", err)
+	}
+	if value := strings.TrimSpace(credentials.Type); value != "" && value != "service_account" {
+		return fmt.Errorf("Google 凭据类型是 %q，不是 service_account", value)
+	}
+	missing := []string{}
+	if strings.TrimSpace(credentials.ClientEmail) == "" {
+		missing = append(missing, "client_email")
+	}
+	if strings.TrimSpace(credentials.PrivateKey) == "" {
+		missing = append(missing, "private_key")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("Service Account JSON 缺少字段：%s；请粘贴完整的 Service Account JSON Key 文件内容", strings.Join(missing, ", "))
+	}
+	if !strings.Contains(credentials.PrivateKey, "PRIVATE KEY") {
+		return errors.New("Service Account JSON 的 private_key 格式无效")
+	}
+	return nil
+}
+
+func googleSearchConsoleAPIHealth(config bridgeConfig) toolHealth {
+	raw := googleSearchConsoleServiceJSON(config)
+	if raw == "" {
+		return toolHealth{Status: "missing", Summary: "Service Account 未配置"}
+	}
+	if err := validateGoogleServiceAccountJSON(raw); err != nil {
+		return toolHealth{Status: "error", Summary: "Service Account 配置无效", Detail: err.Error()}
+	}
+	return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
+}
+
+func googleSearchConsoleAPIPlaceholder(config bridgeConfig) string {
+	if googleSearchConsoleServiceJSON(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "Google service-account JSON"
 }
 
 func toolRegistry(config bridgeConfig) []toolDescriptor {
@@ -332,7 +454,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "network-proxy", DisplayName: "Network Proxy", Kind: "runtime", Required: false,
-			Description: "只代理 Bridge 发出的外部 HTTP/HTTPS 请求；本机通信保持直连。",
+			Description: "启用后统一代理 BlogCTL 的外部 HTTP/HTTPS：Bridge、Search Node 子进程以及 Extension/浏览器侧请求；localhost/127.0.0.1 保持直连。",
 			Health: func() toolHealth {
 				if !config.ProxyEnabled {
 					return toolHealth{OK: true, Status: "disabled", Summary: "直连"}
@@ -341,10 +463,39 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			}(),
 			Config: toolConfigView{
 				Scope: "bridge", Values: map[string]any{"proxyEnabled": config.ProxyEnabled, "proxyHost": config.ProxyHost, "proxyPort": config.ProxyPort},
-				Toggle: &toolToggle{Key: "proxyEnabled", Label: "启用代理", Description: "Bridge 外网请求使用该代理"},
+				Toggle: &toolToggle{Key: "proxyEnabled", Label: "启用代理", Description: "BlogCTL 所有外网请求使用同一代理；本机 Bridge 通信保持直连"},
 				Schema: []toolField{
 					{Key: "proxyHost", Label: "代理主机", Type: "text", Placeholder: "127.0.0.1"},
 					{Key: "proxyPort", Label: "代理端口", Type: "integer", Placeholder: "7890", Min: 1, Max: 65535},
+				},
+			},
+		},
+		{
+			Name: "logging", DisplayName: "日志", Kind: "runtime", Required: false,
+			Description: "BlogCTL Bridge 的结构化运行日志。可配置日志目录和最低日志级别；日志页实时读取当前日志文件。",
+			Health:      loggingHealth(config),
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{
+					"directory": func() string {
+						if value := strings.TrimSpace(config.LogDirectory); value != "" {
+							return value
+						}
+						value, _ := resolvedLogDirectory(config)
+						return value
+					}(),
+					"level": config.LogLevel,
+				},
+				Schema: []toolField{
+					{
+						Key: "directory", Label: "日志目录", Type: "directory",
+						Description: "日志文件固定为 bridge.log；目录不存在时自动创建。",
+					},
+					{
+						Key: "level", Label: "日志级别", Type: "select",
+						Description: "只记录该级别及以上日志。排查问题时使用 debug。",
+						Options:     []string{"debug", "info", "warn", "error"},
+					},
 				},
 			},
 		},
@@ -363,25 +514,93 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "bing-indexnow", DisplayName: "Bing / IndexNow", Kind: "runtime", Required: false,
+			Description: "Bing 索引通知通过 IndexNow HTTP API。检测只验证 Endpoint 配置和站点 Key 文件，不会提交测试 URL。",
+			Health:      indexNowHealth(config),
+			Actions: []toolAction{{
+				ID: "check", Label: "检测配置",
+				Description: "验证 IndexNow Key Location 可访问且内容与配置 Key 一致。",
+			}},
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{
+					"endpoint":    indexNowEndpoint(config),
+					"keyLocation": config.IndexNowKeyLocation,
+				},
+				Schema: []toolField{
+					{
+						Key: "endpoint", Label: "Endpoint", Type: "text",
+						Placeholder: "https://www.bing.com/indexnow",
+						Description: "Bing IndexNow endpoint；通常保持默认值。",
+					},
+					{
+						Key: "key", Label: "IndexNow Key", Type: "secret",
+						Placeholder: indexNowKeyPlaceholder(config),
+						Description: "留空保存时保持当前 Key；对应 Key 文件必须可从站点公开访问。",
+					},
+					{
+						Key: "keyLocation", Label: "Key Location", Type: "text",
+						Placeholder: indexNowKeyLocation(config),
+						Description: "公开 Key 文件 URL；留空时按站点根目录和 Key 自动推导。",
+					},
+				},
+			},
+		},
+		{
+			Name: "google-search-console-api", DisplayName: "Google Search Console API", Kind: "runtime", Required: false,
+			Description: "Sitemap 与 URL Inspection 使用 Service Account。先在 Google Cloud 启用 Search Console API、创建 Service Account JSON，再把 JSON 中 client_email 加到对应 Search Console Property 的 Users and permissions（Full user）。凭据只保存在本机 Bridge。",
+			Health:      googleSearchConsoleAPIHealth(config),
+			Actions: []toolAction{{
+				ID: "check", Label: "检测配置",
+				Description: "交换 OAuth token，并验证 Service Account 能访问 https://thinkerqaq.github.io/ Search Console Property。",
+			}},
+			Config: toolConfigView{
+				Scope:  "bridge",
+				Values: map[string]any{},
+				Schema: []toolField{{
+					Key: "serviceAccountJson", Label: "Service Account JSON", Type: "secret",
+					Placeholder: googleSearchConsoleAPIPlaceholder(config),
+					Description: "粘贴完整 JSON；留空保存时保持不变。JSON 中 client_email 还必须加入 Search Console Property 权限。",
+				}},
+			},
+		},
+		{
 			Name: "node", DisplayName: "Node.js", Kind: "dependency", Required: true,
-			Description: "执行 BlogCTL publishing scripts。", Health: executableHealth(config, "node"),
+			Description: "执行 BlogCTL publishing scripts；Network Proxy 需要 Node.js 22.21+ 或 24+。",
+			Health:      executableHealth(config, "node"),
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "升级到当前 Node.js LTS；Windows 使用 WinGet，并沿用 BlogCTL Network Proxy。",
+			}},
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["node"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 node")},
 		},
 		{
 			Name: "npm", DisplayName: "npm", Kind: "dependency", Required: true,
 			Description: "准备 Public Engine 的 Node dependencies。", Health: executableHealth(config, "npm"),
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "执行 npm install -g npm@latest，并沿用 BlogCTL Network Proxy。",
+			}},
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["npm"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 npm")},
 		},
 		{
 			Name: "git", DisplayName: "Git", Kind: "dependency", Required: true,
 			Description: "BlogCTL developer workflow dependency。", Health: executableHealth(config, "git"),
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "升级 Git for Windows；Windows 使用 WinGet，并沿用 BlogCTL Network Proxy。",
+			}},
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
 		},
 		{
 			Name: "java", DisplayName: "Java", Kind: "dependency", Required: false,
 			Description: "仅在发布文章包含 PlantUML（puml / plantuml / UML）时用于编译图表。",
 			Health:      executableHealth(config, "java"),
-			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "按当前 JDK vendor/major 识别 WinGet 包后升级；无法安全识别时不会切换发行版。",
+			}},
+			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
 		},
 	}
 }
@@ -417,9 +636,29 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		config.ProxyEnabled = boolConfig(values, "proxyEnabled")
 		config.ProxyHost = stringConfig(values, "proxyHost")
 		config.ProxyPort = intConfig(values, "proxyPort")
+	case "logging":
+		config.LogDirectory = stringConfig(values, "directory")
+		config.LogLevel = stringConfig(values, "level")
 	case "devto-api":
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
+		}
+	case "bing-indexnow":
+		if endpoint := stringConfig(values, "endpoint"); endpoint != "" {
+			config.IndexNowEndpoint = endpoint
+		}
+		if key := stringConfig(values, "key"); key != "" {
+			config.IndexNowKey = key
+		}
+		if keyLocation := stringConfig(values, "keyLocation"); keyLocation != "" {
+			config.IndexNowKeyLocation = keyLocation
+		}
+	case "google-search-console-api":
+		if value := stringConfig(values, "serviceAccountJson"); value != "" {
+			if err := validateGoogleServiceAccountJSON(value); err != nil {
+				return config, err
+			}
+			config.GoogleSearchConsoleServiceJSON = value
 		}
 	case "node", "npm", "git", "java":
 		if config.ToolPaths == nil {
@@ -1056,8 +1295,22 @@ func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
 
 func (s *Server) recordSyncEvent(jobID string, event blogapp.SyncEvent) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	applySyncEventToJob(s.jobs[jobID], event, s.now())
+	s.mirrorSyncJobLocked(s.jobs[jobID])
+	s.mu.Unlock()
+
+	attributes := []any{"jobId", jobID, "platform", event.Platform, "state", event.State}
+	if strings.TrimSpace(event.Message) != "" {
+		attributes = append(attributes, "message", event.Message)
+	}
+	switch event.State {
+	case "failed":
+		slog.Error("publishing task event", attributes...)
+	case "completed":
+		slog.Info("publishing task event", attributes...)
+	default:
+		slog.Debug("publishing task event", attributes...)
+	}
 }
 
 func moveJobToFront(order []string, id string) []string {
@@ -1132,17 +1385,22 @@ func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeC
 					Platform: platform, State: "failed", Message: err.Error(),
 				}, s.now())
 			}
+			s.mirrorSyncJobLocked(stored)
 			s.pruneSyncJobHistoryLocked(20)
+			slog.Error("publishing task failed", "jobId", jobID, "article", request.Article, "operation", request.Operation, "error", err.Error())
 			return
 		}
 		stored.State = "completed"
+		s.mirrorSyncJobLocked(stored)
 		s.pruneSyncJobHistoryLocked(20)
+		slog.Info("publishing task completed", "jobId", jobID, "article", request.Article, "operation", request.Operation)
 	}()
 }
 
 func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	startedAt := s.now().UTC()
 	job := newSyncJob(newJobID(), request, startedAt)
+	slog.Info("publishing task started", "jobId", job.ID, "article", request.Article, "operation", request.Operation, "platformCount", len(request.Platforms))
 
 	s.mu.Lock()
 	if s.jobs == nil {
@@ -1150,6 +1408,7 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	}
 	s.jobs[job.ID] = job
 	s.jobOrder = append([]string{job.ID}, s.jobOrder...)
+	s.mirrorSyncJobLocked(job)
 	s.pruneSyncJobHistoryLocked(20)
 	config := s.config
 	response := cloneSyncJob(job)
@@ -1200,7 +1459,7 @@ func (s *Server) runningSyncJobs() int {
 func (s *Server) deleteSyncJob(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	job := s.jobs[id]
+	job := s.restoreSyncJobLocked(id)
 	if job == nil {
 		return errors.New("sync job not found")
 	}
@@ -1215,6 +1474,7 @@ func (s *Server) deleteSyncJob(id string) error {
 		}
 	}
 	s.jobOrder = filtered
+	s.removeMirroredSyncJobLocked(id)
 	return nil
 }
 
@@ -1230,6 +1490,7 @@ func (s *Server) clearFinishedSyncJobs() int {
 			continue
 		}
 		delete(s.jobs, id)
+		s.removeMirroredSyncJobLocked(id)
 		removed++
 	}
 	s.jobOrder = kept
@@ -1239,7 +1500,7 @@ func (s *Server) clearFinishedSyncJobs() int {
 func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 	startedAt := s.now().UTC()
 	s.mu.Lock()
-	job := s.jobs[id]
+	job := s.restoreSyncJobLocked(id)
 	if job == nil {
 		s.mu.Unlock()
 		return nil, errors.New("sync job not found")
@@ -1256,6 +1517,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 	replacement := newSyncJob(id, request, startedAt)
 	s.jobs[id] = replacement
 	s.jobOrder = moveJobToFront(s.jobOrder, id)
+	s.mirrorSyncJobLocked(replacement)
 	config := s.config
 	response := cloneSyncJob(replacement)
 	s.mu.Unlock()
@@ -1266,7 +1528,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 
 func (s *Server) publishSyncJob(id string) (*syncJob, error) {
 	s.mu.Lock()
-	source := s.jobs[id]
+	source := s.restoreSyncJobLocked(id)
 	if source == nil {
 		s.mu.Unlock()
 		return nil, errors.New("sync job not found")
