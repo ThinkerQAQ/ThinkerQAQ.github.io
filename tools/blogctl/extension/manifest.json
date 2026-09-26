@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BlogCTL Extension",
-  "version": "0.1.86",
+  "version": "0.1.87",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyoRaJZyGlfPJwOckQ4SIm0ur3QCYDZgF9kXwBTTN9wDhuM+qr4EGx/W1n9BTF3rl18QPuQbtSmZGUm8R+Gm3w3ESQryIoY4qRVHsRKf7h7fCb7mSFsSbeNySxeCLoLcJW5g8PExAeGaFwnkYyu+X23s/30bdMXTOlmWzSWQsu2Df4cE1g63dgqMyGRtZRCrm4yUv4iV2sP3AmnzmMfPBlLj21uj7Woa4LQ+yvs52j3QaT5RwVdZnhYHS0lasU3FocM9kyZRrI2SlF95AqXd/PORB6yjLCRZzv6jdIGCJOqCWNrRBG612aHEB7ebWDMarnRW6uwFL0fiNkZSepxnRswIDAQAB",
   "description": "Browser integration for BlogCTL. Shows publishing-platform login status, manages the local bridge and proxy configuration, and hands short-lived platform sessions to native publishers without persisting browser credentials.",
   "permissions": [
@@ -43,6 +43,18 @@
     "default_path": "popup/popup.html"
   },
   "action": {
-    "default_title": "打开 BlogCTL 侧边栏"
+    "default_title": "打开 BlogCTL 侧边栏",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   }
 }
