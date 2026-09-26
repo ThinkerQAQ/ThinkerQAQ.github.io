@@ -88,6 +88,7 @@ export async function fetchGoogleAccessToken(credentials, {
   const response = await fetchImpl(credentials.tokenUri, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded; charset=utf-8" },
+    signal: AbortSignal.timeout(30_000),
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
