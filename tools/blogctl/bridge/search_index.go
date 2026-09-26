@@ -98,6 +98,7 @@ type searchIndexState struct {
 	Bing      searchOperationState `json:"bing"`
 	Google    struct {
 		CredentialsConfigured bool                    `json:"credentialsConfigured"`
+		CredentialsError      string                  `json:"credentialsError,omitempty"`
 		Sitemaps              searchOperationState    `json:"sitemaps"`
 		Inspection            searchInspectionState   `json:"inspection"`
 		RequestQueue          googleIndexRequestQueue `json:"requestQueue"`
@@ -274,7 +275,17 @@ func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command
 }
 
 func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) {
-	state.Google.CredentialsConfigured = googleSearchConsoleServiceJSON(config) != ""
+	raw := googleSearchConsoleServiceJSON(config)
+	state.Google.CredentialsConfigured = false
+	state.Google.CredentialsError = ""
+	if raw == "" {
+		return
+	}
+	if err := validateGoogleServiceAccountJSON(raw); err != nil {
+		state.Google.CredentialsError = err.Error()
+		return
+	}
+	state.Google.CredentialsConfigured = true
 }
 
 func (s *Server) searchState() searchIndexState {
