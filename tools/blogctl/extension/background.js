@@ -5,7 +5,11 @@ import { toError } from "./errors.js";
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
+const GOOGLE_SEARCH_CONSOLE_PROPERTY = "https://thinkerqaq.github.io/";
+const GOOGLE_SEARCH_CONSOLE_URL = `https://search.google.com/search-console?resource_id=${encodeURIComponent(GOOGLE_SEARCH_CONSOLE_PROPERTY)}`;
 let bridgeSession = null;
+let googleSearchConsoleTabId = null;
+let googleIndexPumpPromise = null;
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
@@ -875,6 +879,163 @@ async function waitForTabLoaded(tabId, timeoutMs = 20000) {
     await delay(150);
   }
   throw new Error("browser publish page load timed out");
+}
+
+async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
+  let tab = null;
+  if (googleSearchConsoleTabId !== null) {
+    try {
+      tab = await chrome.tabs.get(googleSearchConsoleTabId);
+    } catch {
+      googleSearchConsoleTabId = null;
+    }
+  }
+  if (!tab) {
+    const tabs = await chrome.tabs.query({});
+    tab = tabs.find((candidate) => {
+      try {
+        const parsed = new URL(candidate.url || "");
+        return parsed.hostname === "search.google.com" && parsed.pathname.startsWith("/search-console");
+      } catch {
+        return false;
+      }
+    }) || null;
+  }
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: GOOGLE_SEARCH_CONSOLE_URL, active });
+    googleSearchConsoleTabId = tab.id;
+    await waitForTabLoaded(tab.id, 30000);
+  } else {
+    googleSearchConsoleTabId = tab.id;
+    if (active && !tab.active) await chrome.tabs.update(tab.id, { active: true });
+    if (reset) {
+      tab = await chrome.tabs.update(tab.id, { url: GOOGLE_SEARCH_CONSOLE_URL, active });
+      await waitForTabLoaded(tab.id, 30000);
+    } else if (tab.status !== "complete") {
+      await waitForTabLoaded(tab.id, 30000);
+    }
+  }
+
+  const current = await chrome.tabs.get(googleSearchConsoleTabId);
+  let hostname = "";
+  try { hostname = new URL(current.url || "").hostname; } catch {}
+  if (hostname === "accounts.google.com") {
+    const error = new Error("Google Search Console 尚未登录");
+    error.code = "google_search_console_not_logged_in";
+    throw error;
+  }
+  if (hostname !== "search.google.com") {
+    const error = new Error("Google Search Console 页面未就绪");
+    error.code = "google_search_console_not_ready";
+    throw error;
+  }
+  await chrome.scripting.executeScript({
+    target: { tabId: googleSearchConsoleTabId },
+    files: ["google-indexing-content.js"],
+  });
+  return chrome.tabs.get(googleSearchConsoleTabId);
+}
+
+async function googleSearchConsoleProbe({ active = false } = {}) {
+  try {
+    const tab = await googleSearchConsoleTab({ active, reset: false });
+    const result = await chrome.tabs.sendMessage(tab.id, { type: "blogctl.google.index.probe" });
+    return {
+      loggedIn: Boolean(result?.ok && result?.inspectionInput),
+      known: true,
+      tabId: tab.id,
+      error: result?.inspectionInput ? "" : "未找到 URL Inspection 输入框",
+    };
+  } catch (error) {
+    return {
+      loggedIn: false,
+      known: true,
+      tabId: googleSearchConsoleTabId,
+      error: errorMessage(error),
+      code: error?.code || "",
+    };
+  }
+}
+
+async function googleRequestIndexingURL(url) {
+  let tab;
+  try {
+    tab = await googleSearchConsoleTab({ active: false, reset: true });
+  } catch (error) {
+    return { ok: false, action: "not_logged_in", url, error: errorMessage(error) };
+  }
+  try {
+    const result = await chrome.tabs.sendMessage(tab.id, {
+      type: "blogctl.google.index.request",
+      url,
+    });
+    if (!result || typeof result !== "object") {
+      return { ok: false, action: "failed", url, error: "Google Search Console returned no result" };
+    }
+    return { ...result, url };
+  } catch (error) {
+    return { ok: false, action: "failed", url, error: errorMessage(error) };
+  }
+}
+
+function broadcastIndexProgress(index) {
+  chrome.runtime.sendMessage({ type: "blogctl.index.progress", index }).catch(() => {});
+}
+
+async function googleIndexQueueSnapshot() {
+  const result = await fetchJSON("/v1/search/index");
+  return result?.index ?? {};
+}
+
+async function pumpGoogleIndexQueue() {
+  while (true) {
+    const index = await googleIndexQueueSnapshot();
+    const queue = index?.google?.requestQueue ?? {};
+    if (queue.state !== "running") {
+      broadcastIndexProgress(index);
+      return index;
+    }
+    const items = Array.isArray(queue.items) ? queue.items : [];
+    const currentIndex = Number(queue.currentIndex || 0);
+    const item = items[currentIndex];
+    if (!item) {
+      broadcastIndexProgress(index);
+      return index;
+    }
+    if (!["queued", "failed"].includes(String(item.status || "queued"))) {
+      await fetchJSON("/v1/search/index/google/request-queue/result", jsonOptions("POST", {
+        url: item.url,
+        result: item.status === "requested" ? "requested_indexing" : item.status === "indexed" ? "already_indexed" : "failed",
+        error: "",
+      }));
+      continue;
+    }
+
+    broadcastIndexProgress(index);
+    const result = await googleRequestIndexingURL(item.url);
+    const action = String(result?.action || "failed");
+    const updated = await fetchJSON("/v1/search/index/google/request-queue/result", jsonOptions("POST", {
+      url: item.url,
+      result: action,
+      error: String(result?.error || ""),
+    }));
+    broadcastIndexProgress(updated?.index ?? {});
+
+    if (["quota_blocked", "rate_limited", "not_logged_in"].includes(action)) {
+      return updated?.index ?? {};
+    }
+    await delay(1200);
+  }
+}
+
+function kickGoogleIndexQueuePump() {
+  if (googleIndexPumpPromise) return googleIndexPumpPromise;
+  googleIndexPumpPromise = pumpGoogleIndexQueue()
+    .catch((error) => console.warn("[BlogCTL][google-index] queue pump failed", errorMessage(error)))
+    .finally(() => {
+      googleIndexPumpPromise = null;
+    });
+  return googleIndexPumpPromise;
 }
 
 async function waitForPublishedURL(tabId, platform, timeoutMs = 25000) {
