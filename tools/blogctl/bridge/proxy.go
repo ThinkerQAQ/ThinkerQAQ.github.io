@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,49 @@ func normalizeProxyAddress(host string, port int) (string, string, int, error) {
 	}
 	address := "http://" + net.JoinHostPort(host, strconv.Itoa(port))
 	return address, host, port, nil
+}
+
+
+func removeEnvironmentKeys(values []string, names ...string) []string {
+	blocked := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		blocked[strings.ToUpper(strings.TrimSpace(name))] = struct{}{}
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		name, _, ok := strings.Cut(value, "=")
+		if !ok {
+			result = append(result, value)
+			continue
+		}
+		if _, blockedName := blocked[strings.ToUpper(strings.TrimSpace(name))]; blockedName {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
+}
+
+func processEnvironmentForConfig(config bridgeConfig) ([]string, error) {
+	env := removeEnvironmentKeys(
+		os.Environ(),
+		"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "NODE_USE_ENV_PROXY",
+	)
+	if !config.ProxyEnabled {
+		return env, nil
+	}
+	address, _, _, err := normalizeProxyAddress(config.ProxyHost, config.ProxyPort)
+	if err != nil {
+		return nil, err
+	}
+	env = append(env,
+		"HTTP_PROXY="+address,
+		"HTTPS_PROXY="+address,
+		"ALL_PROXY="+address,
+		"NO_PROXY=localhost,127.0.0.1,::1,[::1]",
+		"NODE_USE_ENV_PROXY=1",
+	)
+	return env, nil
 }
 
 func proxyHTTPTransport(config bridgeConfig) (*http.Transport, error) {
