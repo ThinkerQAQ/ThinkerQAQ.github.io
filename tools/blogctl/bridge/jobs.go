@@ -280,40 +280,58 @@ func publishingDurableTask(job *syncJob, existing *durableTaskJob, now time.Time
 	return result
 }
 
+func syncJobFromDurable(job *durableTaskJob) *syncJob {
+	if job == nil || job.Kind != "publishing" {
+		return nil
+	}
+	var request syncRequest
+	if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &request) != nil {
+		return nil
+	}
+	if request.Article == "" {
+		request.Article = job.Article
+	}
+	if len(request.Platforms) == 0 {
+		request.Platforms = append([]string{}, job.Platforms...)
+	}
+	if request.Operation == "" {
+		request.Operation = job.Operation
+	}
+	restored := &syncJob{
+		ID: job.ID, Article: job.Article, Platforms: append([]string{}, job.Platforms...),
+		Operation: job.Operation, Request: request, Results: make(map[string]syncPlatformResult, len(job.Results)),
+		Events: append([]syncJobEvent{}, job.Events...), State: job.State, StartedAt: job.StartedAt,
+		FinishedAt: job.FinishedAt, Output: job.Output, Error: job.Error, DryRun: job.DryRun,
+	}
+	for platform, value := range job.Results {
+		restored.Results[platform] = value
+	}
+	return restored
+}
+
 func restoreSyncJobsFromDurable(jobs map[string]*durableTaskJob, order []string) (map[string]*syncJob, []string) {
 	syncJobs := map[string]*syncJob{}
 	syncOrder := []string{}
 	for _, id := range order {
-		job := jobs[id]
-		if job == nil || job.Kind != "publishing" {
-			continue
+		if restored := syncJobFromDurable(jobs[id]); restored != nil {
+			syncJobs[id] = restored
+			syncOrder = append(syncOrder, id)
 		}
-		var request syncRequest
-		if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &request) != nil {
-			continue
-		}
-		if request.Article == "" {
-			request.Article = job.Article
-		}
-		if len(request.Platforms) == 0 {
-			request.Platforms = append([]string{}, job.Platforms...)
-		}
-		if request.Operation == "" {
-			request.Operation = job.Operation
-		}
-		restored := &syncJob{
-			ID: job.ID, Article: job.Article, Platforms: append([]string{}, job.Platforms...),
-			Operation: job.Operation, Request: request, Results: make(map[string]syncPlatformResult, len(job.Results)),
-			Events: append([]syncJobEvent{}, job.Events...), State: job.State, StartedAt: job.StartedAt,
-			FinishedAt: job.FinishedAt, Output: job.Output, Error: job.Error, DryRun: job.DryRun,
-		}
-		for platform, value := range job.Results {
-			restored.Results[platform] = value
-		}
-		syncJobs[id] = restored
-		syncOrder = append(syncOrder, id)
 	}
 	return syncJobs, syncOrder
+}
+
+func (s *Server) restoreSyncJobLocked(id string) *syncJob {
+	if job := s.jobs[id]; job != nil {
+		return job
+	}
+	restored := syncJobFromDurable(s.taskJobs[id])
+	if restored == nil {
+		return nil
+	}
+	s.jobs[id] = restored
+	s.jobOrder = moveJobToFront(s.jobOrder, id)
+	return restored
 }
 
 func (s *Server) mirrorSyncJobLocked(job *syncJob) {
