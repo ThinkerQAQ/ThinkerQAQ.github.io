@@ -526,6 +526,10 @@ function runtimeVersionHealth(version, expectedVersion, healthySummary, detail =
 
 async function environmentTools(serverTools = []) {
   const bridge = await bridgeStatus();
+  const browserProxy = await browserProxyHealth(bridge.config ?? {}).catch((error) => ({
+    ok: false,
+    detail: errorMessage(error),
+  }));
   const expectedVersion = bridge.extensionVersion || chrome.runtime.getManifest().version;
   const extensionTool = {
     name: "extension",
@@ -554,6 +558,31 @@ async function environmentTools(serverTools = []) {
     config: { scope: "native-host", values: {}, defaultExpanded: true },
   };
   const tools = serverTools.map((tool) => {
+    if (tool?.name === "network-proxy" && bridge.config?.proxyEnabled) {
+      const current = tool.health ?? {};
+      if (!browserProxy.ok) {
+        return {
+          ...tool,
+          health: {
+            ...current,
+            ok: false,
+            status: "error",
+            summary: "代理未覆盖全部组件",
+            detail: browserProxy.detail || "Chrome browser proxy is not active.",
+          },
+        };
+      }
+      return {
+        ...tool,
+        health: {
+          ...current,
+          ok: true,
+          status: "ok",
+          summary: bridge.networkMode || current.summary || "代理已启用",
+          detail: "Bridge HTTP + Search Node + Browser/Extension 均使用同一代理；localhost 保持直连。",
+        },
+      };
+    }
     if (tool?.name !== "bridge") return tool;
     const current = tool.health ?? {};
     const versionHealth = bridge.running
@@ -683,6 +712,29 @@ async function applyBrowserProxyConfig(config) {
     levelOfControl: String(applied?.levelOfControl || ""),
     host: proxy.host,
     port: proxy.port,
+  };
+}
+
+async function browserProxyHealth(config) {
+  const proxy = normalizedProxyConfig(config);
+  if (!proxy.enabled) return { ok: true, enabled: false, detail: "BlogCTL proxy disabled" };
+
+  const current = await chromeProxyGet();
+  const level = String(current?.levelOfControl || "");
+  const value = current?.value || {};
+  const single = value?.rules?.singleProxy || {};
+  const matches =
+    value?.mode === "fixed_servers" &&
+    String(single?.scheme || "") === "http" &&
+    String(single?.host || "") === proxy.host &&
+    Number(single?.port || 0) === proxy.port &&
+    level === "controlled_by_this_extension";
+  return {
+    ok: matches,
+    enabled: true,
+    detail: matches
+      ? `Chrome browser proxy ${proxy.host}:${proxy.port}`
+      : `Chrome proxy mismatch: level=${level || "unknown"}, mode=${String(value?.mode || "unknown")}`,
   };
 }
 
