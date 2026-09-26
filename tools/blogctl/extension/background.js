@@ -1765,16 +1765,16 @@ async function handleMessage(message) {
       await fetchJSON("/v1/search/index/google/request-queue", { method: "POST" });
       const result = await fetchJSON("/v1/search/index/google/request-queue/start", { method: "POST" });
       kickGoogleIndexQueuePump();
-      return { ok: true, index: result?.index ?? {} };
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
     case "blogctl.index.google.request.pause": {
       const result = await fetchJSON("/v1/search/index/google/request-queue/pause", { method: "POST" });
-      return { ok: true, index: result?.index ?? {} };
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
     case "blogctl.index.google.request.resume": {
       const result = await fetchJSON("/v1/search/index/google/request-queue/resume", { method: "POST" });
       kickGoogleIndexQueuePump();
-      return { ok: true, index: result?.index ?? {} };
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
     case "blogctl.tool.save": {
       const name = String(message.name || "").trim();
