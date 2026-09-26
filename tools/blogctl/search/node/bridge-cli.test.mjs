@@ -147,12 +147,15 @@ test("diffRemoteInventories treats missing hashes conservatively and full mode r
 test("bridge inventory command does not require Google credentials", async () => {
   const result = await runBridgeCommand("inventory", {}, {
     env: {},
-    fetchImpl: async () => new Response(
-      "https://thinkerqaq.github.io/a/\n",
-      { status: 200 },
-    ),
+    fetchImpl: async (url) => {
+      if (url.endsWith("/sitemap-all.txt")) {
+        return new Response("https://thinkerqaq.github.io/a/\n", { status: 200 });
+      }
+      return new Response("not deployed yet", { status: 404 });
+    },
   });
   assert.equal(result.total, 1);
+  assert.equal(result.fingerprintCoverage, 0);
   assert.equal(result.urls[0], "https://thinkerqaq.github.io/a/");
 });
 
