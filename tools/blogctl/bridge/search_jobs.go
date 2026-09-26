@@ -76,6 +76,8 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 		if job == nil {
 			return
 		}
+		s.searchMu.Lock()
+		defer s.searchMu.Unlock()
 		if _, err := s.markDurableTaskRunning(jobID); err != nil {
 			return
 		}
@@ -109,9 +111,6 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 	if input.Mode != "incremental" && input.Mode != "full" {
 		return errors.New("Bing submission mode must be incremental or full")
 	}
-
-	s.searchMu.Lock()
-	defer s.searchMu.Unlock()
 
 	state := loadSearchIndexState()
 	started := s.now().UTC()
@@ -190,9 +189,6 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 }
 
 func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) error {
-	s.searchMu.Lock()
-	defer s.searchMu.Unlock()
-
 	state := loadSearchIndexState()
 	started := s.now().UTC()
 	state.Google.Sitemaps = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
@@ -255,9 +251,6 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	if input.Offset < 0 || input.Limit < 1 || input.Limit > 2000 {
 		return errors.New("Google inspection requires offset >= 0 and 1 <= limit <= 2000")
 	}
-
-	s.searchMu.Lock()
-	defer s.searchMu.Unlock()
 
 	state := loadSearchIndexState()
 	started := s.now().UTC()
