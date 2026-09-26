@@ -1295,9 +1295,22 @@ func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
 
 func (s *Server) recordSyncEvent(jobID string, event blogapp.SyncEvent) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	applySyncEventToJob(s.jobs[jobID], event, s.now())
 	s.mirrorSyncJobLocked(s.jobs[jobID])
+	s.mu.Unlock()
+
+	attributes := []any{"jobId", jobID, "platform", event.Platform, "state", event.State}
+	if strings.TrimSpace(event.Message) != "" {
+		attributes = append(attributes, "message", event.Message)
+	}
+	switch event.State {
+	case "failed":
+		slog.Error("publishing task event", attributes...)
+	case "completed":
+		slog.Info("publishing task event", attributes...)
+	default:
+		slog.Debug("publishing task event", attributes...)
+	}
 }
 
 func moveJobToFront(order []string, id string) []string {
@@ -1374,17 +1387,20 @@ func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeC
 			}
 			s.mirrorSyncJobLocked(stored)
 			s.pruneSyncJobHistoryLocked(20)
+			slog.Error("publishing task failed", "jobId", jobID, "article", request.Article, "operation", request.Operation, "error", err.Error())
 			return
 		}
 		stored.State = "completed"
 		s.mirrorSyncJobLocked(stored)
 		s.pruneSyncJobHistoryLocked(20)
+		slog.Info("publishing task completed", "jobId", jobID, "article", request.Article, "operation", request.Operation)
 	}()
 }
 
 func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	startedAt := s.now().UTC()
 	job := newSyncJob(newJobID(), request, startedAt)
+	slog.Info("publishing task started", "jobId", job.ID, "article", request.Article, "operation", request.Operation, "platformCount", len(request.Platforms))
 
 	s.mu.Lock()
 	if s.jobs == nil {
