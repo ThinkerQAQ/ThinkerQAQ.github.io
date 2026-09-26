@@ -203,6 +203,8 @@
       setStatus(elements.googleRequestStatus, "unknown", "待启动");
     } else if (queueState === "completed" && requestPendingCount > 0) {
       setStatus(elements.googleRequestStatus, "unknown", "有新候选");
+    } else if (queueState === "running" && (!state.gsc.known || !state.gsc.ready)) {
+      setStatus(elements.googleRequestStatus, "checking", "正在恢复 GSC", state.gsc.error || "");
     } else {
       setStatus(elements.googleRequestStatus, operationKind(queueState), operationLabel(queueState), queue.lastError || "");
     }
@@ -210,12 +212,12 @@
     if (state.gsc.known) {
       setStatus(
         elements.googleGSCStatus,
-        state.gsc.loggedIn ? "ok" : "error",
-        state.gsc.loggedIn ? "GSC 已登录" : "GSC 未就绪",
+        state.gsc.ready ? "ok" : "error",
+        state.gsc.ready ? "GSC 已就绪" : state.gsc.loggedIn ? "GSC 页面未就绪" : "GSC 未就绪",
         state.gsc.error || "",
       );
     } else {
-      setStatus(elements.googleGSCStatus, "disabled", "未检测");
+      setStatus(elements.googleGSCStatus, "disabled", queueState === "running" ? "正在检测" : "未检测");
     }
 
     setText(elements.requestTotal, requestStats.candidates);
@@ -269,6 +271,7 @@
     try {
       const response = await BlogCTLPopup.send("blogctl.index.get");
       state.index = response.index || {};
+      if (response.google) state.gsc = response.google;
       render();
       BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     } catch (error) {
@@ -331,8 +334,15 @@
   }
 
   function onRuntimeMessage(message) {
-    if (message?.type !== "blogctl.index.progress" || !state.active) return;
+    if (!state.active) return;
+    if (message?.type === "blogctl.index.gsc") {
+      state.gsc = message.google || state.gsc;
+      render();
+      return;
+    }
+    if (message?.type !== "blogctl.index.progress") return;
     state.index = message.index || {};
+    if (message.google) state.gsc = message.google;
     render();
   }
 
