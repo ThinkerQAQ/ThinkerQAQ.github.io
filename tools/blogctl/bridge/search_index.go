@@ -53,17 +53,17 @@ type searchInspectionResult struct {
 }
 
 type searchInspectionState struct {
-	State       string                   `json:"state"`
-	StartedAt   string                   `json:"startedAt,omitempty"`
-	FinishedAt  string                   `json:"finishedAt,omitempty"`
-	Offset      int                      `json:"offset"`
-	Limit       int                      `json:"limit"`
-	Inspected   int                      `json:"inspected"`
-	Total       int                      `json:"total"`
-	Remaining   int                      `json:"remaining"`
-	NextOffset  *int                     `json:"nextOffset,omitempty"`
-	Results     []searchInspectionResult `json:"results,omitempty"`
-	Error       string                   `json:"error,omitempty"`
+	State      string                   `json:"state"`
+	StartedAt  string                   `json:"startedAt,omitempty"`
+	FinishedAt string                   `json:"finishedAt,omitempty"`
+	Offset     int                      `json:"offset"`
+	Limit      int                      `json:"limit"`
+	Inspected  int                      `json:"inspected"`
+	Total      int                      `json:"total"`
+	Remaining  int                      `json:"remaining"`
+	NextOffset *int                     `json:"nextOffset,omitempty"`
+	Results    []searchInspectionResult `json:"results,omitempty"`
+	Error      string                   `json:"error,omitempty"`
 }
 
 type googleIndexRequestItem struct {
@@ -85,8 +85,8 @@ type googleIndexRequestQueue struct {
 }
 
 type searchIndexState struct {
-	Inventory searchInventoryState       `json:"inventory"`
-	Bing      searchOperationState       `json:"bing"`
+	Inventory searchInventoryState `json:"inventory"`
+	Bing      searchOperationState `json:"bing"`
 	Google    struct {
 		CredentialsConfigured bool                    `json:"credentialsConfigured"`
 		Sitemaps              searchOperationState    `json:"sitemaps"`
