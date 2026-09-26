@@ -9,7 +9,8 @@
     "webRequest",
     "nativeMessaging",
     "sidePanel",
-    "scripting"
+    "scripting",
+    "proxy"
   ],
   "host_permissions": [
     "https://*.cnblogs.com/*",
