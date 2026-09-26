@@ -960,7 +960,7 @@ async function googleSearchConsoleProbe({ active = false } = {}) {
 async function googleRequestIndexingURL(url) {
   let tab;
   try {
-    tab = await googleSearchConsoleTab({ active: false, reset: true });
+    tab = await googleSearchConsoleTab({ active: true, reset: true });
   } catch (error) {
     return { ok: false, action: "not_logged_in", url, error: errorMessage(error) };
   }
