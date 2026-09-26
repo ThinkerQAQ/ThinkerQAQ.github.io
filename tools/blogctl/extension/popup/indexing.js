@@ -23,7 +23,8 @@
   function operationKind(value) {
     switch (String(value || "idle")) {
       case "completed": return "ok";
-      case "running": return "checking";
+      case "running":
+      case "queued": return "checking";
       case "failed":
       case "quota_blocked": return "error";
       case "paused": return "unknown";
@@ -35,6 +36,7 @@
     switch (String(value || "idle")) {
       case "completed": return "完成";
       case "running": return "运行中";
+      case "queued": return "排队中";
       case "failed": return "失败";
       case "paused": return "已暂停";
       case "quota_blocked": return "配额已用尽";
