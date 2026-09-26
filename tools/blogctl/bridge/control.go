@@ -300,6 +300,27 @@ func devtoAPIPlaceholder(config bridgeConfig) string {
 	return "DEV.to API Key"
 }
 
+func googleSearchConsoleServiceJSON(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.GoogleSearchConsoleServiceJSON); configured != "" {
+		return configured
+	}
+	return strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON"))
+}
+
+func googleSearchConsoleAPIHealth(config bridgeConfig) toolHealth {
+	if googleSearchConsoleServiceJSON(config) == "" {
+		return toolHealth{Status: "missing", Summary: "Service Account 未配置"}
+	}
+	return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
+}
+
+func googleSearchConsoleAPIPlaceholder(config bridgeConfig) string {
+	if googleSearchConsoleServiceJSON(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "Google service-account JSON"
+}
+
 func toolRegistry(config bridgeConfig) []toolDescriptor {
 	pathField := func(key, label, description string) []toolField {
 		return []toolField{{Key: key, Label: label, Type: "file", Description: description}}
@@ -363,6 +384,20 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "google-search-console-api", DisplayName: "Google Search Console API", Kind: "runtime", Required: false,
+			Description: "URL Inspection 与 Sitemap API 使用的 Service Account。凭据仅保存在本机 BlogCTL 配置中，不返回给 Extension。",
+			Health:      googleSearchConsoleAPIHealth(config),
+			Config: toolConfigView{
+				Scope:  "bridge",
+				Values: map[string]any{},
+				Schema: []toolField{{
+					Key: "serviceAccountJson", Label: "Service Account JSON", Type: "secret",
+					Placeholder: googleSearchConsoleAPIPlaceholder(config),
+					Description: "粘贴完整 Google service-account JSON；留空保存时保持不变。",
+				}},
+			},
+		},
+		{
 			Name: "node", DisplayName: "Node.js", Kind: "dependency", Required: true,
 			Description: "执行 BlogCTL publishing scripts。", Health: executableHealth(config, "node"),
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["node"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 node")},
@@ -420,6 +455,10 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 	case "devto-api":
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
+		}
+	case "google-search-console-api":
+		if value := stringConfig(values, "serviceAccountJson"); value != "" {
+			config.GoogleSearchConsoleServiceJSON = value
 		}
 	case "node", "npm", "git", "java":
 		if config.ToolPaths == nil {
