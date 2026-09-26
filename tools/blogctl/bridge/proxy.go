@@ -29,7 +29,6 @@ func normalizeProxyAddress(host string, port int) (string, string, int, error) {
 	return address, host, port, nil
 }
 
-
 func removeEnvironmentKeys(values []string, names ...string) []string {
 	blocked := make(map[string]struct{}, len(names))
 	for _, name := range names {
