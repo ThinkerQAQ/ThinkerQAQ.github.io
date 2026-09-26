@@ -20,20 +20,28 @@ const searchBridgeResultPrefix = "__BLOGCTL_SEARCH_RESULT__"
 type searchNodeRunner func(context.Context, bridgeConfig, string, map[string]any) (json.RawMessage, error)
 
 type searchInventoryState struct {
-	Source    string   `json:"source"`
-	Origin    string   `json:"origin"`
-	FetchedAt string   `json:"fetchedAt"`
-	Total     int      `json:"total"`
-	URLs      []string `json:"urls,omitempty"`
+	Source              string            `json:"source"`
+	FingerprintSource   string            `json:"fingerprintSource,omitempty"`
+	FingerprintCoverage int               `json:"fingerprintCoverage,omitempty"`
+	Origin              string            `json:"origin"`
+	FetchedAt           string            `json:"fetchedAt"`
+	Total               int               `json:"total"`
+	URLs                []string          `json:"urls,omitempty"`
+	Fingerprints        map[string]string `json:"fingerprints,omitempty"`
 }
 
 type searchOperationState struct {
-	State      string `json:"state"`
-	StartedAt  string `json:"startedAt,omitempty"`
-	FinishedAt string `json:"finishedAt,omitempty"`
-	Count      int    `json:"count,omitempty"`
-	HTTPStatus int    `json:"httpStatus,omitempty"`
-	Error      string `json:"error,omitempty"`
+	State          string `json:"state"`
+	Mode           string `json:"mode,omitempty"`
+	StartedAt      string `json:"startedAt,omitempty"`
+	FinishedAt     string `json:"finishedAt,omitempty"`
+	Count          int    `json:"count,omitempty"`
+	NewCount       int    `json:"newCount,omitempty"`
+	ChangedCount   int    `json:"changedCount,omitempty"`
+	DeletedCount   int    `json:"deletedCount,omitempty"`
+	UnchangedCount int    `json:"unchangedCount,omitempty"`
+	HTTPStatus     int    `json:"httpStatus,omitempty"`
+	Error          string `json:"error,omitempty"`
 }
 
 type searchInspectionResult struct {
@@ -110,6 +118,51 @@ func searchIndexStatePath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(filepath.Dir(configPath), "search-index.json"), nil
+}
+
+func bingIndexSnapshotPath() (string, error) {
+	configPath, err := ConfigPath()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(configPath), "bing-indexnow-snapshot.json"), nil
+}
+
+func loadBingIndexSnapshot() searchInventoryState {
+	path, err := bingIndexSnapshotPath()
+	if err != nil {
+		return searchInventoryState{}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return searchInventoryState{}
+	}
+	var snapshot searchInventoryState
+	if json.Unmarshal(data, &snapshot) != nil {
+		return searchInventoryState{}
+	}
+	return snapshot
+}
+
+func saveBingIndexSnapshot(snapshot searchInventoryState) error {
+	path, err := bingIndexSnapshotPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+func compactSearchInventory(inventory searchInventoryState) searchInventoryState {
+	inventory.URLs = nil
+	inventory.Fingerprints = nil
+	return inventory
 }
 
 func loadSearchIndexState() searchIndexState {
@@ -253,7 +306,7 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 		return
 	}
 	state := loadSearchIndexState()
-	state.Inventory = inventory
+	state.Inventory = compactSearchInventory(inventory)
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
@@ -278,12 +331,34 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
+	var input struct {
+		Mode string `json:"mode"`
+	}
+	if err := readJSON(request, maxBodyBytes, &input); err != nil {
+		writeError(response, err)
+		return
+	}
+	input.Mode = strings.TrimSpace(input.Mode)
+	if input.Mode == "" {
+		input.Mode = "incremental"
+	}
+	if input.Mode != "incremental" && input.Mode != "full" {
+		writeAPIError(response, http.StatusBadRequest, "invalid_bing_submit_mode", "Bing submission mode must be incremental or full", nil)
+		return
+	}
+
 	state := loadSearchIndexState()
 	started := s.now().UTC()
-	state.Bing = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
+	state.Bing = searchOperationState{
+		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
+	}
 	_ = saveSearchIndexState(state)
 
-	raw, err := s.runSearchNode(request.Context(), s.config, "bing-submit", nil)
+	previous := loadBingIndexSnapshot()
+	raw, err := s.runSearchNode(request.Context(), s.config, "bing-submit", map[string]any{
+		"mode":     input.Mode,
+		"previous": previous,
+	})
 	if err != nil {
 		state.Bing.State = "failed"
 		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
@@ -292,9 +367,18 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 		writeError(response, err)
 		return
 	}
+
 	var payload struct {
 		Inventory searchInventoryState `json:"inventory"`
-		Result    struct {
+		Diff      struct {
+			Mode           string `json:"mode"`
+			SelectedCount  int    `json:"selectedCount"`
+			AddedCount     int    `json:"addedCount"`
+			ChangedCount   int    `json:"changedCount"`
+			DeletedCount   int    `json:"deletedCount"`
+			UnchangedCount int    `json:"unchangedCount"`
+		} `json:"diff"`
+		Result struct {
 			URLCount   int `json:"urlCount"`
 			BatchCount int `json:"batchCount"`
 			Results    []struct {
@@ -306,10 +390,18 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 		writeError(response, err)
 		return
 	}
-	state.Inventory = payload.Inventory
+
+	if err := saveBingIndexSnapshot(payload.Inventory); err != nil {
+		writeError(response, err)
+		return
+	}
+
+	state.Inventory = compactSearchInventory(payload.Inventory)
 	state.Bing = searchOperationState{
-		State: "completed", StartedAt: started.Format(time.RFC3339),
+		State: "completed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
+		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
+		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
 		HTTPStatus: aggregateHTTPStatus(payload.Result.Results),
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
