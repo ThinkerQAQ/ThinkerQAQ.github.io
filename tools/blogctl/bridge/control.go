@@ -78,14 +78,15 @@ type syncJob struct {
 }
 
 type toolField struct {
-	Key         string `json:"key"`
-	Label       string `json:"label"`
-	Type        string `json:"type"`
-	Description string `json:"description,omitempty"`
-	Placeholder string `json:"placeholder,omitempty"`
-	Default     any    `json:"default,omitempty"`
-	Min         int    `json:"min,omitempty"`
-	Max         int    `json:"max,omitempty"`
+	Key         string   `json:"key"`
+	Label       string   `json:"label"`
+	Type        string   `json:"type"`
+	Description string   `json:"description,omitempty"`
+	Placeholder string   `json:"placeholder,omitempty"`
+	Default     any      `json:"default,omitempty"`
+	Min         int      `json:"min,omitempty"`
+	Max         int      `json:"max,omitempty"`
+	Options     []string `json:"options,omitempty"`
 }
 
 type toolToggle struct {
@@ -470,6 +471,35 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "logging", DisplayName: "日志", Kind: "runtime", Required: false,
+			Description: "BlogCTL Bridge 的结构化运行日志。可配置日志目录和最低日志级别；日志页实时读取当前日志文件。",
+			Health: loggingHealth(config),
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{
+					"directory": func() string {
+						if value := strings.TrimSpace(config.LogDirectory); value != "" {
+							return value
+						}
+						value, _ := resolvedLogDirectory(config)
+						return value
+					}(),
+					"level": config.LogLevel,
+				},
+				Schema: []toolField{
+					{
+						Key: "directory", Label: "日志目录", Type: "directory",
+						Description: "日志文件固定为 bridge.log；目录不存在时自动创建。",
+					},
+					{
+						Key: "level", Label: "日志级别", Type: "select",
+						Description: "只记录该级别及以上日志。排查问题时使用 debug。",
+						Options: []string{"debug", "info", "warn", "error"},
+					},
+				},
+			},
+		},
+		{
 			Name: "devto-api", DisplayName: "DEV.to API", Kind: "publishing", Required: false,
 			Description: "DEV.to 文章生命周期使用官方 API；图片优先通过浏览器会话上传到 DEV.to，失败时回退 R2。API Key 仅保存在本机 BlogCTL 配置中。",
 			Health:      devtoAPIHealth(config),
@@ -606,6 +636,9 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		config.ProxyEnabled = boolConfig(values, "proxyEnabled")
 		config.ProxyHost = stringConfig(values, "proxyHost")
 		config.ProxyPort = intConfig(values, "proxyPort")
+	case "logging":
+		config.LogDirectory = stringConfig(values, "directory")
+		config.LogLevel = stringConfig(values, "level")
 	case "devto-api":
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
