@@ -169,6 +169,8 @@ type Server struct {
 	sessions            map[string]platformSession
 	jobs                map[string]*syncJob
 	jobOrder            []string
+	taskJobs            map[string]*durableTaskJob
+	taskJobOrder        []string
 	browserOps          map[string]*browserOperation
 	browserOpOrder      []string
 	browserOpsAvailable bool
@@ -183,15 +185,24 @@ func New(token string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
-		token:      token,
-		now:        time.Now,
-		httpClient: client,
-		config:     config,
-		sessions:   make(map[string]platformSession),
-		jobs:       make(map[string]*syncJob),
-		browserOps: make(map[string]*browserOperation),
-	}, nil
+	taskJobs, taskJobOrder := loadDurableTaskStore()
+	server := &Server{
+		token:        token,
+		now:          time.Now,
+		httpClient:   client,
+		config:       config,
+		sessions:     make(map[string]platformSession),
+		jobs:         make(map[string]*syncJob),
+		taskJobs:     taskJobs,
+		taskJobOrder: taskJobOrder,
+		browserOps:   make(map[string]*browserOperation),
+	}
+	if normalizeRecoveredDurableTaskJobs(server.taskJobs, server.now()) {
+		server.mu.Lock()
+		_ = server.persistDurableTasksLocked()
+		server.mu.Unlock()
+	}
+	return server, nil
 }
 
 func (s *Server) Handler() http.Handler { return http.HandlerFunc(s.serveHTTP) }
@@ -495,6 +506,40 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "browser-ops" && request.Method == http.MethodPost {
 		s.handleBrowserOperationComplete(response, request, parts[2])
 		return
+	}
+
+	if path == "v1/jobs" {
+		switch request.Method {
+		case http.MethodGet:
+			s.handleTaskJobsGet(response, request)
+			return
+		case http.MethodDelete:
+			s.handleTaskJobsClear(response, request)
+			return
+		}
+	}
+	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "jobs" {
+		switch request.Method {
+		case http.MethodGet:
+			s.handleTaskJobGet(response, request, parts[2])
+			return
+		case http.MethodDelete:
+			s.handleTaskJobDelete(response, request, parts[2])
+			return
+		}
+	}
+	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "jobs" && request.Method == http.MethodPost {
+		switch parts[3] {
+		case "retry":
+			s.handleTaskJobRetry(response, request, parts[2])
+			return
+		case "pause":
+			s.handleTaskJobPause(response, request, parts[2])
+			return
+		case "resume":
+			s.handleTaskJobResume(response, request, parts[2])
+			return
+		}
 	}
 
 	if path == "v1/sync/jobs" {
