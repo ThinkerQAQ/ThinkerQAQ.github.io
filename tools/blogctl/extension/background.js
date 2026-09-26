@@ -1737,7 +1737,11 @@ async function handleMessage(message) {
       return { ok: true, index: result?.index ?? {} };
     }
     case "blogctl.index.bing.submit": {
-      const result = await fetchJSON("/v1/search/index/bing/submit", { method: "POST" });
+      const mode = String(message.mode || "incremental");
+      const result = await fetchJSON(
+        "/v1/search/index/bing/submit",
+        jsonOptions("POST", { mode }),
+      );
       return { ok: true, index: result?.index ?? {} };
     }
     case "blogctl.index.google.sitemaps": {
