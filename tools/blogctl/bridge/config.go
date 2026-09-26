@@ -72,11 +72,12 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
-	ContentRoot string            `json:"contentRoot"`
-	EngineRoot  string            `json:"engineRoot"`
-	ToolPaths   map[string]string `json:"toolPaths"`
-	DevtoAPIKey string            `json:"devtoApiKey,omitempty"`
-	Publishing  publishingConfig  `json:"publishing"`
+	ContentRoot                    string            `json:"contentRoot"`
+	EngineRoot                     string            `json:"engineRoot"`
+	ToolPaths                      map[string]string `json:"toolPaths"`
+	DevtoAPIKey                    string            `json:"devtoApiKey,omitempty"`
+	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty"`
+	Publishing                     publishingConfig  `json:"publishing"`
 }
 
 var publishingPlatformOrder = blogplatform.IDs()
@@ -236,6 +237,7 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
 	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
+	config.GoogleSearchConsoleServiceJSON = strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
