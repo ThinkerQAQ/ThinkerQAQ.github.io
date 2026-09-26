@@ -639,6 +639,14 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 	queue := &state.Google.RequestQueue
 	switch action {
 	case "start", "resume":
+		if action == "resume" {
+			for index, item := range queue.Items {
+				if item.Status == "queued" || item.Status == "failed" || item.Status == "quota_blocked" {
+					queue.CurrentIndex = index
+					break
+				}
+			}
+		}
 		if len(queue.Items) == 0 || queue.CurrentIndex >= len(queue.Items) {
 			writeAPIError(response, http.StatusConflict, "google_index_queue_empty", "Google request-indexing queue has no pending URLs", nil)
 			return
