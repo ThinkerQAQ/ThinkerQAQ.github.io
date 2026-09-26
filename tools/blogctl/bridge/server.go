@@ -465,6 +465,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleToolConfigPut(response, request, parts[2])
 		return
 	}
+	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "tools" && parts[3] == "actions" && request.Method == http.MethodPost {
+		s.handleToolAction(response, request, parts[2], parts[4])
+		return
+	}
 
 	if path == "v1/publishing" {
 		switch request.Method {
@@ -698,6 +702,54 @@ func (s *Server) handleRestart(response http.ResponseWriter, request *http.Reque
 		time.Sleep(150 * time.Millisecond)
 		restart()
 	}()
+}
+
+func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Request, name, action string) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	if action != "check" {
+		writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported tool action", map[string]any{"tool": name, "action": action})
+		return
+	}
+
+	var command string
+	switch name {
+	case "bing-indexnow":
+		command = "bing-check"
+	case "google-search-console-api":
+		command = "google-check"
+	default:
+		writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported tool check", map[string]any{"tool": name})
+		return
+	}
+
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	raw, err := s.runSearchNode(request.Context(), config, command, nil)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "tool_check_failed", err.Error(), map[string]any{"tool": name})
+		return
+	}
+	var detail map[string]any
+	if err := decodeSearchResult(raw, &detail); err != nil {
+		writeError(response, err)
+		return
+	}
+	message := "配置检测通过"
+	if name == "bing-indexnow" {
+		message = "Bing / IndexNow 配置检测通过"
+	}
+	if name == "google-search-console-api" {
+		message = "Google Search Console API 配置检测通过"
+	}
+	writeJSON(response, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": message,
+		"detail":  detail,
+		"tools":   toolRegistry(config),
+	})
 }
 
 func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http.Request, name string) {
