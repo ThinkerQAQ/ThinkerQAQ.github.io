@@ -202,6 +202,7 @@ func New(token string) (*Server, error) {
 		_ = server.persistDurableTasksLocked()
 		server.mu.Unlock()
 	}
+	recoverSearchTasksAfterRestart(server)
 	return server, nil
 }
 
@@ -441,6 +442,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if path == "v1/search/index/inventory/refresh" && request.Method == http.MethodPost {
 		s.handleSearchInventoryRefresh(response, request)
+		return
+	}
+	if path == "v1/search/index/jobs/bing" && request.Method == http.MethodPost {
+		s.handleSearchBingJobStart(response, request)
+		return
+	}
+	if path == "v1/search/index/jobs/google/sitemaps" && request.Method == http.MethodPost {
+		s.handleSearchGoogleSitemapsJobStart(response, request)
+		return
+	}
+	if path == "v1/search/index/jobs/google/inspect" && request.Method == http.MethodPost {
+		s.handleSearchGoogleInspectionJobStart(response, request)
 		return
 	}
 	if path == "v1/search/index/bing/submit" && request.Method == http.MethodPost {
