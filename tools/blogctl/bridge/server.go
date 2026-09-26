@@ -159,8 +159,9 @@ type Server struct {
 	now        func() time.Time
 	httpClient *http.Client
 	config     bridgeConfig
-	restart    func()
-	syncRunner syncRunner
+	restart      func()
+	syncRunner   syncRunner
+	searchRunner searchNodeRunner
 
 	mu                  sync.Mutex
 	distributionMu      sync.Mutex
@@ -419,6 +420,39 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 			return
 		}
 		s.handleTools(response)
+		return
+	}
+
+	if path == "v1/search/index" && request.Method == http.MethodGet {
+		s.handleSearchIndexGet(response, request)
+		return
+	}
+	if path == "v1/search/index/inventory/refresh" && request.Method == http.MethodPost {
+		s.handleSearchInventoryRefresh(response, request)
+		return
+	}
+	if path == "v1/search/index/bing/submit" && request.Method == http.MethodPost {
+		s.handleSearchBingSubmit(response, request)
+		return
+	}
+	if path == "v1/search/index/google/sitemaps" && request.Method == http.MethodPost {
+		s.handleSearchGoogleSitemaps(response, request)
+		return
+	}
+	if path == "v1/search/index/google/inspect" && request.Method == http.MethodPost {
+		s.handleSearchGoogleInspect(response, request)
+		return
+	}
+	if path == "v1/search/index/google/request-queue" && request.Method == http.MethodPost {
+		s.handleSearchGoogleRequestQueueCreate(response, request)
+		return
+	}
+	if path == "v1/search/index/google/request-queue/result" && request.Method == http.MethodPost {
+		s.handleSearchGoogleRequestQueueUpdate(response, request)
+		return
+	}
+	if len(parts) == 6 && parts[0] == "v1" && parts[1] == "search" && parts[2] == "index" && parts[3] == "google" && parts[4] == "request-queue" && request.Method == http.MethodPost {
+		s.handleSearchGoogleRequestQueueControl(response, request, parts[5])
 		return
 	}
 
