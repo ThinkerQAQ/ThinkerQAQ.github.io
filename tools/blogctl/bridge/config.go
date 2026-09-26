@@ -72,6 +72,9 @@ type bridgeConfig struct {
 	ProxyHost    string `json:"proxyHost"`
 	ProxyPort    int    `json:"proxyPort"`
 
+	LogDirectory string `json:"logDirectory,omitempty"`
+	LogLevel     string `json:"logLevel,omitempty"`
+
 	ContentRoot                    string            `json:"contentRoot"`
 	EngineRoot                     string            `json:"engineRoot"`
 	ToolPaths                      map[string]string `json:"toolPaths"`
@@ -145,6 +148,7 @@ func defaultPublishingConfig() publishingConfig {
 
 func defaultBridgeConfig() bridgeConfig {
 	return bridgeConfig{
+		LogLevel:         "info",
 		ToolPaths:        map[string]string{},
 		IndexNowEndpoint: "https://www.bing.com/indexnow",
 		Publishing:       defaultPublishingConfig(),
@@ -204,6 +208,9 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	if config.IndexNowEndpoint == "" {
 		config.IndexNowEndpoint = defaults.IndexNowEndpoint
 	}
+	if strings.TrimSpace(config.LogLevel) == "" {
+		config.LogLevel = defaults.LogLevel
+	}
 	if config.ToolPaths == nil {
 		config.ToolPaths = map[string]string{}
 	}
@@ -248,6 +255,13 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.IndexNowKey = strings.TrimSpace(config.IndexNowKey)
 	config.IndexNowKeyLocation = strings.TrimSpace(config.IndexNowKeyLocation)
 	config.GoogleSearchConsoleServiceJSON = strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
+	config.LogDirectory = normalizeStoredPath(config.LogDirectory)
+	config.LogLevel = strings.ToLower(strings.TrimSpace(config.LogLevel))
+	switch config.LogLevel {
+	case "debug", "info", "warn", "error":
+	default:
+		return config, errors.New("log level must be debug, info, warn, or error")
+	}
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
