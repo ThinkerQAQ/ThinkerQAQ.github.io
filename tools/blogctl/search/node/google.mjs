@@ -54,7 +54,7 @@ export async function submitGoogleSitemaps({
   const siteOrigin = normalizeSiteOrigin(origin);
   const results = [];
   for (const name of sitemapNames) {
-    const feedPath = new URL(`/${String(name).replace(/^\/+?/u, "")}`, `${siteOrigin}/`).toString();
+    const feedPath = new URL(`/${String(name).replace(/^\/+/u, "")}`, `${siteOrigin}/`).toString();
     results.push(await submitGoogleSitemap({
       siteUrl,
       feedPath,
