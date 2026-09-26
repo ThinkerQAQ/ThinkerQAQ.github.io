@@ -1,9 +1,12 @@
-# BlogCTL v0.1.73
+# BlogCTL v0.1.87
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
 
 ## 本版本更新
 
+- 索引页的实时状态改为从 durable task 恢复：任务仍在运行时，URL Inspection / Request Indexing 不再因为独立状态文件或 Extension 重载而显示成未运行。
+- Network Proxy 浏览器侧改为 PAC 白名单：只代理 BlogCTL 平台域名和 Google Search Console 依赖域名；无关标签页保持 `DIRECT`。
+- BlogCTL Extension 增加正式图标，并显示在 Chromium 工具栏与侧边栏标题区。
 - Medium 文章检测改为 GraphQL 分页查询，每页遵守平台最多 25 条的限制。
 - Medium 图片上传保留完整浏览器 Cookie，并在 PNG 被拒绝时转换为 JPEG 重试。
 - 51CTO 草稿检测按当前 AJAX 契约请求；发布响应支持 gzip、br、deflate、zstd 解压后再解析 JSON。
@@ -179,4 +182,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 - Windows / macOS / Linux 卸载脚本。
 - `SHA256SUMS`。
 
-版本：`0.1.73`
+版本：`0.1.87`
