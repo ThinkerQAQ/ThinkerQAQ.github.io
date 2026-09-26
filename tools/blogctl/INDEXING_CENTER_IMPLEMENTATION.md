@@ -348,23 +348,37 @@ Inventory：
 POST /v1/search/index/inventory/refresh
 ```
 
-Bing：
+异步索引任务：
 
 ```http
-POST /v1/search/index/bing/submit
+POST /v1/search/index/jobs/bing
+POST /v1/search/index/jobs/google/sitemaps
+POST /v1/search/index/jobs/google/inspect
 ```
 
-Google：
+统一任务：
 
 ```http
-POST /v1/search/index/google/sitemaps
-POST /v1/search/index/google/inspect
+GET    /v1/jobs
+GET    /v1/jobs/:id
+DELETE /v1/jobs
+DELETE /v1/jobs/:id
+POST   /v1/jobs/:id/retry
+POST   /v1/jobs/:id/pause
+POST   /v1/jobs/:id/resume
+```
+
+Google Request Indexing 队列：
+
+```http
 POST /v1/search/index/google/request-queue
 POST /v1/search/index/google/request-queue/result
 POST /v1/search/index/google/request-queue/start
 POST /v1/search/index/google/request-queue/pause
 POST /v1/search/index/google/request-queue/resume
 ```
+
+旧的同步 Bing / Sitemap / Inspection endpoint 暂时保留兼容，但 Extension UI 创建任务时统一走异步 Job endpoint。
 
 所有 write endpoint 必须经过 Bridge token / Extension-origin authorization。
 
@@ -394,6 +408,9 @@ blogctl.index.progress
 新增：
 
 ```text
+tools/blogctl/bridge/jobs.go
+tools/blogctl/bridge/jobs_test.go
+tools/blogctl/bridge/search_jobs.go
 tools/blogctl/bridge/search_index.go
 tools/blogctl/bridge/search_index_test.go
 
@@ -482,6 +499,100 @@ GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON
 Extension 永远不接收 Service Account JSON。
 
 Google Web UI automation 不读取 Google Cookie。
+
+## 13.1 环境与配置
+
+保留现有环境页结构，在其中增加两个外部集成卡片。
+
+### Bing / IndexNow
+
+可配置：
+
+- Endpoint；
+- IndexNow Key；
+- Key Location。
+
+「检测配置」只执行安全探测：
+
+```text
+GET Key Location
+→ HTTP 成功
+→ 文件内容 == configured key
+```
+
+不会为了检测而提交测试 URL。
+
+### Google Search Console API
+
+配置完整 Service Account JSON。界面明确提示配置路径：
+
+```text
+Google Cloud
+→ 启用 Search Console API
+→ 创建 Service Account
+→ 创建 JSON Key
+→ 将 JSON 中 client_email
+  添加到 Search Console Property
+  Users and permissions
+  Full user
+→ 将完整 JSON 粘贴到 BlogCTL
+```
+
+「检测配置」执行：
+
+```text
+Service Account JWT
+→ OAuth access token
+→ GET Search Console property
+→ 返回 permissionLevel
+```
+
+IndexNow Key 与 Google Service Account JSON 都不得返回给 Extension。
+
+## 13.2 统一 Durable Task Queue
+
+索引任务与原「任务」Tab 共用统一任务视图，持久化文件：
+
+```text
+<BlogCTL config dir>/jobs.json
+```
+
+任务类型包括：
+
+```text
+publishing
+bing-indexnow
+google-sitemaps
+google-inspection
+google-request-indexing
+```
+
+索引页负责创建和展示业务状态；任务页负责统一展示：
+
+- queued / running / paused / completed / failed；
+- progress；
+- retry；
+- pause / resume；
+- detail / error。
+
+发布任务也镜像进 durable task store，因此 Bridge 重启后任务历史和可安全重试的请求信息仍可恢复。
+
+索引批量任务必须保持 **一个 Job + 多个内部 URL item**，不得把 2750 个 URL 展开成 2750 个任务。
+
+### Bridge 重启
+
+```text
+Bing / Sitemap / Inspection 正在执行
+→ 标记 failed
+→ 可从任务页 retry
+
+Google Request Indexing 正在执行
+→ 标记 paused
+→ 保留 currentIndex / URL item state
+→ 浏览器恢复后手动 Resume
+```
+
+Request Indexing 的跨天执行仍以持久化 queue 为真源，Task Job 作为统一控制和展示层。
 
 ## 14. 测试
 
@@ -582,13 +693,17 @@ ui_changed
 
 - [ ] PR validate 全绿；
 - [ ] Inventory URL 数与线上 `sitemap-all.txt` 一致；
-- [ ] Bing 全量提交成功；
+- [ ] Bing 环境检测通过；
+- [ ] Bing 增量与全量任务进入统一任务页并成功；
+- [ ] Google Search Console API 环境检测通过；
 - [ ] Google 两个 Sitemap 都成功；
 - [ ] URL Inspection 第一批真实运行成功；
 - [ ] 中文 GSC 已收录页面通过；
 - [ ] 中文 GSC 未收录页面通过；
 - [ ] Request Indexing 单 URL 成功；
 - [ ] quota/429/not-logged-in fail-safe 验证；
+- [ ] Bridge 重启后 Request Indexing 任务恢复为 paused 且进度不丢；
+- [ ] 发布任务与索引任务在统一 Task Tab 中无重复显示；
 - [ ] 未读取/保存 Google Cookie value；
 - [ ] 用户确认后再 merge。
 
