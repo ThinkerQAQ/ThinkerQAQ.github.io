@@ -210,6 +210,19 @@ func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	}
 }
 
+func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *testing.T) {
+	if err := validateGoogleServiceAccountJSON(`{"installed":{"client_id":"x"}}`); err == nil || !strings.Contains(err.Error(), "OAuth Desktop Client") {
+		t.Fatalf("desktop OAuth client error = %v", err)
+	}
+	if err := validateGoogleServiceAccountJSON(`{"type":"service_account"}`); err == nil || !strings.Contains(err.Error(), "client_email") || !strings.Contains(err.Error(), "private_key") {
+		t.Fatalf("missing field error = %v", err)
+	}
+	valid := `{"type":"service_account","client_email":"search@example.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n"}`
+	if err := validateGoogleServiceAccountJSON(valid); err != nil {
+		t.Fatalf("valid service account error = %v", err)
+	}
+}
+
 func TestEnvironmentIntegrationChecksUseSearchBridge(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
