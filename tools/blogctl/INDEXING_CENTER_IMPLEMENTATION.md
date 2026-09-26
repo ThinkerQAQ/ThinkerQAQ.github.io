@@ -687,6 +687,47 @@ ui_changed
 → paused
 ```
 
+## 15.1 Network Proxy 全局策略
+
+`环境与配置 → Network Proxy` 是 BlogCTL 的统一外网策略。
+
+启用后必须覆盖：
+
+```text
+Bridge Go HTTP
+├── 平台 API
+├── R2
+└── Browser-profile transport
+
+Search Node child runtime
+├── sitemap inventory
+├── Bing / IndexNow
+├── Google OAuth
+├── Google Sitemap
+└── Google URL Inspection
+
+Extension / Browser
+├── 登录态探测
+├── browser HTTP relay
+├── Medium GraphQL
+├── 平台浏览器发布页面
+└── Google Search Console / Request Indexing
+```
+
+本机通信保持直连：
+
+```text
+localhost
+127.0.0.1
+::1
+```
+
+Search Node 通过 `HTTP_PROXY` / `HTTPS_PROXY` / `NODE_USE_ENV_PROXY=1` 使用同一代理；为防止静默直连，开启代理时要求 Node.js >= 22.21（或 >= 24）。
+
+Extension 通过 Chrome `proxy` API 应用同一 HTTP proxy。因为 Chrome proxy setting 属于 profile 级设置，启用 BlogCTL Network Proxy 时，regular profile 的外网请求会使用该代理；本机地址在 bypass list 中。
+
+如果 Browser proxy 无法被 Extension 控制，环境页必须显示「代理未覆盖全部组件」，并且远端 browser flow 不应静默直连。
+
 ## 16. Merge Gate
 
 合入 `main` 前至少满足：
