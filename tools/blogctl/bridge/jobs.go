@@ -178,6 +178,17 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 				job.State = "failed"
 				job.CanRetry = job.Kind != "publishing" || job.Operation != "publish"
 				job.Error = "Bridge restarted before the task completed"
+				if job.Kind == "publishing" {
+					for platform, result := range job.Results {
+						if result.State == "completed" || result.State == "failed" {
+							continue
+						}
+						result.State = "failed"
+						result.Error = job.Error
+						result.Message = job.Error
+						job.Results[platform] = result
+					}
+				}
 			}
 			job.UpdatedAt = stamp
 			changed = true
@@ -471,7 +482,7 @@ func (s *Server) clearFinishedDurableTaskJobs() int {
 	removed := 0
 	for _, id := range s.taskJobOrder {
 		job := s.taskJobs[id]
-		if job != nil && (job.State == "running" || job.State == "queued" || job.State == "paused") {
+		if job != nil && (job.Kind == "publishing" || job.State == "running" || job.State == "queued" || job.State == "paused") {
 			kept = append(kept, id)
 			continue
 		}
