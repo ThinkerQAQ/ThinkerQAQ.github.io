@@ -126,6 +126,7 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .index-subcard { display: grid; gap: 9px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 9px; background: #fafafa; }
 .index-action-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .index-action-row .primary, .index-action-row .secondary { width: auto; }
+.index-action-row-equal > button { flex: 1 1 0; min-width: 0; min-height: 38px; }
 @media (max-width: 520px) { .index-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 360px) { .index-stat-grid { grid-template-columns: 1fr; } }
 
