@@ -188,6 +188,37 @@ test("normalizeInspectionResult keeps the operational index fields", () => {
   );
 });
 
+test("auditGoogleUrls reports progress after every inspected URL", async () => {
+  const urls = [
+    "https://thinkerqaq.github.io/a/",
+    "https://thinkerqaq.github.io/b/",
+    "https://thinkerqaq.github.io/c/",
+  ];
+  const progress = [];
+  const result = await auditGoogleUrls(urls, {
+    siteUrl: "https://thinkerqaq.github.io/",
+    accessToken: "token",
+    requestDelayMs: 0,
+    onProgress: async (event) => progress.push(event),
+    fetchImpl: async () => new Response(JSON.stringify({
+      inspectionResult: {
+        indexStatusResult: {
+          verdict: "PASS",
+          coverageState: "Submitted and indexed",
+          robotsTxtState: "ALLOWED",
+          indexingState: "INDEXING_ALLOWED",
+          pageFetchState: "SUCCESSFUL",
+        },
+      },
+    }), { status: 200 }),
+  });
+  assert.equal(result.inspected, 3);
+  assert.deepEqual(progress.map((event) => event.inspected), [1, 2, 3]);
+  assert.deepEqual(progress.map((event) => event.result.url), urls);
+  assert.equal(progress[0].nextOffset, 1);
+  assert.equal(progress[2].nextOffset, null);
+});
+
 test("auditGoogleUrls supports offset and returns resume metadata", async () => {
   const urls = [
     "https://thinkerqaq.github.io/a/",
