@@ -5,8 +5,10 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -231,4 +233,39 @@ func clearLog(config bridgeConfig) (string, error) {
 	}
 	slog.Info("log cleared", "operation", "logs-clear")
 	return path, nil
+}
+
+func (s *Server) handleLogsGet(response http.ResponseWriter, request *http.Request) {
+	if !allowReadOnlyBridgeStatus(response, request) {
+		return
+	}
+	limit, _ := strconv.Atoi(request.URL.Query().Get("limit"))
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	entries, path, err := readLogTail(config, limit)
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "log_read_failed", err.Error(), nil)
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{
+		"path":    path,
+		"level":   config.LogLevel,
+		"entries": entries,
+	})
+}
+
+func (s *Server) handleLogsClear(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	path, err := clearLog(config)
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "log_clear_failed", err.Error(), nil)
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "path": path})
 }
