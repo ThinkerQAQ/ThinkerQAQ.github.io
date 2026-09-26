@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestGoogleInspectionTaskPersistsChunkProgress(t *testing.T) {
+func TestGoogleInspectionTaskPersistsPerURLProgress(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
 	if err != nil {
@@ -63,7 +63,7 @@ func TestGoogleInspectionTaskPersistsChunkProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(calls) != 2 || calls[0].Offset != 0 || calls[0].Limit != 100 || calls[1].Offset != 100 || calls[1].Limit != 50 {
+	if len(calls) != 1 || calls[0].Offset != 0 || calls[0].Limit != 150 {
 		t.Fatalf("inspection calls = %#v", calls)
 	}
 	restored := server.durableTaskJob(job.ID)
