@@ -139,6 +139,48 @@ test("normalizeInspectionResult keeps the operational index fields", () => {
   );
 });
 
+test("auditGoogleUrls supports offset and returns resume metadata", async () => {
+  const urls = [
+    "https://thinkerqaq.github.io/a/",
+    "https://thinkerqaq.github.io/b/",
+    "https://thinkerqaq.github.io/c/",
+    "https://thinkerqaq.github.io/d/",
+  ];
+  const inspected = [];
+  const report = await auditGoogleUrls(urls, {
+    siteUrl: "https://thinkerqaq.github.io/",
+    origin: "https://thinkerqaq.github.io",
+    accessToken: "token",
+    offset: 1,
+    limit: 2,
+    requestDelayMs: 0,
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      inspected.push(body.inspectionUrl);
+      return new Response(JSON.stringify({
+        inspectionResult: {
+          indexStatusResult: {
+            verdict: "PASS",
+            coverageState: "Submitted and indexed",
+            lastCrawlTime: "2026-09-21T00:00:00Z",
+            sitemap: ["https://thinkerqaq.github.io/sitemap-all.txt"],
+          },
+        },
+      }), { status: 200 });
+    },
+  });
+
+  assert.deepEqual(inspected, urls.slice(1, 3));
+  assert.equal(report.offset, 1);
+  assert.equal(report.inspected, 2);
+  assert.equal(report.totalAvailable, 4);
+  assert.equal(report.remaining, 1);
+  assert.equal(report.nextOffset, 3);
+  assert.equal(report.summary.total, 2);
+  assert.equal(report.summary.verdicts.PASS, 2);
+  assert.equal(report.summary.withSitemap, 2);
+});
+
 test("auditGoogleUrls enforces the documented daily-site bound", async () => {
   await assert.rejects(
     auditGoogleUrls(["https://thinkerqaq.github.io/"], {
