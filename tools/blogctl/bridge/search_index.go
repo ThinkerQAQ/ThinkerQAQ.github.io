@@ -183,6 +183,9 @@ func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command
 	cmd := exec.CommandContext(ctx, node, script, command)
 	cmd.Dir = engineRoot
 	cmd.Env = os.Environ()
+	if credential := googleSearchConsoleServiceJSON(config); credential != "" {
+		cmd.Env = append(cmd.Env, "GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON="+credential)
+	}
 	cmd.Stdin = bytes.NewReader(payload)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -211,13 +214,13 @@ func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command
 	return nil, errors.New("search bridge did not return a result")
 }
 
-func refreshSearchCredentialsFlag(state *searchIndexState) {
-	state.Google.CredentialsConfigured = strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON")) != ""
+func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) {
+	state.Google.CredentialsConfigured = googleSearchConsoleServiceJSON(config) != ""
 }
 
 func (s *Server) searchState() searchIndexState {
 	state := loadSearchIndexState()
-	refreshSearchCredentialsFlag(&state)
+	refreshSearchCredentialsFlag(&state, s.config)
 	return state
 }
 
@@ -251,7 +254,7 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 	}
 	state := loadSearchIndexState()
 	state.Inventory = inventory
-	refreshSearchCredentialsFlag(&state)
+	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
 		return
@@ -309,7 +312,7 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
 		HTTPStatus: aggregateHTTPStatus(payload.Result.Results),
 	}
-	refreshSearchCredentialsFlag(&state)
+	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
 		return
@@ -331,7 +334,7 @@ func (s *Server) handleSearchGoogleSitemaps(response http.ResponseWriter, reques
 		state.Google.Sitemaps.State = "failed"
 		state.Google.Sitemaps.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Google.Sitemaps.Error = err.Error()
-		refreshSearchCredentialsFlag(&state)
+		refreshSearchCredentialsFlag(&state, s.config)
 		_ = saveSearchIndexState(state)
 		writeError(response, err)
 		return
@@ -352,7 +355,7 @@ func (s *Server) handleSearchGoogleSitemaps(response http.ResponseWriter, reques
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: len(payload.Result),
 		HTTPStatus: aggregateHTTPStatus(payload.Result),
 	}
-	refreshSearchCredentialsFlag(&state)
+	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
 		return
@@ -420,7 +423,7 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 		state.Google.Inspection.State = "failed"
 		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Google.Inspection.Error = err.Error()
-		refreshSearchCredentialsFlag(&state)
+		refreshSearchCredentialsFlag(&state, s.config)
 		_ = saveSearchIndexState(state)
 		writeError(response, err)
 		return
@@ -457,7 +460,7 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 		Total: report.TotalAvailable, Remaining: remaining, NextOffset: nextOffset,
 		Results: mergedResults,
 	}
-	refreshSearchCredentialsFlag(&state)
+	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
 		return
