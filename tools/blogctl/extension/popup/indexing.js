@@ -68,13 +68,55 @@
     };
   }
 
-  function inspectionRequestCandidates(results) {
-    return (Array.isArray(results) ? results : []).filter((result) =>
-      String(result?.verdict || "").toUpperCase() !== "PASS" &&
-      String(result?.indexingState || "").toUpperCase() === "INDEXING_ALLOWED" &&
-      String(result?.robotsTxtState || "").toUpperCase() !== "DISALLOWED" &&
-      Boolean(String(result?.url || "").trim())
-    ).length;
+  function inspectionRequestCandidate(result) {
+    const url = String(result?.url || "").trim();
+    if (!url || String(result?.verdict || "").toUpperCase() === "PASS") return false;
+    if (String(result?.robotsTxtState || "").toUpperCase() === "DISALLOWED") return false;
+    const indexingState = String(result?.indexingState || "").toUpperCase();
+    return !["BLOCKED_BY_META_TAG", "BLOCKED_BY_HTTP_HEADER", "BLOCKED_BY_ROBOTS_TXT"].includes(indexingState);
+  }
+
+  function requestOverview(results, queue) {
+    const inspectionResults = Array.isArray(results) ? results : [];
+    const queueItems = Array.isArray(queue?.items) ? queue.items : [];
+    const queueByURL = new Map(
+      queueItems.map((item) => [String(item?.url || "").trim(), item])
+    );
+    const candidateURLs = new Set();
+    const indexedURLs = new Set();
+
+    for (const result of inspectionResults) {
+      const url = String(result?.url || "").trim();
+      if (!url) continue;
+      if (String(result?.verdict || "").toUpperCase() === "PASS") {
+        indexedURLs.add(url);
+        continue;
+      }
+      if (inspectionRequestCandidate(result)) candidateURLs.add(url);
+    }
+
+    let pending = 0;
+    for (const url of candidateURLs) {
+      const status = String(queueByURL.get(url)?.status || "queued");
+      if (!["requested", "indexed", "failed", "quota_blocked"].includes(status)) pending += 1;
+    }
+
+    for (const item of queueItems) {
+      if (String(item?.status || "") === "indexed") {
+        const url = String(item?.url || "").trim();
+        if (url) indexedURLs.add(url);
+      }
+    }
+
+    const qStats = queueStats(queue);
+    return {
+      candidates: candidateURLs.size,
+      requested: qStats.requested,
+      indexedSkipped: indexedURLs.size,
+      pending,
+      failed: qStats.failed,
+      queueTotal: qStats.total,
+    };
   }
 
   function queueStats(queue) {
@@ -110,8 +152,9 @@
     const queue = google.requestQueue || {};
     const iStats = inspectionStats(inspection.results);
     const qStats = queueStats(queue);
-    const requestCandidateCount = qStats.total || inspectionRequestCandidates(inspection.results);
-    const requestPendingCount = qStats.total ? qStats.queued + qStats.failed : requestCandidateCount;
+    const requestStats = requestOverview(inspection.results, queue);
+    const requestCandidateCount = requestStats.candidates;
+    const requestPendingCount = requestStats.pending + requestStats.failed;
 
     setText(elements.source, inventory.source || "https://thinkerqaq.github.io/sitemap-all.txt");
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
@@ -155,6 +198,15 @@
     setText(elements.inspectionWithoutSitemap, iStats.withoutSitemap);
     setText(elements.inspectionRemaining, Number.isFinite(Number(inspection.remaining)) ? Number(inspection.remaining) : "-");
 
+    const queueState = String(queue.state || "idle");
+    if (queueState === "idle" && requestPendingCount > 0) {
+      setStatus(elements.googleRequestStatus, "unknown", "待启动");
+    } else if (queueState === "completed" && requestPendingCount > 0) {
+      setStatus(elements.googleRequestStatus, "unknown", "有新候选");
+    } else {
+      setStatus(elements.googleRequestStatus, operationKind(queueState), operationLabel(queueState), queue.lastError || "");
+    }
+
     if (state.gsc.known) {
       setStatus(
         elements.googleGSCStatus,
@@ -166,12 +218,12 @@
       setStatus(elements.googleGSCStatus, "disabled", "未检测");
     }
 
-    setText(elements.requestTotal, requestCandidateCount);
-    setText(elements.requestRequested, qStats.requested);
-    setText(elements.requestIndexed, qStats.indexed);
-    setText(elements.requestQueued, qStats.queued);
-    setText(elements.requestFailed, qStats.failed);
-    setText(elements.requestPosition, qStats.total ? `${Math.min(Number(queue.currentIndex || 0) + 1, qStats.total)} / ${qStats.total}` : "-");
+    setText(elements.requestTotal, requestStats.candidates);
+    setText(elements.requestRequested, requestStats.requested);
+    setText(elements.requestIndexed, requestStats.indexedSkipped);
+    setText(elements.requestQueued, requestStats.pending);
+    setText(elements.requestFailed, requestStats.failed);
+    setText(elements.requestPosition, requestStats.queueTotal ? `${Math.min(Number(queue.currentIndex || 0) + 1, requestStats.queueTotal)} / ${requestStats.queueTotal}` : "-");
     setText(elements.requestError, queue.lastError || "");
 
     const inventoryReady = Number(inventory.total || 0) > 0;
@@ -184,7 +236,6 @@
     elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || state.busy.has("inspect");
     elements.googleInspect.textContent = inspectionComplete ? "Inspection 已完成" : "检查下一批";
 
-    const queueState = String(queue.state || "idle");
     elements.googleRequestStart.disabled = !inspectionReady || requestPendingCount === 0 || ["running", "paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
     elements.googleRequestPause.disabled = queueState !== "running" || state.busy.has("request");
     elements.googleRequestResume.disabled = !["paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
@@ -317,6 +368,7 @@
       inspectionWithoutSitemap: el("indexInspectionWithoutSitemap"),
       inspectionRemaining: el("indexInspectionRemaining"),
       googleInspect: el("indexGoogleInspect"),
+      googleRequestStatus: el("indexGoogleRequestStatus"),
       googleGSCStatus: el("indexGoogleGSCStatus"),
       requestTotal: el("indexRequestTotal"),
       requestRequested: el("indexRequestRequested"),
