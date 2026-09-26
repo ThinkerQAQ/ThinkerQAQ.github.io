@@ -1220,47 +1220,90 @@ async function googleSearchConsoleProbe({ active = false } = {}) {
 }
 
 async function googleRequestIndexingURL(url) {
-  let tab;
-  try {
-    // Reuse an existing inspection result when possible. The GSC result page
-    // may not expose a textbox until its "Inspect URL" surface is activated.
-    const prepared = await ensureGoogleSearchConsoleReady({ active: true, allowReset: true });
-    tab = prepared.tab;
-  } catch (error) {
-    await writeBridgeLog("error", "gsc page preparation failed", {
-      url,
-      code: error?.code || "",
-      error: errorMessage(error),
-    });
-    const action = error?.code === "google_search_console_not_logged_in" ? "not_logged_in" : "ui_changed";
-    return { ok: false, action, stage: "page_prepare", url, error: errorMessage(error) };
+  const maxPrepareAttempts = 3;
+  for (let attempt = 1; attempt <= maxPrepareAttempts; attempt += 1) {
+    let tab;
+    try {
+      // Reuse an existing inspection result when possible. The GSC result
+      // page may not expose a textbox until its "Inspect URL" surface is
+      // activated. After a transient UI miss, force one clean reset before
+      // retrying the same URL; this is still before Request Indexing is
+      // clicked, so it does not consume duplicate request quota.
+      const prepared = await ensureGoogleSearchConsoleReady({
+        active: true,
+        allowReset: true,
+      });
+      tab = prepared.tab;
+    } catch (error) {
+      await writeBridgeLog(attempt < maxPrepareAttempts ? "warn" : "error", "gsc page preparation failed", {
+        url,
+        attempt,
+        code: error?.code || "",
+        error: errorMessage(error),
+      });
+      if (error?.code === "google_search_console_not_logged_in") {
+        return { ok: false, action: "not_logged_in", stage: "page_prepare", url, error: errorMessage(error) };
+      }
+      if (attempt < maxPrepareAttempts) {
+        try {
+          await googleSearchConsoleTab({ active: true, reset: true });
+        } catch {}
+        await delay(500);
+        continue;
+      }
+      return { ok: false, action: "ui_changed", stage: "page_prepare", url, error: errorMessage(error) };
+    }
+
+    try {
+      await writeBridgeLog("info", "gsc request workflow started", { url, attempt });
+      const result = await chrome.tabs.sendMessage(tab.id, {
+        type: "blogctl.google.index.request",
+        url,
+      });
+      if (!result || typeof result !== "object") {
+        await writeBridgeLog("error", "gsc request workflow returned no result", { url, attempt });
+        return { ok: false, action: "failed", stage: "workflow_result", url, error: "Google Search Console returned no result" };
+      }
+
+      const action = String(result.action || "");
+      const stage = String(result.stage || "");
+      const safeToRetry = action === "ui_changed" && ["inspection_control", "request_button"].includes(stage);
+      await writeBridgeLog(
+        result.ok ? "info" : safeToRetry && attempt < maxPrepareAttempts ? "warn" : "error",
+        "gsc request workflow finished",
+        {
+          url,
+          attempt,
+          action,
+          stage,
+          error: String(result.error || ""),
+        },
+      );
+
+      if (safeToRetry && attempt < maxPrepareAttempts) {
+        await writeBridgeLog("warn", "gsc transient ui miss; retrying same url", {
+          url,
+          attempt,
+          stage,
+        });
+        try {
+          await googleSearchConsoleTab({ active: true, reset: true });
+        } catch {}
+        await delay(500);
+        continue;
+      }
+      return { ...result, url };
+    } catch (error) {
+      await writeBridgeLog("error", "gsc request workflow exception", {
+        url,
+        attempt,
+        error: errorMessage(error),
+      });
+      return { ok: false, action: "failed", stage: "workflow_exception", url, error: errorMessage(error) };
+    }
   }
 
-  try {
-    await writeBridgeLog("info", "gsc request workflow started", { url });
-    const result = await chrome.tabs.sendMessage(tab.id, {
-      type: "blogctl.google.index.request",
-      url,
-    });
-    if (!result || typeof result !== "object") {
-      await writeBridgeLog("error", "gsc request workflow returned no result", { url });
-      return { ok: false, action: "failed", stage: "workflow_result", url, error: "Google Search Console returned no result" };
-    }
-    await writeBridgeLog(
-      result.ok ? "info" : "error",
-      "gsc request workflow finished",
-      {
-        url,
-        action: String(result.action || ""),
-        stage: String(result.stage || ""),
-        error: String(result.error || ""),
-      },
-    );
-    return { ...result, url };
-  } catch (error) {
-    await writeBridgeLog("error", "gsc request workflow exception", { url, error: errorMessage(error) });
-    return { ok: false, action: "failed", stage: "workflow_exception", url, error: errorMessage(error) };
-  }
+  return { ok: false, action: "ui_changed", stage: "page_prepare", url, error: "Google Search Console did not become ready" };
 }
 
 function broadcastIndexProgress(index) {
