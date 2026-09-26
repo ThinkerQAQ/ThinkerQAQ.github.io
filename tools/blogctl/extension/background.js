@@ -601,7 +601,7 @@ async function environmentTools(serverTools = []) {
           ok: true,
           status: "ok",
           summary: bridge.networkMode || current.summary || "代理已启用",
-          detail: "Bridge HTTP + Search Node + Browser/Extension 均使用同一代理；localhost 保持直连。",
+          detail: "Bridge HTTP + Search Node 使用同一代理；浏览器仅代理 BlogCTL 平台/GSC 域名，其他普通浏览流量 DIRECT。",
         },
       };
     }
