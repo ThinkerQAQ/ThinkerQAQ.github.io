@@ -269,9 +269,8 @@
     state.pollTimer = setTimeout(() => pollJob(jobID), 1200);
   }
 
-  async function startPublish() {
-    const records = selectedRecords();
-    if (!records.length || publishButton.disabled) return;
+  async function startPublishRecords(records) {
+    if (!records.length || ["queued", "running"].includes(state.currentJob?.state)) return;
 
     const article = records[0].article;
     if (records.some((record) => record.article !== article)) {
@@ -281,6 +280,7 @@
 
     const platforms = records.map((record) => record.platform);
     publishButton.disabled = true;
+    render();
     BlogCTLPopup.setMessage(message, "正在创建发布任务…");
 
     try {
@@ -296,13 +296,27 @@
       });
       state.currentJob = response.job ?? null;
       renderRunStatus();
-      BlogCTLPopup.setMessage(message, "发布任务已启动，正在轮询状态。", "ok");
+      render();
+      BlogCTLPopup.setMessage(
+        message,
+        platforms.length === 1
+          ? `${labelForPlatform(platforms[0])} 发布任务已启动，正在轮询状态。`
+          : "发布任务已启动，正在轮询状态。",
+        "ok",
+      );
       if (state.currentJob?.id) pollJob(state.currentJob.id);
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally {
       updatePublishButton();
+      render();
     }
+  }
+
+  async function startPublish() {
+    const records = selectedRecords();
+    if (!records.length || publishButton.disabled) return;
+    await startPublishRecords(records);
   }
 
   function render() {
@@ -375,6 +389,15 @@
       const actions = document.createElement("div");
       actions.className = "publication-links";
       if (record.draftUrl) appendActionLink(actions, "打开草稿", record.draftUrl);
+      if (canPublish(record)) {
+        const publishRecordButton = document.createElement("button");
+        publishRecordButton.type = "button";
+        publishRecordButton.className = "primary inline-primary compact publication-action";
+        publishRecordButton.textContent = "发布";
+        publishRecordButton.disabled = ["queued", "running"].includes(state.currentJob?.state);
+        publishRecordButton.addEventListener("click", () => startPublishRecords([record]));
+        actions.append(publishRecordButton);
+      }
       if (record.publishedUrl) appendActionLink(actions, "查看文章", record.publishedUrl, true);
       if (actions.childElementCount) card.append(actions);
 
