@@ -83,6 +83,56 @@ func TestGoogleInspectionTaskPersistsPerURLProgress(t *testing.T) {
 	}
 }
 
+func TestGoogleInspectionQuotaPausesTaskWithoutLosingProgress(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, _ map[string]any) (json.RawMessage, error) {
+		if command != "google-inspect" {
+			t.Fatalf("command = %q", command)
+		}
+		return nil, fmt.Errorf("Google URL inspection failed with HTTP 429: RESOURCE_EXHAUSTED quota exceeded")
+	}
+
+	job, err := server.createDurableTaskJob(
+		"google-inspection",
+		"Google URL Inspection",
+		googleInspectionTaskPayload{Offset: 935, Limit: 418},
+		taskProgress{Current: 935, Total: 1353, Unit: "URL", Message: "等待执行"},
+		taskCapabilities(true, false, false),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.markDurableTaskRunning(job.ID); err != nil {
+		t.Fatal(err)
+	}
+	rawPayload, _ := json.Marshal(googleInspectionTaskPayload{Offset: 935, Limit: 418})
+	if err := server.executeGoogleInspectionTask(context.Background(), job.ID, rawPayload); err != nil {
+		t.Fatalf("quota exhaustion should pause instead of fail: %v", err)
+	}
+
+	restored := server.durableTaskJob(job.ID)
+	if restored == nil || restored.State != "paused" {
+		t.Fatalf("job = %#v, want paused", restored)
+	}
+	if restored.Progress.Current != 935 || restored.Progress.Total != 1353 {
+		t.Fatalf("progress changed after quota exhaustion: %#v", restored.Progress)
+	}
+	if !restored.CanRetry || restored.CanResume {
+		t.Fatalf("quota-blocked inspection should be retryable, not resumable: %#v", restored)
+	}
+	if !strings.Contains(restored.Progress.Message, "配额") {
+		t.Fatalf("quota message = %q", restored.Progress.Message)
+	}
+	state := loadSearchIndexState()
+	if state.Google.Inspection.State != "quota_blocked" {
+		t.Fatalf("inspection state = %q, want quota_blocked", state.Google.Inspection.State)
+	}
+}
+
 func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 
