@@ -20,7 +20,7 @@ let googleSearchConsoleStatus = {
 };
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
-const LEGACY_BROWSER_PROXY_MIGRATION_VERSION = "0.1.93";
+const LEGACY_BROWSER_PROXY_MIGRATION_VERSION = "0.1.94";
 
 function proxyMigrationLog(severity, operation, result, startedAt, detail = "") {
   const entry = {
