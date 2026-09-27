@@ -8,6 +8,7 @@
     gsc: { known: false, loggedIn: false, error: "" },
     busy: new Set(),
     pollTimer: null,
+    inventoryRepairSignature: "",
   };
 
   let elements = {};
@@ -274,6 +275,17 @@
       const response = await BlogCTLPopup.send("blogctl.index.get");
       state.index = response.index || {};
       if (response.google) state.gsc = response.google;
+
+      const inventory = state.index?.inventory || {};
+      const inspection = state.index?.google?.inspection || {};
+      const total = Number(inventory.total || 0);
+      const checked = Array.isArray(inspection.results) ? inspection.results.length : Number(inspection.inspected || 0);
+      const repairSignature = `${total}:${checked}:${String(inventory.fetchedAt || "")}`;
+      if (total > 0 && checked > total && state.inventoryRepairSignature !== repairSignature) {
+        state.inventoryRepairSignature = repairSignature;
+        const repaired = await BlogCTLPopup.send("blogctl.index.inventory.refresh");
+        if (repaired.index) state.index = repaired.index;
+      }
       render();
       BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     } catch (error) {
