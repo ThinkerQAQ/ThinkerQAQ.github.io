@@ -524,6 +524,7 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 		return
 	}
 	state := loadSearchIndexState()
+	reconcileInspectionInventory(&state.Google.Inspection, inventory)
 	state.Inventory = compactSearchInventory(inventory)
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
@@ -679,6 +680,51 @@ func (s *Server) handleSearchGoogleSitemaps(response http.ResponseWriter, reques
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
+}
+
+func reconcileInspectionInventory(inspection *searchInspectionState, inventory searchInventoryState) {
+	if inspection == nil || len(inventory.URLs) == 0 {
+		return
+	}
+	total := inventory.Total
+	if total <= 0 {
+		total = len(inventory.URLs)
+	}
+	allowed := make(map[string]struct{}, len(inventory.URLs))
+	for _, url := range inventory.URLs {
+		if strings.TrimSpace(url) != "" {
+			allowed[url] = struct{}{}
+		}
+	}
+	filtered := make([]searchInspectionResult, 0, min(len(inspection.Results), len(allowed)))
+	checked := make(map[string]struct{}, len(inspection.Results))
+	for _, result := range inspection.Results {
+		if _, ok := allowed[result.URL]; !ok {
+			continue
+		}
+		filtered = append(filtered, result)
+		checked[result.URL] = struct{}{}
+	}
+	sort.Slice(filtered, func(i, j int) bool { return filtered[i].URL < filtered[j].URL })
+
+	nextOffset := 0
+	for index, url := range inventory.URLs {
+		if _, ok := checked[url]; !ok {
+			nextOffset = index
+			break
+		}
+		nextOffset = index + 1
+	}
+	inspection.Results = filtered
+	inspection.Inspected = len(filtered)
+	inspection.Total = total
+	inspection.Remaining = max(0, total-len(filtered))
+	if nextOffset < total {
+		value := nextOffset
+		inspection.NextOffset = &value
+	} else {
+		inspection.NextOffset = nil
+	}
 }
 
 func mergeInspectionResults(existing, incoming []searchInspectionResult) []searchInspectionResult {
