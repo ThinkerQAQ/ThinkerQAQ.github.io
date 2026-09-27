@@ -5,6 +5,7 @@ import test from "node:test";
 const htmlPath = new URL("../tools/blogctl/extension/popup/popup.html", import.meta.url);
 const syncPath = new URL("../tools/blogctl/extension/popup/sync.js", import.meta.url);
 const draftsPath = new URL("../tools/blogctl/extension/popup/drafts.js", import.meta.url);
+const publicationsPath = new URL("../tools/blogctl/extension/popup/publications.js", import.meta.url);
 
 test("detection and update keep searchable article inventories visible", async () => {
   const [html, sync, drafts] = await Promise.all([
@@ -17,6 +18,17 @@ test("detection and update keep searchable article inventories visible", async (
   assert.match(html, /id="draftArticleOptions" class="article-options" role="listbox"><\/div>/u);
   assert.match(sync, /articleOptions\.hidden = false/u);
   assert.match(drafts, /articleOptions\.hidden = false/u);
+});
+
+test("publish keeps a searchable article list and filters records by the selected article", async () => {
+  const [html, publications] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(publicationsPath, "utf8"),
+  ]);
+
+  assert.match(html, /id="publicationArticleOptions" class="article-options" role="listbox"><\/div>/u);
+  assert.match(publications, /articleOptions\.hidden = false/u);
+  assert.match(publications, /record\.article !== article/u);
 });
 
 test("each platform exposes an isolated detection or update action", async () => {
