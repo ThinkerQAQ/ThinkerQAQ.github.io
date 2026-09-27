@@ -273,78 +273,13 @@ func (s *segmentFaultAdapter) UpdateDraft(ctx context.Context, ref DraftRef, inp
 	return s.saveDraft(ctx, ref.ID, input)
 }
 
-func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {
-	token, err := s.sessionToken(ctx)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	content, err := s.prepareMarkdown(ctx, input, token)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	values := map[string]string{
-		"type":      "1",
-		"url":       "",
-		"blogId":    "0",
-		"isTiming":  "0",
-		"created":   "",
-		"weibo":     "0",
-		"license":   "0",
-		"title":     input.Title,
-		"text":      content,
-		"articleId": "",
-		"draftId":   ref.ID,
-		"id":        "",
-	}
-	body, bodyType, err := multipartBody(values, "", "", "", nil)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	rawURL := segmentFaultOrigin + "/api/articles/add?_=" + url.QueryEscape(token)
-	req, err := s.request(ctx, http.MethodPost, rawURL, body)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	req.Header.Set("content-type", bodyType)
-	req.Header.Set("x-requested-with", "XMLHttpRequest")
-	response, err := s.client.Do(req)
-	if err != nil {
-		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", 0, err.Error(), true)
-	}
-	defer response.Body.Close()
-	raw, err := readBounded(response, 2<<20)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return PublishResult{}, classifyHTTP(s.ID(), "publish-draft", response.StatusCode, string(raw))
-	}
-	var decoded struct {
-		Status int `json:"status"`
-		Data   struct {
-			URL string `json:"url"`
-		} `json:"data"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", response.StatusCode, "invalid JSON response", false)
-	}
-	if decoded.Status != 0 || decoded.Data.URL == "" {
-		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", response.StatusCode, responseMessage(decoded.Message), false)
-	}
-	publicURL := decoded.Data.URL
-	if strings.HasPrefix(publicURL, "/") {
-		publicURL = segmentFaultOrigin + publicURL
-	}
-	publishedID := ""
-	if parsed, parseErr := url.Parse(publicURL); parseErr == nil {
-		segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-		if len(segments) >= 2 && segments[len(segments)-2] == "a" {
-			publishedID = strings.TrimSpace(segments[len(segments)-1])
-		}
-	}
-	if publishedID == "" {
-		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", response.StatusCode, "published response did not contain an article id", false)
-	}
-	return PublishResult{ID: publishedID, URL: publicURL}, nil
+func (s *segmentFaultAdapter) PublishDraft(_ context.Context, _ DraftRef, _ DraftInput) (PublishResult, error) {
+	return PublishResult{}, platformError(
+		ErrNotImplemented,
+		s.ID(),
+		"publish-draft",
+		0,
+		"publishing an existing SegmentFault draft requires the browser editor flow",
+		false,
+	)
 }
