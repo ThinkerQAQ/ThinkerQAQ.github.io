@@ -187,6 +187,48 @@ func TestBingIncrementalSubmitPersistsSuccessfulSnapshot(t *testing.T) {
 	}
 }
 
+func TestGoogleRequestQueueSystemicFailurePausesWithoutAdvancing(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := defaultSearchIndexState()
+	state.Google.RequestQueue = googleIndexRequestQueue{
+		State:        "running",
+		CurrentIndex: 0,
+		Items: []googleIndexRequestItem{
+			{URL: "https://thinkerqaq.github.io/a/", Status: "queued"},
+			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+		},
+	}
+	if err := saveSearchIndexState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"url":"https://thinkerqaq.github.io/a/","result":"failed","error":"Google Search Console returned an inspection error"}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/google/request-queue/result", strings.NewReader(body))
+	setExtensionAuth(request, "token")
+	request.Header.Set("content-type", "application/json")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+
+	state = loadSearchIndexState()
+	queue := state.Google.RequestQueue
+	if queue.State != "paused" {
+		t.Fatalf("queue state = %q, want paused", queue.State)
+	}
+	if queue.CurrentIndex != 0 {
+		t.Fatalf("current index = %d, want 0", queue.CurrentIndex)
+	}
+	if queue.Items[0].Status != "failed" || queue.Items[1].Status != "queued" {
+		t.Fatalf("queue items = %#v", queue.Items)
+	}
+}
+
 func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
