@@ -1025,10 +1025,9 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 	case "failed":
 		item.Status = "failed"
 		queue.ConsecutiveErrors++
+		queue.State = "paused"
 		queue.LastError = item.Error
-		if queue.ConsecutiveErrors >= 3 {
-			queue.State = "paused"
-		}
+		advance = false
 	default:
 		writeAPIError(response, http.StatusBadRequest, "invalid_google_index_result", "unsupported Google request-indexing result", map[string]any{"result": input.Result})
 		return
