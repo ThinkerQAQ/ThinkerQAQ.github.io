@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -136,58 +134,16 @@ func TestSegmentFaultUpdateDraftMapsMissingRemoteDraft(t *testing.T) {
 	}
 }
 
-func TestSegmentFaultPublishRehostsCompilerAssets(t *testing.T) {
-	root := t.TempDir()
-	assetDir := filepath.Join(root, ".distribution", "assets", "mermaid")
-	if err := os.MkdirAll(assetDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(assetDir, "asset-1.png"), []byte("png"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	publishedText := ""
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/write":
-			return jsonResponse(request, 200, `serverData":{"Token":"sf-token"}`, nil), nil
-		case "/gateway/image":
-			return jsonResponse(request, 200, `{"url":"https://segmentfault.com/img/diagram.png"}`, nil), nil
-		case "/api/articles/add":
-			if err := request.ParseMultipartForm(1 << 20); err != nil {
-				t.Fatal(err)
-			}
-			publishedText = request.FormValue("text")
-			return jsonResponse(request, 200, `{"status":0,"data":{"url":"/a/123"}}`, nil), nil
-		default:
-			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-
-	adapter, err := NewSegmentFaultAdapter(client, segmentFaultSession())
+func TestSegmentFaultPublishRequiresBrowserEditorFlow(t *testing.T) {
+	adapter, err := NewSegmentFaultAdapter(&http.Client{}, segmentFaultSession())
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := adapter.PublishDraft(context.Background(), DraftRef{ID: "draft-1"}, DraftInput{
-		Title:       "Example",
-		Markdown:    "![diagram](blogctl-asset://mermaid/asset-1)",
-		ContentRoot: root,
-		Assets: []PublishingAsset{{
-			Kind: "mermaid", ID: "asset-1",
-			Source: "blogctl-asset://mermaid/asset-1",
-		}},
-	})
-	if err != nil {
-		t.Fatal(err)
+	_, err = adapter.PublishDraft(context.Background(), DraftRef{ID: "draft-1"}, DraftInput{Title: "Example"})
+	if err == nil || !IsKind(err, ErrNotImplemented) {
+		t.Fatalf("error = %v, want not-implemented browser publish guard", err)
 	}
-	if result.ID != "123" || result.URL != "https://segmentfault.com/a/123" {
-		t.Fatalf("publish result = %#v", result)
-	}
-	if strings.Contains(publishedText, "blogctl-asset://") {
-		t.Fatalf("internal asset leaked into publish payload: %q", publishedText)
-	}
-	if !strings.Contains(publishedText, "https://segmentfault.com/img/diagram.png") {
-		t.Fatalf("publish payload did not use hosted image: %q", publishedText)
+	if !strings.Contains(err.Error(), "browser editor flow") {
+		t.Fatalf("error = %v", err)
 	}
 }
