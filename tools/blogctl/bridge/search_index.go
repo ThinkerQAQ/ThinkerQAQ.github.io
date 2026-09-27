@@ -480,7 +480,8 @@ func applyActiveTaskToInspection(state *searchInspectionState, job *durableTaskJ
 			state.StartedAt = job.StartedAt
 		}
 		if job.Progress.Total > 0 {
-			state.Limit = job.Progress.Total
+			state.Total = job.Progress.Total
+			state.Remaining = max(0, state.Total-state.Inspected)
 		}
 	}
 }
