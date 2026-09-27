@@ -301,11 +301,32 @@
     return urlVariants(url).some((candidate) => text.includes(candidate));
   }
 
+  function failureSurfaceText() {
+    const selectors = [
+      '[role="alert"]',
+      '[role="dialog"]',
+      '[role="status"]',
+      '[aria-live="assertive"]',
+      '[aria-live="polite"]',
+    ];
+    const nodes = selectors.flatMap((selector) => [...document.querySelectorAll(selector)]);
+    return normalizedText(
+      [...new Set(nodes)]
+        .filter(visible)
+        .map((node) => node?.innerText || node?.textContent || "")
+        .join(" "),
+    );
+  }
+
+  function hasVisibleFailureSignal() {
+    return includesAny(failureSurfaceText(), TEXT.failed);
+  }
+
   function detectPageState(url = "") {
     const text = bodyText();
     if (includesAny(text, TEXT.rateLimited)) return { kind: "rate_limited" };
     if (includesAny(text, TEXT.quota)) return { kind: "quota_blocked" };
-    if (includesAny(text, TEXT.failed)) return { kind: "failed" };
+    if (hasVisibleFailureSignal()) return { kind: "failed" };
 
     const state = includesAny(text, TEXT.notIndexed)
       ? { kind: "not_indexed" }
@@ -336,7 +357,7 @@
     const text = bodyText();
     if (includesAny(text, TEXT.rateLimited)) return "rate_limited";
     if (includesAny(text, TEXT.quota)) return "quota_blocked";
-    if (includesAny(text, TEXT.failed) && text !== beforeText) return "failed";
+    if (hasVisibleFailureSignal() && text !== beforeText) return "failed";
     if (includesAny(text, TEXT.requested) && text !== beforeText) return "requested_indexing";
     return "";
   }

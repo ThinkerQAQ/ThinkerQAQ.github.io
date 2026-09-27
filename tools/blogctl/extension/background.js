@@ -1181,12 +1181,14 @@ async function googleRequestIndexingURL(url) {
 
       const action = String(result.action || "");
       const stage = String(result.stage || "");
-      const safeToRetry = action === "ui_changed" && [
-        "inspection_control",
-        "request_button",
-        "request_dialog",
-        "request_processing_timeout",
-      ].includes(stage);
+      const safeToRetry =
+        (action === "ui_changed" && [
+          "inspection_control",
+          "request_button",
+          "request_dialog",
+          "request_processing_timeout",
+        ].includes(stage)) ||
+        (action === "failed" && stage === "inspection_result");
       await writeBridgeLog(
         result.ok ? "info" : safeToRetry && attempt < maxPrepareAttempts ? "warn" : "error",
         "gsc request workflow finished",

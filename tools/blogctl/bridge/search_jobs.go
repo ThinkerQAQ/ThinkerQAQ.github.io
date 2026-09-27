@@ -20,6 +20,17 @@ type googleInspectionTaskPayload struct {
 	Limit  int `json:"limit"`
 }
 
+func googleInspectionDisplayTotal(totalAvailable, offset, taskTotal int) int {
+	if totalAvailable > 0 {
+		return totalAvailable
+	}
+	total := offset + taskTotal
+	if total < taskTotal {
+		return taskTotal
+	}
+	return total
+}
+
 func taskCapabilities(retry, pause, resume bool) struct {
 	Retry  bool
 	Pause  bool
@@ -378,7 +389,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 					job.Progress.Message = fmt.Sprintf(
 						"正在检查 %d / %d · %s",
 						event.AbsoluteIndex,
-						event.TotalAvailable,
+						googleInspectionDisplayTotal(event.TotalAvailable, input.Offset, taskTotal),
 						event.URL,
 					)
 					job.Detail = map[string]any{
@@ -450,7 +461,12 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 					Current: current,
 					Total:   taskTotal,
 					Unit:    "URL",
-					Message: fmt.Sprintf("已检查 %d / %d · %s", current, taskTotal, event.Result.URL),
+					Message: fmt.Sprintf(
+						"已检查 %d / %d · %s",
+						event.AbsoluteIndex,
+						googleInspectionDisplayTotal(event.TotalAvailable, input.Offset, taskTotal),
+						event.Result.URL,
+					),
 				}
 				job.Payload = nextPayload
 				job.Detail = map[string]any{
