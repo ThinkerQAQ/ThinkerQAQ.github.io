@@ -13,7 +13,9 @@ test("indexing buttons use black for enabled and gray for disabled", async () =>
 
   assert.match(css, /\.panel\[data-panel="indexing"\] button:not\(:disabled\).*background: #111827.*color: #fff/u);
   assert.match(css, /\.panel\[data-panel="indexing"\] button:disabled.*background: #e5e7eb.*color: #9ca3af/u);
-  assert.match(indexing, /\["queued", "running", "quota_blocked"\]\.includes\(inspectionState\)/u);
+  assert.doesNotMatch(indexing, /\["queued", "running", "quota_blocked"\]\.includes\(inspectionState\)/u);
+  assert.match(indexing, /\["queued", "running"\]\.includes\(inspectionState\)/u);
+  assert.match(indexing, /inspectionState === "quota_blocked"\s*\?\s*"重试检查"/u);
   assert.match(indexing, /\["paused", "quota_blocked"\]\.includes\(queueState\)/u);
 });
 

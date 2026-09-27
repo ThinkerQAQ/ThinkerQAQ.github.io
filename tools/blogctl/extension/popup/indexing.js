@@ -240,8 +240,12 @@
     elements.googleSitemaps.disabled = !google.credentialsConfigured || ["queued", "running"].includes(sitemapState) || state.busy.has("sitemaps");
     const inspectionComplete = inventoryReady && iStats.checked >= Number(inventory.total || 0);
     const inspectionState = String(inspection.state || "idle");
-    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || ["queued", "running", "quota_blocked"].includes(inspectionState) || state.busy.has("inspect");
-    elements.googleInspect.textContent = inspectionComplete ? "Inspection 已完成" : "检查下一批";
+    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || ["queued", "running"].includes(inspectionState) || state.busy.has("inspect");
+    elements.googleInspect.textContent = inspectionComplete
+      ? "Inspection 已完成"
+      : inspectionState === "quota_blocked"
+        ? "重试检查"
+        : "检查下一批";
 
     elements.googleRequestStart.disabled = !inspectionReady || requestPendingCount === 0 || ["running", "paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
     elements.googleRequestPause.disabled = queueState !== "running" || state.busy.has("request");
