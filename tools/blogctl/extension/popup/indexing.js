@@ -311,6 +311,10 @@
   }
 
   async function inspectGoogle() {
+    const refreshed = await BlogCTLPopup.send("blogctl.index.inventory.refresh");
+    if (refreshed.index) state.index = refreshed.index;
+    render();
+
     const inspection = state.index?.google?.inspection || {};
     const inventory = state.index?.inventory || {};
     const total = Number(inventory.total || 0);
