@@ -81,6 +81,7 @@
       const option = document.createElement("button");
       option.type = "button";
       option.className = "article-option";
+      if (article.slug === state.selectedSlug) option.classList.add("active");
       option.setAttribute("role", "option");
       option.textContent = `${article.title} · ${article.slug}`;
       option.addEventListener("click", () => selectArticle(article));
@@ -88,7 +89,8 @@
     }
 
     if (!filtered.length) articleOptions.textContent = "没有匹配文章";
-    articlePicker.setAttribute("aria-expanded", String(!articleOptions.hidden));
+    articleOptions.hidden = false;
+    articlePicker.setAttribute("aria-expanded", "true");
     renderArticleMeta();
     updateAction();
   }
@@ -98,8 +100,7 @@
     state.selectedSlug = article.slug;
     state.preparedSlug = "";
     articlePicker.value = `${article.title} · ${article.slug}`;
-    articleOptions.hidden = true;
-    articlePicker.setAttribute("aria-expanded", "false");
+    articlePicker.setAttribute("aria-expanded", "true");
     localStorage.setItem("blogctl.selectedArticle", article.slug);
     renderArticleMeta();
     renderPlatforms();
@@ -159,6 +160,20 @@
 
       card.append(checkbox, text, badge);
       wrapper.append(card);
+
+      const actions = document.createElement("div");
+      actions.className = "platform-card-actions";
+      const updatePlatformButton = document.createElement("button");
+      updatePlatformButton.type = "button";
+      updatePlatformButton.className = "secondary compact";
+      updatePlatformButton.textContent = running && (state.currentJob?.platforms ?? []).includes(platform.id)
+        ? "更新中…"
+        : "更新此平台";
+      updatePlatformButton.disabled = !state.selectedSlug || !availability.available ||
+        !state.status?.bridge?.running || running;
+      updatePlatformButton.addEventListener("click", () => startSavePlatforms([platform.id]));
+      actions.append(updatePlatformButton);
+      wrapper.append(actions);
 
       const taskResult = platformTaskResult(platform.id);
       if (taskResult) {
@@ -268,10 +283,16 @@
       updateAction();
 
       if (state.currentJob.state === "completed") {
+        const publications = await BlogCTLPopup.send("blogctl.publications");
+        state.records = publications.records ?? state.records;
+        renderPlatforms();
         BlogCTLPopup.setMessage(message, "更新完成。可查看任务，或进入发布。", "ok");
         return;
       }
       if (state.currentJob.state === "failed") {
+        const publications = await BlogCTLPopup.send("blogctl.publications");
+        state.records = publications.records ?? state.records;
+        renderPlatforms();
         const successful = completedPlatforms(state.currentJob).length;
         BlogCTLPopup.setMessage(
           message,
@@ -289,13 +310,19 @@
     state.pollTimer = setTimeout(() => pollJob(jobID), 1200);
   }
 
-  async function startSave() {
+  async function startSavePlatforms(platforms) {
     const article = state.selectedSlug;
-    const platforms = selectedPlatforms();
-    if (!article || !platforms.length || actionButton.disabled) return;
+    const running = ["queued", "running"].includes(state.currentJob?.state);
+    if (!article || !platforms.length || running || !state.status?.bridge?.running) return;
+
+    if (["completed", "failed"].includes(state.currentJob?.state)) resetWorkflow();
 
     actionButton.disabled = true;
-    BlogCTLPopup.setMessage(message, "正在创建更新任务…");
+    renderPlatforms();
+    BlogCTLPopup.setMessage(
+      message,
+      platforms.length === 1 ? "正在创建单平台更新任务…" : "正在创建更新任务…",
+    );
     try {
       const response = await BlogCTLPopup.send("blogctl.job.start", {
         request: {
@@ -310,13 +337,25 @@
       state.currentJob = response.job ?? null;
       renderPlatforms();
       updateAction();
-      BlogCTLPopup.setMessage(message, "更新任务已启动，正在轮询状态。", "ok");
+      BlogCTLPopup.setMessage(
+        message,
+        platforms.length === 1
+          ? `${publishingProfile(platforms[0]).label || platforms[0]} 更新任务已启动，正在轮询状态。`
+          : "更新任务已启动，正在轮询状态。",
+        "ok",
+      );
       if (state.currentJob?.id) pollJob(state.currentJob.id);
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     } finally {
       updateAction();
     }
+  }
+
+  async function startSave() {
+    const platforms = selectedPlatforms();
+    if (!platforms.length || actionButton.disabled) return;
+    await startSavePlatforms(platforms);
   }
 
   function prepare(article) {
@@ -391,31 +430,17 @@
     selectAllButton = document.getElementById("selectAllDraftPlatforms");
     invertButton = document.getElementById("invertDraftPlatforms");
 
-    articlePicker.addEventListener("focus", () => {
-      articleOptions.hidden = false;
-      renderArticles();
-    });
+    articlePicker.addEventListener("focus", renderArticles);
     articlePicker.addEventListener("input", () => {
       resetWorkflow();
       state.selectedSlug = "";
-      articleOptions.hidden = false;
       renderArticles();
       renderPlatforms();
     });
     articlePicker.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        articleOptions.hidden = true;
-        articlePicker.setAttribute("aria-expanded", "false");
-      }
-      if (event.key === "Enter" && !articleOptions.hidden && articleOptions.querySelector("button")) {
+      if (event.key === "Enter" && articleOptions.querySelector("button")) {
         event.preventDefault();
         articleOptions.querySelector("button").click();
-      }
-    });
-    document.addEventListener("click", (event) => {
-      if (event.target !== articlePicker && !articleOptions.contains(event.target)) {
-        articleOptions.hidden = true;
-        articlePicker.setAttribute("aria-expanded", "false");
       }
     });
 
