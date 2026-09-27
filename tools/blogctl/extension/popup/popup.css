@@ -138,9 +138,10 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .environment-nested-tools .tool-card { background: #f9fafb; }
 .environment-nested-tools .tool-card + .tool-card { margin-top: 0; }
 
-.log-toolbar { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto auto; gap: 8px; align-items: end; }
-.log-filter { min-width: 0; }
+.log-toolbar { display: grid; grid-template-columns: minmax(170px, 2fr) minmax(110px, 1fr) auto auto auto auto; gap: 8px; align-items: end; }
+.log-search, .log-filter { min-width: 0; }
 .log-follow { min-height: 34px; justify-content: flex-start; white-space: nowrap; }
 .log-follow input { width: 18px; height: 18px; flex: 0 0 auto; }
-.log-viewer { min-height: 320px; max-height: 520px; overflow: auto; margin: 0; padding: 10px; border-radius: 8px; background: #111827; color: #f9fafb; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; line-height: 1.5; tab-size: 2; }
-@media (max-width: 520px) { .log-toolbar { grid-template-columns: 1fr 1fr; } .log-viewer { min-height: 260px; } }
+.log-viewer { min-height: 320px; max-height: 520px; overflow: auto; margin: 0; padding: 10px; border-radius: 8px; background: #111827; color: #f9fafb; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; line-height: 1.5; tab-size: 2; user-select: text; }
+@media (max-width: 720px) { .log-toolbar { grid-template-columns: 1fr 1fr 1fr; } }
+@media (max-width: 520px) { .log-toolbar { grid-template-columns: 1fr 1fr; } .log-search { grid-column: 1 / -1; } .log-viewer { min-height: 260px; } }
