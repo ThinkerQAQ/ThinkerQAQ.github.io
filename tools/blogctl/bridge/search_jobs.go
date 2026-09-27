@@ -336,6 +336,8 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 				Remaining      int                    `json:"remaining"`
 				NextOffset     *int                   `json:"nextOffset"`
 				Result         searchInspectionResult `json:"result"`
+				Inventory      searchInventoryState   `json:"inventory"`
+				URLs           []string               `json:"urls"`
 			}
 			if err := json.Unmarshal(progressRaw, &event); err != nil {
 				return err
@@ -343,6 +345,19 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 
 			switch event.Type {
 			case "stage":
+				if event.Stage == "inventory_ready" && len(event.URLs) > 0 {
+					event.Inventory.URLs = append([]string(nil), event.URLs...)
+					if event.Inventory.Total <= 0 {
+						event.Inventory.Total = len(event.URLs)
+					}
+					state = loadSearchIndexState()
+					reconcileInspectionInventory(&state.Google.Inspection, event.Inventory)
+					state.Inventory = compactSearchInventory(event.Inventory)
+					refreshSearchCredentialsFlag(&state, s.config)
+					if err := saveSearchIndexState(state); err != nil {
+						return err
+					}
+				}
 				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
 					job.Progress.Message = event.Message
 					job.Detail = map[string]any{
@@ -456,6 +471,29 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	)
 	if err != nil {
 		state = loadSearchIndexState()
+		if googleInspectionQuotaExceeded(err) {
+			message := googleInspectionQuotaMessage()
+			state.Google.Inspection.State = "quota_blocked"
+			state.Google.Inspection.FinishedAt = ""
+			state.Google.Inspection.Error = message
+			refreshSearchCredentialsFlag(&state, s.config)
+			_ = saveSearchIndexState(state)
+			_, _ = s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+				job.State = "paused"
+				job.Error = ""
+				job.FinishedAt = ""
+				job.Progress.Message = message
+				job.CanRetry = true
+				job.CanPause = false
+				job.CanResume = false
+				job.Detail = map[string]any{
+					"phase":  "quota_blocked",
+					"reason": "quota_blocked",
+				}
+				appendTaskOutput(job, "[quota] "+message)
+			})
+			return nil
+		}
 		state.Google.Inspection.State = "failed"
 		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Google.Inspection.Error = err.Error()
