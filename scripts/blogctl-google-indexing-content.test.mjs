@@ -172,6 +172,33 @@ test("GSC probe accepts an already-open Chinese inspection result page without a
   assert.equal(result.hasRequestButton, true);
 });
 
+test("GSC ignores generic retry text outside an active error surface", async () => {
+  const url = "https://thinkerqaq.github.io/notes/test/";
+  const requestButton = new FakeElement("button", { text: "请求编入索引" });
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 请求编入索引 帮助：出现问题时请稍后重试`,
+    nodes: [requestButton],
+  });
+
+  const result = await harness.send({ type: "blogctl.google.index.probe" });
+  assert.equal(result.ok, true);
+  assert.equal(result.inspectionState, "not_indexed");
+});
+
+test("GSC still recognizes an error inside a visible alert surface", async () => {
+  const url = "https://thinkerqaq.github.io/notes/test/";
+  const requestButton = new FakeElement("button", { text: "请求编入索引" });
+  const alert = new FakeElement("div", { text: "出现错误，请稍后重试", attrs: { role: "alert" } });
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 请求编入索引 出现错误，请稍后重试`,
+    nodes: [requestButton, alert],
+  });
+
+  const result = await harness.send({ type: "blogctl.google.index.probe" });
+  assert.equal(result.ok, true);
+  assert.equal(result.inspectionState, "failed");
+});
+
 test("Request Indexing closes the success dialog so the next URL can continue", async () => {
   const url = "https://thinkerqaq.github.io/about/";
   let requested = 0;
@@ -357,6 +384,7 @@ test("Request Indexing start/resume preflight GSC before moving the bridge queue
   assert.match(source, /const maxPrepareAttempts = 3/u);
   assert.match(source, /gsc transient ui miss; retrying same url/u);
   assert.match(source, /request_processing_timeout/u);
+  assert.match(source, /action === "failed" && stage === "inspection_result"/u);
   assert.match(source, /gsc request succeeded; forcing clean page for next url/u);
   assert.match(source, /result: "processing"/u);
   assert.match(source, /gsc queue item started/u);
