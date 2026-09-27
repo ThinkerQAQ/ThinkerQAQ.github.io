@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+func TestGoogleInspectionDisplayTotalUsesGlobalInventory(t *testing.T) {
+	if got := googleInspectionDisplayTotal(1833, 109, 1353); got != 1833 {
+		t.Fatalf("display total = %d, want 1833", got)
+	}
+	if got := googleInspectionDisplayTotal(0, 109, 1353); got != 1462 {
+		t.Fatalf("fallback display total = %d, want 1462", got)
+	}
+}
+
 func TestGoogleInspectionTaskPersistsPerURLProgress(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
