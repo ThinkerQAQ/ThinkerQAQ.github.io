@@ -4,6 +4,10 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 
 ## 本版本更新
 
+- 修复 GSC URL Inspection 的误失败：普通帮助/历史文案中的“请稍后重试”不再被当成活动错误，只有可见 alert/dialog/status 错误面才会判定失败。
+- Request Indexing 在尚未点击提交前遇到安全的 Inspection 结果失败时，会重试同一 URL；遇到无法安全继续的系统性失败则立即暂停并停留在当前 URL，避免污染后续队列。
+- 修复 URL Inspection 批次续跑的进度显示，统一使用全局 URL 序号 / 全局 inventory 总量。
+
 - 修复 Google Request Indexing 看似卡住：GSC 概述页不再被历史索引文本误判为已就绪，目标 URL 可从检查控件值识别，只有真实结果弹窗才会阻塞下一条；任务会持久化当前 `processing` 项并显示正在处理的 URL 序号，同时记录开始、结束、结果与耗时。
 - 修复从旧版升级后 Edge / Chrome 仍保留 BlogCTL 写入的浏览器代理：本版本只在确认代理仍由 BlogCTL Extension 控制时执行一次 `clear`，不写入任何新浏览器代理；清理完成后由 SwitchyOmega、系统或用户继续管理浏览器代理。`proxy` 权限仅用于这次兼容迁移，下一版本移除。
 - Google URL Inspection 遇到 HTTP 429 / `RESOURCE_EXHAUSTED` 时不再标记普通失败：任务会保留进度并进入配额阻塞状态，配额恢复后可直接重试。
@@ -187,4 +191,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 - Windows / macOS / Linux 卸载脚本。
 - `SHA256SUMS`。
 
-版本：`0.1.88`
+版本：`0.1.89`
