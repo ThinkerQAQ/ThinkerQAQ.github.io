@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -478,6 +479,11 @@ func applyActiveTaskToInspection(state *searchInspectionState, job *durableTaskJ
 		state.FinishedAt = ""
 		if job.StartedAt != "" {
 			state.StartedAt = job.StartedAt
+		}
+		var payload googleInspectionTaskPayload
+		if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &payload) == nil {
+			state.Offset = payload.Offset
+			state.Limit = payload.Limit
 		}
 		if job.Progress.Total > 0 {
 			state.Total = job.Progress.Total
@@ -984,6 +990,10 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 	item.Error = strings.TrimSpace(input.Error)
 	advance := true
 	switch input.Result {
+	case "processing":
+		item.Status = "processing"
+		queue.LastError = ""
+		advance = false
 	case "requested_indexing":
 		item.Status = "requested"
 		item.RequestedAt = item.LastAttemptAt
@@ -1030,6 +1040,16 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 		queue.State = "completed"
 	}
 	queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
+	slog.Info("google request-indexing queue updated",
+		"operation", "request-indexing-queue",
+		"jobId", queue.JobID,
+		"url", input.URL,
+		"result", input.Result,
+		"queueState", queue.State,
+		"current", queue.CurrentIndex,
+		"total", len(queue.Items),
+		"consecutiveErrors", queue.ConsecutiveErrors,
+	)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
 		return
@@ -1055,7 +1075,7 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 	case "start", "resume":
 		if action == "resume" {
 			for index, item := range queue.Items {
-				if item.Status == "queued" || item.Status == "failed" || item.Status == "quota_blocked" {
+				if item.Status == "queued" || item.Status == "failed" || item.Status == "quota_blocked" || item.Status == "processing" {
 					queue.CurrentIndex = index
 					break
 				}
@@ -1066,7 +1086,7 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 			return
 		}
 		current := &queue.Items[queue.CurrentIndex]
-		if current.Status == "quota_blocked" {
+		if current.Status == "quota_blocked" || current.Status == "processing" {
 			current.Status = "queued"
 			current.Error = ""
 		}

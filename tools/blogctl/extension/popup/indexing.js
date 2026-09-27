@@ -236,9 +236,11 @@
     elements.refreshInventory.disabled = state.busy.has("inventory");
     elements.bingSubmitIncremental.disabled = !inventoryReady || state.busy.has("bing");
     elements.bingSubmitFull.disabled = !inventoryReady || state.busy.has("bing");
-    elements.googleSitemaps.disabled = !google.credentialsConfigured || state.busy.has("sitemaps");
+    const sitemapState = String(sitemaps.state || "idle");
+    elements.googleSitemaps.disabled = !google.credentialsConfigured || ["queued", "running"].includes(sitemapState) || state.busy.has("sitemaps");
     const inspectionComplete = inventoryReady && iStats.checked >= Number(inventory.total || 0);
-    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || state.busy.has("inspect");
+    const inspectionState = String(inspection.state || "idle");
+    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || ["queued", "running", "quota_blocked"].includes(inspectionState) || state.busy.has("inspect");
     elements.googleInspect.textContent = inspectionComplete ? "Inspection 已完成" : "检查下一批";
 
     elements.googleRequestStart.disabled = !inspectionReady || requestPendingCount === 0 || ["running", "paused", "quota_blocked"].includes(queueState) || state.busy.has("request");

@@ -38,6 +38,16 @@
       "close",
       "关闭",
     ],
+    cancel: [
+      "cancel",
+      "取消",
+    ],
+    testing: [
+      "testing if live url can be indexed",
+      "testing live url",
+      "正在测试实际网址是否可编入索引",
+      "正在测试实际网址",
+    ],
     requested: [
       "indexing requested",
       "已请求编入索引",
@@ -277,7 +287,17 @@
   }
 
   function pageMentionsURL(url) {
-    const text = bodyText();
+    const controls = inspectionControls().flatMap((node) => [
+      node?.value,
+      node?.textContent,
+      node?.getAttribute?.("aria-label"),
+      node?.getAttribute?.("title"),
+    ]).filter(Boolean).join(" ");
+    const text = normalizedText([
+      bodyText(),
+      controls,
+      location.href || "",
+    ].join(" "));
     return urlVariants(url).some((candidate) => text.includes(candidate));
   }
 
@@ -321,6 +341,69 @@
     return "";
   }
 
+  function requestProcessingDialog() {
+    const dialogs = [
+      ...document.querySelectorAll('[role="dialog"]'),
+      ...document.querySelectorAll('[aria-modal="true"]'),
+    ];
+    return [...new Set(dialogs)].find((dialog) =>
+      visible(dialog) && includesAny(normalizedText(dialog.textContent), TEXT.testing)
+    ) || null;
+  }
+
+  function findRequestProcessingCancelButton(dialog) {
+    if (!dialog) return null;
+    const nodes = [
+      ...document.querySelectorAll("button"),
+      ...document.querySelectorAll('[role="button"]'),
+      ...document.querySelectorAll("a"),
+      ...document.querySelectorAll("[tabindex]"),
+      ...document.querySelectorAll("[jsaction]"),
+    ];
+    return [...new Set(nodes)].find((node) => {
+      if (!visible(node) || !textMatches(node, TEXT.cancel)) return false;
+      try {
+        return node.closest?.('[role="dialog"], [aria-modal="true"]') === dialog;
+      } catch {
+        return false;
+      }
+    }) || null;
+  }
+
+  async function waitForRequestResult(beforeText, timeoutMs) {
+    const startedAt = Date.now();
+    let nextHeartbeatAt = startedAt + 30000;
+    while (Date.now() - startedAt < timeoutMs) {
+      const result = findSuccessDialogState(beforeText);
+      if (result) return result;
+      const now = Date.now();
+      if (now >= nextHeartbeatAt) {
+        emit("info", "gsc live test still running", {
+          elapsedMs: now - startedAt,
+          processingDialog: Boolean(requestProcessingDialog()),
+        });
+        nextHeartbeatAt = now + 30000;
+      }
+      await sleep(500);
+    }
+    return "";
+  }
+
+  async function cancelTimedOutRequestProcessing() {
+    const dialog = requestProcessingDialog();
+    if (!dialog) return { processingDialog: false, cancelFound: false, cancelled: false };
+    const cancelButton = findRequestProcessingCancelButton(dialog);
+    if (!cancelButton) return { processingDialog: true, cancelFound: false, cancelled: false };
+    try {
+      cancelButton.click();
+    } catch (error) {
+      emit("warn", "gsc timed-out live test cancel failed", { error: error?.message || String(error) });
+      return { processingDialog: true, cancelFound: true, cancelled: false };
+    }
+    const cancelled = Boolean(await waitFor(() => !requestProcessingDialog(), 3000, 100));
+    return { processingDialog: true, cancelFound: true, cancelled };
+  }
+
   function findRequestResultCloseButton() {
     const nodes = [
       ...document.querySelectorAll("button"),
@@ -351,7 +434,13 @@
   }
 
   function requestResultDialogPresent() {
-    return includesAny(bodyText(), TEXT.requested);
+    const dialogs = [
+      ...document.querySelectorAll('[role="dialog"]'),
+      ...document.querySelectorAll('[aria-modal="true"]'),
+    ];
+    return [...new Set(dialogs)].some((dialog) =>
+      visible(dialog) && includesAny(normalizedText(dialog.textContent), TEXT.requested)
+    );
   }
 
   async function dismissRequestResultDialog() {
@@ -404,11 +493,12 @@
     emit("debug", "gsc probe started", pageDiagnostic());
     let input = findInspectionInput();
     let diagnostic = pageDiagnostic();
-    let ready = Boolean(input || diagnostic.hasRequestButton || diagnostic.inspectionState);
+    const inspectionPath = /\/search-console\/inspect(?:\/|$)/u.test(location.pathname);
+    let ready = Boolean(input || diagnostic.hasRequestButton || (inspectionPath && diagnostic.inspectionState));
     if (!ready) {
       input = await ensureInspectionInput(15000);
       diagnostic = pageDiagnostic();
-      ready = Boolean(input || diagnostic.hasRequestButton || diagnostic.inspectionState);
+      ready = Boolean(input || diagnostic.hasRequestButton || (inspectionPath && diagnostic.inspectionState));
     }
     emit(
       ready ? "info" : "warn",
@@ -553,10 +643,23 @@
     button.click();
     emit("info", "gsc request indexing clicked", { url });
 
-    const result = await waitFor(() => findSuccessDialogState(beforeText), 180000, 500);
+    const requestTimeoutMs = Math.max(1000, Number(globalThis.__BLOGCTL_GSC_REQUEST_TIMEOUT_MS__) || 180000);
+    const result = await waitForRequestResult(beforeText, requestTimeoutMs);
     if (!result) {
       const diagnostic = pageDiagnostic();
-      emit("error", "gsc request indexing result timed out", { url, ...diagnostic });
+      const recovery = await cancelTimedOutRequestProcessing();
+      emit("error", "gsc request indexing result timed out", { url, requestTimeoutMs, ...recovery, ...diagnostic });
+      if (recovery.processingDialog) {
+        return {
+          ok: false,
+          action: "ui_changed",
+          stage: "request_processing_timeout",
+          url,
+          error: "Google Search Console live URL test remained in progress and was reset",
+          diagnostic,
+          recovery,
+        };
+      }
       return {
         ok: false,
         action: "timeout",

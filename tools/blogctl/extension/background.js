@@ -20,6 +20,74 @@ let googleSearchConsoleStatus = {
 };
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
+const LEGACY_BROWSER_PROXY_MIGRATION_VERSION = "0.1.89";
+
+function proxyMigrationLog(severity, operation, result, startedAt, detail = "") {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    severity,
+    operation,
+    result,
+    durationMs: Math.max(0, Date.now() - startedAt),
+  };
+  if (detail) entry.detail = detail;
+  console[severity === "error" ? "error" : severity === "warn" ? "warn" : "info"](
+    "[BlogCTL][proxy-migration]",
+    entry,
+  );
+}
+
+function legacyBrowserProxyDetails() {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.get({ incognito: false }, (details) => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve(details || {});
+    });
+  });
+}
+
+function clearLegacyBrowserProxy() {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.clear({ scope: "regular" }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+}
+
+async function releaseLegacyBrowserProxyOwnership() {
+  const startedAt = Date.now();
+  const operation = "release-legacy-browser-proxy";
+  if (chrome.runtime.getManifest().version !== LEGACY_BROWSER_PROXY_MIGRATION_VERSION) return;
+  if (!chrome.proxy?.settings) {
+    proxyMigrationLog("warn", operation, "unavailable", startedAt, "proxy API unavailable");
+    return;
+  }
+  try {
+    const details = await legacyBrowserProxyDetails();
+    const level = String(details?.levelOfControl || "unknown");
+    if (level !== "controlled_by_this_extension") {
+      proxyMigrationLog("info", operation, "skipped", startedAt, `levelOfControl=${level}`);
+      return;
+    }
+    await clearLegacyBrowserProxy();
+    proxyMigrationLog("info", operation, "cleared", startedAt);
+  } catch (error) {
+    proxyMigrationLog("error", operation, "failed", startedAt, errorMessage(error));
+  }
+}
+
+let legacyBrowserProxyMigrationPromise = null;
+
+function scheduleLegacyBrowserProxyRelease() {
+  if (legacyBrowserProxyMigrationPromise) return legacyBrowserProxyMigrationPromise;
+  legacyBrowserProxyMigrationPromise = releaseLegacyBrowserProxyOwnership().finally(() => {
+    legacyBrowserProxyMigrationPromise = null;
+  });
+  return legacyBrowserProxyMigrationPromise;
+}
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -1113,7 +1181,12 @@ async function googleRequestIndexingURL(url) {
 
       const action = String(result.action || "");
       const stage = String(result.stage || "");
-      const safeToRetry = action === "ui_changed" && ["inspection_control", "request_button", "request_dialog"].includes(stage);
+      const safeToRetry = action === "ui_changed" && [
+        "inspection_control",
+        "request_button",
+        "request_dialog",
+        "request_processing_timeout",
+      ].includes(stage);
       await writeBridgeLog(
         result.ok ? "info" : safeToRetry && attempt < maxPrepareAttempts ? "warn" : "error",
         "gsc request workflow finished",
@@ -1212,7 +1285,19 @@ async function pumpGoogleIndexQueue() {
       continue;
     }
 
-    broadcastIndexProgress(index);
+    const startedAt = Date.now();
+    const processing = await fetchJSON("/v1/search/index/google/request-queue/result", jsonOptions("POST", {
+      url: item.url,
+      result: "processing",
+      error: "",
+    }));
+    broadcastIndexProgress(processing?.index ?? index);
+    await writeBridgeLog("info", "gsc queue item started", {
+      jobId: String(queue.jobId || ""),
+      url: item.url,
+      current: currentIndex + 1,
+      total: items.length,
+    });
     const result = await googleRequestIndexingURL(item.url);
     const action = String(result?.action || "failed");
     const stage = String(result?.stage || "").trim();
@@ -1223,6 +1308,16 @@ async function pumpGoogleIndexQueue() {
       error: stage && errorText ? `[${stage}] ${errorText}` : errorText,
     }));
     broadcastIndexProgress(updated?.index ?? {});
+    await writeBridgeLog(result?.ok ? "info" : "warn", "gsc queue item finished", {
+      jobId: String(queue.jobId || ""),
+      url: item.url,
+      current: currentIndex + 1,
+      total: items.length,
+      action,
+      stage,
+      durationMs: Date.now() - startedAt,
+      error: errorText,
+    });
 
     if (["quota_blocked", "rate_limited", "not_logged_in", "ui_changed", "timeout"].includes(action)) {
       return updated?.index ?? {};
@@ -2134,6 +2229,10 @@ async function handleMessage(message) {
     default: return null;
   }
 }
+
+chrome.runtime.onInstalled.addListener(() => { void scheduleLegacyBrowserProxyRelease(); });
+chrome.runtime.onStartup.addListener(() => { void scheduleLegacyBrowserProxyRelease(); });
+void scheduleLegacyBrowserProxyRelease();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;

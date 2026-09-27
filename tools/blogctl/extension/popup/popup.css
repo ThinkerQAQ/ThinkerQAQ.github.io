@@ -94,6 +94,8 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 
 .task-toolbar, .task-actions { display: flex; align-items: center; gap: 6px; }
 .task-actions { justify-content: flex-end; margin-top: 9px; }
+.task-actions button:not(:disabled) { background: #111827; color: #fff; font-weight: 700; opacity: 1; }
+.task-actions button:disabled { background: #e5e7eb; color: #9ca3af; opacity: 1; }
 .danger-action { color: #991b1b; }
 
 .tool-actions { display: flex; justify-content: flex-end; gap: 6px; }
@@ -129,6 +131,8 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .index-action-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .index-action-row .primary, .index-action-row .secondary { width: auto; }
 .index-action-row-equal > button { flex: 1 1 0; min-width: 0; min-height: 38px; }
+.panel[data-panel="indexing"] button:not(:disabled) { background: #111827; color: #fff; font-weight: 700; opacity: 1; }
+.panel[data-panel="indexing"] button:disabled { background: #e5e7eb; color: #9ca3af; opacity: 1; }
 @media (max-width: 520px) { .index-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 360px) { .index-stat-grid { grid-template-columns: 1fr; } }
 

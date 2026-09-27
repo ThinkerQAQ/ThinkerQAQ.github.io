@@ -233,6 +233,50 @@ func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	}
 }
 
+func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := defaultSearchIndexState()
+	state.Google.RequestQueue = googleIndexRequestQueue{
+		State: "running",
+		Items: []googleIndexRequestItem{
+			{URL: "https://thinkerqaq.github.io/a/", Status: "queued"},
+			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+		},
+	}
+	job, err := server.ensureGoogleRequestTask(&state.Google.RequestQueue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := saveSearchIndexState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/google/request-queue/result", strings.NewReader(`{"url":"https://thinkerqaq.github.io/a/","result":"processing","error":""}`))
+	setExtensionAuth(request, "token")
+	request.Header.Set("content-type", "application/json")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+
+	state = loadSearchIndexState()
+	if state.Google.RequestQueue.Items[0].Status != "processing" || state.Google.RequestQueue.State != "running" {
+		t.Fatalf("queue = %#v", state.Google.RequestQueue)
+	}
+	updated := server.durableTaskJob(job.ID)
+	if updated == nil || updated.Progress.Message != "正在处理第 1 / 2 个 URL" {
+		t.Fatalf("job = %#v", updated)
+	}
+	if updated.Detail["currentItemStatus"] != "processing" || updated.Detail["currentUrl"] != "https://thinkerqaq.github.io/a/" {
+		t.Fatalf("job detail = %#v", updated.Detail)
+	}
+}
+
 func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *testing.T) {
 	if err := validateGoogleServiceAccountJSON(`{"installed":{"client_id":"x"}}`); err == nil || !strings.Contains(err.Error(), "OAuth Desktop Client") {
 		t.Fatalf("desktop OAuth client error = %v", err)

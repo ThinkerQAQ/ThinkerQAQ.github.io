@@ -720,7 +720,7 @@ func (s *Server) resumeSearchTaskJob(job *durableTaskJob) (*durableTaskJob, erro
 		return nil, errors.New("request-indexing task is no longer active")
 	}
 	for index, item := range queue.Items {
-		if item.Status == "queued" || item.Status == "failed" || item.Status == "quota_blocked" {
+		if item.Status == "queued" || item.Status == "failed" || item.Status == "quota_blocked" || item.Status == "processing" {
 			queue.CurrentIndex = index
 			break
 		}
@@ -729,7 +729,7 @@ func (s *Server) resumeSearchTaskJob(job *durableTaskJob) (*durableTaskJob, erro
 		return nil, errors.New("request-indexing queue has no pending URLs")
 	}
 	current := &queue.Items[queue.CurrentIndex]
-	if current.Status == "quota_blocked" {
+	if current.Status == "quota_blocked" || current.Status == "processing" {
 		current.Status = "queued"
 		current.Error = ""
 	}
@@ -768,6 +768,12 @@ func (s *Server) updateGoogleRequestTaskFromQueue(queue googleIndexRequestQueue)
 		return nil, errors.New("request-indexing queue has no task job")
 	}
 	return s.updateDurableTaskJob(queue.JobID, func(job *durableTaskJob) {
+		currentURL := ""
+		currentStatus := ""
+		if queue.CurrentIndex >= 0 && queue.CurrentIndex < len(queue.Items) {
+			currentURL = queue.Items[queue.CurrentIndex].URL
+			currentStatus = queue.Items[queue.CurrentIndex].Status
+		}
 		job.Progress = taskProgress{
 			Current: min(queue.CurrentIndex, len(queue.Items)),
 			Total:   len(queue.Items),
@@ -777,11 +783,17 @@ func (s *Server) updateGoogleRequestTaskFromQueue(queue googleIndexRequestQueue)
 			"queueState":        queue.State,
 			"consecutiveErrors": queue.ConsecutiveErrors,
 			"lastError":         queue.LastError,
+			"currentUrl":        currentURL,
+			"currentItemStatus": currentStatus,
 		}
 		switch queue.State {
 		case "running":
 			job.State = "running"
-			job.Progress.Message = "Search Console 正在请求编入索引"
+			if currentStatus == "processing" {
+				job.Progress.Message = fmt.Sprintf("正在处理第 %d / %d 个 URL", queue.CurrentIndex+1, len(queue.Items))
+			} else {
+				job.Progress.Message = "Search Console 正在请求编入索引"
+			}
 			job.CanPause = true
 			job.CanResume = false
 			job.CanRetry = false
