@@ -1,9 +1,14 @@
-# BlogCTL v0.1.87
+# BlogCTL v0.1.89
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
 
 ## 本版本更新
 
+- 修复 Google Request Indexing 看似卡住：GSC 概述页不再被历史索引文本误判为已就绪，目标 URL 可从检查控件值识别，只有真实结果弹窗才会阻塞下一条；任务会持久化当前 `processing` 项并显示正在处理的 URL 序号，同时记录开始、结束、结果与耗时。
+- 修复从旧版升级后 Edge / Chrome 仍保留 BlogCTL 写入的浏览器代理：本版本只在确认代理仍由 BlogCTL Extension 控制时执行一次 `clear`，不写入任何新浏览器代理；清理完成后由 SwitchyOmega、系统或用户继续管理浏览器代理。`proxy` 权限仅用于这次兼容迁移，下一版本移除。
+- Google URL Inspection 遇到 HTTP 429 / `RESOURCE_EXHAUSTED` 时不再标记普通失败：任务会保留进度并进入配额阻塞状态，配额恢复后可直接重试。
+- URL Inventory 刷新与 Inspection 启动时会按当前 sitemap URL 集合清理已删除页面的历史 Inspection 结果，避免出现 `已检查 > URL 总数`（例如 1462 / 1353）。
+- 日志页增加全文搜索和“全选日志”；搜索可与级别过滤组合，全选时自动暂停刷新便于复制。
 - 索引页的实时状态改为从 durable task 恢复：任务仍在运行时，URL Inspection / Request Indexing 不再因为独立状态文件或 Extension 重载而显示成未运行。
 - Network Proxy 改为 DownKit 同类的组件级代理：只注入 BlogCTL Bridge HTTP Client 与 Search Node/工具子进程，不再申请或修改浏览器代理。
 - BlogCTL Extension 增加正式图标，并显示在 Chromium 工具栏与侧边栏标题区。
@@ -182,4 +187,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 - Windows / macOS / Linux 卸载脚本。
 - `SHA256SUMS`。
 
-版本：`0.1.87`
+版本：`0.1.88`

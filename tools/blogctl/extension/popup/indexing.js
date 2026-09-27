@@ -8,6 +8,7 @@
     gsc: { known: false, loggedIn: false, error: "" },
     busy: new Set(),
     pollTimer: null,
+    inventoryRepairSignature: "",
   };
 
   let elements = {};
@@ -235,9 +236,11 @@
     elements.refreshInventory.disabled = state.busy.has("inventory");
     elements.bingSubmitIncremental.disabled = !inventoryReady || state.busy.has("bing");
     elements.bingSubmitFull.disabled = !inventoryReady || state.busy.has("bing");
-    elements.googleSitemaps.disabled = !google.credentialsConfigured || state.busy.has("sitemaps");
+    const sitemapState = String(sitemaps.state || "idle");
+    elements.googleSitemaps.disabled = !google.credentialsConfigured || ["queued", "running"].includes(sitemapState) || state.busy.has("sitemaps");
     const inspectionComplete = inventoryReady && iStats.checked >= Number(inventory.total || 0);
-    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || state.busy.has("inspect");
+    const inspectionState = String(inspection.state || "idle");
+    elements.googleInspect.disabled = !inventoryReady || !google.credentialsConfigured || inspectionComplete || ["queued", "running", "quota_blocked"].includes(inspectionState) || state.busy.has("inspect");
     elements.googleInspect.textContent = inspectionComplete ? "Inspection 已完成" : "检查下一批";
 
     elements.googleRequestStart.disabled = !inspectionReady || requestPendingCount === 0 || ["running", "paused", "quota_blocked"].includes(queueState) || state.busy.has("request");
@@ -274,6 +277,17 @@
       const response = await BlogCTLPopup.send("blogctl.index.get");
       state.index = response.index || {};
       if (response.google) state.gsc = response.google;
+
+      const inventory = state.index?.inventory || {};
+      const inspection = state.index?.google?.inspection || {};
+      const total = Number(inventory.total || 0);
+      const checked = Array.isArray(inspection.results) ? inspection.results.length : Number(inspection.inspected || 0);
+      const repairSignature = `${total}:${checked}:${String(inventory.fetchedAt || "")}`;
+      if (total > 0 && checked > total && state.inventoryRepairSignature !== repairSignature) {
+        state.inventoryRepairSignature = repairSignature;
+        const repaired = await BlogCTLPopup.send("blogctl.index.inventory.refresh");
+        if (repaired.index) state.index = repaired.index;
+      }
       render();
       BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     } catch (error) {
@@ -299,6 +313,10 @@
   }
 
   async function inspectGoogle() {
+    const refreshed = await BlogCTLPopup.send("blogctl.index.inventory.refresh");
+    if (refreshed.index) state.index = refreshed.index;
+    render();
+
     const inspection = state.index?.google?.inspection || {};
     const inventory = state.index?.inventory || {};
     const total = Number(inventory.total || 0);

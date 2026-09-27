@@ -10,7 +10,7 @@ const BlogCTLLogs = (() => {
     pollTimer: null,
   };
 
-  let status, pathValue, output, levelFilter, autoRefresh, refreshButton, clearButton, message;
+  let status, pathValue, output, queryInput, levelFilter, autoRefresh, selectAllButton, refreshButton, clearButton, message;
 
   function formatAttribute(value) {
     if (typeof value === "string") return value;
@@ -34,8 +34,12 @@ const BlogCTLLogs = (() => {
 
   function filteredEntries() {
     const selected = String(levelFilter?.value || "").toUpperCase();
-    if (!selected) return state.entries;
-    return state.entries.filter((entry) => String(entry?.level || "").toUpperCase() === selected);
+    const query = String(queryInput?.value || "").trim().toLowerCase();
+    return state.entries.filter((entry) => {
+      if (selected && String(entry?.level || "").toUpperCase() !== selected) return false;
+      if (query && !formatEntry(entry).toLowerCase().includes(query)) return false;
+      return true;
+    });
   }
 
   function render() {
@@ -46,7 +50,7 @@ const BlogCTLLogs = (() => {
     BlogCTLPopup.setStatus(
       status,
       "ok",
-      `${String(state.configuredLevel || "info").toUpperCase()} · ${entries.length} 条`,
+      `${String(state.configuredLevel || "info").toUpperCase()} · ${entries.length}${entries.length !== state.entries.length ? ` / ${state.entries.length}` : ""} 条`,
       state.path || "",
     );
     if (wasNearBottom || output.textContent === "暂无日志") {
@@ -87,6 +91,21 @@ const BlogCTLLogs = (() => {
     }, 1500);
   }
 
+  function selectAllLogs() {
+    if (!output || output.textContent === "暂无日志") return;
+    if (autoRefresh?.checked) {
+      autoRefresh.checked = false;
+      syncPolling();
+    }
+    const selection = globalThis.getSelection?.();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(output);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    BlogCTLPopup.setMessage(message, "已选中当前可见日志；自动刷新已暂停。", "ok");
+  }
+
   async function clearLogs() {
     clearButton.disabled = true;
     BlogCTLPopup.setMessage(message, "正在清空日志…");
@@ -106,14 +125,18 @@ const BlogCTLLogs = (() => {
     status = document.getElementById("logsStatus");
     pathValue = document.getElementById("logPath");
     output = document.getElementById("logOutput");
+    queryInput = document.getElementById("logQuery");
     levelFilter = document.getElementById("logLevelFilter");
     autoRefresh = document.getElementById("logAutoRefresh");
+    selectAllButton = document.getElementById("selectAllLogs");
     refreshButton = document.getElementById("refreshLogs");
     clearButton = document.getElementById("clearLogs");
     message = document.getElementById("logsMessage");
 
     refreshButton.addEventListener("click", () => refresh());
     clearButton.addEventListener("click", clearLogs);
+    selectAllButton.addEventListener("click", selectAllLogs);
+    queryInput.addEventListener("input", render);
     levelFilter.addEventListener("change", render);
     autoRefresh.addEventListener("change", syncPolling);
     state.initialized = true;

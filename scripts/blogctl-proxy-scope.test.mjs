@@ -9,9 +9,11 @@ test("BlogCTL proxy stays scoped to BlogCTL components", async () => {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   const background = await readFile(backgroundPath, "utf8");
 
-  assert.equal((manifest.permissions || []).includes("proxy"), false);
-  assert.doesNotMatch(background, /chrome\.proxy/u);
-  assert.doesNotMatch(background, /proxy\.settings/u);
+  const migrationVersion = background.match(/LEGACY_BROWSER_PROXY_MIGRATION_VERSION = "([^"]+)"/u)?.[1];
+  assert.equal(migrationVersion, manifest.version);
+  assert.equal((manifest.permissions || []).includes("proxy"), true);
+  assert.doesNotMatch(background, /chrome\.proxy\.settings\.set/u);
+  assert.match(background, /chrome\.proxy\.settings\.clear/u);
   assert.doesNotMatch(background, /pac_script|fixed_servers/u);
 });
 

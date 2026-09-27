@@ -250,6 +250,8 @@ export async function runBridgeCommand(command, input = {}, {
       stage: "inventory_ready",
       message: `URL inventory 已读取：${inventory.total} URLs`,
       total: inventory.total,
+      inventory: inventorySummary(inventory),
+      urls: inventory.urls,
     });
   }
 
@@ -325,7 +327,7 @@ export async function runBridgeCommand(command, input = {}, {
     if (typeof onProgress === "function") {
       await onProgress({ type: "stage", stage: "oauth_ready", message: "Google OAuth token 已获取" });
     }
-    return auditGoogleUrls(inventory.urls, {
+    const audit = await auditGoogleUrls(inventory.urls, {
       siteUrl,
       origin,
       accessToken,
@@ -335,6 +337,11 @@ export async function runBridgeCommand(command, input = {}, {
       fetchImpl,
       onProgress,
     });
+    return {
+      ...audit,
+      inventory: inventorySummary(inventory),
+      inventoryUrls: inventory.urls,
+    };
   }
 
   throw new Error(`unsupported BlogCTL search bridge command: ${command}`);

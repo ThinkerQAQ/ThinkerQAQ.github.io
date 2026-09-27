@@ -92,6 +92,18 @@ func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stateBefore := defaultSearchIndexState()
+	stateBefore.Google.Inspection.Results = []searchInspectionResult{
+		{URL: "https://thinkerqaq.github.io/a/", Verdict: "PASS"},
+		{URL: "https://thinkerqaq.github.io/b/", Verdict: "FAIL"},
+		{URL: "https://thinkerqaq.github.io/removed/", Verdict: "FAIL"},
+	}
+	stateBefore.Google.Inspection.Inspected = 3
+	stateBefore.Google.Inspection.Total = 3
+	if err := saveSearchIndexState(stateBefore); err != nil {
+		t.Fatal(err)
+	}
+
 	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, _ map[string]any) (json.RawMessage, error) {
 		if command != "inventory" {
 			t.Fatalf("command = %q", command)
@@ -111,6 +123,12 @@ func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
 	}
 	if len(state.Inventory.URLs) != 0 || len(state.Inventory.Fingerprints) != 0 {
 		t.Fatalf("main search state should keep only inventory summary: %#v", state.Inventory)
+	}
+	if state.Google.Inspection.Inspected != 2 || state.Google.Inspection.Total != 2 || state.Google.Inspection.Remaining != 0 {
+		t.Fatalf("inspection counts were not reconciled with current inventory: %#v", state.Google.Inspection)
+	}
+	if len(state.Google.Inspection.Results) != 2 || state.Google.Inspection.NextOffset != nil {
+		t.Fatalf("stale inspection results were not pruned: %#v", state.Google.Inspection)
 	}
 }
 
@@ -212,6 +230,50 @@ func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	}
 	if state.Google.RequestQueue.ConsecutiveErrors != 3 {
 		t.Fatalf("consecutive errors = %d", state.Google.RequestQueue.ConsecutiveErrors)
+	}
+}
+
+func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
+	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := defaultSearchIndexState()
+	state.Google.RequestQueue = googleIndexRequestQueue{
+		State: "running",
+		Items: []googleIndexRequestItem{
+			{URL: "https://thinkerqaq.github.io/a/", Status: "queued"},
+			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+		},
+	}
+	job, err := server.ensureGoogleRequestTask(&state.Google.RequestQueue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := saveSearchIndexState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/google/request-queue/result", strings.NewReader(`{"url":"https://thinkerqaq.github.io/a/","result":"processing","error":""}`))
+	setExtensionAuth(request, "token")
+	request.Header.Set("content-type", "application/json")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+
+	state = loadSearchIndexState()
+	if state.Google.RequestQueue.Items[0].Status != "processing" || state.Google.RequestQueue.State != "running" {
+		t.Fatalf("queue = %#v", state.Google.RequestQueue)
+	}
+	updated := server.durableTaskJob(job.ID)
+	if updated == nil || updated.Progress.Message != "正在处理第 1 / 2 个 URL" {
+		t.Fatalf("job = %#v", updated)
+	}
+	if updated.Detail["currentItemStatus"] != "processing" || updated.Detail["currentUrl"] != "https://thinkerqaq.github.io/a/" {
+		t.Fatalf("job detail = %#v", updated.Detail)
 	}
 }
 

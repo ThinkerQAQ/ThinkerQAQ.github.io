@@ -12,6 +12,7 @@ class FakeElement {
     this.textContent = text;
     this.attrs = new Map(Object.entries(attrs));
     this.onClick = onClick;
+    this.parent = null;
   }
 
   getAttribute(name) {
@@ -35,6 +36,11 @@ class FakeElement {
   dispatchEvent() {
     return true;
   }
+
+  closest(selector) {
+    if (!this.parent) return null;
+    return matchesSelector(this.parent, selector) ? this.parent : this.parent.closest?.(selector) || null;
+  }
 }
 
 class FakeInputElement extends FakeElement {
@@ -54,6 +60,7 @@ class FakeTextAreaElement extends FakeInputElement {
 }
 
 function matchesSelector(node, selector) {
+  if (selector.includes(",")) return selector.split(",").some((item) => matchesSelector(node, item.trim()));
   if (selector === "button") return node.tagName === "BUTTON";
   if (selector === 'input:not([type="hidden"])') {
     return node.tagName === "INPUT" && node.getAttribute("type") !== "hidden";
@@ -62,6 +69,7 @@ function matchesSelector(node, selector) {
   if (selector === '[contenteditable="true"]') return node.getAttribute("contenteditable") === "true";
   if (selector === "a") return node.tagName === "A";
   if (selector === "[aria-label]") return node.getAttribute("aria-label") !== null;
+  if (selector === '[aria-modal="true"]') return node.getAttribute("aria-modal") === "true";
   if (selector === "[title]") return node.getAttribute("title") !== null;
   if (selector === "[tabindex]") return node.getAttribute("tabindex") !== null;
   if (selector === "[jsaction]") return node.getAttribute("jsaction") !== null;
@@ -72,7 +80,7 @@ function matchesSelector(node, selector) {
   return false;
 }
 
-async function createHarness({ bodyText = "", nodes = [] } = {}) {
+async function createHarness({ bodyText = "", nodes = [], pathname = "/search-console/inspect", requestTimeoutMs = 180000 } = {}) {
   const source = await readFile(contentScriptPath, "utf8");
   let listener = null;
   const body = { innerText: bodyText };
@@ -120,11 +128,13 @@ async function createHarness({ bodyText = "", nodes = [] } = {}) {
     },
     location: {
       hostname: "search.google.com",
-      pathname: "/search-console/inspect",
+      pathname,
+      href: `https://search.google.com${pathname}`,
     },
     setTimeout,
     clearTimeout,
     URL,
+    __BLOGCTL_GSC_REQUEST_TIMEOUT_MS__: requestTimeoutMs,
   });
   vm.runInContext(source, context, { filename: "google-indexing-content.js" });
   assert.equal(typeof listener, "function", "content script should register its runtime listener");
@@ -169,22 +179,29 @@ test("Request Indexing closes the success dialog so the next URL can continue", 
   const harness = await createHarness({
     bodyText: `${url} 网址尚未收录到 Google 请求编入索引`,
   });
+  const dialog = new FakeElement("div", {
+    text: "已提交编入索引请求 关闭",
+    attrs: { role: "dialog", "aria-modal": "true" },
+  });
   const closeButton = new FakeElement("button", {
     text: "关闭",
     onClick() {
       closed += 1;
       harness.body.innerText = "Google Search Console";
+      harness.nodes.splice(harness.nodes.indexOf(dialog), 1);
+      harness.nodes.splice(harness.nodes.indexOf(closeButton), 1);
       harness.nodes.push(new FakeInputElement({
         attrs: { "aria-label": "检查网址", role: "searchbox" },
       }));
     },
   });
+  closeButton.parent = dialog;
   const requestButton = new FakeElement("button", {
     text: "请求编入索引",
     onClick() {
       requested += 1;
       harness.body.innerText = `${url} 已提交编入索引请求 关闭`;
-      harness.nodes.push(closeButton);
+      harness.nodes.push(dialog, closeButton);
     },
   });
   harness.nodes.push(requestButton);
@@ -210,6 +227,10 @@ test("Request Indexing reports cleanup fallback when the Google success modal ca
     text: "请求编入索引",
     onClick() {
       harness.body.innerText = `${url} 已提交编入索引请求 关闭`;
+      harness.nodes.push(new FakeElement("div", {
+        text: "已提交编入索引请求",
+        attrs: { role: "dialog", "aria-modal": "true" },
+      }));
       // Deliberately do not expose a clickable close control. The background
       // worker must force-reset GSC after recording this successful request.
     },
@@ -223,10 +244,15 @@ test("Request Indexing reports cleanup fallback when the Google success modal ca
   assert.equal(result.cleanup.dialogPresent, true);
 });
 test("GSC overview probe activates the custom 检查网址 control and discovers the real input", async () => {
-  const harness = await createHarness({ bodyText: "Google Search Console 概述" });
+  let activated = 0;
+  const harness = await createHarness({
+    bodyText: "Google Search Console 概述 网址已在 Google 上",
+    pathname: "/search-console",
+  });
   const trigger = new FakeElement("button", {
     text: "检查网址",
     onClick() {
+      activated += 1;
       harness.nodes.push(new FakeInputElement({
         attrs: { "aria-label": "检查网址", role: "searchbox" },
       }));
@@ -238,6 +264,72 @@ test("GSC overview probe activates the custom 检查网址 control and discovers
   assert.equal(result.ok, true);
   assert.equal(result.ready, true);
   assert.equal(result.inspectionInput, true);
+  assert.equal(activated, 1, "overview text must not be mistaken for an actionable inspection result");
+});
+
+test("Request Indexing cancels and retries a stuck live URL test", async () => {
+  const url = "https://thinkerqaq.github.io/articles/tags/example/";
+  let cancelled = 0;
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 请求编入索引`,
+    requestTimeoutMs: 1000,
+  });
+  const dialog = new FakeElement("div", {
+    text: "正在测试实际网址是否可编入索引 取消",
+    attrs: { role: "dialog", "aria-modal": "true" },
+  });
+  const cancelButton = new FakeElement("button", {
+    text: "取消",
+    onClick() {
+      cancelled += 1;
+      harness.body.innerText = `${url} 网址尚未收录到 Google 请求编入索引`;
+      harness.nodes.splice(harness.nodes.indexOf(dialog), 1);
+      harness.nodes.splice(harness.nodes.indexOf(cancelButton), 1);
+    },
+  });
+  cancelButton.parent = dialog;
+  const requestButton = new FakeElement("button", {
+    text: "请求编入索引",
+    onClick() {
+      harness.body.innerText = `${url} 正在测试实际网址是否可编入索引 取消`;
+      harness.nodes.push(dialog, cancelButton);
+    },
+  });
+  harness.nodes.push(requestButton);
+
+  const result = await harness.send({ type: "blogctl.google.index.request", url });
+  assert.equal(cancelled, 1);
+  assert.equal(result.ok, false);
+  assert.equal(result.action, "ui_changed");
+  assert.equal(result.stage, "request_processing_timeout");
+  assert.equal(result.recovery.cancelled, true);
+});
+
+test("GSC inspection matches the target URL from the inspection control value", async () => {
+  const url = "https://thinkerqaq.github.io/articles/tags/%E4%B8%AA%E4%BA%BA%E5%8D%9A%E5%AE%A2/";
+  const input = new FakeInputElement({ attrs: { "aria-label": "检查网址", role: "searchbox" } });
+  input.value = decodeURIComponent(url);
+  const harness = await createHarness({
+    bodyText: "网址尚未收录到 Google 请求编入索引",
+    nodes: [input],
+  });
+
+  const result = await harness.send({ type: "blogctl.google.index.inspect", url });
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "not_indexed");
+  assert.equal(result.stage, "inspection_result_reused");
+});
+
+test("historical success text outside a dialog does not block the next inspection", async () => {
+  const url = "https://thinkerqaq.github.io/articles/next/";
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 已提交编入索引请求`,
+    nodes: [new FakeInputElement({ attrs: { "aria-label": "检查网址", role: "searchbox" } })],
+  });
+
+  const result = await harness.send({ type: "blogctl.google.index.inspect", url });
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "not_indexed");
 });
 
 test("Request Indexing start/resume preflight GSC before moving the bridge queue to running", async () => {
@@ -264,7 +356,11 @@ test("Request Indexing start/resume preflight GSC before moving the bridge queue
   assert.match(source, /gsc queue pump failed/u);
   assert.match(source, /const maxPrepareAttempts = 3/u);
   assert.match(source, /gsc transient ui miss; retrying same url/u);
+  assert.match(source, /request_processing_timeout/u);
   assert.match(source, /gsc request succeeded; forcing clean page for next url/u);
+  assert.match(source, /result: "processing"/u);
+  assert.match(source, /gsc queue item started/u);
+  assert.match(source, /gsc queue item finished/u);
   assert.match(source, /cleanup\.dialogPresent \|\| cleanup\.closed === false/u);
   assert.match(source, /await delay\(1200\);/u);
   assert.doesNotMatch(source, /requested_indexing.*includes\(action\)/u);

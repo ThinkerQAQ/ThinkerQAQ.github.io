@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -424,6 +425,20 @@ func (s *Server) runSearchNodeWithProgress(
 	return result, nil
 }
 
+func googleInspectionQuotaExceeded(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "http 429") ||
+		strings.Contains(message, "resource_exhausted") ||
+		strings.Contains(message, "quota exceeded")
+}
+
+func googleInspectionQuotaMessage() string {
+	return "Google URL Inspection 今日配额已用尽；已保留当前进度，配额恢复后重试即可继续。"
+}
+
 func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) {
 	raw := googleSearchConsoleServiceJSON(config)
 	state.Google.CredentialsConfigured = false
@@ -465,8 +480,14 @@ func applyActiveTaskToInspection(state *searchInspectionState, job *durableTaskJ
 		if job.StartedAt != "" {
 			state.StartedAt = job.StartedAt
 		}
+		var payload googleInspectionTaskPayload
+		if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &payload) == nil {
+			state.Offset = payload.Offset
+			state.Limit = payload.Limit
+		}
 		if job.Progress.Total > 0 {
-			state.Limit = job.Progress.Total
+			state.Total = job.Progress.Total
+			state.Remaining = max(0, state.Total-state.Inspected)
 		}
 	}
 }
@@ -524,6 +545,7 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 		return
 	}
 	state := loadSearchIndexState()
+	reconcileInspectionInventory(&state.Google.Inspection, inventory)
 	state.Inventory = compactSearchInventory(inventory)
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
@@ -681,6 +703,51 @@ func (s *Server) handleSearchGoogleSitemaps(response http.ResponseWriter, reques
 	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
 }
 
+func reconcileInspectionInventory(inspection *searchInspectionState, inventory searchInventoryState) {
+	if inspection == nil || len(inventory.URLs) == 0 {
+		return
+	}
+	total := inventory.Total
+	if total <= 0 {
+		total = len(inventory.URLs)
+	}
+	allowed := make(map[string]struct{}, len(inventory.URLs))
+	for _, url := range inventory.URLs {
+		if strings.TrimSpace(url) != "" {
+			allowed[url] = struct{}{}
+		}
+	}
+	filtered := make([]searchInspectionResult, 0, min(len(inspection.Results), len(allowed)))
+	checked := make(map[string]struct{}, len(inspection.Results))
+	for _, result := range inspection.Results {
+		if _, ok := allowed[result.URL]; !ok {
+			continue
+		}
+		filtered = append(filtered, result)
+		checked[result.URL] = struct{}{}
+	}
+	sort.Slice(filtered, func(i, j int) bool { return filtered[i].URL < filtered[j].URL })
+
+	nextOffset := 0
+	for index, url := range inventory.URLs {
+		if _, ok := checked[url]; !ok {
+			nextOffset = index
+			break
+		}
+		nextOffset = index + 1
+	}
+	inspection.Results = filtered
+	inspection.Inspected = len(filtered)
+	inspection.Total = total
+	inspection.Remaining = max(0, total-len(filtered))
+	if nextOffset < total {
+		value := nextOffset
+		inspection.NextOffset = &value
+	} else {
+		inspection.NextOffset = nil
+	}
+}
+
 func mergeInspectionResults(existing, incoming []searchInspectionResult) []searchInspectionResult {
 	byURL := make(map[string]searchInspectionResult, len(existing)+len(incoming))
 	for _, result := range existing {
@@ -738,6 +805,15 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 		"limit":  input.Limit,
 	})
 	if err != nil {
+		if googleInspectionQuotaExceeded(err) {
+			state.Google.Inspection.State = "quota_blocked"
+			state.Google.Inspection.FinishedAt = ""
+			state.Google.Inspection.Error = googleInspectionQuotaMessage()
+			refreshSearchCredentialsFlag(&state, s.config)
+			_ = saveSearchIndexState(state)
+			writeAPIError(response, http.StatusTooManyRequests, "google_inspection_quota_blocked", googleInspectionQuotaMessage(), nil)
+			return
+		}
 		state.Google.Inspection.State = "failed"
 		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Google.Inspection.Error = err.Error()
@@ -754,6 +830,8 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 		Remaining      int                      `json:"remaining"`
 		NextOffset     *int                     `json:"nextOffset"`
 		Results        []searchInspectionResult `json:"results"`
+		Inventory      searchInventoryState     `json:"inventory"`
+		InventoryURLs  []string                 `json:"inventoryUrls"`
 	}
 	if err := decodeSearchResult(raw, &report); err != nil {
 		writeError(response, err)
@@ -763,20 +841,30 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 	for index := range report.Results {
 		report.Results[index].CheckedAt = checkedAt
 	}
+	if len(report.InventoryURLs) > 0 {
+		report.Inventory.URLs = append([]string(nil), report.InventoryURLs...)
+		if report.Inventory.Total <= 0 {
+			report.Inventory.Total = len(report.InventoryURLs)
+		}
+		reconcileInspectionInventory(&state.Google.Inspection, report.Inventory)
+		state.Inventory = compactSearchInventory(report.Inventory)
+	}
 	mergedResults := mergeInspectionResults(state.Google.Inspection.Results, report.Results)
-	remaining := report.TotalAvailable - len(mergedResults)
-	if remaining < 0 {
-		remaining = 0
-	}
-	nextOffset := report.NextOffset
-	if remaining == 0 {
-		nextOffset = nil
-	}
 	state.Google.Inspection = searchInspectionState{
 		State: "completed", StartedAt: started.Format(time.RFC3339), FinishedAt: checkedAt,
-		Offset: report.Offset, Limit: report.Limit, Inspected: len(mergedResults),
-		Total: report.TotalAvailable, Remaining: remaining, NextOffset: nextOffset,
-		Results: mergedResults,
+		Offset: report.Offset, Limit: report.Limit, Results: mergedResults,
+	}
+	if len(report.InventoryURLs) > 0 {
+		report.Inventory.URLs = append([]string(nil), report.InventoryURLs...)
+		reconcileInspectionInventory(&state.Google.Inspection, report.Inventory)
+	} else {
+		state.Google.Inspection.Inspected = len(mergedResults)
+		state.Google.Inspection.Total = report.TotalAvailable
+		state.Google.Inspection.Remaining = max(0, report.TotalAvailable-len(mergedResults))
+		state.Google.Inspection.NextOffset = report.NextOffset
+		if state.Google.Inspection.Remaining == 0 {
+			state.Google.Inspection.NextOffset = nil
+		}
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
@@ -902,6 +990,10 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 	item.Error = strings.TrimSpace(input.Error)
 	advance := true
 	switch input.Result {
+	case "processing":
+		item.Status = "processing"
+		queue.LastError = ""
+		advance = false
 	case "requested_indexing":
 		item.Status = "requested"
 		item.RequestedAt = item.LastAttemptAt
@@ -948,6 +1040,16 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 		queue.State = "completed"
 	}
 	queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
+	slog.Info("google request-indexing queue updated",
+		"operation", "request-indexing-queue",
+		"jobId", queue.JobID,
+		"url", input.URL,
+		"result", input.Result,
+		"queueState", queue.State,
+		"current", queue.CurrentIndex,
+		"total", len(queue.Items),
+		"consecutiveErrors", queue.ConsecutiveErrors,
+	)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
 		return
@@ -973,7 +1075,7 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 	case "start", "resume":
 		if action == "resume" {
 			for index, item := range queue.Items {
-				if item.Status == "queued" || item.Status == "failed" || item.Status == "quota_blocked" {
+				if item.Status == "queued" || item.Status == "failed" || item.Status == "quota_blocked" || item.Status == "processing" {
 					queue.CurrentIndex = index
 					break
 				}
@@ -984,7 +1086,7 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 			return
 		}
 		current := &queue.Items[queue.CurrentIndex]
-		if current.Status == "quota_blocked" {
+		if current.Status == "quota_blocked" || current.Status == "processing" {
 			current.Status = "queued"
 			current.Error = ""
 		}
