@@ -60,7 +60,14 @@ jobs:
           ref: ${{ inputs.content_sha || '' }}
           ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
           path: content-source
-          persist-credentials: false
+          # Keep the read-only deploy-key credential available for the later
+          # incremental diff fetch of content_before_sha in this same job.
+          persist-credentials: true
+
+      - name: Report checked-out content revision
+        shell: bash
+        run: |
+          echo "Checked out blog-content SHA: $(git -C content-source rev-parse HEAD)"
 
       - name: Setup Node
         uses: actions/setup-node@v6
