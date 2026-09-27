@@ -35,9 +35,9 @@
     <section class="panel active" role="tabpanel" data-panel="binding">
       <section class="status-card">
         <div class="section-title">绑定</div>
-        <p class="card-hint">只建立本地文章与远端草稿／文章的关系，不创建同步任务。</p>
-        <label class="field"><span>文章</span><input id="articlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="articleOptions" placeholder="输入标题或 slug 搜索；留空列出全部" autocomplete="off"></label>
-        <div id="articleOptions" class="article-options" role="listbox" hidden></div>
+        <p class="card-hint">默认列出全部本地文章；按标题或 slug 搜索并选择后，再检测对应平台。</p>
+        <label class="field"><span>搜索</span><input id="articlePicker" type="search" role="combobox" aria-expanded="true" aria-controls="articleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
+        <div id="articleOptions" class="article-options" role="listbox"></div>
         <p id="articleMeta" class="card-hint"></p>
       </section>
 
@@ -68,9 +68,9 @@
     <section class="panel" role="tabpanel" data-panel="drafts">
       <section class="status-card">
         <div class="section-title">更新</div>
-        <p class="card-hint">选择文章和平台。已有草稿关系时更新，没有时创建草稿；更新会创建任务并轮询结果。</p>
-        <label class="field"><span>文章</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="输入标题或 slug 搜索；留空列出全部" autocomplete="off"></label>
-        <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
+        <p class="card-hint">默认列出全部本地文章；按标题或 slug 搜索并选择后，可批量更新或单独更新某个平台。</p>
+        <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="true" aria-controls="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
+        <div id="draftArticleOptions" class="article-options" role="listbox"></div>
         <p id="draftArticleMeta" class="card-hint"></p>
       </section>
 

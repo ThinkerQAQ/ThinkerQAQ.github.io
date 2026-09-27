@@ -19,6 +19,7 @@
     platformSelectionInitialized: false,
     selectedMatchKeys: new Set(),
     bindingMutating: false,
+    matchingPlatforms: new Set(),
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton;
@@ -103,7 +104,8 @@
 
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
-    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating || state.selectedPlatformIDs.size === 0;
+    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating ||
+      state.matchingPlatforms.size > 0 || state.selectedPlatformIDs.size === 0;
     if (enterDraftsButton) {
       enterDraftsButton.disabled = !state.selectedSlug || state.bindingMutating;
     }
@@ -123,13 +125,15 @@
       const option = document.createElement("button");
       option.type = "button";
       option.className = "article-option";
+      if (article.slug === state.selectedSlug) option.classList.add("active");
       option.setAttribute("role", "option");
       option.textContent = `${article.title} · ${article.slug}`;
       option.addEventListener("click", () => selectArticle(article));
       articleOptions.append(option);
     }
     if (!filtered.length) articleOptions.textContent = "没有匹配文章";
-    articlePicker.setAttribute("aria-expanded", String(!articleOptions.hidden));
+    articleOptions.hidden = false;
+    articlePicker.setAttribute("aria-expanded", "true");
     renderArticleMeta();
     updateControls();
   }
@@ -137,8 +141,7 @@
   function selectArticle(article) {
     state.selectedSlug = article.slug;
     articlePicker.value = `${article.title} · ${article.slug}`;
-    articleOptions.hidden = true;
-    articlePicker.setAttribute("aria-expanded", "false");
+    articlePicker.setAttribute("aria-expanded", "true");
     localStorage.setItem("blogctl.selectedArticle", article.slug);
     clearMatches();
     renderArticleMeta();
@@ -383,9 +386,23 @@
       card.className = "platform-choice-card";
       card.append(renderPlatformHeader(platform, article));
 
+      const availability = platformAvailability(article, platform);
+      const actions = document.createElement("div");
+      actions.className = "platform-card-actions";
+      const detectPlatformButton = document.createElement("button");
+      detectPlatformButton.type = "button";
+      detectPlatformButton.className = "secondary compact";
+      detectPlatformButton.textContent = state.matchingPlatforms.has(platform.id) ? "检测中…" : "检测此平台";
+      detectPlatformButton.disabled = !state.selectedSlug || !availability.available ||
+        !state.status?.bridge?.running || state.bindingLoading || state.bindingMutating ||
+        state.matchingPlatforms.size > 0;
+      detectPlatformButton.addEventListener("click", () => refreshArticleMatches([platform.id]));
+      actions.append(detectPlatformButton);
+      card.append(actions);
+
       const selected = state.selectedPlatformIDs.has(platform.id);
       const match = state.matches[platform.id];
-      if (selected && match && state.matchKey === currentKey) {
+      if (match && state.matchKey === currentKey) {
         const result = document.createElement("div");
         result.className = "article-match";
         const prefix = state.cachedMatchTime
@@ -397,7 +414,6 @@
       } else if (state.selectedSlug) {
         const note = document.createElement("div");
         note.className = "article-match";
-        const availability = platformAvailability(article, platform);
         note.textContent = !availability.available
           ? availability.reason
           : selected
@@ -420,14 +436,15 @@
     state.matchKey = "";
     state.cachedMatchTime = 0;
     state.selectedMatchKeys.clear();
+    state.matchingPlatforms.clear();
     BlogCTLSyncState.clearMatches(localStorage);
     state.refreshSerial++;
     updateBulkActions();
   }
 
-  async function refreshArticleMatches(allowBridgeRestart = true) {
+  async function refreshArticleMatches(platformIDs = selectedPlatformIDs(), allowBridgeRestart = true) {
     const article = state.selectedSlug;
-    const platforms = selectedPlatformIDs();
+    const platforms = [...new Set(platformIDs)].filter(Boolean);
     if (!article) return;
     if (!platforms.length) {
       BlogCTLPopup.setMessage(message, "请先选择至少一个需要检测的平台。", "error");
@@ -439,9 +456,11 @@
     const serial = ++state.refreshSerial;
     state.matchKey = article;
     state.cachedMatchTime = 0;
-    state.matches = Object.fromEntries(platforms.map((platform) => [platform, { text: "正在检测文章关联…" }]));
+    for (const platform of platforms) {
+      state.matchingPlatforms.add(platform);
+      state.matches[platform] = { text: "正在检测文章关联…" };
+    }
     renderPlatforms();
-    refreshMatchesButton.disabled = true;
 
     const results = await Promise.all(platforms.map(async (platform) => {
       try {
@@ -452,7 +471,11 @@
       }
     }));
 
-    if (serial !== state.refreshSerial || article !== state.selectedSlug) return;
+    if (serial !== state.refreshSerial || article !== state.selectedSlug) {
+      for (const platform of platforms) state.matchingPlatforms.delete(platform);
+      renderPlatforms();
+      return;
+    }
 
     const staleBridge = results.some(([, match]) => String(match?.text || "").includes("invalid bridge token"));
     if (staleBridge && allowBridgeRestart) {
@@ -460,16 +483,17 @@
       try {
         await BlogCTLPopup.send("blogctl.tool.action", { name: "bridge", action: "restart" });
         if (article !== state.selectedSlug) return;
-        await refreshArticleMatches(false);
+        await refreshArticleMatches(platforms, false);
         return;
       } catch (error) {
         BlogCTLPopup.setMessage(message, `Bridge 重启失败：${BlogCTLPopup.errorMessage(error)}`, "error");
       }
     }
 
-    state.matches = Object.fromEntries(results);
+    for (const [platform, match] of results) state.matches[platform] = match;
     state.cachedMatchTime = Date.now();
     BlogCTLSyncState.saveMatches(localStorage, article, state.matches);
+    for (const platform of platforms) state.matchingPlatforms.delete(platform);
     renderPlatforms();
   }
 
@@ -662,31 +686,17 @@
     unbindSelectedButton = document.getElementById("unbindSelectedMatches");
     enterDraftsButton = document.getElementById("bindingEnterDrafts");
 
-    articlePicker.addEventListener("focus", () => {
-      articleOptions.hidden = false;
-      renderArticles();
-    });
+    articlePicker.addEventListener("focus", renderArticles);
     articlePicker.addEventListener("input", () => {
       state.selectedSlug = "";
       clearMatches();
       renderPlatforms();
-      articleOptions.hidden = false;
       renderArticles();
     });
     articlePicker.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        articleOptions.hidden = true;
-        articlePicker.setAttribute("aria-expanded", "false");
-      }
-      if (event.key === "Enter" && !articleOptions.hidden && articleOptions.querySelector("button")) {
+      if (event.key === "Enter" && articleOptions.querySelector("button")) {
         event.preventDefault();
         articleOptions.querySelector("button").click();
-      }
-    });
-    document.addEventListener("click", (event) => {
-      if (event.target !== articlePicker && !articleOptions.contains(event.target)) {
-        articleOptions.hidden = true;
-        articlePicker.setAttribute("aria-expanded", "false");
       }
     });
 
