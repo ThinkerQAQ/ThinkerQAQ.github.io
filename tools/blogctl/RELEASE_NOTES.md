@@ -1,3 +1,12 @@
+# BlogCTL v0.1.94
+
+BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- 发布页新增文章列表：默认列出全部本地文章，选中某篇文章后只显示该文章的发布记录，与检测 / 更新页的文章选择方式统一。
+- 索引页 Google URL Inspection 进入配额阻塞状态后，“检查下一批”改为可点击的“重试检查”，配额恢复后可直接继续，不再卡住。
+
 # BlogCTL v0.1.93
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
