@@ -424,6 +424,20 @@ func (s *Server) runSearchNodeWithProgress(
 	return result, nil
 }
 
+func googleInspectionQuotaExceeded(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "http 429") ||
+		strings.Contains(message, "resource_exhausted") ||
+		strings.Contains(message, "quota exceeded")
+}
+
+func googleInspectionQuotaMessage() string {
+	return "Google URL Inspection 今日配额已用尽；已保留当前进度，配额恢复后重试即可继续。"
+}
+
 func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) {
 	raw := googleSearchConsoleServiceJSON(config)
 	state.Google.CredentialsConfigured = false
@@ -784,6 +798,15 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 		"limit":  input.Limit,
 	})
 	if err != nil {
+		if googleInspectionQuotaExceeded(err) {
+			state.Google.Inspection.State = "quota_blocked"
+			state.Google.Inspection.FinishedAt = ""
+			state.Google.Inspection.Error = googleInspectionQuotaMessage()
+			refreshSearchCredentialsFlag(&state, s.config)
+			_ = saveSearchIndexState(state)
+			writeAPIError(response, http.StatusTooManyRequests, "google_inspection_quota_blocked", googleInspectionQuotaMessage(), nil)
+			return
+		}
 		state.Google.Inspection.State = "failed"
 		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Google.Inspection.Error = err.Error()
@@ -800,6 +823,8 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 		Remaining      int                      `json:"remaining"`
 		NextOffset     *int                     `json:"nextOffset"`
 		Results        []searchInspectionResult `json:"results"`
+		Inventory      searchInventoryState     `json:"inventory"`
+		InventoryURLs  []string                 `json:"inventoryUrls"`
 	}
 	if err := decodeSearchResult(raw, &report); err != nil {
 		writeError(response, err)
@@ -809,20 +834,30 @@ func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request
 	for index := range report.Results {
 		report.Results[index].CheckedAt = checkedAt
 	}
+	if len(report.InventoryURLs) > 0 {
+		report.Inventory.URLs = append([]string(nil), report.InventoryURLs...)
+		if report.Inventory.Total <= 0 {
+			report.Inventory.Total = len(report.InventoryURLs)
+		}
+		reconcileInspectionInventory(&state.Google.Inspection, report.Inventory)
+		state.Inventory = compactSearchInventory(report.Inventory)
+	}
 	mergedResults := mergeInspectionResults(state.Google.Inspection.Results, report.Results)
-	remaining := report.TotalAvailable - len(mergedResults)
-	if remaining < 0 {
-		remaining = 0
-	}
-	nextOffset := report.NextOffset
-	if remaining == 0 {
-		nextOffset = nil
-	}
 	state.Google.Inspection = searchInspectionState{
 		State: "completed", StartedAt: started.Format(time.RFC3339), FinishedAt: checkedAt,
-		Offset: report.Offset, Limit: report.Limit, Inspected: len(mergedResults),
-		Total: report.TotalAvailable, Remaining: remaining, NextOffset: nextOffset,
-		Results: mergedResults,
+		Offset: report.Offset, Limit: report.Limit, Results: mergedResults,
+	}
+	if len(report.InventoryURLs) > 0 {
+		report.Inventory.URLs = append([]string(nil), report.InventoryURLs...)
+		reconcileInspectionInventory(&state.Google.Inspection, report.Inventory)
+	} else {
+		state.Google.Inspection.Inspected = len(mergedResults)
+		state.Google.Inspection.Total = report.TotalAvailable
+		state.Google.Inspection.Remaining = max(0, report.TotalAvailable-len(mergedResults))
+		state.Google.Inspection.NextOffset = report.NextOffset
+		if state.Google.Inspection.Remaining == 0 {
+			state.Google.Inspection.NextOffset = nil
+		}
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
