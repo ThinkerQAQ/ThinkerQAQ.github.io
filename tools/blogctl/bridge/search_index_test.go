@@ -92,6 +92,18 @@ func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stateBefore := defaultSearchIndexState()
+	stateBefore.Google.Inspection.Results = []searchInspectionResult{
+		{URL: "https://thinkerqaq.github.io/a/", Verdict: "PASS"},
+		{URL: "https://thinkerqaq.github.io/b/", Verdict: "FAIL"},
+		{URL: "https://thinkerqaq.github.io/removed/", Verdict: "FAIL"},
+	}
+	stateBefore.Google.Inspection.Inspected = 3
+	stateBefore.Google.Inspection.Total = 3
+	if err := saveSearchIndexState(stateBefore); err != nil {
+		t.Fatal(err)
+	}
+
 	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, _ map[string]any) (json.RawMessage, error) {
 		if command != "inventory" {
 			t.Fatalf("command = %q", command)
@@ -111,6 +123,12 @@ func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
 	}
 	if len(state.Inventory.URLs) != 0 || len(state.Inventory.Fingerprints) != 0 {
 		t.Fatalf("main search state should keep only inventory summary: %#v", state.Inventory)
+	}
+	if state.Google.Inspection.Inspected != 2 || state.Google.Inspection.Total != 2 || state.Google.Inspection.Remaining != 0 {
+		t.Fatalf("inspection counts were not reconciled with current inventory: %#v", state.Google.Inspection)
+	}
+	if len(state.Google.Inspection.Results) != 2 || state.Google.Inspection.NextOffset != nil {
+		t.Fatalf("stale inspection results were not pruned: %#v", state.Google.Inspection)
 	}
 }
 
