@@ -1121,6 +1121,9 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
 	}
+	if request.Platform == "segmentfault" {
+		return p.publishDraftViaBrowser(ctx, request, "segmentfault.publish")
+	}
 	if request.Platform == "medium" {
 		state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
 		if err != nil {

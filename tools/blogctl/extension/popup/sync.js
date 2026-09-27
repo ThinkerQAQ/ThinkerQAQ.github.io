@@ -22,7 +22,7 @@
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton;
-  let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
+  let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton, enterDraftsButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
@@ -104,6 +104,9 @@
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
     refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating || state.selectedPlatformIDs.size === 0;
+    if (enterDraftsButton) {
+      enterDraftsButton.disabled = !state.selectedSlug || state.bindingMutating;
+    }
     updateBulkActions();
   }
 
@@ -657,6 +660,7 @@
     selectionSummary = document.getElementById("bindingSelectionSummary");
     bindSelectedButton = document.getElementById("bindSelectedMatches");
     unbindSelectedButton = document.getElementById("unbindSelectedMatches");
+    enterDraftsButton = document.getElementById("bindingEnterDrafts");
 
     articlePicker.addEventListener("focus", () => {
       articleOptions.hidden = false;
@@ -691,6 +695,12 @@
     invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
     bindSelectedButton.addEventListener("click", () => runBulkBinding("bind"));
     unbindSelectedButton.addEventListener("click", () => runBulkBinding("unbind"));
+    enterDraftsButton.addEventListener("click", () => {
+      if (!state.selectedSlug) return;
+      document.dispatchEvent(new CustomEvent("blogctl:navigate-drafts", {
+        detail: { article: state.selectedSlug },
+      }));
+    });
     state.initialized = true;
   }
 

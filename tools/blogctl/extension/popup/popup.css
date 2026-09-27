@@ -114,6 +114,7 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .publication-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .publication-title input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 auto; }
 .publication-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.publication-links .publication-action { width: auto; }
 .publication-action { display: inline-flex; align-items: center; justify-content: center; min-width: 96px; min-height: 38px; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; line-height: 1; text-decoration: none; }
 .publication-action:hover { text-decoration: none; }
 @media (max-width: 390px) { .publication-filters { grid-template-columns: 1fr; } }

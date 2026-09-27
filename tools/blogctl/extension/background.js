@@ -20,7 +20,7 @@ let googleSearchConsoleStatus = {
 };
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
-const LEGACY_BROWSER_PROXY_MIGRATION_VERSION = "0.1.90";
+const LEGACY_BROWSER_PROXY_MIGRATION_VERSION = "0.1.92";
 
 function proxyMigrationLog(severity, operation, result, startedAt, detail = "") {
   const entry = {
@@ -1595,7 +1595,12 @@ async function cto51PublishInBrowser(payload) {
 }
 
 async function executeBrowserOperation(operation) {
-  throw new Error(`browser platform operations are disabled: ${operation?.action || "unknown"}`);
+  switch (operation?.action) {
+    case "segmentfault.publish":
+      return segmentFaultPublishInBrowser(operation.payload ?? {});
+    default:
+      throw new Error(`unsupported browser operation: ${operation?.action || "unknown"}`);
+  }
 }
 
 async function pumpBrowserOperations() {
@@ -2168,7 +2173,13 @@ async function handleMessage(message) {
     case "blogctl.job.start": {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
+      const needsBrowserPublish = request.operation === "publish" &&
+        (request.platforms ?? []).includes("segmentfault");
+      if (needsBrowserPublish) {
+        await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
+      }
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
+      if (needsBrowserPublish) void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
@@ -2191,8 +2202,13 @@ async function handleMessage(message) {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
+      const needsBrowserPublish = current?.job?.kind === "publishing" &&
+        (current?.job?.platforms ?? []).includes("segmentfault");
       if (current?.job?.kind === "publishing") {
         await syncSessionsForPlatforms(current?.job?.platforms ?? []);
+      }
+      if (needsBrowserPublish) {
+        await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       }
       let google = null;
       if (current?.job?.type === "google-request-indexing") {
@@ -2200,6 +2216,7 @@ async function handleMessage(message) {
       }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      if (needsBrowserPublish) void kickBrowserOperationPump();
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.pause": {
@@ -2225,7 +2242,12 @@ async function handleMessage(message) {
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
       await prepareJobSessions(current?.job);
+      const needsBrowserPublish = (current?.job?.platforms ?? []).includes("segmentfault");
+      if (needsBrowserPublish) {
+        await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
+      }
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
+      if (needsBrowserPublish) void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     default: return null;
