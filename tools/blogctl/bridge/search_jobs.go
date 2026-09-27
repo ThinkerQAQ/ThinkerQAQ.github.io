@@ -306,7 +306,11 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	state.Google.Inspection.State = "running"
 	state.Google.Inspection.FinishedAt = ""
 	state.Google.Inspection.Offset = input.Offset
-	state.Google.Inspection.Limit = taskTotal
+	state.Google.Inspection.Limit = input.Limit
+	if taskTotal > 0 {
+		state.Google.Inspection.Total = taskTotal
+		state.Google.Inspection.Remaining = max(0, taskTotal-state.Google.Inspection.Inspected)
+	}
 	state.Google.Inspection.Error = ""
 	_ = saveSearchIndexState(state)
 
@@ -426,7 +430,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 			state.Google.Inspection.State = "running"
 			state.Google.Inspection.FinishedAt = ""
 			state.Google.Inspection.Offset = input.Offset
-			state.Google.Inspection.Limit = taskTotal
+			state.Google.Inspection.Limit = input.Limit
 			state.Google.Inspection.Inspected = len(state.Google.Inspection.Results)
 			state.Google.Inspection.Total = event.TotalAvailable
 			state.Google.Inspection.Remaining = globalRemaining
