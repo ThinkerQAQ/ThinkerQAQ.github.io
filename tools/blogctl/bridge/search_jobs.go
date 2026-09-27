@@ -374,7 +374,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 					job.Progress.Message = fmt.Sprintf(
 						"正在检查 %d / %d · %s",
 						event.AbsoluteIndex,
-						taskTotal,
+						event.TotalAvailable,
 						event.URL,
 					)
 					job.Detail = map[string]any{
@@ -409,7 +409,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 			lastProgress = current
 			totalAvailable = event.TotalAvailable
 			currentOffset := input.Offset + event.Inspected
-			remainingTask := taskTotal - current
+			remainingTask := input.Limit - event.Inspected
 			if remainingTask < 0 {
 				remainingTask = 0
 			}
@@ -589,10 +589,15 @@ func (s *Server) startGoogleInspectionTask(offset, limit int) (*durableTaskJob, 
 	if offset < 0 || limit < 1 || limit > 2000 {
 		return nil, errors.New("Google inspection requires offset >= 0 and 1 <= limit <= 2000")
 	}
+	state := loadSearchIndexState()
+	total := state.Inventory.Total
+	if total < offset+limit {
+		total = offset + limit
+	}
 	job, err := s.createDurableTaskJob(
 		"google-inspection", "Google URL Inspection",
 		googleInspectionTaskPayload{Offset: offset, Limit: limit},
-		taskProgress{Total: limit, Unit: "URL", Message: "等待执行"},
+		taskProgress{Current: min(offset, total), Total: total, Unit: "URL", Message: "等待执行"},
 		taskCapabilities(true, false, false),
 	)
 	if err != nil {
