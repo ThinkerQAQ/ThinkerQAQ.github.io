@@ -1446,31 +1446,60 @@ async function segmentFaultPublishInBrowser(payload) {
             await sleep(250);
           }
           const tagInput = document.querySelector('input[placeholder="搜索标签"]');
-          if (tagInput) {
-            const candidates = [...new Set([
-              ...(Array.isArray(input?.tags) ? input.tags : []),
-              ...(String(input?.title || "").match(/Go|Java|Python|Redis|Linux|Kubernetes|Docker|并发|后端/gi) || []),
-              "后端",
-            ].map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 6);
-            let added = 0;
-            for (const candidate of candidates) {
-              tagInput.focus();
-              tagInput.value = candidate;
-              tagInput.dispatchEvent(new Event("input", { bubbles: true }));
-              tagInput.dispatchEvent(new Event("change", { bubbles: true }));
-              await sleep(450);
-              const options = [...document.querySelectorAll('[role="option"], li, .dropdown-menu a, .search-result-item')]
-                .filter((node) => {
-                  const text = String(node.textContent || "").trim().toLowerCase();
-                  return text && text.includes(candidate.toLowerCase()) && node.offsetParent !== null;
-                });
-              if (options[0]) {
-                options[0].click();
-                added += 1;
-                await sleep(250);
-              }
-              if (added >= 2) break;
+          if (!tagInput) throw new Error("SegmentFault tag search input was not found");
+          const candidates = [...new Set([
+            ...(Array.isArray(input?.tags) ? input.tags : []),
+            ...(String(input?.title || "").match(/Go|Java|Python|Redis|Linux|Kubernetes|Docker|并发|后端/gi) || []),
+            "后端",
+          ].map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 6);
+          const nativeValueSetter = Object.getOwnPropertyDescriptor(
+            Object.getPrototypeOf(tagInput),
+            "value",
+          )?.set;
+          const setTagInputValue = (value) => {
+            tagInput.focus();
+            if (nativeValueSetter) nativeValueSetter.call(tagInput, value);
+            else tagInput.value = value;
+            tagInput.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              inputType: "insertText",
+              data: value,
+            }));
+          };
+          const pressEnter = () => {
+            for (const type of ["keydown", "keypress", "keyup"]) {
+              tagInput.dispatchEvent(new KeyboardEvent(type, {
+                key: "Enter",
+                code: "Enter",
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+              }));
             }
+          };
+          let added = 0;
+          for (const candidate of candidates) {
+            setTagInputValue(candidate);
+            await sleep(650);
+            pressEnter();
+            await sleep(450);
+            if (String(tagInput.value || "").trim() === "") {
+              added += 1;
+            } else {
+              const exactOption = [...document.querySelectorAll('[role="option"], .search-result-item')]
+                .find((node) => node.offsetParent !== null &&
+                  String(node.textContent || "").trim().toLowerCase() === candidate.toLowerCase());
+              if (exactOption) {
+                exactOption.click();
+                await sleep(350);
+                added += 1;
+              }
+            }
+            setTagInputValue("");
+            if (added >= 2) break;
+          }
+          if (added === 0) {
+            throw new Error("SegmentFault did not accept any article tag in the editor");
           }
 
           const publishToggle = document.querySelector("#publish-toggle");
