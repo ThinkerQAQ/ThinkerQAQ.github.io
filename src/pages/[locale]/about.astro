@@ -2,6 +2,7 @@
 import CollectionHeader from "../../components/CollectionHeader.astro";
 import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../config/i18n";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { profilePageSchema } from "../../lib/structured-data";
 
 export function getStaticPaths() {
   return nonDefaultLocales().map((locale) => ({
@@ -13,14 +14,27 @@ export function getStaticPaths() {
 interface Props { locale: Locale }
 const { locale } = Astro.props;
 const localeInfo = LOCALES[locale];
+const aboutPath = localizePath(locale, "/about/");
+const profileSchema = profilePageSchema({
+  path: aboutPath,
+  name: `About ThinkerQAQ`,
+  description: localeInfo.ui.aboutDescription,
+  inLanguage: localeInfo.htmlLang,
+});
 ---
 
 <BaseLayout
   title={localeInfo.ui.aboutTitle}
   description={localeInfo.ui.aboutDescription}
-  canonicalPath={localizePath(locale, "/about/")}
+  canonicalPath={aboutPath}
   locale={locale}
 >
+  <script
+    is:inline
+    slot="head"
+    type="application/ld+json"
+    set:html={JSON.stringify(profileSchema).replaceAll("<", "\\u003c")}
+  />
   <div class="shell page narrow collection-page">
     <CollectionHeader
       title="About ThinkerQAQ"
