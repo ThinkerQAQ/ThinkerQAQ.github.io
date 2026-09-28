@@ -1,11 +1,26 @@
 ---
 import CollectionHeader from "../components/CollectionHeader.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { profilePageSchema } from "../lib/structured-data";
+
+const description = "关于 ThinkerQAQ，以及本站文章、项目、系列与笔记的组织方式。";
+const profileSchema = profilePageSchema({
+  path: "/about/",
+  name: "关于 ThinkerQAQ",
+  description,
+  inLanguage: "zh-CN",
+});
 ---
 <BaseLayout
   title="关于"
-  description="关于 ThinkerQAQ，以及本站文章、项目、系列与笔记的组织方式。"
+  description={description}
 >
+  <script
+    is:inline
+    slot="head"
+    type="application/ld+json"
+    set:html={JSON.stringify(profileSchema).replaceAll("<", "\\u003c")}
+  />
   <div class="shell page narrow collection-page">
     <CollectionHeader
       title="关于本站"

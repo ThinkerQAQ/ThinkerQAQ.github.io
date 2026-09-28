@@ -4,8 +4,11 @@ export const SITE = {
   description:
     "ThinkerQAQ 的个人技术博客，记录后端工程、Go、Java、并发编程、分布式系统、数据系统与软件工程实践。",
   author: "ThinkerQAQ",
+  authorProfilePath: "/about/",
+  alternateNames: ["Thinker QAQ"],
   url: "https://thinkerqaq.github.io",
   github: "https://github.com/ThinkerQAQ",
+  profiles: ["https://github.com/ThinkerQAQ", "https://dev.to/thinkerqaq"],
   repository: "https://github.com/ThinkerQAQ/ThinkerQAQ.github.io",
   contact: "https://github.com/ThinkerQAQ",
   locale: "zh-CN",

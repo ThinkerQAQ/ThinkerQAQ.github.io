@@ -17,6 +17,7 @@ import {
   type LocaleAlternative,
 } from "../config/i18n";
 import { SITE } from "../config/site";
+import { SITE_WEBSITE_ID, siteAuthorSchema } from "../lib/structured-data";
 import { articleHref, categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
 import { localizeNoteTagLabel } from "../lib/note-taxonomy-i18n";
 import BaseLayout from "./BaseLayout.astro";
@@ -82,7 +83,8 @@ const schema = {
   description: data.description,
   ...(hasSourceTimestamps && data.createdAt ? { dateCreated: data.createdAt.toISOString() } : {}),
   ...(hasSourceTimestamps ? { dateModified: data.updatedAt.toISOString() } : {}),
-  author: { "@type": "Person", name: SITE.author },
+  author: siteAuthorSchema(),
+  isPartOf: { "@id": SITE_WEBSITE_ID },
   inLanguage: data.language === "en" ? "en" : "zh-CN",
   mainEntityOfPage: new URL(canonicalPath, SITE.url).toString(),
 };

@@ -1,15 +1,9 @@
 ---
 import HomeKnowledgeHub from "../components/HomeKnowledgeHub.astro";
-import { SITE } from "../config/site";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { siteWebsiteSchema } from "../lib/structured-data";
 
-const websiteSchema = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: SITE.title,
-  alternateName: ["thinkerqaq.github.io"],
-  url: new URL("/", SITE.url).toString(),
-};
+const websiteSchema = siteWebsiteSchema();
 ---
 
 <BaseLayout>
