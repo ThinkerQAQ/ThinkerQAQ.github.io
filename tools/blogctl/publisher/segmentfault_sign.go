@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	segmentFaultKeyVersion = "24.11.06"
-	segmentFaultIVDSite    = "sf.gg"
+	segmentFaultKeyVersion   = "24.11.06"
+	segmentFaultIVDSite      = "sf.gg"
 	segmentFaultPublicKeyPEM = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkof1rwl+U32URzw5lqqy
 z4E+aKwu+f+A6/aSNvnSe62m6r/rjyb9WiRs7E1jfibgU196GNFX1+XxRaATFkTI
