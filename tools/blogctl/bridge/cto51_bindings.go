@@ -60,7 +60,7 @@ func (s *Server) cto51Candidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	account, posts, err := publisher.Cto51ListDrafts(ctx, client, session)
+	account, posts, err := publisher.Cto51ListPosts(ctx, client, session)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -135,7 +135,7 @@ func (s *Server) handleCto51BindingPut(response http.ResponseWriter, request *ht
 		writeAPIError(response, http.StatusBadGateway, "session_unavailable", err.Error(), nil)
 		return
 	}
-	account, posts, err := publisher.Cto51ListDrafts(ctx, client, session)
+	account, posts, err := publisher.Cto51ListPosts(ctx, client, session)
 	if err != nil {
 		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
 		return
@@ -157,7 +157,7 @@ func (s *Server) handleCto51BindingPut(response http.ResponseWriter, request *ht
 		}
 	}
 	if selected == nil {
-		writeAPIError(response, http.StatusConflict, "candidate_missing", "51CTO list no longer contains the selected matching draft", nil)
+		writeAPIError(response, http.StatusConflict, "candidate_missing", "51CTO list no longer contains the selected matching article", nil)
 		return
 	}
 
