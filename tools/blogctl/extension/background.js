@@ -1414,90 +1414,6 @@ async function waitForPublishedURL(tabId, platform, timeoutMs = 25000) {
   throw new Error(`${platform} browser publish did not reach a public article URL`);
 }
 
-async function segmentFaultPublishInBrowser(payload) {
-  const draftId = String(payload?.draftId || "").trim();
-  if (!draftId) throw new Error("SegmentFault draft id is required");
-  const tab = await chrome.tabs.create({
-    url: `https://segmentfault.com/write?draftId=${encodeURIComponent(draftId)}`,
-    active: false,
-  });
-  try {
-    await waitForTabLoaded(tab.id);
-    let scriptError = null;
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: async (input) => {
-          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-          const waitFor = async (selector, timeout = 12000) => {
-            const deadline = Date.now() + timeout;
-            while (Date.now() < deadline) {
-              const node = document.querySelector(selector);
-              if (node) return node;
-              await sleep(100);
-            }
-            throw new Error("SegmentFault editor element missing: " + selector);
-          };
-          await waitFor("#title");
-
-          const toggle = document.querySelector("#tags-toggle");
-          if (toggle) {
-            toggle.click();
-            await sleep(250);
-          }
-          const tagInput = document.querySelector('input[placeholder="搜索标签"]');
-          if (tagInput) {
-            const candidates = [...new Set([
-              ...(Array.isArray(input?.tags) ? input.tags : []),
-              ...(String(input?.title || "").match(/Go|Java|Python|Redis|Linux|Kubernetes|Docker|并发|后端/gi) || []),
-              "后端",
-            ].map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 6);
-            let added = 0;
-            for (const candidate of candidates) {
-              tagInput.focus();
-              tagInput.value = candidate;
-              tagInput.dispatchEvent(new Event("input", { bubbles: true }));
-              tagInput.dispatchEvent(new Event("change", { bubbles: true }));
-              await sleep(450);
-              const options = [...document.querySelectorAll('[role="option"], li, .dropdown-menu a, .search-result-item')]
-                .filter((node) => {
-                  const text = String(node.textContent || "").trim().toLowerCase();
-                  return text && text.includes(candidate.toLowerCase()) && node.offsetParent !== null;
-                });
-              if (options[0]) {
-                options[0].click();
-                added += 1;
-                await sleep(250);
-              }
-              if (added >= 2) break;
-            }
-          }
-
-          const publishToggle = document.querySelector("#publish-toggle");
-          if (publishToggle) {
-            publishToggle.click();
-            await sleep(300);
-          }
-          const confirm = await waitFor("#sureSubmitBtn", 8000);
-          confirm.click();
-          return { clicked: true };
-        },
-        args: [payload ?? {}],
-      });
-    } catch (error) {
-      scriptError = error;
-    }
-    try {
-      return await waitForPublishedURL(tab.id, "segmentfault");
-    } catch (publishError) {
-      if (scriptError) throw scriptError;
-      throw publishError;
-    }
-  } finally {
-    chrome.tabs.remove(tab.id).catch(() => {});
-  }
-}
-
 async function cto51PublishInBrowser(payload) {
   const draftId = String(payload?.draftId || "").trim();
   if (!draftId) throw new Error("51CTO draft id is required");
@@ -1596,8 +1512,6 @@ async function cto51PublishInBrowser(payload) {
 
 async function executeBrowserOperation(operation) {
   switch (operation?.action) {
-    case "segmentfault.publish":
-      return segmentFaultPublishInBrowser(operation.payload ?? {});
     default:
       throw new Error(`unsupported browser operation: ${operation?.action || "unknown"}`);
   }
@@ -2173,13 +2087,7 @@ async function handleMessage(message) {
     case "blogctl.job.start": {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
-      const needsBrowserPublish = request.operation === "publish" &&
-        (request.platforms ?? []).includes("segmentfault");
-      if (needsBrowserPublish) {
-        await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
-      }
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
-      if (needsBrowserPublish) void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
@@ -2202,13 +2110,8 @@ async function handleMessage(message) {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
-      const needsBrowserPublish = current?.job?.kind === "publishing" &&
-        (current?.job?.platforms ?? []).includes("segmentfault");
       if (current?.job?.kind === "publishing") {
         await syncSessionsForPlatforms(current?.job?.platforms ?? []);
-      }
-      if (needsBrowserPublish) {
-        await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
       }
       let google = null;
       if (current?.job?.type === "google-request-indexing") {
@@ -2216,7 +2119,6 @@ async function handleMessage(message) {
       }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
-      if (needsBrowserPublish) void kickBrowserOperationPump();
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.pause": {
@@ -2242,12 +2144,7 @@ async function handleMessage(message) {
       if (!id) throw new Error("job id is required");
       const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
       await prepareJobSessions(current?.job);
-      const needsBrowserPublish = (current?.job?.platforms ?? []).includes("segmentfault");
-      if (needsBrowserPublish) {
-        await fetchJSON("/v1/browser-ops/enable", { method: "POST" });
-      }
       const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
-      if (needsBrowserPublish) void kickBrowserOperationPump();
       return { ok: true, job: result?.job };
     }
     default: return null;
