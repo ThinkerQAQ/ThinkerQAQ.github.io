@@ -1,3 +1,16 @@
+# BlogCTL v0.1.98
+
+BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- 修复掘金文章关联检测：已发布文章改为读取账号 `/content_api/v1/article/query_list` 列表，不再依赖关键词搜索；正确区分发布后的 `article_id` 与原 `draft_id`，并据此完成草稿 → 已发布关联。
+- 掘金已发布文章再次更新时，同样从账号文章列表解析真实 `draft_id`；已有 remote ID 绑定不会因远端标题变化而丢失。
+- 全平台清理遗留浏览器发布自动化：删除 51CTO 隐藏 Tab / DOM 点击逻辑，以及已无调用方的 Bridge ↔ Extension `browser-ops` 通道；文章发布继续走原生 HTTP/API。
+- 移除 0.1.95 一次性浏览器代理迁移代码和 Chrome `proxy` 权限；新增回归测试，禁止发布流程重新引入隐藏页面、平台 DOM 操作或 browser-op。
+- SegmentFault、知乎、51CTO、OSChina、DEV.to 的关联检测会优先保留已绑定 remote ID，标题匹配只用于发现尚未建立绑定的新候选。
+- Google Search Console Request Indexing 仍独立使用浏览器页面；51CTO / Medium 的 browser-profile HTTP client 仅模拟 TLS/HTTP2 请求指纹，不会打开或操作平台页面。
+
 # BlogCTL v0.1.97
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
