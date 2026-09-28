@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -25,6 +26,7 @@ type segmentFaultAdapter struct {
 	session   Session
 	userAgent string
 	token     string
+	now       func() time.Time
 }
 
 func NewSegmentFaultAdapter(base *http.Client, session Session) (Adapter, error) {
@@ -32,10 +34,17 @@ func NewSegmentFaultAdapter(base *http.Client, session Session) (Adapter, error)
 	if err != nil {
 		return nil, err
 	}
-	return &segmentFaultAdapter{client: client, session: session, userAgent: session.UserAgent}, nil
+	return &segmentFaultAdapter{client: client, session: session, userAgent: session.UserAgent, now: time.Now}, nil
 }
 
 func (s *segmentFaultAdapter) ID() string { return "segmentfault" }
+
+func (s *segmentFaultAdapter) currentTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
 
 func (s *segmentFaultAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
 	return browserRequest(ctx, method, rawURL, segmentFaultOrigin, segmentFaultOrigin+"/", s.userAgent, body)
@@ -200,7 +209,7 @@ func normalizeSegmentFaultTagName(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func (s *segmentFaultAdapter) resolveTagIDs(ctx context.Context, token string, names []string) ([]int64, error) {
+func (s *segmentFaultAdapter) resolveTagIDs(ctx context.Context, token string, names []string, referer string) ([]int64, error) {
 	started := time.Now()
 	requested := make([]string, 0, len(names))
 	seenNames := map[string]struct{}{}
@@ -219,9 +228,17 @@ func (s *segmentFaultAdapter) resolveTagIDs(ctx context.Context, token string, n
 		return nil, platformError(ErrValidation, s.ID(), "resolve-tags", 0, "SegmentFault requires at least one article tag", false)
 	}
 
-	req, err := s.request(ctx, http.MethodGet, segmentFaultOrigin+"/gateway/tags", nil)
+	signedURL, err := segmentFaultSignedURL(segmentFaultOrigin+"/gateway/tags", s.currentTime())
+	if err != nil {
+		return nil, platformError(ErrUpstream, s.ID(), "resolve-tags", 0, err.Error(), false)
+	}
+	req, err := s.request(ctx, http.MethodGet, signedURL, nil)
 	if err != nil {
 		return nil, err
+	}
+	req.Header.Del("origin")
+	if strings.TrimSpace(referer) != "" {
+		req.Header.Set("referer", referer)
 	}
 	req.Header.Set("accept", "application/json, text/plain, */*")
 	req.Header.Set("token", token)
@@ -291,7 +308,8 @@ func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input
 	if err != nil {
 		return DraftResult{}, err
 	}
-	tagIDs, err := s.resolveTagIDs(ctx, token, input.Tags)
+	referer := segmentFaultEditorURL(refID)
+	tagIDs, err := s.resolveTagIDs(ctx, token, input.Tags, referer)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -304,18 +322,23 @@ func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input
 	rawURL := segmentFaultOrigin + "/gateway/draft"
 	operation := "create-draft"
 	payload := map[string]any{
-		"title": input.Title,
-		"tags":  tagIDs,
-		"text":  content,
-		"type":  "article",
+		"title":     input.Title,
+		"tags":      tagIDs,
+		"text":      content,
+		"object_id": "",
+		"type":      "article",
+		"language":  "",
+		"cover":     "",
 	}
-	if refID == "" {
-		payload["object_id"] = ""
-	} else {
+	if refID != "" {
 		method = http.MethodPut
 		rawURL += "/" + url.PathEscape(refID)
 		operation = "update-draft"
-		payload["id"] = refID
+		if numericID, parseErr := strconv.ParseInt(refID, 10, 64); parseErr == nil {
+			payload["id"] = numericID
+		} else {
+			payload["id"] = refID
+		}
 	}
 
 	body, _ := json.Marshal(payload)
@@ -327,6 +350,7 @@ func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input
 	req.Header.Set("accept", "application/json, text/plain, */*")
 	req.Header.Set("token", token)
 	req.Header.Set("authorization", "Bearer "+token)
+	req.Header.Set("referer", referer)
 
 	response, err := s.client.Do(req)
 	if err != nil {
@@ -374,13 +398,88 @@ func (s *segmentFaultAdapter) UpdateDraft(ctx context.Context, ref DraftRef, inp
 	return s.saveDraft(ctx, ref.ID, input)
 }
 
-func (s *segmentFaultAdapter) PublishDraft(_ context.Context, _ DraftRef, _ DraftInput) (PublishResult, error) {
-	return PublishResult{}, platformError(
-		ErrNotImplemented,
-		s.ID(),
-		"publish-draft",
-		0,
-		"publishing an existing SegmentFault draft requires the browser editor flow",
-		false,
-	)
+func (s *segmentFaultAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {
+	draftID := strings.TrimSpace(ref.ID)
+	if draftID == "" {
+		return PublishResult{}, platformError(ErrValidation, s.ID(), "publish-draft", 0, "draft id is required", false)
+	}
+	numericDraftID, err := strconv.ParseInt(draftID, 10, 64)
+	if err != nil {
+		return PublishResult{}, platformError(ErrValidation, s.ID(), "publish-draft", 0, "draft id must be numeric", false)
+	}
+	editor, err := s.loadEditorContext(ctx, draftID)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	if strings.TrimSpace(editor.Draft.Title) == "" || strings.TrimSpace(editor.Draft.Text) == "" {
+		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", 0, "remote draft content is missing", false)
+	}
+
+	tagIDs := make([]int64, 0, len(editor.Draft.Tags))
+	seen := map[int64]struct{}{}
+	for _, tag := range editor.Draft.Tags {
+		if tag.ID == 0 {
+			continue
+		}
+		if _, exists := seen[tag.ID]; exists {
+			continue
+		}
+		seen[tag.ID] = struct{}{}
+		tagIDs = append(tagIDs, tag.ID)
+	}
+	if len(tagIDs) == 0 {
+		tagIDs, err = s.resolveTagIDs(ctx, editor.Token, input.Tags, segmentFaultEditorURL(draftID))
+		if err != nil {
+			return PublishResult{}, err
+		}
+	}
+
+	payload := map[string]any{
+		"tags":     tagIDs,
+		"title":    editor.Draft.Title,
+		"text":     editor.Draft.Text,
+		"draft_id": numericDraftID,
+		"blog_id":  selectSegmentFaultBlogID(editor.Blogs),
+		"type":     1,
+		"url":      "",
+		"cover":    editor.Draft.Cover,
+		"license":  nil,
+		"log":      "",
+	}
+	body, _ := json.Marshal(payload)
+	req, err := s.request(ctx, http.MethodPost, segmentFaultOrigin+"/gateway/article", strings.NewReader(string(body)))
+	if err != nil {
+		return PublishResult{}, err
+	}
+	req.Header.Set("content-type", "application/json")
+	req.Header.Set("accept", "application/json, text/plain, */*")
+	req.Header.Set("token", editor.Token)
+	req.Header.Set("authorization", "Bearer "+editor.Token)
+	req.Header.Set("referer", segmentFaultEditorURL(draftID))
+
+	response, err := s.client.Do(req)
+	if err != nil {
+		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", 0, err.Error(), true)
+	}
+	defer response.Body.Close()
+	raw, err := readBounded(response, 4<<20)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return PublishResult{}, classifyHTTP(s.ID(), "publish-draft", response.StatusCode, string(raw))
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", response.StatusCode, "invalid JSON response", false)
+	}
+	data, _ := decoded["data"].(map[string]any)
+	articleID := valueString(data["id"])
+	if articleID == "" {
+		return PublishResult{}, platformError(ErrUpstream, s.ID(), "publish-draft", response.StatusCode, "published article id is missing", false)
+	}
+	return PublishResult{
+		ID:  articleID,
+		URL: segmentFaultOrigin + "/a/" + url.PathEscape(articleID),
+	}, nil
 }
