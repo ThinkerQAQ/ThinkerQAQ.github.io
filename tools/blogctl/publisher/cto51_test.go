@@ -40,7 +40,6 @@ func TestSelectCTO51CategoryUsesArticleTagOrder(t *testing.T) {
 	}
 }
 
-
 func TestCTO51PostsFromListUsesPublicArticleURL(t *testing.T) {
 	posts := cto51PostsFromList([]cto51ListItem{{
 		BlogID:  "14962768",
