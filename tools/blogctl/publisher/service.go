@@ -138,7 +138,15 @@ func (s Service) CreateOrUpdateDraftInput(
 		}
 	}
 	if platform == "juejin" && input.RemoteDraftID == "" && state.PublishedRemoteID != "" && capabilities.PublishedDraftEdit {
-		posts, lookupErr := adapter.(*juejinAdapter).searchPublished(ctx, juejinSearchKeyword(input.Title))
+		juejin := adapter.(*juejinAdapter)
+		auth, lookupErr := juejin.CheckAuth(ctx)
+		if lookupErr != nil {
+			return DraftResult{}, lookupErr
+		}
+		if !auth.Authenticated || strings.TrimSpace(auth.UserID) == "" {
+			return DraftResult{}, platformError(ErrAuthExpired, platform, "published-draft-edit", http.StatusUnauthorized, "browser session is not authenticated", false)
+		}
+		posts, lookupErr := juejin.listPublished(ctx, auth.UserID)
 		if lookupErr != nil {
 			return DraftResult{}, lookupErr
 		}
