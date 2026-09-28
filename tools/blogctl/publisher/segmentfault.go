@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
 )
 
 const segmentFaultOrigin = "https://segmentfault.com"
@@ -191,107 +189,8 @@ func (s *segmentFaultAdapter) prepareMarkdown(ctx context.Context, input DraftIn
 	})
 }
 
-type segmentFaultTag struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-func normalizeSegmentFaultTagName(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func (s *segmentFaultAdapter) resolveTagIDs(ctx context.Context, token string, names []string) ([]int64, error) {
-	started := time.Now()
-	requested := make([]string, 0, len(names))
-	seenNames := map[string]struct{}{}
-	for _, name := range names {
-		normalized := normalizeSegmentFaultTagName(name)
-		if normalized == "" {
-			continue
-		}
-		if _, exists := seenNames[normalized]; exists {
-			continue
-		}
-		seenNames[normalized] = struct{}{}
-		requested = append(requested, normalized)
-	}
-	if len(requested) == 0 {
-		return nil, platformError(ErrValidation, s.ID(), "resolve-tags", 0, "SegmentFault requires at least one article tag", false)
-	}
-
-	req, err := s.request(ctx, http.MethodGet, segmentFaultOrigin+"/gateway/tags", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("accept", "application/json, text/plain, */*")
-	req.Header.Set("token", token)
-	req.Header.Set("authorization", "Bearer "+token)
-	response, err := s.client.Do(req)
-	if err != nil {
-		slog.ErrorContext(ctx, "SegmentFault tag resolution failed",
-			"node", "segmentfault-adapter", "operation", "resolve-tags", "result", "upstream-error",
-			"requestedCount", len(requested), "durationMs", time.Since(started).Milliseconds(), "error", err)
-		return nil, platformError(ErrUpstream, s.ID(), "resolve-tags", 0, err.Error(), true)
-	}
-	defer response.Body.Close()
-	raw, err := readBounded(response, 2<<20)
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, classifyHTTP(s.ID(), "resolve-tags", response.StatusCode, string(raw))
-	}
-	var payload struct {
-		Rows map[string][]segmentFaultTag `json:"rows"`
-	}
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, platformError(ErrUpstream, s.ID(), "resolve-tags", response.StatusCode, "invalid JSON response", false)
-	}
-	available := map[string]int64{}
-	for _, tags := range payload.Rows {
-		for _, tag := range tags {
-			name := normalizeSegmentFaultTagName(tag.Name)
-			if name != "" && tag.ID != 0 {
-				available[name] = tag.ID
-			}
-		}
-	}
-	resolved := make([]int64, 0, len(requested))
-	unresolved := make([]string, 0)
-	seenIDs := map[int64]struct{}{}
-	for _, name := range requested {
-		id, exists := available[name]
-		if !exists {
-			unresolved = append(unresolved, name)
-			continue
-		}
-		if _, exists := seenIDs[id]; exists {
-			continue
-		}
-		seenIDs[id] = struct{}{}
-		resolved = append(resolved, id)
-	}
-	if len(resolved) == 0 {
-		return nil, platformError(ErrValidation, s.ID(), "resolve-tags", response.StatusCode,
-			"none of the article tags are supported by SegmentFault: "+strings.Join(unresolved, ", "), false)
-	}
-	result := "success"
-	if len(unresolved) > 0 {
-		result = "partial"
-	}
-	slog.InfoContext(ctx, "SegmentFault tags resolved",
-		"node", "segmentfault-adapter", "operation", "resolve-tags", "result", result,
-		"requestedCount", len(requested), "resolvedCount", len(resolved), "unresolvedTags", unresolved,
-		"durationMs", time.Since(started).Milliseconds())
-	return resolved, nil
-}
-
 func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input DraftInput) (DraftResult, error) {
 	token, err := s.sessionToken(ctx)
-	if err != nil {
-		return DraftResult{}, err
-	}
-	tagIDs, err := s.resolveTagIDs(ctx, token, input.Tags)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -305,7 +204,7 @@ func (s *segmentFaultAdapter) saveDraft(ctx context.Context, refID string, input
 	operation := "create-draft"
 	payload := map[string]any{
 		"title": input.Title,
-		"tags":  tagIDs,
+		"tags":  []int64{},
 		"text":  content,
 		"type":  "article",
 	}
