@@ -213,7 +213,6 @@
 
   function manualBindingStates(platformID) {
     if (platformID === "cnblogs" || platformID === "csdn") return [];
-    if (platformID === "51cto") return ["draft", "published"];
     return ["draft", "published"];
   }
 
