@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -25,6 +26,14 @@ func TestSegmentFaultCreateDraftUsesPostAndEmptyObjectID(t *testing.T) {
 		case "/write":
 			return jsonResponse(request, 200, `<script>serverData":{"Token":"sf-token"}</script>`, nil), nil
 		case "/gateway/tags":
+			if request.URL.Query().Get("keyv") != segmentFaultKeyVersion {
+				t.Fatalf("keyv = %q", request.URL.Query().Get("keyv"))
+			}
+			ivd := request.URL.Query().Get("ivd")
+			decoded, decodeErr := base64.StdEncoding.DecodeString(ivd)
+			if decodeErr != nil || len(decoded) != 256 {
+				t.Fatalf("ivd is not a 2048-bit RSA ciphertext: len=%d err=%v", len(decoded), decodeErr)
+			}
 			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft":
 			if request.Method != http.MethodPost {
@@ -72,6 +81,14 @@ func TestSegmentFaultUpdateDraftUsesPutResourceEndpoint(t *testing.T) {
 			return jsonResponse(request, 200, `window.g_initialProps = {"global":{"sessionInfo":{"key":"legacy-token"}}};
 	</script>`, nil), nil
 		case "/gateway/tags":
+			if request.URL.Query().Get("keyv") != segmentFaultKeyVersion {
+				t.Fatalf("keyv = %q", request.URL.Query().Get("keyv"))
+			}
+			ivd := request.URL.Query().Get("ivd")
+			decoded, decodeErr := base64.StdEncoding.DecodeString(ivd)
+			if decodeErr != nil || len(decoded) != 256 {
+				t.Fatalf("ivd is not a 2048-bit RSA ciphertext: len=%d err=%v", len(decoded), decodeErr)
+			}
 			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft/draft-2":
 			if request.Method != http.MethodPut {
@@ -140,16 +157,74 @@ func TestSegmentFaultUpdateDraftMapsMissingRemoteDraft(t *testing.T) {
 	}
 }
 
-func TestSegmentFaultPublishRequiresBrowserEditorFlow(t *testing.T) {
-	adapter, err := NewSegmentFaultAdapter(&http.Client{}, segmentFaultSession())
+func TestSegmentFaultPublishUsesCapturedGatewayArticleContract(t *testing.T) {
+	const draftID = "1220000048321382"
+	const articleID = "1190000048322882"
+	const blogID int64 = 1200000048304547
+
+	editorHTML := `<html><body>
+<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"initialState":{"editor":{"detail":{
+"blogs":[{"id":1200000048304547,"name":"并发编程实战","slug":"concurrency"}],
+"draft":{"id":1220000048321382,"title":"Example","text":"Remote body","cover":null,"tags":[{"id":101,"name":"go"}]}
+}}}}}}</script>
+<script>window.serverData={"Token":"sf-token"}</script>
+</body></html>`
+
+	var publishPayload map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/write":
+			if request.URL.Query().Get("draftId") != draftID {
+				t.Fatalf("draftId = %q", request.URL.Query().Get("draftId"))
+			}
+			return jsonResponse(request, 200, editorHTML, nil), nil
+		case "/gateway/article":
+			if request.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST", request.Method)
+			}
+			if request.Header.Get("token") != "sf-token" || request.Header.Get("authorization") != "Bearer sf-token" {
+				t.Fatalf("auth headers = %#v", request.Header)
+			}
+			if request.Header.Get("referer") != "https://segmentfault.com/write?draftId="+draftID {
+				t.Fatalf("referer = %q", request.Header.Get("referer"))
+			}
+			if err := json.NewDecoder(request.Body).Decode(&publishPayload); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, http.StatusCreated, `{"data":{"id":1190000048322882},"msg":""}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	adapter, err := NewSegmentFaultAdapter(client, segmentFaultSession())
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = adapter.PublishDraft(context.Background(), DraftRef{ID: "draft-1"}, DraftInput{Title: "Example"})
-	if err == nil || !IsKind(err, ErrNotImplemented) {
-		t.Fatalf("error = %v, want not-implemented browser publish guard", err)
+	result, err := adapter.PublishDraft(context.Background(), DraftRef{ID: draftID}, DraftInput{
+		Title: "Example", Markdown: "Local body", Tags: []string{"go"},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "browser editor flow") {
-		t.Fatalf("error = %v", err)
+	if result.ID != articleID || result.URL != "https://segmentfault.com/a/"+articleID {
+		t.Fatalf("result = %#v", result)
+	}
+	if got := int64(publishPayload["draft_id"].(float64)); got != 1220000048321382 {
+		t.Fatalf("draft_id = %d", got)
+	}
+	if got := int64(publishPayload["blog_id"].(float64)); got != blogID {
+		t.Fatalf("blog_id = %d", got)
+	}
+	if publishPayload["title"] != "Example" || publishPayload["text"] != "Remote body" {
+		t.Fatalf("publish payload did not use remote draft: %#v", publishPayload)
+	}
+	tags, ok := publishPayload["tags"].([]any)
+	if !ok || len(tags) != 1 || int64(tags[0].(float64)) != 101 {
+		t.Fatalf("tags = %#v", publishPayload["tags"])
+	}
+	if got := int(publishPayload["type"].(float64)); got != 1 {
+		t.Fatalf("type = %d", got)
 	}
 }
