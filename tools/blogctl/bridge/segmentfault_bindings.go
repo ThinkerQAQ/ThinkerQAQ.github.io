@@ -64,15 +64,16 @@ func (s *Server) segmentFaultCandidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	matches := make([]publisher.SegmentFaultPost, 0, len(posts))
-	for _, post := range posts {
-		if publisher.SegmentFaultTitleMatches(article.Title, post.Title) {
-			matches = append(matches, post)
-		}
-	}
 	binding, _, err := publisher.LoadPublicationBinding(root, slug, "segmentfault")
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
+	}
+	matches := make([]publisher.SegmentFaultPost, 0, len(posts))
+	for _, post := range posts {
+		bound, _ := segmentFaultBindingState(binding, post)
+		if bound || publisher.SegmentFaultTitleMatches(article.Title, post.Title) {
+			matches = append(matches, post)
+		}
 	}
 	return article, root, account, matches, binding, nil
 }
