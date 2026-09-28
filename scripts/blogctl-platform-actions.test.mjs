@@ -7,17 +7,17 @@ const syncPath = new URL("../tools/blogctl/extension/popup/sync.js", import.meta
 const draftsPath = new URL("../tools/blogctl/extension/popup/drafts.js", import.meta.url);
 const publicationsPath = new URL("../tools/blogctl/extension/popup/publications.js", import.meta.url);
 
-test("detection and update keep searchable article inventories visible", async () => {
+test("detection and update keep searchable article inventories collapsible", async () => {
   const [html, sync, drafts] = await Promise.all([
     readFile(htmlPath, "utf8"),
     readFile(syncPath, "utf8"),
     readFile(draftsPath, "utf8"),
   ]);
 
-  assert.match(html, /id="articleOptions" class="article-options" role="listbox"><\/div>/u);
-  assert.match(html, /id="draftArticleOptions" class="article-options" role="listbox"><\/div>/u);
-  assert.match(sync, /articleOptions\.hidden = false/u);
-  assert.match(drafts, /articleOptions\.hidden = false/u);
+  assert.match(html, /id="articleOptions" class="article-options" role="listbox" hidden><\/div>/u);
+  assert.match(html, /id="draftArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
+  assert.match(sync, /setArticleOptionsOpen\(true\)/u);
+  assert.match(drafts, /setArticleOptionsOpen\(true\)/u);
 });
 
 test("publish keeps a searchable article list and filters records by the selected article", async () => {
@@ -26,8 +26,8 @@ test("publish keeps a searchable article list and filters records by the selecte
     readFile(publicationsPath, "utf8"),
   ]);
 
-  assert.match(html, /id="publicationArticleOptions" class="article-options" role="listbox"><\/div>/u);
-  assert.match(publications, /articleOptions\.hidden = false/u);
+  assert.match(html, /id="publicationArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
+  assert.match(publications, /setArticleOptionsOpen\(true\)/u);
   assert.match(publications, /record\.article !== article/u);
 });
 
