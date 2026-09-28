@@ -20,74 +20,6 @@ let googleSearchConsoleStatus = {
 };
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
-const LEGACY_BROWSER_PROXY_MIGRATION_VERSION = "0.1.95";
-
-function proxyMigrationLog(severity, operation, result, startedAt, detail = "") {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    severity,
-    operation,
-    result,
-    durationMs: Math.max(0, Date.now() - startedAt),
-  };
-  if (detail) entry.detail = detail;
-  console[severity === "error" ? "error" : severity === "warn" ? "warn" : "info"](
-    "[BlogCTL][proxy-migration]",
-    entry,
-  );
-}
-
-function legacyBrowserProxyDetails() {
-  return new Promise((resolve, reject) => {
-    chrome.proxy.settings.get({ incognito: false }, (details) => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message));
-      else resolve(details || {});
-    });
-  });
-}
-
-function clearLegacyBrowserProxy() {
-  return new Promise((resolve, reject) => {
-    chrome.proxy.settings.clear({ scope: "regular" }, () => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message));
-      else resolve();
-    });
-  });
-}
-
-async function releaseLegacyBrowserProxyOwnership() {
-  const startedAt = Date.now();
-  const operation = "release-legacy-browser-proxy";
-  if (chrome.runtime.getManifest().version !== LEGACY_BROWSER_PROXY_MIGRATION_VERSION) return;
-  if (!chrome.proxy?.settings) {
-    proxyMigrationLog("warn", operation, "unavailable", startedAt, "proxy API unavailable");
-    return;
-  }
-  try {
-    const details = await legacyBrowserProxyDetails();
-    const level = String(details?.levelOfControl || "unknown");
-    if (level !== "controlled_by_this_extension") {
-      proxyMigrationLog("info", operation, "skipped", startedAt, `levelOfControl=${level}`);
-      return;
-    }
-    await clearLegacyBrowserProxy();
-    proxyMigrationLog("info", operation, "cleared", startedAt);
-  } catch (error) {
-    proxyMigrationLog("error", operation, "failed", startedAt, errorMessage(error));
-  }
-}
-
-let legacyBrowserProxyMigrationPromise = null;
-
-function scheduleLegacyBrowserProxyRelease() {
-  if (legacyBrowserProxyMigrationPromise) return legacyBrowserProxyMigrationPromise;
-  legacyBrowserProxyMigrationPromise = releaseLegacyBrowserProxyOwnership().finally(() => {
-    legacyBrowserProxyMigrationPromise = null;
-  });
-  return legacyBrowserProxyMigrationPromise;
-}
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -1990,10 +1922,6 @@ async function handleMessage(message) {
     default: return null;
   }
 }
-
-chrome.runtime.onInstalled.addListener(() => { void scheduleLegacyBrowserProxyRelease(); });
-chrome.runtime.onStartup.addListener(() => { void scheduleLegacyBrowserProxyRelease(); });
-void scheduleLegacyBrowserProxyRelease();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
