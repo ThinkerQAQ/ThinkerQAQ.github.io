@@ -24,6 +24,8 @@ func TestSegmentFaultCreateDraftUsesPostAndEmptyObjectID(t *testing.T) {
 		switch request.URL.Path {
 		case "/write":
 			return jsonResponse(request, 200, `<script>serverData":{"Token":"sf-token"}</script>`, nil), nil
+		case "/gateway/tags":
+			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft":
 			if request.Method != http.MethodPost {
 				t.Fatalf("method = %s, want POST", request.Method)
@@ -46,7 +48,7 @@ func TestSegmentFaultCreateDraftUsesPostAndEmptyObjectID(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := adapter.CreateDraft(context.Background(), DraftInput{
-		Title: "Example", Markdown: "Body",
+		Title: "Example", Markdown: "Body", Tags: []string{"Go"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +71,8 @@ func TestSegmentFaultUpdateDraftUsesPutResourceEndpoint(t *testing.T) {
 		case "/write":
 			return jsonResponse(request, 200, `window.g_initialProps = {"global":{"sessionInfo":{"key":"legacy-token"}}};
 	</script>`, nil), nil
+		case "/gateway/tags":
+			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft/draft-2":
 			if request.Method != http.MethodPut {
 				t.Fatalf("method = %s, want PUT", request.Method)
@@ -96,7 +100,7 @@ func TestSegmentFaultUpdateDraftUsesPutResourceEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := adapter.UpdateDraft(context.Background(), DraftRef{ID: "draft-2"}, DraftInput{
-		Title: "Updated", Markdown: "Changed body",
+		Title: "Updated", Markdown: "Changed body", Tags: []string{"Go"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +121,8 @@ func TestSegmentFaultUpdateDraftMapsMissingRemoteDraft(t *testing.T) {
 		switch request.URL.Path {
 		case "/write":
 			return jsonResponse(request, 200, `serverData":{"Token":"sf-token"}`, nil), nil
+		case "/gateway/tags":
+			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft/missing":
 			return jsonResponse(request, http.StatusNotFound, `{"message":"draft not found"}`, nil), nil
 		default:
@@ -128,7 +134,7 @@ func TestSegmentFaultUpdateDraftMapsMissingRemoteDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = adapter.UpdateDraft(context.Background(), DraftRef{ID: "missing"}, DraftInput{Title: "x", Markdown: "x"})
+	_, err = adapter.UpdateDraft(context.Background(), DraftRef{ID: "missing"}, DraftInput{Title: "x", Markdown: "x", Tags: []string{"Go"}})
 	if err == nil || !IsKind(err, ErrRemoteDraftMissing) {
 		t.Fatalf("error = %v, want remote-draft-not-found", err)
 	}

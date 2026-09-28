@@ -11,11 +11,12 @@
     resolvingPending: new Set(),
     prepared: null,
     focusTarget: null,
+    selectedSlug: "",
     currentJob: null,
     pollTimer: null,
   };
 
-  let queryInput, platformSelect, statusSelect, summary, list, publishButton, runStatus, message, selectAllButton, invertButton;
+  let articlePicker, articleOptions, articleMeta, platformSelect, statusSelect, summary, list, publishButton, runStatus, message, selectAllButton, invertButton;
 
   const labelForPlatform = (id) => state.platforms.find((item) => item.id === id)?.label || id;
   const titleForArticle = (slug) => state.articles.find((item) => item.slug === slug)?.title || slug;
@@ -51,25 +52,55 @@
     return true;
   }
 
+  function pickedArticle() {
+    return state.articles.find((item) => item.slug === state.selectedSlug) || null;
+  }
+
+  function renderArticleMeta() {
+    const article = pickedArticle();
+    articleMeta.textContent = article ? `${article.title} · ${article.slug}` : "";
+  }
+
+  function renderArticles() {
+    const query = articlePicker.value.trim().toLowerCase();
+    const filtered = state.articles.filter((article) => !query || `${article.title} · ${article.slug}`.toLowerCase().includes(query));
+    articleOptions.replaceChildren();
+    for (const article of filtered) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "article-option";
+      if (article.slug === state.selectedSlug) option.classList.add("active");
+      option.setAttribute("role", "option");
+      option.textContent = `${article.title} · ${article.slug}`;
+      option.addEventListener("click", () => selectArticle(article));
+      articleOptions.append(option);
+    }
+    if (!filtered.length) articleOptions.textContent = "没有匹配文章";
+    articleOptions.hidden = false;
+    articlePicker.setAttribute("aria-expanded", "true");
+    renderArticleMeta();
+  }
+
+  function selectArticle(article) {
+    state.selectedSlug = article.slug;
+    articlePicker.value = `${article.title} · ${article.slug}`;
+    articlePicker.setAttribute("aria-expanded", "true");
+    localStorage.setItem("blogctl.selectedArticle", article.slug);
+    state.selectedKeys.clear();
+    renderArticleMeta();
+    render();
+  }
+
   function filteredRecords() {
-    const query = queryInput.value.trim().toLowerCase();
+    const article = state.selectedSlug;
     const platform = platformSelect.value;
     const status = statusSelect.value;
 
     return state.records.filter((record) => {
+      if (article && record.article !== article) return false;
       if (platform && record.platform !== platform) return false;
       if (!matchesStatus(record, status)) return false;
-      if (!query) return true;
-      const haystack = [
-        record.article,
-        titleForArticle(record.article),
-        record.platform,
-        labelForPlatform(record.platform),
-        record.remoteId,
-        record.publishedRemoteId,
-        ...(record.pendingFields ?? []).map(pendingFieldLabel),
-      ].join(" ").toLowerCase();
-      return haystack.includes(query);
+      return true;
     });
   }
 
@@ -464,7 +495,12 @@
   function applyPrepared() {
     if (!state.prepared) return;
 
-    queryInput.value = state.prepared.article;
+    state.selectedSlug = state.prepared.article;
+    const preparedArticle = pickedArticle();
+    articlePicker.value = preparedArticle
+      ? `${preparedArticle.title} · ${preparedArticle.slug}`
+      : state.prepared.article;
+    renderArticleMeta();
     statusSelect.value = "draft";
     platformSelect.value = state.prepared.platforms.length === 1 &&
       [...platformSelect.options].some((option) => option.value === state.prepared.platforms[0])
@@ -513,6 +549,16 @@
       state.platforms = publishing.platforms ?? [];
       state.resolvingPending.clear();
 
+      const previous = state.prepared?.article || state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
+      if (state.articles.some((item) => item.slug === previous)) {
+        state.selectedSlug = previous;
+        const picked = pickedArticle();
+        articlePicker.value = `${picked.title} · ${picked.slug}`;
+      } else {
+        state.selectedSlug = "";
+      }
+
+      renderArticles();
       renderPlatformOptions();
       applyPrepared();
       render();
@@ -530,7 +576,9 @@
   function init() {
     if (state.initialized) return;
 
-    queryInput = document.getElementById("publicationQuery");
+    articlePicker = document.getElementById("publicationArticlePicker");
+    articleOptions = document.getElementById("publicationArticleOptions");
+    articleMeta = document.getElementById("publicationArticleMeta");
     platformSelect = document.getElementById("publicationPlatform");
     statusSelect = document.getElementById("publicationStatus");
     summary = document.getElementById("publicationSummary");
@@ -541,7 +589,18 @@
     selectAllButton = document.getElementById("selectAllPublications");
     invertButton = document.getElementById("invertPublications");
 
-    queryInput.addEventListener("input", render);
+    articlePicker.addEventListener("focus", renderArticles);
+    articlePicker.addEventListener("input", () => {
+      state.selectedSlug = "";
+      renderArticles();
+      render();
+    });
+    articlePicker.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && articleOptions.querySelector("button")) {
+        event.preventDefault();
+        articleOptions.querySelector("button").click();
+      }
+    });
     platformSelect.addEventListener("change", render);
     statusSelect.addEventListener("change", render);
     publishButton.addEventListener("click", startPublish);

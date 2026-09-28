@@ -2,11 +2,14 @@ package publisher
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const cto51Origin = "https://blog.51cto.com"
@@ -223,8 +226,145 @@ func cto51AppendImageURLs(values url.Values, content string) {
 	}
 }
 
+const cto51MaxTags = 5
+
+func normalizeCTO51Tags(tags []string) []string {
+	result := make([]string, 0, min(len(tags), cto51MaxTags))
+	seen := map[string]struct{}{}
+	for _, tag := range tags {
+		value := strings.TrimSpace(tag)
+		if value == "" {
+			continue
+		}
+		key := strings.ToLower(value)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, value)
+		if len(result) == cto51MaxTags {
+			break
+		}
+	}
+	return result
+}
+
+type cto51Category struct {
+	ID   string          `json:"id"`
+	Name string          `json:"name"`
+	Item []cto51Category `json:"item"`
+}
+
+type cto51UserCategory struct {
+	CustomID string `json:"custom_id"`
+	Name     string `json:"name"`
+}
+
+func normalizeCTO51CategoryName(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func cto51CategoryMatches(tag, category string) bool {
+	tag = normalizeCTO51CategoryName(tag)
+	category = normalizeCTO51CategoryName(category)
+	if tag == "" || category == "" {
+		return false
+	}
+	return tag == category || strings.TrimSuffix(category, "语言") == tag
+}
+
+func selectCTO51Category(tags []string, categories []cto51Category) (string, string, string, error) {
+	for _, tag := range normalizeCTO51Tags(tags) {
+		for _, parent := range categories {
+			for _, child := range parent.Item {
+				if cto51CategoryMatches(tag, child.Name) {
+					return parent.ID, child.ID, child.Name, nil
+				}
+			}
+		}
+	}
+	return "", "", "", fmt.Errorf("none of the article tags match a 51CTO secondary category")
+}
+
+func selectCTO51UserCategory(title string, tags []string, categories []cto51UserCategory) (string, string) {
+	if len(categories) == 1 {
+		return strings.TrimSpace(categories[0].CustomID), strings.TrimSpace(categories[0].Name)
+	}
+	normalizedTitle := normalizeCTO51CategoryName(title)
+	for _, category := range categories {
+		name := normalizeCTO51CategoryName(category.Name)
+		if name != "" && strings.Contains(normalizedTitle, name) {
+			return strings.TrimSpace(category.CustomID), strings.TrimSpace(category.Name)
+		}
+		for _, tag := range tags {
+			if normalizeCTO51CategoryName(tag) == name {
+				return strings.TrimSpace(category.CustomID), strings.TrimSpace(category.Name)
+			}
+		}
+	}
+	return "", ""
+}
+
+func (c *cto51Adapter) publishingClassification(ctx context.Context, input DraftInput) (string, string, string, error) {
+	started := time.Now()
+	categoryReq, err := c.request(ctx, http.MethodGet, cto51Origin+"/category/get-child", nil)
+	if err != nil {
+		return "", "", "", err
+	}
+	categoryReq.Header.Set("accept", "application/json, text/plain, */*")
+	categoryReq.Header.Set("x-requested-with", "XMLHttpRequest")
+	var categoryResponse struct {
+		Status int             `json:"status"`
+		Msg    string          `json:"msg"`
+		Data   []cto51Category `json:"data"`
+	}
+	if err := doJSON(c.client, categoryReq, c.ID(), "category-list", &categoryResponse); err != nil {
+		return "", "", "", err
+	}
+	if categoryResponse.Status != 1 {
+		return "", "", "", platformError(ErrUpstream, c.ID(), "category-list", 0, responseMessage(categoryResponse.Msg), false)
+	}
+	parentID, categoryID, categoryName, err := selectCTO51Category(input.Tags, categoryResponse.Data)
+	if err != nil {
+		slog.WarnContext(ctx, "51CTO category resolution found no match",
+			"node", "51cto-adapter", "operation", "resolve-classification", "result", "no-category-match",
+			"tagCount", len(input.Tags), "durationMs", time.Since(started).Milliseconds())
+		return "", "", "", platformError(ErrValidation, c.ID(), "resolve-classification", 0, err.Error(), false)
+	}
+
+	userCategoryReq, err := c.request(ctx, http.MethodGet, cto51Origin+"/blogger-ajax/get-user-cate", nil)
+	if err != nil {
+		return "", "", "", err
+	}
+	userCategoryReq.Header.Set("accept", "application/json, text/plain, */*")
+	userCategoryReq.Header.Set("x-requested-with", "XMLHttpRequest")
+	var userCategoryResponse struct {
+		Status int    `json:"status"`
+		Msg    string `json:"msg"`
+		Data   struct {
+			Custom []cto51UserCategory `json:"custom"`
+		} `json:"data"`
+	}
+	if err := doJSON(c.client, userCategoryReq, c.ID(), "user-category-list", &userCategoryResponse); err != nil {
+		return "", "", "", err
+	}
+	if userCategoryResponse.Status != 1 {
+		return "", "", "", platformError(ErrUpstream, c.ID(), "user-category-list", 0, responseMessage(userCategoryResponse.Msg), false)
+	}
+	customID, customName := selectCTO51UserCategory(input.Title, input.Tags, userCategoryResponse.Data.Custom)
+	slog.InfoContext(ctx, "51CTO publishing classification resolved",
+		"node", "51cto-adapter", "operation", "resolve-classification", "result", "success",
+		"parentCategoryId", parentID, "secondaryCategoryId", categoryID, "secondaryCategory", categoryName,
+		"customCategoryId", customID, "customCategory", customName, "durationMs", time.Since(started).Milliseconds())
+	return parentID, categoryID, customID, nil
+}
+
 func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input DraftInput) (url.Values, error) {
 	if err := c.ensureAuth(ctx); err != nil {
+		return nil, err
+	}
+	parentID, categoryID, customID, err := c.publishingClassification(ctx, input)
+	if err != nil {
 		return nil, err
 	}
 	content, err := c.prepareMarkdown(ctx, input)
@@ -234,10 +374,18 @@ func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input Draf
 	values := url.Values{}
 	values.Set("title", input.Title)
 	values.Set("content", content)
-	values.Set("pid", "")
-	values.Set("cate_id", "")
-	values.Set("custom_id", "0")
-	values.Set("tag", "")
+	values.Set("pid", parentID)
+	values.Set("cate_id", categoryID)
+	values.Set("custom_id", customID)
+	tags := normalizeCTO51Tags(input.Tags)
+	values.Set("tag", strings.Join(tags, ","))
+	operation := "create-draft"
+	if refID != "" {
+		operation = "update-draft"
+	}
+	slog.InfoContext(ctx, "51CTO draft tags prepared",
+		"node", "51cto-adapter", "operation", operation, "result", "success",
+		"inputTagCount", len(input.Tags), "tagCount", len(tags), "truncated", len(tags) < len(input.Tags))
 	values.Set("abstract", truncateRunes(input.Description, 200))
 	values.Set("banner_type", "0")
 	values.Set("blog_type", "1")
@@ -321,6 +469,10 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if err := c.ensureAuth(ctx); err != nil {
 		return PublishResult{}, err
 	}
+	parentID, categoryID, customID, err := c.publishingClassification(ctx, input)
+	if err != nil {
+		return PublishResult{}, err
+	}
 	content, err := c.prepareMarkdown(ctx, input)
 	if err != nil {
 		return PublishResult{}, err
@@ -328,18 +480,34 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values := url.Values{}
 	values.Set("title", input.Title)
 	values.Set("content", content)
-	values.Set("pid", "")
-	values.Set("cate_id", "")
-	values.Set("tag", truncateRunes(input.Title, 20))
+	values.Set("pid", parentID)
+	values.Set("cate_id", categoryID)
+	values.Set("custom_id", customID)
+	tags := normalizeCTO51Tags(input.Tags)
+	if len(tags) == 0 {
+		return PublishResult{}, platformError(ErrValidation, c.ID(), "publish-draft", 0, "51CTO requires at least one article tag", false)
+	}
+	values.Set("tag", strings.Join(tags, ","))
+	slog.InfoContext(ctx, "51CTO publish tags prepared",
+		"node", "51cto-adapter", "operation", "publish-draft", "result", "success",
+		"inputTagCount", len(input.Tags), "tagCount", len(tags), "truncated", len(tags) < len(input.Tags))
 	values.Set("abstract", truncateRunes(input.Description, 200))
 	values.Set("banner_type", "0")
 	values.Set("blog_type", "1")
 	values.Set("copy_code", "1")
 	values.Set("is_hide", "0")
+	values.Set("top_time", "0")
+	values.Set("is_comment", "0")
 	values.Set("is_old", "0")
 	values.Set("blog_id", "")
 	values.Set("did", ref.ID)
 	values.Set("work_id", "")
+	values.Set("class_id", "")
+	values.Set("subjectId", "")
+	values.Set("import_type", "")
+	values.Set("invite_code", "")
+	values.Set("raffle", "")
+	values.Set("orig", "")
 	values.Set("_csrf", c.csrf)
 	values.Set("check", "1")
 	cto51AppendImageURLs(values, content)

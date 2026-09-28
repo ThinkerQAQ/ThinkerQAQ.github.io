@@ -43,7 +43,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "segmentfault", Label: "思否", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true, Tags: true},
 	},
 	{
 		ID: "zhihu", Label: "知乎", DefaultLanguage: "zh-CN",
@@ -51,7 +51,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "51cto", Label: "51CTO", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true, BodyImageRehost: true, Tags: true},
 	},
 	{
 		ID: "oschina", Label: "开源中国", DefaultLanguage: "zh-CN",
