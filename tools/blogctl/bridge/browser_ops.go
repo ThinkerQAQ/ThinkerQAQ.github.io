@@ -51,6 +51,9 @@ func (s *Server) requestBrowserOperation(ctx context.Context, platform, action s
 	if platform == "" || action == "" {
 		return nil, errors.New("browser operation platform and action are required")
 	}
+	if platform != "medium" {
+		return nil, fmt.Errorf("%s browser operations are not allowed; only Medium may use browser transport", platform)
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
