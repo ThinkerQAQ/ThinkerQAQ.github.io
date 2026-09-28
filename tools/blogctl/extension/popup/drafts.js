@@ -374,6 +374,7 @@
       const selected = selectedArticle();
       articlePicker.value = selected ? `${selected.title} · ${selected.slug}` : slug;
       renderArticles();
+      setArticleOptionsOpen(false);
       renderPlatforms();
     }
   }
