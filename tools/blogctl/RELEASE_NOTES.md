@@ -1,3 +1,13 @@
+# BlogCTL v0.1.97
+
+BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- 修复思否 / SegmentFault 草稿创建与更新被错误的 `/gateway/tags` 预解析阻塞：草稿接口不再依赖未经抓包验证的标签列表请求。
+- 思否发布阶段改为在真实浏览器编辑器中输入标签并按 Enter 选中；同时收紧候选点击逻辑，并在一个标签都未被编辑器接受时明确失败，不再静默进入发布确认。
+- 保留草稿 API 与最终发布职责分离：草稿负责标题、正文和图片，标签由 SegmentFault 当前编辑器发布流程确认。
+
 # BlogCTL v0.1.96
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
