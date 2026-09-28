@@ -164,13 +164,13 @@ type Server struct {
 	searchRunner searchNodeRunner
 	searchMu     sync.Mutex
 
-	mu                  sync.Mutex
-	distributionMu      sync.Mutex
-	sessions            map[string]platformSession
-	jobs                map[string]*syncJob
-	jobOrder            []string
-	taskJobs     map[string]*durableTaskJob
-	taskJobOrder []string
+	mu             sync.Mutex
+	distributionMu sync.Mutex
+	sessions       map[string]platformSession
+	jobs           map[string]*syncJob
+	jobOrder       []string
+	taskJobs       map[string]*durableTaskJob
+	taskJobOrder   []string
 }
 
 func New(token string) (*Server, error) {
@@ -520,7 +520,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 			return
 		}
 	}
-
 
 	if path == "v1/jobs" {
 		switch request.Method {
