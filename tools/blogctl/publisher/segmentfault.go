@@ -236,6 +236,7 @@ func (s *segmentFaultAdapter) resolveTagIDs(ctx context.Context, token string, n
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Del("origin")
 	if strings.TrimSpace(referer) != "" {
 		req.Header.Set("referer", referer)
 	}
