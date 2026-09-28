@@ -213,7 +213,7 @@
 
   function manualBindingStates(platformID) {
     if (platformID === "cnblogs" || platformID === "csdn") return [];
-    if (platformID === "51cto") return ["draft"];
+    if (platformID === "51cto") return ["draft", "published"];
     return ["draft", "published"];
   }
 
@@ -224,7 +224,7 @@
       csdn: "CSDN 文章 ID、公开链接或编辑链接",
       segmentfault: "思否文章／草稿 ID 或链接",
       zhihu: "知乎文章 ID 或链接",
-      "51cto": "51CTO 草稿 ID 或链接",
+      "51cto": "51CTO 文章／草稿 ID 或链接",
       oschina: "开源中国文章／草稿 ID 或链接",
       devto: "DEV.to 文章 ID（或带 ID 的后台链接）",
       medium: "Medium 文章 ID 或链接",
