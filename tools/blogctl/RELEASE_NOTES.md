@@ -1,3 +1,13 @@
+# BlogCTL v0.1.96
+
+BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- 检测 / 更新 / 发布三个文章选择器在选中文章后自动收起候选列表；再次聚焦或输入搜索词时才重新展开，并支持 Esc 收起。
+- 日志查看器新增 DEBUG / INFO / WARN / ERROR、时间、字段名和 URL 高亮；自动刷新不会再打断正在进行的文本选择，并新增“复制”按钮，可复制选中日志或当前可见日志。
+- 分发编译器会在平台上传前把 Mermaid / PlantUML 生成的 PNG 限制在 4096×4096 以内；超限图片按比例缩小、不裁剪，并会处理已有的 .distribution 缓存，避免 DEV.to HTTP 422。
+
 # BlogCTL v0.1.95
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
