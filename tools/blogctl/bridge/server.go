@@ -169,11 +169,8 @@ type Server struct {
 	sessions            map[string]platformSession
 	jobs                map[string]*syncJob
 	jobOrder            []string
-	taskJobs            map[string]*durableTaskJob
-	taskJobOrder        []string
-	browserOps          map[string]*browserOperation
-	browserOpOrder      []string
-	browserOpsAvailable bool
+	taskJobs     map[string]*durableTaskJob
+	taskJobOrder []string
 }
 
 func New(token string) (*Server, error) {
@@ -200,7 +197,6 @@ func New(token string) (*Server, error) {
 		jobOrder:     syncJobOrder,
 		taskJobs:     taskJobs,
 		taskJobOrder: taskJobOrder,
-		browserOps:   make(map[string]*browserOperation),
 	}
 	server.mu.Lock()
 	_ = server.persistDurableTasksLocked()
@@ -525,18 +521,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 	}
 
-	if path == "v1/browser-ops/enable" && request.Method == http.MethodPost {
-		s.handleBrowserOperationsEnable(response, request)
-		return
-	}
-	if path == "v1/browser-ops" && request.Method == http.MethodGet {
-		s.handleBrowserOperationGet(response, request)
-		return
-	}
-	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "browser-ops" && request.Method == http.MethodPost {
-		s.handleBrowserOperationComplete(response, request, parts[2])
-		return
-	}
 
 	if path == "v1/jobs" {
 		switch request.Method {
