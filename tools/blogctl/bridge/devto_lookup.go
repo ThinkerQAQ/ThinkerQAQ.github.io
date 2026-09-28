@@ -58,6 +58,11 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 		writeAPIError(response, http.StatusBadRequest, "api_key_required", "DEV.to API Key is not configured", nil)
 		return
 	}
+	binding, _, bindingErr := publisher.LoadPublicationBinding(root, slug, "devto")
+	if bindingErr != nil {
+		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", bindingErr.Error(), nil)
+		return
+	}
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
 	started := time.Now()
@@ -87,7 +92,11 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 			return
 		}
 		for _, candidate := range batch {
-			if devtoArticleMatches(candidate, slug, article.Title) {
+			candidate.Published = devtoCandidatePublished(candidate)
+			candidateID := fmt.Sprint(candidate.ID)
+			bound := (candidate.Published && binding.PublishedRemoteID == candidateID) ||
+				(!candidate.Published && binding.RemoteDraftID == candidateID)
+			if bound || devtoArticleMatches(candidate, slug, article.Title) {
 				candidates = append(candidates, candidate)
 			}
 		}
@@ -97,11 +106,6 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 		if page == 5 {
 			truncated = true
 		}
-	}
-	binding, _, bindingErr := publisher.LoadPublicationBinding(root, slug, "devto")
-	if bindingErr != nil {
-		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", bindingErr.Error(), nil)
-		return
 	}
 	for index := range candidates {
 		candidates[index].Published = devtoCandidatePublished(candidates[index])
