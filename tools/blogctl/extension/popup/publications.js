@@ -504,6 +504,7 @@
     articlePicker.value = preparedArticle
       ? `${preparedArticle.title} · ${preparedArticle.slug}`
       : state.prepared.article;
+    setArticleOptionsOpen(false);
     renderArticleMeta();
     statusSelect.value = "draft";
     platformSelect.value = state.prepared.platforms.length === 1 &&
