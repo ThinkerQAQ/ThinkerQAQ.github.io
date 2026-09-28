@@ -24,8 +24,6 @@ func TestSegmentFaultCreateDraftUsesPostAndEmptyObjectID(t *testing.T) {
 		switch request.URL.Path {
 		case "/write":
 			return jsonResponse(request, 200, `<script>serverData":{"Token":"sf-token"}</script>`, nil), nil
-		case "/gateway/tags":
-			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft":
 			if request.Method != http.MethodPost {
 				t.Fatalf("method = %s, want POST", request.Method)
@@ -62,6 +60,9 @@ func TestSegmentFaultCreateDraftUsesPostAndEmptyObjectID(t *testing.T) {
 	if _, exists := payload["id"]; exists {
 		t.Fatalf("create payload unexpectedly contains id: %#v", payload)
 	}
+	if tags, ok := payload["tags"].([]any); !ok || len(tags) != 0 {
+		t.Fatalf("create payload tags = %#v, want empty array", payload["tags"])
+	}
 }
 
 func TestSegmentFaultUpdateDraftUsesPutResourceEndpoint(t *testing.T) {
@@ -71,8 +72,6 @@ func TestSegmentFaultUpdateDraftUsesPutResourceEndpoint(t *testing.T) {
 		case "/write":
 			return jsonResponse(request, 200, `window.g_initialProps = {"global":{"sessionInfo":{"key":"legacy-token"}}};
 	</script>`, nil), nil
-		case "/gateway/tags":
-			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft/draft-2":
 			if request.Method != http.MethodPut {
 				t.Fatalf("method = %s, want PUT", request.Method)
@@ -121,8 +120,6 @@ func TestSegmentFaultUpdateDraftMapsMissingRemoteDraft(t *testing.T) {
 		switch request.URL.Path {
 		case "/write":
 			return jsonResponse(request, 200, `serverData":{"Token":"sf-token"}`, nil), nil
-		case "/gateway/tags":
-			return jsonResponse(request, 200, `{"rows":{"backend":[{"id":101,"name":"Go"}]}}`, nil), nil
 		case "/gateway/draft/missing":
 			return jsonResponse(request, http.StatusNotFound, `{"message":"draft not found"}`, nil), nil
 		default:
