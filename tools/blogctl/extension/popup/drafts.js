@@ -72,6 +72,11 @@
     articleMeta.textContent = article ? `${article.title} · ${article.slug}` : "";
   }
 
+  function setArticleOptionsOpen(open) {
+    articleOptions.hidden = !open;
+    articlePicker.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
   function renderArticles() {
     const query = articlePicker.value.trim().toLowerCase();
     const filtered = state.articles.filter((article) => !query || `${article.title} · ${article.slug}`.toLowerCase().includes(query));
@@ -89,8 +94,7 @@
     }
 
     if (!filtered.length) articleOptions.textContent = "没有匹配文章";
-    articleOptions.hidden = false;
-    articlePicker.setAttribute("aria-expanded", "true");
+    setArticleOptionsOpen(true);
     renderArticleMeta();
     updateAction();
   }
@@ -100,7 +104,7 @@
     state.selectedSlug = article.slug;
     state.preparedSlug = "";
     articlePicker.value = `${article.title} · ${article.slug}`;
-    articlePicker.setAttribute("aria-expanded", "true");
+    setArticleOptionsOpen(false);
     localStorage.setItem("blogctl.selectedArticle", article.slug);
     renderArticleMeta();
     renderPlatforms();
@@ -404,6 +408,7 @@
       }
 
       renderArticles();
+      if (state.selectedSlug) setArticleOptionsOpen(false);
       renderPlatforms();
       if (state.currentJob?.id && ["queued", "running"].includes(state.currentJob.state)) {
         pollJob(state.currentJob.id);
@@ -438,6 +443,10 @@
       renderPlatforms();
     });
     articlePicker.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setArticleOptionsOpen(false);
+        return;
+      }
       if (event.key === "Enter" && articleOptions.querySelector("button")) {
         event.preventDefault();
         articleOptions.querySelector("button").click();
