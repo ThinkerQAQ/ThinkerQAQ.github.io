@@ -1702,8 +1702,8 @@ async function handleMessage(message) {
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `已核验掘金本地草稿 ID，并通过搜索匹配到 ${candidates.length} 条候选。`
-            : "已检索掘金草稿与已发布文章，本地未匹配到同名文章。",
+            ? `从掘金已发布文章列表匹配到 ${candidates.length} 条候选，并核验本地草稿 ID。`
+            : "已读取掘金已发布文章列表并核验本地草稿 ID，本地未匹配到同名文章。",
           items: candidates.map((post) => ({
             title: post.title,
             id: post.id,
