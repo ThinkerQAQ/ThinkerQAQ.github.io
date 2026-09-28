@@ -45,10 +45,10 @@ type juejinPublishedItem struct {
 
 type juejinPublishedResult struct {
 	Data    []juejinPublishedItem `json:"data"`
-	Cursor  string             `json:"cursor"`
-	HasMore bool               `json:"has_more"`
-	ErrNo   int                `json:"err_no"`
-	ErrMsg  string             `json:"err_msg"`
+	Cursor  string                `json:"cursor"`
+	HasMore bool                  `json:"has_more"`
+	ErrNo   int                   `json:"err_no"`
+	ErrMsg  string                `json:"err_msg"`
 }
 
 func (j *juejinAdapter) listPublished(ctx context.Context, userID string) ([]JuejinPost, error) {
