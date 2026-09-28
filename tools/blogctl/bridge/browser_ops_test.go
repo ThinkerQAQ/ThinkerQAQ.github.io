@@ -28,6 +28,18 @@ func TestBrowserOperationFailsClosedUntilExtensionEnablesIt(t *testing.T) {
 	}
 }
 
+func TestBrowserOperationRejectsNonMediumPlatforms(t *testing.T) {
+	server, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.browserOpsAvailable = true
+	_, err = server.requestBrowserOperation(context.Background(), "51cto", "http.fetch", map[string]any{"url": "https://blog.51cto.com/"})
+	if err == nil || !strings.Contains(err.Error(), "only Medium") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestBrowserHTTPTransportProxiesMediumRequest(t *testing.T) {
 	server, err := New("token")
 	if err != nil {
