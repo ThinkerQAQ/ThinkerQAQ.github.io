@@ -60,9 +60,12 @@ func juejinBindingState(binding publisher.PublicationBinding, post publisher.Jue
 	if post.Published && binding.PublishedRemoteID == post.ID {
 		return true, "published"
 	}
-	// Juejin keeps the same article id when a locally recorded draft is
-	// published. Surface that transition so the UI can update the binding.
-	if post.Published && binding.RemoteDraftID == post.ID {
+	// Juejin exposes different draft_id and article_id values after publish.
+	// Match the stored draft binding against the published record's draft_id so
+	// the UI can surface the draft -> published transition. Keep article_id as a
+	// compatibility fallback for bindings created by older BlogCTL versions.
+	if post.Published && binding.RemoteDraftID != "" &&
+		(binding.RemoteDraftID == post.DraftID || binding.RemoteDraftID == post.ID) {
 		return true, "draft"
 	}
 	if !post.Published && binding.RemoteDraftID == post.ID {
@@ -82,7 +85,7 @@ func (s *Server) juejinCandidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	account, published, err := publisher.JuejinListPosts(ctx, client, session, article.Title)
+	account, published, err := publisher.JuejinListPosts(ctx, client, session)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -91,9 +94,10 @@ func (s *Server) juejinCandidates(ctx context.Context, slug string) (
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
 
-	// Juejin has no stable account article list, so published matches come from
-	// keyword search; the locally recorded draft is additionally verified by ID
-	// (which also reveals whether it has since been published).
+	// Read the signed-in account's published article list, then additionally
+	// verify the locally recorded draft by ID. The published list carries both
+	// article_id and draft_id, so a previously stored draft can be reconciled
+	// after publication.
 	posts := make([]publisher.JuejinPost, 0, len(published)+1)
 	posts = append(posts, published...)
 	if localDraftID := juejinDraftID(binding); localDraftID != "" {
@@ -105,7 +109,8 @@ func (s *Server) juejinCandidates(ctx context.Context, slug string) (
 	matches := make([]publisher.JuejinPost, 0, len(posts))
 	seen := map[string]struct{}{}
 	for _, post := range posts {
-		if !publisher.JuejinTitleMatches(article.Title, post.Title) {
+		bound, _ := juejinBindingState(binding, post)
+		if !bound && !publisher.JuejinTitleMatches(article.Title, post.Title) {
 			continue
 		}
 		if _, exists := seen[post.ID]; exists {
@@ -211,7 +216,7 @@ func (s *Server) handleJuejinBindingPut(response http.ResponseWriter, request *h
 	if body.State == "published" {
 		binding.PublishedRemoteID = selected.ID
 		binding.PublishedURL = selected.URL
-		if binding.RemoteDraftID == selected.ID {
+		if binding.RemoteDraftID == selected.DraftID || binding.RemoteDraftID == selected.ID {
 			binding.RemoteDraftID = ""
 			binding.DraftURL = ""
 		}

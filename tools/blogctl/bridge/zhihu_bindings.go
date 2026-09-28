@@ -64,15 +64,16 @@ func (s *Server) zhihuCandidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	matches := make([]publisher.ZhihuPost, 0, len(posts))
-	for _, post := range posts {
-		if publisher.ZhihuTitleMatches(article.Title, post.Title) {
-			matches = append(matches, post)
-		}
-	}
 	binding, _, err := publisher.LoadPublicationBinding(root, slug, "zhihu")
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
+	}
+	matches := make([]publisher.ZhihuPost, 0, len(posts))
+	for _, post := range posts {
+		bound, _ := zhihuBindingState(binding, post)
+		if bound || publisher.ZhihuTitleMatches(article.Title, post.Title) {
+			matches = append(matches, post)
+		}
 	}
 	return article, root, account, matches, binding, nil
 }

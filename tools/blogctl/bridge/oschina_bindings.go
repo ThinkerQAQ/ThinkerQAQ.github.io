@@ -64,15 +64,16 @@ func (s *Server) osChinaCandidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	matches := make([]publisher.OSChinaPost, 0, len(posts))
-	for _, post := range posts {
-		if publisher.OSChinaTitleMatches(article.Title, post.Title) {
-			matches = append(matches, post)
-		}
-	}
 	binding, _, err := publisher.LoadPublicationBinding(root, slug, "oschina")
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
+	}
+	matches := make([]publisher.OSChinaPost, 0, len(posts))
+	for _, post := range posts {
+		bound, _ := osChinaBindingState(binding, post)
+		if bound || publisher.OSChinaTitleMatches(article.Title, post.Title) {
+			matches = append(matches, post)
+		}
 	}
 	return article, root, account, matches, binding, nil
 }

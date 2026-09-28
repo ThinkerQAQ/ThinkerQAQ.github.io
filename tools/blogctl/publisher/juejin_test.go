@@ -304,6 +304,68 @@ func TestJuejinPublishRepairsMissingCategoryAndTags(t *testing.T) {
 	}
 }
 
+func TestJuejinListPostsUsesPublishedListAndKeepsDraftID(t *testing.T) {
+	var queryBody map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/user_api/v1/user/get":
+			return jsonResponse(request, 200, `{"data":{"user_id":"4333630801325609","user_name":"ThinkerQAQ_"}}`, nil), nil
+		case "/user_api/v1/sys/token":
+			return jsonResponse(request, 200, "", map[string]string{
+				"x-ware-csrf-token": "0,csrf-list,1,success,x",
+			}), nil
+		case "/content_api/v1/article/query_list":
+			if request.Method != http.MethodPost {
+				t.Fatalf("query list method = %s", request.Method)
+			}
+			if request.Header.Get("x-secsdk-csrf-token") != "csrf-list" {
+				t.Fatalf("query list csrf = %q", request.Header.Get("x-secsdk-csrf-token"))
+			}
+			if err := json.NewDecoder(request.Body).Decode(&queryBody); err != nil {
+				t.Fatal(err)
+			}
+			return jsonResponse(request, 200, `{
+				"err_no":0,
+				"err_msg":"success",
+				"data":[{
+					"article_id":"7689415591787773978",
+					"article_info":{
+						"article_id":"7689415591787773978",
+						"draft_id":"7688942552989876259",
+						"title":"并发编程（五）：Atomic——语言层的原子性、可见性与有序性"
+					}
+				}],
+				"cursor":"1",
+				"has_more":false
+			}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	account, posts, err := JuejinListPosts(context.Background(), client, juejinSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if account != "4333630801325609" {
+		t.Fatalf("account = %q", account)
+	}
+	if queryBody["user_id"] != "4333630801325609" || queryBody["sort_type"] != float64(2) || queryBody["cursor"] != "0" {
+		t.Fatalf("query body = %#v", queryBody)
+	}
+	if len(posts) != 1 {
+		t.Fatalf("posts = %#v", posts)
+	}
+	post := posts[0]
+	if post.ID != "7689415591787773978" || post.DraftID != "7688942552989876259" || !post.Published {
+		t.Fatalf("post = %#v", post)
+	}
+	if post.URL != "https://juejin.cn/post/7689415591787773978" {
+		t.Fatalf("post URL = %q", post.URL)
+	}
+}
+
 func TestJuejinImageUploadRewritesMarkdown(t *testing.T) {
 	calls := []string{}
 	var createBody map[string]any

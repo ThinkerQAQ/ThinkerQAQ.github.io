@@ -6,6 +6,7 @@ const htmlPath = new URL("../tools/blogctl/extension/popup/popup.html", import.m
 const syncPath = new URL("../tools/blogctl/extension/popup/sync.js", import.meta.url);
 const draftsPath = new URL("../tools/blogctl/extension/popup/drafts.js", import.meta.url);
 const publicationsPath = new URL("../tools/blogctl/extension/popup/publications.js", import.meta.url);
+const backgroundPath = new URL("../tools/blogctl/extension/background.js", import.meta.url);
 
 test("detection and update keep searchable article inventories collapsible", async () => {
   const [html, sync, drafts] = await Promise.all([
@@ -41,4 +42,17 @@ test("each platform exposes an isolated detection or update action", async () =>
   assert.match(sync, /refreshArticleMatches\(\[platform\.id\]\)/u);
   assert.equal(drafts.includes(': "更新此平台";'), true);
   assert.match(drafts, /startSavePlatforms\(\[platform\.id\]\)/u);
+});
+
+test("publishing platforms never drive hidden browser tabs or platform DOM", async () => {
+  const background = await readFile(backgroundPath, "utf8");
+
+  assert.doesNotMatch(background, /cto51PublishInBrowser|waitForPublishedURL/u);
+  assert.doesNotMatch(background, /blog\.51cto\.com\/blogger\/draft/u);
+  assert.doesNotMatch(background, /document\.querySelector/u);
+  assert.doesNotMatch(background, /\/v1\/browser-ops/u);
+
+  const executeScriptCalls = background.match(/chrome\.scripting\.executeScript/g) || [];
+  assert.equal(executeScriptCalls.length, 1);
+  assert.match(background, /files: \["google-indexing-content\.js"\]/u);
 });
