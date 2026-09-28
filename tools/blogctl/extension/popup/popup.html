@@ -36,8 +36,8 @@
       <section class="status-card">
         <div class="section-title">绑定</div>
         <p class="card-hint">默认列出全部本地文章；按标题或 slug 搜索并选择后，再检测对应平台。</p>
-        <label class="field"><span>搜索</span><input id="articlePicker" type="search" role="combobox" aria-expanded="true" aria-controls="articleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="articleOptions" class="article-options" role="listbox"></div>
+        <label class="field"><span>搜索</span><input id="articlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="articleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
+        <div id="articleOptions" class="article-options" role="listbox" hidden></div>
         <p id="articleMeta" class="card-hint"></p>
       </section>
 
@@ -69,8 +69,8 @@
       <section class="status-card">
         <div class="section-title">更新</div>
         <p class="card-hint">默认列出全部本地文章；按标题或 slug 搜索并选择后，可批量更新或单独更新某个平台。</p>
-        <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="true" aria-controls="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="draftArticleOptions" class="article-options" role="listbox"></div>
+        <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
+        <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
         <p id="draftArticleMeta" class="card-hint"></p>
       </section>
 
@@ -97,8 +97,8 @@
       <section class="status-card">
         <div class="section-title">发布</div>
         <p class="card-hint">默认列出全部本地文章；选中某个文章后，只显示该文章的发布记录。</p>
-        <label class="field"><span>文章</span><input id="publicationArticlePicker" type="search" role="combobox" aria-expanded="true" aria-controls="publicationArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="publicationArticleOptions" class="article-options" role="listbox"></div>
+        <label class="field"><span>文章</span><input id="publicationArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="publicationArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
+        <div id="publicationArticleOptions" class="article-options" role="listbox" hidden></div>
         <p id="publicationArticleMeta" class="card-hint"></p>
         <div class="publication-filters">
           <label class="field"><span>平台</span><select id="publicationPlatform"><option value="">全部平台</option></select></label>
