@@ -34,23 +34,7 @@ func JuejinTitleMatches(local, remote string) bool {
 	return CSDNTitleMatches(local, stripJuejinMarkup(remote))
 }
 
-// juejinSearchKeyword derives a short punctuation-free search term from a
-// title. Juejin's user-content search tokenizes the field; a full title with
-// brackets/dashes is a poor query, so the leading segment works better.
-func juejinSearchKeyword(title string) string {
-	cleaned := strings.Join(strings.Fields(stripJuejinMarkup(title)), " ")
-	for _, separator := range []string{"（", "(", "：", ":", "——", "—", "-", "【", "[", "｜", "|"} {
-		if index := strings.Index(cleaned, separator); index > 0 {
-			cleaned = strings.TrimSpace(cleaned[:index])
-		}
-	}
-	if len([]rune(cleaned)) < 2 {
-		cleaned = strings.Join(strings.Fields(strings.TrimSpace(title)), " ")
-	}
-	return cleaned
-}
-
-type juejinSearchItem struct {
+type juejinPublishedItem struct {
 	ArticleID   juejinID `json:"article_id"`
 	ArticleInfo struct {
 		ArticleID juejinID `json:"article_id"`
@@ -59,39 +43,29 @@ type juejinSearchItem struct {
 	} `json:"article_info"`
 }
 
-type juejinSearchResult struct {
-	Data    []juejinSearchItem `json:"data"`
+type juejinPublishedResult struct {
+	Data    []juejinPublishedItem `json:"data"`
 	Cursor  string             `json:"cursor"`
 	HasMore bool               `json:"has_more"`
 	ErrNo   int                `json:"err_no"`
 	ErrMsg  string             `json:"err_msg"`
 }
 
-func (j *juejinAdapter) searchPublished(ctx context.Context, keyword string) ([]JuejinPost, error) {
-	auth, err := j.CheckAuth(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if !auth.Authenticated || strings.TrimSpace(auth.UserID) == "" {
-		return nil, errors.New("Juejin browser session is not authenticated")
-	}
-
+func (j *juejinAdapter) listPublished(ctx context.Context, userID string) ([]JuejinPost, error) {
 	result := []JuejinPost{}
 	seen := map[string]struct{}{}
 	cursor := "0"
-	for page := 0; page < 10; page++ {
+	for page := 0; page < 100; page++ {
 		encoded, _ := json.Marshal(map[string]any{
-			"user_id":     auth.UserID,
-			"search_type": 0,
-			"cursor":      cursor,
-			"key_word":    keyword,
-			"limit":       10,
+			"user_id":   userID,
+			"sort_type": 2,
+			"cursor":    cursor,
 		})
 		csrf, err := j.csrf(ctx)
 		if err != nil {
 			return nil, err
 		}
-		rawURL := j.apiBase + "/search_api/v1/user/content?aid=2608&uuid=" + url.QueryEscape(j.uuid) + "&spider=0"
+		rawURL := j.apiBase + "/content_api/v1/article/query_list?aid=2608&uuid=" + url.QueryEscape(j.uuid) + "&spider=0"
 		req, err := j.request(ctx, http.MethodPost, rawURL, bytes.NewReader(encoded))
 		if err != nil {
 			return nil, err
@@ -102,20 +76,20 @@ func (j *juejinAdapter) searchPublished(ctx context.Context, keyword string) ([]
 		if err != nil {
 			return nil, err
 		}
-		raw, readErr := readBounded(response, 2<<20)
+		raw, readErr := readBounded(response, 4<<20)
 		response.Body.Close()
 		if readErr != nil {
 			return nil, readErr
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return nil, classifyHTTP("juejin", "search-published", response.StatusCode, string(raw))
+			return nil, classifyHTTP("juejin", "list-published", response.StatusCode, string(raw))
 		}
-		var decoded juejinSearchResult
+		var decoded juejinPublishedResult
 		if err := json.Unmarshal(raw, &decoded); err != nil {
-			return nil, platformError(ErrUpstream, "juejin", "search-published", response.StatusCode, "invalid JSON response", false)
+			return nil, platformError(ErrUpstream, "juejin", "list-published", response.StatusCode, "invalid JSON response", false)
 		}
 		if decoded.ErrNo != 0 {
-			return nil, platformError(ErrUpstream, "juejin", "search-published", decoded.ErrNo, decoded.ErrMsg, false)
+			return nil, platformError(ErrUpstream, "juejin", "list-published", decoded.ErrNo, decoded.ErrMsg, false)
 		}
 		for _, item := range decoded.Data {
 			articleID := strings.TrimSpace(string(item.ArticleID))
@@ -136,10 +110,10 @@ func (j *juejinAdapter) searchPublished(ctx context.Context, keyword string) ([]
 				URL: juejinOrigin + "/post/" + url.PathEscape(articleID), Published: true,
 			})
 		}
-		cursor = decoded.Cursor
-		if !decoded.HasMore {
+		if !decoded.HasMore || strings.TrimSpace(decoded.Cursor) == "" || decoded.Cursor == cursor {
 			break
 		}
+		cursor = decoded.Cursor
 	}
 	return result, nil
 }
@@ -174,10 +148,10 @@ func (j *juejinAdapter) lookupDraft(ctx context.Context, draftID string) (Juejin
 	}, nil
 }
 
-// JuejinListPosts searches the signed-in user's published articles using a
-// keyword derived from the local title. Candidates are matched locally by the
-// bridge afterwards; Juejin exposes no stable full-account article list.
-func JuejinListPosts(ctx context.Context, base *http.Client, session Session, title string) (string, []JuejinPost, error) {
+// JuejinListPosts reads the signed-in user's published article list. The
+// response includes both article_id and draft_id, which lets the bridge
+// reconcile a locally recorded draft after it has been published.
+func JuejinListPosts(ctx context.Context, base *http.Client, session Session) (string, []JuejinPost, error) {
 	adapterValue, err := NewJuejinAdapter(base, session)
 	if err != nil {
 		return "", nil, err
@@ -190,7 +164,7 @@ func JuejinListPosts(ctx context.Context, base *http.Client, session Session, ti
 	if !auth.Authenticated || strings.TrimSpace(auth.UserID) == "" {
 		return "", nil, errors.New("Juejin browser session is not authenticated")
 	}
-	posts, err := adapter.searchPublished(ctx, juejinSearchKeyword(title))
+	posts, err := adapter.listPublished(ctx, auth.UserID)
 	if err != nil {
 		return "", nil, err
 	}
