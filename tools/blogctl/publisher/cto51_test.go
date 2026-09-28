@@ -39,3 +39,40 @@ func TestSelectCTO51CategoryUsesArticleTagOrder(t *testing.T) {
 		t.Fatalf("classification = %q/%q/%q", parentID, categoryID, name)
 	}
 }
+
+func TestCTO51PostsFromListUsesPublicArticleURL(t *testing.T) {
+	posts := cto51PostsFromList([]cto51ListItem{{
+		BlogID:  "14962768",
+		Title:   "并发编程（四）：互斥锁的实现——从 Runtime 到 CPU",
+		BlogURL: "https://blog.51cto.com/u_17784995/14962768",
+		EditURL: "https://blog.51cto.com/blogger/publish/14962768",
+	}}, true, "u_17784995")
+
+	if len(posts) != 1 {
+		t.Fatalf("len(posts) = %d, want 1", len(posts))
+	}
+	if !posts[0].Published {
+		t.Fatal("published article was marked as draft")
+	}
+	if posts[0].URL != "https://blog.51cto.com/u_17784995/14962768" {
+		t.Fatalf("url = %q", posts[0].URL)
+	}
+}
+
+func TestCTO51PostsFromListKeepsDraftEditorURL(t *testing.T) {
+	posts := cto51PostsFromList([]cto51ListItem{{
+		BlogID:  "123",
+		Title:   "draft title",
+		EditURL: "https://blog.51cto.com/blogger/draft/123",
+	}}, false, "u_17784995")
+
+	if len(posts) != 1 {
+		t.Fatalf("len(posts) = %d, want 1", len(posts))
+	}
+	if posts[0].Published {
+		t.Fatal("draft was marked as published")
+	}
+	if posts[0].URL != "https://blog.51cto.com/blogger/draft/123" {
+		t.Fatalf("url = %q", posts[0].URL)
+	}
+}
