@@ -1,3 +1,14 @@
+# BlogCTL v0.1.97
+
+BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- 修复思否 / SegmentFault 标签解析：按实际前端协议为 `/gateway/tags` 生成 `keyv=24.11.06` 和 RSA PKCS#1 v1.5 加密的 `ivd` 参数，不再发送缺少签名参数的非法请求。
+- 思否草稿创建 / 更新继续使用原生 HTTP API，并按平台标签表把文章 tags 转换成真实 tag ID；更新 payload 与当前编辑器抓包保持一致。
+- 思否发布改为原生 `POST /gateway/article`：从编辑器页面的 HTTP 响应读取当前 token、远端草稿和 blog 上下文，提交 `draft_id / blog_id / tags / title / text`，并从响应 `data.id` 写回公开文章 ID / URL。
+- 移除思否隐藏 Tab、DOM 选标签、点击发布按钮等浏览器 UI 自动化；浏览器仍只负责向 BlogCTL 提供当前登录会话。
+
 # BlogCTL v0.1.96
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
