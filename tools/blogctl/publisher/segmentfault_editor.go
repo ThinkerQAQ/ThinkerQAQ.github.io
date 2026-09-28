@@ -86,6 +86,7 @@ func (s *segmentFaultAdapter) loadEditorContext(ctx context.Context, draftID str
 	if err != nil {
 		return segmentFaultEditorContext{}, err
 	}
+	req.Header.Del("origin")
 	response, err := s.client.Do(req)
 	if err != nil {
 		return segmentFaultEditorContext{}, platformError(ErrUpstream, s.ID(), "editor-context", 0, err.Error(), true)
