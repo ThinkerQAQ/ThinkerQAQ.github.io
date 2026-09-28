@@ -128,8 +128,11 @@ func TestSegmentFaultUpdateDraftUsesPutResourceEndpoint(t *testing.T) {
 	if payload["id"] != "draft-2" {
 		t.Fatalf("update payload = %#v", payload)
 	}
-	if _, exists := payload["object_id"]; exists {
-		t.Fatalf("update payload unexpectedly contains object_id: %#v", payload)
+	if payload["object_id"] != "" {
+		t.Fatalf("update payload object_id = %#v, want empty string", payload["object_id"])
+	}
+	if payload["language"] != "" || payload["cover"] != "" {
+		t.Fatalf("update payload optional fields = language:%#v cover:%#v", payload["language"], payload["cover"])
 	}
 }
 
