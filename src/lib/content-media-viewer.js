@@ -81,7 +81,7 @@ function updateToolbar(state) {
     state.resetButton.textContent = formatMediaScale(state.scale);
     state.resetButton.setAttribute(
       "aria-label",
-      `${state.labels.reset}（${formatMediaScale(state.scale)}）`,
+      `${state.labels.reset} (${formatMediaScale(state.scale)})`,
     );
   }
   if (state.zoomOutButton) {
@@ -114,7 +114,7 @@ function setMediaScale(state, nextScale, windowRef) {
   }
 
   state.scale = scale;
-  state.host.dataset.mediaScale = String(scale);
+  state.container.dataset.mediaScale = String(scale);
   updateToolbar(state);
   windowRef.requestAnimationFrame(() => updatePannable(state));
 }
@@ -326,6 +326,14 @@ function cloneSurface(state, sequence) {
   return clone;
 }
 
+function contentRootWithin(host, surface) {
+  let node = surface;
+  while (node.parentElement && node.parentElement !== host) {
+    node = node.parentElement;
+  }
+  return node;
+}
+
 function enhanceHost({
   host,
   surface,
@@ -344,8 +352,15 @@ function enhanceHost({
 
   if (surface.localName === "img") surface.draggable = false;
 
+  const contentRoot = contentRootWithin(host, surface);
+  const viewport = documentRef.createElement("span");
+  viewport.className = "media-viewer-viewport";
+  contentRoot.before(viewport);
+  viewport.append(contentRoot);
+
   const state = {
-    host,
+    host: viewport,
+    container: host,
     surface,
     kind,
     labels,
@@ -401,7 +416,7 @@ export function initContentMediaViewer({
       dialogReset.textContent = formatMediaScale(activeDialogState.scale);
       dialogReset.setAttribute(
         "aria-label",
-        `${labels.reset}（${formatMediaScale(activeDialogState.scale)}）`,
+        `${labels.reset} (${formatMediaScale(activeDialogState.scale)})`,
       );
     }
     if (dialogZoomOut) {
@@ -430,6 +445,7 @@ export function initContentMediaViewer({
 
     activeDialogState = {
       host: dialogViewport,
+      container: dialog,
       surface: clone,
       kind: sourceState.kind,
       labels,
@@ -464,15 +480,8 @@ export function initContentMediaViewer({
     }
   };
 
-  cleanup.push(installPointerPan({
-    get host() {
-      return dialogViewport;
-    },
-  }));
-
-  // Replace the generic dialog pan binding with one that reads the current
-  // modal state. This keeps the dialog DOM stable across different images.
-  cleanup.pop()?.();
+  // The dialog DOM is reused across images, so its pan handler reads the
+  // currently active modal state instead of capturing one image state.
   {
     let drag = null;
     let suppressNextClick = false;
