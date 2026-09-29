@@ -1432,14 +1432,25 @@ main {
   opacity: 0.35;
 }
 
-.media-viewer-viewport[data-media-pannable="true"] {
+.media-viewer-viewport[data-media-pannable="true"],
+.media-viewer-dialog__viewport[data-media-pannable="true"] {
   cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .media-viewer-viewport[data-media-pannable="true"].is-dragging,
 .media-viewer-dialog__viewport[data-media-pannable="true"].is-dragging {
   cursor: grabbing;
+}
+
+.media-viewer img,
+.media-viewer svg,
+.media-viewer-dialog__media {
   user-select: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
 }
 
 .prose .media-viewer--image {
