@@ -1,0 +1,88 @@
+---
+import type { Locale } from "../config/i18n";
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = "zh" } = Astro.props;
+const labels = locale === "en"
+  ? {
+      dialog: "Fullscreen image viewer",
+      toolbar: "Image controls",
+      zoomOut: "Zoom out",
+      reset: "Reset zoom",
+      zoomIn: "Zoom in",
+      close: "Close fullscreen viewer",
+    }
+  : {
+      dialog: "全屏图片查看器",
+      toolbar: "图片查看工具",
+      zoomOut: "缩小",
+      reset: "恢复 100%",
+      zoomIn: "放大",
+      close: "关闭全屏查看",
+    };
+---
+
+<dialog
+  class="media-viewer-dialog"
+  data-media-viewer-dialog
+  data-pagefind-ignore="all"
+  aria-label={labels.dialog}
+>
+  <div class="media-viewer-dialog__shell">
+    <div
+      class="media-viewer-dialog__toolbar"
+      role="toolbar"
+      aria-label={labels.toolbar}
+    >
+      <button
+        type="button"
+        class="media-viewer-control"
+        data-media-action="zoom-out"
+        aria-label={labels.zoomOut}
+        title={labels.zoomOut}
+      >−</button>
+      <button
+        type="button"
+        class="media-viewer-control media-viewer-control--scale"
+        data-media-action="reset"
+        aria-label={labels.reset}
+        title={labels.reset}
+      >100%</button>
+      <button
+        type="button"
+        class="media-viewer-control"
+        data-media-action="zoom-in"
+        aria-label={labels.zoomIn}
+        title={labels.zoomIn}
+      >+</button>
+      <span class="media-viewer-dialog__divider" aria-hidden="true"></span>
+      <button
+        type="button"
+        class="media-viewer-control"
+        data-media-action="close"
+        aria-label={labels.close}
+        title={labels.close}
+      >×</button>
+    </div>
+
+    <div
+      class="media-viewer-dialog__viewport"
+      data-media-viewer-dialog-viewport
+      tabindex="0"
+    >
+      <div
+        class="media-viewer-dialog__surface"
+        data-media-viewer-dialog-surface
+      ></div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  import { initContentMediaViewer } from "../lib/content-media-viewer.js";
+
+  initContentMediaViewer();
+</script>
