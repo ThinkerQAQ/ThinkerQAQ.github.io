@@ -168,7 +168,13 @@ function createInlineToolbar(documentRef, state, openFullscreen) {
   return toolbar;
 }
 
-function installPointerPan(state) {
+export function installPointerPan(
+  state,
+  {
+    isEnabled = () => true,
+    blockedSelector = ".media-viewer-toolbar",
+  } = {},
+) {
   const { host } = state;
   let drag = null;
   let suppressNextClick = false;
@@ -188,12 +194,16 @@ function installPointerPan(state) {
   const onPointerDown = (event) => {
     if (
       event.button !== 0
-      || event.pointerType === "touch"
       || host.dataset.mediaPannable !== "true"
-      || event.target.closest?.(".media-viewer-toolbar")
+      || !isEnabled()
+      || (blockedSelector && event.target.closest?.(blockedSelector))
     ) {
       return;
     }
+
+    // Prevent native image dragging / SVG text selection from stealing the
+    // pointer before our scroll-based pan gesture has started.
+    event.preventDefault();
 
     drag = {
       pointerId: event.pointerId,
@@ -209,12 +219,14 @@ function installPointerPan(state) {
 
   const onPointerMove = (event) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
     host.scrollLeft = drag.left - dx;
     host.scrollTop = drag.top - dy;
-    if (drag.moved) event.preventDefault();
   };
 
   const onClick = (event) => {
@@ -226,11 +238,16 @@ function installPointerPan(state) {
     }
   };
 
+  const onDragStart = (event) => {
+    if (host.dataset.mediaPannable === "true") event.preventDefault();
+  };
+
   host.addEventListener("pointerdown", onPointerDown);
   host.addEventListener("pointermove", onPointerMove);
   host.addEventListener("pointerup", endDrag);
   host.addEventListener("pointercancel", endDrag);
   host.addEventListener("click", onClick, true);
+  host.addEventListener("dragstart", onDragStart);
 
   return () => {
     host.removeEventListener("pointerdown", onPointerDown);
@@ -238,6 +255,7 @@ function installPointerPan(state) {
     host.removeEventListener("pointerup", endDrag);
     host.removeEventListener("pointercancel", endDrag);
     host.removeEventListener("click", onClick, true);
+    host.removeEventListener("dragstart", onDragStart);
   };
 }
 
@@ -507,79 +525,15 @@ export function initContentMediaViewer({
     }
   };
 
-  // The dialog DOM is reused across images, so its pan handler reads the
-  // currently active modal state instead of capturing one image state.
-  {
-    let drag = null;
-    let suppressNextClick = false;
-    const host = dialogViewport;
-
-    const endDrag = (event) => {
-      if (!drag || (event.pointerId != null && drag.pointerId !== event.pointerId)) return;
-      suppressNextClick = drag.moved;
-      host.classList.remove("is-dragging");
-      try {
-        host.releasePointerCapture?.(drag.pointerId);
-      } catch {
-        // Ignore already released pointers.
-      }
-      drag = null;
-    };
-
-    const onPointerDown = (event) => {
-      if (
-        !activeDialogState
-        || event.button !== 0
-        || event.pointerType === "touch"
-        || host.dataset.mediaPannable !== "true"
-        || event.target.closest?.(".media-viewer-dialog__toolbar")
-      ) {
-        return;
-      }
-      drag = {
-        pointerId: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        left: host.scrollLeft,
-        top: host.scrollTop,
-        moved: false,
-      };
-      host.classList.add("is-dragging");
-      host.setPointerCapture?.(event.pointerId);
-    };
-
-    const onPointerMove = (event) => {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      const dx = event.clientX - drag.x;
-      const dy = event.clientY - drag.y;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
-      host.scrollLeft = drag.left - dx;
-      host.scrollTop = drag.top - dy;
-      if (drag.moved) event.preventDefault();
-    };
-
-    const onClick = (event) => {
-      if (!suppressNextClick) return;
-      suppressNextClick = false;
-      if (event.target.closest?.("a")) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-
-    host.addEventListener("pointerdown", onPointerDown);
-    host.addEventListener("pointermove", onPointerMove);
-    host.addEventListener("pointerup", endDrag);
-    host.addEventListener("pointercancel", endDrag);
-    host.addEventListener("click", onClick, true);
-    cleanup.push(() => {
-      host.removeEventListener("pointerdown", onPointerDown);
-      host.removeEventListener("pointermove", onPointerMove);
-      host.removeEventListener("pointerup", endDrag);
-      host.removeEventListener("pointercancel", endDrag);
-      host.removeEventListener("click", onClick, true);
-    });
-  }
+  // The dialog DOM is reused across images, so the same pan runtime checks
+  // whether a dialog image is currently active before starting a gesture.
+  cleanup.push(installPointerPan(
+    { host: dialogViewport },
+    {
+      isEnabled: () => Boolean(activeDialogState),
+      blockedSelector: ".media-viewer-dialog__toolbar",
+    },
+  ));
 
   const enhanceImage = (img) => {
     if (
