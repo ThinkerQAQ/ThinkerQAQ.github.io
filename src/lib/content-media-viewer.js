@@ -286,19 +286,37 @@ function scopeSvgIds(svg, suffix) {
     for (const attribute of [...node.attributes]) {
       let value = attribute.value;
       for (const [oldId, newId] of idMap) {
-        value = value
-          .replaceAll(`url(#${oldId})`, `url(#${newId})`)
-          .replaceAll(`#${oldId}`, `#${newId}`);
+        value = value.replaceAll(
+          `url(#${oldId})`,
+          `url(#${newId})`,
+        );
+        if (value === `#${oldId}`) value = `#${newId}`;
       }
+
+      if (attribute.name === "aria-labelledby" || attribute.name === "aria-describedby") {
+        value = value
+          .split(/\\s+/)
+          .map((id) => idMap.get(id) ?? id)
+          .join(" ");
+      }
+
       if (value !== attribute.value) node.setAttribute(attribute.name, value);
     }
 
     if (node.localName === "style" && node.textContent) {
+      const placeholders = new Map();
       let css = node.textContent;
+      let index = 0;
+
       for (const [oldId, newId] of idMap) {
+        const token = `__media_viewer_id_${suffix}_${index++}__`;
+        placeholders.set(token, newId);
         css = css
-          .replaceAll(`url(#${oldId})`, `url(#${newId})`)
-          .replaceAll(`#${oldId}`, `#${newId}`);
+          .replaceAll(`url(#${oldId})`, `url(#${token})`)
+          .replaceAll(`#${oldId}`, `#${token}`);
+      }
+      for (const [token, newId] of placeholders) {
+        css = css.replaceAll(`#${token}`, `#${newId}`);
       }
       node.textContent = css;
     }
@@ -397,6 +415,8 @@ export function initContentMediaViewer({
   const dialogReset = dialog.querySelector('[data-media-action="reset"]');
   const dialogZoomOut = dialog.querySelector('[data-media-action="zoom-out"]');
   const dialogZoomIn = dialog.querySelector('[data-media-action="zoom-in"]');
+  if (!dialogViewport || !dialogSurface) return () => {};
+
   let activeDialogState = null;
   let fullscreenSequence = 0;
   let scanQueued = false;
