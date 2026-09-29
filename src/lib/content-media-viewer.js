@@ -1,3 +1,5 @@
+export const MERMAID_RENDERED_EVENT = "blog:mermaid-rendered";
+
 export const MEDIA_VIEWER_SCALE_STEPS = Object.freeze([
   0.5,
   0.75,
@@ -623,7 +625,7 @@ export function initContentMediaViewer({
     const host = svg.closest("pre.mermaid-diagram");
     if (
       !host
-      || host.dataset.processed !== "true"
+      || host.dataset.mermaidReady !== "true"
       || host.closest("[data-no-viewer]")
       || host.dataset.mediaViewerReady === "true"
     ) {
@@ -647,7 +649,7 @@ export function initContentMediaViewer({
     for (const root of proseRoots) {
       root.querySelectorAll("img").forEach(enhanceImage);
       root
-        .querySelectorAll('pre.mermaid-diagram[data-processed="true"] svg')
+        .querySelectorAll('pre.mermaid-diagram[data-mermaid-ready="true"] svg')
         .forEach(enhanceMermaid);
     }
   };
@@ -665,11 +667,23 @@ export function initContentMediaViewer({
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["data-processed"],
+        attributeFilter: ["data-mermaid-ready"],
       });
       observers.push(observer);
     }
   }
+
+  const onMermaidRendered = (event) => {
+    const host = event.target?.closest?.("pre.mermaid-diagram");
+    if (!host || !proseRoots.some((root) => root.contains(host))) return;
+    const svg = host.querySelector("svg");
+    if (svg) enhanceMermaid(svg);
+  };
+
+  documentRef.addEventListener(MERMAID_RENDERED_EVENT, onMermaidRendered);
+  cleanup.push(() => {
+    documentRef.removeEventListener(MERMAID_RENDERED_EVENT, onMermaidRendered);
+  });
 
   const onDialogClick = (event) => {
     const button = event.target.closest?.("[data-media-action]");

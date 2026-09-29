@@ -15,6 +15,14 @@
       for (const diagram of diagrams) {
         try {
           await mermaid.run({ nodes: [diagram] });
+
+          // Mermaid sets data-processed while rendering. The media viewer must
+          // wait until mermaid.run() has fully finished, otherwise Mermaid can
+          // replace the viewer toolbar when it commits the final SVG.
+          diagram.dataset.mermaidReady = "true";
+          diagram.dispatchEvent(new CustomEvent("blog:mermaid-rendered", {
+            bubbles: true,
+          }));
         } catch (error) {
           diagram.dataset.mermaidFailed = "true";
           console.error("[mermaid] failed to render diagram", error);
