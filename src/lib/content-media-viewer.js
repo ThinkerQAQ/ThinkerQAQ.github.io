@@ -334,6 +334,7 @@ function cloneSurface(state, sequence) {
   clone.style.maxHeight = state.originalStyle.maxHeight;
 
   if (clone.localName === "img") {
+    clone.removeAttribute("id");
     clone.loading = "eager";
     clone.draggable = false;
   }
@@ -406,7 +407,6 @@ export function initContentMediaViewer({
   if (proseRoots.length === 0 || !dialog) return () => {};
   if (dialog.dataset.mediaViewerRuntime === "true") return () => {};
 
-  dialog.dataset.mediaViewerRuntime = "true";
   const labels = viewerLabels(documentRef);
   const cleanup = [];
   const observers = [];
@@ -417,6 +417,7 @@ export function initContentMediaViewer({
   const dialogZoomIn = dialog.querySelector('[data-media-action="zoom-in"]');
   if (!dialogViewport || !dialogSurface) return () => {};
 
+  dialog.dataset.mediaViewerRuntime = "true";
   let activeDialogState = null;
   let fullscreenSequence = 0;
   let scanQueued = false;
@@ -490,13 +491,17 @@ export function initContentMediaViewer({
       documentRef.fullscreenEnabled
       && typeof dialog.requestFullscreen === "function"
     ) {
-      dialog.requestFullscreen()
-        .then(() => {
-          nativeFullscreenActive = documentRef.fullscreenElement === dialog;
-        })
-        .catch(() => {
-          nativeFullscreenActive = false;
-        });
+      try {
+        Promise.resolve(dialog.requestFullscreen())
+          .then(() => {
+            nativeFullscreenActive = documentRef.fullscreenElement === dialog;
+          })
+          .catch(() => {
+            nativeFullscreenActive = false;
+          });
+      } catch {
+        nativeFullscreenActive = false;
+      }
     }
   };
 
