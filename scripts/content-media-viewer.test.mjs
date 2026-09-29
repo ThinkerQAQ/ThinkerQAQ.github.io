@@ -6,6 +6,7 @@ import {
   MERMAID_RENDERED_EVENT,
   MEDIA_VIEWER_SCALE_STEPS,
   formatMediaScale,
+  installPointerPan,
   nextMediaScale,
 } from "../src/lib/content-media-viewer.js";
 
@@ -50,4 +51,91 @@ test("Mermaid runtime signals the viewer only after mermaid.run finishes", async
   assert.ok(renderIndex >= 0);
   assert.ok(readyIndex > renderIndex);
   assert.ok(eventIndex > readyIndex);
+});
+
+
+function createPanHost() {
+  const listeners = new Map();
+  const classes = new Set();
+
+  return {
+    dataset: { mediaPannable: "true" },
+    scrollLeft: 120,
+    scrollTop: 80,
+    classList: {
+      add: (value) => classes.add(value),
+      remove: (value) => classes.delete(value),
+      contains: (value) => classes.has(value),
+    },
+    addEventListener(type, handler) {
+      listeners.set(type, handler);
+    },
+    removeEventListener(type, handler) {
+      if (listeners.get(type) === handler) listeners.delete(type);
+    },
+    setPointerCapture(pointerId) {
+      this.capturedPointerId = pointerId;
+    },
+    releasePointerCapture(pointerId) {
+      this.releasedPointerId = pointerId;
+    },
+    dispatch(type, event) {
+      listeners.get(type)?.(event);
+    },
+  };
+}
+
+function pointerEvent(overrides = {}) {
+  return {
+    button: 0,
+    pointerId: 7,
+    pointerType: "mouse",
+    clientX: 200,
+    clientY: 180,
+    target: { closest: () => null },
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    stopPropagation() {},
+    ...overrides,
+  };
+}
+
+test("left-drag pans an overflowing media viewport", () => {
+  const host = createPanHost();
+  const dispose = installPointerPan({ host });
+
+  const down = pointerEvent();
+  host.dispatch("pointerdown", down);
+
+  assert.equal(down.defaultPrevented, true);
+  assert.equal(host.classList.contains("is-dragging"), true);
+  assert.equal(host.capturedPointerId, 7);
+
+  const move = pointerEvent({ clientX: 150, clientY: 130 });
+  host.dispatch("pointermove", move);
+
+  assert.equal(move.defaultPrevented, true);
+  assert.equal(host.scrollLeft, 170);
+  assert.equal(host.scrollTop, 130);
+
+  host.dispatch("pointerup", pointerEvent());
+  assert.equal(host.classList.contains("is-dragging"), false);
+  assert.equal(host.releasedPointerId, 7);
+
+  dispose();
+});
+
+test("touch pointer uses the same pan gesture when the media is pannable", () => {
+  const host = createPanHost();
+  const dispose = installPointerPan({ host });
+
+  const down = pointerEvent({ pointerType: "touch" });
+  host.dispatch("pointerdown", down);
+
+  assert.equal(down.defaultPrevented, true);
+  assert.equal(host.classList.contains("is-dragging"), true);
+
+  dispose();
 });
