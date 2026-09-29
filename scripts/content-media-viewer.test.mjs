@@ -6,6 +6,7 @@ import {
   MERMAID_RENDERED_EVENT,
   MEDIA_VIEWER_SCALE_STEPS,
   formatMediaScale,
+  hasPanOverflow,
   installPointerPan,
   nextMediaScale,
 } from "../src/lib/content-media-viewer.js";
@@ -59,7 +60,11 @@ function createPanHost() {
   const classes = new Set();
 
   return {
-    dataset: { mediaPannable: "true" },
+    dataset: { mediaPannable: "false" },
+    clientWidth: 300,
+    clientHeight: 200,
+    scrollWidth: 600,
+    scrollHeight: 200,
     scrollLeft: 120,
     scrollTop: 80,
     classList: {
@@ -102,9 +107,18 @@ function pointerEvent(overrides = {}) {
   };
 }
 
-test("left-drag pans an overflowing media viewport", () => {
+test("pan overflow is computed from the live viewport instead of a stale data flag", () => {
   const host = createPanHost();
-  const dispose = installPointerPan({ host });
+
+  assert.equal(host.dataset.mediaPannable, "false");
+  assert.equal(hasPanOverflow(host, "x"), true);
+  assert.equal(hasPanOverflow(host, "y"), false);
+  assert.equal(hasPanOverflow(host, "both"), true);
+});
+
+test("left-drag pans an overflowing inline media viewport horizontally", () => {
+  const host = createPanHost();
+  const dispose = installPointerPan({ host, panAxis: "x" });
 
   const down = pointerEvent();
   host.dispatch("pointerdown", down);
@@ -118,7 +132,7 @@ test("left-drag pans an overflowing media viewport", () => {
 
   assert.equal(move.defaultPrevented, true);
   assert.equal(host.scrollLeft, 170);
-  assert.equal(host.scrollTop, 130);
+  assert.equal(host.scrollTop, 80);
 
   host.dispatch("pointerup", pointerEvent());
   assert.equal(host.classList.contains("is-dragging"), false);
@@ -127,15 +141,38 @@ test("left-drag pans an overflowing media viewport", () => {
   dispose();
 });
 
-test("touch pointer uses the same pan gesture when the media is pannable", () => {
+test("touch inline drag keeps pointerdown available for normal vertical page scroll", () => {
   const host = createPanHost();
-  const dispose = installPointerPan({ host });
+  const dispose = installPointerPan({ host, panAxis: "x" });
 
   const down = pointerEvent({ pointerType: "touch" });
   host.dispatch("pointerdown", down);
 
-  assert.equal(down.defaultPrevented, true);
+  assert.equal(down.defaultPrevented, false);
   assert.equal(host.classList.contains("is-dragging"), true);
 
+  const verticalMove = pointerEvent({
+    pointerType: "touch",
+    clientX: 198,
+    clientY: 230,
+  });
+  host.dispatch("pointermove", verticalMove);
+
+  assert.equal(verticalMove.defaultPrevented, false);
+  assert.equal(host.classList.contains("is-dragging"), false);
+
   dispose();
+});
+
+test("inline media CSS does not trap vertical wheel scrolling", async () => {
+  const css = await readFile(
+    new URL("../src/styles/global.css", import.meta.url),
+    "utf8",
+  );
+
+  const viewportRule = css.match(/\.media-viewer-viewport \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(viewportRule, /overflow-x:\s*auto/);
+  assert.match(viewportRule, /overflow-y:\s*hidden/);
+  assert.match(viewportRule, /overscroll-behavior-y:\s*auto/);
+  assert.ok(!viewportRule.includes("overscroll-behavior: contain"));
 });

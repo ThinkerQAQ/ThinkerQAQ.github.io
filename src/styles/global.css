@@ -1361,8 +1361,10 @@ main {
 .media-viewer-viewport {
   display: block;
   max-width: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1432,7 +1434,13 @@ main {
   opacity: 0.35;
 }
 
-.media-viewer-viewport[data-media-pannable="true"],
+.media-viewer-viewport[data-media-pannable="true"] {
+  cursor: grab;
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .media-viewer-dialog__viewport[data-media-pannable="true"] {
   cursor: grab;
   touch-action: none;

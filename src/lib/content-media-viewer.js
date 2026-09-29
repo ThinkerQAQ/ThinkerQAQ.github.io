@@ -70,12 +70,18 @@ function restoreSurfaceStyle(state) {
   surface.style.maxHeight = originalStyle.maxHeight;
 }
 
+export function hasPanOverflow(host, axis = "both") {
+  const horizontal = host.scrollWidth > host.clientWidth + 1;
+  const vertical = host.scrollHeight > host.clientHeight + 1;
+
+  if (axis === "x") return horizontal;
+  if (axis === "y") return vertical;
+  return horizontal || vertical;
+}
+
 function updatePannable(state) {
-  const { host } = state;
-  const pannable =
-    host.scrollWidth > host.clientWidth + 1
-    || host.scrollHeight > host.clientHeight + 1;
-  host.dataset.mediaPannable = pannable ? "true" : "false";
+  const { host, panAxis = "both" } = state;
+  host.dataset.mediaPannable = hasPanOverflow(host, panAxis) ? "true" : "false";
 }
 
 function updateToolbar(state) {
@@ -175,7 +181,7 @@ export function installPointerPan(
     blockedSelector = ".media-viewer-toolbar",
   } = {},
 ) {
-  const { host } = state;
+  const { host, panAxis = "both" } = state;
   let drag = null;
   let suppressNextClick = false;
 
@@ -194,19 +200,21 @@ export function installPointerPan(
   const onPointerDown = (event) => {
     if (
       event.button !== 0
-      || host.dataset.mediaPannable !== "true"
+      || !hasPanOverflow(host, panAxis)
       || !isEnabled()
       || (blockedSelector && event.target.closest?.(blockedSelector))
     ) {
       return;
     }
 
-    // Prevent native image dragging / SVG text selection from stealing the
-    // pointer before our scroll-based pan gesture has started.
-    event.preventDefault();
+    // Mouse dragging should take ownership immediately so the browser's
+    // native image/SVG drag does not steal the gesture. Touch keeps vertical
+    // page scrolling available for inline viewers via CSS touch-action.
+    if (event.pointerType !== "touch") event.preventDefault();
 
     drag = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       x: event.clientX,
       y: event.clientY,
       left: host.scrollLeft,
@@ -220,13 +228,31 @@ export function installPointerPan(
   const onPointerMove = (event) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    event.preventDefault();
-
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
-    host.scrollLeft = drag.left - dx;
-    host.scrollTop = drag.top - dy;
+
+    if (
+      drag.pointerType === "touch"
+      && panAxis === "x"
+      && Math.abs(dy) > Math.abs(dx)
+      && !drag.moved
+    ) {
+      // Let a vertical touch gesture become normal page scrolling.
+      endDrag(event);
+      return;
+    }
+
+    event.preventDefault();
+
+    const movedDistance = panAxis === "x"
+      ? Math.abs(dx)
+      : panAxis === "y"
+        ? Math.abs(dy)
+        : Math.max(Math.abs(dx), Math.abs(dy));
+    if (movedDistance > 3) drag.moved = true;
+
+    if (panAxis !== "y") host.scrollLeft = drag.left - dx;
+    if (panAxis !== "x") host.scrollTop = drag.top - dy;
   };
 
   const onClick = (event) => {
@@ -239,7 +265,7 @@ export function installPointerPan(
   };
 
   const onDragStart = (event) => {
-    if (host.dataset.mediaPannable === "true") event.preventDefault();
+    if (hasPanOverflow(host, panAxis)) event.preventDefault();
   };
 
   host.addEventListener("pointerdown", onPointerDown);
@@ -410,6 +436,7 @@ function enhanceHost({
     zoomOutButton: null,
     zoomInButton: null,
     windowRef,
+    panAxis: "x",
   };
 
   const toolbar = createInlineToolbar(documentRef, state, openFullscreen);
@@ -497,6 +524,7 @@ export function initContentMediaViewer({
       zoomOutButton: dialogZoomOut,
       zoomInButton: dialogZoomIn,
       windowRef,
+      panAxis: "both",
     };
 
     dialog.dataset.mediaKind = sourceState.kind;
@@ -528,7 +556,7 @@ export function initContentMediaViewer({
   // The dialog DOM is reused across images, so the same pan runtime checks
   // whether a dialog image is currently active before starting a gesture.
   cleanup.push(installPointerPan(
-    { host: dialogViewport },
+    { host: dialogViewport, panAxis: "both" },
     {
       isEnabled: () => Boolean(activeDialogState),
       blockedSelector: ".media-viewer-dialog__toolbar",
