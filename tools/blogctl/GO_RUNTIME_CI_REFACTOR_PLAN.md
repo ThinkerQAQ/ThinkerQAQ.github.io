@@ -346,6 +346,36 @@ Do not maintain general platform capability data in two runtimes.
 
 # 9. CI review
 
+## 9.1 BlogCTL is the CI control plane
+
+Repository-specific CI logic should be exposed as BlogCTL commands. Workflows may depend on BlogCTL, but they must build it from the **current checkout** rather than download the latest release:
+
+```text
+checkout
+→ setup Go
+→ go build -o $RUNNER_TEMP/blogctl ./tools/blogctl/cmd
+→ $RUNNER_TEMP/blogctl <command>
+```
+
+This avoids version skew between the workflow commit and the CLI implementation.
+
+GitHub-native orchestration stays in YAML: checkout, runtime setup, permissions/secrets, artifact upload/download, concurrency, and GitHub Pages deployment. Blog-specific logic moves behind commands such as:
+
+```text
+blogctl site build
+blogctl search notify
+blogctl ai-search sync --verify
+blogctl content changed
+blogctl analytics query
+blogctl worker deploy
+blogctl edgeone deploy
+```
+
+BlogCTL may internally call Astro, Mermaid CLI, Java, Wrangler, or EdgeOne CLI. Those remain implementation details.
+
+One bootstrap exception remains: `blogctl-release.yml` builds BlogCTL itself, so its cross-platform build/package step can keep using `go build` directly.
+
+
 The repository originally had eight workflows. The first simplification removes the two redundant ones:
 
 ```text
@@ -358,7 +388,7 @@ KEEP    blogctl-release.yml
 KEEP    worker-release.yml
 KEEP    analytics-query.yml
 
-REVIEW  ai-search-health.yml
+DELETE  ai-search-health.yml
 ```
 
 The goal is **not** to remove Node from the repository. Astro, Cloudflare Workers, browser extension code, Pagefind and some renderers are legitimately JavaScript-based.
@@ -460,20 +490,19 @@ Do not silently change incremental/full submission behavior during the runtime m
 
 ---
 
-### ai-search-health.yml — can migrate to Go
+### AI Search health
 
-Current scripts are plain HTTP/control logic:
+The standalone `ai-search-health.yml` workflow is removed.
+
+Its checks are still useful: indexing state can fail asynchronously, and retrieval regressions are only visible after Cloudflare finishes indexing. Keep that behavior, but move it behind BlogCTL:
 
 ```text
-check-ai-search-health.mjs
-eval-ai-search.mjs
+blogctl ai-search sync
+  ↓
+blogctl ai-search verify --wait
 ```
 
-They do not depend on Worker runtime APIs.
-
-They can move to a small Go operations package/command.
-
-This is lower priority than Search because it is not BlogCTL publishing logic.
+`verify --wait` should poll indexing state with a bounded timeout and then run the retrieval regression cases. Once the Go command reaches parity, delete `check-ai-search-health.mjs` and `eval-ai-search.mjs`.
 
 ---
 
@@ -704,3 +733,5 @@ Likewise, BlogCTL release, Worker release and analytics remain separate because 
 ```
 
 Backend/control-plane code defaults to Go. JavaScript remains only where the runtime or ecosystem makes it the correct boundary.
+
+For CI, BlogCTL is the single repository-specific command surface; YAML only coordinates GitHub-native primitives.
