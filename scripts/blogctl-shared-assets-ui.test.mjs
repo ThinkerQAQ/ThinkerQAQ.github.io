@@ -18,6 +18,10 @@ test("shared R2 configuration is outside platform-specific configuration", async
   assert.ok(assetsCard >= 0);
   assert.ok(platformCard > assetsCard);
   assert.ok(r2Bucket > assetsCard && r2Bucket < platformCard);
+  for (const id of ["r2AccessKeyId", "r2SecretAccessKey", "r2AccountId", "r2Endpoint"]) {
+    const field = html.indexOf(`id="${id}"`);
+    assert.ok(field > assetsCard && field < platformCard, `${id} must live in shared assets`);
+  }
   assert.ok(platformSelect > platformCard);
   assert.match(html, /<script src="assets\.js"><\/script>[\s\S]*<script src="publishing\.js"><\/script>/u);
 });
@@ -49,4 +53,17 @@ test("environment owns expansion lifecycle for the shared asset card", async () 
   assert.match(environment, /trackExpansion\(assetConfigCard, "shared-assets"\)/u);
   assert.match(environment, /BlogCTLAssets\.activate\(\)/u);
   assert.match(environment, /BlogCTLAssets\.deactivate\(\)/u);
+});
+
+test("R2 credentials are stored through BlogCTL config instead of environment variables", async () => {
+  const assets = await readFile(assetsPath, "utf8");
+  assert.match(assets, /accessKeyId: r2AccessKeyId\.value\.trim\(\)/u);
+  assert.match(assets, /secretAccessKey: r2SecretAccessKey\.value\.trim\(\)/u);
+  assert.doesNotMatch(assets, /R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_ACCOUNT_ID/u);
+});
+
+
+test("Bridge card renders the active BlogCTL config path separately", async () => {
+  const environment = await readFile(environmentPath, "utf8");
+  assert.match(environment, /tool\.name === "bridge" \? `配置 \$\{tool\.health\.path\}` : tool\.health\.path/u);
 });

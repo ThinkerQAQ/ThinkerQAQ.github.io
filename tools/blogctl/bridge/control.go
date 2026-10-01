@@ -423,6 +423,7 @@ func googleSearchConsoleAPIPlaceholder(config bridgeConfig) string {
 }
 
 func toolRegistry(config bridgeConfig) []toolDescriptor {
+	configPath, _ := ConfigPath()
 	pathField := func(key, label, description string) []toolField {
 		return []toolField{{Key: key, Label: label, Type: "file", Description: description}}
 	}
@@ -433,6 +434,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Health: toolHealth{
 				OK: true, Status: "ok", Summary: "运行中", Version: version.Current,
 				Detail: fmt.Sprintf("PID %d · %s", os.Getpid(), DefaultAddress),
+				Path:   configPath,
 			},
 			Actions: []toolAction{{
 				ID: "restart", Label: "重启 Bridge",
@@ -777,14 +779,7 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 			PublicURL: asset.PublicURL, Source: asset.Source,
 		})
 	}
-	bucket := strings.TrimSpace(os.Getenv("R2_BUCKET"))
-	if bucket == "" {
-		bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
-	}
-	publicBaseURL := strings.TrimSpace(os.Getenv("R2_PUBLIC_BASE_URL"))
-	if publicBaseURL == "" {
-		publicBaseURL = strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL)
-	}
+	r2 := config.Publishing.Assets.R2
 	return publisher.DraftInput{
 		Slug: article.Slug, Title: article.Title, Description: article.Description,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
@@ -793,12 +788,12 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
 		Assets: assets,
 		R2Fallback: publisher.R2FallbackConfig{
-			AccessKeyID:     strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
-			SecretAccessKey: strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
-			AccountID:       strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")),
-			Endpoint:        strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
-			Bucket:          bucket,
-			PublicBaseURL:   publicBaseURL,
+			AccessKeyID:     r2.AccessKeyID,
+			SecretAccessKey: r2.SecretAccessKey,
+			AccountID:       r2.AccountID,
+			Endpoint:        r2.Endpoint,
+			Bucket:          r2.Bucket,
+			PublicBaseURL:   r2.PublicBaseURL,
 		},
 	}
 }
@@ -1135,9 +1130,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		BridgeToken:    s.token,
 		DevtoAPIKey:    config.DevtoAPIKey,
 		ToolPaths:      config.ToolPaths,
-	}
-	if configPath, err := ConfigPath(); err == nil {
-		applicationConfig.ConfigPath = configPath
 	}
 	if request.Operation == "update-published" {
 		started := time.Now()

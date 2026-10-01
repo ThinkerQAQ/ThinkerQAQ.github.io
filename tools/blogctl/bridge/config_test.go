@@ -23,7 +23,7 @@ func TestBridgeConfigPersistsProxy(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("config = %#v, want %#v", got, want)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "blogctl.toml")); err != nil {
 		t.Fatalf("config file not written: %v", err)
 	}
 }
@@ -232,14 +232,14 @@ func TestBridgeConfigMigratesLegacyPublishingProfiles(t *testing.T) {
 	if !profile.Tracking.Enabled || profile.Tracking.Source != "legacy-cnblogs" || profile.Tracking.Campaign != "legacy" {
 		t.Fatalf("tracking = %#v", profile.Tracking)
 	}
-	if err := saveBridgeConfig(config); err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(filepath.Join(dir, "config.json.migrated.bak")); err != nil {
+		t.Fatalf("legacy config backup missing: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "config.json"))
+	data, err := os.ReadFile(filepath.Join(dir, "blogctl.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), `"platforms"`) || strings.Contains(string(data), `"trackingQuery"`) {
+	if !strings.Contains(string(data), "[publishing.platforms.cnblogs]") || strings.Contains(string(data), "trackingQuery") {
 		t.Fatalf("migrated config = %s", data)
 	}
 }
@@ -280,4 +280,45 @@ func TestBridgeConfigRejectsInvalidPublishingCompilerPolicy(t *testing.T) {
 	if _, err := normalizeBridgeConfig(config); err == nil || !strings.Contains(err.Error(), "publicBaseUrl must be an HTTPS URL") {
 		t.Fatalf("unexpected R2 URL validation error: %v", err)
 	}
+}
+
+func TestBridgeConfigStoresR2CredentialsInTOML(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	config := defaultBridgeConfig()
+	config.Publishing.Assets.R2.Bucket = "thinkerqaq-assets"
+	config.Publishing.Assets.R2.AccessKeyID = "access"
+	config.Publishing.Assets.R2.SecretAccessKey = "secret"
+	config.Publishing.Assets.R2.AccountID = "account"
+	if err := saveBridgeConfig(config); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "blogctl.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	for _, want := range []string{"[publishing.assets.r2]", "access_key_id = 'access'", "secret_access_key = 'secret'", "account_id = 'account'"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("TOML missing %q:\n%s", want, text)
+		}
+	}
+	reloaded := loadBridgeConfig()
+	if reloaded.Publishing.Assets.R2.SecretAccessKey != "secret" {
+		t.Fatalf("R2 secret was not reloaded")
+	}
+}
+
+func TestBridgeToolShowsConfigPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	for _, tool := range toolRegistry(defaultBridgeConfig()) {
+		if tool.Name == "bridge" {
+			if tool.Health.Path != filepath.Join(dir, "blogctl.toml") {
+				t.Fatalf("bridge config path = %q", tool.Health.Path)
+			}
+			return
+		}
+	}
+	t.Fatal("bridge tool not found")
 }

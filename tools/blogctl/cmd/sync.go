@@ -270,9 +270,6 @@ func (a app) runSync(args []string) error {
 	}
 
 	config := blogapp.SyncConfig{EngineRoot: a.root, ContentRoot: a.contentRoot}
-	if configPath, configErr := bridge.ConfigPath(); configErr == nil {
-		config.ConfigPath = configPath
-	}
 	if publishingJSON, publishingErr := bridge.ResolvedPublishingJSON(); publishingErr == nil {
 		config.PublishingJSON = publishingJSON
 	}

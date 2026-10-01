@@ -1,9 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 
-import {
-  DEFAULT_R2_PUBLIC_BASE_URL,
-  loadBlogctlPublishingRuntimeConfig,
-} from "../../compiler/node/runtime-config.mjs";
+import { DEFAULT_R2_PUBLIC_BASE_URL } from "../../compiler/node/runtime-config.mjs";
 
 function sha256Hex(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -20,14 +17,16 @@ function timestamp(date) {
 
 export { DEFAULT_R2_PUBLIC_BASE_URL };
 
-export function loadR2Config(env = process.env) {
-  const policy = loadBlogctlPublishingRuntimeConfig(env).assets.r2;
-  const accountId = String(env.R2_ACCOUNT_ID || "").trim();
-  const accessKeyId = String(env.R2_ACCESS_KEY_ID || "").trim();
-  const secretAccessKey = String(env.R2_SECRET_ACCESS_KEY || "").trim();
-  const bucket = String(env.R2_BUCKET || policy.bucket || "").trim();
-  const endpoint = String(env.R2_ENDPOINT || (accountId ? "https://" + accountId + ".r2.cloudflarestorage.com" : "")).trim();
-  const publicBaseUrl = String(env.R2_PUBLIC_BASE_URL || policy.publicBaseUrl || DEFAULT_R2_PUBLIC_BASE_URL).trim();
+export function loadR2Config({
+  policy = {},
+  credentials = {},
+} = {}) {
+  const accountId = String(credentials.accountId || "").trim();
+  const accessKeyId = String(credentials.accessKeyId || "").trim();
+  const secretAccessKey = String(credentials.secretAccessKey || "").trim();
+  const bucket = String(policy.bucket || "").trim();
+  const endpoint = String(credentials.endpoint || (accountId ? "https://" + accountId + ".r2.cloudflarestorage.com" : "")).trim();
+  const publicBaseUrl = String(policy.publicBaseUrl || DEFAULT_R2_PUBLIC_BASE_URL).trim();
   return { accountId, accessKeyId, secretAccessKey, bucket, endpoint, publicBaseUrl };
 }
 
@@ -40,13 +39,13 @@ export function assertR2Config(config) {
   return config;
 }
 
-export function publicR2Url(objectKey, config = loadR2Config()) {
-  const base = new URL(config.publicBaseUrl);
+export function publicR2Url(objectKey, config) {
+  const base = new URL(String(config?.publicBaseUrl || DEFAULT_R2_PUBLIC_BASE_URL).trim());
   if (!base.pathname.endsWith("/")) base.pathname += "/";
   return new URL(encodedPath(objectKey), base).toString();
 }
 
-export function signR2Put({ objectKey, body, contentType = "image/png", config = loadR2Config(), now = new Date() }) {
+export function signR2Put({ objectKey, body, contentType = "image/png", config, now = new Date() }) {
   assertR2Config(config);
   const payload = Buffer.isBuffer(body) ? body : Buffer.from(body);
   const endpoint = new URL(config.endpoint);
@@ -85,7 +84,7 @@ export function signR2Put({ objectKey, body, contentType = "image/png", config =
 }
 
 export async function uploadR2Object({
-  objectKey, body, contentType = "image/png", config = loadR2Config(), fetchImpl = fetch, now = () => new Date(),
+  objectKey, body, contentType = "image/png", config, fetchImpl = fetch, now = () => new Date(),
 }) {
   const request = signR2Put({ objectKey, body, contentType, config, now: now() });
   const response = await fetchImpl(request.url, {

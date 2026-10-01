@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-
 export const CONTENT_LANGUAGES = ["zh-CN", "en"];
 
 export const PUBLISHING_PLATFORMS = [
@@ -127,15 +125,7 @@ export async function loadPublishingConfig(env = process.env) {
     return parsed.platforms;
   }
 
-  const configFile = String(env.BLOGCTL_CONFIG_FILE || "").trim();
-  if (!configFile) return defaultPublishingConfig();
-  try {
-    const parsed = JSON.parse(await readFile(configFile, "utf8"));
-    const stored = parsed?.publishing?.platforms ?? parsed?.publishing ?? {};
-    return mergePublishingConfig(stored);
-  } catch {
-    return defaultPublishingConfig();
-  }
+  return defaultPublishingConfig();
 }
 
 export function trackedPublishingUrl(canonicalUrl, config = {}) {

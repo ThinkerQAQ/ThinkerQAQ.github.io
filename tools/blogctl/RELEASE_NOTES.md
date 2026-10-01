@@ -1,3 +1,15 @@
+# BlogCTL v0.1.100
+
+BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- BlogCTL 本机配置统一迁移到用户目录下的 TOML：Windows 默认路径为 `%APPDATA%\BlogCTL\blogctl.toml`；旧 `config.json` 会自动迁移并保留为 `config.json.migrated.bak`。
+- R2 Bucket、Public Base URL、Access Key ID、Secret Access Key、Account ID / Endpoint 全部由同一份 `blogctl.toml` 管理，不再把 `R2_*` 环境变量作为配置来源。
+- 「共享图片资产」直接配置 R2 凭据；Secret Access Key 只写入本机 TOML，不从 Bridge 回传或在插件中回显。
+- BlogCTL Bridge 卡片直接显示当前生效的 `blogctl.toml` 路径，便于确认实际配置源。
+- Go control plane 负责读取 TOML，并向 Node 编译器传递已解析的非敏感发布策略；Node 不再直接解析用户配置文件或读取 R2 环境变量。
+
 # BlogCTL v0.1.99
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
@@ -260,4 +272,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 - Windows / macOS / Linux 卸载脚本。
 - `SHA256SUMS`。
 
-版本：`0.1.99`
+版本：`0.1.100`

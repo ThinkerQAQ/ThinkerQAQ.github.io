@@ -29,7 +29,12 @@ test("renders, constrains, and uploads each unique asset", async () => {
   const asset = mermaidAssetForSource("flowchart LR\nA --> B");
   const calls = [];
   const result = await preparePublishingAssetList([asset, asset], {
-    env: { R2_BUCKET: "test" },
+    env: {
+      BLOGCTL_PUBLISHING_JSON: JSON.stringify({
+        assets: { store: "r2", r2: { bucket: "test", publicBaseUrl: asset.publicUrl.split("generated/")[0] } },
+      }),
+    },
+    r2Credentials: { accountId: "account", accessKeyId: "access", secretAccessKey: "secret" },
     render: async (value) => {
       calls.push(["render", value.id]);
       return { asset: value, outputFile: "/tmp/example.png", rendered: true };
