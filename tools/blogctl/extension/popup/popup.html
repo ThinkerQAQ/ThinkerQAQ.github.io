@@ -280,6 +280,28 @@
 
         <div id="environmentRuntimeTools" class="tool-list"><div class="platform-loading">正在检测本机环境…</div></div>
 
+        <details id="assetConfigEnvironmentCard" class="tool-card environment-large-card">
+          <summary class="status-row">
+            <strong>共享图片资产</strong>
+            <strong id="assetStatus" class="status checking">检测中</strong>
+          </summary>
+          <div class="tool-card-body environment-embedded-tool">
+            <p class="card-hint">此配置由所有发布平台共享。支持平台原生图片上传时优先使用平台图床，失败后统一回退到同一个 R2。</p>
+            <div class="section-title">Mermaid 渲染</div>
+            <div class="publication-filters">
+              <label class="field"><span>PNG 宽度</span><input id="mermaidWidth" type="number" min="1" step="1"></label>
+              <label class="field"><span>渲染倍数</span><input id="mermaidScale" type="number" min="0.1" step="0.1"></label>
+            </div>
+            <div class="section-title">R2 兜底</div>
+            <p id="assetStatusDetail" class="card-hint">正在检测共享 R2 配置…</p>
+            <label class="field"><span>R2 Bucket</span><input id="r2Bucket" type="text" placeholder="thinkerqaq-asset"></label>
+            <label class="field"><span>R2 Public Base URL</span><input id="r2PublicBaseUrl" type="url" placeholder="https://assets.example.com/"></label>
+            <p class="card-hint">敏感凭据不写入 BlogCTL 配置；Bridge 进程需提供 <code>R2_ACCESS_KEY_ID</code>、<code>R2_SECRET_ACCESS_KEY</code>，以及 <code>R2_ACCOUNT_ID</code> 或 <code>R2_ENDPOINT</code>。</p>
+            <div class="button-row"><button id="saveAssets" class="primary inline-primary" type="button">保存共享资产配置</button></div>
+            <p id="assetsMessage" class="message" role="status"></p>
+          </div>
+        </details>
+
         <details id="platformConfigEnvironmentCard" class="tool-card environment-large-card">
           <summary class="status-row">
             <strong>平台配置</strong>
@@ -290,17 +312,6 @@
             
             <div class="section-title">平台接入</div>
             <div id="platformAccessConfig" class="platform-access-config"><div class="platform-loading">正在读取平台配置…</div></div>
-            
-            <div class="section-title">Mermaid 与图片资产</div>
-            <div class="status-row"><span>R2 兜底状态</span><strong id="assetStatus" class="status checking">检测中</strong></div>
-            <p id="assetStatusDetail" class="card-hint">Mermaid 会先本地渲染；支持图片上传的平台优先使用平台图床，失败时再回退到 R2。</p>
-            <div class="publication-filters">
-            <label class="field"><span>PNG 宽度</span><input id="mermaidWidth" type="number" min="1" step="1"></label>
-            <label class="field"><span>渲染倍数</span><input id="mermaidScale" type="number" min="0.1" step="0.1"></label>
-            </div>
-            <label class="field"><span>R2 Bucket</span><input id="r2Bucket" type="text" placeholder="thinkerqaq-asset"></label>
-            <label class="field"><span>R2 Public Base URL</span><input id="r2PublicBaseUrl" type="url" placeholder="https://assets.example.com/"></label>
-            <p class="card-hint">敏感凭据不写入 BlogCTL 配置；Bridge 进程需提供 <code>R2_ACCESS_KEY_ID</code>、<code>R2_SECRET_ACCESS_KEY</code>，以及 <code>R2_ACCOUNT_ID</code> 或 <code>R2_ENDPOINT</code>。</p>
             
             <label class="switch-row" for="publishingChangedOnly"><span><strong>仅更新内容有变化的草稿</strong><small>此平台已有草稿且内容未变时跳过；Medium 暂不支持更新已有草稿。</small></span><input id="publishingChangedOnly" type="checkbox"></label>
             
