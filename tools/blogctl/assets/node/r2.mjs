@@ -40,8 +40,7 @@ export function assertR2Config(config) {
 }
 
 export function publicR2Url(objectKey, config) {
-  assertR2Config(config);
-  const base = new URL(config.publicBaseUrl);
+  const base = new URL(String(config?.publicBaseUrl || DEFAULT_R2_PUBLIC_BASE_URL).trim());
   if (!base.pathname.endsWith("/")) base.pathname += "/";
   return new URL(encodedPath(objectKey), base).toString();
 }
