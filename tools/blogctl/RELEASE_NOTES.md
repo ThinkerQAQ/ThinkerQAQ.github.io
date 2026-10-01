@@ -1,3 +1,14 @@
+# BlogCTL v0.1.99
+
+BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
+
+## 本版本更新
+
+- 将 Mermaid / 图片资产配置从单个平台配置中拆出，新增顶层「共享图片资产」配置卡片；所有发布平台共享同一套 R2 fallback。
+- 平台配置与共享资产配置分开保存：修改博客园、DEV.to、Medium 等平台配置时，不再重复提交或覆盖 R2 / Mermaid 配置。
+- 新增独立的 `assets.js` 前端控制器，`publishing.js` 只负责平台级配置，职责边界与后端 `publishing.compiler / publishing.assets / publishing.platforms` 数据模型一致。
+- 新增回归测试，保证更新共享资产不会修改平台配置，更新平台配置也不会修改共享 R2 设置。
+
 # BlogCTL v0.1.98
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留当前版本；旧版 GitHub Release 会自动清理，历史 Git 标签保留。
@@ -249,4 +260,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。这个 Release 只保留
 - Windows / macOS / Linux 卸载脚本。
 - `SHA256SUMS`。
 
-版本：`0.1.93`
+版本：`0.1.99`
