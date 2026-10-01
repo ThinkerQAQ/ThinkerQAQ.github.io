@@ -441,7 +441,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				Description: "重新启动本地服务；存在运行中的同步任务时会拒绝操作。",
 			}},
 			Config: toolConfigView{
-				Scope: "bridge",
+				Scope:  "bridge",
 				Values: map[string]any{"configDir": func() string { dir, _ := ConfigDir(); return dir }()},
 				Schema: []toolField{{
 					Key: "configDir", Label: "配置文件目录", Type: "directory",
