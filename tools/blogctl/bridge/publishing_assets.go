@@ -1,9 +1,6 @@
 package bridge
 
-import (
-	"os"
-	"strings"
-)
+import "strings"
 
 type publishingAssetStatusView struct {
 	Ready   bool     `json:"ready"`
@@ -11,27 +8,50 @@ type publishingAssetStatusView struct {
 }
 
 func publishingAssetStatus(config bridgeConfig) publishingAssetStatusView {
+	r2 := config.Publishing.Assets.R2
 	missing := []string{}
-	bucket := strings.TrimSpace(os.Getenv("R2_BUCKET"))
-	if bucket == "" {
-		bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
+	if strings.TrimSpace(r2.Bucket) == "" {
+		missing = append(missing, "R2 Bucket")
 	}
-	if bucket == "" {
-		missing = append(missing, "R2 bucket")
+	if strings.TrimSpace(r2.AccessKeyID) == "" {
+		missing = append(missing, "Access Key ID")
 	}
-	if strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")) == "" {
-		missing = append(missing, "R2_ACCESS_KEY_ID")
+	if strings.TrimSpace(r2.SecretAccessKey) == "" {
+		missing = append(missing, "Secret Access Key")
 	}
-	if strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")) == "" {
-		missing = append(missing, "R2_SECRET_ACCESS_KEY")
+	if strings.TrimSpace(r2.Endpoint) == "" && strings.TrimSpace(r2.AccountID) == "" {
+		missing = append(missing, "Account ID 或 Endpoint")
 	}
-	if strings.TrimSpace(os.Getenv("R2_ENDPOINT")) == "" && strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")) == "" {
-		missing = append(missing, "R2_ACCOUNT_ID or R2_ENDPOINT")
-	}
-	if strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL) == "" && strings.TrimSpace(os.Getenv("R2_PUBLIC_BASE_URL")) == "" {
-		missing = append(missing, "R2 public base URL")
+	if strings.TrimSpace(r2.PublicBaseURL) == "" {
+		missing = append(missing, "Public Base URL")
 	}
 	return publishingAssetStatusView{Ready: len(missing) == 0, Missing: missing}
+}
+
+type publishingR2View struct {
+	Bucket                    string `json:"bucket"`
+	PublicBaseURL             string `json:"publicBaseUrl"`
+	AccessKeyID               string `json:"accessKeyId,omitempty"`
+	AccountID                 string `json:"accountId,omitempty"`
+	Endpoint                  string `json:"endpoint,omitempty"`
+	SecretAccessKeyConfigured bool   `json:"secretAccessKeyConfigured"`
+}
+
+type publishingAssetsView struct {
+	Store string           `json:"store"`
+	R2    publishingR2View `json:"r2"`
+}
+
+func publishingAssetsPublicView(config bridgeConfig) publishingAssetsView {
+	r2 := config.Publishing.Assets.R2
+	return publishingAssetsView{
+		Store: config.Publishing.Assets.Store,
+		R2: publishingR2View{
+			Bucket: r2.Bucket, PublicBaseURL: r2.PublicBaseURL, AccessKeyID: r2.AccessKeyID,
+			AccountID: r2.AccountID, Endpoint: r2.Endpoint,
+			SecretAccessKeyConfigured: strings.TrimSpace(r2.SecretAccessKey) != "",
+		},
+	}
 }
 
 func applyPublishingRuntimeConfig(config bridgeConfig, compiler *publishingCompilerConfig, assets *publishingAssetsConfig) (bridgeConfig, error) {
@@ -39,6 +59,9 @@ func applyPublishingRuntimeConfig(config bridgeConfig, compiler *publishingCompi
 		config.Publishing.Compiler = *compiler
 	}
 	if assets != nil {
+		if strings.TrimSpace(assets.R2.SecretAccessKey) == "" {
+			assets.R2.SecretAccessKey = config.Publishing.Assets.R2.SecretAccessKey
+		}
 		config.Publishing.Assets = *assets
 	}
 	return normalizeBridgeConfig(config)
@@ -48,7 +71,7 @@ func publishingControlPayload(config bridgeConfig) map[string]any {
 	return map[string]any{
 		"platforms":   publishingViews(config),
 		"compiler":    config.Publishing.Compiler,
-		"assets":      config.Publishing.Assets,
+		"assets":      publishingAssetsPublicView(config),
 		"assetStatus": publishingAssetStatus(config),
 	}
 }
