@@ -71,7 +71,7 @@ export async function preparePublishingAssetList(assets, {
 
   const runtime = loadBlogctlPublishingRuntimeConfig(env);
   if (runtime.assets.store !== "r2") throw new Error("Unsupported BlogCTL publishing asset store: " + runtime.assets.store);
-  const config = uploadFallback ? loadR2Config(env) : null;
+  const config = uploadFallback ? loadR2Config({ policy: runtime.assets.r2 }) : null;
   let rendered = 0;
   let cached = 0;
   let uploaded = 0;
