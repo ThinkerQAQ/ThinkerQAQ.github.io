@@ -130,12 +130,18 @@
     }
 
     const versionText = tool.health?.version ? `版本 v${tool.health.version}` : "";
-    const detailText = [versionText, tool.health?.detail, tool.health?.path].filter(Boolean).join(" · ");
+    const detailText = [versionText, tool.health?.detail].filter(Boolean).join(" · ");
     if (detailText) {
       const detail = document.createElement("code");
       detail.className = "path-value";
       detail.textContent = detailText;
       body.append(detail);
+    }
+    if (tool.health?.path) {
+      const pathValue = document.createElement("code");
+      pathValue.className = "path-value";
+      pathValue.textContent = tool.name === "bridge" ? `配置 ${tool.health.path}` : tool.health.path;
+      body.append(pathValue);
     }
 
     if (tool.config?.toggle) {
