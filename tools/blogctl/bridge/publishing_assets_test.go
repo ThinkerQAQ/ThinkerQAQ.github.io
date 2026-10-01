@@ -35,7 +35,6 @@ func TestPublishingAssetStatusNamesMissingRequirements(t *testing.T) {
 	}
 }
 
-
 func TestSharedAssetUpdatePreservesPlatformSettings(t *testing.T) {
 	config := defaultBridgeConfig()
 	before := config.Publishing.Platforms["cnblogs"]
