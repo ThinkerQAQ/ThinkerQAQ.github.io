@@ -298,7 +298,7 @@ func TestBridgeConfigStoresR2CredentialsInTOML(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, want := range []string{"[publishing.assets.r2]", "access_key_id = \"access\"", "secret_access_key = \"secret\"", "account_id = \"account\""} {
+	for _, want := range []string{"[publishing.assets.r2]", "access_key_id = 'access'", "secret_access_key = 'secret'", "account_id = 'account'"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("TOML missing %q:\n%s", want, text)
 		}
