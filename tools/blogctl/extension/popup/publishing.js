@@ -5,6 +5,7 @@
   let platformSelect, languageSelect, changedOnly, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
   let mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, assetStatus, assetStatusDetail;
+  let assetSaveButton, assetMessage;
   let platformAccessConfig, preview, saveButton, resetButton, message;
 
   function currentPlatform() {
@@ -190,8 +191,8 @@
     BlogCTLPopup.setStatus(assetStatus, ready ? "ok" : "unknown", ready ? "R2 兜底可用" : "R2 兜底未就绪");
     const missing = state.assetStatus?.missing ?? [];
     assetStatusDetail.textContent = ready
-      ? "Mermaid 先在本地渲染。支持直接上传的平台优先写入平台图床；平台上传失败时才使用 R2。"
-      : `平台原生图片上传仍可使用；R2 兜底缺少：${missing.join("、") || "未知配置"}。平台原生上传失败时将无法使用 R2 兜底。`;
+      ? "共享 R2 已就绪；所有发布平台在平台原生图片上传失败时统一使用该兜底。"
+      : `平台原生图片上传仍可使用；共享 R2 缺少：${missing.join("、") || "未知配置"}。平台原生上传失败时将无法使用 R2 兜底。`;
   }
 
   function readAssetForm() {
@@ -211,6 +212,27 @@
         },
       },
     };
+  }
+
+  async function saveAssets() {
+    const runtime = readAssetForm();
+    assetSaveButton.disabled = true;
+    BlogCTLPopup.setMessage(assetMessage, "正在保存共享资产配置…");
+    try {
+      const response = await BlogCTLPopup.send("blogctl.publishing.save", {
+        compiler: runtime.compiler,
+        assets: runtime.assets,
+      });
+      state.compiler = response.compiler ?? state.compiler;
+      state.assets = response.assets ?? state.assets;
+      state.assetStatus = response.assetStatus ?? state.assetStatus;
+      writeAssetForm();
+      BlogCTLPopup.setMessage(assetMessage, "共享资产配置已保存，所有平台将使用同一套 R2 配置。", "ok");
+    } catch (error) {
+      BlogCTLPopup.setMessage(assetMessage, BlogCTLPopup.errorMessage(error), "error");
+    } finally {
+      assetSaveButton.disabled = false;
+    }
   }
 
   function writeForm(platform) {
@@ -285,17 +307,10 @@
     saveButton.disabled = true;
     BlogCTLPopup.setMessage(message, "正在保存平台配置…");
     try {
-      const runtime = readAssetForm();
       const response = await BlogCTLPopup.send("blogctl.publishing.save", {
         platforms: [current],
-        compiler: runtime.compiler,
-        assets: runtime.assets,
       });
       state.platforms = response.platforms ?? [];
-      state.compiler = response.compiler ?? state.compiler;
-      state.assets = response.assets ?? state.assets;
-      state.assetStatus = response.assetStatus ?? state.assetStatus;
-      writeAssetForm();
       renderPlatformSelect();
       platformSelect.value = current.id;
       writeForm(currentPlatform());
@@ -317,6 +332,7 @@
   async function refresh() {
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
+    BlogCTLPopup.setMessage(assetMessage);
     try {
       const [response, toolsResponse] = await Promise.all([
         BlogCTLPopup.send("blogctl.publishing"),
@@ -354,6 +370,8 @@
     r2PublicBaseUrl = document.getElementById("r2PublicBaseUrl");
     assetStatus = document.getElementById("assetStatus");
     assetStatusDetail = document.getElementById("assetStatusDetail");
+    assetSaveButton = document.getElementById("saveAssets");
+    assetMessage = document.getElementById("assetsMessage");
     preview = document.getElementById("publishingPreview");
     saveButton = document.getElementById("savePublishing");
     resetButton = document.getElementById("resetPublishing");
@@ -372,8 +390,9 @@
       element.addEventListener(element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input", updatePreview);
     }
     for (const element of [mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl]) {
-      element.addEventListener("input", () => BlogCTLPopup.setMessage(message));
+      element.addEventListener("input", () => BlogCTLPopup.setMessage(assetMessage));
     }
+    assetSaveButton.addEventListener("click", saveAssets);
     saveButton.addEventListener("click", save);
     resetButton.addEventListener("click", reset);
     state.initialized = true;
