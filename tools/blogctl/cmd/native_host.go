@@ -45,14 +45,11 @@ func isNativeMessagingInvocation(args []string) bool {
 }
 
 func bridgeStatePath() (string, error) {
-	if dir := strings.TrimSpace(os.Getenv("BLOGCTL_CONFIG_DIR")); dir != "" {
-		return filepath.Join(dir, "bridge.json"), nil
-	}
-	dir, err := os.UserConfigDir()
+	dir, err := bridge.ConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "BlogCTL", "bridge.json"), nil
+	return filepath.Join(dir, "bridge.json"), nil
 }
 
 func openBridgeLog() (*os.File, error) {

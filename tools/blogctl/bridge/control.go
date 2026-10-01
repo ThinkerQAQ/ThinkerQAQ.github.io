@@ -440,7 +440,15 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				ID: "restart", Label: "重启 Bridge",
 				Description: "重新启动本地服务；存在运行中的同步任务时会拒绝操作。",
 			}},
-			Config: toolConfigView{Scope: "bridge", Values: map[string]any{}, DefaultExpanded: true},
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{"configDir": func() string { dir, _ := ConfigDir(); return dir }()},
+				Schema: []toolField{{
+					Key: "configDir", Label: "配置文件目录", Type: "directory",
+					Description: "blogctl.toml 与运行状态文件所在目录；保存后重启 Bridge 生效。",
+				}},
+				DefaultExpanded: true,
+			},
 		},
 		{
 			Name: "content-workspace", DisplayName: "Content Repository", Kind: "runtime", Required: true,
@@ -630,6 +638,10 @@ func intConfig(values map[string]any, key string) int {
 
 func updateToolConfig(config bridgeConfig, name string, values map[string]any) (bridgeConfig, error) {
 	switch name {
+	case "bridge":
+		if err := applyConfigDirectory(stringConfig(values, "configDir")); err != nil {
+			return config, err
+		}
 	case "content-workspace":
 		config.ContentRoot = stringConfig(values, "contentRoot")
 	case "engine-workspace":
