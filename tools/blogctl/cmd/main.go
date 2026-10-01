@@ -73,6 +73,10 @@ func (a app) run(args []string) error {
 		return a.runNPM(false, "run", "stop:local")
 	case "build":
 		return a.runNPM(true, "run", "build")
+	case "site":
+		return a.runSite(args)
+	case "ai-search":
+		return a.runAISearch(args)
 	case "check":
 		return a.runCheck()
 	case "test":
@@ -129,9 +133,11 @@ func (a app) printHelp() {
 Usage:
   blogctl [preview]
   blogctl dev | stop | build | check | test
+  blogctl site build --content-root <path>
+  blogctl ai-search <prepare|sync|verify> [options]
   blogctl notes <sync|check|timestamps>
   blogctl diagrams [plantuml|drawio]
-  blogctl search <build|inventory|submit|audit> [options]
+  blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl indexnow <prepare|submit> [args...]  # compatibility
   blogctl distribute [args...]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
