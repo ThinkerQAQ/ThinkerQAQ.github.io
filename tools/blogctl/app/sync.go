@@ -30,7 +30,6 @@ type SyncRequest struct {
 type SyncConfig struct {
 	EngineRoot     string
 	ContentRoot    string
-	ConfigPath     string
 	PublishingJSON string
 	BridgeOrigin   string
 	BridgeToken    string
@@ -560,9 +559,6 @@ func syncEnvironment(config SyncConfig) []string {
 	env := os.Environ()
 	env = setEnvironment(env, "BLOG_CONTENT_ROOT", config.ContentRoot)
 	env = setEnvironment(env, "BLOGCTL_ENGINE_ROOT", config.EngineRoot)
-	if config.ConfigPath != "" {
-		env = setEnvironment(env, "BLOGCTL_CONFIG_FILE", config.ConfigPath)
-	}
 	if strings.TrimSpace(config.PublishingJSON) != "" {
 		env = setEnvironment(env, "BLOGCTL_PUBLISHING_JSON", strings.TrimSpace(config.PublishingJSON))
 	}
