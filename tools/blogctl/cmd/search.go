@@ -27,7 +27,7 @@ func (a app) runSearch(args []string) error {
 }
 
 func (a app) runSearchNode(args []string) error {
-	node, _, err := a.prepareNode(true)
+	node, _, err := a.prepareNode(false)
 	if err != nil {
 		return err
 	}
