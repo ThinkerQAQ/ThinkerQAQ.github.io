@@ -1,0 +1,52 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const htmlPath = new URL("../tools/blogctl/extension/popup/popup.html", import.meta.url);
+const assetsPath = new URL("../tools/blogctl/extension/popup/assets.js", import.meta.url);
+const publishingPath = new URL("../tools/blogctl/extension/popup/publishing.js", import.meta.url);
+const environmentPath = new URL("../tools/blogctl/extension/popup/environment.js", import.meta.url);
+
+test("shared R2 configuration is outside platform-specific configuration", async () => {
+  const html = await readFile(htmlPath, "utf8");
+
+  const assetsCard = html.indexOf('id="assetConfigEnvironmentCard"');
+  const platformCard = html.indexOf('id="platformConfigEnvironmentCard"');
+  const r2Bucket = html.indexOf('id="r2Bucket"');
+  const platformSelect = html.indexOf('id="publishingPlatform"');
+
+  assert.ok(assetsCard >= 0);
+  assert.ok(platformCard > assetsCard);
+  assert.ok(r2Bucket > assetsCard && r2Bucket < platformCard);
+  assert.ok(platformSelect > platformCard);
+  assert.match(html, /<script src="assets\.js"><\/script>[\s\S]*<script src="publishing\.js"><\/script>/u);
+});
+
+test("shared asset save and platform save are independent", async () => {
+  const [assets, publishing] = await Promise.all([
+    readFile(assetsPath, "utf8"),
+    readFile(publishingPath, "utf8"),
+  ]);
+
+  assert.match(
+    assets,
+    /BlogCTLPopup\.send\("blogctl\.publishing\.save", \{\s*compiler: runtime\.compiler,\s*assets: runtime\.assets,\s*\}\)/u,
+  );
+  assert.doesNotMatch(assets, /platforms:\s*\[/u);
+
+  assert.match(
+    publishing,
+    /BlogCTLPopup\.send\("blogctl\.publishing\.save", \{\s*platforms: \[current\],\s*\}\)/u,
+  );
+  assert.doesNotMatch(publishing, /compiler:\s*runtime\.compiler/u);
+  assert.doesNotMatch(publishing, /assets:\s*runtime\.assets/u);
+});
+
+test("environment owns expansion lifecycle for the shared asset card", async () => {
+  const environment = await readFile(environmentPath, "utf8");
+
+  assert.match(environment, /BlogCTLAssets\.init\(\)/u);
+  assert.match(environment, /trackExpansion\(assetConfigCard, "shared-assets"\)/u);
+  assert.match(environment, /BlogCTLAssets\.activate\(\)/u);
+  assert.match(environment, /BlogCTLAssets\.deactivate\(\)/u);
+});
