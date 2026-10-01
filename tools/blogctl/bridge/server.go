@@ -666,6 +666,7 @@ func publicBridgeConfig(config bridgeConfig) bridgeConfig {
 	config.DevtoAPIKey = ""
 	config.IndexNowKey = ""
 	config.GoogleSearchConsoleServiceJSON = ""
+	config.Publishing.Assets.R2.SecretAccessKey = ""
 	return config
 }
 
