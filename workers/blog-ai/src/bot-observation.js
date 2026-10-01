@@ -1,6 +1,7 @@
 const BOT_SALT_KEY = "analytics:bot:salt:v1";
 const BOT_CLIENT_PREFIX = "analytics:bot:client:v1:";
 const BOT_COHORT_PREFIX = "analytics:bot:cohort:v1:";
+const BOT_OBSERVATION_LATEST_KEY = "analytics:bot:latest";
 const OBSERVATION_TTL_SECONDS = 24 * 60 * 60;
 const MAX_TRACKED_PATHS = 64;
 const ENGAGEMENT_EVENTS = new Set([
@@ -394,6 +395,13 @@ export async function buildBotObservationReport(env, now = Date.now()) {
   };
 }
 
+export async function persistBotObservationReport(env, now = Date.now()) {
+  const kv = requireKv(env);
+  const report = await buildBotObservationReport(env, now);
+  await kv.put(BOT_OBSERVATION_LATEST_KEY, JSON.stringify(report));
+  return report;
+}
+
 export async function handleBotObservationRequest(request, env) {
   const url = new URL(request.url);
   if (url.pathname !== "/analytics/bot-observation") return null;
@@ -419,6 +427,7 @@ export const botObservationInternals = {
   BOT_CLIENT_PREFIX,
   BOT_COHORT_PREFIX,
   BOT_SALT_KEY,
+  BOT_OBSERVATION_LATEST_KEY,
   classifyUserAgent,
   classifyBotFamily,
   buildReasons,
