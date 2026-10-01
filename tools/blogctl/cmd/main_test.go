@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestParseSyncArgsRequiresExplicitScope(t *testing.T) {
@@ -44,5 +45,42 @@ func TestNPMInvocationRunsNPMDirectlyOnUnix(t *testing.T) {
 	program, args := npmInvocation("linux", "/usr/bin/node", "/usr/bin/npm", []string{"test"})
 	if program != "/usr/bin/npm" || !reflect.DeepEqual(args, []string{"test"}) {
 		t.Fatalf("program = %q, args = %#v", program, args)
+	}
+}
+
+
+func TestSearchLiveOrigin(t *testing.T) {
+	tests := map[string]string{
+		"https://thinkerqaq.github.io/": "https://thinkerqaq.github.io",
+		"sc-domain:thinkerqaq.github.io": "https://thinkerqaq.github.io",
+	}
+	for input, want := range tests {
+		got, err := searchLiveOrigin(input)
+		if err != nil {
+			t.Fatalf("searchLiveOrigin(%q): %v", input, err)
+		}
+		if got != want {
+			t.Fatalf("searchLiveOrigin(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestAISearchDurationAcceptsSecondsAndDuration(t *testing.T) {
+	got, err := aiSearchDuration([]string{"--timeout", "15"}, "--timeout", time.Minute)
+	if err != nil || got != 15*time.Second {
+		t.Fatalf("seconds duration = %s, err=%v", got, err)
+	}
+	got, err = aiSearchDuration([]string{"--timeout", "2m"}, "--timeout", time.Minute)
+	if err != nil || got != 2*time.Minute {
+		t.Fatalf("parsed duration = %s, err=%v", got, err)
+	}
+}
+
+func TestIsZeroSHA(t *testing.T) {
+	if !isZeroSHA("000000") {
+		t.Fatal("expected all-zero SHA to be detected")
+	}
+	if isZeroSHA("001000") {
+		t.Fatal("non-zero SHA must not be treated as zero")
 	}
 }
