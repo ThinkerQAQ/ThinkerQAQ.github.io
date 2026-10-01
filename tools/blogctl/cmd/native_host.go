@@ -126,11 +126,7 @@ func pingBridge(state bridgeState) error {
 	return nil
 }
 
-func ensureBridgeProcess() (bridgeState, error) {
-	if state, err := readBridgeState(); err == nil && pingBridge(state) == nil {
-		return state, nil
-	}
-
+func startBridgeProcess() (bridgeState, error) {
 	command, err := newBridgeCommand()
 	if err != nil {
 		return bridgeState{}, err
@@ -161,6 +157,39 @@ func ensureBridgeProcess() (bridgeState, error) {
 		return bridgeState{}, fmt.Errorf("BlogCTL Bridge did not start: %w", lastErr)
 	}
 	return bridgeState{}, errors.New("BlogCTL Bridge did not start")
+}
+
+func ensureBridgeProcess() (bridgeState, error) {
+	if state, err := readBridgeState(); err == nil && pingBridge(state) == nil {
+		return state, nil
+	}
+	return startBridgeProcess()
+}
+
+func restartBridgeProcess() (bridgeState, error) {
+	if state, err := readBridgeState(); err == nil && pingBridge(state) == nil {
+		process, findErr := os.FindProcess(state.PID)
+		if findErr != nil {
+			return bridgeState{}, findErr
+		}
+		if err := process.Kill(); err != nil {
+			return bridgeState{}, fmt.Errorf("stop BlogCTL Bridge: %w", err)
+		}
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			if pingBridge(state) != nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if pingBridge(state) == nil {
+			return bridgeState{}, errors.New("BlogCTL Bridge did not stop")
+		}
+	}
+	if path, err := bridgeStatePath(); err == nil {
+		_ = os.Remove(path)
+	}
+	return startBridgeProcess()
 }
 
 func runBridgeProcess() error {
@@ -231,11 +260,16 @@ func runNativeHost() error {
 			_ = writeNativeMessage(os.Stdout, map[string]any{"ok": false, "error": "invalid request"})
 			continue
 		}
-		if request.Command != "ensure_bridge" && request.Command != "status" {
+		if request.Command != "ensure_bridge" && request.Command != "status" && request.Command != "restart_bridge" {
 			_ = writeNativeMessage(os.Stdout, map[string]any{"ok": false, "error": "unknown command"})
 			continue
 		}
-		state, err := ensureBridgeProcess()
+		var state bridgeState
+		if request.Command == "restart_bridge" {
+			state, err = restartBridgeProcess()
+		} else {
+			state, err = ensureBridgeProcess()
+		}
 		if err != nil {
 			_ = writeNativeMessage(os.Stdout, map[string]any{"ok": false, "error": err.Error()})
 			continue
