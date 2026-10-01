@@ -494,6 +494,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if path == "v1/restart/check" && request.Method == http.MethodPost {
+		s.handleRestartCheck(response, request)
+		return
+	}
 	if path == "v1/restart" && request.Method == http.MethodPost {
 		s.handleRestart(response, request)
 		return
@@ -737,6 +741,19 @@ func (s *Server) handleTools(response http.ResponseWriter) {
 	config := s.config
 	s.mu.Unlock()
 	writeJSON(response, http.StatusOK, map[string]any{"tools": toolRegistry(config)})
+}
+
+func (s *Server) handleRestartCheck(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	if running := s.runningSyncJobs(); running > 0 {
+		writeAPIError(response, http.StatusConflict, "sync_jobs_running",
+			fmt.Sprintf("仍有 %d 个同步任务正在运行，请等待任务结束后再重启", running),
+			map[string]any{"runningJobs": running})
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) handleRestart(response http.ResponseWriter, request *http.Request) {
