@@ -9,56 +9,61 @@ import (
 	"strings"
 
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type publishingFooterConfig struct {
-	Enabled  bool   `json:"enabled"`
-	Template string `json:"template"`
+	Enabled  bool   `json:"enabled" toml:"enabled"`
+	Template string `json:"template" toml:"template"`
 }
 
 type publishingCanonicalConfig struct {
-	Mode string `json:"mode"`
+	Mode string `json:"mode" toml:"mode"`
 }
 
 type publishingTrackingConfig struct {
-	Enabled  bool   `json:"enabled"`
-	Source   string `json:"source"`
-	Medium   string `json:"medium"`
-	Campaign string `json:"campaign"`
+	Enabled  bool   `json:"enabled" toml:"enabled"`
+	Source   string `json:"source" toml:"source"`
+	Medium   string `json:"medium" toml:"medium"`
+	Campaign string `json:"campaign" toml:"campaign"`
 }
 
 type publishingPlatformConfig struct {
-	Language    string                    `json:"language"`
-	ChangedOnly bool                      `json:"changedOnly"`
-	Footer      publishingFooterConfig    `json:"footer"`
-	Canonical   publishingCanonicalConfig `json:"canonical"`
-	Tracking    publishingTrackingConfig  `json:"tracking"`
+	Language    string                    `json:"language" toml:"language"`
+	ChangedOnly bool                      `json:"changedOnly" toml:"changed_only"`
+	Footer      publishingFooterConfig    `json:"footer" toml:"footer"`
+	Canonical   publishingCanonicalConfig `json:"canonical" toml:"canonical"`
+	Tracking    publishingTrackingConfig  `json:"tracking" toml:"tracking"`
 }
 
 type publishingMermaidConfig struct {
-	Format string  `json:"format"`
-	Width  int     `json:"width"`
-	Scale  float64 `json:"scale"`
+	Format string  `json:"format" toml:"format"`
+	Width  int     `json:"width" toml:"width"`
+	Scale  float64 `json:"scale" toml:"scale"`
 }
 
 type publishingCompilerConfig struct {
-	Mermaid publishingMermaidConfig `json:"mermaid"`
+	Mermaid publishingMermaidConfig `json:"mermaid" toml:"mermaid"`
 }
 
 type publishingR2Config struct {
-	Bucket        string `json:"bucket,omitempty"`
-	PublicBaseURL string `json:"publicBaseUrl"`
+	Bucket          string `json:"bucket,omitempty" toml:"bucket"`
+	PublicBaseURL   string `json:"publicBaseUrl" toml:"public_base_url"`
+	AccessKeyID     string `json:"accessKeyId,omitempty" toml:"access_key_id"`
+	SecretAccessKey string `json:"secretAccessKey,omitempty" toml:"secret_access_key"`
+	AccountID       string `json:"accountId,omitempty" toml:"account_id"`
+	Endpoint        string `json:"endpoint,omitempty" toml:"endpoint"`
 }
 
 type publishingAssetsConfig struct {
-	Store string             `json:"store"`
-	R2    publishingR2Config `json:"r2"`
+	Store string             `json:"store" toml:"store"`
+	R2    publishingR2Config `json:"r2" toml:"r2"`
 }
 
 type publishingConfig struct {
-	Compiler  publishingCompilerConfig            `json:"compiler"`
-	Assets    publishingAssetsConfig              `json:"assets"`
-	Platforms map[string]publishingPlatformConfig `json:"platforms"`
+	Compiler  publishingCompilerConfig            `json:"compiler" toml:"compiler"`
+	Assets    publishingAssetsConfig              `json:"assets" toml:"assets"`
+	Platforms map[string]publishingPlatformConfig `json:"platforms" toml:"platforms"`
 }
 
 type legacyPublishingPlatformConfig struct {
@@ -68,22 +73,22 @@ type legacyPublishingPlatformConfig struct {
 }
 
 type bridgeConfig struct {
-	ProxyEnabled bool   `json:"proxyEnabled"`
-	ProxyHost    string `json:"proxyHost"`
-	ProxyPort    int    `json:"proxyPort"`
+	ProxyEnabled bool   `json:"proxyEnabled" toml:"proxy_enabled"`
+	ProxyHost    string `json:"proxyHost" toml:"proxy_host"`
+	ProxyPort    int    `json:"proxyPort" toml:"proxy_port"`
 
-	LogDirectory string `json:"logDirectory,omitempty"`
-	LogLevel     string `json:"logLevel,omitempty"`
+	LogDirectory string `json:"logDirectory,omitempty" toml:"log_directory"`
+	LogLevel     string `json:"logLevel,omitempty" toml:"log_level"`
 
-	ContentRoot                    string            `json:"contentRoot"`
-	EngineRoot                     string            `json:"engineRoot"`
-	ToolPaths                      map[string]string `json:"toolPaths"`
-	DevtoAPIKey                    string            `json:"devtoApiKey,omitempty"`
-	IndexNowEndpoint               string            `json:"indexNowEndpoint,omitempty"`
-	IndexNowKey                    string            `json:"indexNowKey,omitempty"`
-	IndexNowKeyLocation            string            `json:"indexNowKeyLocation,omitempty"`
-	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty"`
-	Publishing                     publishingConfig  `json:"publishing"`
+	ContentRoot                    string            `json:"contentRoot" toml:"content_root"`
+	EngineRoot                     string            `json:"engineRoot" toml:"engine_root"`
+	ToolPaths                      map[string]string `json:"toolPaths" toml:"tool_paths"`
+	DevtoAPIKey                    string            `json:"devtoApiKey,omitempty" toml:"devto_api_key"`
+	IndexNowEndpoint               string            `json:"indexNowEndpoint,omitempty" toml:"indexnow_endpoint"`
+	IndexNowKey                    string            `json:"indexNowKey,omitempty" toml:"indexnow_key"`
+	IndexNowKeyLocation            string            `json:"indexNowKeyLocation,omitempty" toml:"indexnow_key_location"`
+	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty" toml:"google_search_console_service_json"`
+	Publishing                     publishingConfig  `json:"publishing" toml:"publishing"`
 }
 
 var publishingPlatformOrder = blogplatform.IDs()
@@ -168,6 +173,17 @@ func ResolvedPublishingJSON() (string, error) {
 }
 
 func ConfigPath() (string, error) {
+	if dir := strings.TrimSpace(os.Getenv("BLOGCTL_CONFIG_DIR")); dir != "" {
+		return filepath.Join(dir, "blogctl.toml"), nil
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "BlogCTL", "blogctl.toml"), nil
+}
+
+func legacyConfigPath() (string, error) {
 	if dir := strings.TrimSpace(os.Getenv("BLOGCTL_CONFIG_DIR")); dir != "" {
 		return filepath.Join(dir, "config.json"), nil
 	}
@@ -301,6 +317,10 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	}
 	config.Publishing.Assets.R2.Bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
 	config.Publishing.Assets.R2.PublicBaseURL = strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL)
+	config.Publishing.Assets.R2.AccessKeyID = strings.TrimSpace(config.Publishing.Assets.R2.AccessKeyID)
+	config.Publishing.Assets.R2.SecretAccessKey = strings.TrimSpace(config.Publishing.Assets.R2.SecretAccessKey)
+	config.Publishing.Assets.R2.AccountID = strings.TrimSpace(config.Publishing.Assets.R2.AccountID)
+	config.Publishing.Assets.R2.Endpoint = strings.TrimSpace(config.Publishing.Assets.R2.Endpoint)
 	if config.Publishing.Assets.R2.PublicBaseURL == "" {
 		return config, errors.New("publishing R2 publicBaseUrl is required")
 	}
@@ -384,6 +404,27 @@ func migrateLegacyPublishing(data []byte, config bridgeConfig) bridgeConfig {
 	return config
 }
 
+func loadLegacyJSONConfig() (bridgeConfig, string, bool) {
+	path, err := legacyConfigPath()
+	if err != nil {
+		return bridgeConfig{}, "", false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return bridgeConfig{}, path, false
+	}
+	var config bridgeConfig
+	if json.Unmarshal(data, &config) != nil {
+		return bridgeConfig{}, path, false
+	}
+	config = migrateLegacyPublishing(data, config)
+	normalized, err := normalizeBridgeConfig(config)
+	if err != nil {
+		return bridgeConfig{}, path, false
+	}
+	return normalized, path, true
+}
+
 func loadBridgeConfig() bridgeConfig {
 	defaults := defaultBridgeConfig()
 	path, err := bridgeConfigPath()
@@ -392,13 +433,21 @@ func loadBridgeConfig() bridgeConfig {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return defaults
+		}
+		if migrated, legacyPath, ok := loadLegacyJSONConfig(); ok {
+			if saveBridgeConfig(migrated) == nil {
+				_ = os.Rename(legacyPath, legacyPath+".migrated.bak")
+			}
+			return migrated
+		}
 		return defaults
 	}
 	var config bridgeConfig
-	if json.Unmarshal(data, &config) != nil {
+	if toml.Unmarshal(data, &config) != nil {
 		return defaults
 	}
-	config = migrateLegacyPublishing(data, config)
 	normalized, err := normalizeBridgeConfig(config)
 	if err != nil {
 		return defaults
@@ -418,7 +467,7 @@ func saveBridgeConfig(config bridgeConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(normalized, "", "  ")
+	data, err := toml.Marshal(normalized)
 	if err != nil {
 		return err
 	}
