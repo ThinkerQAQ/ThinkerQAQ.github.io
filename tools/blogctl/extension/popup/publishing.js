@@ -1,10 +1,9 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, platforms: [], compiler: {}, assets: {}, assetStatus: {}, tools: [] };
+  const state = { initialized: false, active: false, platforms: [], tools: [] };
   let platformSelect, languageSelect, changedOnly, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
-  let mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, assetStatus, assetStatusDetail;
   let platformAccessConfig, preview, saveButton, resetButton, message;
 
   function currentPlatform() {
@@ -178,41 +177,6 @@
     preview.textContent = lines.join("\n\n");
   }
 
-  function writeAssetForm() {
-    const mermaid = state.compiler?.mermaid ?? {};
-    const r2 = state.assets?.r2 ?? {};
-    mermaidWidth.value = Number(mermaid.width || 1200);
-    mermaidScale.value = Number(mermaid.scale || 2);
-    r2Bucket.value = r2.bucket || "";
-    r2PublicBaseUrl.value = r2.publicBaseUrl || "";
-
-    const ready = Boolean(state.assetStatus?.ready);
-    BlogCTLPopup.setStatus(assetStatus, ready ? "ok" : "unknown", ready ? "R2 兜底可用" : "R2 兜底未就绪");
-    const missing = state.assetStatus?.missing ?? [];
-    assetStatusDetail.textContent = ready
-      ? "Mermaid 先在本地渲染。支持直接上传的平台优先写入平台图床；平台上传失败时才使用 R2。"
-      : `平台原生图片上传仍可使用；R2 兜底缺少：${missing.join("、") || "未知配置"}。平台原生上传失败时将无法使用 R2 兜底。`;
-  }
-
-  function readAssetForm() {
-    return {
-      compiler: {
-        mermaid: {
-          format: "png",
-          width: Number(mermaidWidth.value || 1200),
-          scale: Number(mermaidScale.value || 2),
-        },
-      },
-      assets: {
-        store: "r2",
-        r2: {
-          bucket: r2Bucket.value.trim(),
-          publicBaseUrl: r2PublicBaseUrl.value.trim(),
-        },
-      },
-    };
-  }
-
   function writeForm(platform) {
     const profile = platform || {};
     const fallback = defaultsFor(profile.id || "cnblogs");
@@ -285,17 +249,10 @@
     saveButton.disabled = true;
     BlogCTLPopup.setMessage(message, "正在保存平台配置…");
     try {
-      const runtime = readAssetForm();
       const response = await BlogCTLPopup.send("blogctl.publishing.save", {
         platforms: [current],
-        compiler: runtime.compiler,
-        assets: runtime.assets,
       });
       state.platforms = response.platforms ?? [];
-      state.compiler = response.compiler ?? state.compiler;
-      state.assets = response.assets ?? state.assets;
-      state.assetStatus = response.assetStatus ?? state.assetStatus;
-      writeAssetForm();
       renderPlatformSelect();
       platformSelect.value = current.id;
       writeForm(currentPlatform());
@@ -323,11 +280,7 @@
         BlogCTLPopup.send("blogctl.tools"),
       ]);
       state.platforms = response.platforms ?? [];
-      state.compiler = response.compiler ?? {};
-      state.assets = response.assets ?? {};
-      state.assetStatus = response.assetStatus ?? {};
       state.tools = toolsResponse.tools ?? [];
-      writeAssetForm();
       renderPlatformSelect();
       await BlogCTLPopup.refreshBridgeIndicator();
     } catch (error) {
@@ -348,12 +301,6 @@
     trackingSource = document.getElementById("trackingSource");
     trackingMedium = document.getElementById("trackingMedium");
     trackingCampaign = document.getElementById("trackingCampaign");
-    mermaidWidth = document.getElementById("mermaidWidth");
-    mermaidScale = document.getElementById("mermaidScale");
-    r2Bucket = document.getElementById("r2Bucket");
-    r2PublicBaseUrl = document.getElementById("r2PublicBaseUrl");
-    assetStatus = document.getElementById("assetStatus");
-    assetStatusDetail = document.getElementById("assetStatusDetail");
     preview = document.getElementById("publishingPreview");
     saveButton = document.getElementById("savePublishing");
     resetButton = document.getElementById("resetPublishing");
@@ -370,9 +317,6 @@
     });
     for (const element of [footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
       element.addEventListener(element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input", updatePreview);
-    }
-    for (const element of [mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl]) {
-      element.addEventListener("input", () => BlogCTLPopup.setMessage(message));
     }
     saveButton.addEventListener("click", save);
     resetButton.addEventListener("click", reset);

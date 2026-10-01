@@ -16,7 +16,7 @@
   const expandedTools = storedExpandedTools ?? new Set();
   let initializedExpansion = storedExpandedTools !== null;
   let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus;
-  let platformConfigCard, searchEngineCard, message;
+  let assetConfigCard, platformConfigCard, searchEngineCard, message;
 
   function persistExpandedTools() {
     localStorage.setItem(EXPANDED_TOOLS_KEY, JSON.stringify([...expandedTools]));
@@ -263,22 +263,27 @@
     searchEngineTools = document.getElementById("searchEngineTools");
     dependencyTools = document.getElementById("environmentDependencyTools");
     searchEngineStatus = document.getElementById("searchEngineEnvironmentStatus");
+    assetConfigCard = document.getElementById("assetConfigEnvironmentCard");
     platformConfigCard = document.getElementById("platformConfigEnvironmentCard");
     searchEngineCard = document.getElementById("searchEngineEnvironmentCard");
     message = document.getElementById("environmentMessage");
 
+    BlogCTLAssets.init();
     BlogCTLPublishing.init();
+    trackExpansion(assetConfigCard, "shared-assets");
     trackExpansion(platformConfigCard, "platform-config");
     trackExpansion(searchEngineCard, "search-engines");
     state.initialized = true;
   }
   function activate() {
     state.active = true;
+    BlogCTLAssets.activate();
     BlogCTLPublishing.activate();
     refresh();
   }
   function deactivate() {
     state.active = false;
+    BlogCTLAssets.deactivate();
     BlogCTLPublishing.deactivate();
   }
   root.BlogCTLEnvironment = { init, activate, deactivate, refresh };
