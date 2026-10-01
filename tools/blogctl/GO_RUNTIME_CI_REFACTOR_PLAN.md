@@ -346,17 +346,19 @@ Do not maintain general platform capability data in two runtimes.
 
 # 9. CI review
 
-The repository currently has these workflows:
+The repository originally had eight workflows. The first simplification removes the two redundant ones:
 
 ```text
-ai-search-health.yml
-analytics-query.yml
-blogctl-release.yml
-content-watch.yml
-deploy.yml
-pr-validate.yml
-search-submit.yml
-worker-release.yml
+DELETE  pr-validate.yml
+DELETE  search-submit.yml
+
+KEEP    deploy.yml
+KEEP    content-watch.yml
+KEEP    blogctl-release.yml
+KEEP    worker-release.yml
+KEEP    analytics-query.yml
+
+REVIEW  ai-search-health.yml
 ```
 
 The goal is **not** to remove Node from the repository. Astro, Cloudflare Workers, browser extension code, Pagefind and some renderers are legitimately JavaScript-based.
@@ -369,7 +371,7 @@ The goal is to remove **backend/control-plane JavaScript** from CI when Go owns 
 
 ### Site build
 
-`deploy.yml` and the site-validation part of `pr-validate.yml` still require Node for:
+`deploy.yml` still requires Node for:
 
 - Astro
 - npm dependency graph
@@ -410,29 +412,22 @@ The extension runtime remains JavaScript. Node may remain as its test/check runn
 
 ## 11. CI: migrate to Go
 
-### search-submit.yml — high priority
+### Search submission
 
-Current:
+The standalone `search-submit.yml` workflow is removed. Search submission belongs to BlogCTL and the post-deploy notification path, not to a second CI pipeline.
 
-```text
-Setup Node
-→ search/node/cli.mjs
-→ IndexNow
-→ Google sitemap
-→ Google URL inspection
-```
-
-Target:
+After the Go Search migration:
 
 ```text
-Setup Go
-→ blogctl search submit
-→ blogctl search inspect
+deploy success
+  ↓
+blogctl search notify
+  ├── IndexNow
+  ├── Baidu
+  └── Google sitemap
 ```
 
-Add Baidu to the same provider model.
-
-After R1, this workflow should no longer require Node.
+Manual bulk/inspection operations should be BlogCTL commands instead of a permanent GitHub Actions workflow.
 
 ---
 
@@ -520,33 +515,35 @@ Treat this as a later cleanup, not a prerequisite for R1.
 
 ---
 
-## 12. PR validation should be split by runtime
+## 12. No standalone PR validation workflow
 
-Current `pr-validate.yml` runs Go and Node in one job.
+`pr-validate.yml` is removed.
 
-Target:
+For this personal repository, running the full Go + Node + Java + Astro stack before merge and then repeating most of it during deployment adds more pipeline complexity than value.
+
+The deployment build itself is the final build gate. Local development / agents should run targeted tests before pushing changes.
+
+The deploy build is intentionally reduced to the required path:
 
 ```text
-PR Validate
-├── blogctl-go
-│   ├── gofmt
-│   ├── go test ./...
-│   └── go build ./cmd
-│
-└── site-node
-    ├── npm ci
-    ├── Java / Graphviz
-    ├── site JS tests
-    ├── Astro check
-    └── site build
+Checkout engine
+→ Checkout content
+→ npm ci
+→ Java / Graphviz
+→ Assemble content
+→ npm run build
+→ Upload artifacts
+→ Deploy
 ```
 
-Benefits:
+Do not separately run:
 
-- runtime ownership is explicit
-- Go failures do not wait for npm install
-- site failures do not obscure BlogCTL failures
-- later removal of MJS tests becomes straightforward
+- content-source pre-validation
+- `npm run test:engine`
+- `astro check`
+- a second PR build workflow
+
+when the goal is simply to produce and deploy the site.
 
 ---
 
@@ -604,6 +601,29 @@ The CI wiring can temporarily install Go in the build job to run the postprocess
 
 ---
 
+## 14.1 Workflow boundary: keep Content Watch separate
+
+`content-watch.yml` and `deploy.yml` can technically be merged, but should remain separate.
+
+Reason:
+
+```text
+content-watch = cheap scheduler / change detector
+deploy        = expensive build / release pipeline
+```
+
+Merging them would require schedule-specific conditions, extra job outputs, broader permissions and more concurrency branches inside `deploy.yml`. That reduces file count but increases logic.
+
+The simpler boundary is:
+
+```text
+content-watch
+   ↓ only when private content changed
+deploy
+```
+
+Likewise, BlogCTL release, Worker release and analytics remain separate because they deploy or operate independent systems.
+
 # 15. Migration sequence
 
 ## R1 — Search Core + Baidu
@@ -645,7 +665,8 @@ The CI wiring can temporarily install Go in the build job to run the postprocess
 
 ## R6 — CI cleanup
 
-- split PR validation into Go and site jobs
+- keep the workflow count small
+- keep `content-watch.yml` separate from `deploy.yml`
 - migrate pure HTTP/operations CI scripts where useful
 - remove migrated MJS tests from package.json
 
