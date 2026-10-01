@@ -2,7 +2,7 @@
 
 (function (root) {
   const state = { initialized: false, active: false, compiler: {}, assets: {}, assetStatus: {} };
-  let mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl;
+  let mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, r2AccessKeyId, r2SecretAccessKey, r2AccountId, r2Endpoint;
   let assetStatus, assetStatusDetail, saveButton, message;
 
   function writeForm() {
@@ -12,6 +12,11 @@
     mermaidScale.value = Number(mermaid.scale || 2);
     r2Bucket.value = r2.bucket || "";
     r2PublicBaseUrl.value = r2.publicBaseUrl || "";
+    r2AccessKeyId.value = r2.accessKeyId || "";
+    r2AccountId.value = r2.accountId || "";
+    r2Endpoint.value = r2.endpoint || "";
+    r2SecretAccessKey.value = "";
+    r2SecretAccessKey.placeholder = r2.secretAccessKeyConfigured ? "已配置；留空保持不变" : "未配置";
 
     const ready = Boolean(state.assetStatus?.ready);
     BlogCTLPopup.setStatus(assetStatus, ready ? "ok" : "unknown", ready ? "R2 兜底可用" : "R2 兜底未就绪");
@@ -35,6 +40,10 @@
         r2: {
           bucket: r2Bucket.value.trim(),
           publicBaseUrl: r2PublicBaseUrl.value.trim(),
+          accessKeyId: r2AccessKeyId.value.trim(),
+          secretAccessKey: r2SecretAccessKey.value.trim(),
+          accountId: r2AccountId.value.trim(),
+          endpoint: r2Endpoint.value.trim(),
         },
       },
     };
@@ -81,12 +90,16 @@
     mermaidScale = document.getElementById("mermaidScale");
     r2Bucket = document.getElementById("r2Bucket");
     r2PublicBaseUrl = document.getElementById("r2PublicBaseUrl");
+    r2AccessKeyId = document.getElementById("r2AccessKeyId");
+    r2SecretAccessKey = document.getElementById("r2SecretAccessKey");
+    r2AccountId = document.getElementById("r2AccountId");
+    r2Endpoint = document.getElementById("r2Endpoint");
     assetStatus = document.getElementById("assetStatus");
     assetStatusDetail = document.getElementById("assetStatusDetail");
     saveButton = document.getElementById("saveAssets");
     message = document.getElementById("assetsMessage");
 
-    for (const element of [mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl]) {
+    for (const element of [mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, r2AccessKeyId, r2SecretAccessKey, r2AccountId, r2Endpoint]) {
       element.addEventListener("input", () => BlogCTLPopup.setMessage(message));
     }
     saveButton.addEventListener("click", save);
