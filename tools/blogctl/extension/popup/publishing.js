@@ -1,11 +1,9 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, platforms: [], compiler: {}, assets: {}, assetStatus: {}, tools: [] };
+  const state = { initialized: false, active: false, platforms: [], tools: [] };
   let platformSelect, languageSelect, changedOnly, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
-  let mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, assetStatus, assetStatusDetail;
-  let assetSaveButton, assetMessage;
   let platformAccessConfig, preview, saveButton, resetButton, message;
 
   function currentPlatform() {
@@ -179,62 +177,6 @@
     preview.textContent = lines.join("\n\n");
   }
 
-  function writeAssetForm() {
-    const mermaid = state.compiler?.mermaid ?? {};
-    const r2 = state.assets?.r2 ?? {};
-    mermaidWidth.value = Number(mermaid.width || 1200);
-    mermaidScale.value = Number(mermaid.scale || 2);
-    r2Bucket.value = r2.bucket || "";
-    r2PublicBaseUrl.value = r2.publicBaseUrl || "";
-
-    const ready = Boolean(state.assetStatus?.ready);
-    BlogCTLPopup.setStatus(assetStatus, ready ? "ok" : "unknown", ready ? "R2 兜底可用" : "R2 兜底未就绪");
-    const missing = state.assetStatus?.missing ?? [];
-    assetStatusDetail.textContent = ready
-      ? "共享 R2 已就绪；所有发布平台在平台原生图片上传失败时统一使用该兜底。"
-      : `平台原生图片上传仍可使用；共享 R2 缺少：${missing.join("、") || "未知配置"}。平台原生上传失败时将无法使用 R2 兜底。`;
-  }
-
-  function readAssetForm() {
-    return {
-      compiler: {
-        mermaid: {
-          format: "png",
-          width: Number(mermaidWidth.value || 1200),
-          scale: Number(mermaidScale.value || 2),
-        },
-      },
-      assets: {
-        store: "r2",
-        r2: {
-          bucket: r2Bucket.value.trim(),
-          publicBaseUrl: r2PublicBaseUrl.value.trim(),
-        },
-      },
-    };
-  }
-
-  async function saveAssets() {
-    const runtime = readAssetForm();
-    assetSaveButton.disabled = true;
-    BlogCTLPopup.setMessage(assetMessage, "正在保存共享资产配置…");
-    try {
-      const response = await BlogCTLPopup.send("blogctl.publishing.save", {
-        compiler: runtime.compiler,
-        assets: runtime.assets,
-      });
-      state.compiler = response.compiler ?? state.compiler;
-      state.assets = response.assets ?? state.assets;
-      state.assetStatus = response.assetStatus ?? state.assetStatus;
-      writeAssetForm();
-      BlogCTLPopup.setMessage(assetMessage, "共享资产配置已保存，所有平台将使用同一套 R2 配置。", "ok");
-    } catch (error) {
-      BlogCTLPopup.setMessage(assetMessage, BlogCTLPopup.errorMessage(error), "error");
-    } finally {
-      assetSaveButton.disabled = false;
-    }
-  }
-
   function writeForm(platform) {
     const profile = platform || {};
     const fallback = defaultsFor(profile.id || "cnblogs");
@@ -332,18 +274,13 @@
   async function refresh() {
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
-    BlogCTLPopup.setMessage(assetMessage);
     try {
       const [response, toolsResponse] = await Promise.all([
         BlogCTLPopup.send("blogctl.publishing"),
         BlogCTLPopup.send("blogctl.tools"),
       ]);
       state.platforms = response.platforms ?? [];
-      state.compiler = response.compiler ?? {};
-      state.assets = response.assets ?? {};
-      state.assetStatus = response.assetStatus ?? {};
       state.tools = toolsResponse.tools ?? [];
-      writeAssetForm();
       renderPlatformSelect();
       await BlogCTLPopup.refreshBridgeIndicator();
     } catch (error) {
@@ -364,14 +301,6 @@
     trackingSource = document.getElementById("trackingSource");
     trackingMedium = document.getElementById("trackingMedium");
     trackingCampaign = document.getElementById("trackingCampaign");
-    mermaidWidth = document.getElementById("mermaidWidth");
-    mermaidScale = document.getElementById("mermaidScale");
-    r2Bucket = document.getElementById("r2Bucket");
-    r2PublicBaseUrl = document.getElementById("r2PublicBaseUrl");
-    assetStatus = document.getElementById("assetStatus");
-    assetStatusDetail = document.getElementById("assetStatusDetail");
-    assetSaveButton = document.getElementById("saveAssets");
-    assetMessage = document.getElementById("assetsMessage");
     preview = document.getElementById("publishingPreview");
     saveButton = document.getElementById("savePublishing");
     resetButton = document.getElementById("resetPublishing");
@@ -389,10 +318,6 @@
     for (const element of [footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
       element.addEventListener(element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input", updatePreview);
     }
-    for (const element of [mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl]) {
-      element.addEventListener("input", () => BlogCTLPopup.setMessage(assetMessage));
-    }
-    assetSaveButton.addEventListener("click", saveAssets);
     saveButton.addEventListener("click", save);
     resetButton.addEventListener("click", reset);
     state.initialized = true;
