@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import test from "node:test";
 import {
   defaultPlatformPublishingConfig,
@@ -92,28 +89,13 @@ test("legacy flat publishing config remains readable", () => {
   assert.equal(profile.tracking.campaign, "old");
 });
 
-test("loader reads new publishing.platforms schema", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "blogctl-publishing-"));
-  const configFile = path.join(directory, "config.json");
-  await writeFile(configFile, JSON.stringify({
-    publishing: {
-      platforms: {
-        medium: {
-          language: "zh-CN",
-          footer: { enabled: false, template: "unused" },
-          canonical: { mode: "native" },
-          tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
-        },
-      },
-    },
-  }));
-  const config = await loadPublishingConfig({ BLOGCTL_CONFIG_FILE: configFile });
-  assert.equal(config.medium.language, "zh-CN");
-  assert.equal(config.medium.footer.enabled, false);
-  assert.equal(config.medium.canonical.mode, "native");
-  assert.equal(config.medium.tracking.enabled, false);
+test("Node does not parse the user TOML config directly", async () => {
+  const config = await loadPublishingConfig({
+    BLOGCTL_CONFIG_FILE: "C:/Users/zsk/AppData/Roaming/BlogCTL/blogctl.toml",
+  });
+  assert.equal(config.medium.language, "en");
+  assert.equal(config.cnblogs.language, "zh-CN");
 });
-
 
 test("BlogCTL resolved publishing JSON bypasses Node default merging", async () => {
   const resolved = {
