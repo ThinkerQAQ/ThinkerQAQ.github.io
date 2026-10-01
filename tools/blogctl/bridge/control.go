@@ -1131,9 +1131,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		DevtoAPIKey:    config.DevtoAPIKey,
 		ToolPaths:      config.ToolPaths,
 	}
-	if configPath, err := ConfigPath(); err == nil {
-		applicationConfig.ConfigPath = configPath
-	}
 	if request.Operation == "update-published" {
 		started := time.Now()
 		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
