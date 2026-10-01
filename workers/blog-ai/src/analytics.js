@@ -1,5 +1,7 @@
 const UMAMI_API_ORIGIN = "https://gateway-us.umami.is/api";
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const WEEK_MS = 7 * DAY_MS;
 const METRIC_LIMIT = 100;
 const MAX_BACKFILL_HOURS = 4;
 const TODAY_CACHE_MS = 5 * 60 * 1000;
@@ -10,6 +12,8 @@ const META_KEY = "analytics:meta";
 const LATEST_KEY = "analytics:latest";
 const TODAY_PREFIX = "analytics:today:";
 const HOUR_PREFIX = "analytics:hour:";
+const WEEK_PREFIX = "analytics:week:";
+const WEEKLY_LATEST_KEY = "analytics:weekly:latest";
 
 const METRIC_TYPES = Object.freeze({
   paths: "path",
@@ -303,6 +307,29 @@ function localDateParts(timestamp, offsetMinutes) {
   };
 }
 
+function localWeekWindow(timestamp, offsetMinutes, weeksAgo = 1) {
+  const offsetMs = offsetMinutes * 60 * 1000;
+  const shifted = new Date(timestamp + offsetMs);
+  const daysSinceMonday = (shifted.getUTCDay() + 6) % 7;
+  const thisWeekStartShifted = Date.UTC(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth(),
+    shifted.getUTCDate() - daysSinceMonday,
+  );
+  const startShifted = thisWeekStartShifted - weeksAgo * WEEK_MS;
+  const startAt = startShifted - offsetMs;
+
+  return {
+    weekStartDate: new Date(startShifted).toISOString().slice(0, 10),
+    startAt,
+    endAt: startAt + WEEK_MS - 1,
+  };
+}
+
+function weekKey(weekStartDate) {
+  return `${WEEK_PREFIX}${weekStartDate}`;
+}
+
 function emptyWindow(startAt, endAt) {
   return {
     startAt,
@@ -326,6 +353,41 @@ function pendingHours(lastFinalizedHourEnd, now, graceMs = 0) {
     0,
     Math.floor((expectedHourEnd - lastFinalizedHourEnd) / HOUR_MS),
   );
+}
+
+async function refreshWeekly(kv, share, scheduledTime, env) {
+  const offsetMinutes = timezoneOffsetMinutes(env);
+  const periods = [
+    localWeekWindow(scheduledTime, offsetMinutes, 1),
+    localWeekWindow(scheduledTime, offsetMinutes, 2),
+  ];
+  const windows = [];
+
+  for (const period of periods) {
+    const key = weekKey(period.weekStartDate);
+    let window = await readJson(kv, key);
+
+    if (!window) {
+      window = {
+        ...(await collectWindow(share, period.startAt, period.endAt)),
+        weekStartDate: period.weekStartDate,
+        timezoneOffsetMinutes: offsetMinutes,
+      };
+      await writeJson(kv, key, window);
+    }
+
+    windows.push(window);
+  }
+
+  const weekly = {
+    generatedAt: new Date(scheduledTime).toISOString(),
+    timezoneOffsetMinutes: offsetMinutes,
+    current: windows[0],
+    previous: windows[1],
+    delta: buildDelta(windows[0], windows[1]),
+  };
+  await writeJson(kv, WEEKLY_LATEST_KEY, weekly);
+  return weekly;
 }
 
 async function refreshLatest(
@@ -410,6 +472,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
       meta.lastFinalizedHourEnd,
       freshWindows,
     );
+    const weekly = await refreshWeekly(kv, share, scheduledTime, env);
 
     meta = {
       ...meta,
@@ -422,7 +485,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
     };
     await writeJson(kv, META_KEY, meta);
 
-    return { latest, meta };
+    return { latest, weekly, meta };
   } catch (error) {
     meta = {
       ...meta,
@@ -567,6 +630,9 @@ export const analyticsInternals = {
   HOUR_MS,
   META_KEY,
   LATEST_KEY,
+  WEEKLY_LATEST_KEY,
   hourKey,
+  weekKey,
   localDateParts,
+  localWeekWindow,
 };
