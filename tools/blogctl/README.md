@@ -97,7 +97,7 @@ canonical article
 
 The personal site is separate: Mermaid source is rendered by Mermaid.js in the browser and does not require publishing PNGs.
 
-Compiler, asset policy, and R2 credentials are stored in the user-level BlogCTL TOML config. On Windows the default path is `%APPDATA%\\BlogCTL\\blogctl.toml` (for example `C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\blogctl.toml`). R2 credentials are never written to content or distribution artifacts, and the Secret Access Key is not returned to the Extension UI.
+Compiler, asset policy, and R2 credentials are stored in the user-level BlogCTL TOML config. On Windows the default path is `%APPDATA%\BlogCTL\blogctl.toml` (for example `C:\Users\zsk\AppData\Roaming\BlogCTL\blogctl.toml`). R2 credentials are never written to content or distribution artifacts, and the Secret Access Key is not returned to the Extension UI.
 
 See [UNIFIED_PUBLISHING_PIPELINE.md](./UNIFIED_PUBLISHING_PIPELINE.md).
 
@@ -146,7 +146,7 @@ Publishing language is a persistent per-platform policy under **发布配置**. 
 
 BlogCTL follows the same proxy model as DownKit: proxy configuration belongs to the local Bridge rather than to an individual `sync` invocation. The Extension exposes a persistent **Network Proxy** card with an explicit enable switch plus proxy host and port fields.
 
-The configuration is stored under the operating system user-config directory in `BlogCTL/blogctl.toml`. On Windows this resolves to `%APPDATA%\\BlogCTL\\blogctl.toml`. When a Bridge starts, it loads that file automatically. Existing `config.json` is migrated once to TOML and retained as `config.json.migrated.bak`. Changing the proxy while the Bridge is running rebuilds the Bridge HTTP client immediately.
+The configuration is stored under the operating system user-config directory in `BlogCTL/blogctl.toml`. On Windows this resolves to `%APPDATA%\BlogCTL\blogctl.toml`. When a Bridge starts, it loads that file automatically. Existing `config.json` is migrated once to TOML and retained as `config.json.migrated.bak`. Changing the proxy while the Bridge is running rebuilds the Bridge HTTP client immediately.
 
 - Enabled: Bridge-originated external HTTP/HTTPS traffic uses the configured HTTP proxy; HTTPS destinations use CONNECT through it.
 - Search Node and other BlogCTL child processes receive the same proxy through `HTTP_PROXY` / `HTTPS_PROXY` / `NODE_USE_ENV_PROXY=1`.
