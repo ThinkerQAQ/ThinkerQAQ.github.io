@@ -55,10 +55,15 @@ test("environment owns expansion lifecycle for the shared asset card", async () 
   assert.match(environment, /BlogCTLAssets\.deactivate\(\)/u);
 });
 
-
 test("R2 credentials are stored through BlogCTL config instead of environment variables", async () => {
   const assets = await readFile(assetsPath, "utf8");
   assert.match(assets, /accessKeyId: r2AccessKeyId\.value\.trim\(\)/u);
   assert.match(assets, /secretAccessKey: r2SecretAccessKey\.value\.trim\(\)/u);
   assert.doesNotMatch(assets, /R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_ACCOUNT_ID/u);
+});
+
+
+test("Bridge card renders the active BlogCTL config path separately", async () => {
+  const environment = await readFile(environmentPath, "utf8");
+  assert.match(environment, /tool\.name === "bridge" \? `配置 \$\{tool\.health\.path\}` : tool\.health\.path/u);
 });
