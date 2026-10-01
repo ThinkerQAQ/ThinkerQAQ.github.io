@@ -61,6 +61,7 @@ export async function preparePublishingAssetList(assets, {
   read = readRenderedAsset,
   upload = uploadR2Object,
   uploadFallback = true,
+  r2Credentials = {},
   constrain = constrainPublishingImage,
   maxDimension = DEFAULT_PUBLISHING_IMAGE_MAX_DIMENSION,
 } = {}) {
@@ -71,7 +72,7 @@ export async function preparePublishingAssetList(assets, {
 
   const runtime = loadBlogctlPublishingRuntimeConfig(env);
   if (runtime.assets.store !== "r2") throw new Error("Unsupported BlogCTL publishing asset store: " + runtime.assets.store);
-  const config = uploadFallback ? loadR2Config({ policy: runtime.assets.r2 }) : null;
+  const config = uploadFallback ? loadR2Config({ policy: runtime.assets.r2, credentials: r2Credentials }) : null;
   let rendered = 0;
   let cached = 0;
   let uploaded = 0;
