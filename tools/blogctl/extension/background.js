@@ -95,9 +95,9 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
-function requestNativeBridge() {
+function requestNativeBridge(command = "ensure_bridge") {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendNativeMessage(NATIVE_HOST, { command: "ensure_bridge" }, (response) => {
+    chrome.runtime.sendNativeMessage(NATIVE_HOST, { command }, (response) => {
       const error = chrome.runtime.lastError;
       if (error) {
         reject(new Error(`无法连接 BlogCTL Native Host：${error.message}`));
@@ -124,27 +124,11 @@ function delay(milliseconds) {
 }
 
 async function restartBridge() {
-  const current = await ensureBridge(false);
-  const previousPID = Number(current?.pid || 0);
-  await fetchJSON("/v1/restart", { method: "POST" }, false);
+  await fetchJSON("/v1/restart/check", { method: "POST" }, false);
   bridgeSession = null;
-  await delay(300);
-
-  const deadline = Date.now() + 10000;
-  let lastError;
-  while (Date.now() < deadline) {
-    try {
-      const response = await requestNativeBridge();
-      if (!previousPID || Number(response?.pid || 0) !== previousPID) {
-        bridgeSession = { ...response, checkedAt: Date.now() };
-        return bridgeSession;
-      }
-    } catch (error) {
-      lastError = error;
-    }
-    await delay(250);
-  }
-  throw new Error(lastError?.message || "Bridge 重启超时");
+  const response = await requestNativeBridge("restart_bridge");
+  bridgeSession = { ...response, checkedAt: Date.now() };
+  return bridgeSession;
 }
 
 async function probeCookies(probe) {
