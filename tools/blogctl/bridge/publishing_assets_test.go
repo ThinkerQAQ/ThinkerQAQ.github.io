@@ -64,7 +64,7 @@ func TestPlatformUpdatePreservesSharedAssetSettings(t *testing.T) {
 	config.Publishing.Assets.R2.Bucket = "shared-assets"
 	config.Publishing.Assets.R2.PublicBaseURL = "https://assets.example.com/"
 	view := publishingViews(config)[0]
-	view.ChangedOnly = true
+	view.Tracking.Campaign = "changed-platform-setting"
 
 	updated, err := updatePublishing(config, []publishingPlatformView{view})
 	if err != nil {
