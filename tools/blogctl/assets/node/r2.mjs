@@ -1,9 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 
-import {
-  DEFAULT_R2_PUBLIC_BASE_URL,
-  loadBlogctlPublishingRuntimeConfig,
-} from "../../compiler/node/runtime-config.mjs";
+import { DEFAULT_R2_PUBLIC_BASE_URL } from "../../compiler/node/runtime-config.mjs";
 
 function sha256Hex(value) {
   return createHash("sha256").update(value).digest("hex");
