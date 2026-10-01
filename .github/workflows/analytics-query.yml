@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/analytics-query.yml"
+      - "workers/blog-ai/src/analytics.js"
+      - "workers/blog-ai/src/bot-observation.js"
+      - "workers/blog-ai/src/worker.js"
   schedule:
     - cron: "12 * * * *"
 
@@ -20,53 +23,79 @@ jobs:
   query:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
     steps:
-      - name: Query production analytics
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Query production analytics from Workers KV
         shell: bash
         run: |
           set -euo pipefail
 
-          base="https://thinkerqaq-blog-ai.blog-ai.workers.dev"
-          health="$(mktemp)"
-          hourly="$(mktemp)"
-          today="$(mktemp)"
-          bot_observation="$(mktemp)"
-
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/health" > "$health"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/hourly" > "$hourly"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/today" > "$today"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused "$base/analytics/bot-observation" > "$bot_observation"
-
-          node - "$health" "$hourly" "$today" "$bot_observation" <<'NODE'
+          node <<'NODE'
           const fs = require("fs");
-          const [healthPath, hourlyPath, todayPath, botObservationPath] = process.argv.slice(2);
 
-          const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
-          const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
-          const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
-          const botObservation = JSON.parse(fs.readFileSync(botObservationPath, "utf8"));
+          const HOUR_MS = 60 * 60 * 1000;
+          const HEALTH_GRACE_MS = 15 * 60 * 1000;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const apiToken = process.env.CLOUDFLARE_API_TOKEN;
 
-          if (
-            health.healthy !== true ||
-            !health.lastSuccessAt ||
-            health.pendingHours !== 0 ||
-            health.hasError === true
-          ) {
-            throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
+          if (!accountId || !apiToken) {
+            throw new Error("Cloudflare account/token is required for query-only KV access.");
           }
 
-          if (!hourly.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
-            throw new Error("analytics/hourly is missing persisted current/previous windows");
+          const wrangler = fs.readFileSync("workers/blog-ai/wrangler.jsonc", "utf8");
+          const namespaceMatch = wrangler.match(
+            /"binding"\s*:\s*"ANALYTICS_KV"[\s\S]{0,300}?"id"\s*:\s*"([^"]+)"/,
+          );
+          if (!namespaceMatch) {
+            throw new Error("Could not resolve ANALYTICS_KV namespace id from wrangler.jsonc.");
+          }
+          const namespaceId = namespaceMatch[1];
+
+          async function kvGet(key, { required = true } = {}) {
+            const url =
+              `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}` +
+              `/storage/kv/namespaces/${encodeURIComponent(namespaceId)}` +
+              `/values/${encodeURIComponent(key)}`;
+            const response = await fetch(url, {
+              headers: { authorization: `Bearer ${apiToken}` },
+            });
+            if (response.status === 404 && !required) return null;
+            if (!response.ok) {
+              const detail = await response.text().catch(() => "");
+              throw new Error(
+                `KV read failed for ${key}: ${response.status}${detail ? ` ${detail.slice(0, 200)}` : ""}`,
+              );
+            }
+            const text = await response.text();
+            return text ? JSON.parse(text) : null;
           }
 
-          if (!today.generatedAt || !today.date || !today.current?.stats) {
-            throw new Error("analytics/today is missing the current-day aggregate");
+          function floorHour(timestamp) {
+            return Math.floor(timestamp / HOUR_MS) * HOUR_MS;
+          }
+
+          function pendingHours(lastFinalizedHourEnd, now, graceMs = 0) {
+            if (!Number.isFinite(lastFinalizedHourEnd)) return null;
+            const expectedHourEnd = floorHour(now - graceMs);
+            return Math.max(
+              0,
+              Math.floor((expectedHourEnd - lastFinalizedHourEnd) / HOUR_MS),
+            );
           }
 
           const take = (value, limit = 50) =>
             Array.isArray(value) ? value.slice(0, limit) : [];
 
-          const trimWindow = (window) => ({
+          const trimWindow = window => ({
+            ...(window?.weekStartDate ? { weekStartDate: window.weekStartDate } : {}),
+            ...(Number.isFinite(window?.timezoneOffsetMinutes)
+              ? { timezoneOffsetMinutes: window.timezoneOffsetMinutes }
+              : {}),
             startAt: window?.startAt,
             endAt: window?.endAt,
             stats: window?.stats,
@@ -80,15 +109,59 @@ jobs:
             warnings: take(window?.warnings),
           });
 
-          const trimDelta = (delta) => {
+          const trimDelta = delta => {
             if (!delta) return delta;
             const result = { stats: delta.stats };
             for (const [key, value] of Object.entries(delta)) {
               if (key === "stats") continue;
+              if (/Regions$|Cities$/.test(key)) continue;
               if (Array.isArray(value)) result[key] = value.slice(0, 50);
             }
             return result;
           };
+
+          const [meta, hourly, weekly, botObservation] = await Promise.all([
+            kvGet("analytics:meta"),
+            kvGet("analytics:latest"),
+            kvGet("analytics:weekly:latest"),
+            kvGet("analytics:bot:latest", { required: false }),
+          ]);
+
+          const now = Date.now();
+          const pending = pendingHours(
+            Number(meta?.lastFinalizedHourEnd),
+            now,
+            HEALTH_GRACE_MS,
+          );
+          const lastSuccessMs = Date.parse(meta?.lastSuccessAt || "");
+          const health = {
+            healthy:
+              !meta?.lastError &&
+              pending === 0 &&
+              Number.isFinite(lastSuccessMs) &&
+              now - lastSuccessMs < 2 * HOUR_MS,
+            now: new Date(now).toISOString(),
+            lastSuccessAt: meta?.lastSuccessAt || null,
+            pendingHours: pending,
+            hasError: Boolean(meta?.lastError),
+          };
+
+          if (
+            health.healthy !== true ||
+            !health.lastSuccessAt ||
+            health.pendingHours !== 0 ||
+            health.hasError === true
+          ) {
+            throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
+          }
+
+          if (!hourly?.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
+            throw new Error("analytics:latest is missing persisted current/previous windows");
+          }
+
+          if (!weekly?.generatedAt || !weekly.current?.stats || !weekly.previous?.stats) {
+            throw new Error("analytics:weekly:latest is missing two complete calendar weeks");
+          }
 
           const result = {
             queriedAt: new Date().toISOString(),
@@ -100,26 +173,29 @@ jobs:
               previous: trimWindow(hourly.previous),
               delta: trimDelta(hourly.delta),
             },
-            today: {
-              generatedAt: today.generatedAt,
-              date: today.date,
-              timezoneOffsetMinutes: today.timezoneOffsetMinutes,
-              current: trimWindow(today.current),
+            weekly: {
+              generatedAt: weekly.generatedAt,
+              timezoneOffsetMinutes: weekly.timezoneOffsetMinutes,
+              current: trimWindow(weekly.current),
+              previous: trimWindow(weekly.previous),
+              delta: trimDelta(weekly.delta),
             },
-            botObservation: {
-              generatedAt: botObservation.generatedAt,
-              windowHours: botObservation.windowHours,
-              clientsObserved: botObservation.clientsObserved,
-              suspectedClients: botObservation.suspectedClients,
-              totalObservedPageviews: botObservation.totalObservedPageviews,
-              blockedHits: botObservation.blockedHits,
-              largestClientPageviewShare: botObservation.largestClientPageviewShare,
-              dominantSingleClient: botObservation.dominantSingleClient,
-              distributedScanCohorts: botObservation.distributedScanCohorts,
-              distributedBlockedHits: botObservation.distributedBlockedHits,
-              topDistributedSuspects: take(botObservation.topDistributedSuspects, 10),
-              topSuspected: take(botObservation.topSuspected, 10),
-            },
+            botObservation: botObservation
+              ? {
+                  generatedAt: botObservation.generatedAt,
+                  windowHours: botObservation.windowHours,
+                  clientsObserved: botObservation.clientsObserved,
+                  suspectedClients: botObservation.suspectedClients,
+                  totalObservedPageviews: botObservation.totalObservedPageviews,
+                  blockedHits: botObservation.blockedHits,
+                  largestClientPageviewShare: botObservation.largestClientPageviewShare,
+                  dominantSingleClient: botObservation.dominantSingleClient,
+                  distributedScanCohorts: botObservation.distributedScanCohorts,
+                  distributedBlockedHits: botObservation.distributedBlockedHits,
+                  topDistributedSuspects: take(botObservation.topDistributedSuspects, 10),
+                  topSuspected: take(botObservation.topSuspected, 10),
+                }
+              : null,
           };
 
           console.log(`ANALYTICS_QUERY_RESULT=${JSON.stringify(result)}`);

@@ -23,6 +23,14 @@ class MemoryKv {
   async put(key, value) {
     this.data.set(key, String(value));
   }
+
+  async list({ prefix = "", limit = 1000 } = {}) {
+    const keys = [...this.data.keys()]
+      .filter(key => key.startsWith(prefix))
+      .slice(0, limit)
+      .map(name => ({ name }));
+    return { keys, list_complete: true };
+  }
 }
 
 class LaggyHourReadKv extends MemoryKv {
@@ -135,8 +143,23 @@ test("cron backfills missing complete hours and persists latest report", async (
     assert.equal(latest.delta.stats.visitors, 1);
     assert.deepEqual(latest.current.events, [{ name: "engaged_read", count: 1 }]);
 
-    // One share lookup plus 10 Umami requests for each of four hourly buckets.
-    assert.equal(umami.calls(), 41);
+    const weekly = JSON.parse(
+      await kv.get(analyticsInternals.WEEKLY_LATEST_KEY),
+    );
+    assert.equal(weekly.current.weekStartDate, "2026-09-14");
+    assert.equal(weekly.previous.weekStartDate, "2026-09-07");
+    assert.equal(
+      weekly.current.startAt,
+      Date.parse("2026-09-13T16:00:00Z"),
+    );
+    assert.equal(
+      weekly.current.endAt,
+      Date.parse("2026-09-20T15:59:59.999Z"),
+    );
+
+    // One share lookup plus 10 requests for each of four hourly buckets and
+    // two complete weekly aggregates.
+    assert.equal(umami.calls(), 61);
   } finally {
     umami.restore();
   }
@@ -154,7 +177,8 @@ test("cron bootstrap builds latest without relying on KV read-after-write consis
     assert.equal(meta.pendingHours, 0);
     assert.equal(latest.current.startAt, Date.parse("2026-09-24T04:00:00Z"));
     assert.equal(latest.previous.startAt, Date.parse("2026-09-24T03:00:00Z"));
-    assert.equal(umami.calls(), 21);
+    assert.ok(kv.data.has(analyticsInternals.WEEKLY_LATEST_KEY));
+    assert.equal(umami.calls(), 41);
   } finally {
     umami.restore();
   }
@@ -173,6 +197,8 @@ test("deployed policy entrypoint forwards scheduled events to analytics cron", a
     assert.equal(meta.lastFinalizedHourEnd, Date.parse("2026-09-24T05:00:00Z"));
     assert.equal(meta.pendingHours, 0);
     assert.ok(kv.data.has(analyticsInternals.LATEST_KEY));
+    assert.ok(kv.data.has(analyticsInternals.WEEKLY_LATEST_KEY));
+    assert.ok(kv.data.has("analytics:bot:latest"));
   } finally {
     umami.restore();
   }

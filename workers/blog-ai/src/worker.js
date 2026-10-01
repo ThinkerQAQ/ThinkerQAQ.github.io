@@ -6,6 +6,7 @@ import {
 import {
   handleBotObservationRequest,
   observeAnalyticsBeacon,
+  persistBotObservationReport,
 } from "./bot-observation.js";
 
 const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
@@ -163,7 +164,8 @@ export default {
     return app.fetch(request, env, ctx);
   },
 
-  scheduled(controller, env) {
-    return runAnalyticsCron(env, controller.scheduledTime);
+  async scheduled(controller, env) {
+    await runAnalyticsCron(env, controller.scheduledTime);
+    await persistBotObservationReport(env, controller.scheduledTime);
   },
 };
