@@ -60,6 +60,9 @@ Engine commands:
 cd ThinkerQAQ.github.io
 blogctl preview
 blogctl build
+blogctl site build --content-root ../blog-content
+blogctl ai-search prepare --output .tmp/ai-search --content-root ../blog-content
+blogctl ai-search sync --verify
 blogctl check
 blogctl notes sync
 blogctl diagrams
@@ -82,6 +85,20 @@ go build -o blogctl ./tools/blogctl/cmd
 ```
 
 The released binary removes the need to install Go for normal use. Astro/site and syndication operations still require the public engine repository's Node.js dependencies, and PlantUML rendering still requires Java when a new diagram must be rendered.
+
+
+## CI control plane
+
+GitHub Actions should keep only GitHub-native orchestration in YAML. Repository-specific operations are routed through the BlogCTL binary built from the current checkout:
+
+```text
+checkout
+→ setup Go
+→ go build ./tools/blogctl/cmd
+→ blogctl site build / ai-search / search ...
+```
+
+The current-checkout binary is required in CI so the workflow and BlogCTL implementation cannot drift across versions. BlogCTL may still invoke ecosystem tools such as Astro, Node, Java, Mermaid CLI, Wrangler, or EdgeOne internally; those are implementation details rather than separate user-facing control planes.
 
 ## Publishing control plane
 
@@ -114,6 +131,7 @@ blogctl search submit --providers indexnow --all
 blogctl search submit --providers indexnow --urls-file changed-urls.txt
 blogctl search submit --providers google
 blogctl search audit --provider google --limit 500 --output .search/google-audit.json
+blogctl search notify
 ```
 
 Google Search Console authentication uses the `GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON` secret. The service-account identity must be granted access to the Search Console property. Override the property with `GOOGLE_SEARCH_CONSOLE_SITE_URL` when needed; the default is `https://thinkerqaq.github.io/`.
