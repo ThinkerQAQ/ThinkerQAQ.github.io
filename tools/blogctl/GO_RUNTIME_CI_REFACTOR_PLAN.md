@@ -6,6 +6,36 @@
 >
 > Principle: **Go is the default for backend/control-plane logic. JavaScript remains only where the code must run in the browser or where the underlying ecosystem is inherently JavaScript-based.**
 
+## 0. Execution status
+
+Started on branch `docs/blogctl-go-runtime-ci-refactor-20261001`.
+
+Completed in the first refactor slice:
+
+- removed `pr-validate.yml`, `search-submit.yml`, and `ai-search-health.yml`
+- simplified `deploy.yml`
+- added `blogctl site build`
+- added `blogctl ai-search prepare|sync|verify`
+- moved AI Search health polling into Go
+- added `blogctl search notify`
+- removed the standalone `check-ai-search-health.mjs`
+- deployment now routes site build, AI Search, and search notification through BlogCTL
+
+Current compatibility boundary:
+
+- Search provider implementation still calls the existing Node search runtime internally
+- AI Search sync/evaluation still calls existing Node scripts internally
+- those internal Node implementations are the next migration targets; the CI command surface is already unified
+
+Next slice:
+
+1. Search Core + Baidu in Go
+2. IndexNow + Google API providers in Go
+3. delete `tools/blogctl/search/node`
+4. move AI Search sync/evaluation implementation from Node into Go
+
+---
+
 ## 1. Domain definition
 
 BlogCTL is a local publishing and search control plane:
