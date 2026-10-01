@@ -434,7 +434,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Health: toolHealth{
 				OK: true, Status: "ok", Summary: "运行中", Version: version.Current,
 				Detail: fmt.Sprintf("PID %d · %s", os.Getpid(), DefaultAddress),
-				Path: configPath,
+				Path:   configPath,
 			},
 			Actions: []toolAction{{
 				ID: "restart", Label: "重启 Bridge",
