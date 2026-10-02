@@ -11,9 +11,11 @@ const ProtocolVersion = 1
 type Asset struct {
 	Kind      string `json:"kind"`
 	ID        string `json:"id"`
+	Renderer  string `json:"renderer,omitempty"`
 	ObjectKey string `json:"objectKey"`
 	PublicURL string `json:"publicUrl"`
 	Source    string `json:"source,omitempty"`
+	Content   string `json:"content,omitempty"`
 	Alt       string `json:"alt,omitempty"`
 }
 
