@@ -208,86 +208,9 @@ func defaultConfigDir() (string, error) {
 	return filepath.Join(dir, "BlogCTL"), nil
 }
 
-func bootstrapConfigDirPath() (string, error) {
-	dir, err := defaultConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "config-directory"), nil
-}
-
-// configuredConfigDir 返回用户在「环境与配置」中保存的自定义配置目录；未设置或内容无效时返回空字符串。
-func configuredConfigDir() string {
-	path, err := bootstrapConfigDirPath()
-	if err != nil {
-		return ""
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	value := strings.TrimSpace(string(data))
-	if value == "" || !filepath.IsAbs(value) {
-		return ""
-	}
-	return filepath.Clean(value)
-}
-
-// ConfigDir 返回 BlogCTL 配置目录；blogctl.toml 与运行状态文件（bridge.json、jobs.json 等）都保存在此目录。
-// 优先级：BLOGCTL_CONFIG_DIR 环境变量 > 用户自定义目录 > 系统用户配置目录下的 BlogCTL。
+// ConfigDir 返回 BlogCTL 固定的用户配置目录；blogctl.toml 与运行状态文件都保存在这里。
 func ConfigDir() (string, error) {
-	if dir := strings.TrimSpace(os.Getenv("BLOGCTL_CONFIG_DIR")); dir != "" {
-		return filepath.Clean(dir), nil
-	}
-	if dir := configuredConfigDir(); dir != "" {
-		return dir, nil
-	}
 	return defaultConfigDir()
-}
-
-func setConfiguredConfigDir(directory string) error {
-	path, err := bootstrapConfigDirPath()
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte(filepath.Clean(directory)+"\n"), 0o600)
-}
-
-func clearConfiguredConfigDir() error {
-	path, err := bootstrapConfigDirPath()
-	if err != nil {
-		return err
-	}
-	err = os.Remove(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	return err
-}
-
-// applyConfigDirectory 保存用户自定义配置目录；切换后由后续 saveBridgeConfig 把配置写入新位置的 blogctl.toml，
-// 旧配置目录保持不变，可作为备份。
-func applyConfigDirectory(value string) error {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return errors.New("配置文件目录不能为空")
-	}
-	target, err := filepath.Abs(value)
-	if err != nil {
-		return err
-	}
-	target = filepath.Clean(target)
-	defaultDir, err := defaultConfigDir()
-	if err != nil {
-		return err
-	}
-	if target == defaultDir {
-		return clearConfiguredConfigDir()
-	}
-	return setConfiguredConfigDir(target)
 }
 
 func ConfigPath() (string, error) {
