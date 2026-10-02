@@ -16,7 +16,7 @@ Alice -> Bob: Hello
 
 test("reports PlantUML syntax failures", async () => {
   await assert.rejects(
-    () => renderPlantUMLPNG("@startuml\nAlice ->\n@enduml"),
+    () => renderPlantUMLPNG("@startuml\nAlice -> Bob: hello\n@endjson"),
     /PlantUML|syntax|error|line/iu,
   );
 });
