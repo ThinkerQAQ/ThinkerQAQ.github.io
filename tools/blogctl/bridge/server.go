@@ -461,6 +461,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleSearchBingJobStart(response, request)
 		return
 	}
+	if path == "v1/search/index/jobs/baidu" && request.Method == http.MethodPost {
+		s.handleSearchBaiduJobStart(response, request)
+		return
+	}
 	if path == "v1/search/index/jobs/google/sitemaps" && request.Method == http.MethodPost {
 		s.handleSearchGoogleSitemapsJobStart(response, request)
 		return
@@ -665,6 +669,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 func publicBridgeConfig(config bridgeConfig) bridgeConfig {
 	config.DevtoAPIKey = ""
 	config.IndexNowKey = ""
+	config.BaiduToken = ""
 	config.GoogleSearchConsoleServiceJSON = ""
 	config.Publishing.Assets.R2.SecretAccessKey = ""
 	return config
