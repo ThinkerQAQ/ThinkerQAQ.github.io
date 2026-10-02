@@ -45,10 +45,10 @@ func main() {
 }
 
 func rootsForCommand(args []string) (string, string, error) {
-	command := "preview"
-	if len(args) > 0 {
-		command = args[0]
+	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		return "", "", nil
 	}
+	command := args[0]
 	if command == "sync" {
 		return resolveSyncWorkspace()
 	}
@@ -57,7 +57,7 @@ func rootsForCommand(args []string) (string, string, error) {
 }
 
 func (a app) run(args []string) error {
-	command := "preview"
+	command := "help"
 	if len(args) > 0 {
 		command, args = args[0], args[1:]
 	}
@@ -66,11 +66,9 @@ func (a app) run(args []string) error {
 		a.printHelp()
 		return nil
 	case "preview":
-		return a.runNPM(true, "run", "local")
+		return a.runNPM(true, "run", "preview")
 	case "dev":
 		return a.runNPM(true, "run", "dev")
-	case "stop":
-		return a.runNPM(false, "run", "stop:local")
 	case "build":
 		return a.runSite([]string{"build"})
 	case "site":
@@ -81,8 +79,6 @@ func (a app) run(args []string) error {
 		return a.runCheck()
 	case "test":
 		return a.runNPM(true, "test")
-	case "notes":
-		return a.runNotes(args)
 	case "diagrams":
 		return a.runDiagrams(args)
 	case "search":
@@ -122,11 +118,10 @@ func (a app) printHelp() {
 	fmt.Fprintln(a.out, `blogctl - ThinkerQAQ blog developer tool
 
 Usage:
-  blogctl [preview]
-  blogctl dev | stop | build | check | test
+  blogctl
+  blogctl preview | dev | build | check | test
   blogctl site build --content-root <path>
   blogctl ai-search <prepare|sync|verify> [options]
-  blogctl notes <sync|check|timestamps>
   blogctl diagrams [plantuml|drawio]
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]

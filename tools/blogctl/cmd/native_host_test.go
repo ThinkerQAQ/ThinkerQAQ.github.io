@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
 )
 
 func TestNativeMessagingInvocationDetection(t *testing.T) {
@@ -41,9 +43,21 @@ func TestNativeMessageRoundTrip(t *testing.T) {
 	}
 }
 
+func isolateNativeHostConfigDir(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("XDG_CONFIG_HOME", root)
+	t.Setenv("APPDATA", root)
+	dir, err := bridge.ConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func TestBridgeStatePathUsesBlogCTLConfigDir(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	dir := isolateNativeHostConfigDir(t)
 	path, err := bridgeStatePath()
 	if err != nil {
 		t.Fatal(err)
@@ -54,8 +68,7 @@ func TestBridgeStatePathUsesBlogCTLConfigDir(t *testing.T) {
 }
 
 func TestBridgeLogIsCreatedInBlogCTLConfigDir(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	dir := isolateNativeHostConfigDir(t)
 	file, err := openBridgeLog()
 	if err != nil {
 		t.Fatal(err)

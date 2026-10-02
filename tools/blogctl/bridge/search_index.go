@@ -156,22 +156,8 @@ func saveSearchProviderSnapshot(filename string, snapshot searchInventoryState) 
 	return os.WriteFile(path, data, 0o600)
 }
 
-func indexNowSnapshotPath() (string, error) {
-	return searchProviderSnapshotPath("indexnow-snapshot.json")
-}
-
 func loadIndexNowSnapshot() searchInventoryState {
-	current := loadSearchProviderSnapshot("indexnow-snapshot.json")
-	if current.Source != "" || current.Total > 0 || len(current.URLs) > 0 || len(current.Fingerprints) > 0 {
-		return current
-	}
-
-	// One-time filename migration; subsequent writes use only indexnow-snapshot.json.
-	legacy := loadSearchProviderSnapshot("bing-indexnow-snapshot.json")
-	if legacy.Source != "" || legacy.Total > 0 || len(legacy.URLs) > 0 || len(legacy.Fingerprints) > 0 {
-		_ = saveIndexNowSnapshot(legacy)
-	}
-	return legacy
+	return loadSearchProviderSnapshot("indexnow-snapshot.json")
 }
 
 func loadBaiduIndexSnapshot() searchInventoryState {
@@ -206,15 +192,7 @@ func loadSearchIndexState() searchIndexState {
 		return defaultSearchIndexState()
 	}
 	if state.IndexNow.State == "" {
-		// One-time state-schema migration from the pre-IndexNow provider name.
-		var legacy struct {
-			Bing searchOperationState `json:"bing"`
-		}
-		if json.Unmarshal(data, &legacy) == nil && legacy.Bing.State != "" {
-			state.IndexNow = legacy.Bing
-		} else {
-			state.IndexNow.State = "idle"
-		}
+		state.IndexNow.State = "idle"
 	}
 	if state.Baidu.State == "" {
 		state.Baidu.State = "idle"

@@ -16,10 +16,12 @@ import (
 var assetIDPattern = regexp.MustCompile(`^[a-f0-9]{16,64}$`)
 
 type Config struct {
-	EngineRoot  string
-	ContentRoot string
-	Node        string
-	Env         []string
+	EngineRoot   string
+	ContentRoot  string
+	Node         string
+	Env          []string
+	MermaidWidth int
+	MermaidScale float64
 }
 
 type Stats struct {
@@ -113,6 +115,17 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 		}
 		if strings.TrimSpace(asset.Renderer) != "" {
 			args = append(args, "--renderer", asset.Renderer)
+		}
+		if asset.Kind == "mermaid" {
+			width := config.MermaidWidth
+			if width <= 0 {
+				width = 1200
+			}
+			scale := config.MermaidScale
+			if scale <= 0 {
+				scale = 2
+			}
+			args = append(args, "--width", fmt.Sprintf("%d", width), "--scale", fmt.Sprintf("%g", scale))
 		}
 		command := exec.CommandContext(ctx, node, args...)
 		command.Dir = config.EngineRoot

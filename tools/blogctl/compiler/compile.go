@@ -20,15 +20,15 @@ import (
 )
 
 type CompileOptions struct {
-	EngineRoot     string
-	ContentRoot    string
-	PublishingJSON string
-	Node           string
-	Env            []string
-	Platform       string
-	Articles       []string
-	All            bool
-	DryRun         bool
+	EngineRoot  string
+	ContentRoot string
+	Publishing  PublishingConfig
+	Node        string
+	Env         []string
+	Platform    string
+	Articles    []string
+	All         bool
+	DryRun      bool
 }
 
 func CanonicalURL(slug, language string) string {
@@ -276,7 +276,7 @@ func CompilePlatform(ctx context.Context, o CompileOptions) ([]CompiledArticle, 
 	if !blogplatform.Supported(o.Platform) {
 		return nil, fmt.Errorf("unsupported platform: %s", o.Platform)
 	}
-	config, err := ParsePublishingConfig(o.PublishingJSON)
+	config, err := normalizePublishingConfig(o.Publishing)
 	if err != nil {
 		return nil, err
 	}

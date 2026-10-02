@@ -3,7 +3,6 @@ package bridge
 import "net/http"
 
 type apiError struct {
-	Error   string         `json:"error"`
 	Code    string         `json:"code"`
 	Message string         `json:"message"`
 	Details map[string]any `json:"details,omitempty"`
@@ -17,7 +16,7 @@ func writeAPIError(response http.ResponseWriter, status int, code, message strin
 		message = http.StatusText(status)
 	}
 	writeJSON(response, status, apiError{
-		Error: message, Code: code, Message: message, Details: details,
+		Code: code, Message: message, Details: details,
 	})
 }
 

@@ -73,8 +73,7 @@ Enter the Public Engine:
 ```bash
 cd ThinkerQAQ.github.io
 npm ci
-node scripts/validate-content-source.mjs ../blog-content
-node scripts/assemble-content.mjs ../blog-content
+go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
 npm run dev:site
 ```
 
@@ -161,10 +160,9 @@ The Content Template intentionally does not include an automatic deployment trig
 
 ```text
 src/                  Astro pages, components, and content schema
-scripts/              Build, search, distribution, and maintenance scripts
+scripts/              Astro / Pagefind / diagram rendering and frontend test scripts
 workers/              Cloudflare Workers
 tools/blogctl/         BlogCTL
-docs/                  Detailed documentation
 fixtures/              Public Engine test content
 .github/workflows/     CI / CD
 ```
@@ -172,10 +170,6 @@ fixtures/              Public Engine test content
 ### Detailed documentation
 
 - [BlogCTL](tools/blogctl/README.md)
-- [Diagrams](docs/diagrams.md)
-- [Analytics](docs/analytics.md)
-- [International Syndication](docs/international-syndication.md)
-- [Publishing Language](tools/blogctl/PUBLISHING_LANGUAGE.md)
 
 ## License
 

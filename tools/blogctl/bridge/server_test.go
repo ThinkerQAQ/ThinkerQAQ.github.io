@@ -452,7 +452,7 @@ func TestBridgeRejectsSessionPostWithoutExtensionOrigin(t *testing.T) {
 }
 
 func TestBridgeProxyConfigUpdatesTransportAndPersists(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
@@ -503,7 +503,7 @@ func TestBridgeProxyConfigUpdatesTransportAndPersists(t *testing.T) {
 }
 
 func TestBridgeProxyConfigWriteRequiresExtensionOrigin(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
 	defer handler.Close()
@@ -581,7 +581,7 @@ func TestSyncStartRejectsInvalidBridgeTokenWithoutExtensionOrigin(t *testing.T) 
 }
 
 func TestSyncStartReloadsPersistedWorkspaceRoots(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
@@ -642,7 +642,6 @@ func TestSyncJobNotFoundReturnsStructuredError(t *testing.T) {
 		t.Fatalf("status = %d, want 404", response.StatusCode)
 	}
 	var payload struct {
-		Error   string         `json:"error"`
 		Code    string         `json:"code"`
 		Message string         `json:"message"`
 		Details map[string]any `json:"details"`
@@ -650,7 +649,7 @@ func TestSyncJobNotFoundReturnsStructuredError(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Code != "sync_job_not_found" || payload.Error != "sync job not found" {
+	if payload.Code != "sync_job_not_found" || payload.Message != "sync job not found" {
 		t.Fatalf("payload = %#v", payload)
 	}
 	if payload.Details["id"] != "missing" {
@@ -674,14 +673,13 @@ func TestMediumSessionRequiredStructuredError(t *testing.T) {
 		t.Fatalf("status = %d, want 428", response.StatusCode)
 	}
 	var payload struct {
-		Error   string `json:"error"`
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Code != "medium_session_required" || payload.Error != "medium_session_required" {
+	if payload.Code != "medium_session_required" || payload.Message != "medium_session_required" {
 		t.Fatalf("payload = %#v", payload)
 	}
 }

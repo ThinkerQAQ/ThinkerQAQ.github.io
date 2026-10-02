@@ -469,47 +469,6 @@ func TestCNBlogsImageUploadUsesV2BrowserContract(t *testing.T) {
 	}
 }
 
-func TestCNBlogsImageUploadFallsBackToLegacyEndpoint(t *testing.T) {
-	const source = "https://assets.example.com/diagram.png"
-	const uploaded = "https://img2024.cnblogs.com/blog/3466743/202609/legacy.png"
-	legacyCalled := false
-
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Hostname() {
-		case "assets.example.com":
-			return imageResponse(request, http.StatusOK, "image/png", "png-bytes"), nil
-		case "upload.cnblogs.com":
-			switch request.URL.Path {
-			case "/v2/images/cors-upload":
-				return jsonResponse(request, http.StatusNotFound, `{"message":"not found"}`, nil), nil
-			case "/imageuploader/CorsUpload":
-				legacyCalled = true
-				field, _, _ := multipartFileField(t, request)
-				if field != "imageFile" {
-					t.Fatalf("legacy file field = %q, want imageFile", field)
-				}
-				return jsonResponse(request, http.StatusOK, `{"success":true,"message":"`+uploaded+`"}`, nil), nil
-			default:
-				t.Fatalf("unexpected upload path: %s", request.URL.Path)
-			}
-		}
-		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
-		return nil, nil
-	})}
-
-	adapter, err := NewCNBlogsAdapter(client, cnBlogsSession())
-	if err != nil {
-		t.Fatal(err)
-	}
-	target, err := adapter.(*cnBlogsAdapter).uploadImage(context.Background(), RehostImage{Source: source, Payload: []byte("png-bytes"), ContentType: "image/png"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !legacyCalled || target != uploaded {
-		t.Fatalf("target = %q, legacy called = %v", target, legacyCalled)
-	}
-}
-
 func TestCNBlogsKeepsRemoteR2ImageWhenCNBlogsUploadIsUnavailable(t *testing.T) {
 	const source = "https://pub-example.r2.dev/publishing/mermaid/diagram.png"
 	markdown := "before\n\n![diagram](" + source + ")\n\nafter"

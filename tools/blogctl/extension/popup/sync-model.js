@@ -1,22 +1,16 @@
 "use strict";
 
 (function (root) {
-  const LEGACY_PUBLISHER_AUTH_PLATFORMS = new Set([
-    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto",
-  ]);
-
-  function platformID(platform) {
-    return typeof platform === "object" && platform ? platform.id : platform;
-  }
-
   function platformCapabilities(platform) {
-    return typeof platform === "object" && platform ? (platform.capabilities ?? {}) : {};
+    return platform?.capabilities ?? {};
   }
 
   function deliveryToolAvailability(platform, tools = []) {
-    const id = platformID(platform);
     const capabilities = platformCapabilities(platform);
-    const needsAPIKey = capabilities.apiKey === true || (Object.keys(capabilities).length === 0 && id === "devto");
+    if (Object.keys(capabilities).length === 0) {
+      return { available: false, reason: "平台能力未知" };
+    }
+    const needsAPIKey = capabilities.apiKey === true;
     if (!needsAPIKey) return { available: true, reason: "" };
     const tool = tools.find((item) => item.name === "devto-api");
     if (!tool) return { available: false, reason: "DEV.to API 状态未知" };
@@ -25,15 +19,14 @@
   }
 
   function platformAvailability(article, platform, publishingProfile = {}) {
-    if (platform && typeof platform === "object") {
-      const capabilities = platformCapabilities(platform);
-      const capabilityAware = Object.keys(capabilities).length > 0;
-      const publisherManagedAuth = capabilities.browserSession === true || capabilities.apiKey === true ||
-        (!capabilityAware && LEGACY_PUBLISHER_AUTH_PLATFORMS.has(platform.id));
-      if (!publisherManagedAuth) {
-        if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
-        if (!platform.loggedIn) return { available: false, reason: "未登录" };
-      }
+    const capabilities = platformCapabilities(platform);
+    if (Object.keys(capabilities).length === 0) {
+      return { available: false, reason: "平台能力未知" };
+    }
+    const publisherManagedAuth = capabilities.browserSession === true || capabilities.apiKey === true;
+    if (!publisherManagedAuth) {
+      if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
+      if (!platform.loggedIn) return { available: false, reason: "未登录" };
     }
     if (!article) return { available: true, reason: "" };
     const language = publishingProfile.language || "zh-CN";
@@ -50,14 +43,7 @@
   function canUpdatePublished(slug, platforms, bridgeRunning, status) {
     if (!slug || !bridgeRunning || platforms.length !== 1) return false;
     const platform = statusPlatform(status, platforms[0]);
-    if (platform?.capabilities && Object.keys(platform.capabilities).length > 0) {
-      return platform.capabilities.publishedUpdate === true;
-    }
-    return platforms[0] === "cnblogs";
-  }
-
-  function canUpdateCNBlogsPublished(slug, platforms, bridgeRunning) {
-    return Boolean(slug) && Boolean(bridgeRunning) && platforms.length === 1 && platforms[0] === "cnblogs";
+    return platform?.capabilities?.publishedUpdate === true;
   }
 
   function canConfirmPublish(job, status) {
@@ -90,20 +76,12 @@
     return { kind: "unknown", label: state || "未知" };
   }
 
-  function platformLabel(status, id) {
-    return statusPlatform(status, id)?.label || id;
-  }
-
-  function fallbackResult(job, platform) {
-    if (job?.state === "failed") return { state: "failed", error: job.error || "同步失败" };
-    if (job?.state === "completed") return { state: "completed", result: "completed" };
-    if (job?.state === "running") return { state: "running" };
-    return { state: "queued" };
-  }
-
   function platformRows(job, status) {
     return (job?.platforms ?? []).map((platform) => {
-      const result = job?.results?.[platform] || fallbackResult(job, platform);
+      const result = job?.results?.[platform] || {
+        state: "unknown",
+        error: "任务缺少平台结果",
+      };
       const presentation = statePresentation(result.state, result.result);
       const platformStatus = statusPlatform(status, platform);
       return {
@@ -127,7 +105,6 @@
     statePresentation,
     platformAvailability,
     canUpdatePublished,
-    canUpdateCNBlogsPublished,
     canConfirmPublish,
   };
 })(globalThis);

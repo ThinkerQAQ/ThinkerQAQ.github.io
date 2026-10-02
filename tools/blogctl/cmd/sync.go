@@ -94,7 +94,6 @@ type bridgeSyncJob struct {
 }
 
 type bridgeAPIError struct {
-	Error   string `json:"error"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
@@ -126,9 +125,6 @@ func bridgeRequestJSON(ctx context.Context, client *http.Client, state bridgeSta
 		var decoded bridgeAPIError
 		if json.Unmarshal(payload, &decoded) == nil {
 			message := strings.TrimSpace(decoded.Message)
-			if message == "" {
-				message = strings.TrimSpace(decoded.Error)
-			}
 			if message != "" {
 				return fmt.Errorf("Bridge %s: %s", response.Status, message)
 			}
@@ -269,9 +265,10 @@ func (a app) runSync(args []string) error {
 		return a.runLiveSyncViaBridge(context.Background(), options)
 	}
 
-	config := blogapp.SyncConfig{EngineRoot: a.root, ContentRoot: a.contentRoot}
-	if publishingJSON, publishingErr := bridge.ResolvedPublishingJSON(); publishingErr == nil {
-		config.PublishingJSON = publishingJSON
+	config := blogapp.SyncConfig{
+		EngineRoot:  a.root,
+		ContentRoot: a.contentRoot,
+		Publishing:  bridge.ResolvedPublishingConfig(),
 	}
 	service := blogapp.NewSyncService()
 	output, err := service.Run(context.Background(), config, blogapp.SyncRequest{

@@ -289,10 +289,7 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 }
 
 func devtoAPIKey(config bridgeConfig) string {
-	if configured := strings.TrimSpace(config.DevtoAPIKey); configured != "" {
-		return configured
-	}
-	return strings.TrimSpace(os.Getenv("DEVTO_API_KEY"))
+	return strings.TrimSpace(config.DevtoAPIKey)
 }
 
 func devtoAPIHealth(config bridgeConfig) toolHealth {
@@ -426,15 +423,6 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				ID: "restart", Label: "重启 Bridge",
 				Description: "重新启动本地服务；存在运行中的同步任务时会拒绝操作。",
 			}},
-			Config: toolConfigView{
-				Scope:  "bridge",
-				Values: map[string]any{"configDir": func() string { dir, _ := ConfigDir(); return dir }()},
-				Schema: []toolField{{
-					Key: "configDir", Label: "配置文件目录", Type: "directory",
-					Description: "blogctl.toml 与运行状态文件所在目录；保存后重启 Bridge 生效。",
-				}},
-				DefaultExpanded: true,
-			},
 		},
 		{
 			Name: "content-workspace", DisplayName: "Content Repository", Kind: "runtime", Required: true,
@@ -647,10 +635,6 @@ func intConfig(values map[string]any, key string) int {
 
 func updateToolConfig(config bridgeConfig, name string, values map[string]any) (bridgeConfig, error) {
 	switch name {
-	case "bridge":
-		if err := applyConfigDirectory(stringConfig(values, "configDir")); err != nil {
-			return config, err
-		}
 	case "content-workspace":
 		config.ContentRoot = stringConfig(values, "contentRoot")
 	case "engine-workspace":
@@ -1159,25 +1143,18 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
 
-	publishingJSON, publishingErr := resolvedPublishingJSON(config)
-	if publishingErr != nil {
-		return "", publishingErr
-	}
 	applicationConfig := blogapp.SyncConfig{
-		EngineRoot:     config.EngineRoot,
-		ContentRoot:    config.ContentRoot,
-		PublishingJSON: publishingJSON,
-		BridgeOrigin:   "http://" + DefaultAddress,
-		BridgeToken:    s.token,
-		DevtoAPIKey:    config.DevtoAPIKey,
-		ToolPaths:      config.ToolPaths,
+		EngineRoot:  config.EngineRoot,
+		ContentRoot: config.ContentRoot,
+		Publishing:  config.Publishing,
+		ToolPaths:   config.ToolPaths,
 	}
 	if request.Operation == "update-published" {
 		started := time.Now()
 		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
 		compiledArticles, compileErr := blogcompiler.CompilePlatform(ctx, blogcompiler.CompileOptions{
 			EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
-			PublishingJSON: publishingJSON, Node: config.ToolPaths["node"],
+			Publishing: config.Publishing, Node: config.ToolPaths["node"],
 			Platform: "cnblogs", Articles: []string{request.Article}, DryRun: true,
 		})
 		if compileErr != nil {
@@ -1482,7 +1459,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
-	if job.Operation == "publish" || job.Request.Operation == "publish" {
+	if job.Operation == "publish" {
 		s.mu.Unlock()
 		return nil, errors.New("publish jobs cannot be retried safely; verify the remote publication before taking another action")
 	}
@@ -1497,44 +1474,4 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 
 	s.launchSyncJob(id, request, config)
 	return response, nil
-}
-
-func (s *Server) publishSyncJob(id string) (*syncJob, error) {
-	s.mu.Lock()
-	source := s.restoreSyncJobLocked(id)
-	if source == nil {
-		s.mu.Unlock()
-		return nil, errors.New("sync job not found")
-	}
-	if source.State != "completed" {
-		s.mu.Unlock()
-		return nil, errors.New("sync job is not completed")
-	}
-	if source.Request.Operation == "publish" {
-		s.mu.Unlock()
-		return nil, errors.New("publish jobs cannot be published again")
-	}
-	if source.Request.Operation != "draft" {
-		s.mu.Unlock()
-		return nil, errors.New("only draft jobs can be published")
-	}
-	if !allExplicitPublishPlatforms(source.Platforms) {
-		s.mu.Unlock()
-		return nil, errors.New("confirm publish is not supported by one or more selected platforms")
-	}
-	for _, platform := range source.Platforms {
-		if source.Results[platform].State != "completed" {
-			s.mu.Unlock()
-			return nil, errors.New("all selected draft platforms must complete successfully before publish")
-		}
-	}
-	request := source.Request
-	request.Operation = "publish"
-	request.DryRun = false
-	request.Changed = false
-	request.UsePlatformChangedOnly = false
-	request.Draft = false
-	s.mu.Unlock()
-
-	return s.startSyncJob(request), nil
 }

@@ -27,13 +27,10 @@ type SyncRequest struct {
 }
 
 type SyncConfig struct {
-	EngineRoot     string
-	ContentRoot    string
-	PublishingJSON string
-	BridgeOrigin   string
-	BridgeToken    string
-	DevtoAPIKey    string
-	ToolPaths      map[string]string
+	EngineRoot  string
+	ContentRoot string
+	Publishing  blogcompiler.PublishingConfig
+	ToolPaths   map[string]string
 }
 
 type SyncPlan struct {
@@ -228,7 +225,7 @@ func (s SyncService) runSyncPlan(
 	}
 	compiledArticles, compileErr := compile(ctx, blogcompiler.CompileOptions{
 		EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
-		PublishingJSON: config.PublishingJSON, Node: node, Env: env,
+		Publishing: config.Publishing, Node: node, Env: env,
 		Platform: entry.Platforms[0], Articles: append([]string{}, request.Articles...),
 		All: request.All, DryRun: request.DryRun,
 	})
@@ -282,10 +279,12 @@ func (s SyncService) runSyncPlan(
 
 		if !request.DryRun && request.Operation == "draft" {
 			stats, assetErr := blogassets.Prepare(ctx, compiledArticles, blogassets.Config{
-				EngineRoot:  config.EngineRoot,
-				ContentRoot: config.ContentRoot,
-				Node:        node,
-				Env:         env,
+				EngineRoot:   config.EngineRoot,
+				ContentRoot:  config.ContentRoot,
+				Node:         node,
+				Env:          env,
+				MermaidWidth: config.Publishing.Compiler.Mermaid.Width,
+				MermaidScale: config.Publishing.Compiler.Mermaid.Scale,
 			})
 			if assetErr != nil {
 				message := "publishing assets: " + assetErr.Error()
@@ -489,20 +488,6 @@ func npmInvocation(goos, node, npm string, args []string) (string, []string, err
 
 func syncEnvironment(config SyncConfig) []string {
 	env := os.Environ()
-	env = setEnvironment(env, "BLOG_CONTENT_ROOT", config.ContentRoot)
-	env = setEnvironment(env, "BLOGCTL_ENGINE_ROOT", config.EngineRoot)
-	if strings.TrimSpace(config.PublishingJSON) != "" {
-		env = setEnvironment(env, "BLOGCTL_PUBLISHING_JSON", strings.TrimSpace(config.PublishingJSON))
-	}
-	if config.BridgeOrigin != "" {
-		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN", config.BridgeOrigin)
-	}
-	if config.BridgeToken != "" {
-		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", config.BridgeToken)
-	}
-	if strings.TrimSpace(config.DevtoAPIKey) != "" {
-		env = setEnvironment(env, "DEVTO_API_KEY", strings.TrimSpace(config.DevtoAPIKey))
-	}
 	if java := strings.TrimSpace(config.ToolPaths["java"]); java != "" {
 		env = setEnvironment(env, "PLANTUML_JAVA", java)
 	}

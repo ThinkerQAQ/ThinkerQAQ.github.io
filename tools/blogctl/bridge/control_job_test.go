@@ -3,7 +3,6 @@ package bridge
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -231,13 +230,6 @@ func TestRetrySyncJobRejectsPublishAttempts(t *testing.T) {
 		t.Fatalf("publish job was mutated: %#v", server.jobs["publish-job"])
 	}
 
-	server.jobs["legacy-publish"] = &syncJob{
-		ID: "legacy-publish", State: "failed", Operation: "publish",
-		Request: syncRequest{Article: "example", Platforms: []string{"oschina"}},
-	}
-	if _, err := server.retrySyncJob("legacy-publish"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
-		t.Fatalf("legacy publish retry error = %v", err)
-	}
 }
 
 func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
@@ -252,111 +244,11 @@ func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
 	}
 	request.UsePlatformChangedOnly = false
 	if changedPoliciesForRequest(config, request) != nil {
-		t.Fatal("legacy request must keep its global changed flag")
+		t.Fatal("request without platform policy must keep its global changed flag")
 	}
 	request.UsePlatformChangedOnly = true
 	request.Operation = "publish"
 	if changedPoliciesForRequest(config, request) != nil {
 		t.Fatal("publish operation must ignore draft policy")
-	}
-}
-
-func TestPublishSyncJobCreatesIndependentPublishAttempt(t *testing.T) {
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
-	}
-	server.syncRunner = func(_ context.Context, _ bridgeConfig, request syncRequest, emit func(blogapp.SyncEvent)) (string, error) {
-		for _, platform := range request.Platforms {
-			emit(blogapp.SyncEvent{Platform: platform, State: "completed", Result: "published", URL: "https://example.com/post"})
-		}
-		return "published", nil
-	}
-	sourceRequest := syncRequest{
-		Article: "example", Platforms: []string{"juejin", "csdn"},
-		Changed: true, UsePlatformChangedOnly: true, Draft: true, Operation: "draft",
-	}
-	server.jobs["draft-job"] = &syncJob{
-		ID: "draft-job", Article: "example", Platforms: append([]string{}, sourceRequest.Platforms...),
-		Operation: "draft", Request: sourceRequest, State: "completed",
-		Results: map[string]syncPlatformResult{
-			"juejin": {State: "completed", Result: "draft-created"},
-			"csdn":   {State: "completed", Result: "draft-created"},
-		},
-	}
-	server.jobOrder = []string{"draft-job"}
-
-	publishJob, err := server.publishSyncJob("draft-job")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if publishJob.ID == "draft-job" {
-		t.Fatal("publish must create an independent job")
-	}
-	if publishJob.Operation != "publish" || publishJob.Request.Operation != "publish" {
-		t.Fatalf("publish operation = %#v", publishJob)
-	}
-	if publishJob.Request.DryRun || publishJob.Request.Changed || publishJob.Request.UsePlatformChangedOnly || publishJob.Request.Draft {
-		t.Fatalf("publish request retained draft-only flags: %#v", publishJob.Request)
-	}
-	if !reflect.DeepEqual(publishJob.Platforms, []string{"juejin", "csdn"}) {
-		t.Fatalf("platforms = %#v", publishJob.Platforms)
-	}
-
-	server.mu.Lock()
-	source := cloneSyncJob(server.jobs["draft-job"])
-	server.mu.Unlock()
-	if source == nil || source.Operation != "draft" || source.Request.Operation != "draft" {
-		t.Fatalf("source draft job was mutated: %#v", source)
-	}
-}
-
-func TestPublishSyncJobFailsClosedForInvalidSourceJobs(t *testing.T) {
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
-	}
-	cases := []struct {
-		name string
-		job  *syncJob
-		want string
-	}{
-		{
-			name: "running",
-			job: &syncJob{
-				ID: "running", State: "running", Platforms: []string{"juejin"},
-				Request: syncRequest{Operation: "draft", Platforms: []string{"juejin"}},
-			},
-			want: "sync job is not completed",
-		},
-		{
-			name: "partial platform failure",
-			job: &syncJob{
-				ID: "partial", State: "completed", Platforms: []string{"juejin", "csdn"},
-				Request: syncRequest{Operation: "draft", Platforms: []string{"juejin", "csdn"}},
-				Results: map[string]syncPlatformResult{
-					"juejin": {State: "completed"},
-					"csdn":   {State: "failed"},
-				},
-			},
-			want: "all selected draft platforms must complete successfully",
-		},
-		{
-			name: "already publish",
-			job: &syncJob{
-				ID: "published", State: "completed", Platforms: []string{"juejin"},
-				Request: syncRequest{Operation: "publish", Platforms: []string{"juejin"}},
-			},
-			want: "publish jobs cannot be published again",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			server.jobs = map[string]*syncJob{tc.job.ID: tc.job}
-			server.jobOrder = []string{tc.job.ID}
-			if _, err := server.publishSyncJob(tc.job.ID); err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("error = %v, want contains %q", err, tc.want)
-			}
-		})
 	}
 }

@@ -56,15 +56,6 @@ chrome.webRequest.onSendHeaders.addListener((details) => {
   if (header !== null) pending.resolve(header);
 }, { urls: platformSessionRequestPatterns }, ["requestHeaders", "extraHeaders"]);
 
-async function setBadge(text, color) {
-  await chrome.action.setBadgeText({ text });
-  if (color) await chrome.action.setBadgeBackgroundColor({ color });
-}
-
-function clearBadgeLater() {
-  setTimeout(() => chrome.action.setBadgeText({ text: "" }).catch(() => {}), 5000);
-}
-
 function errorMessage(error) {
   return error?.message || String(error);
 }
@@ -372,30 +363,6 @@ async function getStatus() {
   return { bridge, platforms: enrichedPlatforms, sessions: Object.fromEntries(sessionEntries) };
 }
 
-function normalizedProxyConfig(config) {
-  const enabled = Boolean(config?.proxyEnabled);
-  const host = String(config?.proxyHost || "").trim();
-  const port = Number(config?.proxyPort || 0);
-  if (!enabled) return { enabled: false, host, port };
-  if (!host || host.includes("://") || /[\\/?#@\\s]/u.test(host)) {
-    throw new Error("代理主机只填写域名或 IP，不要包含协议、路径或端口");
-  }
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("代理端口必须在 1 到 65535 之间");
-  }
-  return { enabled: true, host, port };
-}
-
-async function saveBridgeConfig(config) {
-  const next = normalizedProxyConfig(config);
-  const payload = {
-    proxyEnabled: next.enabled,
-    proxyHost: next.host,
-    proxyPort: next.port,
-  };
-  return fetchJSON("/v1/config", jsonOptions("PUT", payload));
-}
-
 async function collectPlatformCookieBatches(definition, diagnostics) {
   return collectBrowserSessionCookieBatches(definition, (filter) => chrome.cookies.getAll(filter), (filter, cookies) => {
     if (!diagnostics) return;
@@ -543,14 +510,6 @@ async function syncPlatformSession(platform) {
   );
 }
 
-async function syncBrowserSession(platform) {
-  await setBadge("…", "#666666");
-  const result = await syncPlatformSession(platform);
-  await setBadge("✓", "#1a8917");
-  clearBadgeLater();
-  return result;
-}
-
 async function syncSessionsForPlatforms(platforms = []) {
   const unique = [...new Set(platforms.map((platform) => String(platform || "").trim()).filter(Boolean))];
   for (const platform of unique) {
@@ -566,10 +525,6 @@ async function syncSessionsForPlatforms(platforms = []) {
       throw error;
     }
   }
-}
-
-async function prepareJobSessions(job) {
-  await syncSessionsForPlatforms(job?.platforms ?? []);
 }
 
 async function waitForTabLoaded(tabId, timeoutMs = 20000) {
@@ -950,13 +905,6 @@ function kickGoogleIndexQueuePump() {
 async function handleMessage(message) {
   switch (message.type) {
     case "blogctl.status": return { ok: true, status: await getStatus() };
-    case "blogctl.config.save": await saveBridgeConfig(message.config); return { ok: true, status: await getStatus() };
-    case "blogctl.sync":
-    case "blogctl.session.sync": {
-      const platform = message.platform || "medium";
-      await syncBrowserSession(platform);
-      return { ok: true, status: await getStatus() };
-    }
     case "blogctl.articles": {
       const result = await fetchJSON("/v1/articles");
       return { ok: true, articles: result?.articles ?? [] };
@@ -964,19 +912,6 @@ async function handleMessage(message) {
     case "blogctl.publications": {
       const result = await fetchJSON("/v1/publications");
       return { ok: true, records: result?.records ?? [] };
-    }
-    case "blogctl.publication.reconcile": {
-      const article = String(message.article || "").trim();
-      const platform = String(message.platform || "").trim();
-      if (!article || !platform) throw new Error("article and platform are required");
-      const publishing = await fetchJSON("/v1/publishing");
-      const profile = (publishing?.platforms ?? []).find((item) => item.id === platform);
-      if (profile?.capabilities?.browserSession === true) {
-        await syncPlatformSession(platform);
-      }
-      const query = new URLSearchParams({ article, platform });
-      const result = await fetchJSON(`/v1/publications/reconcile?${query.toString()}`, { method: "POST" });
-      return { ok: true, reconciliation: result?.reconciliation ?? null };
     }
     case "blogctl.publication.pending.resolve": {
       const article = String(message.article || "").trim();
@@ -1182,11 +1117,6 @@ async function handleMessage(message) {
       const article = encodeURIComponent(String(message.article || ""));
       return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`)) };
     }
-    case "blogctl.cnblogs.search": {
-      const article = encodeURIComponent(String(message.article || ""));
-      await syncPlatformSession("cnblogs");
-      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" })) };
-    }
     case "blogctl.cnblogs.bind": {
       const article = encodeURIComponent(String(message.article || ""));
       await syncPlatformSession("cnblogs");
@@ -1326,11 +1256,6 @@ async function handleMessage(message) {
         postId: message.postId,
       }))) };
     }
-    case "blogctl.cnblogs.update": {
-      const article = encodeURIComponent(String(message.article || ""));
-      await syncPlatformSession("cnblogs");
-      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding/update?article=${article}`, { method: "POST" })) };
-    }
     case "blogctl.tools": {
       const result = await fetchJSON("/v1/tools");
       return { ok: true, tools: await environmentTools(result?.tools ?? []) };
@@ -1372,9 +1297,6 @@ async function handleMessage(message) {
       const limit = Number(message.limit ?? 2000);
       const result = await fetchJSON("/v1/search/index/jobs/google/inspect", jsonOptions("POST", { offset, limit }));
       return { ok: true, index: result?.index ?? {}, job: result?.job };
-    }
-    case "blogctl.index.google.probe": {
-      return { ok: true, google: await googleSearchConsoleProbe({ active: Boolean(message.active) }) };
     }
     case "blogctl.index.google.open": {
       const google = await googleSearchConsoleProbe({ active: true });
@@ -1484,12 +1406,6 @@ async function handleMessage(message) {
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
       return { ok: true, job: result?.job };
     }
-    case "blogctl.job.delete": {
-      const id = String(message.id || "").trim();
-      if (!id) throw new Error("job id is required");
-      await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
-      return { ok: true };
-    }
     case "blogctl.jobs.clear": {
       const result = await fetchJSON("/v1/jobs", { method: "DELETE" });
       return { ok: true, jobs: result?.jobs ?? [], removed: Number(result?.removed || 0) };
@@ -1527,14 +1443,6 @@ async function handleMessage(message) {
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
-    case "blogctl.job.publish": {
-      const id = String(message.id || "").trim();
-      if (!id) throw new Error("job id is required");
-      const current = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
-      await prepareJobSessions(current?.job);
-      const result = await fetchJSON(`/v1/sync/jobs/${encodeURIComponent(id)}/publish`, { method: "POST" });
-      return { ok: true, job: result?.job };
-    }
     default: return null;
   }
 }
@@ -1545,10 +1453,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!task) return false;
   task.then(sendResponse).catch(async (error) => {
     console.error("BlogCTL extension request failed:", message.type, errorMessage(error));
-    if (message.type === "blogctl.sync" || message.type === "blogctl.session.sync") {
-      await setBadge("!", "#b42318");
-      clearBadgeLater();
-    }
     sendResponse({ ok: false, error: errorMessage(error), code: error?.code || "", status: error?.status || 0, details: error?.details || null });
   });
   return true;
