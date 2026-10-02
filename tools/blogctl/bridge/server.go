@@ -161,7 +161,7 @@ type Server struct {
 	config       bridgeConfig
 	restart      func()
 	syncRunner   syncRunner
-	searchRunner searchNodeRunner
+	searchRunner searchRunnerFunc
 	searchMu     sync.Mutex
 
 	mu             sync.Mutex
