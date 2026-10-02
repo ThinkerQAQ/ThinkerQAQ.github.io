@@ -4,7 +4,7 @@ import {
   DEFAULT_R2_PUBLIC_BASE_URL,
   loadBlogctlPublishingRuntimeConfig,
 } from "./runtime-config.mjs";
-import { diagramKey as plantumlDiagramKey, normalize as normalizePlantUML } from "../../../../scripts/plantuml/core.mjs";
+import { plantUMLDiagramKey as plantumlDiagramKey, normalizePlantUML } from "./plantuml-domain.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
 export { DEFAULT_R2_PUBLIC_BASE_URL };
