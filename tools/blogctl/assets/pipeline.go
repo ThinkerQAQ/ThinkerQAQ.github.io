@@ -27,9 +27,6 @@ const (
 var (
 	mermaidAssetIDPattern   = regexp.MustCompile(`^[a-f0-9]{24}$`)
 	plantUMLAssetIDPattern  = regexp.MustCompile(`^[a-f0-9]{64}$`)
-	plantUMLExternalPattern = regexp.MustCompile(`(?im)^\s*!\s*(?:include\w*|import|theme)\b|%(?:getenv|load\w*|filename|dirpath)\s*\(`)
-	plantUMLStartPattern    = regexp.MustCompile(`(?im)^\s*@start(\w+)\b`)
-	plantUMLEndPattern      = regexp.MustCompile(`(?im)^\s*@end(\w+)\b`)
 )
 
 type MermaidPolicy struct {
@@ -299,33 +296,8 @@ func (p *Pipeline) renderMermaid(ctx context.Context, asset blogcompiler.Asset, 
 	return replaceFile(rendered, output)
 }
 
-func normalizePlantUMLSource(source string) (string, error) {
-	text := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(source, "\r\n", "\n"), "\r", "\n"))
-	if text == "" {
-		return "", errors.New("empty PlantUML diagram")
-	}
-	if plantUMLExternalPattern.MatchString(text) {
-		return "", errors.New("external includes, themes and environment/file access are disabled for diagrams")
-	}
-	starts := plantUMLStartPattern.FindAllStringSubmatchIndex(text, -1)
-	ends := plantUMLEndPattern.FindAllStringSubmatchIndex(text, -1)
-	if len(starts) == 0 && len(ends) == 0 {
-		text = "@startuml\n" + text + "\n@enduml"
-	} else {
-		if len(starts) != 1 || len(ends) != 1 || starts[0][0] >= ends[0][0] {
-			return "", errors.New("each PlantUML diagram must contain exactly one matching @start/@end pair")
-		}
-		startKind := text[starts[0][2]:starts[0][3]]
-		endKind := text[ends[0][2]:ends[0][3]]
-		if !strings.EqualFold(startKind, endKind) {
-			return "", errors.New("each PlantUML diagram must contain exactly one matching @start/@end pair")
-		}
-	}
-	return text + "\n", nil
-}
-
 func (p *Pipeline) renderPlantUML(ctx context.Context, asset blogcompiler.Asset, output string) error {
-	source, err := normalizePlantUMLSource(asset.Definition)
+	source, err := blogcompiler.NormalizePlantUMLSource(asset.Definition)
 	if err != nil {
 		return err
 	}
