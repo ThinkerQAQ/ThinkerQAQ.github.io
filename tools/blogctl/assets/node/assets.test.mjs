@@ -14,27 +14,20 @@ import {
   preparePublishingAssetList,
 } from "./assets.mjs";
 
-test("dry-run plans assets without rendering, constraining, or uploading", async () => {
+test("dry-run plans assets without rendering or constraining", async () => {
   const asset = mermaidAssetForSource("flowchart LR\nA --> B");
   const result = await preparePublishingAssetList([asset, asset], {
     dryRun: true,
     render: async () => assert.fail("dry-run must not render"),
     constrain: async () => assert.fail("dry-run must not constrain"),
-    upload: async () => assert.fail("dry-run must not upload"),
   });
-  assert.deepEqual(result, { assets: 1, rendered: 0, cached: 0, uploaded: 0, dryRun: true });
+  assert.deepEqual(result, { assets: 1, rendered: 0, cached: 0, dryRun: true });
 });
 
-test("renders, constrains, and uploads each unique asset", async () => {
+test("renders and constrains each unique asset", async () => {
   const asset = mermaidAssetForSource("flowchart LR\nA --> B");
   const calls = [];
   const result = await preparePublishingAssetList([asset, asset], {
-    env: {
-      BLOGCTL_PUBLISHING_JSON: JSON.stringify({
-        assets: { store: "r2", r2: { bucket: "test", publicBaseUrl: asset.publicUrl.split("generated/")[0] } },
-      }),
-    },
-    r2Credentials: { accountId: "account", accessKeyId: "access", secretAccessKey: "secret" },
     render: async (value) => {
       calls.push(["render", value.id]);
       return { asset: value, outputFile: "/tmp/example.png", rendered: true };
@@ -43,39 +36,11 @@ test("renders, constrains, and uploads each unique asset", async () => {
       calls.push(["constrain", outputFile, maxDimension]);
       return { resized: false };
     },
-    read: async () => Buffer.from("png"),
-    upload: async ({ objectKey }) => {
-      calls.push(["upload", objectKey]);
-      return { objectKey, publicUrl: asset.publicUrl };
-    },
-  });
-  assert.equal(result.assets, 1);
-  assert.equal(result.uploaded, 1);
-  assert.deepEqual(calls.map((item) => item[0]), ["render", "constrain", "upload"]);
-  assert.equal(calls[1][2], DEFAULT_PUBLISHING_IMAGE_MAX_DIMENSION);
-});
-
-test("render-only mode constrains local asset without pre-uploading R2", async () => {
-  const asset = mermaidAssetForSource("flowchart LR\nA --> B");
-  const calls = [];
-  const result = await preparePublishingAssetList([asset], {
-    env: {},
-    uploadFallback: false,
-    render: async (value) => {
-      calls.push(["render", value.id]);
-      return { asset: value, outputFile: "/tmp/example.png", rendered: true };
-    },
-    constrain: async () => {
-      calls.push(["constrain"]);
-      return { resized: false };
-    },
-    read: async () => assert.fail("render-only mode must not read payload for R2"),
-    upload: async () => assert.fail("render-only mode must not upload R2"),
   });
   assert.equal(result.assets, 1);
   assert.equal(result.rendered, 1);
-  assert.equal(result.uploaded, 0);
   assert.deepEqual(calls.map((item) => item[0]), ["render", "constrain"]);
+  assert.equal(calls[1][2], DEFAULT_PUBLISHING_IMAGE_MAX_DIMENSION);
 });
 
 test("constrains oversized publishing PNGs to fit within 4096x4096", async () => {
