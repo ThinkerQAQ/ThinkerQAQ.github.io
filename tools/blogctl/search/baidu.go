@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -91,7 +92,7 @@ func SubmitBaidu(ctx context.Context, client *http.Client, urls []string, config
 	for rawURL := range unique {
 		ordered = append(ordered, rawURL)
 	}
-	sortStrings(ordered)
+	sort.Strings(ordered)
 
 	result := BaiduResult{URLCount: len(ordered), Complete: true}
 	for start := 0; start < len(ordered); start += MaxBaiduURLs {
@@ -129,7 +130,7 @@ func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, c
 	request.Header.Set("content-type", "text/plain")
 	response, err := client.Do(request)
 	if err != nil {
-		return BaiduBatchResult{}, err
+		return BaiduBatchResult{}, fmt.Errorf("Baidu submit request failed: %s", redactBaiduResponse(err.Error(), config.Token))
 	}
 	payload, readErr := io.ReadAll(io.LimitReader(response.Body, 2<<20))
 	response.Body.Close()
