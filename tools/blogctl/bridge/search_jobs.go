@@ -288,24 +288,13 @@ func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) er
 	state.Google.Sitemaps = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
 	_ = saveSearchIndexState(state)
 
-	raw, err := s.runSearchNode(ctx, s.config, "google-sitemaps", nil)
+	payload, err := s.submitGoogleSitemapsNative(ctx)
 	if err != nil {
 		state.Google.Sitemaps.State = "failed"
 		state.Google.Sitemaps.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Google.Sitemaps.Error = err.Error()
 		refreshSearchCredentialsFlag(&state, s.config)
 		_ = saveSearchIndexState(state)
-		return err
-	}
-	var payload struct {
-		Inventory searchInventoryState `json:"inventory"`
-		Result    []struct {
-			SiteURL    string `json:"siteUrl"`
-			FeedPath   string `json:"feedPath"`
-			HTTPStatus int    `json:"httpStatus"`
-		} `json:"result"`
-	}
-	if err := decodeSearchResult(raw, &payload); err != nil {
 		return err
 	}
 	httpStatus := 0
