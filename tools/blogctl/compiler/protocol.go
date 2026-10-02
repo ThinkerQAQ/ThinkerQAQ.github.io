@@ -9,12 +9,14 @@ import (
 const ProtocolVersion = 1
 
 type Asset struct {
-	Kind      string `json:"kind"`
-	ID        string `json:"id"`
-	ObjectKey string `json:"objectKey"`
-	PublicURL string `json:"publicUrl"`
-	Source    string `json:"source,omitempty"`
-	Alt       string `json:"alt,omitempty"`
+	Kind       string `json:"kind"`
+	ID         string `json:"id"`
+	Renderer   string `json:"renderer,omitempty"`
+	Definition string `json:"definition,omitempty"`
+	ObjectKey  string `json:"objectKey"`
+	PublicURL  string `json:"publicUrl"`
+	Source     string `json:"source,omitempty"`
+	Alt        string `json:"alt,omitempty"`
 }
 
 type CompiledArticle struct {
