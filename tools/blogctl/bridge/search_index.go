@@ -162,10 +162,6 @@ func saveSearchProviderSnapshot(filename string, snapshot searchInventoryState) 
 	return os.WriteFile(path, data, 0o600)
 }
 
-func indexNowSnapshotPath() (string, error) {
-	return searchProviderSnapshotPath("indexnow-snapshot.json")
-}
-
 func loadIndexNowSnapshot() searchInventoryState {
 	current := loadSearchProviderSnapshot("indexnow-snapshot.json")
 	if current.Source != "" || current.Total > 0 || len(current.URLs) > 0 || len(current.Fingerprints) > 0 {
