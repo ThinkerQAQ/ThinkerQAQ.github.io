@@ -45,6 +45,9 @@ jobs:
       - name: Test Go PlantUML integration
         run: BLOGCTL_PLANTUML_INTEGRATION=1 go test ./tools/blogctl/assets -run TestPipelineRendersPlantUMLThroughTeaVM -count=1
 
+      - name: Test Go compiler integration
+        run: BLOGCTL_COMPILER_INTEGRATION=1 go test ./tools/blogctl/compiler -run TestServiceCompilesThroughNodeRenderer -count=1
+
       - name: Test site diagrams without Java
         run: npm run test:diagrams
 
