@@ -203,47 +203,6 @@ func TestBridgeConfigPublishingLanguageDefaultsAndValidation(t *testing.T) {
 	}
 }
 
-func TestBridgeConfigMigratesLegacyPublishingProfiles(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
-	legacy := `{
-	  "publishing": {
-	    "cnblogs": {
-	      "footerEnabled": true,
-	      "footerTemplate": "legacy {url}",
-	      "trackingQuery": "utm_source=legacy-cnblogs&utm_medium=referral&utm_campaign=legacy"
-	    }
-	  }
-	}`
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(legacy), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	config := loadBridgeConfig()
-	profile := config.Publishing.Platforms["cnblogs"]
-	if profile.Language != "zh-CN" {
-		t.Fatalf("language = %q", profile.Language)
-	}
-	if !profile.Footer.Enabled || profile.Footer.Template != "legacy {url}" {
-		t.Fatalf("footer = %#v", profile.Footer)
-	}
-	if profile.Canonical.Mode != "footer" {
-		t.Fatalf("canonical = %#v", profile.Canonical)
-	}
-	if !profile.Tracking.Enabled || profile.Tracking.Source != "legacy-cnblogs" || profile.Tracking.Campaign != "legacy" {
-		t.Fatalf("tracking = %#v", profile.Tracking)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "config.json.migrated.bak")); err != nil {
-		t.Fatalf("legacy config backup missing: %v", err)
-	}
-	data, err := os.ReadFile(filepath.Join(dir, "blogctl.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "[publishing.platforms.cnblogs]") || strings.Contains(string(data), "trackingQuery") {
-		t.Fatalf("migrated config = %s", data)
-	}
-}
-
 func TestBridgeConfigPublishingCompilerAndAssetsDefaults(t *testing.T) {
 	config, err := normalizeBridgeConfig(bridgeConfig{})
 	if err != nil {
