@@ -3,12 +3,9 @@ package assets
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"image/png"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -24,8 +21,6 @@ import (
 
 const (
 	MermaidCLIPackage      = "@mermaid-js/mermaid-cli@11.17.0"
-	PlantUMLVersion        = "1.2026.7"
-	PlantUMLJarSHA256      = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
 	MaxPublishingImageSize = 4096
 )
 
@@ -190,7 +185,7 @@ func (p *Pipeline) environment() []string {
 	env := os.Environ()
 	directories := []string{}
 	seen := map[string]struct{}{}
-	for _, name := range []string{"node", "npm", "java"} {
+	for _, name := range []string{"node", "npm"} {
 		value := strings.TrimSpace(p.ToolPaths[name])
 		if value == "" {
 			continue
@@ -329,94 +324,25 @@ func normalizePlantUMLSource(source string) (string, error) {
 	return text + "\n", nil
 }
 
-func (p *Pipeline) plantUMLJar(ctx context.Context) (string, error) {
-	jar := filepath.Join(p.EngineRoot, ".astro", "tools", "plantuml-"+PlantUMLVersion+".jar")
-	if payload, err := os.ReadFile(jar); err == nil {
-		if sha256Bytes(payload) != PlantUMLJarSHA256 {
-			return "", errors.New("cached PlantUML checksum mismatch; file was not executed")
-		}
-		return jar, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-	if err := os.MkdirAll(filepath.Dir(jar), 0o755); err != nil {
-		return "", err
-	}
-	client := p.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	url := "https://github.com/plantuml/plantuml/releases/download/v" + PlantUMLVersion + "/plantuml.jar"
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", err
-	}
-	response, err := client.Do(request)
-	if err != nil {
-		return "", fmt.Errorf("download PlantUML: %w", err)
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("download PlantUML returned HTTP %d", response.StatusCode)
-	}
-	payload, err := io.ReadAll(io.LimitReader(response.Body, 64<<20))
-	if err != nil {
-		return "", err
-	}
-	if sha256Bytes(payload) != PlantUMLJarSHA256 {
-		return "", errors.New("PlantUML download checksum mismatch; downloaded file was not executed")
-	}
-	temporary := jar + ".download"
-	if err := os.WriteFile(temporary, payload, 0o600); err != nil {
-		return "", err
-	}
-	if err := replaceFile(temporary, jar); err != nil {
-		return "", err
-	}
-	return jar, nil
-}
-
-func sha256Bytes(payload []byte) string {
-	sum := sha256.Sum256(payload)
-	return hex.EncodeToString(sum[:])
-}
-
 func (p *Pipeline) renderPlantUML(ctx context.Context, asset blogcompiler.Asset, output string) error {
 	source, err := normalizePlantUMLSource(asset.Definition)
 	if err != nil {
 		return err
 	}
-	jar, err := p.plantUMLJar(ctx)
+	node, err := p.executable("node")
 	if err != nil {
-		return err
+		return errors.New("Node.js is required to run the PlantUML TeaVM renderer")
 	}
-	java, err := p.executable("java")
-	if err != nil {
-		return errors.New("Java is required to render PlantUML assets")
+	helper := filepath.Join(p.EngineRoot, "tools", "blogctl", "assets", "node", "plantuml-tool.mjs")
+	if info, err := os.Stat(helper); err != nil || info.IsDir() {
+		return errors.New("BlogCTL PlantUML renderer was not found")
 	}
-	temporary := filepath.Join(p.EngineRoot, ".astro", "plantuml", "tmp")
-	if err := os.MkdirAll(temporary, 0o755); err != nil {
-		return err
-	}
-	args := []string{
-		"-Xmx256m",
-		"-Djava.awt.headless=true",
-		"-Dfile.encoding=UTF-8",
-		"-Djava.io.tmpdir=" + temporary,
-		"-DPLANTUML_SECURITY_PROFILE=SANDBOX",
-		"-jar", jar,
-		"-tpng", "-pipe",
-		"-charset", "UTF-8",
-		"-nometadata",
-		"-failfast2",
-		"-timeout", "30",
-	}
-	payload, err := p.runner().Run(ctx, java, args, p.EngineRoot, p.environment(), []byte(source))
+	payload, err := p.runner().Run(ctx, node, []string{helper}, p.EngineRoot, p.environment(), []byte(source))
 	if err != nil {
 		return err
 	}
 	if _, err := png.DecodeConfig(bytes.NewReader(payload)); err != nil {
-		return fmt.Errorf("PlantUML did not return a valid PNG: %w", err)
+		return fmt.Errorf("PlantUML TeaVM renderer did not return a valid PNG: %w", err)
 	}
 	temporaryFile := output + ".tmp"
 	if err := os.WriteFile(temporaryFile, payload, 0o644); err != nil {
