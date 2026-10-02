@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 )
 
 const (
@@ -74,6 +75,7 @@ type Pipeline struct {
 	Mermaid     MermaidPolicy
 	ToolPaths   map[string]string
 	HTTPClient  *http.Client
+	R2          blogr2.Config
 	Runner      ProcessRunner
 
 	mu sync.Mutex
@@ -119,7 +121,10 @@ func (p *Pipeline) prepareOne(ctx context.Context, asset blogcompiler.Asset) err
 	}
 	output := filepath.Join(p.ContentRoot, ".distribution", "assets", kind, id+".png")
 	if info, err := os.Stat(output); err == nil && !info.IsDir() && info.Size() > 0 {
-		return p.constrainPNG(ctx, output)
+		if err := p.constrainPNG(ctx, output); err != nil {
+			return err
+		}
+		return p.deliverGeneratedAsset(ctx, asset, output)
 	}
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
 		return err
@@ -135,7 +140,32 @@ func (p *Pipeline) prepareOne(ctx context.Context, asset blogcompiler.Asset) err
 	if err != nil {
 		return err
 	}
-	return p.constrainPNG(ctx, output)
+	if err := p.constrainPNG(ctx, output); err != nil {
+		return err
+	}
+	return p.deliverGeneratedAsset(ctx, asset, output)
+}
+
+func (p *Pipeline) deliverGeneratedAsset(ctx context.Context, asset blogcompiler.Asset, file string) error {
+	publicURL := strings.TrimSpace(asset.PublicURL)
+	if publicURL == "" || strings.TrimSpace(asset.Source) != publicURL {
+		return nil
+	}
+	if !blogr2.IsConfigured(p.R2) {
+		return errors.New("R2 is required for a generated asset without native image upload")
+	}
+	payload, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	result, err := blogr2.UploadObject(ctx, p.HTTPClient, p.R2, asset.ObjectKey, payload, "image/png")
+	if err != nil {
+		return err
+	}
+	if result.PublicURL != publicURL {
+		return fmt.Errorf("R2 public URL mismatch for %s", asset.ObjectKey)
+	}
+	return nil
 }
 
 func (p *Pipeline) runner() ProcessRunner {
