@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+type compileContext struct {
+	options   CompileOptions
+	profile   PlatformConfig
+	slug      string
+	article   Article
+	sourceDir string
+	assetBase string
+}
+
 type mediumImage struct {
 	URL string `json:"url"`
 	Alt string `json:"alt"`

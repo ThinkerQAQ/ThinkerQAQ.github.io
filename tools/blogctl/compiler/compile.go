@@ -31,8 +31,6 @@ type CompileOptions struct {
 	DryRun bool
 }
 
-var ErrMediumCompilerPending = errors.New("Medium compiler migration is pending")
-
 func CanonicalURL(slug,language string)string{
 	parts:=strings.Split(slug,"/");for i,p:=range parts{parts[i]=url.PathEscape(p)}
 	prefix:="/articles/";if language=="en"{prefix="/en/articles/"}
@@ -128,13 +126,22 @@ func compileOne(ctx context.Context,o CompileOptions,profile PlatformConfig,slug
 }
 func CompilePlatform(ctx context.Context,o CompileOptions)([]CompiledArticle,error){
 	if !blogplatform.Supported(o.Platform){return nil,fmt.Errorf("unsupported platform: %s",o.Platform)}
-	if o.Platform=="medium"{return nil,ErrMediumCompilerPending}
 	config,err:=ParsePublishingConfig(o.PublishingJSON);if err!=nil{return nil,err};profile,ok:=config.Platforms[o.Platform];if !ok{profile=defaultPlatformConfig(o.Platform)};if profile.Language==""{profile.Language=blogplatform.DefaultLanguage(o.Platform)}
 	slugs:=append([]string{},o.Articles...);if o.All{slugs,err=publishedSlugs(o.ContentRoot,profile.Language);if err!=nil{return nil,err}}
 	result:=make([]CompiledArticle,0,len(slugs))
 	for _,slug:=range slugs{
 		source:=sourceFile(o.ContentRoot,slug,profile.Language);data,err:=os.ReadFile(source);if err!=nil{return nil,err};article,err:=ParseArticle(string(data),source);if err!=nil{return nil,err};if article.Status!="published"{return nil,fmt.Errorf("article is not published: %s",slug)}
-		compiled,err:=compileOne(ctx,o,profile,slug,article,source,config.Assets.R2.PublicBaseURL);if err!=nil{return nil,fmt.Errorf("%s/%s: %w",o.Platform,slug,err)};result=append(result,compiled)
+		var compiled CompiledArticle
+		if o.Platform == "medium" {
+			compiled, err = compileMedium(compileContext{
+				options: o, profile: profile, slug: slug, article: article,
+				sourceDir: filepath.Dir(source), assetBase: config.Assets.R2.PublicBaseURL,
+			})
+		} else {
+			compiled, err = compileOne(ctx, o, profile, slug, article, source, config.Assets.R2.PublicBaseURL)
+		}
+		if err != nil { return nil, fmt.Errorf("%s/%s: %w", o.Platform, slug, err) }
+		result = append(result, compiled)
 	}
 	return result,nil
 }

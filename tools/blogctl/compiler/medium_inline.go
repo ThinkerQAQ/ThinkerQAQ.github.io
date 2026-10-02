@@ -43,13 +43,12 @@ type inlineTokenPattern struct {
 }
 
 var mediumInlinePatterns = []inlineTokenPattern{
-	{"image", regexp.MustCompile(`![([^]]*)](([^)]+))`)},
-	{"link", regexp.MustCompile(`[([^]]+)](([^)]+))`)},
-	{"bold", regexp.MustCompile(`**([^*]+)**`)},
-	{"strike", regexp.MustCompile(`~~([^~]+)~~`)},
-	{"code", regexp.MustCompile("`([^`\n]+)`")},
-	{"italic", regexp.MustCompile(`*([^*
-]+)*`)},
+	{"image", regexp.MustCompile(`!\\[([^\\]]*)\\]\\(([^)]+)\\)`)},
+	{"link", regexp.MustCompile(`\\[([^\\]]+)\\]\\(([^)]+)\\)`)},
+	{"bold", regexp.MustCompile(`\\*\\*([^*]+?)\\*\\*`)},
+	{"strike", regexp.MustCompile(`~~([^~]+?)~~`)},
+	{"code", regexp.MustCompile("`([^`\\n]+)`")},
+	{"italic", regexp.MustCompile(`\\*([^*\\n]+?)\\*`)},
 }
 
 type mediumInlineToken struct {

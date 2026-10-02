@@ -20,17 +20,17 @@ type mediumBlock struct {
 }
 
 var (
-	mediumTOCHeading = regexp.MustCompile(`(?i)^#{1,3}s+(tables+ofs+contents|contents|目录)s*$`)
-	mediumAnyHeading = regexp.MustCompile(`^#{1,6}s+`)
-	mediumHeading = regexp.MustCompile(`^(#{1,6})s+(.*)$`)
+	mediumTOCHeading = regexp.MustCompile(`(?i)^#{1,3}\\s+(table\\s+of\\s+contents|contents|目录)\\s*$`)
+	mediumAnyHeading = regexp.MustCompile(`^#{1,6}\\s+`)
+	mediumHeading = regexp.MustCompile(`^(#{1,6})\\s+(.*)$`)
 	mediumFence = regexp.MustCompile("^```([^\\s`]*)\\s*$")
 	mediumFenceEnd = regexp.MustCompile("^\\s*```")
-	mediumUnordered = regexp.MustCompile(`^s*[-*+]s+(.*)$`)
-	mediumOrdered = regexp.MustCompile(`^s*d+[.)]s+(.*)$`)
-	mediumListLine = regexp.MustCompile(`^([-*+]s+|d+[.)]s+)`)
+	mediumUnordered = regexp.MustCompile(`^\\s*[-*+]\\s+(.*)$`)
+	mediumOrdered = regexp.MustCompile(`^\\s*\\d+[.)]\\s+(.*)$`)
+	mediumListLine = regexp.MustCompile(`^(?:[-*+]\\s+|\\d+[.)]\\s+)`)
 	mediumTableSeparator = regexp.MustCompile(`^:?-{3,}:?$`)
-	mediumAdmonition = regexp.MustCompile(`(?i)^[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)]s*(.*)$`)
-	mediumStandaloneImage = regexp.MustCompile(`^![([^]]*)]((S+)(s+["']([^"']*)["'])?)$`)
+	mediumAdmonition = regexp.MustCompile(`(?i)^\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]\\s*(.*)$`)
+	mediumStandaloneImage = regexp.MustCompile(`^!\\[([^\\]]*)\\]\\((\\S+)(?:\\s+["']([^"']*)["'])?\\)$`)
 )
 
 var mediumAdmonitionLabels = map[string]string{
