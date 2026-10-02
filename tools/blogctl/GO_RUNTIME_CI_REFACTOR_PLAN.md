@@ -217,6 +217,22 @@ Go → java -jar plantuml.jar → PNG/SVG
 
 Prefer direct PNG output for publishing when it avoids `SVG → sharp → PNG`.
 
+### R3 completion status — 2026-10-02
+
+Completed on `refactor/blogctl-r2-go-runtime-20261002`:
+
+- R2 config, URL construction, SigV4 signing, and PUT transport live only in `tools/blogctl/storage/r2/`.
+- `tools/blogctl/assets/node/r2.mjs` and the Node R2 tests are deleted.
+- The compiler emits asset descriptors (`kind/id/renderer/definition/objectKey/publicUrl`) and no longer renders or uploads generated assets.
+- Go `assets.Pipeline` owns dedupe, cache, render dispatch, image-size enforcement, and generated-asset delivery.
+- Mermaid is executed by the Go process adapter through the pinned Mermaid CLI.
+- PlantUML is executed directly by Go through the pinned, checksum-verified JAR with sandbox settings and direct PNG output.
+- Node under `tools/blogctl/assets/node/` now contains only the thin `sharp` image-processing adapter.
+- Platforms with native image upload keep that path; R2 is used as Go fallback after platform upload failure.
+- A future/non-native image platform is handled by the same Go asset pipeline and the same `storage/r2` client.
+- Local R2 configuration remains TOML-owned; Node receives no R2 credentials, endpoint, account ID, or bucket.
+- Real Mermaid and PlantUML render integration was validated in CI in addition to Go and compiler tests.
+
 ---
 
 ## 5. Compiler: migrate backend logic to Go in stages
