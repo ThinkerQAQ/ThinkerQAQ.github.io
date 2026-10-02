@@ -76,7 +76,7 @@ func TestBuildGoogleRequestQueueNeverAutoRequeuesRequestedURL(t *testing.T) {
 }
 
 func TestSearchIndexWriteRequiresBridgeAuthorization(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestReconcileInspectionInventoryPrunesRemovedURLs(t *testing.T) {
 }
 
 func TestGoogleRequestQueueSystemicFailurePausesWithoutAdvancing(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestGoogleRequestQueueSystemicFailurePausesWithoutAdvancing(t *testing.T) {
 }
 
 func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
@@ -204,7 +204,7 @@ func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 }
 
 func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
@@ -283,7 +283,7 @@ func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *t
 }
 
 func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
