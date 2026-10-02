@@ -298,10 +298,11 @@ func (s *Server) inspectGoogleURLsNative(
 		offset,
 		limit,
 		blogsearch.GoogleURLInspectionDefaultDelay,
-		func(event blogsearch.GoogleInspectionProgress) {
-			if onProgress != nil {
-				_ = onProgress(event)
+		func(event blogsearch.GoogleInspectionProgress) error {
+			if onProgress == nil {
+				return nil
 			}
+			return onProgress(event)
 		},
 	)
 	if err != nil {
