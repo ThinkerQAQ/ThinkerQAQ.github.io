@@ -91,7 +91,7 @@ jobs:
 
       - name: Build site
         working-directory: engine
-        run: "$RUNNER_TEMP/blogctl" site build --content-root ../content-source
+        run: '"$RUNNER_TEMP/blogctl" site build --content-root ../content-source'
 
       - name: Prepare AI Search input
         continue-on-error: true
@@ -100,7 +100,7 @@ jobs:
           CONTENT_SHA: ${{ inputs.content_sha || '' }}
           CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
           AI_SEARCH_FORCE_FULL_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
-        run: "$RUNNER_TEMP/blogctl" ai-search prepare --output "$RUNNER_TEMP/ai-search-input" --content-root ../content-source
+        run: '"$RUNNER_TEMP/blogctl" ai-search prepare --output "$RUNNER_TEMP/ai-search-input" --content-root ../content-source'
 
       - name: Upload public AI Search input
         continue-on-error: true
@@ -195,7 +195,7 @@ jobs:
 
       - name: Sync and verify AI Search
         working-directory: engine
-        run: "$RUNNER_TEMP/blogctl" ai-search sync --verify
+        run: '"$RUNNER_TEMP/blogctl" ai-search sync --verify'
 
   notify-search:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
@@ -245,7 +245,7 @@ jobs:
         working-directory: engine
         env:
           BLOGCTL_CONFIG_DIR: ${{ runner.temp }}/blogctl-config
-        run: "$RUNNER_TEMP/blogctl" search notify --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"
+        run: '"$RUNNER_TEMP/blogctl" search notify --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"'
 
   record-content-state:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && inputs.content_sha != ''
