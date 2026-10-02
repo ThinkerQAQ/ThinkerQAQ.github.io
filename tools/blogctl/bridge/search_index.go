@@ -256,6 +256,9 @@ func loadSearchIndexState() searchIndexState {
 		}
 		if json.Unmarshal(data, &legacy) == nil && legacy.Bing.State != "" {
 			state.IndexNow = legacy.Bing
+			// In the pre-IndexNow schema, "bing" meant Bing's IndexNow endpoint.
+			// Do not leak that legacy operation state into the real Bing Webmaster provider.
+			state.Bing = searchOperationState{State: "idle"}
 		} else {
 			state.IndexNow.State = "idle"
 		}
