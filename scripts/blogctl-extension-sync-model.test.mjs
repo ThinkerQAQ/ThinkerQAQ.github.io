@@ -107,8 +107,15 @@ test("native publishing follows backend platform capabilities", () => {
   );
 });
 
-test("does not gate platforms when no article is selected", () => {
-  assert.deepEqual(model.platformAvailability(undefined, "devto"), { available: true, reason: "" });
+test("requires backend capabilities even when no article is selected", () => {
+  assert.deepEqual(
+    model.platformAvailability(undefined, { id: "devto", capabilities: { apiKey: true } }),
+    { available: true, reason: "" },
+  );
+  assert.deepEqual(
+    model.platformAvailability(undefined, { id: "devto", capabilities: {} }),
+    { available: false, reason: "平台能力未知" },
+  );
 });
 
 test("maps structured bridge error payloads to an error with code and details", () => {
