@@ -9,7 +9,7 @@ import (
 func TestBuildRendererPolicyOwnsPlatformMetadata(t *testing.T) {
 	article := Article{
 		Title: "Example", Description: strings.Repeat("测", 260),
-		Tags: []string{"Go Lang", "Concurrency", "Go Lang", "bad_tag", "0123456789012345678901234567890"},
+		Tags:       []string{"Go Lang", "Concurrency", "Go Lang", "bad_tag", "0123456789012345678901234567890"},
 		CoverImage: "/media/cover.png",
 	}
 	profile := json.RawMessage(`{"canonical":{"mode":"native"}}`)
@@ -49,7 +49,7 @@ func TestContentHashMatchesLegacyProtocol(t *testing.T) {
 	devto := CompiledArticle{
 		Platform: "devto", Title: "T", Description: "D", Markdown: "Body",
 		NativeCanonicalURL: "https://thinkerqaq.github.io/en/articles/x/",
-		Tags: []string{"go", "concurrency"}, CoverImageURL: "https://thinkerqaq.github.io/cover.png",
+		Tags:               []string{"go", "concurrency"}, CoverImageURL: "https://thinkerqaq.github.io/cover.png",
 	}
 	hash, err := contentHash(devto)
 	if err != nil {
@@ -69,8 +69,8 @@ func TestContentHashMatchesLegacyProtocol(t *testing.T) {
 	}
 
 	medium := CompiledArticle{
-		Platform: "medium",
-		Payload: json.RawMessage(`{"title":"T","deltas":[{"type":1}],"canonicalUrl":"https://x","tags":["go"],"coverImage":null}`),
+		Platform:     "medium",
+		Payload:      json.RawMessage(`{"title":"T","deltas":[{"type":1}],"canonicalUrl":"https://x","tags":["go"],"coverImage":null}`),
 		FallbackHTML: "<p>Body</p>",
 	}
 	hash, err = contentHash(medium)
@@ -90,9 +90,9 @@ func TestApplyAssetDeliveryPolicyMovesNativeRefsInGo(t *testing.T) {
 	}
 	article := CompiledArticle{
 		Markdown: "![x](" + asset.PublicURL + ")",
-		HTML: "<img src=\"" + asset.PublicURL + "\">",
-		Payload: json.RawMessage(`{"image":{"url":"https://cdn.example.com/generated/mermaid/abc.png"}}`),
-		Assets: []Asset{asset},
+		HTML:     "<img src=\"" + asset.PublicURL + "\">",
+		Payload:  json.RawMessage(`{"image":{"url":"https://cdn.example.com/generated/mermaid/abc.png"}}`),
+		Assets:   []Asset{asset},
 	}
 	if err := applyAssetDeliveryPolicy(&article, true); err != nil {
 		t.Fatal(err)
