@@ -317,18 +317,17 @@ func indexNowEndpoint(config bridgeConfig) string {
 }
 
 func indexNowKey(config bridgeConfig) string {
-	return strings.TrimSpace(config.IndexNowKey)
+	if configured := strings.TrimSpace(config.IndexNowKey); configured != "" {
+		return configured
+	}
+	return blogsearch.DefaultIndexNowKey
 }
 
 func indexNowKeyLocation(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.IndexNowKeyLocation); configured != "" {
 		return configured
 	}
-	key := indexNowKey(config)
-	if key == "" {
-		return ""
-	}
-	return blogsearch.DefaultSiteOrigin + "/" + key + ".txt"
+	return blogsearch.DefaultSiteOrigin + "/" + indexNowKey(config) + ".txt"
 }
 
 func indexNowHealth(config bridgeConfig) toolHealth {
