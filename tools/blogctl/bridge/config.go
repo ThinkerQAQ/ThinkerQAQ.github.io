@@ -156,12 +156,12 @@ func defaultPublishingConfig() publishingConfig {
 
 func defaultBridgeConfig() bridgeConfig {
 	return bridgeConfig{
-		LogLevel:         "info",
-		ToolPaths:        map[string]string{},
+		LogLevel:            "info",
+		ToolPaths:           map[string]string{},
 		IndexNowEndpoint:    blogsearch.DefaultIndexNowEndpoint,
 		IndexNowKey:         blogsearch.DefaultIndexNowKey,
 		IndexNowKeyLocation: blogsearch.DefaultSiteOrigin + "/" + blogsearch.DefaultIndexNowKey + ".txt",
-		Publishing:       defaultPublishingConfig(),
+		Publishing:          defaultPublishingConfig(),
 	}
 }
 
