@@ -226,7 +226,7 @@ Completed on `refactor/blogctl-r2-go-runtime-20261002`:
 - The compiler emits asset descriptors (`kind/id/renderer/definition/objectKey/publicUrl`) and no longer renders or uploads generated assets.
 - Go `assets.Pipeline` owns dedupe, cache, render dispatch, image-size enforcement, and generated-asset delivery.
 - Mermaid is executed by the Go process adapter through the pinned Mermaid CLI.
-- PlantUML is executed directly by Go through the pinned, checksum-verified JAR with sandbox settings and direct PNG output.
+- PlantUML rendering no longer requires Java/JAR. Go owns PlantUML normalization, identity, cache/orchestration, and invokes the official `@plantuml/mcp-js` TeaVM engine as a thin renderer adapter; Graphviz layout is provided by `@viz-js/viz` WASM.
 - Node under `tools/blogctl/assets/node/` now contains only the thin `sharp` image-processing adapter.
 - Platforms with native image upload keep that path; R2 is used as Go fallback after platform upload failure.
 - A future/non-native image platform is handled by the same Go asset pipeline and the same `storage/r2` client.
@@ -293,6 +293,30 @@ Evaluate replacing remaining Node-specific rendering:
 - `sharp` → Go image pipeline where output parity is acceptable
 
 Do not switch Markdown engines without corpus/golden tests because HTML differences can alter distributed content.
+
+### R4 checkpoint — 2026-10-02
+
+Completed on `refactor/blogctl-compiler-go-runtime-20261002`:
+
+- Go owns article discovery, source-file resolution, Frontmatter parsing, published-state checks, and compiler orchestration.
+- The legacy `tools/blogctl/compiler/node/index.mjs` compiler CLI is deleted.
+- Go owns Mermaid/PlantUML fence detection, normalization, stable asset identity, object keys, public URLs, and generated-image Markdown replacement.
+- `SyncService` calls the Go compiler service directly; Go ↔ Node compiler configuration is no longer passed through hidden environment variables.
+- Node compiler code is reduced to a structured renderer boundary fed through JSON stdin.
+- PlantUML no longer requires a local JRE, `plantuml.jar`, JDK updater, or `setup-java` in CI.
+- The PlantUML rendering boundary uses the official `@plantuml/mcp-js` TeaVM engine plus `@viz-js/viz`; Go remains authoritative for PlantUML domain rules and orchestration.
+- Site PlantUML generation and BlogCTL publishing both use the same Java-free renderer.
+- Real integration validation covers:
+  - Go `assets.Pipeline` → TeaVM PlantUML → PNG;
+  - Go `compiler.Service` → Node renderer → `CompiledArticle`;
+  - the complete site diagrams suite without Java;
+  - all BlogCTL Go tests, renderer tests, extension tests, and BlogCTL build.
+
+Still intentionally left in Node for the next R4 slice:
+
+- Markdown/HTML rendering where output parity matters;
+- Medium-specific delta/fallback rendering;
+- remaining platform metadata/canonical/tag/content-hash policy until it is moved to Go with parity tests.
 
 ---
 
