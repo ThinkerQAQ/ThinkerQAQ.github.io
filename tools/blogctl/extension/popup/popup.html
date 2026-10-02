@@ -201,32 +201,6 @@
       <section class="status-card">
         <div class="status-row">
           <div>
-            <div class="section-title">Bing Webmaster</div>
-            <p class="card-hint">使用 Bing Webmaster URL Submission API；先读取官方配额，配额不足的 URL 会保留为待提交。</p>
-          </div>
-          <strong id="indexBingStatus" class="status disabled">未运行</strong>
-        </div>
-        <div class="index-stat-grid">
-          <div><span>上次提交</span><strong id="indexBingFinishedAt">-</strong></div>
-          <div><span>模式</span><strong id="indexBingMode">-</strong></div>
-          <div><span>实际提交</span><strong id="indexBingCount">-</strong></div>
-          <div><span>待提交</span><strong id="indexBingPendingCount">0</strong></div>
-          <div><span>今日额度</span><strong id="indexBingDailyQuota">-</strong></div>
-          <div><span>本月额度</span><strong id="indexBingMonthlyQuota">-</strong></div>
-          <div><span>新增</span><strong id="indexBingNewCount">-</strong></div>
-          <div><span>更新</span><strong id="indexBingChangedCount">-</strong></div>
-          <div><span>删除（未提交）</span><strong id="indexBingDeletedCount">-</strong></div>
-          <div><span>HTTP</span><strong id="indexBingHTTP">-</strong></div>
-        </div>
-        <div class="index-action-row index-action-row-equal">
-          <button id="indexBingSubmitIncremental" class="primary inline-primary" type="button">提交增量</button>
-          <button id="indexBingSubmitFull" class="primary inline-primary" type="button">全量重新提交</button>
-        </div>
-      </section>
-
-      <section class="status-card">
-        <div class="status-row">
-          <div>
             <div class="section-title">Baidu Search Resource</div>
             <p class="card-hint">普通收录只提交新增和内容变化 URL；已删除 URL 仅统计，不通过该接口提交。</p>
           </div>
@@ -397,7 +371,7 @@
             <span id="searchEngineEnvironmentStatus" class="status checking">检测中</span>
           </summary>
           <div class="tool-card-body">
-            <p class="card-hint">IndexNow、Bing Webmaster、Baidu 与 Google Search Console 的接入配置和连通性检测。</p>
+            <p class="card-hint">IndexNow、Baidu 与 Google Search Console 的接入配置和连通性检测。</p>
             <div id="searchEngineTools" class="tool-list environment-nested-tools"><div class="platform-loading">正在读取搜索引擎配置…</div></div>
           </div>
         </details>
