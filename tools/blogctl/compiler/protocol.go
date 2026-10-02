@@ -55,5 +55,19 @@ func (article CompiledArticle) Validate() error {
 			return errors.New("compiled article is missing " + name)
 		}
 	}
+	for _, asset := range article.Assets {
+		kind := strings.ToLower(strings.TrimSpace(asset.Kind))
+		if kind != "mermaid" && kind != "plantuml" {
+			return errors.New("compiled article contains unsupported asset kind")
+		}
+		for name, value := range map[string]string{
+			"id": asset.ID, "definition": asset.Definition,
+			"objectKey": asset.ObjectKey, "publicUrl": asset.PublicURL,
+		} {
+			if strings.TrimSpace(value) == "" {
+				return errors.New("compiled article asset is missing " + name)
+			}
+		}
+	}
 	return nil
 }
