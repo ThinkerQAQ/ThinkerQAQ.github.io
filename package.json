@@ -35,7 +35,8 @@
     "check": "astro check",
     "preview": "astro preview --port 4321",
     "test": "npm run test:engine && npm run assemble:fixtures && npm run check && npm run build",
-    "covers:social": "node scripts/render-cover-social.mjs"
+    "covers:social": "node scripts/render-cover-social.mjs",
+    "build:astro": "node scripts/clean-dist.mjs && npm run diagrams && npm run covers:social && astro build"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
