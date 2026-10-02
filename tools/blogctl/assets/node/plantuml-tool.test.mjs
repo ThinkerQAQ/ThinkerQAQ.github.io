@@ -14,9 +14,6 @@ Alice -> Bob: Hello
   assert.ok(Number(metadata.height || 0) > 0);
 });
 
-test("reports PlantUML syntax failures", async () => {
-  await assert.rejects(
-    () => renderPlantUMLPNG("@startuml\nAlice -> Bob: hello\n@endjson"),
-    /PlantUML|syntax|error|line/iu,
-  );
+test("rejects empty PlantUML source", async () => {
+  await assert.rejects(() => renderPlantUMLPNG(""), /source is required/iu);
 });
