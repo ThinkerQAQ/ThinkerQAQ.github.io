@@ -255,6 +255,7 @@ func (s SyncService) runSyncPlan(
 	ctx context.Context,
 	request SyncRequest,
 	compiler ArticleCompiler,
+	contentRoot string,
 	index int,
 	entry SyncPlan,
 ) syncPlanExecution {
@@ -357,7 +358,7 @@ func (s SyncService) runSyncPlan(
 	for _, compiled := range compiledArticles {
 		if request.Operation == "publish" {
 			publishResult, publishErr := s.NativePublisher.PublishDraft(ctx, NativePublishRequest{
-				Article: compiled.Slug, Platform: compiled.Platform, ContentRoot: "", Compiled: compiled,
+				Article: compiled.Slug, Platform: compiled.Platform, ContentRoot: contentRoot, Compiled: compiled,
 			})
 			if publishErr != nil {
 				emit(SyncEvent{Platform: compiled.Platform, State: "failed", Message: publishErr.Error()})
@@ -370,7 +371,7 @@ func (s SyncService) runSyncPlan(
 			continue
 		}
 		draftResult, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
-			Article: compiled.Slug, Platform: compiled.Platform, ContentRoot: "",
+			Article: compiled.Slug, Platform: compiled.Platform, ContentRoot: contentRoot,
 			ChangedOnly: changedOnlyForPlatform(request, compiled.Platform), Compiled: compiled,
 		})
 		if publishErr != nil {
@@ -406,6 +407,16 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 		return "", errors.New("npm was not found; install Node.js with npm")
 	}
 
+	compiler := s.Compiler
+	if compiler == nil {
+		compiler = blogcompiler.Service{
+			EngineRoot:     config.EngineRoot,
+			ContentRoot:    config.ContentRoot,
+			PublishingJSON: config.PublishingJSON,
+			Node:           node,
+		}
+	}
+
 	env := syncEnvironment(config)
 	var output strings.Builder
 	astro := filepath.Join(config.EngineRoot, "node_modules", "astro", "bin", "astro.mjs")
@@ -433,7 +444,7 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 	for index, entry := range plans {
 		index, entry := index, entry
 		go func() {
-			executionCh <- s.runSyncPlan(ctx, config, request, runner, node, env, index, entry)
+			executionCh <- s.runSyncPlan(ctx, request, compiler, config.ContentRoot, index, entry)
 		}()
 	}
 
