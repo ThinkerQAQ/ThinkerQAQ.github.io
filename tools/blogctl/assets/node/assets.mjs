@@ -3,10 +3,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import sharp from "sharp";
 
 import { collectPublishingAssets } from "../../compiler/node/compiler.mjs";
-import { loadBlogctlPublishingRuntimeConfig } from "../../compiler/node/runtime-config.mjs";
-import { readRenderedAsset, renderMermaidAsset } from "./mermaid-assets.mjs";
+import { renderMermaidAsset } from "./mermaid-assets.mjs";
 import { renderPlantUMLAsset } from "./plantuml-assets.mjs";
-import { loadR2Config, uploadR2Object } from "./r2.mjs";
 
 export const DEFAULT_PUBLISHING_IMAGE_MAX_DIMENSION = 4096;
 
@@ -55,28 +53,18 @@ export async function constrainPublishingImage(outputFile, {
 export async function preparePublishingAssetList(assets, {
   dryRun = false,
   cacheRoot = ".distribution/assets",
-  env = process.env,
   render = null,
   renderers = {},
-  read = readRenderedAsset,
-  upload = uploadR2Object,
-  uploadFallback = true,
-  r2Credentials = {},
   constrain = constrainPublishingImage,
   maxDimension = DEFAULT_PUBLISHING_IMAGE_MAX_DIMENSION,
 } = {}) {
   const unique = dedupePublishingAssets([assets]);
   if (dryRun || unique.length === 0) {
-    return { assets: unique.length, rendered: 0, cached: 0, uploaded: 0, dryRun };
+    return { assets: unique.length, rendered: 0, cached: 0, dryRun };
   }
 
-  const runtime = loadBlogctlPublishingRuntimeConfig(env);
-  if (runtime.assets.store !== "r2") throw new Error("Unsupported BlogCTL publishing asset store: " + runtime.assets.store);
-  const config = uploadFallback ? loadR2Config({ policy: runtime.assets.r2, credentials: r2Credentials }) : null;
   let rendered = 0;
   let cached = 0;
-  let uploaded = 0;
-
   const defaultRenderers = {
     mermaid: renderMermaidAsset,
     plantuml: renderPlantUMLAsset,
@@ -85,31 +73,16 @@ export async function preparePublishingAssetList(assets, {
   for (const asset of unique) {
     const renderer = render || renderers[asset.kind] || defaultRenderers[asset.kind];
     if (!renderer) throw new Error("Unsupported publishing asset kind: " + asset.kind);
-    const result = await renderer(asset, { cacheRoot, env });
+    const result = await renderer(asset, { cacheRoot });
     if (result.rendered) rendered += 1;
     else cached += 1;
 
-    // Distribution images can be uploaded directly to third-party platforms.
-    // Keep both dimensions within 4096px so DEV.to accepts generated diagrams.
-    // This also normalizes previously cached oversized images before reuse.
+    // Generated images are consumed by native publishers first and may fall
+    // back to Go-owned R2 delivery. Keep them within third-party size limits.
     await constrain(result.outputFile, { maxDimension });
-
-    if (uploadFallback) {
-      const payload = await read(result.outputFile);
-      const uploadedAsset = await upload({
-        objectKey: asset.objectKey,
-        body: payload,
-        contentType: "image/png",
-        config,
-      });
-      if (uploadedAsset.publicUrl !== asset.publicUrl) {
-        throw new Error("R2 public URL mismatch for " + asset.objectKey);
-      }
-      uploaded += 1;
-    }
   }
 
-  return { assets: unique.length, rendered, cached, uploaded, dryRun: false };
+  return { assets: unique.length, rendered, cached, dryRun: false };
 }
 
 export async function preparePublishingAssets(markdown, options = {}) {
