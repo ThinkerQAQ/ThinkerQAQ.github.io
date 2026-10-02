@@ -2,10 +2,8 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "1.2026.7";
-export const JAR_SHA256 = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde";
+export const VERSION = "mcp-js-0.2.2";
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
-export const JAR = path.join(ROOT, ".astro", "tools", `plantuml-${VERSION}.jar`);
 export const CACHE = path.join(ROOT, ".astro", "plantuml", "svg");
 export const OUTPUT = path.join(ROOT, "public", "diagrams", "plantuml");
 export const MANIFEST = path.join(ROOT, ".astro", "plantuml", "manifest.json");
@@ -28,7 +26,7 @@ export function visitCode(tree, callback) {
 export function normalize(source) {
   let text = source.replaceAll("\r\n", "\n").trim();
   if (!text) throw new Error("Empty PlantUML diagram");
-  // The JVM sandbox is the primary boundary; reject external preprocessing explicitly too.
+  // Reject external preprocessing explicitly before the local TeaVM renderer sees the diagram.
   if (/^\s*!\s*(?:include\w*|import|theme)\b/im.test(text) || /%(?:getenv|load\w*|filename|dirpath)\s*\(/i.test(text)) {
     throw new Error("External includes, themes and environment/file access are disabled for diagrams");
   }
