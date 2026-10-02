@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 
 import {
-  DEFAULT_R2_PUBLIC_BASE_URL,
+  DEFAULT_ASSET_BASE_URL,
   loadBlogctlPublishingRuntimeConfig,
 } from "./runtime-config.mjs";
 import { diagramKey as plantumlDiagramKey, normalize as normalizePlantUML } from "../../../../scripts/plantuml/core.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
-export { DEFAULT_R2_PUBLIC_BASE_URL };
+export { DEFAULT_ASSET_BASE_URL };
 export const MERMAID_CLI_PACKAGE = "@mermaid-js/mermaid-cli@11.17.0";
 export const MERMAID_OBJECT_PREFIX = "generated/mermaid";
 export const PLANTUML_OBJECT_PREFIX = "generated/plantuml";
@@ -60,7 +60,7 @@ function isPlantUMLFence(language, source) {
 }
 
 function normalizeAssetBaseUrl(value) {
-  const raw = String(value || DEFAULT_R2_PUBLIC_BASE_URL).trim();
+  const raw = String(value || DEFAULT_ASSET_BASE_URL).trim();
   if (!raw) throw new Error("R2 public base URL is required");
   const url = new URL(raw);
   if (url.protocol !== "https:") throw new Error("R2 public base URL must use HTTPS");
@@ -69,7 +69,7 @@ function normalizeAssetBaseUrl(value) {
 }
 
 function defaultAssetBaseUrl(env = process.env) {
-  return loadBlogctlPublishingRuntimeConfig(env).assets.r2.publicBaseUrl;
+  return loadBlogctlPublishingRuntimeConfig(env).assetBaseUrl;
 }
 
 export function normalizeMermaidSource(source) {

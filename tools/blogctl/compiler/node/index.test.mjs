@@ -25,7 +25,7 @@ flowchart LR
 \`\`\`
 `;
 
-test("native image upload platforms do not require compiler-side R2 pre-upload", () => {
+test("supported publishing platforms use native image upload before Go R2 fallback", () => {
   for (const platform of ["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium"]) {
     assert.equal(useNativeImageUpload(platform), true, platform);
   }

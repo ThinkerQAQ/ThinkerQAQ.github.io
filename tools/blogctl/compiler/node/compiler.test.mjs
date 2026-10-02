@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  DEFAULT_R2_PUBLIC_BASE_URL,
+  DEFAULT_ASSET_BASE_URL,
   assertNoUncompiledDiagrams,
   collectPublishingAssets,
   compilePublishingMarkdown,
@@ -12,12 +12,12 @@ import {
 
 const fence = String.fromCharCode(96).repeat(3);
 
-test("compiles Mermaid fences to content-addressed R2 PNG URLs", () => {
+test("compiles Mermaid fences to content-addressed publishing PNG URLs", () => {
   const markdown = ["Before", fence + "mermaid", "flowchart LR", "  accTitle: Lock path", "  A --> B", fence, "After"].join("\n");
   const result = compilePublishingMarkdown(markdown, { platform: "devto" });
   assert.equal(result.assets.length, 1);
   assert.equal(result.assets[0].objectKey.startsWith("generated/mermaid/"), true);
-  assert.equal(result.assets[0].publicUrl.startsWith(DEFAULT_R2_PUBLIC_BASE_URL), true);
+  assert.equal(result.assets[0].publicUrl.startsWith(DEFAULT_ASSET_BASE_URL), true);
   assert.match(result.markdown, /!\[Lock path\]\(https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png\)/u);
   assert.doesNotMatch(result.markdown, /flowchart LR/u);
 });
