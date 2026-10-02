@@ -477,14 +477,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleSearchBingSubmit(response, request)
 		return
 	}
-	if path == "v1/search/index/google/sitemaps" && request.Method == http.MethodPost {
-		s.handleSearchGoogleSitemaps(response, request)
-		return
-	}
-	if path == "v1/search/index/google/inspect" && request.Method == http.MethodPost {
-		s.handleSearchGoogleInspect(response, request)
-		return
-	}
 	if path == "v1/search/index/google/request-queue" && request.Method == http.MethodPost {
 		s.handleSearchGoogleRequestQueueCreate(response, request)
 		return
