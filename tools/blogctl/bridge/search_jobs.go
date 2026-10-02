@@ -18,8 +18,9 @@ type searchSubmissionTaskPayload struct {
 }
 
 type googleInspectionTaskPayload struct {
-	Offset int `json:"offset"`
-	Limit  int `json:"limit"`
+	Offset int  `json:"offset"`
+	Limit  int  `json:"limit"`
+	Done   bool `json:"done,omitempty"`
 }
 
 func taskCapabilities(retry, pause, resume bool) struct {
@@ -337,6 +338,31 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	if err := json.Unmarshal(rawPayload, &input); err != nil {
 		return err
 	}
+	if input.Limit == 0 && input.Offset > 0 {
+		input.Done = true
+	}
+	if input.Done {
+		state := loadSearchIndexState()
+		state.Google.Inspection.State = "completed"
+		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.Google.Inspection.Offset = input.Offset
+		state.Google.Inspection.Limit = 0
+		state.Google.Inspection.Error = ""
+		refreshSearchCredentialsFlag(&state, s.config)
+		if err := saveSearchIndexState(state); err != nil {
+			return err
+		}
+		total := state.Google.Inspection.Total
+		current := min(input.Offset, total)
+		s.completeDurableTask(jobID, taskProgress{
+			Current: current, Total: total, Unit: "URL", Message: "URL Inspection batch completed",
+		}, map[string]any{
+			"nextOffset": input.Offset,
+			"checkedCount": state.Google.Inspection.Inspected,
+			"remaining": state.Google.Inspection.Remaining,
+		})
+		return nil
+	}
 	if input.Limit == 0 {
 		input.Limit = blogsearch.GoogleURLInspectionDailySiteLimit
 	}
@@ -427,6 +453,10 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 					return errors.New("Google URL Inspection request_start missing URL")
 				}
 				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+					cursor := max(0, event.AbsoluteIndex-1)
+					job.Progress.Current = min(cursor, event.TotalAvailable)
+					job.Progress.Total = event.TotalAvailable
+					job.Progress.Unit = "URL"
 					job.Progress.Message = fmt.Sprintf(
 						"正在检查 %d / %d · %s",
 						event.AbsoluteIndex,
@@ -434,10 +464,9 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 						event.URL,
 					)
 					job.Detail = map[string]any{
-						"phase":         "request",
-						"currentUrl":    event.URL,
-						"absoluteIndex": event.AbsoluteIndex,
-						"inspected":     max(0, event.AbsoluteIndex-1),
+						"phase":      "request",
+						"currentUrl": event.URL,
+						"nextOffset": cursor,
 					}
 					appendTaskOutput(job, fmt.Sprintf("[request] start #%d %s", event.AbsoluteIndex, event.URL))
 				})
@@ -474,6 +503,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 				nextPayload, _ := json.Marshal(googleInspectionTaskPayload{
 					Offset: nextOffset,
 					Limit:  remainingBatch,
+					Done:   remainingBatch == 0,
 				})
 				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
 					job.Progress = taskProgress{
@@ -491,8 +521,8 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 					job.Detail = map[string]any{
 						"phase":          "completed_request",
 						"currentUrl":     result.URL,
-						"currentOffset":  nextOffset,
-						"inspected":      event.AbsoluteIndex,
+						"nextOffset":     nextOffset,
+						"checkedCount":   currentState.Google.Inspection.Inspected,
 						"durationMs":     event.Duration.Milliseconds(),
 						"totalAvailable": event.TotalAvailable,
 						"remaining":      currentState.Google.Inspection.Remaining,
@@ -567,7 +597,8 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		Unit:    "URL",
 		Message: "URL Inspection batch completed",
 	}, map[string]any{
-		"inspected":      current,
+		"nextOffset":     current,
+		"checkedCount":   state.Google.Inspection.Inspected,
 		"totalAvailable": report.TotalAvailable,
 		"remaining":      report.Remaining,
 	})
@@ -902,14 +933,17 @@ func (s *Server) updateGoogleRequestTaskFromQueue(queue googleIndexRequestQueue)
 func recoverSearchTasksAfterRestart(s *Server) {
 	state := loadSearchIndexState()
 	queue := &state.Google.RequestQueue
-	if queue.State != "running" {
-		return
+	if queue.State == "running" {
+		queue.State = "paused"
+		queue.LastError = ""
+		queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
+		_ = saveSearchIndexState(state)
+		if queue.JobID != "" {
+			_, _ = s.updateGoogleRequestTaskFromQueue(*queue)
+		}
 	}
-	queue.State = "paused"
-	queue.LastError = ""
-	queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
-	_ = saveSearchIndexState(state)
-	if queue.JobID != "" {
-		_, _ = s.updateGoogleRequestTaskFromQueue(*queue)
+
+	if job := s.latestDurableSearchTask("google-inspection"); job != nil && job.State == "queued" {
+		s.launchSearchTaskJob(job.ID)
 	}
 }
