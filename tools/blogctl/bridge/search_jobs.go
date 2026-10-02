@@ -231,24 +231,23 @@ func (s *Server) executeBaiduIndexTask(ctx context.Context, jobID string, rawPay
 	previous := loadBaiduIndexSnapshot()
 	payload, err := s.submitBaidu(ctx, input.Mode, previous)
 	if err != nil {
-		state.Baidu.State = "failed"
-		state.Baidu.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Baidu.Error = err.Error()
-		_ = saveSearchIndexState(state)
-		return err
-	}
-	// Baidu returns only aggregate success counts. Advance the baseline only when
-	// every URL in every batch is confirmed accepted; partial acceptance is
-	// intentionally retried on the next run rather than guessing accepted URLs.
-	if !payload.Result.Complete {
-		err := errors.New("Baidu submission was not fully accepted; snapshot not advanced")
-		state.Inventory = compactSearchInventory(payload.Inventory)
-		state.Baidu = searchOperationState{
-			State: "failed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
-			FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.SuccessCount,
-			NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
-			DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
-			HTTPStatus: maxSearchHTTPStatus(payload.Result.Results), Error: err.Error(),
+		// Baidu reports only aggregate accepted counts. Keep the provider
+		// snapshot unchanged on partial acceptance, but persist the observed
+		// submission statistics so Bridge/UI state reflects what actually
+		// happened and the whole batch can be retried safely.
+		if payload.Inventory.Total > 0 || payload.Result.URLCount > 0 {
+			state.Inventory = compactSearchInventory(payload.Inventory)
+			state.Baidu = searchOperationState{
+				State: "failed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
+				FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.SuccessCount,
+				NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
+				DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
+				HTTPStatus: maxSearchHTTPStatus(payload.Result.Results), Error: err.Error(),
+			}
+		} else {
+			state.Baidu.State = "failed"
+			state.Baidu.FinishedAt = s.now().UTC().Format(time.RFC3339)
+			state.Baidu.Error = err.Error()
 		}
 		_ = saveSearchIndexState(state)
 		return err
