@@ -38,7 +38,7 @@ test("maps structured sync results to platform rows", () => {
   assert.match(rows[1].message, /Waiting for Medium/u);
 });
 
-test("falls back to the overall failed job state for legacy jobs", () => {
+test("surfaces missing per-platform task results", () => {
   const [row] = model.platformRows({
     state: "failed",
     error: "network failed",
@@ -46,10 +46,10 @@ test("falls back to the overall failed job state for legacy jobs", () => {
   }, { platforms: [{ id: "cnblogs", label: "博客园" }] });
 
   assert.equal(row.label, "博客园");
-  assert.equal(row.state, "failed");
-  assert.equal(row.kind, "error");
-  assert.equal(row.statusLabel, "失败");
-  assert.equal(row.error, "network failed");
+  assert.equal(row.state, "unknown");
+  assert.equal(row.kind, "unknown");
+  assert.equal(row.statusLabel, "unknown");
+  assert.equal(row.error, "任务缺少平台结果");
 });
 
 test("gates source availability by configured content language", () => {
@@ -94,13 +94,17 @@ test("native platforms defer authoritative login checks to the publisher", () =>
   );
 });
 
-test("native publishing is not gated by a legacy delivery tool", () => {
-  for (const platform of ["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao"]) {
+test("native publishing follows backend platform capabilities", () => {
+  for (const id of ["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao"]) {
     assert.deepEqual(
-      model.deliveryToolAvailability(platform, []),
+      model.deliveryToolAvailability({ id, capabilities: { browserSession: true } }, []),
       { available: true, reason: "" },
     );
   }
+  assert.deepEqual(
+    model.deliveryToolAvailability({ id: "unknown", capabilities: {} }, []),
+    { available: false, reason: "平台能力未知" },
+  );
 });
 
 test("does not gate platforms when no article is selected", () => {
@@ -108,7 +112,7 @@ test("does not gate platforms when no article is selected", () => {
 });
 
 test("maps structured bridge error payloads to an error with code and details", () => {
-  const error = toError({ error: "sync job not found", code: "sync_job_not_found", message: "sync job not found", details: { id: "abc" } }, 404);
+  const error = toError({ code: "sync_job_not_found", message: "sync job not found", details: { id: "abc" } }, 404);
   assert.equal(error.message, "sync job not found");
   assert.equal(error.code, "sync_job_not_found");
   assert.equal(error.status, 404);
