@@ -102,6 +102,20 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 
 .tool-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
+.tool-identity { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.tool-requirement { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.tool-requirement.required { background: #fee2e2; color: #991b1b; }
+.tool-requirement.optional { background: #f3f4f6; color: #6b7280; }
+.tool-purpose { margin-top: 0; }
+.tool-config-readonly { display: grid; gap: 6px; }
+.tool-config-readonly[hidden], .tool-config-editor[hidden], .tool-edit-actions[hidden], .tool-edit-button[hidden] { display: none; }
+.tool-config-readonly-row { display: grid; grid-template-columns: minmax(90px, auto) minmax(0, 1fr); gap: 10px; align-items: center; color: #6b7280; font-size: 11px; }
+.tool-config-readonly-row code { min-width: 0; overflow-wrap: anywhere; padding: 7px 8px; border-radius: 7px; background: #f3f4f6; color: #4b5563; font-size: 11px; }
+.tool-config-editor { display: grid; gap: 8px; }
+.tool-edit-controls { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.tool-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tool-edit-button { min-width: 72px; }
+
 .tool-card > summary { cursor: pointer; list-style: none; }
 .tool-card > summary::-webkit-details-marker { display: none; }
 .tool-card > summary::after { content: "›"; margin-left: 4px; color: #9ca3af; font-size: 16px; line-height: 1; transform: rotate(0deg); transition: transform .12s ease; }
@@ -140,6 +154,18 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 @media (max-width: 360px) { .index-stat-grid { grid-template-columns: 1fr; } }
 
 .environment-large-card { margin-top: 9px; background: #fff; }
+
+.environment-config-file { display: grid; gap: 7px; margin-top: 9px; padding: 10px 12px; background: #fff; }
+.config-file-name { padding: 3px 7px; border-radius: 6px; background: #f3f4f6; color: #374151; font-size: 11px; }
+.panel[data-panel="environment"] input:disabled,
+.panel[data-panel="environment"] select:disabled,
+.panel[data-panel="environment"] textarea:disabled {
+  opacity: 1;
+  border-color: transparent;
+  background: #f3f4f6;
+  color: #4b5563;
+  cursor: default;
+}
 .environment-embedded-tool { gap: 10px; }
 .environment-nested-tools { padding-top: 2px; }
 .environment-nested-tools .tool-card { background: #f9fafb; }

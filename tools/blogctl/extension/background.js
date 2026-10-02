@@ -285,47 +285,72 @@ function runtimeVersionHealth(version, expectedVersion, healthySummary, detail =
 
 async function environmentTools(serverTools = []) {
   const bridge = await bridgeStatus();
-  const expectedVersion = bridge.extensionVersion || chrome.runtime.getManifest().version;
+  const extensionVersion = bridge.extensionVersion || chrome.runtime.getManifest().version;
+  const bridgeVersion = String(bridge.bridgeVersion || "").trim();
+  const extensionBridgeCompatible = Boolean(bridge.running && bridgeVersion && bridgeVersion === extensionVersion);
+
   const extensionTool = {
     name: "extension",
     displayName: "BlogCTL Extension",
     kind: "runtime",
-    description: "浏览器侧控制面、登录态检测与本地 Bridge 调度。",
+    description: "浏览器侧控制面。版本必须与 BlogCTL Bridge 一致。",
     required: true,
-    health: runtimeVersionHealth(expectedVersion, expectedVersion, "已加载", `Extension ID ${chrome.runtime.id}`),
-    config: { scope: "extension", values: {}, defaultExpanded: true },
+    health: !bridge.running
+      ? {
+          ok: false,
+          status: "error",
+          summary: "Bridge 未连接",
+          version: extensionVersion,
+          detail: bridge.error || "无法确认 Extension 与 Bridge 的版本兼容性",
+        }
+      : extensionBridgeCompatible
+        ? {
+            ok: true,
+            status: "ok",
+            summary: "已加载",
+            version: extensionVersion,
+            detail: `Extension v${extensionVersion} · Bridge v${bridgeVersion}`,
+          }
+        : {
+            ok: false,
+            status: "error",
+            summary: "版本不一致",
+            version: extensionVersion,
+            detail: `Extension v${extensionVersion} · Bridge v${bridgeVersion || "未知"}`,
+          },
+    config: { scope: "extension", values: {}, defaultExpanded: false },
   };
-  const nativeHostTool = {
-    name: "native-host",
-    displayName: "BlogCTL Native Host",
-    kind: "runtime",
-    description: "浏览器 Native Messaging 入口；负责定位并启动本机 BlogCTL Bridge。",
-    required: true,
-    health: bridge.running
-      ? runtimeVersionHealth(
-          bridge.nativeHostVersion, expectedVersion, "已连接",
-          "Native Messaging Host", bridge.nativeHostExecutable,
-        )
-      : {
-          ok: false, status: "error", summary: "未连接", version: bridge.nativeHostVersion || "",
-          detail: bridge.error || "Native Host unavailable", path: bridge.nativeHostExecutable || "",
-        },
-    config: { scope: "native-host", values: {}, defaultExpanded: true },
-  };
+
   const tools = serverTools.map((tool) => {
     if (tool?.name !== "bridge") return tool;
     const current = tool.health ?? {};
-    const versionHealth = bridge.running
-      ? runtimeVersionHealth(bridge.bridgeVersion || current.version, expectedVersion, "运行中", current.detail || "")
-      : {
-          ok: false, status: "error", summary: "未运行", version: bridge.bridgeVersion || current.version || "",
+    const versionHealth = !bridge.running
+      ? {
+          ok: false,
+          status: "error",
+          summary: "未运行",
+          version: bridgeVersion || current.version || "",
           detail: bridge.error || current.detail || "Bridge unavailable",
-        };
+        }
+      : extensionBridgeCompatible
+        ? {
+            ok: true,
+            status: "ok",
+            summary: "运行中",
+            version: bridgeVersion,
+            detail: current.detail || `Extension v${extensionVersion} · Bridge v${bridgeVersion}`,
+          }
+        : {
+            ok: false,
+            status: "error",
+            summary: "版本不一致",
+            version: bridgeVersion || current.version || "",
+            detail: `Extension v${extensionVersion} · Bridge v${bridgeVersion || "未知"}`,
+          };
     return { ...tool, health: { ...current, ...versionHealth } };
   });
-  const bridgeTool = tools.find((tool) => tool?.name === "bridge");
-  const remainingTools = tools.filter((tool) => tool?.name !== "bridge");
-  return [extensionTool, ...(bridgeTool ? [bridgeTool] : []), nativeHostTool, ...remainingTools];
+
+  return [extensionTool, ...tools];
 }
 
 async function platformSessionStatus(platform, bridge) {

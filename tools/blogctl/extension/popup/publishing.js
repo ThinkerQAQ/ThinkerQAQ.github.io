@@ -1,10 +1,10 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, platforms: [], tools: [] };
+  const state = { initialized: false, active: false, editing: false, platforms: [], tools: [] };
   let platformSelect, languageSelect, changedOnly, footerEnabled, footerTemplate, canonicalMode;
   let trackingEnabled, trackingSource, trackingMedium, trackingCampaign;
-  let platformAccessConfig, preview, saveButton, resetButton, message;
+  let platformAccessConfig, preview, editButton, cancelButton, saveButton, resetButton, editActions, message;
 
   function currentPlatform() {
     return state.platforms.find((platform) => platform.id === platformSelect.value);
@@ -35,6 +35,7 @@
     if (field.min) input.min = String(field.min);
     if (field.max) input.max = String(field.max);
     input.value = tool.config?.values?.[field.key] ?? "";
+    input.disabled = !state.editing;
     label.append(title, input);
     if (field.description) {
       const hint = document.createElement("small");
@@ -45,22 +46,13 @@
     return label;
   }
 
-  async function saveAccessTool(tool, container, button) {
+  async function saveAccessTool(tool, container) {
     const values = {};
     container.querySelectorAll("[data-config-key]").forEach((input) => {
       values[input.dataset.configKey] = input.type === "number" ? Number(input.value || 0) : input.value.trim();
     });
-    button.disabled = true;
-    BlogCTLPopup.setMessage(message, `正在保存 ${tool.displayName || tool.name}…`);
-    try {
-      const response = await BlogCTLPopup.send("blogctl.tool.save", { name: tool.name, config: values });
-      state.tools = response.tools ?? state.tools;
-      renderPlatformAccess();
-      BlogCTLPopup.setMessage(message, `${tool.displayName || tool.name} 已保存。`, "ok");
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-      button.disabled = false;
-    }
+    const response = await BlogCTLPopup.send("blogctl.tool.save", { name: tool.name, config: values });
+    state.tools = response.tools ?? state.tools;
   }
 
   function renderPlatformAccess() {
@@ -102,16 +94,25 @@
 
     for (const field of tool.config?.schema ?? []) card.append(makeAccessInput(tool, field));
 
-    if ((tool.config?.schema ?? []).length) {
-      const save = document.createElement("button");
-      save.type = "button";
-      save.className = "secondary full-width";
-      save.textContent = "保存接入配置";
-      save.addEventListener("click", () => saveAccessTool(tool, card, save));
-      card.append(save);
-    }
-
     platformAccessConfig.append(card);
+  }
+
+  function setEditing(editing) {
+    state.editing = editing;
+    const platform = currentPlatform();
+    const canUpdateDraft = platform?.capabilities?.draftUpdate !== false;
+    languageSelect.disabled = !editing;
+    changedOnly.disabled = !editing || !canUpdateDraft;
+    footerEnabled.disabled = !editing;
+    footerTemplate.disabled = !editing;
+    canonicalMode.disabled = !editing;
+    trackingEnabled.disabled = !editing;
+    trackingSource.disabled = !editing;
+    trackingMedium.disabled = !editing;
+    trackingCampaign.disabled = !editing;
+    editButton.hidden = editing;
+    editActions.hidden = !editing;
+    renderPlatformAccess();
   }
 
   function defaultFooterTemplate(language) {
@@ -183,8 +184,8 @@
     languageSelect.value = profile.language || fallback.language;
     const canUpdateDraft = profile.capabilities?.draftUpdate !== false;
     changedOnly.checked = canUpdateDraft && Boolean(profile.changedOnly);
-    changedOnly.disabled = !canUpdateDraft;
-    changedOnly.title = changedOnly.disabled ? "当前平台尚未验证安全更新已有草稿。" : "";
+    changedOnly.disabled = !state.editing || !canUpdateDraft;
+    changedOnly.title = !canUpdateDraft ? "当前平台尚未验证安全更新已有草稿。" : "";
     const footer = profile.footer || fallback.footer;
     const canonical = profile.canonical || fallback.canonical;
     const tracking = profile.tracking || fallback.tracking;
@@ -249,6 +250,8 @@
     saveButton.disabled = true;
     BlogCTLPopup.setMessage(message, "正在保存平台配置…");
     try {
+      const accessTool = accessToolFor(current.id);
+      if (accessTool) await saveAccessTool(accessTool, platformAccessConfig);
       const response = await BlogCTLPopup.send("blogctl.publishing.save", {
         platforms: [current],
       });
@@ -256,6 +259,7 @@
       renderPlatformSelect();
       platformSelect.value = current.id;
       writeForm(currentPlatform());
+      setEditing(false);
       BlogCTLPopup.setMessage(message, `${current.label || current.id} 平台配置已保存。`, "ok");
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -281,7 +285,9 @@
       ]);
       state.platforms = response.platforms ?? [];
       state.tools = toolsResponse.tools ?? [];
+      state.editing = false;
       renderPlatformSelect();
+      setEditing(false);
       await BlogCTLPopup.refreshBridgeIndicator();
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -302,11 +308,18 @@
     trackingMedium = document.getElementById("trackingMedium");
     trackingCampaign = document.getElementById("trackingCampaign");
     preview = document.getElementById("publishingPreview");
+    editButton = document.getElementById("editPublishing");
+    cancelButton = document.getElementById("cancelPublishing");
     saveButton = document.getElementById("savePublishing");
     resetButton = document.getElementById("resetPublishing");
+    editActions = document.getElementById("publishingEditActions");
     message = document.getElementById("publishingMessage");
 
-    platformSelect.addEventListener("change", () => { writeForm(currentPlatform()); renderPlatformAccess(); });
+    platformSelect.addEventListener("change", () => {
+      state.editing = false;
+      writeForm(currentPlatform());
+      setEditing(false);
+    });
     languageSelect.addEventListener("change", () => {
       const currentTemplate = footerTemplate.value.trim();
       const defaultTemplates = new Set([defaultFooterTemplate("zh-CN"), defaultFooterTemplate("en")]);
@@ -318,8 +331,15 @@
     for (const element of [footerEnabled, footerTemplate, canonicalMode, trackingEnabled, trackingSource, trackingMedium, trackingCampaign]) {
       element.addEventListener(element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input", updatePreview);
     }
+    editButton.addEventListener("click", () => setEditing(true));
+    cancelButton.addEventListener("click", () => {
+      writeForm(currentPlatform());
+      setEditing(false);
+      BlogCTLPopup.setMessage(message);
+    });
     saveButton.addEventListener("click", save);
     resetButton.addEventListener("click", reset);
+    setEditing(false);
     state.initialized = true;
   }
 
