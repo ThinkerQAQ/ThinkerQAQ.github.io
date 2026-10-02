@@ -167,13 +167,7 @@ func loadIndexNowSnapshot() searchInventoryState {
 	if current.Source != "" || current.Total > 0 || len(current.URLs) > 0 || len(current.Fingerprints) > 0 {
 		return current
 	}
-
-	// One-time filename migration; subsequent writes use only indexnow-snapshot.json.
-	legacy := loadSearchProviderSnapshot("bing-indexnow-snapshot.json")
-	if legacy.Source != "" || legacy.Total > 0 || len(legacy.URLs) > 0 || len(legacy.Fingerprints) > 0 {
-		_ = saveIndexNowSnapshot(legacy)
-	}
-	return legacy
+	return migrateLegacyIndexNowSnapshot()
 }
 
 type bingIndexSnapshot struct {
@@ -246,14 +240,8 @@ func loadSearchIndexState() searchIndexState {
 		return defaultSearchIndexState()
 	}
 	if state.IndexNow.State == "" {
-		// One-time state-schema migration from the pre-IndexNow provider name.
-		var legacy struct {
-			Bing searchOperationState `json:"bing"`
-		}
-		if json.Unmarshal(data, &legacy) == nil && legacy.Bing.State != "" {
-			state.IndexNow = legacy.Bing
-			// In the pre-IndexNow schema, "bing" meant Bing's IndexNow endpoint.
-			// Do not leak that legacy operation state into the real Bing Webmaster provider.
+		if legacy, ok := migrateLegacyIndexNowState(data); ok {
+			state.IndexNow = legacy
 			state.Bing = searchOperationState{State: "idle"}
 		} else {
 			state.IndexNow.State = "idle"
