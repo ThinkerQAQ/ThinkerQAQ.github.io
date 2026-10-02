@@ -103,6 +103,38 @@ func TestPipelineRendersMermaidThroughGoOrchestration(t *testing.T) {
 	}
 }
 
+func TestPipelineRendersPlantUMLThroughTeaVM(t *testing.T) {
+	if os.Getenv("BLOGCTL_PLANTUML_INTEGRATION") != "1" {
+		t.Skip("set BLOGCTL_PLANTUML_INTEGRATION=1 after npm ci")
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	engineRoot, err := filepath.Abs(filepath.Join(workingDirectory, "..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentRoot := t.TempDir()
+	id := strings.Repeat("a", 64)
+	pipeline := &Pipeline{EngineRoot: engineRoot, ContentRoot: contentRoot}
+	asset := blogcompiler.Asset{
+		Kind: "plantuml", ID: id, Renderer: blogcompiler.PlantUMLRendererVersion,
+		Definition: "Alice -> Bob: hello",
+	}
+	if err := pipeline.Prepare(context.Background(), []blogcompiler.Asset{asset}); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(contentRoot, ".distribution", "assets", "plantuml", id+".png")
+	payload, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := png.DecodeConfig(bytes.NewReader(payload)); err != nil {
+		t.Fatalf("rendered PlantUML is not PNG: %v", err)
+	}
+}
+
 func TestPipelineUploadsGeneratedAssetWhenPlatformHasNoNativeImageUpload(t *testing.T) {
 	root := t.TempDir()
 	id := "eeeeeeeeeeeeeeeeeeeeeeee"
