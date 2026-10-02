@@ -44,7 +44,68 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Test BlogCTL asset and compiler runtime
+      - name: Test compiler and image adapter
         shell: bash
         run: |
-          node --test             tools/blogctl/assets/node/assets.test.mjs             tools/blogctl/assets/node/mermaid-assets.test.mjs             tools/blogctl/assets/node/plantuml-assets.test.mjs             tools/blogctl/compiler/node/runtime-config.test.mjs             tools/blogctl/compiler/node/compiler.test.mjs             tools/blogctl/compiler/node/index.test.mjs
+          node --check tools/blogctl/assets/node/image-tool.mjs
+          node --test \
+            tools/blogctl/assets/node/image-tool.test.mjs \
+            tools/blogctl/compiler/node/runtime-config.test.mjs \
+            tools/blogctl/compiler/node/compiler.test.mjs \
+            tools/blogctl/compiler/node/index.test.mjs
+
+      - name: Verify real Mermaid and PlantUML renderers
+        shell: bash
+        run: |
+          cat > tools/blogctl/assets/renderer_integration_temp_test.go <<'EOF'
+          package assets
+
+          import (
+            "context"
+            "os"
+            "path/filepath"
+            "testing"
+
+            blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+          )
+
+          func TestTempRendererIntegration(t *testing.T) {
+            engineRoot, err := filepath.Abs("../../..")
+            if err != nil {
+              t.Fatal(err)
+            }
+            contentRoot := t.TempDir()
+            pipeline := &Pipeline{
+              EngineRoot: engineRoot,
+              ContentRoot: contentRoot,
+              Mermaid: MermaidPolicy{Width: 640, Scale: 1},
+            }
+            values := []blogcompiler.Asset{
+              {
+                Kind: "mermaid",
+                ID: "cccccccccccccccccccccccc",
+                Renderer: MermaidCLIPackage,
+                Definition: "flowchart LR\nA --> B",
+              },
+              {
+                Kind: "plantuml",
+                ID: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                Renderer: "plantuml",
+                Definition: "@startuml\nAlice -> Bob: hello\n@enduml",
+              },
+            }
+            if err := pipeline.Prepare(context.Background(), values); err != nil {
+              t.Fatal(err)
+            }
+            for _, value := range values {
+              file := filepath.Join(contentRoot, ".distribution", "assets", value.Kind, value.ID+".png")
+              info, err := os.Stat(file)
+              if err != nil || info.Size() == 0 {
+                t.Fatalf("rendered asset %s missing: %v", file, err)
+              }
+            }
+          }
+          EOF
+          gofmt -w tools/blogctl/assets/renderer_integration_temp_test.go
+          go test ./tools/blogctl/assets -run TestTempRendererIntegration -count=1 -v
+          rm tools/blogctl/assets/renderer_integration_temp_test.go
