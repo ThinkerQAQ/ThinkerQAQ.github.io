@@ -179,6 +179,27 @@ func ResolvedPublishingJSON() (string, error) {
 	return resolvedPublishingJSON(loadBridgeConfig())
 }
 
+type SearchRuntimeConfig struct {
+	IndexNowEndpoint            string
+	IndexNowKey                 string
+	IndexNowKeyLocation         string
+	BaiduSite                   string
+	BaiduToken                  string
+	GoogleServiceAccountJSON    string
+}
+
+func ResolvedSearchRuntimeConfig() SearchRuntimeConfig {
+	config := loadBridgeConfig()
+	return SearchRuntimeConfig{
+		IndexNowEndpoint:         strings.TrimSpace(config.IndexNowEndpoint),
+		IndexNowKey:              strings.TrimSpace(config.IndexNowKey),
+		IndexNowKeyLocation:      strings.TrimSpace(config.IndexNowKeyLocation),
+		BaiduSite:                strings.TrimSpace(config.BaiduSite),
+		BaiduToken:               strings.TrimSpace(config.BaiduToken),
+		GoogleServiceAccountJSON: strings.TrimSpace(config.GoogleSearchConsoleServiceJSON),
+	}
+}
+
 func defaultConfigDir() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
