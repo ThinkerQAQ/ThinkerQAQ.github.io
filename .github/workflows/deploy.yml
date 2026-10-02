@@ -205,7 +205,6 @@ jobs:
     env:
       GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'https://thinkerqaq.github.io/' }}
-      BLOGCTL_CONFIG_DIR: ${{ runner.temp }}/blogctl-config
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
@@ -225,6 +224,8 @@ jobs:
 
       - name: Prepare BlogCTL search config
         shell: bash
+        env:
+          BLOGCTL_CONFIG_DIR: ${{ runner.temp }}/blogctl-config
         run: |
           mkdir -p "$BLOGCTL_CONFIG_DIR"
           python - <<'PY'
@@ -242,6 +243,8 @@ jobs:
 
       - name: Notify search engines
         working-directory: engine
+        env:
+          BLOGCTL_CONFIG_DIR: ${{ runner.temp }}/blogctl-config
         run: "$RUNNER_TEMP/blogctl" search notify --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"
 
   record-content-state:
