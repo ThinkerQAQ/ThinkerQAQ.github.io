@@ -329,7 +329,19 @@ Completed on `refactor/blogctl-compiler-domain-go-20261002`:
 - Hash parity is locked with protocol-level golden tests.
 - Full validation passed: Go tests, renderer tests, compiler/PlantUML integrations, site diagrams, extension tests, and BlogCTL build.
 
-The remaining R4 structural problem is Stage B dependency direction: `tools/blogctl/compiler/node/renderer.mjs` still imports root-level `scripts/*` compatibility modules. The next slice must invert this so legacy scripts depend on BlogCTL rendering packages, not the other way around.
+### R4 renderer-boundary checkpoint — 2026-10-02
+
+Completed on `refactor/blogctl-renderer-boundary-20261002`:
+
+- `tools/blogctl/compiler/node/*` has zero imports from root-level `scripts/*`.
+- HTML rendering lives under BlogCTL and `scripts/distribute.mjs` reuses it.
+- Publishing configuration lives under BlogCTL and `scripts/publishing-config.mjs` is only a compatibility re-export.
+- Medium rendering lives under BlogCTL and `scripts/medium.mjs` is only a compatibility re-export.
+- PlantUML JS domain helpers live under BlogCTL; the site PlantUML module depends on them rather than the compiler depending on site scripts.
+- Legacy syndicate CLIs no longer import the deleted Node asset pipeline. Live generated-asset delivery explicitly requires `blogctl sync`, where Go owns render/cache/upload.
+- Full compatibility validation passed: Go tests, renderer tests, syndicate/Medium/publishing wrapper tests, compiler integration, Java-free diagrams, extension tests, and BlogCTL build.
+
+R4 Stage B is therefore closed. Remaining Node code under the compiler is intentionally renderer-specific; the next independent work item is Medium/publishing backend cleanup.
 
 ---
 
