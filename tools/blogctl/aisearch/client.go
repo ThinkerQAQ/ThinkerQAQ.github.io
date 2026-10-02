@@ -538,7 +538,7 @@ func (c *cloudflareClient) uploadDocument(ctx context.Context, document Document
 	}
 
 	endpoint := c.apiBase + "/" + url.PathEscape(c.config.InstanceName) + "/items"
-	_, _, err = c.do(
+	responseBody, _, err := c.do(
 		ctx,
 		http.MethodPost,
 		endpoint,
@@ -546,7 +546,25 @@ func (c *cloudflareClient) uploadDocument(ctx context.Context, document Document
 		func() (io.Reader, error) { return bytes.NewReader(payload.Bytes()), nil },
 		[]int{200, 201, 202},
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if len(responseBody) == 0 {
+		return nil
+	}
+	var envelope cloudflareEnvelope
+	if json.Unmarshal(responseBody, &envelope) == nil && envelope.Success != nil && !*envelope.Success {
+		messages := []string{}
+		for _, entry := range envelope.Errors {
+			if strings.TrimSpace(entry.Message) != "" {
+				messages = append(messages, entry.Message)
+			} else if entry.Code != nil {
+				messages = append(messages, fmt.Sprint(entry.Code))
+			}
+		}
+		return errors.New("Cloudflare AI Search upload returned success=false: " + strings.Join(messages, "; "))
+	}
+	return nil
 }
 
 func metadataString(metadata map[string]any, key string) string {
