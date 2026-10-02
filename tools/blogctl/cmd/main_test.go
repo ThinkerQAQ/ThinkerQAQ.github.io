@@ -50,7 +50,7 @@ func TestNPMInvocationRunsNPMDirectlyOnUnix(t *testing.T) {
 
 func TestSearchOrigin(t *testing.T) {
 	tests := map[string]string{
-		"https://thinkerqaq.github.io/": "https://thinkerqaq.github.io",
+		"https://thinkerqaq.github.io/":  "https://thinkerqaq.github.io",
 		"sc-domain:thinkerqaq.github.io": "https://thinkerqaq.github.io",
 	}
 	for input, want := range tests {

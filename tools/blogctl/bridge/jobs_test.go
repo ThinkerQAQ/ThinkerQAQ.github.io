@@ -6,9 +6,6 @@ import (
 	"time"
 )
 
-
-
-
 func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 
