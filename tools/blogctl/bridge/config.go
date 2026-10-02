@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
+	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
+blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -46,14 +47,7 @@ type publishingCompilerConfig struct {
 	Mermaid publishingMermaidConfig `json:"mermaid" toml:"mermaid"`
 }
 
-type publishingR2Config struct {
-	Bucket          string `json:"bucket,omitempty" toml:"bucket"`
-	PublicBaseURL   string `json:"publicBaseUrl" toml:"public_base_url"`
-	AccessKeyID     string `json:"accessKeyId,omitempty" toml:"access_key_id"`
-	SecretAccessKey string `json:"secretAccessKey,omitempty" toml:"secret_access_key"`
-	AccountID       string `json:"accountId,omitempty" toml:"account_id"`
-	Endpoint        string `json:"endpoint,omitempty" toml:"endpoint"`
-}
+type publishingR2Config = blogassets.R2Config
 
 type publishingAssetsConfig struct {
 	Store string             `json:"store" toml:"store"`
