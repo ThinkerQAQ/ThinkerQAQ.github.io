@@ -145,8 +145,6 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 		switch job.Type {
 		case "indexnow-submit":
 			err = s.executeIndexNowTask(context.Background(), jobID, job.Payload)
-		case "bing-submit":
-			err = s.executeBingIndexTask(context.Background(), jobID, job.Payload)
 		case "baidu-submit":
 			err = s.executeBaiduIndexTask(context.Background(), jobID, job.Payload)
 		case "google-sitemaps":
@@ -227,92 +225,6 @@ func (s *Server) executeIndexNowTask(ctx context.Context, jobID string, rawPaylo
 		Unit:    "URL",
 		Message: "IndexNow submitted",
 	}, detail)
-	return nil
-}
-
-func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayload json.RawMessage) error {
-	var input searchSubmissionTaskPayload
-	if err := json.Unmarshal(rawPayload, &input); err != nil {
-		return err
-	}
-	input.Mode = strings.TrimSpace(input.Mode)
-	if input.Mode == "" {
-		input.Mode = "incremental"
-	}
-	if input.Mode != "incremental" && input.Mode != "full" {
-		return errors.New("Bing submission mode must be incremental or full")
-	}
-
-	state := loadSearchIndexState()
-	started := s.now().UTC()
-	state.Bing = searchOperationState{
-		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
-	}
-	_ = saveSearchIndexState(state)
-
-	previous := loadBingIndexSnapshot()
-	payload, submitErr := s.submitBing(ctx, input.Mode, previous)
-	if payload.Snapshot.Inventory.Source != "" || len(payload.Snapshot.Pending) > 0 {
-		if err := saveBingIndexSnapshot(payload.Snapshot); err != nil {
-			state.Bing.State = "failed"
-			state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
-			state.Bing.Error = err.Error()
-			_ = saveSearchIndexState(state)
-			return err
-		}
-	}
-
-	if submitErr != nil {
-		state.Inventory = compactSearchInventory(payload.Inventory)
-		state.Bing = searchOperationState{
-			State: "failed", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
-			FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.SubmittedCount,
-			NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
-			DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
-			PendingCount: payload.Result.RemainingCount, DailyQuota: payload.Result.Quota.DailyQuota,
-			MonthlyQuota: payload.Result.Quota.MonthlyQuota, Error: submitErr.Error(),
-		}
-		for _, batch := range payload.Result.Results {
-			if batch.HTTPStatus > state.Bing.HTTPStatus {
-				state.Bing.HTTPStatus = batch.HTTPStatus
-			}
-		}
-		refreshSearchCredentialsFlag(&state, s.config)
-		_ = saveSearchIndexState(state)
-		return submitErr
-	}
-
-	state.Inventory = compactSearchInventory(payload.Inventory)
-	state.Bing = searchOperationState{
-		State: "completed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
-		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.SubmittedCount,
-		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
-		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
-		PendingCount: payload.Result.RemainingCount, DailyQuota: payload.Result.Quota.DailyQuota,
-		MonthlyQuota: payload.Result.Quota.MonthlyQuota,
-	}
-	for _, batch := range payload.Result.Results {
-		if batch.HTTPStatus > state.Bing.HTTPStatus {
-			state.Bing.HTTPStatus = batch.HTTPStatus
-		}
-	}
-	refreshSearchCredentialsFlag(&state, s.config)
-	if err := saveSearchIndexState(state); err != nil {
-		return err
-	}
-	s.completeDurableTask(jobID, taskProgress{
-		Current: payload.Result.SubmittedCount,
-		Total:   payload.Result.RequestedCount,
-		Unit:    "URL",
-		Message: "Bing Webmaster URLs submitted",
-	}, map[string]any{
-		"mode": payload.Diff.Mode, "requested": payload.Result.RequestedCount,
-		"submitted": payload.Result.SubmittedCount, "pending": payload.Result.RemainingCount,
-		"dailyQuota": payload.Result.Quota.DailyQuota, "monthlyQuota": payload.Result.Quota.MonthlyQuota,
-		"added": payload.Diff.AddedCount, "changed": payload.Diff.ChangedCount,
-		"deleted": payload.Diff.DeletedCount, "unchanged": payload.Diff.UnchangedCount,
-		"httpStatus": state.Bing.HTTPStatus,
-	})
 	return nil
 }
 
@@ -736,33 +648,6 @@ func (s *Server) startIndexNowTask(mode string) (*durableTaskJob, error) {
 	return job, nil
 }
 
-func (s *Server) startBingIndexTask(mode string) (*durableTaskJob, error) {
-	mode = strings.TrimSpace(mode)
-	if mode == "" {
-		mode = "incremental"
-	}
-	if mode != "incremental" && mode != "full" {
-		return nil, errors.New("Bing submission mode must be incremental or full")
-	}
-	if bingAPIKey(s.config) == "" {
-		return nil, errors.New("Bing Webmaster API key is not configured")
-	}
-	title := "Bing 增量提交"
-	if mode == "full" {
-		title = "Bing 全量提交"
-	}
-	job, err := s.createDurableTaskJob(
-		"bing-submit", title, searchSubmissionTaskPayload{Mode: mode},
-		taskProgress{Unit: "URL", Message: "等待执行"},
-		taskCapabilities(true, false, false),
-	)
-	if err != nil {
-		return nil, err
-	}
-	s.launchSearchTaskJob(job.ID)
-	return job, nil
-}
-
 func (s *Server) startBaiduIndexTask(mode string) (*durableTaskJob, error) {
 	mode = strings.TrimSpace(mode)
 	if mode == "" {
@@ -847,25 +732,6 @@ func (s *Server) handleSearchIndexNowJobStart(response http.ResponseWriter, requ
 	})
 }
 
-func (s *Server) handleSearchBingJobStart(response http.ResponseWriter, request *http.Request) {
-	if !s.allowSyncControlWrite(response, request) {
-		return
-	}
-	var input searchSubmissionTaskPayload
-	if err := readJSON(request, maxBodyBytes, &input); err != nil {
-		writeError(response, err)
-		return
-	}
-	job, err := s.startBingIndexTask(input.Mode)
-	if err != nil {
-		writeAPIError(response, http.StatusBadRequest, "invalid_bing_submit", err.Error(), nil)
-		return
-	}
-	writeJSON(response, http.StatusAccepted, map[string]any{
-		"ok": true, "job": durableTaskView(job), "index": s.searchState(),
-	})
-}
-
 func (s *Server) handleSearchBaiduJobStart(response http.ResponseWriter, request *http.Request) {
 	if !s.allowSyncControlWrite(response, request) {
 		return
@@ -923,7 +789,7 @@ func (s *Server) retrySearchTaskJob(job *durableTaskJob) (*durableTaskJob, error
 		return nil, errors.New("task is not a search job")
 	}
 	switch job.Type {
-	case "indexnow-submit", "bing-submit", "baidu-submit", "google-sitemaps", "google-inspection":
+	case "indexnow-submit", "baidu-submit", "google-sitemaps", "google-inspection":
 		updated, err := s.updateDurableTaskJob(job.ID, func(current *durableTaskJob) {
 			current.State = "queued"
 			current.Error = ""
