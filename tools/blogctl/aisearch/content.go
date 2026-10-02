@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -231,7 +230,22 @@ func ContentLanguage(collection, id string, data map[string]string) (string, err
 }
 
 func escapeURIComponent(value string) string {
-	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
+	const hexChars = "0123456789ABCDEF"
+	var builder strings.Builder
+	for _, b := range []byte(value) {
+		if (b >= 'A' && b <= 'Z') ||
+			(b >= 'a' && b <= 'z') ||
+			(b >= '0' && b <= '9') ||
+			b == '-' || b == '_' || b == '.' || b == '!' ||
+			b == '~' || b == '*' || b == '\'' || b == '(' || b == ')' {
+			builder.WriteByte(b)
+			continue
+		}
+		builder.WriteByte('%')
+		builder.WriteByte(hexChars[b>>4])
+		builder.WriteByte(hexChars[b&0x0f])
+	}
+	return builder.String()
 }
 
 func ContentSourceURL(blogOrigin, collection, id, language string) string {
@@ -302,7 +316,7 @@ func loadCollectionDocuments(contentRoot, blogOrigin, collection string, priorit
 			"Language: " + language,
 		}
 		if description != "" {
-			sections = append(sections, description)
+			sections = append(sections, "\n"+description+"\n")
 		}
 		sections = append(sections, strings.TrimSpace(frontmatter.Body))
 		content := strings.TrimSpace(strings.Join(sections, "\n\n")) + "\n"
@@ -377,7 +391,7 @@ func LoadDocuments(contentRoot, blogOrigin string) (map[string]Document, error) 
 			"Language: " + language,
 		}
 		if description := strings.TrimSpace(frontmatter.Data["description"]); description != "" {
-			sections = append(sections, description)
+			sections = append(sections, "\n"+description+"\n")
 		}
 		sections = append(sections, strings.TrimSpace(frontmatter.Body))
 		key := ItemKey("notes", language+"/"+id)
