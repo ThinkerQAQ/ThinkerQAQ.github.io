@@ -57,6 +57,10 @@ jobs:
       - name: Verify real Mermaid and PlantUML renderers
         shell: bash
         run: |
+          cat > "$RUNNER_TEMP/mermaid-puppeteer.json" <<'EOF'
+          {"args":["--no-sandbox","--disable-setuid-sandbox"]}
+          EOF
+          export MERMAID_PUPPETEER_CONFIG_FILE="$RUNNER_TEMP/mermaid-puppeteer.json"
           cat > tools/blogctl/assets/renderer_integration_temp_test.go <<'EOF'
           package assets
 
