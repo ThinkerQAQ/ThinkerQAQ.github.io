@@ -1,4 +1,4 @@
-import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
+import { PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
 
@@ -177,8 +177,8 @@ async function probeFinalURL(probe) {
   return !(probe.loggedOutPathPatterns ?? []).some((pattern) => pathname.startsWith(pattern));
 }
 
-async function platformLoginStatus(definition) {
-  const probe = definition.probe ?? {};
+async function platformLoginStatus(platform, definition) {
+  const probe = definition.authProbe ?? {};
   try {
     let loggedIn;
     switch (probe.kind) {
@@ -189,28 +189,30 @@ async function platformLoginStatus(definition) {
       default: throw new Error(`Unsupported auth probe: ${probe.kind || "missing"}`);
     }
     if (loggedIn) {
-      return { id: definition.id, label: definition.label, known: true, loggedIn: true, inferred: false };
+      return { id: platform, known: true, loggedIn: true, inferred: false };
     }
-    if (definition.id !== "cnblogs" && await platformHasSessionCookies(definition.id)) {
+    if (platform !== "cnblogs" && await platformHasSessionCookies(platform)) {
       return {
-        id: definition.id, label: definition.label, known: false, loggedIn: false, inferred: true,
+        id: platform, known: false, loggedIn: false, inferred: true,
         warning: "Browser cookies exist, but the login probe did not verify the session.",
       };
     }
-    return { id: definition.id, label: definition.label, known: true, loggedIn: false, inferred: false };
+    return { id: platform, known: true, loggedIn: false, inferred: false };
   } catch (error) {
-    if (definition.id !== "cnblogs" && await platformHasSessionCookies(definition.id)) {
+    if (platform !== "cnblogs" && await platformHasSessionCookies(platform)) {
       return {
-        id: definition.id, label: definition.label, known: false, loggedIn: false, inferred: true,
+        id: platform, known: false, loggedIn: false, inferred: true,
         warning: `Login probe failed: ${errorMessage(error)}`,
       };
     }
-    return { id: definition.id, label: definition.label, known: false, loggedIn: false, error: errorMessage(error) };
+    return { id: platform, known: false, loggedIn: false, error: errorMessage(error) };
   }
 }
 
 async function allPlatformLoginStatuses() {
-  return Promise.all(PLATFORM_AUTH.map((definition) => platformLoginStatus(definition)));
+  return Promise.all(Object.entries(PLATFORM_SESSIONS).map(
+    ([platform, definition]) => platformLoginStatus(platform, definition),
+  ));
 }
 
 async function fetchJSON(pathname, options = {}, retry = true) {
@@ -359,10 +361,15 @@ async function getStatus() {
     }
   }
   const publishingByID = new Map(publishingPlatforms.map((item) => [item.id, item]));
-  const enrichedPlatforms = platforms.map((platform) => ({
-    ...platform,
-    capabilities: publishingByID.get(platform.id)?.capabilities ?? {},
-  }));
+  const enrichedPlatforms = platforms.map((platform) => {
+    const domain = publishingByID.get(platform.id);
+    return {
+      ...platform,
+      label: domain?.label || platform.id,
+      language: domain?.language || "",
+      capabilities: domain?.capabilities ?? {},
+    };
+  });
   const sessionEntries = await Promise.all(
     Object.keys(PLATFORM_SESSIONS).map(async (platform) => [
       platform,
