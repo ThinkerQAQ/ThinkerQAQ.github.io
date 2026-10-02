@@ -4,7 +4,6 @@ import { pathToFileURL } from "node:url";
 
 import {
   buildArticleCanonicalUrl,
-  buildPlatformMarkdown,
   renderPlatformHtml,
   resolveArticleAssetUrl,
 } from "../../../../scripts/distribute.mjs";
@@ -160,30 +159,36 @@ export function renderArticle(request) {
       requiresFallback: compiled.requiresFallback,
     });
   } else {
-    const generated = buildPlatformMarkdown(article, {
+    const canonicalUrl = buildArticleCanonicalUrl(slug, language);
+    const descriptionLimit = platform === "juejin" ? 100 : 256;
+    const body = compilePublishingMarkdown(article.body, {
       platform,
-      slug,
-      publishingConfig: profile,
-      language,
+      siteOrigin: "https://thinkerqaq.github.io",
       assetBaseUrl,
+    }).markdown;
+    const footer = renderPublishingFooter(profile, {
+      canonicalUrl,
+      title: article.title,
+      site: language === "en" ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客",
     });
-    const portable = compilePublishingMarkdown(generated.body, {
+    const renderedBody = body + (footer ? "\n\n---\n\n" + footer : "");
+    const portable = compilePublishingMarkdown(renderedBody, {
       platform,
       siteOrigin: "https://thinkerqaq.github.io",
       assetBaseUrl,
     }).markdown.trim();
     compiled = {
-      title: generated.title,
-      description: generated.description,
+      title: article.title,
+      description: truncate(article.description, descriptionLimit),
       markdown: portable,
       html: renderPlatformHtml(portable),
-      canonicalUrl: buildArticleCanonicalUrl(slug, language),
+      canonicalUrl,
       nativeCanonicalUrl: "",
       tags: article.tags,
       coverImageUrl: resolveArticleAssetUrl(article.coverImage),
       published: false,
     };
-    hashSource = generated.title + "\n" + portable + "\n<!-- blogctl-html -->\n" + compiled.html;
+    hashSource = article.title + "\n" + portable + "\n<!-- blogctl-html -->\n" + compiled.html;
   }
 
   assertNoUncompiledDiagrams(compiled.markdown, { platform });
