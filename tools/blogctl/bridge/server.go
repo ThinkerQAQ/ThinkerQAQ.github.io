@@ -808,25 +808,19 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 		return
 	}
 
-	var command string
+	var detail map[string]any
+	var err error
 	switch name {
 	case "bing-indexnow":
-		command = "bing-check"
+		detail, err = s.checkIndexNowNative(request.Context())
 	case "google-search-console-api":
-		command = "google-check"
+		detail, err = s.checkGoogleSearchConsoleNative(request.Context())
 	default:
 		writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported tool check", map[string]any{"tool": name})
 		return
 	}
-
-	raw, err := s.runSearchNode(request.Context(), config, command, nil)
 	if err != nil {
 		writeAPIError(response, http.StatusBadRequest, "tool_check_failed", err.Error(), map[string]any{"tool": name})
-		return
-	}
-	var detail map[string]any
-	if err := decodeSearchResult(raw, &detail); err != nil {
-		writeError(response, err)
 		return
 	}
 	message := "配置检测通过"
