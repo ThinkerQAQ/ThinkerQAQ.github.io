@@ -66,7 +66,7 @@ func ResolveBingConfig(origin, site, apiKey string) (BingConfig, error) {
 	if apiKey == "" {
 		return BingConfig{}, errors.New("Bing Webmaster API key is required")
 	}
-	if strings.ContainsAny(apiKey, "\\r\\n") {
+	if strings.ContainsAny(apiKey, "\r\n") {
 		return BingConfig{}, errors.New("Bing Webmaster API key is invalid")
 	}
 	return BingConfig{APIBase: BingWebmasterAPIBase, Site: normalizedSite, APIKey: apiKey}, nil
