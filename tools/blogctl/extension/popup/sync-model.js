@@ -6,7 +6,6 @@
   }
 
   function deliveryToolAvailability(platform, tools = []) {
-    const id = platform?.id || "";
     const capabilities = platformCapabilities(platform);
     if (Object.keys(capabilities).length === 0) {
       return { available: false, reason: "平台能力未知" };
