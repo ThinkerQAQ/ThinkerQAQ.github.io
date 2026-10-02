@@ -187,7 +187,9 @@ func normalizeBingURLs(urls []string, origin string) ([]string, error) {
 }
 
 func submitBingBatch(ctx context.Context, client *http.Client, urls []string, config BingConfig) (BingBatchResult, error) {
-	endpoint, err := bingEndpoint(config, "SubmitUrlBatch")
+	// Microsoft documents the operation as SubmitUrlBatch, while the JSON/HTTP
+	// request sample uses this exact route casing.
+	endpoint, err := bingEndpoint(config, "SubmitUrlbatch")
 	if err != nil {
 		return BingBatchResult{}, err
 	}
