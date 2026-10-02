@@ -243,7 +243,7 @@ test("today endpoint uses Asia/Shanghai-style offset and persists a short-lived 
   }
 });
 
-test("hourly and health endpoints read persisted KV without calling Umami", async () => {
+test("hourly, weekly, and health endpoints read persisted KV without calling Umami", async () => {
   const latest = {
     generatedAt: "2026-09-24T05:07:00.000Z",
     websiteId: WEBSITE_ID,
@@ -267,9 +267,35 @@ test("hourly and health endpoints read persisted KV without calling Umami", asyn
       ],
     },
   };
+  const weekly = {
+    generatedAt: "2026-09-24T05:07:00.000Z",
+    timezoneOffsetMinutes: 480,
+    current: {
+      weekStartDate: "2026-09-14",
+      stats: { visitors: 20 },
+      regions: [{ name: "SG-01", count: 20, country: "SG" }],
+      cities: [{ name: "Singapore", count: 20, country: "SG" }],
+    },
+    previous: {
+      weekStartDate: "2026-09-07",
+      stats: { visitors: 15 },
+      regions: [],
+      cities: [{ name: "Singapore", count: 15, country: "SG" }],
+    },
+    delta: {
+      stats: { visitors: 5 },
+      newRegions: [{ name: "SG-01", count: 20, country: "SG" }],
+      changedRegions: [],
+      newCities: [],
+      changedCities: [
+        { name: "Singapore", count: 20, country: "SG", previousCount: 15, delta: 5 },
+      ],
+    },
+  };
   const lastFinalizedHourEnd = Date.parse("2026-09-24T05:00:00Z");
   const kv = new MemoryKv({
     [analyticsInternals.LATEST_KEY]: JSON.stringify(latest),
+    [analyticsInternals.WEEKLY_LATEST_KEY]: JSON.stringify(weekly),
     [analyticsInternals.META_KEY]: JSON.stringify({
       lastFinalizedHourEnd,
       lastSuccessAt: "2026-09-24T05:07:00.000Z",
@@ -294,6 +320,21 @@ test("hourly and health endpoints read persisted KV without calling Umami", asyn
     assert.equal(hourlyBody.previous.cities, undefined);
     assert.equal(hourlyBody.delta.newRegions, undefined);
     assert.equal(hourlyBody.delta.changedCities, undefined);
+
+    const weeklyResponse = await handleAnalyticsRequest(
+      new Request("https://example.workers.dev/analytics/weekly"),
+      env(kv),
+      {},
+    );
+    const weeklyBody = await weeklyResponse.json();
+    assert.equal(weeklyBody.timezoneOffsetMinutes, 480);
+    assert.deepEqual(weeklyBody.current.stats, { visitors: 20 });
+    assert.equal(weeklyBody.current.regions, undefined);
+    assert.equal(weeklyBody.current.cities, undefined);
+    assert.equal(weeklyBody.previous.regions, undefined);
+    assert.equal(weeklyBody.previous.cities, undefined);
+    assert.equal(weeklyBody.delta.newRegions, undefined);
+    assert.equal(weeklyBody.delta.changedCities, undefined);
 
     const health = await handleAnalyticsRequest(
       new Request("https://example.workers.dev/analytics/health"),
