@@ -2,7 +2,6 @@ package bridge
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -196,14 +195,6 @@ func (s *Server) submitBaidu(ctx context.Context, mode string, previous searchIn
 		return payload, err
 	}
 	return payload, nil
-}
-
-func encodeSearchResult(value any) (json.RawMessage, error) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	return json.RawMessage(data), nil
 }
 
 func maxSearchHTTPStatus(results []searchHTTPResult) int {
