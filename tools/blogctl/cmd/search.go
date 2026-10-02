@@ -464,10 +464,10 @@ func (a app) runSearchNotify(args []string) error {
 		return err
 	}
 
+	// Deploy notification is intentionally stateless. Baidu incremental
+	// submission requires its durable provider snapshot, which lives in the
+	// local Bridge, so it is not silently converted into a full-site CI push.
 	providers := "indexnow,google"
-	if strings.TrimSpace(os.Getenv("BAIDU_PUSH_TOKEN")) != "" {
-		providers += ",baidu"
-	}
 	fmt.Fprintf(a.out, "[search] live inventory: %s (%d URLs)\n", inventory.Source, inventory.Total)
 	return a.runSearchSubmit([]string{
 		"--providers", providers,
