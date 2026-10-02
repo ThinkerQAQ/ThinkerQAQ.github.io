@@ -21,8 +21,8 @@ var plantEndPattern=regexp.MustCompile("(?im)^\\s*@end([A-Za-z0-9_]+)\\b")
 var plantUnsafePattern=regexp.MustCompile("(?im)^\\s*!\\s*(include[A-Za-z]*|import|theme)\\b|%(getenv|load[A-Za-z]*|filename|dirpath)\\s*\\(")
 var accTitlePattern=regexp.MustCompile("(?m)^\\s*accTitle:\\s*(.+?)\\s*$")
 var accDescrPattern=regexp.MustCompile("(?m)^\\s*accDescr:\\s*(.+?)\\s*$")
-var mdRootLinkPattern=regexp.MustCompile("\\]\\(/([^/])")
-var htmlRootLinkPattern=regexp.MustCompile("(?i)(href|src)=[\"']/([^/])")
+var mdRootLinkPattern=regexp.MustCompile("(\\]\\()/([^/])")
+var htmlRootLinkPattern=regexp.MustCompile("(?i)((?:href|src)=[\"'])/([^/])")
 
 type fenceOpening struct{marker byte; length int; info string}
 func fenceStart(line string)(fenceOpening,bool){
@@ -77,9 +77,9 @@ func assetForDiagram(kind,source,base string)(Asset,error){
 	}
 	return Asset{},fmt.Errorf("unsupported diagram kind: %s",kind)
 }
-func absoluteRootLinks(line string)string{
-	line=mdRootLinkPattern.ReplaceAllString(line,"]("+SiteOrigin+"/$1")
-	return htmlRootLinkPattern.ReplaceAllString(line,"$1=\""+SiteOrigin+"/$2")
+func absoluteRootLinks(line string) string {
+	line = mdRootLinkPattern.ReplaceAllString(line, "$1"+SiteOrigin+"/$2")
+	return htmlRootLinkPattern.ReplaceAllString(line, "$1"+SiteOrigin+"/$2")
 }
 func escapeAlt(v string)string{v=strings.ReplaceAll(v,"\\","\\\\");v=strings.ReplaceAll(v,"]","\\]");return strings.Join(strings.Fields(v)," ")}
 func CompilePublishingMarkdown(markdown,base string)(string,[]Asset,error){
