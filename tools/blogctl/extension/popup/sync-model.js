@@ -50,10 +50,7 @@
   function canUpdatePublished(slug, platforms, bridgeRunning, status) {
     if (!slug || !bridgeRunning || platforms.length !== 1) return false;
     const platform = statusPlatform(status, platforms[0]);
-    if (platform?.capabilities && Object.keys(platform.capabilities).length > 0) {
-      return platform.capabilities.publishedUpdate === true;
-    }
-    return platforms[0] === "cnblogs";
+    return platform?.capabilities?.publishedUpdate === true;
   }
 
   function canConfirmPublish(job, status) {
