@@ -154,6 +154,18 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 @media (max-width: 360px) { .index-stat-grid { grid-template-columns: 1fr; } }
 
 .environment-large-card { margin-top: 9px; background: #fff; }
+
+.environment-config-file { display: grid; gap: 7px; margin-top: 9px; padding: 10px 12px; background: #fff; }
+.config-file-name { padding: 3px 7px; border-radius: 6px; background: #f3f4f6; color: #374151; font-size: 11px; }
+.panel[data-panel="environment"] input:disabled,
+.panel[data-panel="environment"] select:disabled,
+.panel[data-panel="environment"] textarea:disabled {
+  opacity: 1;
+  border-color: transparent;
+  background: #f3f4f6;
+  color: #4b5563;
+  cursor: default;
+}
 .environment-embedded-tool { gap: 10px; }
 .environment-nested-tools { padding-top: 2px; }
 .environment-nested-tools .tool-card { background: #f9fafb; }
