@@ -273,12 +273,20 @@ func applyDurableTaskToOperation(state *searchOperationState, job *durableTaskJo
 		state.State = "failed"
 		state.Error = job.Error
 		state.FinishedAt = job.FinishedAt
+	case "completed":
+		state.State = "completed"
+		state.Error = ""
+		state.FinishedAt = job.FinishedAt
 	}
 }
 
 func applyDurableTaskToInspection(state *searchInspectionState, job *durableTaskJob) {
 	if state == nil || job == nil {
 		return
+	}
+	if job.Progress.Total > 0 {
+		state.Total = job.Progress.Total
+		state.Remaining = max(0, state.Total-state.Inspected)
 	}
 	var payload googleInspectionTaskPayload
 	if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &payload) == nil {
@@ -290,10 +298,6 @@ func applyDurableTaskToInspection(state *searchInspectionState, job *durableTask
 		} else if state.Total > 0 {
 			state.NextOffset = nil
 		}
-	}
-	if job.Progress.Total > 0 {
-		state.Total = job.Progress.Total
-		state.Remaining = max(0, state.Total-state.Inspected)
 	}
 	switch job.State {
 	case "queued", "running":
@@ -313,11 +317,9 @@ func applyDurableTaskToInspection(state *searchInspectionState, job *durableTask
 			state.Error = job.Progress.Message
 		}
 	case "completed":
-		if state.State == "queued" || state.State == "running" {
-			state.State = "completed"
-			state.Error = ""
-			state.FinishedAt = job.FinishedAt
-		}
+		state.State = "completed"
+		state.Error = ""
+		state.FinishedAt = job.FinishedAt
 	}
 }
 
