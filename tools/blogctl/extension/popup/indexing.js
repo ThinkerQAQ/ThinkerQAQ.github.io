@@ -150,6 +150,7 @@
     const inventory = index.inventory || {};
     const bing = index.bing || {};
     const baidu = index.baidu || {};
+    const baiduReady = Boolean(index.baiduConfigured);
     const google = index.google || {};
     const sitemaps = google.sitemaps || {};
     const inspection = google.inspection || {};
@@ -180,7 +181,11 @@
     setText(elements.bingUnchangedCount, Number.isFinite(Number(bing.unchangedCount)) ? Number(bing.unchangedCount) : "-");
     setText(elements.bingHTTP, bing.httpStatus || (bing.state === "completed" && Number(bing.count || 0) === 0 ? "未请求" : "-"));
 
-    setStatus(elements.baiduStatus, operationKind(baidu.state), operationLabel(baidu.state), baidu.error || "");
+    if (baiduReady) {
+      setStatus(elements.baiduStatus, operationKind(baidu.state), operationLabel(baidu.state), baidu.error || "");
+    } else {
+      setStatus(elements.baiduStatus, "disabled", "未配置", "请先在「环境与配置」中填写 Baidu Push Token。");
+    }
     setText(elements.baiduFinishedAt, formatDate(baidu.finishedAt));
     setText(elements.baiduMode, baidu.mode === "full" ? "全量" : baidu.mode === "incremental" ? "增量" : "-");
     setText(elements.baiduCount, Number.isFinite(Number(baidu.count)) ? Number(baidu.count) : "-");
@@ -247,7 +252,6 @@
     elements.refreshInventory.disabled = state.busy.has("inventory");
     elements.bingSubmitIncremental.disabled = !inventoryReady || state.busy.has("bing");
     elements.bingSubmitFull.disabled = !inventoryReady || state.busy.has("bing");
-    const baiduReady = Boolean(index.baiduConfigured);
     elements.baiduSubmitIncremental.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
     elements.baiduSubmitFull.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
     const sitemapState = String(sitemaps.state || "idle");
