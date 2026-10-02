@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { renderArticle, useNativeImageUpload } from "./renderer.mjs";
+import { renderArticle } from "./renderer.mjs";
 
 const ASSET_BASE = "https://cdn.example.com/";
 const ASSET = {
@@ -37,13 +37,24 @@ function profile(language, platform, canonical = "footer") {
   };
 }
 
-test("native image upload platforms are explicit renderer capabilities", () => {
-  for (const platform of ["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium"]) {
-    assert.equal(useNativeImageUpload(platform), true, platform);
-  }
-});
+function policy({
+  canonicalUrl = "https://thinkerqaq.github.io/articles/example/",
+  nativeCanonicalUrl = "",
+  description = "Compiler protocol fixture.",
+  tags = ["Go", "Concurrency"],
+  coverImageUrl = "https://thinkerqaq.github.io/media/articles/test/cover.png",
+} = {}) {
+  return {
+    canonicalUrl,
+    nativeCanonicalUrl,
+    description,
+    tags,
+    coverImageUrl,
+    nativeImageUpload: false,
+  };
+}
 
-test("renderer returns versioned content from an already parsed article", () => {
+test("renderer returns presentation output from Go-owned metadata", () => {
   const article = renderArticle({
     article: ARTICLE,
     slug: "example",
@@ -51,24 +62,26 @@ test("renderer returns versioned content from an already parsed article", () => 
     profile: profile("zh-CN", "juejin"),
     language: "zh-CN",
     assetBaseUrl: ASSET_BASE,
-    dryRun: true,
     sourceDir: "/content/articles",
     assets: [ASSET],
+    policy: policy({ description: "Go-owned description" }),
   });
 
   assert.equal(article.version, 1);
   assert.equal(article.slug, "example");
   assert.equal(article.platform, "juejin");
+  assert.equal(article.description, "Go-owned description");
+  assert.equal(article.canonicalUrl, "https://thinkerqaq.github.io/articles/example/");
   assert.equal(article.markdown.includes("flowchart LR"), false);
   assert.match(article.markdown, /generated\/mermaid\/[a-f0-9]{24}\.png/u);
   assert.match(article.html, /generated\/mermaid\/[a-f0-9]{24}\.png/u);
-  assert.match(article.contentHash, /^[a-f0-9]{64}$/u);
+  assert.equal(article.contentHash, undefined);
   assert.equal(article.assets.length, 1);
-  assert.equal(article.assets[0].renderer, "@mermaid-js/mermaid-cli@11.17.0");
   assert.equal(article.assets[0].definition, ASSET.definition);
+  assert.equal(article.assets[0].source, undefined);
 });
 
-test("DEV.to renderer preserves normalized tags and canonical URL", () => {
+test("DEV.to renderer consumes canonical, tags and cover URL from Go policy", () => {
   const article = renderArticle({
     article: ARTICLE,
     slug: "example",
@@ -76,29 +89,39 @@ test("DEV.to renderer preserves normalized tags and canonical URL", () => {
     profile: profile("en", "devto", "native"),
     language: "en",
     assetBaseUrl: ASSET_BASE,
-    dryRun: true,
     sourceDir: "/content/articles/en",
     assets: [ASSET],
+    policy: policy({
+      canonicalUrl: "https://thinkerqaq.github.io/en/articles/example/",
+      nativeCanonicalUrl: "https://thinkerqaq.github.io/en/articles/example/",
+      description: "Go description",
+      tags: ["go", "concurrency"],
+      coverImageUrl: "https://thinkerqaq.github.io/media/articles/test/cover.png",
+    }),
   });
 
   assert.equal(article.published, false);
+  assert.equal(article.description, "Go description");
   assert.deepEqual(article.tags, ["go", "concurrency"]);
   assert.equal(article.nativeCanonicalUrl, "https://thinkerqaq.github.io/en/articles/example/");
   assert.equal(article.coverImageUrl, "https://thinkerqaq.github.io/media/articles/test/cover.png");
-  assert.equal(article.markdown.includes("flowchart LR"), false);
 });
 
-test("DEV.to renderer hash is independent from save versus publish orchestration", () => {
-  const request = {
+test("renderer does not manufacture Go-owned content identity", () => {
+  const article = renderArticle({
     article: ARTICLE,
     slug: "example",
     platform: "devto",
     profile: profile("en", "devto", "native"),
     language: "en",
     assetBaseUrl: ASSET_BASE,
-    dryRun: true,
     sourceDir: "/content/articles/en",
     assets: [ASSET],
-  };
-  assert.equal(renderArticle(request).contentHash, renderArticle(request).contentHash);
+    policy: policy({
+      canonicalUrl: "https://thinkerqaq.github.io/en/articles/example/",
+      nativeCanonicalUrl: "https://thinkerqaq.github.io/en/articles/example/",
+      tags: ["go", "concurrency"],
+    }),
+  });
+  assert.equal(article.contentHash, undefined);
 });
