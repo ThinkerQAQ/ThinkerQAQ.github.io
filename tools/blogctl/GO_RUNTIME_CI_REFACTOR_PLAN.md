@@ -377,9 +377,30 @@ Go Publisher
 Medium
 ```
 
-Delete the Node transport after parity is confirmed.
+### R5 Medium backend checkpoint — 2026-10-02
 
-The extension currently also contains Medium list/match logic. Move API/list/match/binding logic into Go. Extension JS should only acquire browser-owned session material and hand it to the Bridge.
+Completed on `refactor/blogctl-medium-go-backend-20261002`:
+
+- The dead `tools/blogctl/transport/node/medium.mjs` backend is deleted.
+- The legacy Medium syndication live backend is deleted; the legacy syndication CLI now supports DEV.to only and directs Medium work to `blogctl sync`.
+- Extension-side Medium GraphQL/list/match/manual-verification backend code is deleted.
+- The obsolete Bridge `/v1/medium/lookup-context` and generic `/v1/platforms/medium/drafts` endpoints are deleted.
+- Go remains the only Medium backend owner for browser-profile HTTP transport, post listing, candidate matching, binding verification, create/update, image upload/fallback, and publish.
+- The Extension retains only browser-owned Medium session acquisition and Bridge calls.
+- Node retains only the Medium content renderer under the compiler boundary.
+- Full validation passed: Go tests, Medium renderer tests, legacy syndication compatibility, Extension tests, Go compiler integration, and BlogCTL build.
+
+Target backend flow is now:
+
+```text
+CompiledArticle
+    ↓
+Go NativePublisher
+    ↓
+Go mediumClient
+    ↓
+Medium
+```
 
 ---
 
