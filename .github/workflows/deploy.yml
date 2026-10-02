@@ -225,15 +225,15 @@ jobs:
       - name: Prepare BlogCTL search config
         shell: bash
         env:
-          BLOGCTL_CONFIG_DIR: ${{ runner.temp }}/blogctl-config
+          XDG_CONFIG_HOME: ${{ runner.temp }}/blogctl-config
         run: |
-          mkdir -p "$BLOGCTL_CONFIG_DIR"
+          mkdir -p "$XDG_CONFIG_HOME/BlogCTL"
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          path = Path(os.environ["BLOGCTL_CONFIG_DIR"]) / "blogctl.toml"
+          path = Path(os.environ["XDG_CONFIG_HOME"]) / "BlogCTL" / "blogctl.toml"
           service_account = os.environ.get("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", "")
           path.write_text(
               "google_search_console_service_json = " + json.dumps(service_account) + "\n",
@@ -244,7 +244,7 @@ jobs:
       - name: Notify search engines
         working-directory: engine
         env:
-          BLOGCTL_CONFIG_DIR: ${{ runner.temp }}/blogctl-config
+          XDG_CONFIG_HOME: ${{ runner.temp }}/blogctl-config
         run: '"$RUNNER_TEMP/blogctl" search notify --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"'
 
   record-content-state:
