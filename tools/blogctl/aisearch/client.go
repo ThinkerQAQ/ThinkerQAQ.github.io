@@ -118,7 +118,7 @@ func newCloudflareClient(client *http.Client, config SyncConfig) *cloudflareClie
 	}
 	return &cloudflareClient{
 		httpClient: client,
-		config: config,
+		config:     config,
 		apiBase: "https://api.cloudflare.com/client/v4/accounts/" +
 			url.PathEscape(config.AccountID) + "/ai-search/instances",
 	}
@@ -256,7 +256,7 @@ func (c *cloudflareClient) do(
 		if !retryable || attempt >= maxAttempts {
 			return payload, response.StatusCode, &cloudflareAPIError{
 				Status: response.StatusCode,
-				Body: strings.TrimSpace(string(payload)),
+				Body:   strings.TrimSpace(string(payload)),
 			}
 		}
 
@@ -342,12 +342,12 @@ func (c *cloudflareClient) jsonRequest(
 
 func desiredInstanceConfiguration() map[string]any {
 	return map[string]any{
-		"index_method": map[string]bool{"vector": true, "keyword": true},
-		"fusion_method": "rrf",
+		"index_method":     map[string]bool{"vector": true, "keyword": true},
+		"fusion_method":    "rrf",
 		"indexing_options": map[string]string{"keyword_tokenizer": "trigram"},
 		"retrieval_options": map[string]any{
 			"keyword_match_mode": "or",
-			"boost_by": []map[string]string{{"field": "priority", "direction": "desc"}},
+			"boost_by":           []map[string]string{{"field": "priority", "direction": "desc"}},
 		},
 		"custom_metadata": []map[string]string{
 			{"field_name": "source_url", "data_type": "text"},
@@ -356,11 +356,11 @@ func desiredInstanceConfiguration() map[string]any {
 			{"field_name": "priority", "data_type": "number"},
 			{"field_name": "schema_version", "data_type": "number"},
 		},
-		"reranking": true,
+		"reranking":       true,
 		"reranking_model": "@cf/baai/bge-reranker-base",
-		"rewrite_query": false,
-		"chunk_size": 512,
-		"chunk_overlap": 15,
+		"rewrite_query":   false,
+		"chunk_size":      512,
+		"chunk_overlap":   15,
 		"max_num_results": 20,
 	}
 }
@@ -371,24 +371,24 @@ func hasDesiredInstanceConfiguration(raw json.RawMessage) bool {
 			Vector  bool `json:"vector"`
 			Keyword bool `json:"keyword"`
 		} `json:"index_method"`
-		FusionMethod string `json:"fusion_method"`
+		FusionMethod    string `json:"fusion_method"`
 		IndexingOptions struct {
 			KeywordTokenizer string `json:"keyword_tokenizer"`
 		} `json:"indexing_options"`
 		RetrievalOptions struct {
 			KeywordMatchMode string `json:"keyword_match_mode"`
-			BoostBy []struct {
-				Field string `json:"field"`
+			BoostBy          []struct {
+				Field     string `json:"field"`
 				Direction string `json:"direction"`
 			} `json:"boost_by"`
 		} `json:"retrieval_options"`
 		CustomMetadata []struct {
 			FieldName string `json:"field_name"`
-			DataType string `json:"data_type"`
+			DataType  string `json:"data_type"`
 		} `json:"custom_metadata"`
-		Reranking bool `json:"reranking"`
-		RewriteQuery bool `json:"rewrite_query"`
-		MaxNumResults int `json:"max_num_results"`
+		Reranking     bool `json:"reranking"`
+		RewriteQuery  bool `json:"rewrite_query"`
+		MaxNumResults int  `json:"max_num_results"`
 	}
 	if json.Unmarshal(raw, &info) != nil {
 		return false
@@ -411,10 +411,10 @@ func hasDesiredInstanceConfiguration(raw json.RawMessage) bool {
 		return false
 	}
 	expected := map[string]string{
-		"source_url": "text",
-		"title": "text",
-		"language": "text",
-		"priority": "number",
+		"source_url":     "text",
+		"title":          "text",
+		"language":       "text",
+		"priority":       "number",
 		"schema_version": "number",
 	}
 	for _, field := range info.CustomMetadata {
@@ -524,10 +524,10 @@ func (c *cloudflareClient) uploadDocument(ctx context.Context, document Document
 		return err
 	}
 	metadata, _ := json.Marshal(map[string]string{
-		"source_url": document.URL,
-		"title": document.Title,
-		"language": document.Language,
-		"priority": strconv.Itoa(document.Priority),
+		"source_url":     document.URL,
+		"title":          document.Title,
+		"language":       document.Language,
+		"priority":       strconv.Itoa(document.Priority),
 		"schema_version": strconv.Itoa(document.SchemaVersion),
 	})
 	if err := writer.WriteField("metadata", string(metadata)); err != nil {
@@ -716,10 +716,10 @@ func Sync(ctx context.Context, client *http.Client, config SyncConfig) (SyncResu
 		}
 	}
 	result := SyncResult{
-		InstanceState: instanceState,
+		InstanceState:   instanceState,
 		PublicDocuments: len(documents),
-		Incremental: manifestAvailable,
-		SchemaVersion: IndexSchemaVersion,
+		Incremental:     manifestAvailable,
+		SchemaVersion:   IndexSchemaVersion,
 	}
 	if manifestAvailable {
 		count := len(changedPaths)

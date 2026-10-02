@@ -19,16 +19,16 @@ type EvalCase struct {
 }
 
 type EvalDocument struct {
-	Key             string  `json:"key"`
-	Title           string  `json:"title"`
-	Collection      string  `json:"collection"`
-	Language        string  `json:"language"`
-	SourceURL       string  `json:"sourceUrl"`
-	SchemaVersion   int     `json:"schemaVersion"`
-	Score           any     `json:"score,omitempty"`
-	VectorScore     any     `json:"vectorScore,omitempty"`
-	KeywordScore    any     `json:"keywordScore,omitempty"`
-	RerankingScore  any     `json:"rerankingScore,omitempty"`
+	Key            string `json:"key"`
+	Title          string `json:"title"`
+	Collection     string `json:"collection"`
+	Language       string `json:"language"`
+	SourceURL      string `json:"sourceUrl"`
+	SchemaVersion  int    `json:"schemaVersion"`
+	Score          any    `json:"score,omitempty"`
+	VectorScore    any    `json:"vectorScore,omitempty"`
+	KeywordScore   any    `json:"keywordScore,omitempty"`
+	RerankingScore any    `json:"rerankingScore,omitempty"`
 }
 
 type EvalDiagnostic struct {
@@ -61,24 +61,24 @@ type EvalConfig struct {
 
 type evalSearchResponse struct {
 	Success *bool `json:"success"`
-	Errors []struct {
-		Code any `json:"code"`
+	Errors  []struct {
+		Code    any    `json:"code"`
 		Message string `json:"message"`
 	} `json:"errors"`
 	Result struct {
 		Chunks []struct {
-			Score any `json:"score"`
+			Score          any `json:"score"`
 			ScoringDetails struct {
-				VectorScore any `json:"vector_score"`
-				KeywordScore any `json:"keyword_score"`
+				VectorScore    any `json:"vector_score"`
+				KeywordScore   any `json:"keyword_score"`
 				RerankingScore any `json:"reranking_score"`
 			} `json:"scoring_details"`
 			Item struct {
-				Key string `json:"key"`
+				Key      string `json:"key"`
 				Metadata struct {
-					Title string `json:"title"`
-					Language string `json:"language"`
-					SourceURL string `json:"source_url"`
+					Title         string      `json:"title"`
+					Language      string      `json:"language"`
+					SourceURL     string      `json:"source_url"`
 					SchemaVersion json.Number `json:"schema_version"`
 				} `json:"metadata"`
 			} `json:"item"`
@@ -102,20 +102,20 @@ func evaluateSearch(ctx context.Context, client *http.Client, config EvalConfig,
 		"query": testCase.Query,
 		"ai_search_options": map[string]any{
 			"retrieval": map[string]any{
-				"retrieval_type": "hybrid",
-				"fusion_method": "rrf",
+				"retrieval_type":     "hybrid",
+				"fusion_method":      "rrf",
 				"keyword_match_mode": "or",
-				"boost_by": []map[string]string{{"field": "priority", "direction": "desc"}},
-				"filters": map[string]string{"language": testCase.Language},
-				"match_threshold": 0,
-				"max_num_results": 20,
-				"context_expansion": 1,
-				"return_on_failure": false,
+				"boost_by":           []map[string]string{{"field": "priority", "direction": "desc"}},
+				"filters":            map[string]string{"language": testCase.Language},
+				"match_threshold":    0,
+				"max_num_results":    20,
+				"context_expansion":  1,
+				"return_on_failure":  false,
 			},
 			"query_rewrite": map[string]any{"enabled": false},
 			"reranking": map[string]any{
-				"enabled": true,
-				"model": "@cf/baai/bge-reranker-base",
+				"enabled":         true,
+				"model":           "@cf/baai/bge-reranker-base",
 				"match_threshold": 0.1,
 			},
 		},
@@ -167,15 +167,15 @@ func evaluateSearch(ctx context.Context, client *http.Client, config EvalConfig,
 			_, _ = fmt.Sscan(value, &schemaVersion)
 		}
 		documents = append(documents, EvalDocument{
-			Key: key,
-			Title: chunk.Item.Metadata.Title,
-			Collection: collectionFromKey(key),
-			Language: chunk.Item.Metadata.Language,
-			SourceURL: chunk.Item.Metadata.SourceURL,
-			SchemaVersion: schemaVersion,
-			Score: chunk.Score,
-			VectorScore: chunk.ScoringDetails.VectorScore,
-			KeywordScore: chunk.ScoringDetails.KeywordScore,
+			Key:            key,
+			Title:          chunk.Item.Metadata.Title,
+			Collection:     collectionFromKey(key),
+			Language:       chunk.Item.Metadata.Language,
+			SourceURL:      chunk.Item.Metadata.SourceURL,
+			SchemaVersion:  schemaVersion,
+			Score:          chunk.Score,
+			VectorScore:    chunk.ScoringDetails.VectorScore,
+			KeywordScore:   chunk.ScoringDetails.KeywordScore,
 			RerankingScore: chunk.ScoringDetails.RerankingScore,
 		})
 	}
@@ -184,11 +184,11 @@ func evaluateSearch(ctx context.Context, client *http.Client, config EvalConfig,
 	}
 
 	diagnostic := EvalDiagnostic{
-		Language: testCase.Language,
-		Query: testCase.Query,
-		Status: "fail",
+		Language:    testCase.Language,
+		Query:       testCase.Query,
+		Status:      "fail",
 		ExpectedAny: append([]string{}, testCase.ExpectedAny...),
-		TopFive: documents,
+		TopFive:     documents,
 	}
 	for index, document := range documents {
 		if document.Language != testCase.Language {

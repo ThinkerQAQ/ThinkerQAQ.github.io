@@ -91,9 +91,9 @@ func ResolveIndexNowConfig(origin, publicRoot, endpoint, key, keyLocation string
 		}
 	}
 	return IndexNowConfig{
-		Origin: normalizedOrigin,
-		Endpoint: parsedEndpoint.String(),
-		Key: key,
+		Origin:      normalizedOrigin,
+		Endpoint:    parsedEndpoint.String(),
+		Key:         key,
 		KeyLocation: normalizedLocation,
 	}, nil
 }

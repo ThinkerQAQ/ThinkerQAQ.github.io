@@ -225,10 +225,10 @@ func LoadGeneratedInventory(distRoot, sitemapIndex, expectedOrigin string) (Gene
 	sort.Strings(urlList)
 	sort.Strings(normalizedSitemaps)
 	return GeneratedInventory{
-		Origin: origin,
+		Origin:          origin,
 		SitemapIndexURL: origin + "/" + strings.TrimLeft(filepath.ToSlash(sitemapIndex), "/"),
-		SitemapURLs: normalizedSitemaps,
-		URLList: urlList,
+		SitemapURLs:     normalizedSitemaps,
+		URLList:         urlList,
 	}, nil
 }
 
@@ -279,9 +279,9 @@ func BuildFingerprintManifest(distRoot string, inventory GeneratedInventory, now
 		fingerprints[rawURL] = hex.EncodeToString(digest[:])
 	}
 	return FingerprintManifest{
-		Version: 1,
-		Origin: inventory.Origin,
-		GeneratedAt: now.UTC().Format(time.RFC3339Nano),
+		Version:      1,
+		Origin:       inventory.Origin,
+		GeneratedAt:  now.UTC().Format(time.RFC3339Nano),
 		Fingerprints: fingerprints,
 	}, nil
 }
@@ -441,13 +441,13 @@ func FetchRemoteInventory(ctx context.Context, client *http.Client, origin strin
 	}
 
 	return Inventory{
-		Source: source,
-		FingerprintSource: resolvedFingerprintSource,
+		Source:              source,
+		FingerprintSource:   resolvedFingerprintSource,
 		FingerprintCoverage: len(fingerprints),
-		Origin: origin,
-		FetchedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Total: len(urls),
-		URLs: urls,
-		Fingerprints: fingerprints,
+		Origin:              origin,
+		FetchedAt:           time.Now().UTC().Format(time.RFC3339Nano),
+		Total:               len(urls),
+		URLs:                urls,
+		Fingerprints:        fingerprints,
 	}, nil
 }

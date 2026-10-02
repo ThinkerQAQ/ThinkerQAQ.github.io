@@ -481,4 +481,3 @@ func (a app) runSearchNotify(args []string) error {
 		"--public", "public",
 	})
 }
-

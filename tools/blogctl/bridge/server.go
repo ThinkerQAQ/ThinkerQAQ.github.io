@@ -155,13 +155,13 @@ func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []br
 }
 
 type Server struct {
-	token        string
-	now          func() time.Time
-	httpClient   *http.Client
-	config       bridgeConfig
-	restart      func()
-	syncRunner   syncRunner
-	searchMu     sync.Mutex
+	token      string
+	now        func() time.Time
+	httpClient *http.Client
+	config     bridgeConfig
+	restart    func()
+	syncRunner syncRunner
+	searchMu   sync.Mutex
 
 	mu             sync.Mutex
 	distributionMu sync.Mutex

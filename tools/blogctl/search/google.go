@@ -22,12 +22,12 @@ import (
 )
 
 const (
-	GoogleWebmastersScope                 = "https://www.googleapis.com/auth/webmasters"
-	GoogleDefaultTokenURI                 = "https://oauth2.googleapis.com/token"
-	GoogleSearchConsoleAPI                = "https://www.googleapis.com/webmasters/v3"
-	GoogleURLInspectionAPI                = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
-	GoogleURLInspectionDailySiteLimit     = 2000
-	GoogleURLInspectionDefaultDelay       = 110 * time.Millisecond
+	GoogleWebmastersScope             = "https://www.googleapis.com/auth/webmasters"
+	GoogleDefaultTokenURI             = "https://oauth2.googleapis.com/token"
+	GoogleSearchConsoleAPI            = "https://www.googleapis.com/webmasters/v3"
+	GoogleURLInspectionAPI            = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
+	GoogleURLInspectionDailySiteLimit = 2000
+	GoogleURLInspectionDefaultDelay   = 110 * time.Millisecond
 )
 
 var GoogleDefaultSitemaps = []string{"sitemap-index.xml", "sitemap-all.txt"}
@@ -75,15 +75,15 @@ type GoogleInspectionSummary struct {
 }
 
 type GoogleInspectionReport struct {
-	SiteURL        string                    `json:"siteUrl"`
-	Offset         int                       `json:"offset"`
-	Limit          int                       `json:"limit"`
-	Inspected      int                       `json:"inspected"`
-	TotalAvailable int                       `json:"totalAvailable"`
-	Remaining      int                       `json:"remaining"`
-	NextOffset     *int                      `json:"nextOffset,omitempty"`
-	Summary        GoogleInspectionSummary   `json:"summary"`
-	Results        []GoogleInspectionResult  `json:"results"`
+	SiteURL        string                   `json:"siteUrl"`
+	Offset         int                      `json:"offset"`
+	Limit          int                      `json:"limit"`
+	Inspected      int                      `json:"inspected"`
+	TotalAvailable int                      `json:"totalAvailable"`
+	Remaining      int                      `json:"remaining"`
+	NextOffset     *int                     `json:"nextOffset,omitempty"`
+	Summary        GoogleInspectionSummary  `json:"summary"`
+	Results        []GoogleInspectionResult `json:"results"`
 }
 
 type GoogleInspectionProgress struct {
@@ -153,8 +153,8 @@ func ParseGoogleServiceAccount(raw string) (GoogleServiceAccount, error) {
 	}
 	return GoogleServiceAccount{
 		ClientEmail: payload.ClientEmail,
-		PrivateKey: payload.PrivateKey,
-		TokenURI: tokenURL.String(),
+		PrivateKey:  payload.PrivateKey,
+		TokenURI:    tokenURL.String(),
 	}, nil
 }
 
@@ -195,11 +195,11 @@ func CreateGoogleServiceAccountAssertion(credentials GoogleServiceAccount, scope
 	header, _ := json.Marshal(map[string]string{"alg": "RS256", "typ": "JWT"})
 	issuedAt := now.Unix()
 	claims, _ := json.Marshal(map[string]any{
-		"iss": credentials.ClientEmail,
+		"iss":   credentials.ClientEmail,
 		"scope": scope,
-		"aud": credentials.TokenURI,
-		"iat": issuedAt,
-		"exp": issuedAt + int64(lifetime/time.Second),
+		"aud":   credentials.TokenURI,
+		"iat":   issuedAt,
+		"exp":   issuedAt + int64(lifetime/time.Second),
 	})
 	signingInput := base64URL(header) + "." + base64URL(claims)
 	digest := sha256.Sum256([]byte(signingInput))
@@ -339,9 +339,9 @@ func CheckGoogleSearchConsoleSite(ctx context.Context, client *http.Client, site
 	}
 	_ = json.Unmarshal(payload, &decoded)
 	return map[string]any{
-		"siteUrl": normalized,
+		"siteUrl":         normalized,
 		"permissionLevel": decoded.PermissionLevel,
-		"httpStatus": status,
+		"httpStatus":      status,
 	}, nil
 }
 
@@ -374,8 +374,8 @@ func InspectGoogleURL(ctx context.Context, client *http.Client, siteURL, inspect
 	}
 	body, _ := json.Marshal(map[string]string{
 		"inspectionUrl": inspectionURL,
-		"siteUrl": normalizedSite,
-		"languageCode": "en-US",
+		"siteUrl":       normalizedSite,
+		"languageCode":  "en-US",
 	})
 	payload, _, err := googleAPIRequest(ctx, client, http.MethodPost, GoogleURLInspectionAPI, accessToken, body)
 	if err != nil {
@@ -403,25 +403,25 @@ func InspectGoogleURL(ctx context.Context, client *http.Client, siteURL, inspect
 	}
 	index := decoded.InspectionResult.IndexStatusResult
 	return GoogleInspectionResult{
-		URL: inspectionURL,
-		Verdict: index.Verdict,
-		CoverageState: index.CoverageState,
-		RobotsTxtState: index.RobotsTxtState,
-		IndexingState: index.IndexingState,
-		LastCrawlTime: index.LastCrawlTime,
-		PageFetchState: index.PageFetchState,
-		UserCanonical: index.UserCanonical,
+		URL:             inspectionURL,
+		Verdict:         index.Verdict,
+		CoverageState:   index.CoverageState,
+		RobotsTxtState:  index.RobotsTxtState,
+		IndexingState:   index.IndexingState,
+		LastCrawlTime:   index.LastCrawlTime,
+		PageFetchState:  index.PageFetchState,
+		UserCanonical:   index.UserCanonical,
 		GoogleCanonical: index.GoogleCanonical,
-		CrawledAs: index.CrawledAs,
-		ReferringURLs: append([]string{}, index.ReferringURLs...),
-		Sitemap: append([]string{}, index.Sitemap...),
+		CrawledAs:       index.CrawledAs,
+		ReferringURLs:   append([]string{}, index.ReferringURLs...),
+		Sitemap:         append([]string{}, index.Sitemap...),
 	}, nil
 }
 
 func SummarizeGoogleInspection(results []GoogleInspectionResult) GoogleInspectionSummary {
 	summary := GoogleInspectionSummary{
-		Total: len(results),
-		Verdicts: map[string]int{},
+		Total:          len(results),
+		Verdicts:       map[string]int{},
 		CoverageStates: map[string]int{},
 	}
 	for _, result := range results {
@@ -511,7 +511,7 @@ func AuditGoogleURLs(ctx context.Context, client *http.Client, urls []string, si
 				RequestNumber: requestNumber, AbsoluteIndex: absoluteIndex,
 				Duration: time.Since(started), TotalAvailable: len(urls),
 				Remaining: maxInt(0, len(urls)-next), NextOffset: nextOffset,
-				Result: &copyResult,
+				Result:  &copyResult,
 				Message: "完成 " + strconv.Itoa(absoluteIndex) + " / " + strconv.Itoa(len(urls)),
 			}); err != nil {
 				return GoogleInspectionReport{}, err
@@ -534,15 +534,15 @@ func AuditGoogleURLs(ctx context.Context, client *http.Client, urls []string, si
 		nextOffset = &value
 	}
 	return GoogleInspectionReport{
-		SiteURL: mustNormalizeSearchConsoleSiteURL(siteURL),
-		Offset: offset,
-		Limit: limit,
-		Inspected: len(results),
+		SiteURL:        mustNormalizeSearchConsoleSiteURL(siteURL),
+		Offset:         offset,
+		Limit:          limit,
+		Inspected:      len(results),
 		TotalAvailable: len(urls),
-		Remaining: maxInt(0, len(urls)-next),
-		NextOffset: nextOffset,
-		Summary: SummarizeGoogleInspection(results),
-		Results: results,
+		Remaining:      maxInt(0, len(urls)-next),
+		NextOffset:     nextOffset,
+		Summary:        SummarizeGoogleInspection(results),
+		Results:        results,
 	}, nil
 }
 

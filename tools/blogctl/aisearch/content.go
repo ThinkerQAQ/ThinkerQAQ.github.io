@@ -325,8 +325,8 @@ func loadCollectionDocuments(contentRoot, blogOrigin, collection string, priorit
 			Key: key, Collection: collection, ID: id, Language: language,
 			Title: title, URL: sourceURL, Priority: priority,
 			SchemaVersion: IndexSchemaVersion,
-			SourcePath: "src/content/" + collection + "/" + relativeSlash,
-			Content: content,
+			SourcePath:    "src/content/" + collection + "/" + relativeSlash,
+			Content:       content,
 		}
 	}
 	return documents, nil
@@ -399,8 +399,8 @@ func LoadDocuments(contentRoot, blogOrigin string) (map[string]Document, error) 
 			Key: key, Collection: "notes", ID: id, Language: language,
 			Title: title, URL: sourceURL, Priority: 1,
 			SchemaVersion: IndexSchemaVersion,
-			SourcePath: "src/content/note-translations/" + relativeSlash,
-			Content: strings.TrimSpace(strings.Join(sections, "\n\n")) + "\n",
+			SourcePath:    "src/content/note-translations/" + relativeSlash,
+			Content:       strings.TrimSpace(strings.Join(sections, "\n\n")) + "\n",
 		}
 	}
 	return documents, nil

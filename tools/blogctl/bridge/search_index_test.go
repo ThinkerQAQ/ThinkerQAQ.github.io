@@ -111,8 +111,6 @@ func TestReconcileInspectionInventoryPrunesRemovedURLs(t *testing.T) {
 	}
 }
 
-
-
 func TestGoogleRequestQueueSystemicFailurePausesWithoutAdvancing(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
 	server, err := New("token")
@@ -257,8 +255,6 @@ func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *t
 		t.Fatalf("valid service account error = %v", err)
 	}
 }
-
-
 
 func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())

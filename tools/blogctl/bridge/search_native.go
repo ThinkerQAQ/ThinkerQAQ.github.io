@@ -24,7 +24,7 @@ type searchHTTPResult struct {
 
 type bingSubmissionPayload struct {
 	Inventory searchInventoryState `json:"inventory"`
-	Diff      searchDiffPayload     `json:"diff"`
+	Diff      searchDiffPayload    `json:"diff"`
 	Result    struct {
 		URLCount   int                `json:"urlCount"`
 		BatchCount int                `json:"batchCount"`
@@ -34,7 +34,7 @@ type bingSubmissionPayload struct {
 
 type baiduSubmissionPayload struct {
 	Inventory searchInventoryState `json:"inventory"`
-	Diff      searchDiffPayload     `json:"diff"`
+	Diff      searchDiffPayload    `json:"diff"`
 	Result    struct {
 		URLCount     int                `json:"urlCount"`
 		SuccessCount int                `json:"successCount"`
@@ -47,37 +47,37 @@ type baiduSubmissionPayload struct {
 
 func searchInventoryFromCore(value blogsearch.Inventory) searchInventoryState {
 	return searchInventoryState{
-		Source: value.Source,
-		FingerprintSource: value.FingerprintSource,
+		Source:              value.Source,
+		FingerprintSource:   value.FingerprintSource,
 		FingerprintCoverage: value.FingerprintCoverage,
-		Origin: value.Origin,
-		FetchedAt: value.FetchedAt,
-		Total: value.Total,
-		URLs: append([]string{}, value.URLs...),
-		Fingerprints: cloneStringMap(value.Fingerprints),
+		Origin:              value.Origin,
+		FetchedAt:           value.FetchedAt,
+		Total:               value.Total,
+		URLs:                append([]string{}, value.URLs...),
+		Fingerprints:        cloneStringMap(value.Fingerprints),
 	}
 }
 
 func searchInventoryToCore(value searchInventoryState) blogsearch.Inventory {
 	return blogsearch.Inventory{
-		Source: value.Source,
-		FingerprintSource: value.FingerprintSource,
+		Source:              value.Source,
+		FingerprintSource:   value.FingerprintSource,
 		FingerprintCoverage: value.FingerprintCoverage,
-		Origin: value.Origin,
-		FetchedAt: value.FetchedAt,
-		Total: value.Total,
-		URLs: append([]string{}, value.URLs...),
-		Fingerprints: cloneStringMap(value.Fingerprints),
+		Origin:              value.Origin,
+		FetchedAt:           value.FetchedAt,
+		Total:               value.Total,
+		URLs:                append([]string{}, value.URLs...),
+		Fingerprints:        cloneStringMap(value.Fingerprints),
 	}
 }
 
 func diffPayload(value blogsearch.Diff) searchDiffPayload {
 	return searchDiffPayload{
-		Mode: value.Mode,
-		SelectedCount: value.SelectedCount,
-		AddedCount: value.AddedCount,
-		ChangedCount: value.ChangedCount,
-		DeletedCount: value.DeletedCount,
+		Mode:           value.Mode,
+		SelectedCount:  value.SelectedCount,
+		AddedCount:     value.AddedCount,
+		ChangedCount:   value.ChangedCount,
+		DeletedCount:   value.DeletedCount,
 		UnchangedCount: value.UnchangedCount,
 	}
 }
@@ -101,7 +101,7 @@ func (s *Server) submitBingIndexNow(ctx context.Context, mode string, previous s
 	}
 	payload := bingSubmissionPayload{
 		Inventory: inventory,
-		Diff: diffPayload(diff),
+		Diff:      diffPayload(diff),
 	}
 	if len(diff.Selected) == 0 {
 		return payload, nil
@@ -144,7 +144,7 @@ func (s *Server) submitBaidu(ctx context.Context, mode string, previous searchIn
 	}
 	payload := baiduSubmissionPayload{
 		Inventory: inventory,
-		Diff: diffPayload(diff),
+		Diff:      diffPayload(diff),
 	}
 	if len(diff.Selected) == 0 {
 		payload.Result.Complete = true
@@ -169,9 +169,8 @@ func (s *Server) submitBaidu(ctx context.Context, mode string, previous searchIn
 	return payload, nil
 }
 
-
 type googleSitemapsPayload struct {
-	Inventory searchInventoryState            `json:"inventory"`
+	Inventory searchInventoryState             `json:"inventory"`
 	Result    []blogsearch.GoogleSitemapResult `json:"result"`
 }
 
@@ -212,18 +211,18 @@ func (s *Server) submitGoogleSitemapsNative(ctx context.Context) (googleSitemaps
 
 func coreInspectionResult(value blogsearch.GoogleInspectionResult) searchInspectionResult {
 	return searchInspectionResult{
-		URL: value.URL,
-		Verdict: value.Verdict,
-		CoverageState: value.CoverageState,
-		RobotsTxtState: value.RobotsTxtState,
-		IndexingState: value.IndexingState,
-		LastCrawlTime: value.LastCrawlTime,
-		PageFetchState: value.PageFetchState,
-		UserCanonical: value.UserCanonical,
+		URL:             value.URL,
+		Verdict:         value.Verdict,
+		CoverageState:   value.CoverageState,
+		RobotsTxtState:  value.RobotsTxtState,
+		IndexingState:   value.IndexingState,
+		LastCrawlTime:   value.LastCrawlTime,
+		PageFetchState:  value.PageFetchState,
+		UserCanonical:   value.UserCanonical,
 		GoogleCanonical: value.GoogleCanonical,
-		CrawledAs: value.CrawledAs,
-		ReferringURLs: append([]string{}, value.ReferringURLs...),
-		Sitemap: append([]string{}, value.Sitemap...),
+		CrawledAs:       value.CrawledAs,
+		ReferringURLs:   append([]string{}, value.ReferringURLs...),
+		Sitemap:         append([]string{}, value.Sitemap...),
 	}
 }
 
@@ -247,8 +246,8 @@ func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error
 		return nil, err
 	}
 	return map[string]any{
-		"endpoint": config.Endpoint,
-		"keyLocation": config.KeyLocation,
+		"endpoint":      config.Endpoint,
+		"keyLocation":   config.KeyLocation,
 		"keyFileStatus": 200,
 	}, nil
 }

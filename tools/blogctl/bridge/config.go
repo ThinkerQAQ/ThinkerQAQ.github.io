@@ -180,12 +180,12 @@ func ResolvedPublishingJSON() (string, error) {
 }
 
 type SearchRuntimeConfig struct {
-	IndexNowEndpoint            string
-	IndexNowKey                 string
-	IndexNowKeyLocation         string
-	BaiduSite                   string
-	BaiduToken                  string
-	GoogleServiceAccountJSON    string
+	IndexNowEndpoint         string
+	IndexNowKey              string
+	IndexNowKeyLocation      string
+	BaiduSite                string
+	BaiduToken               string
+	GoogleServiceAccountJSON string
 }
 
 func ResolvedSearchRuntimeConfig() SearchRuntimeConfig {

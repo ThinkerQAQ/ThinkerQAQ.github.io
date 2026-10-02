@@ -164,12 +164,12 @@ func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, c
 		return BaiduBatchResult{}, fmt.Errorf("Baidu submit error %d: %s", decoded.Error, redactBaiduResponse(decoded.Message, config.Token))
 	}
 	result := BaiduBatchResult{
-		HTTPStatus: response.StatusCode,
-		Submitted: len(urls),
-		Success: decoded.Success,
-		Remain: decoded.Remain,
+		HTTPStatus:  response.StatusCode,
+		Submitted:   len(urls),
+		Success:     decoded.Success,
+		Remain:      decoded.Remain,
 		NotSameSite: decoded.NotSameSite,
-		NotValid: decoded.NotValid,
+		NotValid:    decoded.NotValid,
 	}
 	result.Complete = decoded.Success == len(urls)
 	return result, nil

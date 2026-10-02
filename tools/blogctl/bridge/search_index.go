@@ -86,11 +86,11 @@ type googleIndexRequestQueue struct {
 }
 
 type searchIndexState struct {
-	Inventory searchInventoryState `json:"inventory"`
+	Inventory       searchInventoryState `json:"inventory"`
 	Bing            searchOperationState `json:"bing"`
 	Baidu           searchOperationState `json:"baidu"`
 	BaiduConfigured bool                 `json:"baiduConfigured"`
-	Google    struct {
+	Google          struct {
 		CredentialsConfigured bool                    `json:"credentialsConfigured"`
 		CredentialsError      string                  `json:"credentialsError,omitempty"`
 		Sitemaps              searchOperationState    `json:"sitemaps"`

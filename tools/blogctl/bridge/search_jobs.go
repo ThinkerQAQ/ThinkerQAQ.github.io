@@ -274,20 +274,20 @@ func (s *Server) executeBaiduIndexTask(ctx context.Context, jobID string, rawPay
 	}
 	s.completeDurableTask(jobID, taskProgress{
 		Current: payload.Result.SuccessCount,
-		Total: payload.Result.URLCount,
-		Unit: "URL",
+		Total:   payload.Result.URLCount,
+		Unit:    "URL",
 		Message: "Baidu URLs submitted",
 	}, map[string]any{
-		"mode": payload.Diff.Mode,
-		"submitted": payload.Result.URLCount,
-		"accepted": payload.Result.SuccessCount,
-		"remain": payload.Result.Remain,
-		"added": payload.Diff.AddedCount,
-		"changed": payload.Diff.ChangedCount,
-		"deleted": payload.Diff.DeletedCount,
+		"mode":             payload.Diff.Mode,
+		"submitted":        payload.Result.URLCount,
+		"accepted":         payload.Result.SuccessCount,
+		"remain":           payload.Result.Remain,
+		"added":            payload.Diff.AddedCount,
+		"changed":          payload.Diff.ChangedCount,
+		"deleted":          payload.Diff.DeletedCount,
 		"deletedSubmitted": 0,
-		"unchanged": payload.Diff.UnchangedCount,
-		"httpStatus": state.Baidu.HTTPStatus,
+		"unchanged":        payload.Diff.UnchangedCount,
+		"httpStatus":       state.Baidu.HTTPStatus,
 	})
 	return nil
 }
@@ -357,9 +357,9 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		s.completeDurableTask(jobID, taskProgress{
 			Current: current, Total: total, Unit: "URL", Message: "URL Inspection batch completed",
 		}, map[string]any{
-			"nextOffset": input.Offset,
+			"nextOffset":   input.Offset,
 			"checkedCount": state.Google.Inspection.Inspected,
-			"remaining": state.Google.Inspection.Remaining,
+			"remaining":    state.Google.Inspection.Remaining,
 		})
 		return nil
 	}
