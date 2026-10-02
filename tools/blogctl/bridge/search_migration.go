@@ -2,13 +2,21 @@ package bridge
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 )
 
 func migrateLegacyIndexNowSnapshot() searchInventoryState {
-	legacy := loadSearchProviderSnapshot("bing-indexnow-snapshot.json")
-	if legacy.Source != "" || legacy.Total > 0 || len(legacy.URLs) > 0 || len(legacy.Fingerprints) > 0 {
-		_ = saveIndexNowSnapshot(legacy)
+	const legacyFilename = "bing-indexnow-snapshot.json"
+	legacy := loadSearchProviderSnapshot(legacyFilename)
+	if legacy.Source == "" && legacy.Total == 0 && len(legacy.URLs) == 0 && len(legacy.Fingerprints) == 0 {
+		return legacy
+	}
+	if err := saveIndexNowSnapshot(legacy); err != nil {
+		return legacy
+	}
+	if path, err := searchProviderSnapshotPath(legacyFilename); err == nil {
+		_ = os.Remove(path)
 	}
 	return legacy
 }
