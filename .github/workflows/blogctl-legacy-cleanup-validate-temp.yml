@@ -1,0 +1,60 @@
+name: Temp BlogCTL Legacy Cleanup Validation
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-remove-legacy-publishing-20261002
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l tools/blogctl)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Test BlogCTL Go
+        run: go test ./tools/blogctl/...
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Test publishing renderer
+        run: npm run test:publishing-renderer
+
+      - name: Test Go compiler integration
+        run: BLOGCTL_COMPILER_INTEGRATION=1 go test ./tools/blogctl/compiler -run TestService -count=1
+
+      - name: Test Java-free diagrams
+        run: |
+          npm run assemble:fixtures
+          npm run test:diagrams
+
+      - name: Test BlogCTL extension
+        run: npm run test:blogctl-extension
+
+      - name: Test architecture boundary
+        run: npm run test:boundary
+
+      - name: Build BlogCTL
+        run: go build ./tools/blogctl/cmd
