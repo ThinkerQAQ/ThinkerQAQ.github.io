@@ -1285,6 +1285,10 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/tools");
       return { ok: true, tools: await environmentTools(result?.tools ?? []) };
     }
+    case "blogctl.config.edit": {
+      const result = await fetchJSON("/v1/config/edit", { method: "POST" });
+      return { ok: true, path: result?.path || "" };
+    }
     case "blogctl.index.get": {
       const result = await fetchJSON("/v1/search/index");
       const index = result?.index ?? {};

@@ -15,7 +15,7 @@
   })();
   const expandedTools = storedExpandedTools ?? new Set();
   let initializedExpansion = storedExpandedTools !== null;
-  let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus, configPath;
+  let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus, configPath, configEditButton;
   let assetConfigCard, platformConfigCard, searchEngineCard, message;
 
   function persistExpandedTools() {
@@ -350,6 +350,19 @@
     renderSearchEngineStatus(searchTools);
   }
 
+  async function editConfigFile() {
+    configEditButton.disabled = true;
+    BlogCTLPopup.setMessage(message, "正在打开 blogctl.toml…");
+    try {
+      const response = await BlogCTLPopup.send("blogctl.config.edit");
+      BlogCTLPopup.setMessage(message, `已用系统编辑器打开 ${response.path || "blogctl.toml"}。`, "ok");
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+    } finally {
+      configEditButton.disabled = false;
+    }
+  }
+
   async function refresh() {
     if (!state.active) return;
     BlogCTLPopup.setMessage(message);
@@ -373,11 +386,13 @@
     dependencyTools = document.getElementById("environmentDependencyTools");
     searchEngineStatus = document.getElementById("searchEngineEnvironmentStatus");
     configPath = document.getElementById("environmentConfigPath");
+    configEditButton = document.getElementById("editConfigFile");
     assetConfigCard = document.getElementById("assetConfigEnvironmentCard");
     platformConfigCard = document.getElementById("platformConfigEnvironmentCard");
     searchEngineCard = document.getElementById("searchEngineEnvironmentCard");
     message = document.getElementById("environmentMessage");
 
+    configEditButton.addEventListener("click", editConfigFile);
     BlogCTLAssets.init();
     BlogCTLPublishing.init();
     trackExpansion(assetConfigCard, "shared-assets");

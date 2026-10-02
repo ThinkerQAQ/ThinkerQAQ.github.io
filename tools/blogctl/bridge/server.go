@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -382,6 +384,11 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if path == "v1/config/edit" && request.Method == http.MethodPost {
+		s.handleConfigEdit(response, request)
+		return
+	}
+
 	if path == "v1/config" {
 		switch request.Method {
 		case http.MethodGet:
@@ -646,6 +653,42 @@ func publicBridgeConfig(config bridgeConfig) bridgeConfig {
 	config.GoogleSearchConsoleServiceJSON = ""
 	config.Publishing.Assets.R2.SecretAccessKey = ""
 	return config
+}
+
+func openConfigFile(path string) error {
+	var command *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		command = exec.Command("notepad.exe", path)
+	case "darwin":
+		command = exec.Command("open", path)
+	default:
+		command = exec.Command("xdg-open", path)
+	}
+	return command.Start()
+}
+
+func (s *Server) handleConfigEdit(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	if err := saveBridgeConfig(config); err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法写入 BlogCTL 配置文件", nil)
+		return
+	}
+	path, err := ConfigPath()
+	if err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "internal_error", "无法解析 BlogCTL 配置文件路径", nil)
+		return
+	}
+	if err := openConfigFile(path); err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "config_editor_failed", err.Error(), map[string]any{"path": path})
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "path": path})
 }
 
 func (s *Server) handleConfigGet(response http.ResponseWriter) {

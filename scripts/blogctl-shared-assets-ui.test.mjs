@@ -55,6 +55,27 @@ test("environment owns expansion lifecycle for the shared asset card", async () 
   assert.match(environment, /BlogCTLAssets\.deactivate\(\)/u);
 });
 
+test("environment configuration cards expose edit and requirement affordances", async () => {
+  const [html, environment] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(environmentPath, "utf8"),
+  ]);
+
+  assert.match(html, /id="editConfigFile"[^>]*>✎ 编辑</u);
+  assert.match(environment, /BlogCTLPopup\.send\("blogctl\.config\.edit"\)/u);
+
+  for (const [card, requirement] of [
+    ["assetConfigEnvironmentCard", "optional"],
+    ["platformConfigEnvironmentCard", "required"],
+    ["searchEngineEnvironmentCard", "optional"],
+  ]) {
+    const start = html.indexOf(`id="${card}"`);
+    assert.ok(start >= 0, `${card} missing`);
+    const fragment = html.slice(start, start + 700);
+    assert.match(fragment, new RegExp(`tool-requirement ${requirement}`));
+  }
+});
+
 test("R2 credentials are stored through BlogCTL config instead of environment variables", async () => {
   const assets = await readFile(assetsPath, "utf8");
   assert.match(assets, /accessKeyId: r2AccessKeyId\.value\.trim\(\)/u);
