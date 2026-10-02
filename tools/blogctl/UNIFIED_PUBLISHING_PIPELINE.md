@@ -771,12 +771,15 @@ The copy/paste fallback remains mandatory until body images are verified.
 
 ### P4 — compatibility cleanup
 
-**Status:** implemented for the obsolete control-plane compatibility layer.
+**Status:** complete.
 
-- `scripts/blogctl-distribute.mjs` and `scripts/blogctl-syndicate.mjs` are now compatibility stubs that direct live work to `blogctl sync`;
-- unreachable `distribution-sync`, `syndication-devto`, and `syndication-medium` event parsing has been removed from the Go control plane;
-- supported-platform metadata, labels, default languages and capabilities now come from one shared platform registry;
-- generic modules still used by the compiler, including `scripts/distribute.mjs`, `scripts/medium.mjs`, rendering helpers and their tests, remain intact.
+- legacy Node distribution/syndication CLIs and compatibility stubs are deleted;
+- `scripts/distribute.mjs`, `scripts/syndicate*.mjs`, root Medium/publishing-config wrappers, and their compatibility tests are deleted;
+- the old Node runtime-config/R2/diagram policy paths are deleted;
+- BlogCTL Go owns article discovery, compiler orchestration, platform policy, asset delivery, and publishing backends;
+- Node remains only for renderer-specific work that still depends on the JavaScript ecosystem;
+- supported-platform metadata, labels, default languages and capabilities come from the Go platform registry;
+- browser JavaScript owns only browser-session acquisition and UI behavior.
 
 ### P5 — control-plane UX
 
