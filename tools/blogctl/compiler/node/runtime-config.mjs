@@ -30,9 +30,7 @@ export function loadBlogctlPublishingRuntimeConfig(env = process.env) {
       scale: positiveNumber(mermaid.scale, DEFAULT_MERMAID_SCALE),
     },
     assets: {
-      store: String(assets.store || "r2").trim().toLowerCase(),
       r2: {
-        bucket: String(r2.bucket || "").trim(),
         publicBaseUrl: String(r2.publicBaseUrl || DEFAULT_R2_PUBLIC_BASE_URL).trim(),
       },
     },
