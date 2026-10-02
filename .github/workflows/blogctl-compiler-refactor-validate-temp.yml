@@ -49,7 +49,9 @@ jobs:
         run: BLOGCTL_COMPILER_INTEGRATION=1 go test ./tools/blogctl/compiler -run TestServiceCompilesThroughNodeRenderer -count=1
 
       - name: Test site diagrams without Java
-        run: npm run test:diagrams
+        run: |
+          npm run assemble:fixtures
+          npm run test:diagrams
 
       - name: Test BlogCTL extension
         run: npm run test:blogctl-extension
