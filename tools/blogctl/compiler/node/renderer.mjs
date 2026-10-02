@@ -56,13 +56,13 @@ export function renderArticle(request) {
   if (platform === "devto") {
     compiled = compileDevto(article, { profile, policy, assetBaseUrl });
   } else if (platform === "medium") {
-    const mediumDraft = buildMediumDraft(article, { slug, publishingConfig: profile });
+    const mediumDraft = buildMediumDraft(article, { canonicalUrl: policy.canonicalUrl, publishingConfig: profile });
     const portable = compilePublishingMarkdown(article.body, {
       platform: "medium",
       siteOrigin: "https://thinkerqaq.github.io",
       assetBaseUrl,
     }).markdown.trim();
-    const fallbackHTML = buildMediumCopyHtml(article, { slug, publishingConfig: profile });
+    const fallbackHTML = buildMediumCopyHtml(article, { canonicalUrl: policy.canonicalUrl, publishingConfig: profile });
     compiled = {
       title: article.title,
       description: article.description,
@@ -76,8 +76,8 @@ export function renderArticle(request) {
       payload: {
         title: mediumDraft.title,
         deltas: mediumDraft.deltas,
-        canonicalUrl: mediumDraft.canonicalUrl,
-        tags: mediumDraft.tags,
+        canonicalUrl: policy.nativeCanonicalUrl,
+        tags: policy.tags,
         coverImage: mediumDraft.coverImage,
       },
       fallbackHTML,
