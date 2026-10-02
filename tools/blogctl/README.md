@@ -130,6 +130,9 @@ indexnow_endpoint = "https://www.bing.com/indexnow"
 indexnow_key = ""
 indexnow_key_location = ""
 
+bing_site = "https://thinkerqaq.github.io"
+bing_api_key = ""
+
 baidu_site = "https://thinkerqaq.github.io"
 baidu_token = ""
 
@@ -327,7 +330,7 @@ Submit an explicit URL set:
 
 ```bash
 blogctl search submit \
-  --providers indexnow,baidu,google \
+  --providers indexnow,bing,baidu,google \
   --urls-file changed-urls.txt
 ```
 
@@ -349,6 +352,7 @@ blogctl search notify
 Provider ownership:
 
 - IndexNow: Go.
+- Bing Webmaster URL submission and quota: Go.
 - Baidu ordinary URL submission: Go.
 - Google service-account OAuth, sitemap submission and URL Inspection: Go.
 - Google **Request Indexing**: Extension browser automation against the real Search Console UI.
