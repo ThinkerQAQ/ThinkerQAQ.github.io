@@ -64,5 +64,5 @@ test("local renderer supports Chinese and rejects syntax errors", async () => {
   const svg = await renderSvg("Alice -> Bob: 中文图表");
   assert.match(svg, /<svg/);
   assert.ok(svg.includes("中文图表") || svg.includes("&#"));
-  await assert.rejects(renderSvg("@startuml\nthis is definitely not valid syntax !!!\n@enduml"));
+  await assert.rejects(renderSvg("@startuml\nAlice -> Bob: hello\n@endjson"));
 });
