@@ -231,12 +231,12 @@ func TestRetrySyncJobRejectsPublishAttempts(t *testing.T) {
 		t.Fatalf("publish job was mutated: %#v", server.jobs["publish-job"])
 	}
 
-	server.jobs["legacy-publish"] = &syncJob{
-		ID: "legacy-publish", State: "failed", Operation: "publish",
+	server.jobs["recovered-publish"] = &syncJob{
+		ID: "recovered-publish", State: "failed", Operation: "publish",
 		Request: syncRequest{Article: "example", Platforms: []string{"oschina"}},
 	}
-	if _, err := server.retrySyncJob("legacy-publish"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
-		t.Fatalf("legacy publish retry error = %v", err)
+	if _, err := server.retrySyncJob("recovered-publish"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
+		t.Fatalf("recovered publish retry error = %v", err)
 	}
 }
 
@@ -252,7 +252,7 @@ func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
 	}
 	request.UsePlatformChangedOnly = false
 	if changedPoliciesForRequest(config, request) != nil {
-		t.Fatal("legacy request must keep its global changed flag")
+		t.Fatal("request without platform policy must keep its global changed flag")
 	}
 	request.UsePlatformChangedOnly = true
 	request.Operation = "publish"
