@@ -323,6 +323,17 @@ func (s *Server) inspectGoogleURLsNative(
 }
 
 func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error) {
+	if s.searchRunner != nil {
+		raw, err := s.runSearchNode(ctx, s.config, "bing-check", nil)
+		if err != nil {
+			return nil, err
+		}
+		var detail map[string]any
+		if err := decodeSearchResult(raw, &detail); err != nil {
+			return nil, err
+		}
+		return detail, nil
+	}
 	engineRoot := strings.TrimSpace(s.config.EngineRoot)
 	if engineRoot == "" {
 		return nil, errors.New("Public Engine path is not configured")
@@ -349,6 +360,17 @@ func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error
 }
 
 func (s *Server) checkGoogleSearchConsoleNative(ctx context.Context) (map[string]any, error) {
+	if s.searchRunner != nil {
+		raw, err := s.runSearchNode(ctx, s.config, "google-check", nil)
+		if err != nil {
+			return nil, err
+		}
+		var detail map[string]any
+		if err := decodeSearchResult(raw, &detail); err != nil {
+			return nil, err
+		}
+		return detail, nil
+	}
 	accessToken, err := s.googleAccessToken(ctx)
 	if err != nil {
 		return nil, err
