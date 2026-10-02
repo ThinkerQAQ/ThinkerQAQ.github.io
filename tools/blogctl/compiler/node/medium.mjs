@@ -2,8 +2,6 @@ import { renderPublishingFooter } from "./publishing-config.mjs";
 import { compilePublishingMarkdown } from "./compiler.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
-export const MEDIUM_MAX_TAGS = 5;
-
 export function resolveArticleAssetUrl(value) {
   const raw = String(value || "").trim();
   return raw ? new URL(raw, SITE_ORIGIN).toString() : "";
