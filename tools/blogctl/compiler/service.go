@@ -62,9 +62,9 @@ type rendererRequest struct {
 	Profile      json.RawMessage `json:"profile"`
 	Language     string          `json:"language"`
 	AssetBaseURL string          `json:"assetBaseUrl"`
-	DryRun       bool            `json:"dryRun"`
 	SourceDir    string          `json:"sourceDir"`
 	Assets       []Asset         `json:"assets"`
+	Policy       rendererPolicy  `json:"policy"`
 }
 
 func normalizeRequestedArticles(values []string) []string {
@@ -157,11 +157,29 @@ func (s Service) render(ctx context.Context, request rendererRequest) (CompiledA
 	if err := json.Unmarshal(bytes.TrimSpace(output), &article); err != nil {
 		return CompiledArticle{}, fmt.Errorf("compiler renderer returned invalid JSON: %w", err)
 	}
-	if err := article.Validate(); err != nil {
-		return CompiledArticle{}, err
-	}
 	if article.Slug != request.Slug || article.Platform != request.Platform || article.Language != request.Language {
 		return CompiledArticle{}, errors.New("compiler renderer response identity mismatch")
+	}
+
+	// Platform metadata, asset delivery and content identity are Go-owned domain
+	// rules. Node returns only renderer-specific Markdown/HTML/Medium payloads.
+	article.Description = request.Policy.Description
+	article.CanonicalURL = request.Policy.CanonicalURL
+	article.NativeCanonicalURL = request.Policy.NativeCanonicalURL
+	article.Tags = append([]string(nil), request.Policy.Tags...)
+	article.CoverImageURL = request.Policy.CoverImageURL
+	article.Assets = append([]Asset(nil), request.Assets...)
+
+	hash, err := contentHash(article)
+	if err != nil {
+		return CompiledArticle{}, fmt.Errorf("compute compiled article hash: %w", err)
+	}
+	article.ContentHash = hash
+	if err := applyAssetDeliveryPolicy(&article, request.Policy.NativeImageUpload); err != nil {
+		return CompiledArticle{}, fmt.Errorf("apply asset delivery policy: %w", err)
+	}
+	if err := article.Validate(); err != nil {
+		return CompiledArticle{}, err
 	}
 	return article, nil
 }
@@ -217,10 +235,14 @@ func (s Service) Compile(ctx context.Context, request CompileRequest) ([]Compile
 			return nil, fmt.Errorf("compile diagrams for %s: %w", slug, err)
 		}
 		article.Body = renderedBody
+		policy, err := buildRendererPolicy(article, slug, platform, language, profile, request.DryRun)
+		if err != nil {
+			return nil, fmt.Errorf("build platform policy for %s: %w", slug, err)
+		}
 		compiled, err := s.render(ctx, rendererRequest{
 			Article: article, Slug: slug, Platform: platform, Profile: profile, Language: language,
-			AssetBaseURL: runtime.Assets.R2.PublicBaseURL, DryRun: request.DryRun,
-			SourceDir: filepath.Dir(sourceFile), Assets: assets,
+			AssetBaseURL: runtime.Assets.R2.PublicBaseURL,
+			SourceDir: filepath.Dir(sourceFile), Assets: assets, Policy: policy,
 		})
 		if err != nil {
 			return nil, err
