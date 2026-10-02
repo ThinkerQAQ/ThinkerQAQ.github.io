@@ -73,8 +73,7 @@ Enter the Public Engine:
 ```bash
 cd ThinkerQAQ.github.io
 npm ci
-node scripts/validate-content-source.mjs ../blog-content
-node scripts/assemble-content.mjs ../blog-content
+go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
 npm run dev:site
 ```
 
@@ -164,7 +163,6 @@ src/                  Astro pages, components, and content schema
 scripts/              Build, search, distribution, and maintenance scripts
 workers/              Cloudflare Workers
 tools/blogctl/         BlogCTL
-docs/                  Detailed documentation
 fixtures/              Public Engine test content
 .github/workflows/     CI / CD
 ```
@@ -172,9 +170,6 @@ fixtures/              Public Engine test content
 ### Detailed documentation
 
 - [BlogCTL](tools/blogctl/README.md)
-- [Diagrams](docs/diagrams.md)
-- [Analytics](docs/analytics.md)
-- [International Syndication](docs/international-syndication.md)
 - [Publishing Language](tools/blogctl/PUBLISHING_LANGUAGE.md)
 
 ## License
