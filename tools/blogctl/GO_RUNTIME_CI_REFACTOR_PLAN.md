@@ -315,8 +315,21 @@ Completed on `refactor/blogctl-compiler-go-runtime-20261002`:
 Still intentionally left in Node for the next R4 slice:
 
 - Markdown/HTML rendering where output parity matters;
-- Medium-specific delta/fallback rendering;
-- remaining platform metadata/canonical/tag/content-hash policy until it is moved to Go with parity tests.
+- Medium-specific delta/fallback rendering.
+
+### R4 compiler-domain checkpoint — 2026-10-02
+
+Completed on `refactor/blogctl-compiler-domain-go-20261002`:
+
+- Go now owns canonical URL construction and native-canonical policy.
+- Go owns platform description truncation and DEV.to/Medium tag normalization.
+- Go owns native-image delivery policy and `blogctl-asset://` replacement.
+- Go owns `contentHash` generation for generic, DEV.to, and Medium compiled articles.
+- Node renderer consumes an explicit Go renderer policy and no longer manufactures those fields.
+- Hash parity is locked with protocol-level golden tests.
+- Full validation passed: Go tests, renderer tests, compiler/PlantUML integrations, site diagrams, extension tests, and BlogCTL build.
+
+The remaining R4 structural problem is Stage B dependency direction: `tools/blogctl/compiler/node/renderer.mjs` still imports root-level `scripts/*` compatibility modules. The next slice must invert this so legacy scripts depend on BlogCTL rendering packages, not the other way around.
 
 ---
 
