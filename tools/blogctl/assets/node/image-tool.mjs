@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 
 import sharp from "sharp";
 
@@ -56,7 +57,7 @@ export async function main(argv = process.argv.slice(2)) {
   process.stdout.write(JSON.stringify(result) + "\n");
 }
 
-if (import.meta.url === new URL("file://" + process.argv[1].replaceAll("\\", "/")).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     process.stderr.write((error?.stack || error?.message || String(error)) + "\n");
     process.exitCode = 1;
