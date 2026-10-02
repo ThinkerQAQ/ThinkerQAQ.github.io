@@ -239,7 +239,7 @@ func (s *Server) executeBaiduIndexTask(ctx context.Context, jobID string, rawPay
 			state.Inventory = compactSearchInventory(payload.Inventory)
 			state.Baidu = searchOperationState{
 				State: "failed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
-				FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.SuccessCount,
+				FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
 				NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
 				DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
 				HTTPStatus: maxSearchHTTPStatus(payload.Result.Results), Error: err.Error(),
