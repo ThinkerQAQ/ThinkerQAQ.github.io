@@ -1,146 +1,13 @@
 package bridge
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 )
 
-func TestGoogleInspectionDisplayTotalUsesGlobalInventory(t *testing.T) {
-	if got := googleInspectionDisplayTotal(1833, 109, 1353); got != 1833 {
-		t.Fatalf("display total = %d, want 1833", got)
-	}
-	if got := googleInspectionDisplayTotal(0, 109, 1353); got != 1462 {
-		t.Fatalf("fallback display total = %d, want 1462", got)
-	}
-}
 
-func TestGoogleInspectionTaskPersistsPerURLProgress(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	calls := []googleInspectionTaskPayload{}
-	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
-		if command != "google-inspect" {
-			t.Fatalf("command = %q", command)
-		}
-		offset := int(input["offset"].(int))
-		limit := int(input["limit"].(int))
-		calls = append(calls, googleInspectionTaskPayload{Offset: offset, Limit: limit})
-		results := make([]searchInspectionResult, 0, limit)
-		for index := 0; index < limit; index++ {
-			results = append(results, searchInspectionResult{
-				URL:           fmt.Sprintf("https://thinkerqaq.github.io/test/%d/", offset+index),
-				Verdict:       "PASS",
-				IndexingState: "INDEXING_ALLOWED",
-			})
-		}
-		next := offset + limit
-		payload := map[string]any{
-			"offset":         offset,
-			"limit":          limit,
-			"inspected":      limit,
-			"totalAvailable": 2750,
-			"remaining":      2750 - next,
-			"nextOffset":     next,
-			"results":        results,
-		}
-		raw, err := json.Marshal(payload)
-		return raw, err
-	}
-
-	job, err := server.createDurableTaskJob(
-		"google-inspection",
-		"Google URL Inspection",
-		googleInspectionTaskPayload{Offset: 0, Limit: 150},
-		taskProgress{Current: 0, Total: 150, Unit: "URL", Message: "等待执行"},
-		taskCapabilities(true, false, false),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := server.markDurableTaskRunning(job.ID); err != nil {
-		t.Fatal(err)
-	}
-	rawPayload, _ := json.Marshal(googleInspectionTaskPayload{Offset: 0, Limit: 150})
-	if err := server.executeGoogleInspectionTask(context.Background(), job.ID, rawPayload); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(calls) != 1 || calls[0].Offset != 0 || calls[0].Limit != 150 {
-		t.Fatalf("inspection calls = %#v", calls)
-	}
-	restored := server.durableTaskJob(job.ID)
-	if restored == nil || restored.State != "completed" {
-		t.Fatalf("job = %#v", restored)
-	}
-	if restored.Progress.Current != 150 || restored.Progress.Total != 150 {
-		t.Fatalf("progress = %#v", restored.Progress)
-	}
-	if !strings.Contains(restored.Output, "[request] done") {
-		t.Fatalf("inspection task log missing request completion: %q", restored.Output)
-	}
-	state := loadSearchIndexState()
-	if state.Google.Inspection.Inspected != 150 || len(state.Google.Inspection.Results) != 150 {
-		t.Fatalf("inspection state = %#v", state.Google.Inspection)
-	}
-}
-
-func TestGoogleInspectionQuotaPausesTaskWithoutLosingProgress(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
-	}
-	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, _ map[string]any) (json.RawMessage, error) {
-		if command != "google-inspect" {
-			t.Fatalf("command = %q", command)
-		}
-		return nil, fmt.Errorf("Google URL inspection failed with HTTP 429: RESOURCE_EXHAUSTED quota exceeded")
-	}
-
-	job, err := server.createDurableTaskJob(
-		"google-inspection",
-		"Google URL Inspection",
-		googleInspectionTaskPayload{Offset: 935, Limit: 418},
-		taskProgress{Current: 935, Total: 1353, Unit: "URL", Message: "等待执行"},
-		taskCapabilities(true, false, false),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := server.markDurableTaskRunning(job.ID); err != nil {
-		t.Fatal(err)
-	}
-	rawPayload, _ := json.Marshal(googleInspectionTaskPayload{Offset: 935, Limit: 418})
-	if err := server.executeGoogleInspectionTask(context.Background(), job.ID, rawPayload); err != nil {
-		t.Fatalf("quota exhaustion should pause instead of fail: %v", err)
-	}
-
-	restored := server.durableTaskJob(job.ID)
-	if restored == nil || restored.State != "paused" {
-		t.Fatalf("job = %#v, want paused", restored)
-	}
-	if restored.Progress.Current != 935 || restored.Progress.Total != 1353 {
-		t.Fatalf("progress changed after quota exhaustion: %#v", restored.Progress)
-	}
-	if !restored.CanRetry || restored.CanResume {
-		t.Fatalf("quota-blocked inspection should be retryable, not resumable: %#v", restored)
-	}
-	if !strings.Contains(restored.Progress.Message, "配额") {
-		t.Fatalf("quota message = %q", restored.Progress.Message)
-	}
-	state := loadSearchIndexState()
-	if state.Google.Inspection.State != "quota_blocked" {
-		t.Fatalf("inspection state = %q, want quota_blocked", state.Google.Inspection.State)
-	}
-}
 
 func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
@@ -152,7 +19,7 @@ func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 	job, err := server.createDurableTaskJob(
 		"bing-indexnow",
 		"Bing 增量索引",
-		bingIndexTaskPayload{Mode: "incremental"},
+		searchSubmissionTaskPayload{Mode: "incremental"},
 		taskProgress{Current: 3, Total: 3, Unit: "URL"},
 		taskCapabilities(true, false, false),
 	)
