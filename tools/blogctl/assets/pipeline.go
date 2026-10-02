@@ -107,7 +107,10 @@ func (p *Pipeline) Prepare(ctx context.Context, input []blogcompiler.Asset) erro
 }
 
 func (p *Pipeline) prepareOne(ctx context.Context, asset blogcompiler.Asset) error {
-).MatchString(id))
+	kind := strings.ToLower(strings.TrimSpace(asset.Kind))
+	id := strings.TrimSpace(asset.ID)
+	validID := (kind == "mermaid" && mermaidAssetIDPattern.MatchString(id)) ||
+		(kind == "plantuml" && plantUMLAssetIDPattern.MatchString(id))
 	if !validID {
 		return errors.New("invalid generated asset identity")
 	}
