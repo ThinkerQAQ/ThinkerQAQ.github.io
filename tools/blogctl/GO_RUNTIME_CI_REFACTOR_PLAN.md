@@ -456,6 +456,28 @@ Extension browser descriptor
 
 ---
 
+## 8.1 Legacy publishing compatibility cleanup
+
+### Checkpoint — 2026-10-02
+
+Completed on `refactor/blogctl-remove-legacy-publishing-20261002`:
+
+- removed the legacy Node `distribute` and `syndicate` CLIs, compatibility stubs, and their tests;
+- removed root `scripts/medium.mjs` and `scripts/publishing-config.mjs` compatibility wrappers;
+- moved the remaining Medium/publishing renderer tests under `tools/blogctl/compiler/node`;
+- removed Node `runtime-config.mjs` and all hidden publishing-config/R2 environment handling;
+- reduced Node compiler preprocessing to renderer-only link normalization and fail-closed detection of uncompiled diagrams;
+- removed Node Mermaid/PlantUML asset identity, R2 URL, and tag/canonical policy logic;
+- removed the R2 public base URL from the Go → Node renderer protocol;
+- removed the unused content-source pre-validation script;
+- removed the legacy `config.json` → TOML migration path and old flat publishing config fields;
+- Medium transport payload canonical/tags now come directly from Go policy;
+- `package.json` exposes `test:publishing-renderer` rather than legacy distribution/syndication commands.
+
+The remaining Node files are active renderer/site tooling, not compatibility shims.
+
+---
+
 # 9. CI review
 
 ## 9.1 BlogCTL is the CI control plane
@@ -690,16 +712,15 @@ when the goal is simply to produce and deploy the site.
 
 ## 13. package.json cleanup
 
-As Go migrations complete, remove BlogCTL backend suites from `npm run test:engine`.
+Backend-oriented legacy Node suites have been removed from the npm surface.
 
-Candidates to remove from Node test aggregation after Go parity:
+Current publishing test surface:
 
 ```text
-test:search-discovery
-test:distribute
-test:syndicate
-BlogCTL compiler/assets Node tests
+test:publishing-renderer
 ```
+
+It covers only the active Node renderer/assets boundary. Go tests are authoritative for compiler orchestration, platform policy, Search, R2, Medium backend, and publishing backends.
 
 Keep site/browser suites:
 
