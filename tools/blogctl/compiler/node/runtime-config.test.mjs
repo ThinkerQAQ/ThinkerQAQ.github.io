@@ -8,9 +8,7 @@ test("uses defaults when Go does not provide publishing policy", () => {
   assert.deepEqual(config, {
     mermaid: { format: "png", width: 1200, scale: 2 },
     assets: {
-      store: "r2",
       r2: {
-        bucket: "",
         publicBaseUrl: "https://pub-366a15b6733345039775c083a1fffb3e.r2.dev/",
       },
     },
@@ -25,7 +23,6 @@ test("R2 environment variables are not configuration sources", () => {
     R2_SECRET_ACCESS_KEY: "secret",
     R2_ACCOUNT_ID: "account",
   });
-  assert.equal(config.assets.r2.bucket, "");
   assert.equal(config.assets.r2.publicBaseUrl, "https://pub-366a15b6733345039775c083a1fffb3e.r2.dev/");
 });
 
@@ -33,7 +30,7 @@ test("Go-resolved publishing JSON is authoritative for compiler and asset policy
   const config = loadBlogctlPublishingRuntimeConfig({
     BLOGCTL_PUBLISHING_JSON: JSON.stringify({
       compiler: { mermaid: { format: "png", width: 1800, scale: 4 } },
-      assets: { store: "r2", r2: { bucket: "go-bucket", publicBaseUrl: "https://go.example.com/" } },
+      assets: { r2: { publicBaseUrl: "https://go.example.com/" } },
       platforms: {},
     }),
     BLOGCTL_CONFIG_FILE: "C:/Users/zsk/AppData/Roaming/BlogCTL/blogctl.toml",
