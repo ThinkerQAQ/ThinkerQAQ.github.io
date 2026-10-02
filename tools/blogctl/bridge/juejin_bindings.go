@@ -62,10 +62,8 @@ func juejinBindingState(binding publisher.PublicationBinding, post publisher.Jue
 	}
 	// Juejin exposes different draft_id and article_id values after publish.
 	// Match the stored draft binding against the published record's draft_id so
-	// the UI can surface the draft -> published transition. Keep article_id as a
-	// compatibility fallback for bindings created by older BlogCTL versions.
-	if post.Published && binding.RemoteDraftID != "" &&
-		(binding.RemoteDraftID == post.DraftID || binding.RemoteDraftID == post.ID) {
+	// the UI can surface the draft -> published transition.
+	if post.Published && binding.RemoteDraftID != "" && binding.RemoteDraftID == post.DraftID {
 		return true, "draft"
 	}
 	if !post.Published && binding.RemoteDraftID == post.ID {
