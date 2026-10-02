@@ -149,6 +149,8 @@
     const index = state.index || {};
     const inventory = index.inventory || {};
     const indexNow = index.indexNow || {};
+    const bing = index.bing || {};
+    const bingReady = Boolean(index.bingConfigured);
     const baidu = index.baidu || {};
     const baiduReady = Boolean(index.baiduConfigured);
     const google = index.google || {};
@@ -180,6 +182,22 @@
     setText(elements.indexNowDeletedCount, Number.isFinite(Number(indexNow.deletedCount)) ? Number(indexNow.deletedCount) : "-");
     setText(elements.indexNowUnchangedCount, Number.isFinite(Number(indexNow.unchangedCount)) ? Number(indexNow.unchangedCount) : "-");
     setText(elements.indexNowHTTP, indexNow.httpStatus || (indexNow.state === "completed" && Number(indexNow.count || 0) === 0 ? "未请求" : "-"));
+
+    if (bingReady) {
+      setStatus(elements.bingStatus, operationKind(bing.state), operationLabel(bing.state), bing.error || "");
+    } else {
+      setStatus(elements.bingStatus, "disabled", "未配置", "请先在「环境与配置」中填写 Bing Webmaster API Key。");
+    }
+    setText(elements.bingFinishedAt, formatDate(bing.finishedAt));
+    setText(elements.bingMode, bing.mode === "full" ? "全量" : bing.mode === "incremental" ? "增量" : "-");
+    setText(elements.bingCount, Number.isFinite(Number(bing.count)) ? Number(bing.count) : "-");
+    setText(elements.bingPendingCount, Number.isFinite(Number(bing.pendingCount)) ? Number(bing.pendingCount) : "0");
+    setText(elements.bingDailyQuota, Number.isFinite(Number(bing.dailyQuota)) ? Number(bing.dailyQuota) : "-");
+    setText(elements.bingMonthlyQuota, Number.isFinite(Number(bing.monthlyQuota)) ? Number(bing.monthlyQuota) : "-");
+    setText(elements.bingNewCount, Number.isFinite(Number(bing.newCount)) ? Number(bing.newCount) : "-");
+    setText(elements.bingChangedCount, Number.isFinite(Number(bing.changedCount)) ? Number(bing.changedCount) : "-");
+    setText(elements.bingDeletedCount, Number.isFinite(Number(bing.deletedCount)) ? Number(bing.deletedCount) : "-");
+    setText(elements.bingHTTP, bing.httpStatus || (bing.state === "completed" && Number(bing.count || 0) === 0 ? "未请求" : "-"));
 
     if (baiduReady) {
       setStatus(elements.baiduStatus, operationKind(baidu.state), operationLabel(baidu.state), baidu.error || "");
@@ -252,6 +270,8 @@
     elements.refreshInventory.disabled = state.busy.has("inventory");
     elements.indexNowSubmitIncremental.disabled = !inventoryReady || state.busy.has("indexnow");
     elements.indexNowSubmitFull.disabled = !inventoryReady || state.busy.has("indexnow");
+    elements.bingSubmitIncremental.disabled = !inventoryReady || !bingReady || state.busy.has("bing");
+    elements.bingSubmitFull.disabled = !inventoryReady || !bingReady || state.busy.has("bing");
     elements.baiduSubmitIncremental.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
     elements.baiduSubmitFull.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
     const sitemapState = String(sitemaps.state || "idle");
@@ -328,6 +348,14 @@
       type: "blogctl.index.indexnow.submit",
       payload: { mode },
     }, `IndexNow ${label}任务已创建。`);
+  }
+
+  async function submitBing(mode) {
+    const label = mode === "full" ? "全量" : "增量";
+    await run("bing", {
+      type: "blogctl.index.bing.submit",
+      payload: { mode },
+    }, `Bing Webmaster ${label}任务已创建。`);
   }
 
   async function submitBaidu(mode) {
@@ -415,6 +443,19 @@
       indexNowHTTP: el("indexNowHTTP"),
       indexNowSubmitIncremental: el("indexNowSubmitIncremental"),
       indexNowSubmitFull: el("indexNowSubmitFull"),
+      bingStatus: el("indexBingStatus"),
+      bingFinishedAt: el("indexBingFinishedAt"),
+      bingMode: el("indexBingMode"),
+      bingCount: el("indexBingCount"),
+      bingPendingCount: el("indexBingPendingCount"),
+      bingDailyQuota: el("indexBingDailyQuota"),
+      bingMonthlyQuota: el("indexBingMonthlyQuota"),
+      bingNewCount: el("indexBingNewCount"),
+      bingChangedCount: el("indexBingChangedCount"),
+      bingDeletedCount: el("indexBingDeletedCount"),
+      bingHTTP: el("indexBingHTTP"),
+      bingSubmitIncremental: el("indexBingSubmitIncremental"),
+      bingSubmitFull: el("indexBingSubmitFull"),
       baiduStatus: el("indexBaiduStatus"),
       baiduFinishedAt: el("indexBaiduFinishedAt"),
       baiduMode: el("indexBaiduMode"),
@@ -458,6 +499,8 @@
     elements.refreshInventory.addEventListener("click", refreshInventory);
     elements.indexNowSubmitIncremental.addEventListener("click", () => submitIndexNow("incremental"));
     elements.indexNowSubmitFull.addEventListener("click", () => submitIndexNow("full"));
+    elements.bingSubmitIncremental.addEventListener("click", () => submitBing("incremental"));
+    elements.bingSubmitFull.addEventListener("click", () => submitBing("full"));
     elements.baiduSubmitIncremental.addEventListener("click", () => submitBaidu("incremental"));
     elements.baiduSubmitFull.addEventListener("click", () => submitBaidu("full"));
     elements.googleSitemaps.addEventListener("click", submitGoogleSitemaps);
