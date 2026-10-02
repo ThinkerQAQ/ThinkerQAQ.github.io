@@ -99,12 +99,7 @@ func (a app) run(args []string) error {
 }
 
 func (a app) runCheck() error {
-	for index, script := range []string{"check", "build", "verify"} {
-		if err := a.runNPM(index == 0, "run", script); err != nil {
-			return err
-		}
-	}
-	return nil
+	return a.runNPM(true, "run", "check")
 }
 
 func (a app) doctor() error {
