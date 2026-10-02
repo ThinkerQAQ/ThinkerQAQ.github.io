@@ -76,12 +76,6 @@ jobs:
           cache: npm
           cache-dependency-path: engine/package-lock.json
 
-      - name: Setup Java for PlantUML
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-
       - name: Install diagram layout and Chinese fonts
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk
 
