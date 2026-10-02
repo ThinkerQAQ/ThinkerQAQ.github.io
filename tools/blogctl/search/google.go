@@ -447,7 +447,7 @@ func SummarizeGoogleInspection(results []GoogleInspectionResult) GoogleInspectio
 	return summary
 }
 
-func AuditGoogleURLs(ctx context.Context, client *http.Client, urls []string, siteURL, origin, accessToken string, offset, limit int, requestDelay time.Duration, onProgress func(GoogleInspectionProgress)) (GoogleInspectionReport, error) {
+func AuditGoogleURLs(ctx context.Context, client *http.Client, urls []string, siteURL, origin, accessToken string, offset, limit int, requestDelay time.Duration, onProgress func(GoogleInspectionProgress) error) (GoogleInspectionReport, error) {
 	if offset < 0 {
 		return GoogleInspectionReport{}, errors.New("Google audit offset must be non-negative")
 	}
@@ -482,12 +482,14 @@ func AuditGoogleURLs(ctx context.Context, client *http.Client, urls []string, si
 		requestNumber := index + 1
 		absoluteIndex := offset + requestNumber
 		if onProgress != nil {
-			onProgress(GoogleInspectionProgress{
+			if err := onProgress(GoogleInspectionProgress{
 				Type: "request_start", Offset: offset, Inspected: index,
 				RequestNumber: requestNumber, AbsoluteIndex: absoluteIndex,
 				TotalAvailable: len(urls), URL: inspectionURL,
 				Message: "开始检查 " + strconv.Itoa(absoluteIndex) + " / " + strconv.Itoa(len(urls)),
-			})
+			}); err != nil {
+				return GoogleInspectionReport{}, err
+			}
 		}
 		started := time.Now()
 		result, err := InspectGoogleURL(ctx, client, siteURL, inspectionURL, accessToken)
@@ -504,14 +506,16 @@ func AuditGoogleURLs(ctx context.Context, client *http.Client, urls []string, si
 		}
 		if onProgress != nil {
 			copyResult := result
-			onProgress(GoogleInspectionProgress{
+			if err := onProgress(GoogleInspectionProgress{
 				Type: "request_complete", Offset: offset, Inspected: inspected,
 				RequestNumber: requestNumber, AbsoluteIndex: absoluteIndex,
 				Duration: time.Since(started), TotalAvailable: len(urls),
 				Remaining: maxInt(0, len(urls)-next), NextOffset: nextOffset,
 				Result: &copyResult,
 				Message: "完成 " + strconv.Itoa(absoluteIndex) + " / " + strconv.Itoa(len(urls)),
-			})
+			}); err != nil {
+				return GoogleInspectionReport{}, err
+			}
 		}
 		if requestDelay > 0 && index+1 < len(selected) {
 			timer := time.NewTimer(requestDelay)
