@@ -148,8 +148,8 @@ func assetForDiagram(kind, source, base string) (Asset, error) {
 	return Asset{}, fmt.Errorf("unsupported diagram kind: %s", kind)
 }
 func absoluteRootLinks(line string) string {
-	line = mdRootLinkPattern.ReplaceAllString(line, "$1"+SiteOrigin+"/$2")
-	return htmlRootLinkPattern.ReplaceAllString(line, "$1"+SiteOrigin+"/$3")
+	line = mdRootLinkPattern.ReplaceAllString(line, "${1}"+SiteOrigin+"/${2}")
+	return htmlRootLinkPattern.ReplaceAllString(line, "${1}"+SiteOrigin+"/${3}")
 }
 func escapeAlt(v string) string {
 	v = strings.ReplaceAll(v, "\\", "\\\\")

@@ -1175,37 +1175,27 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	if request.Operation == "update-published" {
 		started := time.Now()
 		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
-		output, err := blogapp.NewSyncService().Run(ctx, applicationConfig, blogapp.SyncRequest{
-			Articles: []string{request.Article}, Platforms: []string{"cnblogs"}, DryRun: true, Draft: true, Operation: "draft",
+		compiledArticles, compileErr := blogcompiler.CompilePlatform(ctx, blogcompiler.CompileOptions{
+			EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
+			PublishingJSON: publishingJSON, Node: config.ToolPaths["node"],
+			Platform: "cnblogs", Articles: []string{request.Article}, DryRun: true,
 		})
-		if err != nil {
-			slog.Warn("cnblogs published update export failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
-			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
-			return output, err
+		if compileErr != nil {
+			slog.Warn("cnblogs published update compile failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", compileErr))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return "", compileErr
 		}
+		if len(compiledArticles) != 1 {
+			compileErr = errors.New("publishing compiler returned no CNBlogs article")
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return "", compileErr
+		}
+		compiled := compiledArticles[0]
 		session, client, err := (bridgeNativePublisher{server: s}).publisherSession("cnblogs")
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
-			return output, err
-		}
-		compiledArticles, compileErr := blogapp.ParseCompiledArticles(output)
-		if compileErr != nil {
-			slog.Warn("cnblogs published update compile result invalid", "operation", "update-published", "slug", request.Article, "error", compileErr)
-			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
-			return output, compileErr
-		}
-		compiled, compileErr := func() (blogcompiler.CompiledArticle, error) {
-			for _, article := range compiledArticles {
-				if article.Slug == request.Article && article.Platform == "cnblogs" {
-					return article, nil
-				}
-			}
-			return blogcompiler.CompiledArticle{}, errors.New("publishing compiler returned no CNBlogs article")
-		}()
-		if compileErr != nil {
-			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
-			return output, compileErr
+			return "", err
 		}
 		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublishedInput(
 			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config),
@@ -1213,7 +1203,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
-			return output, err
+			return "", err
 		}
 		resultName := "published-updated"
 		if skipped {
@@ -1221,7 +1211,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		}
 		onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "completed", Result: resultName, URL: result.URL})
 		slog.Info("cnblogs published update completed", "operation", "update-published", "slug", request.Article, "result", resultName, "durationMs", time.Since(started).Milliseconds())
-		return output, nil
+		return "", nil
 	}
 	service := blogapp.NewSyncService()
 	service.NativePublisher = bridgeNativePublisher{server: s}

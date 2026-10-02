@@ -35,18 +35,6 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 	if strings.TrimSpace(config.ContentRoot) == "" {
 		return Stats{}, errors.New("asset preparation requires content root")
 	}
-	node := strings.TrimSpace(config.Node)
-	if node == "" {
-		var err error
-		node, err = exec.LookPath("node")
-		if err != nil {
-			return Stats{}, errors.New("node was not found for publishing renderer")
-		}
-	}
-	renderer := filepath.Join(config.EngineRoot, "tools", "blogctl", "renderers", "node", "publishing-image.mjs")
-	if info, err := os.Stat(renderer); err != nil || info.IsDir() {
-		return Stats{}, fmt.Errorf("publishing renderer was not found: %s", renderer)
-	}
 
 	unique := make(map[string]blogcompiler.Asset)
 	order := make([]string, 0)
@@ -62,6 +50,7 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 	}
 
 	stats := Stats{Assets: len(order)}
+	pending := make([]string, 0, len(order))
 	for _, key := range order {
 		asset := unique[key]
 		if err := validate(asset); err != nil {
@@ -72,6 +61,28 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 			stats.Cached++
 			continue
 		}
+		pending = append(pending, key)
+	}
+	if len(pending) == 0 {
+		return stats, nil
+	}
+
+	node := strings.TrimSpace(config.Node)
+	if node == "" {
+		var err error
+		node, err = exec.LookPath("node")
+		if err != nil {
+			return stats, errors.New("node was not found for publishing renderer")
+		}
+	}
+	renderer := filepath.Join(config.EngineRoot, "tools", "blogctl", "renderers", "node", "publishing-image.mjs")
+	if info, err := os.Stat(renderer); err != nil || info.IsDir() {
+		return stats, fmt.Errorf("publishing renderer was not found: %s", renderer)
+	}
+
+	for _, key := range pending {
+		asset := unique[key]
+		output := filepath.Join(config.ContentRoot, ".distribution", "assets", asset.Kind, asset.ID+".png")
 		if strings.TrimSpace(asset.Content) == "" {
 			return stats, fmt.Errorf("publishing asset %s is missing renderer content", key)
 		}
