@@ -72,7 +72,7 @@ func (a app) run(args []string) error {
 	case "stop":
 		return a.runNPM(false, "run", "stop:local")
 	case "build":
-		return a.runNPM(true, "run", "build")
+		return a.runSite([]string{"build"})
 	case "site":
 		return a.runSite(args)
 	case "ai-search":
@@ -87,8 +87,6 @@ func (a app) run(args []string) error {
 		return a.runDiagrams(args)
 	case "search":
 		return a.runSearch(args)
-	case "indexnow":
-		return a.runIndexNow(args)
 	case "distribute":
 		return a.runNPM(true, append([]string{"run", "distribute", "--"}, args...)...)
 	case "sync":
@@ -138,7 +136,6 @@ Usage:
   blogctl notes <sync|check|timestamps>
   blogctl diagrams [plantuml|drawio]
   blogctl search <build|inventory|submit|audit|notify> [options]
-  blogctl indexnow <prepare|submit> [args...]  # compatibility
   blogctl distribute [args...]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
