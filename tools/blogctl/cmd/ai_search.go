@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	blogaisearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/aisearch"
 )
 
 type aiSearchStats struct {
@@ -121,17 +124,17 @@ func (a app) runAISearchPrepare(args []string) error {
 	if err != nil {
 		return err
 	}
-	node, _, err := a.prepareNode(false)
+	prepared, err := blogaisearch.PrepareInput(filepath.Join(a.root, "src", "content"), resolvedOutput)
 	if err != nil {
-		return err
-	}
-	prepareScript := filepath.Join(a.root, "scripts", "prepare-ai-search-input.mjs")
-	if !fileExists(prepareScript) {
-		return fmt.Errorf("AI Search prepare script was not found: %s", prepareScript)
-	}
-	if err := a.runner.Run(node, []string{prepareScript, resolvedOutput}, os.Environ()); err != nil {
 		return fmt.Errorf("prepare AI Search input: %w", err)
 	}
+	fmt.Fprintf(
+		a.out,
+		"[ai-search] prepared articles=%d notes=%d translations=%d\n",
+		prepared.Articles,
+		prepared.Notes,
+		prepared.NoteTranslations,
+	)
 
 	manifest := filepath.Join(resolvedOutput, "ai-search-changed-paths.txt")
 	if forceFull {
@@ -311,16 +314,29 @@ func (a app) runAISearchVerify(args []string) error {
 		time.Sleep(interval)
 	}
 
-	node, _, err := a.prepareNode(false)
+	evalTimeout, err := aiSearchDuration(args, "--eval-timeout", 3*time.Minute)
 	if err != nil {
 		return err
 	}
-	evalScript := filepath.Join(a.root, "scripts", "eval-ai-search.mjs")
-	if !fileExists(evalScript) {
-		return fmt.Errorf("AI Search evaluation script was not found: %s", evalScript)
+	evalInterval, err := aiSearchDuration(args, "--eval-interval", 10*time.Second)
+	if err != nil {
+		return err
 	}
-	if err := a.runner.Run(node, []string{evalScript}, os.Environ()); err != nil {
-		return fmt.Errorf("evaluate AI Search retrieval: %w", err)
-	}
-	return nil
+	return blogaisearch.Evaluate(
+		context.Background(),
+		client,
+		blogaisearch.EvalConfig{
+			AccountID: accountID,
+			APIToken: token,
+			InstanceName: instance,
+			Timeout: evalTimeout,
+			RetryDelay: evalInterval,
+		},
+		nil,
+		func(diagnostic blogaisearch.EvalDiagnostic) {
+			if payload, marshalErr := json.Marshal(diagnostic); marshalErr == nil {
+				fmt.Fprintln(a.out, string(payload))
+			}
+		},
+	)
 }
