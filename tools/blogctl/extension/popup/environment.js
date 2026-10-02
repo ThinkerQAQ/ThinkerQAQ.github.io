@@ -22,6 +22,41 @@
     localStorage.setItem(EXPANDED_TOOLS_KEY, JSON.stringify([...expandedTools]));
   }
   function healthKind(health) { if (health?.status === "disabled") return "disabled"; if (health?.ok) return "ok"; if (health?.status === "missing" || health?.status === "error") return "error"; return "unknown"; }
+
+  function requirementLabel(tool) {
+    return tool.required ? "必选" : "可选";
+  }
+
+  function configDisplayValue(tool, field) {
+    if (field.type === "secret") {
+      const placeholder = String(field.placeholder || "");
+      return placeholder.includes("已配置") ? "已配置" : "未配置";
+    }
+    const value = tool.config?.values?.[field.key];
+    if (value === undefined || value === null || value === "") return "自动检测";
+    return String(value);
+  }
+
+  function restoreToolEditor(tool, card) {
+    const toggle = card.querySelector("[data-toggle-key]");
+    if (toggle) toggle.checked = Boolean(tool.config?.values?.[toggle.dataset.toggleKey]);
+    card.querySelectorAll("[data-config-key]").forEach((input) => {
+      input.value = tool.config?.values?.[input.dataset.configKey] ?? "";
+    });
+  }
+
+  function setToolEditing(card, editing) {
+    card.dataset.editing = editing ? "true" : "false";
+    const readOnly = card.querySelector(".tool-config-readonly");
+    const editor = card.querySelector(".tool-config-editor");
+    const editButton = card.querySelector("[data-tool-edit]");
+    const editActions = card.querySelector(".tool-edit-actions");
+    if (readOnly) readOnly.hidden = editing;
+    if (editor) editor.hidden = !editing;
+    if (editButton) editButton.hidden = editing;
+    if (editActions) editActions.hidden = !editing;
+  }
+
   function makeConfigInput(tool, field) {
     const label = document.createElement("label");
     label.className = "field";
@@ -109,8 +144,16 @@
 
     const summary = document.createElement("summary");
     summary.className = "status-row";
+
+    const identity = document.createElement("span");
+    identity.className = "tool-identity";
     const name = document.createElement("strong");
     name.textContent = tool.displayName || tool.name;
+    const requirement = document.createElement("span");
+    requirement.className = `tool-requirement ${tool.required ? "required" : "optional"}`;
+    requirement.textContent = requirementLabel(tool);
+    identity.append(name, requirement);
+
     const status = document.createElement("span");
     BlogCTLPopup.setStatus(
       status,
@@ -118,13 +161,14 @@
       tool.health?.summary || tool.health?.status || "未知",
       tool.health?.detail || "",
     );
-    summary.append(name, status);
+    summary.append(identity, status);
 
     const body = document.createElement("div");
     body.className = "tool-card-body";
+
     if (tool.description) {
       const description = document.createElement("p");
-      description.className = "card-hint";
+      description.className = "card-hint tool-purpose";
       description.textContent = tool.description;
       body.append(description);
     }
@@ -144,33 +188,90 @@
       body.append(pathValue);
     }
 
-    if (tool.config?.toggle) {
-      const toggleLabel = document.createElement("label");
-      toggleLabel.className = "switch-row";
-      const text = document.createElement("span");
-      const title = document.createElement("strong");
-      title.textContent = tool.config.toggle.label;
-      const detail = document.createElement("small");
-      detail.textContent = tool.config.toggle.description || "";
-      text.append(title, detail);
-      const toggle = document.createElement("input");
-      toggle.type = "checkbox";
-      toggle.dataset.toggleKey = tool.config.toggle.key;
-      toggle.checked = Boolean(tool.config.values?.[tool.config.toggle.key]);
-      toggleLabel.append(text, toggle);
-      body.append(toggleLabel);
-    }
-
-    for (const field of tool.config?.schema ?? []) body.append(makeConfigInput(tool, field));
-
     const configurable = Boolean(tool.config?.toggle || (tool.config?.schema ?? []).length);
     if (configurable) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "secondary full-width";
-      button.textContent = "保存";
-      button.addEventListener("click", () => saveTool(tool, card, button));
-      body.append(button);
+      const readOnly = document.createElement("div");
+      readOnly.className = "tool-config-readonly";
+
+      if (tool.config?.toggle) {
+        const row = document.createElement("div");
+        row.className = "tool-config-readonly-row";
+        const label = document.createElement("span");
+        label.textContent = tool.config.toggle.label;
+        const value = document.createElement("code");
+        value.textContent = Boolean(tool.config.values?.[tool.config.toggle.key]) ? "启用" : "关闭";
+        row.append(label, value);
+        readOnly.append(row);
+      }
+
+      for (const field of tool.config?.schema ?? []) {
+        const row = document.createElement("div");
+        row.className = "tool-config-readonly-row";
+        const label = document.createElement("span");
+        label.textContent = field.label || field.key;
+        const value = document.createElement("code");
+        value.textContent = configDisplayValue(tool, field);
+        row.append(label, value);
+        readOnly.append(row);
+      }
+      body.append(readOnly);
+
+      const editor = document.createElement("div");
+      editor.className = "tool-config-editor";
+      editor.hidden = true;
+
+      if (tool.config?.toggle) {
+        const toggleLabel = document.createElement("label");
+        toggleLabel.className = "switch-row";
+        const text = document.createElement("span");
+        const title = document.createElement("strong");
+        title.textContent = tool.config.toggle.label;
+        const detail = document.createElement("small");
+        detail.textContent = tool.config.toggle.description || "";
+        text.append(title, detail);
+        const toggle = document.createElement("input");
+        toggle.type = "checkbox";
+        toggle.dataset.toggleKey = tool.config.toggle.key;
+        toggle.checked = Boolean(tool.config.values?.[tool.config.toggle.key]);
+        toggleLabel.append(text, toggle);
+        editor.append(toggleLabel);
+      }
+      for (const field of tool.config?.schema ?? []) editor.append(makeConfigInput(tool, field));
+      body.append(editor);
+
+      const controls = document.createElement("div");
+      controls.className = "tool-edit-controls";
+
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "secondary tool-edit-button";
+      editButton.dataset.toolEdit = "true";
+      editButton.textContent = "✎ 编辑";
+      editButton.addEventListener("click", () => setToolEditing(card, true));
+      controls.append(editButton);
+
+      const editActions = document.createElement("div");
+      editActions.className = "tool-edit-actions";
+      editActions.hidden = true;
+
+      const cancelButton = document.createElement("button");
+      cancelButton.type = "button";
+      cancelButton.className = "secondary";
+      cancelButton.textContent = "取消";
+      cancelButton.addEventListener("click", () => {
+        restoreToolEditor(tool, card);
+        setToolEditing(card, false);
+      });
+
+      const saveButton = document.createElement("button");
+      saveButton.type = "button";
+      saveButton.className = "primary inline-primary";
+      saveButton.textContent = "保存";
+      saveButton.addEventListener("click", () => saveTool(tool, card, saveButton));
+
+      editActions.append(cancelButton, saveButton);
+      controls.append(editActions);
+      body.append(controls);
     }
 
     const actions = Array.isArray(tool.actions) ? tool.actions : [];

@@ -573,7 +573,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "node", DisplayName: "Node.js", Kind: "dependency", Required: true,
-			Description: "执行 BlogCTL publishing scripts；Network Proxy 需要 Node.js 22.21+ 或 24+。",
+			Description: "必选。用于 Markdown HTML 渲染、发布图片 renderer，以及 Astro / Pagefind / Mermaid 等 Node 工具链；建议 Node.js 22.21+ 或 24+。",
 			Health:      executableHealth(config, "node"),
 			Actions: []toolAction{{
 				ID: "update", Label: "更新",
@@ -583,7 +583,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "npm", DisplayName: "npm", Kind: "dependency", Required: true,
-			Description: "准备 Public Engine 的 Node dependencies。", Health: executableHealth(config, "npm"),
+			Description: "必选。负责安装并运行 Public Engine 的 Node 依赖，包括 Astro、Pagefind 与 Mermaid CLI。", Health: executableHealth(config, "npm"),
 			Actions: []toolAction{{
 				ID: "update", Label: "更新",
 				Description: "执行 npm install -g npm@latest，并沿用 BlogCTL Network Proxy。",
@@ -592,7 +592,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "git", DisplayName: "Git", Kind: "dependency", Required: true,
-			Description: "BlogCTL developer workflow dependency。", Health: executableHealth(config, "git"),
+			Description: "必选。用于仓库版本工作流，以及 AI Search 增量同步时计算提交差异。", Health: executableHealth(config, "git"),
 			Actions: []toolAction{{
 				ID: "update", Label: "更新",
 				Description: "升级 Git for Windows；Windows 使用 WinGet，并沿用 BlogCTL Network Proxy。",
@@ -600,8 +600,8 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
 		},
 		{
-			Name: "java", DisplayName: "Java", Kind: "dependency", Required: false,
-			Description: "仅在发布文章包含 PlantUML（puml / plantuml / UML）时用于编译图表。",
+			Name: "java", DisplayName: "Java (PlantUML)", Kind: "dependency", Required: false,
+			Description: "可选。只有网站构建或发布内容包含 PlantUML（puml / plantuml / UML）时才需要，用于运行 PlantUML JAR 渲染图表。",
 			Health:      executableHealth(config, "java"),
 			Actions: []toolAction{{
 				ID: "update", Label: "更新",
