@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { renderArticle, useNativeImageUpload } from "./renderer.mjs";
+
+const ASSET_BASE = "https://cdn.example.com/";
 const ASSET = {
   kind: "mermaid",
   id: "0123456789abcdef01234567",
@@ -24,8 +26,6 @@ const ARTICLE = {
 ![Compile path](${ASSET.publicUrl})
 `,
 };
-
-const ASSET_BASE = "https://cdn.example.com/";
 
 function profile(language, platform, canonical = "footer") {
   return {
