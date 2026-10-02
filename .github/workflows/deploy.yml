@@ -205,6 +205,7 @@ jobs:
     env:
       GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'https://thinkerqaq.github.io/' }}
+      BLOGCTL_CONFIG_DIR: ${{ runner.temp }}/blogctl-config
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
@@ -221,6 +222,23 @@ jobs:
       - name: Build BlogCTL
         working-directory: engine/tools/blogctl
         run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
+
+      - name: Prepare BlogCTL search config
+        shell: bash
+        run: |
+          mkdir -p "$BLOGCTL_CONFIG_DIR"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["BLOGCTL_CONFIG_DIR"]) / "blogctl.toml"
+          service_account = os.environ.get("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", "")
+          path.write_text(
+              "google_search_console_service_json = " + json.dumps(service_account) + "\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Notify search engines
         working-directory: engine
