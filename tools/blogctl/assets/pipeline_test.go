@@ -114,9 +114,9 @@ func TestPipelineUploadsGeneratedAssetWhenPlatformHasNoNativeImageUpload(t *test
 		t.Fatal(err)
 	}
 
-	var uploaded bool
+	uploads := 0
 	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		uploaded = true
+		uploads++
 		if request.Method != http.MethodPut {
 			t.Fatalf("method = %s", request.Method)
 		}
@@ -144,18 +144,22 @@ func TestPipelineUploadsGeneratedAssetWhenPlatformHasNoNativeImageUpload(t *test
 			return nil, nil
 		}),
 	}
-	if err := pipeline.Prepare(context.Background(), []blogcompiler.Asset{{
+	asset := blogcompiler.Asset{
 		Kind:       "mermaid",
 		ID:         id,
 		Definition: "flowchart LR\nA --> B",
 		ObjectKey:  "generated/mermaid/" + id + ".png",
 		PublicURL:  publicURL,
 		Source:     publicURL,
-	}}); err != nil {
+	}
+	if err := pipeline.Prepare(context.Background(), []blogcompiler.Asset{asset}); err != nil {
 		t.Fatal(err)
 	}
-	if !uploaded {
-		t.Fatal("generated asset was not uploaded to R2")
+	if err := pipeline.Prepare(context.Background(), []blogcompiler.Asset{asset}); err != nil {
+		t.Fatal(err)
+	}
+	if uploads != 1 {
+		t.Fatalf("R2 uploads = %d, want 1", uploads)
 	}
 }
 
