@@ -201,6 +201,30 @@
       <section class="status-card">
         <div class="status-row">
           <div>
+            <div class="section-title">Baidu Search Resource</div>
+            <p class="card-hint">普通收录只提交新增和内容变化 URL；已删除 URL 仅统计，不通过该接口提交。</p>
+          </div>
+          <strong id="indexBaiduStatus" class="status disabled">未运行</strong>
+        </div>
+        <div class="index-stat-grid">
+          <div><span>上次提交</span><strong id="indexBaiduFinishedAt">-</strong></div>
+          <div><span>模式</span><strong id="indexBaiduMode">-</strong></div>
+          <div><span>实际提交</span><strong id="indexBaiduCount">-</strong></div>
+          <div><span>新增</span><strong id="indexBaiduNewCount">-</strong></div>
+          <div><span>更新</span><strong id="indexBaiduChangedCount">-</strong></div>
+          <div><span>删除（未提交）</span><strong id="indexBaiduDeletedCount">-</strong></div>
+          <div><span>未变化</span><strong id="indexBaiduUnchangedCount">-</strong></div>
+          <div><span>HTTP</span><strong id="indexBaiduHTTP">-</strong></div>
+        </div>
+        <div class="index-action-row index-action-row-equal">
+          <button id="indexBaiduSubmitIncremental" class="primary inline-primary" type="button">提交增量</button>
+          <button id="indexBaiduSubmitFull" class="primary inline-primary" type="button">全量重新提交</button>
+        </div>
+      </section>
+
+      <section class="status-card">
+        <div class="status-row">
+          <div>
             <div class="section-title">Google Search Console</div>
             <p class="card-hint">保留 Sitemap、官方 URL Inspection 和 GSC Request Indexing 三层流程。</p>
           </div>
