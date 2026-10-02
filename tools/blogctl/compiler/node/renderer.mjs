@@ -1,15 +1,7 @@
-import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-import {
-  buildArticleCanonicalUrl,
-  renderPlatformHtml,
-  resolveArticleAssetUrl,
-} from "../../../../scripts/distribute.mjs";
-import {
-  nativeCanonicalUrl,
-  renderPublishingFooter,
-} from "../../../../scripts/publishing-config.mjs";
+import { renderPlatformHtml } from "../../../../scripts/distribute.mjs";
+import { renderPublishingFooter } from "../../../../scripts/publishing-config.mjs";
 import {
   buildMediumCopyHtml,
   buildMediumDraft,
@@ -19,77 +11,27 @@ import {
   compilePublishingMarkdown,
 } from "./compiler.mjs";
 
-const NATIVE_IMAGE_UPLOAD_PLATFORMS = new Set([
-  "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "medium",
-]);
-
-function internalAssetRef(asset) {
-  return `blogctl-asset://${asset.kind}/${asset.id}`;
-}
-
-export function useNativeImageUpload(platform) {
-  return NATIVE_IMAGE_UPLOAD_PLATFORMS.has(platform);
-}
-
-function replaceAssetUrls(value, assets) {
-  let result = String(value ?? "");
-  for (const asset of assets) result = result.replaceAll(asset.publicUrl, internalAssetRef(asset));
-  return result;
-}
-
-function replaceAssetUrlsDeep(value, assets) {
-  if (typeof value === "string") return replaceAssetUrls(value, assets);
-  if (Array.isArray(value)) return value.map((item) => replaceAssetUrlsDeep(item, assets));
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceAssetUrlsDeep(item, assets)]));
-  }
-  return value;
-}
-
-function sha256(value) {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function truncate(value, maxLength) {
-  const characters = [...String(value)];
-  return characters.length <= maxLength ? String(value) : characters.slice(0, maxLength - 1).join("") + "…";
-}
-
-function normalizeDevtoTags(tags = []) {
-  const normalized = [];
-  const seen = new Set();
-  for (const tag of tags) {
-    const candidate = String(tag).trim().toLowerCase().replace(/\s+/gu, "");
-    if (!/^[a-z0-9][a-z0-9-]{0,29}$/u.test(candidate) || seen.has(candidate)) continue;
-    seen.add(candidate);
-    normalized.push(candidate);
-    if (normalized.length === 4) break;
-  }
-  return normalized;
-}
-
-function compileDevto(article, { slug, profile, language, assetBaseUrl }) {
-  const canonicalUrl = buildArticleCanonicalUrl(slug, language);
+function compileDevto(article, { profile, policy, assetBaseUrl }) {
   const body = compilePublishingMarkdown(article.body, {
     platform: "devto",
     siteOrigin: "https://thinkerqaq.github.io",
     assetBaseUrl,
   }).markdown.trim();
   const footer = renderPublishingFooter(profile, {
-    canonicalUrl,
+    canonicalUrl: policy.canonicalUrl,
     title: article.title,
-    site: language === "en" ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客",
+    site: "ThinkerQAQ's personal blog",
   });
   const markdown = body + (footer ? "\n\n---\n\n" + footer : "") + "\n";
   return {
     title: article.title,
-    description: truncate(article.description, 256),
+    description: policy.description,
     markdown,
     html: renderPlatformHtml(markdown),
-    canonicalUrl,
-    nativeCanonicalUrl: nativeCanonicalUrl(canonicalUrl, profile),
-    tags: normalizeDevtoTags(article.tags),
-    coverImageUrl: resolveArticleAssetUrl(article.coverImage),
+    canonicalUrl: policy.canonicalUrl,
+    nativeCanonicalUrl: policy.nativeCanonicalUrl,
+    tags: policy.tags,
+    coverImageUrl: policy.coverImageUrl,
     published: false,
   };
 }
@@ -102,27 +44,17 @@ export function renderArticle(request) {
     profile,
     language,
     assetBaseUrl,
-    dryRun = false,
     sourceDir = "",
     assets = [],
+    policy,
   } = request || {};
-  if (!article || !slug || !platform || !profile || !language || !assetBaseUrl) {
+  if (!article || !slug || !platform || !profile || !language || !assetBaseUrl || !policy) {
     throw new Error("invalid compiler renderer request");
   }
 
   let compiled;
-  let hashSource;
   if (platform === "devto") {
-    compiled = compileDevto(article, { slug, profile, language, assetBaseUrl });
-    hashSource = JSON.stringify({
-      title: compiled.title,
-      description: compiled.description,
-      markdown: compiled.markdown,
-      nativeCanonicalUrl: compiled.nativeCanonicalUrl,
-      tags: compiled.tags,
-      coverImageUrl: compiled.coverImageUrl,
-      published: compiled.published,
-    });
+    compiled = compileDevto(article, { profile, policy, assetBaseUrl });
   } else if (platform === "medium") {
     const mediumDraft = buildMediumDraft(article, { slug, publishingConfig: profile });
     const portable = compilePublishingMarkdown(article.body, {
@@ -136,10 +68,10 @@ export function renderArticle(request) {
       description: article.description,
       markdown: portable,
       html: fallbackHTML,
-      canonicalUrl: buildArticleCanonicalUrl(slug, language),
-      nativeCanonicalUrl: mediumDraft.canonicalUrl,
-      tags: mediumDraft.tags,
-      coverImageUrl: mediumDraft.coverImage?.url || "",
+      canonicalUrl: policy.canonicalUrl,
+      nativeCanonicalUrl: policy.nativeCanonicalUrl,
+      tags: policy.tags,
+      coverImageUrl: policy.coverImageUrl,
       published: false,
       payload: {
         title: mediumDraft.title,
@@ -152,21 +84,14 @@ export function renderArticle(request) {
       requiresFallback: mediumDraft.requiresHtmlFallback,
       warnings: mediumDraft.warnings,
     };
-    hashSource = JSON.stringify({
-      payload: compiled.payload,
-      fallbackHTML,
-      requiresFallback: compiled.requiresFallback,
-    });
   } else {
-    const canonicalUrl = buildArticleCanonicalUrl(slug, language);
-    const descriptionLimit = platform === "juejin" ? 100 : 256;
     const body = compilePublishingMarkdown(article.body, {
       platform,
       siteOrigin: "https://thinkerqaq.github.io",
       assetBaseUrl,
     }).markdown;
     const footer = renderPublishingFooter(profile, {
-      canonicalUrl,
+      canonicalUrl: policy.canonicalUrl,
       title: article.title,
       site: language === "en" ? "ThinkerQAQ's personal blog" : "ThinkerQAQ 的个人博客",
     });
@@ -178,27 +103,19 @@ export function renderArticle(request) {
     }).markdown.trim();
     compiled = {
       title: article.title,
-      description: truncate(article.description, descriptionLimit),
+      description: policy.description,
       markdown: portable,
       html: renderPlatformHtml(portable),
-      canonicalUrl,
-      nativeCanonicalUrl: "",
-      tags: article.tags,
-      coverImageUrl: resolveArticleAssetUrl(article.coverImage),
+      canonicalUrl: policy.canonicalUrl,
+      nativeCanonicalUrl: policy.nativeCanonicalUrl,
+      tags: policy.tags,
+      coverImageUrl: policy.coverImageUrl,
       published: false,
     };
-    hashSource = article.title + "\n" + portable + "\n<!-- blogctl-html -->\n" + compiled.html;
   }
 
   assertNoUncompiledDiagrams(compiled.markdown, { platform });
   assertNoUncompiledDiagrams(compiled.html, { platform });
-
-  const nativeImageUpload = useNativeImageUpload(platform) && !dryRun;
-  if (nativeImageUpload && assets.length) {
-    compiled.markdown = replaceAssetUrls(compiled.markdown, assets);
-    compiled.html = replaceAssetUrls(compiled.html, assets);
-    if (compiled.payload) compiled.payload = replaceAssetUrlsDeep(compiled.payload, assets);
-  }
 
   return {
     version: 1,
@@ -218,12 +135,8 @@ export function renderArticle(request) {
     fallbackHtml: compiled.fallbackHTML,
     requiresFallback: compiled.requiresFallback,
     warnings: compiled.warnings,
-    contentHash: sha256(hashSource),
     sourceDir,
-    assets: assets.map(({ kind, id, renderer, definition, objectKey, publicUrl, alt }) => ({
-      kind, id, renderer, definition, objectKey, publicUrl, alt,
-      source: nativeImageUpload ? internalAssetRef({ kind, id }) : publicUrl,
-    })),
+    assets,
   };
 }
 
