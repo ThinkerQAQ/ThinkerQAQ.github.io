@@ -265,9 +265,10 @@ func (a app) runSync(args []string) error {
 		return a.runLiveSyncViaBridge(context.Background(), options)
 	}
 
-	config := blogapp.SyncConfig{EngineRoot: a.root, ContentRoot: a.contentRoot}
-	if publishingJSON, publishingErr := bridge.ResolvedPublishingJSON(); publishingErr == nil {
-		config.PublishingJSON = publishingJSON
+	config := blogapp.SyncConfig{
+		EngineRoot:  a.root,
+		ContentRoot: a.contentRoot,
+		Publishing:  bridge.ResolvedPublishingConfig(),
 	}
 	service := blogapp.NewSyncService()
 	output, err := service.Run(context.Background(), config, blogapp.SyncRequest{
