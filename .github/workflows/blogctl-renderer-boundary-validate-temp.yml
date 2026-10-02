@@ -39,8 +39,11 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Test renderer and legacy wrappers
+      - name: Test renderer boundary
         run: npm run test:distribute
+
+      - name: Test legacy publishing wrappers
+        run: npm run test:syndicate
 
       - name: Test Go compiler integration
         run: BLOGCTL_COMPILER_INTEGRATION=1 go test ./tools/blogctl/compiler -run TestServiceCompilesThroughNodeRenderer -count=1
