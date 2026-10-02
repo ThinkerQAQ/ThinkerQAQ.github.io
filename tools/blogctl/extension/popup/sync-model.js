@@ -1,16 +1,12 @@
 "use strict";
 
 (function (root) {
-  function platformID(platform) {
-    return typeof platform === "object" && platform ? platform.id : platform;
-  }
-
   function platformCapabilities(platform) {
-    return typeof platform === "object" && platform ? (platform.capabilities ?? {}) : {};
+    return platform?.capabilities ?? {};
   }
 
   function deliveryToolAvailability(platform, tools = []) {
-    const id = platformID(platform);
+    const id = platform?.id || "";
     const capabilities = platformCapabilities(platform);
     if (Object.keys(capabilities).length === 0) {
       return { available: false, reason: "平台能力未知" };
@@ -24,16 +20,14 @@
   }
 
   function platformAvailability(article, platform, publishingProfile = {}) {
-    if (platform && typeof platform === "object") {
-      const capabilities = platformCapabilities(platform);
-      if (Object.keys(capabilities).length === 0) {
-        return { available: false, reason: "平台能力未知" };
-      }
-      const publisherManagedAuth = capabilities.browserSession === true || capabilities.apiKey === true;
-      if (!publisherManagedAuth) {
-        if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
-        if (!platform.loggedIn) return { available: false, reason: "未登录" };
-      }
+    const capabilities = platformCapabilities(platform);
+    if (Object.keys(capabilities).length === 0) {
+      return { available: false, reason: "平台能力未知" };
+    }
+    const publisherManagedAuth = capabilities.browserSession === true || capabilities.apiKey === true;
+    if (!publisherManagedAuth) {
+      if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
+      if (!platform.loggedIn) return { available: false, reason: "未登录" };
     }
     if (!article) return { available: true, reason: "" };
     const language = publishingProfile.language || "zh-CN";
@@ -81,10 +75,6 @@
     if (state === "completed") return { kind: "ok", label: resultLabels[result] || "完成" };
     if (state === "failed") return { kind: "error", label: "失败" };
     return { kind: "unknown", label: state || "未知" };
-  }
-
-  function platformLabel(status, id) {
-    return statusPlatform(status, id)?.label || id;
   }
 
   function platformRows(job, status) {
