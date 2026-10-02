@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	MermaidCLIPackage       = "@mermaid-js/mermaid-cli@11.17.0"
-	PlantUMLVersion         = "1.2026.7"
-	PlantUMLJarSHA256       = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
+	MermaidCLIPackage      = "@mermaid-js/mermaid-cli@11.17.0"
+	PlantUMLVersion        = "1.2026.7"
+	PlantUMLJarSHA256      = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
 	MaxPublishingImageSize = 4096
 )
 
