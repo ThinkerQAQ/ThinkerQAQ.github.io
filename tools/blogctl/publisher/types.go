@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
+	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 )
 
 type BrowserCookie struct {
@@ -42,7 +42,7 @@ type PublishingAsset struct {
 	Source    string
 }
 
-type R2FallbackConfig = blogassets.R2Config
+type R2FallbackConfig = blogr2.Config
 
 type DraftInput struct {
 	Slug               string
