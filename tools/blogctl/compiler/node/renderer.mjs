@@ -1,11 +1,11 @@
 import { pathToFileURL } from "node:url";
 
-import { renderPlatformHtml } from "../../../../scripts/distribute.mjs";
-import { renderPublishingFooter } from "../../../../scripts/publishing-config.mjs";
+import { renderPlatformHtml } from "./html.mjs";
+import { renderPublishingFooter } from "./publishing-config.mjs";
 import {
   buildMediumCopyHtml,
   buildMediumDraft,
-} from "../../../../scripts/medium.mjs";
+} from "./medium.mjs";
 import {
   assertNoUncompiledDiagrams,
   compilePublishingMarkdown,
