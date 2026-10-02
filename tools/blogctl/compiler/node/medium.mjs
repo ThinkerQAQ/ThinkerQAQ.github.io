@@ -1,8 +1,4 @@
-import {
-  defaultPlatformPublishingConfig,
-  nativeCanonicalUrl,
-  renderPublishingFooter,
-} from "./publishing-config.mjs";
+import { renderPublishingFooter } from "./publishing-config.mjs";
 import { compilePublishingMarkdown } from "./compiler.mjs";
 
 export const SITE_ORIGIN = "https://thinkerqaq.github.io";
@@ -438,13 +434,6 @@ function publishingLanguage(publishingConfig) {
   return publishingConfig?.language === "zh-CN" ? "zh-CN" : "en";
 }
 
-function mediumCanonicalUrl(slug, publishingConfig) {
-  const language = publishingLanguage(publishingConfig);
-  const prefix = language === "en" ? "/en/articles/" : "/articles/";
-  const encodedSlug = String(slug).split("/").map(encodeURIComponent).join("/");
-  return new URL(`${prefix}${encodedSlug}/`, SITE_ORIGIN).toString();
-}
-
 function footerData(article, canonicalUrl, publishingConfig) {
   const language = publishingLanguage(publishingConfig);
   const markdown = renderPublishingFooter(publishingConfig, {
@@ -457,10 +446,10 @@ function footerData(article, canonicalUrl, publishingConfig) {
 }
 
 export function buildMediumDraft(article, {
-  slug,
-  publishingConfig = defaultPlatformPublishingConfig("medium"),
+  canonicalUrl,
+  publishingConfig,
 }) {
-  const canonicalUrl = mediumCanonicalUrl(slug, publishingConfig);
+  if (!canonicalUrl || !publishingConfig) throw new Error("Medium renderer requires Go-resolved canonicalUrl and publishingConfig");
   const compiled = compilePublishingMarkdown(article.body, {
     platform: "medium",
     siteOrigin: SITE_ORIGIN,
@@ -505,8 +494,6 @@ export function buildMediumDraft(article, {
   }
   return {
     title: article.title,
-    canonicalUrl: nativeCanonicalUrl(canonicalUrl, publishingConfig),
-    tags: article.tags.slice(0, MEDIUM_MAX_TAGS),
     coverImage: coverUrl ? { url: coverUrl, alt: article.coverImageAlt || "" } : null,
     deltas,
     warnings,
@@ -557,10 +544,10 @@ function renderBlocks(blocks) {
 }
 
 export function buildMediumCopyHtml(article, {
-  slug,
-  publishingConfig = defaultPlatformPublishingConfig("medium"),
+  canonicalUrl,
+  publishingConfig,
 }) {
-  const canonicalUrl = mediumCanonicalUrl(slug, publishingConfig);
+  if (!canonicalUrl || !publishingConfig) throw new Error("Medium renderer requires Go-resolved canonicalUrl and publishingConfig");
   const compiled = compilePublishingMarkdown(article.body, {
     platform: "medium",
     siteOrigin: SITE_ORIGIN,
