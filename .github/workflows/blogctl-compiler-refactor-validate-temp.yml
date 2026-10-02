@@ -42,6 +42,9 @@ jobs:
       - name: Test compiler renderer
         run: npm run test:distribute
 
+      - name: Test site diagrams without Java
+        run: npm run test:diagrams
+
       - name: Test BlogCTL extension
         run: npm run test:blogctl-extension
 
