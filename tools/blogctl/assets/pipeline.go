@@ -78,7 +78,8 @@ type Pipeline struct {
 	R2          blogr2.Config
 	Runner      ProcessRunner
 
-	mu sync.Mutex
+	mu        sync.Mutex
+	delivered map[string]struct{}
 }
 
 func (p *Pipeline) Prepare(ctx context.Context, input []blogcompiler.Asset) error {
@@ -154,6 +155,12 @@ func (p *Pipeline) deliverGeneratedAsset(ctx context.Context, asset blogcompiler
 	if !blogr2.IsConfigured(p.R2) {
 		return errors.New("R2 is required for a generated asset without native image upload")
 	}
+	objectKey := strings.TrimSpace(asset.ObjectKey)
+	if p.delivered != nil {
+		if _, ok := p.delivered[objectKey]; ok {
+			return nil
+		}
+	}
 	payload, err := os.ReadFile(file)
 	if err != nil {
 		return err
@@ -165,6 +172,10 @@ func (p *Pipeline) deliverGeneratedAsset(ctx context.Context, asset blogcompiler
 	if result.PublicURL != publicURL {
 		return fmt.Errorf("R2 public URL mismatch for %s", asset.ObjectKey)
 	}
+	if p.delivered == nil {
+		p.delivered = map[string]struct{}{}
+	}
+	p.delivered[objectKey] = struct{}{}
 	return nil
 }
 
