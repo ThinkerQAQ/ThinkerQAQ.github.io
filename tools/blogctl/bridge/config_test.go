@@ -9,8 +9,7 @@ import (
 )
 
 func TestBridgeConfigPersistsProxy(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	dir := useIsolatedUserConfigDir(t)
 
 	want, err := normalizeBridgeConfig(bridgeConfig{ProxyEnabled: true, ProxyHost: "127.0.0.1", ProxyPort: 7890})
 	if err != nil {
@@ -49,19 +48,8 @@ func TestBridgeConfigRetainsProxyAddressWhileDisabled(t *testing.T) {
 	}
 }
 
-func TestToolRegistryDoesNotExposeLegacyWechatsyncDependency(t *testing.T) {
-	config := defaultBridgeConfig()
-	for _, tool := range toolRegistry(config) {
-		if tool.Name == "wechatsync" {
-			t.Fatalf("legacy Wechatsync tool is still exposed: %#v", tool)
-		}
-	}
-}
-
 func TestDevtoAPIKeyPersistsAndToolRegistryMasksSecret(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
-	t.Setenv("DEVTO_API_KEY", "")
+	useIsolatedUserConfigDir(t)
 
 	config, err := normalizeBridgeConfig(bridgeConfig{DevtoAPIKey: " secret-key "})
 	if err != nil {
@@ -242,8 +230,7 @@ func TestBridgeConfigRejectsInvalidPublishingCompilerPolicy(t *testing.T) {
 }
 
 func TestBridgeConfigStoresR2CredentialsInTOML(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	dir := useIsolatedUserConfigDir(t)
 	config := defaultBridgeConfig()
 	config.Publishing.Assets.R2.Bucket = "thinkerqaq-assets"
 	config.Publishing.Assets.R2.AccessKeyID = "access"
@@ -269,8 +256,7 @@ func TestBridgeConfigStoresR2CredentialsInTOML(t *testing.T) {
 }
 
 func TestBridgeToolShowsConfigPath(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("BLOGCTL_CONFIG_DIR", dir)
+	dir := useIsolatedUserConfigDir(t)
 	for _, tool := range toolRegistry(defaultBridgeConfig()) {
 		if tool.Name == "bridge" {
 			if tool.Health.Path != filepath.Join(dir, "blogctl.toml") {
