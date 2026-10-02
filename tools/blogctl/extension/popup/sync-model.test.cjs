@@ -5,7 +5,7 @@ const { runInNewContext } = require("node:vm");
 
 const context = {};
 runInNewContext(readFileSync(__dirname + "/sync-model.js", "utf8"), context);
-const { canUpdatePublished, canUpdateCNBlogsPublished } = context.BlogCTLSyncModel;
+const { canUpdatePublished } = context.BlogCTLSyncModel;
 
 test("published update follows platform capabilities", () => {
   const status = {
@@ -22,7 +22,3 @@ test("published update follows platform capabilities", () => {
   assert.equal(canUpdatePublished("example", ["cnblogs"], false, status), false);
 });
 
-test("legacy CNBlogs helper remains compatible during extension transition", () => {
-  assert.equal(canUpdateCNBlogsPublished("example", ["cnblogs"], true), true);
-  assert.equal(canUpdateCNBlogsPublished("example", ["juejin"], true), false);
-});
