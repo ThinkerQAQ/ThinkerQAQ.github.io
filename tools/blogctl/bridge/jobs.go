@@ -163,10 +163,7 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 		if job == nil {
 			continue
 		}
-		if job.Kind == "search" && job.Type == "bing-indexnow" {
-			job.Type = "indexnow-submit"
-			job.Title = strings.Replace(job.Title, "Bing", "IndexNow", 1)
-			job.UpdatedAt = stamp
+		if migrateLegacySearchTask(job, stamp) {
 			changed = true
 		}
 		switch job.State {
