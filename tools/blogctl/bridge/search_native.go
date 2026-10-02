@@ -216,3 +216,13 @@ func encodeSearchResult(value any) (json.RawMessage, error) {
 	}
 	return json.RawMessage(data), nil
 }
+
+func maxSearchHTTPStatus(results []searchHTTPResult) int {
+	status := 0
+	for _, result := range results {
+		if result.HTTPStatus > status {
+			status = result.HTTPStatus
+		}
+	}
+	return status
+}
