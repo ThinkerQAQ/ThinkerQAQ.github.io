@@ -44,11 +44,36 @@ func TestWingetArgsCarryGlobalProxy(t *testing.T) {
 	}
 }
 
+func TestJavaWingetPackageMappingDoesNotSwitchVendor(t *testing.T) {
+	cases := []struct {
+		vendor string
+		major  int
+		want   string
+	}{
+		{"Eclipse Adoptium", 21, "EclipseAdoptium.Temurin.21.JDK"},
+		{"Microsoft", 21, "Microsoft.OpenJDK.21"},
+		{"Oracle Corporation", 21, "Oracle.JDK.21"},
+		{"Azul Systems, Inc.", 17, "Azul.Zulu.17.JDK"},
+	}
+	for _, test := range cases {
+		got, err := javaWingetPackageForVendor(test.vendor, test.major)
+		if err != nil {
+			t.Fatalf("%s: %v", test.vendor, err)
+		}
+		if got != test.want {
+			t.Fatalf("%s package = %q, want %q", test.vendor, got, test.want)
+		}
+	}
+	if _, err := javaWingetPackageForVendor("JetBrains s.r.o.", 21); err == nil {
+		t.Fatal("unknown Java vendor should not be switched automatically")
+	}
+}
+
 func TestDependencyUpdateActionsAreExposed(t *testing.T) {
 	config := defaultBridgeConfig()
 	seen := map[string]bool{}
 	for _, tool := range toolRegistry(config) {
-		if tool.Name != "node" && tool.Name != "npm" && tool.Name != "git" {
+		if tool.Name != "node" && tool.Name != "npm" && tool.Name != "git" && tool.Name != "java" {
 			continue
 		}
 		for _, action := range tool.Actions {
@@ -57,7 +82,7 @@ func TestDependencyUpdateActionsAreExposed(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"node", "npm", "git"} {
+	for _, name := range []string{"node", "npm", "git", "java"} {
 		if !seen[name] {
 			t.Fatalf("%s update action missing", name)
 		}
