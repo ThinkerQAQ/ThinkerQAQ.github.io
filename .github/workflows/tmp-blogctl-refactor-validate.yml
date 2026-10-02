@@ -6,13 +6,15 @@ on:
       - docs/blogctl-go-runtime-ci-refactor-20261001
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: docs/blogctl-go-runtime-ci-refactor-20261001
       - uses: actions/setup-go@v6
         with:
           go-version-file: tools/blogctl/go.mod
@@ -22,10 +24,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Check Go formatting
+      - name: Format Go sources
         run: |
-          files="$(gofmt -l tools/blogctl)"
-          test -z "$files" || { echo "$files"; exit 1; }
+          gofmt -w tools/blogctl
+          if ! git diff --quiet -- tools/blogctl; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add tools/blogctl
+            git commit -m "style(blogctl): gofmt refactor"
+            git push origin HEAD:docs/blogctl-go-runtime-ci-refactor-20261001
+          fi
       - name: Test BlogCTL Go packages
         run: go test ./tools/blogctl/...
       - name: Check renderer syntax
