@@ -132,7 +132,6 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	if config.ToolPaths == nil {
 		config.ToolPaths = map[string]string{}
 	}
-	delete(config.ToolPaths, "java")
 	if config.Publishing.Platforms == nil {
 		config.Publishing.Platforms = map[string]publishingPlatformConfig{}
 	}
