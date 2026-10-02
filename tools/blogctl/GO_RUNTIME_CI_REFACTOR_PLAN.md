@@ -10,29 +10,31 @@
 
 Started on branch `docs/blogctl-go-runtime-ci-refactor-20261001`.
 
-Completed in the first refactor slice:
+Completed:
 
-- removed `pr-validate.yml`, `search-submit.yml`, and `ai-search-health.yml`
-- simplified `deploy.yml`
-- added `blogctl site build`
-- added `blogctl ai-search prepare|sync|verify`
-- moved AI Search health polling into Go
-- added `blogctl search notify`
-- removed the standalone `check-ai-search-health.mjs`
-- deployment now routes site build, AI Search, and search notification through BlogCTL
+- removed redundant `pr-validate.yml`, `search-submit.yml`, and `ai-search-health.yml`
+- simplified `deploy.yml`; CI now builds BlogCTL from the current checkout
+- added `blogctl site build`, `blogctl ai-search prepare|sync|verify`, and `blogctl search notify`
+- moved Search inventory, fingerprinting, diff/snapshot logic, IndexNow, Baidu, Google OAuth, sitemap submission, and URL Inspection to Go
+- added Baidu TOML config, durable task state, separate snapshot, Bridge route, and Extension UI
+- removed the complete `tools/blogctl/search/node/` runtime and the legacy root IndexNow script
+- kept Google **Request Indexing** in Extension JS because that path is browser/Search Console UI automation
+- removed standalone AI Search health scheduling; health polling now runs through BlogCTL after sync
+- deployment search notification is now a pure Go BlogCTL job; Node is no longer required in `notify-search`
 
-Current compatibility boundary:
+Remaining compatibility boundary:
 
-- Search provider implementation still calls the existing Node search runtime internally
-- AI Search sync/evaluation still calls existing Node scripts internally
-- those internal Node implementations are the next migration targets; the CI command surface is already unified
+- AI Search document preparation/sync/retrieval evaluation still invokes existing Node scripts internally
+- site assembly and Pagefind remain Node-based ecosystem tools behind `blogctl site build`
+- compiler/assets/Medium cleanup is still pending
 
 Next slice:
 
-1. Search Core + Baidu in Go
-2. IndexNow + Google API providers in Go
-3. delete `tools/blogctl/search/node`
-4. move AI Search sync/evaluation implementation from Node into Go
+1. finish Search review/tests and remove stale documentation/references
+2. migrate AI Search prepare/sync/evaluation backend logic to Go
+3. unify R2/storage in Go
+4. migrate asset orchestration and then compiler backend logic
+
 
 ---
 
@@ -685,21 +687,21 @@ Likewise, BlogCTL release, Worker release and analytics remain separate because 
 
 # 15. Migration sequence
 
-## R1 — Search Core + Baidu
+## R1 — Search Core + Baidu — completed
 
-- add Go Inventory / Diff / Snapshot
-- add Go Baidu provider
-- add Baidu TOML config / Bridge state / job / UI
-- keep Google Request Indexing browser JS unchanged
+- Go Inventory / Diff / provider snapshots
+- Go Baidu provider
+- Baidu TOML config / Bridge state / durable job / UI
+- Google Request Indexing remains Browser JS
 
-## R2 — Search providers
+## R2 — Search providers — completed
 
 - IndexNow → Go
 - Google auth/sitemap/inspection → Go
 - Go `blogctl search` CLI
-- delete `tools/blogctl/search/node`
-- convert `search-submit.yml`
-- convert deploy search notification
+- deleted `tools/blogctl/search/node`
+- deleted standalone `search-submit.yml`
+- deploy search notification → current-checkout BlogCTL Go binary
 
 ## R3 — Shared R2 + assets
 
