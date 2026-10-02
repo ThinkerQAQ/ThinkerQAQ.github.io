@@ -84,6 +84,10 @@ type NativeDraftPublisher interface {
 	PublishDraft(ctx context.Context, request NativePublishRequest) (NativePublishResult, error)
 }
 
+type AssetPreparer interface {
+	Prepare(ctx context.Context, assets []blogcompiler.Asset) error
+}
+
 type SyncEvent struct {
 	Platform string `json:"platform,omitempty"`
 	State    string `json:"state"`
@@ -109,6 +113,7 @@ func (OSCommandRunner) Run(ctx context.Context, name string, args []string, dir 
 type SyncService struct {
 	Runner          CommandRunner
 	NativePublisher NativeDraftPublisher
+	AssetPreparer   AssetPreparer
 	OnEvent         func(SyncEvent)
 }
 
@@ -370,6 +375,33 @@ func (s SyncService) runSyncPlan(
 		}
 		if validationFailed {
 			return result
+		}
+
+		if !request.DryRun {
+			assetPreparationFailed := false
+			for _, compiled := range compiledArticles {
+				if len(compiled.Assets) == 0 {
+					continue
+				}
+				if s.AssetPreparer == nil {
+					message := "asset preparer is not configured"
+					emit(SyncEvent{Platform: compiled.Platform, State: "failed", Message: message})
+					terminal[compiled.Platform] = true
+					result.failures = append(result.failures, entry.Group+": "+message)
+					assetPreparationFailed = true
+					continue
+				}
+				if err := s.AssetPreparer.Prepare(ctx, compiled.Assets); err != nil {
+					message := "prepare publishing assets: " + err.Error()
+					emit(SyncEvent{Platform: compiled.Platform, State: "failed", Message: message})
+					terminal[compiled.Platform] = true
+					result.failures = append(result.failures, entry.Group+": "+message)
+					assetPreparationFailed = true
+				}
+			}
+			if assetPreparationFailed {
+				return result
+			}
 		}
 
 		if request.DryRun {
