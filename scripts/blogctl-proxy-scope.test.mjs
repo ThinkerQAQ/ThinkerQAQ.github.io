@@ -14,10 +14,9 @@ test("BlogCTL proxy stays scoped to BlogCTL components", async () => {
   assert.doesNotMatch(background, /pac_script|fixed_servers/u);
 });
 
-test("extension only edits Bridge proxy configuration", async () => {
+test("extension edits environment configuration through the Bridge tools API", async () => {
   const background = await readFile(backgroundPath, "utf8");
-  assert.match(background, /fetchJSON\("\/v1\/config", jsonOptions\("PUT", payload\)\)/u);
-  assert.match(background, /proxyEnabled/u);
-  assert.match(background, /proxyHost/u);
-  assert.match(background, /proxyPort/u);
+  assert.match(background, /fetchJSON\("\/v1\/tools"\)/u);
+  assert.match(background, /\/v1\/tools\/\$\{encodeURIComponent\(name\)\}/u);
+  assert.doesNotMatch(background, /chrome\.proxy/u);
 });
