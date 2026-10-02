@@ -1,14 +1,13 @@
 name: Validate
 
 on:
-  pull_request:
-    branches: [main]
+  push:
 
 permissions:
   contents: read
 
 concurrency:
-  group: validate-${{ github.event.pull_request.number || github.ref }}
+  group: validate-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
