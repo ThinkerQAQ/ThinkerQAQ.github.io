@@ -47,9 +47,8 @@ var mediumInlinePatterns = []inlineTokenPattern{
 	{"link", regexp.MustCompile(`\[([^]]+)\]\(([^)]+)\)`)},
 	{"bold", regexp.MustCompile(`\*\*([^*]+?)\*\*`)},
 	{"strike", regexp.MustCompile(`~~([^~]+?)~~`)},
-	{"code", regexp.MustCompile("\`([^\`\\n]+)\`")},
+	{"code", regexp.MustCompile("`([^`\\n]+)`")},
 	{"italic", regexp.MustCompile(`\*([^*\n]+?)\*`)},
-
 }
 
 type mediumInlineToken struct {
