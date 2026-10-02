@@ -534,13 +534,8 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
-	raw, err := s.runSearchNode(request.Context(), s.config, "inventory", nil)
+	inventory, err := s.fetchSearchInventory(request.Context())
 	if err != nil {
-		writeError(response, err)
-		return
-	}
-	var inventory searchInventoryState
-	if err := decodeSearchResult(raw, &inventory); err != nil {
 		writeError(response, err)
 		return
 	}
@@ -595,38 +590,8 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 	_ = saveSearchIndexState(state)
 
 	previous := loadBingIndexSnapshot()
-	raw, err := s.runSearchNode(request.Context(), s.config, "bing-submit", map[string]any{
-		"mode":     input.Mode,
-		"previous": previous,
-	})
+	payload, err := s.submitBingIndexNow(request.Context(), input.Mode, previous)
 	if err != nil {
-		state.Bing.State = "failed"
-		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Bing.Error = err.Error()
-		_ = saveSearchIndexState(state)
-		writeError(response, err)
-		return
-	}
-
-	var payload struct {
-		Inventory searchInventoryState `json:"inventory"`
-		Diff      struct {
-			Mode           string `json:"mode"`
-			SelectedCount  int    `json:"selectedCount"`
-			AddedCount     int    `json:"addedCount"`
-			ChangedCount   int    `json:"changedCount"`
-			DeletedCount   int    `json:"deletedCount"`
-			UnchangedCount int    `json:"unchangedCount"`
-		} `json:"diff"`
-		Result struct {
-			URLCount   int `json:"urlCount"`
-			BatchCount int `json:"batchCount"`
-			Results    []struct {
-				HTTPStatus int `json:"httpStatus"`
-			} `json:"results"`
-		} `json:"result"`
-	}
-	if err := decodeSearchResult(raw, &payload); err != nil {
 		state.Bing.State = "failed"
 		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Bing.Error = err.Error()
@@ -650,7 +615,7 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
 		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
 		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
-		HTTPStatus: aggregateHTTPStatus(payload.Result.Results),
+		HTTPStatus: maxSearchHTTPStatus(payload.Result.Results),
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
