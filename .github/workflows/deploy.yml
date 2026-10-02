@@ -222,30 +222,21 @@ jobs:
         working-directory: engine/tools/blogctl
         run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
 
-      - name: Prepare BlogCTL search config
-        shell: bash
-        env:
-          XDG_CONFIG_HOME: ${{ runner.temp }}/blogctl-config
-        run: |
-          mkdir -p "$XDG_CONFIG_HOME/BlogCTL"
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          path = Path(os.environ["XDG_CONFIG_HOME"]) / "BlogCTL" / "blogctl.toml"
-          service_account = os.environ.get("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", "")
-          path.write_text(
-              "google_search_console_service_json = " + json.dumps(service_account) + "\n",
-              encoding="utf-8",
-          )
-          PY
-
       - name: Notify search engines
         working-directory: engine
-        env:
-          XDG_CONFIG_HOME: ${{ runner.temp }}/blogctl-config
-        run: '"$RUNNER_TEMP/blogctl" search notify --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL"'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args=(search notify --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL")
+          if [[ -n "${GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON:-}" ]]; then
+            credentials="$RUNNER_TEMP/google-search-console-service-account.json"
+            umask 077
+            printf '%s' "$GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON" > "$credentials"
+            args+=(--google-service-account-file "$credentials")
+          fi
+
+          "$RUNNER_TEMP/blogctl" "${args[@]}"
 
   record-content-state:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && inputs.content_sha != ''
