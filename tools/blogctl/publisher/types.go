@@ -3,6 +3,8 @@ package publisher
 import (
 	"context"
 	"net/http"
+
+	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
 )
 
 type BrowserCookie struct {
@@ -40,14 +42,7 @@ type PublishingAsset struct {
 	Source    string
 }
 
-type R2FallbackConfig struct {
-	AccessKeyID     string
-	SecretAccessKey string
-	AccountID       string
-	Endpoint        string
-	Bucket          string
-	PublicBaseURL   string
-}
+type R2FallbackConfig = blogassets.R2Config
 
 type DraftInput struct {
 	Slug               string
