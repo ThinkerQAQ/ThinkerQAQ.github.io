@@ -33,9 +33,6 @@ type searchOperationState struct {
 	DeletedCount   int    `json:"deletedCount,omitempty"`
 	UnchangedCount int    `json:"unchangedCount,omitempty"`
 	HTTPStatus     int    `json:"httpStatus,omitempty"`
-	PendingCount   int    `json:"pendingCount,omitempty"`
-	DailyQuota     int    `json:"dailyQuota,omitempty"`
-	MonthlyQuota   int    `json:"monthlyQuota,omitempty"`
 	Error          string `json:"error,omitempty"`
 }
 
@@ -91,8 +88,6 @@ type googleIndexRequestQueue struct {
 type searchIndexState struct {
 	Inventory       searchInventoryState `json:"inventory"`
 	IndexNow        searchOperationState `json:"indexNow"`
-	Bing            searchOperationState `json:"bing"`
-	BingConfigured  bool                 `json:"bingConfigured"`
 	Baidu           searchOperationState `json:"baidu"`
 	BaiduConfigured bool                 `json:"baiduConfigured"`
 	Google          struct {
@@ -107,7 +102,6 @@ type searchIndexState struct {
 func defaultSearchIndexState() searchIndexState {
 	state := searchIndexState{}
 	state.IndexNow.State = "idle"
-	state.Bing.State = "idle"
 	state.Baidu.State = "idle"
 	state.Google.Sitemaps.State = "idle"
 	state.Google.Inspection.State = "idle"
@@ -166,44 +160,6 @@ func loadIndexNowSnapshot() searchInventoryState {
 	return loadSearchProviderSnapshot("indexnow-snapshot.json")
 }
 
-type bingIndexSnapshot struct {
-	Inventory searchInventoryState `json:"inventory"`
-	Pending   []string             `json:"pending,omitempty"`
-}
-
-func loadBingIndexSnapshot() bingIndexSnapshot {
-	path, err := searchProviderSnapshotPath("bing-snapshot.json")
-	if err != nil {
-		return bingIndexSnapshot{}
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return bingIndexSnapshot{}
-	}
-	var snapshot bingIndexSnapshot
-	if json.Unmarshal(data, &snapshot) != nil {
-		return bingIndexSnapshot{}
-	}
-	sort.Strings(snapshot.Pending)
-	return snapshot
-}
-
-func saveBingIndexSnapshot(snapshot bingIndexSnapshot) error {
-	path, err := searchProviderSnapshotPath("bing-snapshot.json")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	sort.Strings(snapshot.Pending)
-	data, err := json.MarshalIndent(snapshot, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o600)
-}
-
 func loadBaiduIndexSnapshot() searchInventoryState {
 	return loadSearchProviderSnapshot("baidu-snapshot.json")
 }
@@ -237,9 +193,6 @@ func loadSearchIndexState() searchIndexState {
 	}
 	if state.IndexNow.State == "" {
 		state.IndexNow.State = "idle"
-	}
-	if state.Bing.State == "" {
-		state.Bing.State = "idle"
 	}
 	if state.Baidu.State == "" {
 		state.Baidu.State = "idle"
@@ -286,7 +239,6 @@ func googleInspectionQuotaMessage() string {
 }
 
 func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) {
-	state.BingConfigured = bingAPIKey(config) != ""
 	state.BaiduConfigured = baiduToken(config) != ""
 	raw := googleSearchConsoleServiceJSON(config)
 	state.Google.CredentialsConfigured = false
@@ -372,7 +324,6 @@ func (s *Server) reconcileSearchStateWithDurableTasks(state *searchIndexState) {
 		return
 	}
 	applyDurableTaskToOperation(&state.IndexNow, s.latestDurableSearchTask("indexnow-submit"))
-	applyDurableTaskToOperation(&state.Bing, s.latestDurableSearchTask("bing-submit"))
 	applyDurableTaskToOperation(&state.Baidu, s.latestDurableSearchTask("baidu-submit"))
 	applyDurableTaskToOperation(&state.Google.Sitemaps, s.latestDurableSearchTask("google-sitemaps"))
 	applyDurableTaskToInspection(&state.Google.Inspection, s.latestDurableSearchTask("google-inspection"))
