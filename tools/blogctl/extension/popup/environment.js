@@ -15,7 +15,7 @@
   })();
   const expandedTools = storedExpandedTools ?? new Set();
   let initializedExpansion = storedExpandedTools !== null;
-  let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus;
+  let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus, configPath;
   let assetConfigCard, platformConfigCard, searchEngineCard, message;
 
   function persistExpandedTools() {
@@ -137,10 +137,10 @@
       detail.textContent = detailText;
       body.append(detail);
     }
-    if (tool.health?.path) {
+    if (tool.health?.path && tool.name !== "bridge") {
       const pathValue = document.createElement("code");
       pathValue.className = "path-value";
-      pathValue.textContent = tool.name === "bridge" ? `配置 ${tool.health.path}` : tool.health.path;
+      pathValue.textContent = tool.health.path;
       body.append(pathValue);
     }
 
@@ -226,6 +226,8 @@
 
   function renderTools() {
     const tools = state.tools.filter((item) => item.kind !== "publishing");
+    const bridgeTool = tools.find((item) => item.name === "bridge");
+    configPath.textContent = bridgeTool?.health?.path || "未找到 blogctl.toml";
     const searchNames = new Set(["indexnow", "bing-webmaster", "baidu-search-resource", "google-search-console-api"]);
     const searchTools = tools.filter((item) => searchNames.has(item.name));
     const dependencyItems = tools.filter((item) => item.kind === "dependency");
@@ -269,6 +271,7 @@
     searchEngineTools = document.getElementById("searchEngineTools");
     dependencyTools = document.getElementById("environmentDependencyTools");
     searchEngineStatus = document.getElementById("searchEngineEnvironmentStatus");
+    configPath = document.getElementById("environmentConfigPath");
     assetConfigCard = document.getElementById("assetConfigEnvironmentCard");
     platformConfigCard = document.getElementById("platformConfigEnvironmentCard");
     searchEngineCard = document.getElementById("searchEngineEnvironmentCard");

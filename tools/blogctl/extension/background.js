@@ -286,46 +286,33 @@ function runtimeVersionHealth(version, expectedVersion, healthySummary, detail =
 async function environmentTools(serverTools = []) {
   const bridge = await bridgeStatus();
   const expectedVersion = bridge.extensionVersion || chrome.runtime.getManifest().version;
-  const extensionTool = {
-    name: "extension",
-    displayName: "BlogCTL Extension",
-    kind: "runtime",
-    description: "浏览器侧控制面、登录态检测与本地 Bridge 调度。",
-    required: true,
-    health: runtimeVersionHealth(expectedVersion, expectedVersion, "已加载", `Extension ID ${chrome.runtime.id}`),
-    config: { scope: "extension", values: {}, defaultExpanded: true },
-  };
-  const nativeHostTool = {
-    name: "native-host",
-    displayName: "BlogCTL Native Host",
-    kind: "runtime",
-    description: "浏览器 Native Messaging 入口；负责定位并启动本机 BlogCTL Bridge。",
-    required: true,
-    health: bridge.running
-      ? runtimeVersionHealth(
-          bridge.nativeHostVersion, expectedVersion, "已连接",
-          "Native Messaging Host", bridge.nativeHostExecutable,
-        )
-      : {
-          ok: false, status: "error", summary: "未连接", version: bridge.nativeHostVersion || "",
-          detail: bridge.error || "Native Host unavailable", path: bridge.nativeHostExecutable || "",
-        },
-    config: { scope: "native-host", values: {}, defaultExpanded: true },
-  };
   const tools = serverTools.map((tool) => {
     if (tool?.name !== "bridge") return tool;
     const current = tool.health ?? {};
-    const versionHealth = bridge.running
-      ? runtimeVersionHealth(bridge.bridgeVersion || current.version, expectedVersion, "运行中", current.detail || "")
-      : {
+    const versionDetail = [
+      bridge.extensionVersion ? `Extension v${bridge.extensionVersion}` : "",
+      bridge.nativeHostVersion ? `Native Host v${bridge.nativeHostVersion}` : "Native Host 版本未知",
+      bridge.bridgeVersion ? `Bridge v${bridge.bridgeVersion}` : "Bridge 版本未知",
+    ].filter(Boolean).join(" · ");
+    const versionHealth = !bridge.running
+      ? {
           ok: false, status: "error", summary: "未运行", version: bridge.bridgeVersion || current.version || "",
           detail: bridge.error || current.detail || "Bridge unavailable",
-        };
+        }
+      : bridge.compatible === false
+        ? {
+            ok: false, status: "error", summary: "运行时版本不一致", version: bridge.bridgeVersion || current.version || "",
+            detail: versionDetail,
+          }
+        : runtimeVersionHealth(
+            bridge.bridgeVersion || current.version,
+            expectedVersion,
+            "运行中",
+            current.detail || "",
+          );
     return { ...tool, health: { ...current, ...versionHealth } };
   });
-  const bridgeTool = tools.find((tool) => tool?.name === "bridge");
-  const remainingTools = tools.filter((tool) => tool?.name !== "bridge");
-  return [extensionTool, ...(bridgeTool ? [bridgeTool] : []), nativeHostTool, ...remainingTools];
+  return tools;
 }
 
 async function platformSessionStatus(platform, bridge) {
