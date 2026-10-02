@@ -600,7 +600,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
 		},
 		{
-			Name: "java", DisplayName: "Java (PlantUML)", Kind: "dependency", Required: false,
+			Name: "java", DisplayName: "Java", Kind: "dependency", Required: false,
 			Description: "可选。只有网站构建或发布内容包含 PlantUML（puml / plantuml / UML）时才需要，用于运行 PlantUML JAR 渲染图表。",
 			Health:      executableHealth(config, "java"),
 			Actions: []toolAction{{
