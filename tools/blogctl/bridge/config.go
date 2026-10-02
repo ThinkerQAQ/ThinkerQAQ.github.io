@@ -163,6 +163,7 @@ func resolvedPublishingJSON(config bridgeConfig) (string, error) {
 	publishing.Assets.R2.SecretAccessKey = ""
 	publishing.Assets.R2.AccountID = ""
 	publishing.Assets.R2.Endpoint = ""
+	publishing.Assets.R2.Bucket = ""
 	payload, err := json.Marshal(publishing)
 	if err != nil {
 		return "", err
