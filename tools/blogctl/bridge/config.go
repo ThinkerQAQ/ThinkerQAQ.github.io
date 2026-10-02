@@ -3,6 +3,7 @@ package bridge
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -423,18 +424,13 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	if config.Publishing.Assets.Store != "r2" {
 		return config, errors.New("publishing asset store must be r2")
 	}
-	config.Publishing.Assets.R2.Bucket = strings.TrimSpace(config.Publishing.Assets.R2.Bucket)
-	config.Publishing.Assets.R2.PublicBaseURL = strings.TrimSpace(config.Publishing.Assets.R2.PublicBaseURL)
-	config.Publishing.Assets.R2.AccessKeyID = strings.TrimSpace(config.Publishing.Assets.R2.AccessKeyID)
-	config.Publishing.Assets.R2.SecretAccessKey = strings.TrimSpace(config.Publishing.Assets.R2.SecretAccessKey)
-	config.Publishing.Assets.R2.AccountID = strings.TrimSpace(config.Publishing.Assets.R2.AccountID)
-	config.Publishing.Assets.R2.Endpoint = strings.TrimSpace(config.Publishing.Assets.R2.Endpoint)
+	normalizedR2, err := blogassets.NormalizeR2Config(config.Publishing.Assets.R2)
+	if err != nil {
+		return config, fmt.Errorf("publishing R2 config: %w", err)
+	}
+	config.Publishing.Assets.R2 = normalizedR2
 	if config.Publishing.Assets.R2.PublicBaseURL == "" {
 		return config, errors.New("publishing R2 publicBaseUrl is required")
-	}
-	publicBase, err := url.Parse(config.Publishing.Assets.R2.PublicBaseURL)
-	if err != nil || publicBase.Scheme != "https" || publicBase.Host == "" {
-		return config, errors.New("publishing R2 publicBaseUrl must be an HTTPS URL")
 	}
 	for platform, value := range config.Publishing.Platforms {
 		switch strings.ToLower(strings.TrimSpace(value.Language)) {
