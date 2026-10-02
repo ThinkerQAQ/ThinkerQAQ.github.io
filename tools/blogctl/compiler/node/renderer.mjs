@@ -221,7 +221,7 @@ export function renderArticle(request) {
     warnings: compiled.warnings,
     contentHash: sha256(hashSource),
     sourceDir,
-    assets: assets.map(({ kind, id, renderer, source: definition, objectKey, publicUrl, alt }) => ({
+    assets: assets.map(({ kind, id, renderer, definition, objectKey, publicUrl, alt }) => ({
       kind, id, renderer, definition, objectKey, publicUrl, alt,
       source: nativeImageUpload ? internalAssetRef({ kind, id }) : publicUrl,
     })),
