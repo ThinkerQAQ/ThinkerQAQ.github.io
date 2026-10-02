@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 )
 
 type recordedCommand struct {
@@ -74,6 +76,26 @@ func (r *recordingRunner) Run(_ context.Context, name string, args []string, dir
 	return "ok\n", nil
 }
 
+func testCompilePlatform(_ context.Context, options blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error) {
+	articles := append([]string{}, options.Articles...)
+	if options.All && len(articles) == 0 {
+		articles = []string{"all-example"}
+	}
+	result := make([]blogcompiler.CompiledArticle, 0, len(articles))
+	for _, article := range articles {
+		result = append(result, blogcompiler.CompiledArticle{
+			Version: blogcompiler.ProtocolVersion,
+			Slug: article, Platform: options.Platform,
+			Title: "Compiled " + article, Description: "Description",
+			Markdown: "Body", HTML: "<p>Body</p>", Language: "zh-CN",
+			CanonicalURL: "https://thinkerqaq.github.io/articles/" + article + "/",
+			ContentHash: "hash-" + article + "-" + options.Platform,
+			SourceDir: "/tmp/articles",
+		})
+	}
+	return result, nil
+}
+
 type structuredEventRunner struct{}
 
 type nativePublisherStub struct {
@@ -128,6 +150,13 @@ func TestBuildSyncPlanIsolatesEachPlatformCompilerInvocation(t *testing.T) {
 		if plan.Group != "native-publishing" || !plan.Native || !reflect.DeepEqual(plan.Platforms, []string{platform}) {
 			t.Fatalf("plan[%d] = %#v", index, plan)
 		}
+		if platform == "medium" {
+			if plan.Compiler != "node-medium" || !strings.HasSuffix(filepath.ToSlash(plan.Script), "/tools/blogctl/compiler/node/index.mjs") {
+				t.Fatalf("medium plan = %#v", plan)
+			}
+		} else if plan.Compiler != "go" || plan.Script != "" {
+			t.Fatalf("Go compiler plan[%d] = %#v", index, plan)
+		}
 		if !reflect.DeepEqual(plan.Args, []string{
 			"--article", "concurrency-series-00",
 			"--platforms", platform,
@@ -152,7 +181,7 @@ func TestBuildSyncPlanKeepsAllExplicit(t *testing.T) {
 	}
 }
 
-func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
+func TestSyncServiceRunsGoCompilerWithoutLegacyPublishingScripts(t *testing.T) {
 	engineRoot := t.TempDir()
 	contentRoot := t.TempDir()
 	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
@@ -167,7 +196,7 @@ func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
 	writeTestFile(t, npm)
 
 	runner := &recordingRunner{}
-	service := SyncService{Runner: runner}
+	service := SyncService{Runner: runner, Compiler: testCompilePlatform}
 	output, err := service.Run(context.Background(), SyncConfig{
 		EngineRoot:  engineRoot,
 		ContentRoot: contentRoot,
@@ -180,28 +209,11 @@ func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runner.commands) != 2 {
-		t.Fatalf("got %d commands, want 2 isolated compiler invocations", len(runner.commands))
+	if len(runner.commands) != 0 {
+		t.Fatalf("Go compiler unexpectedly launched legacy publishing scripts: %#v", runner.commands)
 	}
-	for _, command := range runner.commands {
-		if command.Name != node {
-			t.Fatalf("command name = %q, want node %q", command.Name, node)
-		}
-		if command.Dir != engineRoot {
-			t.Fatalf("command dir = %q, want %q", command.Dir, engineRoot)
-		}
-		if len(command.Args) == 0 {
-			t.Fatalf("missing command args: %#v", command.Args)
-		}
-		script := filepath.ToSlash(command.Args[0])
-		engine := filepath.ToSlash(engineRoot)
-		if !strings.HasPrefix(script, engine+"/scripts/") &&
-			!strings.HasPrefix(script, engine+"/tools/blogctl/compiler/node/") {
-			t.Fatalf("unexpected publishing invocation: %#v", command.Args)
-		}
-	}
-	if !strings.Contains(output, "\"operation\":\"blogctl-compile\"") {
-		t.Fatalf("output = %q", output)
+	if output != "" {
+		t.Fatalf("unexpected compiler subprocess output = %q", output)
 	}
 }
 
@@ -222,6 +234,7 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 	events := []SyncEvent{}
 	service := SyncService{
 		Runner: structuredEventRunner{},
+		Compiler: testCompilePlatform,
 		OnEvent: func(event SyncEvent) {
 			events = append(events, event)
 		},
@@ -308,7 +321,22 @@ func TestSyncServiceRunsPlatformPlansInParallel(t *testing.T) {
 
 	started := make(chan string, 2)
 	release := make(chan struct{})
-	service := SyncService{Runner: blockingParallelRunner{started: started, release: release}}
+	service := SyncService{
+		Runner: &recordingRunner{},
+		Compiler: func(ctx context.Context, options blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error) {
+			select {
+			case started <- options.Platform:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			select {
+			case <-release:
+				return testCompilePlatform(ctx, options)
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		},
+	}
 	done := make(chan error, 1)
 	go func() {
 		_, err := service.Run(context.Background(), SyncConfig{
@@ -353,6 +381,7 @@ func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	calls := []NativeDraftRequest{}
 	service := SyncService{
 		Runner: runner,
+		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			calls = append(calls, request)
 			return NativeDraftResult{Result: "draft-created", URL: "https://juejin.cn/editor/drafts/123"}, nil
@@ -370,11 +399,8 @@ func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runner.commands) != 1 {
-		t.Fatalf("commands = %#v", runner.commands)
-	}
-	if strings.Contains(strings.Join(runner.commands[0].Args, " "), "--sync") {
-		t.Fatalf("native renderer unexpectedly invoked legacy sync: %#v", runner.commands[0].Args)
+	if len(runner.commands) != 0 {
+		t.Fatalf("Go compiler unexpectedly invoked legacy command: %#v", runner.commands)
 	}
 	if len(calls) != 1 || calls[0].Platform != "juejin" || calls[0].Article != "example" || !calls[0].ChangedOnly ||
 		calls[0].Compiled.ContentHash != "hash-example-juejin" || calls[0].Compiled.Markdown != "Body" {
@@ -420,6 +446,7 @@ func TestSyncServicePublishesNativeDraft(t *testing.T) {
 	var events []SyncEvent
 	service := SyncService{
 		Runner: &recordingRunner{},
+		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{publish: func(_ context.Context, request NativePublishRequest) (NativePublishResult, error) {
 			calls = append(calls, request)
 			return NativePublishResult{Result: "published", URL: "https://juejin.cn/post/123"}, nil
@@ -481,6 +508,7 @@ func TestSyncServiceRoutesLiveMediumThroughNativePublisher(t *testing.T) {
 	var calls []NativeDraftRequest
 	service := SyncService{
 		Runner: &recordingRunner{},
+		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			calls = append(calls, request)
 			return NativeDraftResult{Result: "draft-created", URL: "https://medium.com/p/post-123/edit"}, nil
@@ -538,6 +566,12 @@ func TestSyncServiceIsolatesCompilerFailureToOnePlatform(t *testing.T) {
 	var events []SyncEvent
 	service := SyncService{
 		Runner: compilerFailureRunner{},
+		Compiler: func(ctx context.Context, options blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error) {
+			if options.Platform == "zhihu" {
+				return nil, errors.New("Missing BlogCTL R2 publishing configuration: accessKeyId")
+			}
+			return testCompilePlatform(ctx, options)
+		},
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			return NativeDraftResult{Result: "draft-created", URL: "https://example.com/" + request.Platform}, nil
 		}},
@@ -598,6 +632,7 @@ func TestSyncServiceIsolatesInternationalPublisherFailures(t *testing.T) {
 	var events []SyncEvent
 	service := SyncService{
 		Runner: isolatedFailureRunner{},
+		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			if request.Platform == "devto" {
 				return NativeDraftResult{}, errors.New("DEVTO_API_KEY is required")
