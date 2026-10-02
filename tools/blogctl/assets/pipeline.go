@@ -25,8 +25,8 @@ const (
 )
 
 var (
-	mermaidAssetIDPattern   = regexp.MustCompile(`^[a-f0-9]{24}$`)
-	plantUMLAssetIDPattern  = regexp.MustCompile(`^[a-f0-9]{64}$`)
+	mermaidAssetIDPattern  = regexp.MustCompile(`^[a-f0-9]{24}$`)
+	plantUMLAssetIDPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 )
 
 type MermaidPolicy struct {
