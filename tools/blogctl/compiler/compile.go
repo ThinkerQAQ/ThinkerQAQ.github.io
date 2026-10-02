@@ -20,15 +20,15 @@ import (
 )
 
 type CompileOptions struct {
-	EngineRoot     string
-	ContentRoot    string
-	Publishing     PublishingConfig
-	Node           string
-	Env            []string
-	Platform       string
-	Articles       []string
-	All            bool
-	DryRun         bool
+	EngineRoot  string
+	ContentRoot string
+	Publishing  PublishingConfig
+	Node        string
+	Env         []string
+	Platform    string
+	Articles    []string
+	All         bool
+	DryRun      bool
 }
 
 func CanonicalURL(slug, language string) string {
