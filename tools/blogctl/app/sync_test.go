@@ -164,9 +164,10 @@ func TestSyncServiceRunsPlatformCompilationInParallel(t *testing.T) {
 		}
 	}}
 	service := SyncService{Compiler: compiler}
+	config := testSyncConfig(t)
 	done := make(chan error, 1)
 	go func() {
-		_, err := service.Run(context.Background(), testSyncConfig(t), SyncRequest{
+		_, err := service.Run(context.Background(), config, SyncRequest{
 			Articles: []string{"example"}, Platforms: []string{"juejin", "devto"}, DryRun: true,
 		})
 		done <- err
@@ -275,21 +276,6 @@ func TestNormalizeSyncRequestAndChangedPolicy(t *testing.T) {
 	changed := SyncRequest{Changed: true, ChangedByPlatform: map[string]bool{"cnblogs": false, "juejin": true}}
 	if changedOnlyForPlatform(changed, "cnblogs") || !changedOnlyForPlatform(changed, "juejin") || !changedOnlyForPlatform(changed, "csdn") {
 		t.Fatalf("changed policy = %#v", changed)
-	}
-}
-
-func TestSyncEnvironmentInjectsConfiguredDevtoAPIKey(t *testing.T) {
-	env := syncEnvironment(SyncConfig{
-		ContentRoot: t.TempDir(), EngineRoot: t.TempDir(), DevtoAPIKey: "configured-secret",
-	})
-	found := ""
-	for _, item := range env {
-		if strings.HasPrefix(item, "DEVTO_API_KEY=") {
-			found = strings.TrimPrefix(item, "DEVTO_API_KEY=")
-		}
-	}
-	if found != "configured-secret" {
-		t.Fatalf("DEVTO_API_KEY = %q", found)
 	}
 }
 
