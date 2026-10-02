@@ -5,7 +5,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import { parseFrontmatter } from "astro/markdown";
 import { ROOT, CACHE, OUTPUT, MANIFEST, VERSION, diagramKey, diagramUrl, visitCode, validateSvg, log } from "./plantuml/core.mjs";
-import { ensureJar, renderSvg } from "./plantuml/runtime.mjs";
+import { renderSvg } from "./plantuml/runtime.mjs";
 
 const parser = unified().use(remarkParse);
 const includeDrafts = process.env.INCLUDE_DRAFTS === "true";
@@ -66,7 +66,6 @@ export async function renderAll() {
       pending.push(item);
     }
   }
-  if (pending.length) await ensureJar();
   let next = 0;
   const failures = [];
   await Promise.all(Array.from({ length: Math.min(2, pending.length) }, async () => {
