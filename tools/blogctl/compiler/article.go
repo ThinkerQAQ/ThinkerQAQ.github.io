@@ -133,18 +133,17 @@ func ParseArticle(markdown, source string) (Article, error) {
 		return Article{}, fmt.Errorf("invalid article frontmatter: %s", source)
 	}
 	rest := normalized[len("---\n"):]
-	end := strings.Index(rest, "\n---")
+	end := strings.Index(rest, "\n---\n")
+	markerLength := len("\n---\n")
+	if end < 0 && strings.HasSuffix(rest, "\n---") {
+		end = len(rest) - len("\n---")
+		markerLength = len("\n---")
+	}
 	if end < 0 {
 		return Article{}, fmt.Errorf("invalid article frontmatter: %s", source)
 	}
-	after := rest[end+len("\n---"):]
-	if after != "" && !strings.HasPrefix(after, "\n") {
-		return Article{}, fmt.Errorf("invalid article frontmatter: %s", source)
-	}
-	if strings.HasPrefix(after, "\n") {
-		after = after[1:]
-	}
 	frontmatter := rest[:end]
+	after := rest[end+markerLength:]
 	fields := frontmatterFields(frontmatter)
 
 	title, err := readStringScalar(fields, "title", true)
