@@ -164,7 +164,7 @@ func TestPipelineUploadsGeneratedAssetWhenPlatformHasNoNativeImageUpload(t *test
 }
 
 func TestNormalizePlantUMLSourcePreservesSandboxRules(t *testing.T) {
-	normalized, err := normalizePlantUMLSource("Alice -> Bob: hello")
+	normalized, err := blogcompiler.NormalizePlantUMLSource("Alice -> Bob: hello")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestNormalizePlantUMLSourcePreservesSandboxRules(t *testing.T) {
 		"@startuml\nAlice -> Bob\n@endmindmap",
 		"@enduml\n@startuml\nAlice -> Bob",
 	} {
-		if _, err := normalizePlantUMLSource(source); err == nil {
+		if _, err := blogcompiler.NormalizePlantUMLSource(source); err == nil {
 			t.Fatalf("unsafe/invalid PlantUML accepted: %q", source)
 		}
 	}
