@@ -1,0 +1,162 @@
+export const CONTENT_LANGUAGES = ["zh-CN", "en"];
+
+export const PUBLISHING_PLATFORMS = [
+  "cnblogs",
+  "juejin",
+  "csdn",
+  "segmentfault",
+  "zhihu",
+  "51cto",
+  "oschina",
+  "toutiao",
+  "devto",
+  "medium",
+];
+
+const ZH_FOOTER = "> 本文首发于 [{site}]({url})，由作者本人同步发布。原文可能持续修订，最新版本请以个人博客为准。";
+const EN_FOOTER = "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.";
+
+export function defaultPublishingLanguage(platform) {
+  return platform === "devto" || platform === "medium" ? "en" : "zh-CN";
+}
+
+export function normalizePublishingLanguage(value, fallback = "zh-CN") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "en") return "en";
+  if (normalized === "zh-cn" || normalized === "zh") return "zh-CN";
+  return fallback;
+}
+
+function defaultCanonicalMode(platform) {
+  return platform === "devto" || platform === "medium" ? "native" : "footer";
+}
+
+function defaultFooterTemplate(language) {
+  return language === "en" ? EN_FOOTER : ZH_FOOTER;
+}
+
+export function defaultPlatformPublishingConfig(platform) {
+  const language = defaultPublishingLanguage(platform);
+  return {
+    language,
+    changedOnly: false,
+    footer: {
+      enabled: true,
+      template: defaultFooterTemplate(language),
+    },
+    canonical: {
+      mode: defaultCanonicalMode(platform),
+    },
+    tracking: {
+      enabled: true,
+      source: platform,
+      medium: "referral",
+      campaign: "article_syndication",
+    },
+  };
+}
+
+export function defaultPublishingConfig() {
+  return Object.fromEntries(PUBLISHING_PLATFORMS.map((platform) => [
+    platform,
+    defaultPlatformPublishingConfig(platform),
+  ]));
+}
+
+function legacyTracking(trackingQuery, fallback) {
+  const value = String(trackingQuery || "").trim().replace(/^\?/u, "");
+  if (!value) return fallback;
+  const parameters = new URLSearchParams(value);
+  return {
+    enabled: true,
+    source: parameters.get("utm_source") || fallback.source,
+    medium: parameters.get("utm_medium") || fallback.medium,
+    campaign: parameters.get("utm_campaign") || fallback.campaign,
+  };
+}
+
+function mergePlatformPublishingConfig(platform, current = {}) {
+  const defaults = defaultPlatformPublishingConfig(platform);
+  const language = normalizePublishingLanguage(current.language, defaults.language);
+  const footer = current.footer ?? {};
+  const canonical = current.canonical ?? {};
+  const tracking = current.tracking ?? null;
+  return {
+    language,
+    changedOnly: current.changedOnly === true,
+    footer: {
+      enabled: footer.enabled ?? current.footerEnabled ?? defaults.footer.enabled,
+      template: String(footer.template || current.footerTemplate || defaultFooterTemplate(language)),
+    },
+    canonical: {
+      mode: String(canonical.mode || defaults.canonical.mode),
+    },
+    tracking: tracking
+      ? {
+          enabled: tracking.enabled ?? defaults.tracking.enabled,
+          source: String(tracking.source || defaults.tracking.source),
+          medium: String(tracking.medium || defaults.tracking.medium),
+          campaign: String(tracking.campaign || defaults.tracking.campaign),
+        }
+      : legacyTracking(current.trackingQuery, defaults.tracking),
+  };
+}
+
+export function mergePublishingConfig(config = {}) {
+  const output = {};
+  for (const platform of PUBLISHING_PLATFORMS) {
+    output[platform] = mergePlatformPublishingConfig(platform, config?.[platform] ?? {});
+  }
+  return output;
+}
+
+export async function loadPublishingConfig(env = process.env) {
+  const resolved = String(env.BLOGCTL_PUBLISHING_JSON || "").trim();
+  if (resolved) {
+    let parsed;
+    try {
+      parsed = JSON.parse(resolved);
+    } catch (error) {
+      throw new Error("Invalid BLOGCTL_PUBLISHING_JSON: " + error.message);
+    }
+    if (!parsed?.platforms || typeof parsed.platforms !== "object") {
+      throw new Error("BLOGCTL_PUBLISHING_JSON is missing platforms");
+    }
+    return parsed.platforms;
+  }
+
+  return defaultPublishingConfig();
+}
+
+export function trackedPublishingUrl(canonicalUrl, config = {}) {
+  const url = new URL(canonicalUrl);
+  const tracking = config.tracking ?? {};
+  if (tracking.enabled === false) return url.toString();
+  const parameters = {
+    utm_source: String(tracking.source || "").trim(),
+    utm_medium: String(tracking.medium || "").trim(),
+    utm_campaign: String(tracking.campaign || "").trim(),
+  };
+  for (const [key, value] of Object.entries(parameters)) {
+    if (value) url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+export function nativeCanonicalUrl(canonicalUrl, config = {}) {
+  return config?.canonical?.mode === "native" ? new URL(canonicalUrl).toString() : "";
+}
+
+export function renderPublishingFooter(config, {
+  canonicalUrl,
+  title = "",
+  site = "ThinkerQAQ 的个人博客",
+} = {}) {
+  if (!config?.footer?.enabled) return "";
+  const trackedUrl = trackedPublishingUrl(canonicalUrl, config);
+  return String(config.footer.template || "")
+    .replaceAll("{url}", trackedUrl)
+    .replaceAll("{title}", String(title))
+    .replaceAll("{site}", String(site))
+    .trim();
+}
