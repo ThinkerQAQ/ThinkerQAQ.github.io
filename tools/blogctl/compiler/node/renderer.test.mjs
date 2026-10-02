@@ -61,7 +61,6 @@ test("renderer returns presentation output from Go-owned metadata", () => {
     platform: "juejin",
     profile: profile("zh-CN", "juejin"),
     language: "zh-CN",
-    assetBaseUrl: ASSET_BASE,
     sourceDir: "/content/articles",
     assets: [ASSET],
     policy: policy({ description: "Go-owned description" }),
@@ -88,7 +87,6 @@ test("DEV.to renderer consumes canonical, tags and cover URL from Go policy", ()
     platform: "devto",
     profile: profile("en", "devto", "native"),
     language: "en",
-    assetBaseUrl: ASSET_BASE,
     sourceDir: "/content/articles/en",
     assets: [ASSET],
     policy: policy({
@@ -114,7 +112,6 @@ test("renderer does not manufacture Go-owned content identity", () => {
     platform: "devto",
     profile: profile("en", "devto", "native"),
     language: "en",
-    assetBaseUrl: ASSET_BASE,
     sourceDir: "/content/articles/en",
     assets: [ASSET],
     policy: policy({
