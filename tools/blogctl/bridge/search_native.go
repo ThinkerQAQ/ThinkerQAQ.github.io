@@ -72,17 +72,6 @@ func searchInventoryToCore(value searchInventoryState) blogsearch.Inventory {
 	}
 }
 
-func cloneStringMap(source map[string]string) map[string]string {
-	if len(source) == 0 {
-		return nil
-	}
-	result := make(map[string]string, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
-}
-
 func diffPayload(value blogsearch.Diff) searchDiffPayload {
 	return searchDiffPayload{
 		Mode: value.Mode,
