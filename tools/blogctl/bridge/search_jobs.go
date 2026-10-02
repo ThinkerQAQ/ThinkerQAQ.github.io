@@ -169,6 +169,10 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 		return err
 	}
 	if err := saveBingIndexSnapshot(payload.Inventory); err != nil {
+		state.Bing.State = "failed"
+		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.Bing.Error = err.Error()
+		_ = saveSearchIndexState(state)
 		return err
 	}
 
@@ -236,9 +240,23 @@ func (s *Server) executeBaiduIndexTask(ctx context.Context, jobID string, rawPay
 	// every URL in every batch is confirmed accepted; partial acceptance is
 	// intentionally retried on the next run rather than guessing accepted URLs.
 	if !payload.Result.Complete {
-		return errors.New("Baidu submission was not fully accepted; snapshot not advanced")
+		err := errors.New("Baidu submission was not fully accepted; snapshot not advanced")
+		state.Inventory = compactSearchInventory(payload.Inventory)
+		state.Baidu = searchOperationState{
+			State: "failed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
+			FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.SuccessCount,
+			NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
+			DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
+			HTTPStatus: maxSearchHTTPStatus(payload.Result.Results), Error: err.Error(),
+		}
+		_ = saveSearchIndexState(state)
+		return err
 	}
 	if err := saveBaiduIndexSnapshot(payload.Inventory); err != nil {
+		state.Baidu.State = "failed"
+		state.Baidu.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.Baidu.Error = err.Error()
+		_ = saveSearchIndexState(state)
 		return err
 	}
 
@@ -294,7 +312,7 @@ func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) er
 			httpStatus = result.HTTPStatus
 		}
 	}
-	state.Inventory = payload.Inventory
+	state.Inventory = compactSearchInventory(payload.Inventory)
 	state.Google.Sitemaps = searchOperationState{
 		State: "completed", StartedAt: started.Format(time.RFC3339),
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: len(payload.Result),
