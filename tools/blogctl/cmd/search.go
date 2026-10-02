@@ -74,7 +74,7 @@ func searchProviders(args []string) ([]string, error) {
 			continue
 		}
 		switch provider {
-		case "indexnow", "baidu", "google":
+		case "indexnow", "bing", "baidu", "google":
 		default:
 			return nil, fmt.Errorf("unsupported search provider: %s", provider)
 		}
@@ -231,7 +231,7 @@ func (a app) runSearchSubmit(args []string) error {
 	distRoot = filepath.Join(a.root, distRoot)
 	publicRoot = filepath.Join(a.root, publicRoot)
 
-	needsURLs := containsString(providers, "indexnow") || containsString(providers, "baidu")
+	needsURLs := containsString(providers, "indexnow") || containsString(providers, "bing") || containsString(providers, "baidu")
 	var urls []string
 	if needsURLs {
 		urls, err = searchURLs(args, origin, distRoot)
@@ -261,6 +261,29 @@ func (a app) runSearchSubmit(args []string) error {
 			return err
 		}
 		fmt.Fprintf(a.out, "[search:indexnow] submitted=%d batches=%d http=%d\n", result.URLCount, result.BatchCount, aggregateProviderStatus(result))
+	}
+
+	if containsString(providers, "bing") {
+		key := strings.TrimSpace(localConfig.BingAPIKey)
+		if key == "" {
+			if searchFlag(args, "--optional-bing") {
+				fmt.Fprintln(a.out, "[search:bing] skipped: Bing Webmaster API key is not configured in blogctl.toml")
+			} else {
+				return errors.New("Bing Webmaster API key is required in blogctl.toml for Bing submission")
+			}
+		} else {
+			config, err := blogsearch.ResolveBingConfig(origin, strings.TrimSpace(localConfig.BingSite), key)
+			if err != nil {
+				return err
+			}
+			result, err := blogsearch.SubmitBing(ctx, client, urls, config)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(a.out, "[search:bing] requested=%d submitted=%d pending=%d dailyQuota=%d monthlyQuota=%d batches=%d\n",
+				result.RequestedCount, result.SubmittedCount, result.RemainingCount,
+				result.Quota.DailyQuota, result.Quota.MonthlyQuota, result.BatchCount)
+		}
 	}
 
 	if containsString(providers, "baidu") {
