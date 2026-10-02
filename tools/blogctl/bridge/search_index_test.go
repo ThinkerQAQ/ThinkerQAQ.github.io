@@ -247,7 +247,6 @@ func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
 	}
 }
 
-
 func testGoogleServiceAccountJSON(t *testing.T) (string, string) {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
