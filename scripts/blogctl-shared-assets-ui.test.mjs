@@ -63,7 +63,13 @@ test("R2 credentials are stored through BlogCTL config instead of environment va
 });
 
 
-test("Bridge card renders the active BlogCTL config path separately", async () => {
-  const environment = await readFile(environmentPath, "utf8");
-  assert.match(environment, /tool\.name === "bridge" \? `配置 \$\{tool\.health\.path\}` : tool\.health\.path/u);
+test("environment renders blogctl.toml as a dedicated config file surface", async () => {
+  const [environment, html] = await Promise.all([
+    readFile(environmentPath, "utf8"),
+    readFile(htmlPath, "utf8"),
+  ]);
+  assert.match(html, /id="environmentConfigPath"/u);
+  assert.match(html, />blogctl\.toml</u);
+  assert.match(environment, /bridgeTool\?\.health\?\.path \|\| "未找到 blogctl\.toml"/u);
+  assert.doesNotMatch(environment, /tool\.name === "bridge" \? `配置/u);
 });
