@@ -130,7 +130,6 @@ indexnow_endpoint = "https://www.bing.com/indexnow"
 indexnow_key = ""
 indexnow_key_location = ""
 
-
 baidu_site = "https://thinkerqaq.github.io"
 baidu_token = ""
 
