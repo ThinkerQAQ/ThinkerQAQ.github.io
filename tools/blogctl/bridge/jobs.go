@@ -163,9 +163,6 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 		if job == nil {
 			continue
 		}
-		if migrateLegacySearchTask(job, stamp) {
-			changed = true
-		}
 		switch job.State {
 		case "running", "queued":
 			if job.Type == "google-request-indexing" {
