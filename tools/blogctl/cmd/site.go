@@ -3,17 +3,18 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
+	blogsite "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/site"
 )
 
 func (a app) runSite(args []string) error {
-	if len(args) == 0 || args[0] != "build" {
-		return errors.New("usage: blogctl site build [--content-root <path>]")
+	if len(args) == 0 || (args[0] != "build" && args[0] != "assemble") {
+		return errors.New("usage: blogctl site <build|assemble> --content-root <path>")
 	}
+	operation := args[0]
 	contentRoot := ""
 	for index := 1; index < len(args); index++ {
 		switch args[index] {
@@ -27,6 +28,9 @@ func (a app) runSite(args []string) error {
 			return fmt.Errorf("unknown site build option %q", args[index])
 		}
 	}
+	if operation == "assemble" && contentRoot == "" {
+		return errors.New("site assemble requires --content-root <path>")
+	}
 	if contentRoot != "" {
 		resolved, err := filepath.Abs(contentRoot)
 		if err != nil {
@@ -35,17 +39,14 @@ func (a app) runSite(args []string) error {
 		if !directoryExists(resolved) {
 			return fmt.Errorf("content root does not exist: %s", resolved)
 		}
-		node, _, err := a.prepareNode(true)
+		result, err := blogsite.Assemble(a.root, resolved)
 		if err != nil {
-			return err
-		}
-		assemble := filepath.Join(a.root, "scripts", "assemble-content.mjs")
-		if !fileExists(assemble) {
-			return fmt.Errorf("content assembler was not found: %s", assemble)
-		}
-		if err := a.runner.Run(node, []string{assemble, resolved}, os.Environ()); err != nil {
 			return fmt.Errorf("assemble content: %w", err)
 		}
+		fmt.Fprintf(a.out, "[site] assembled content=%s media=%t manifest=%t\n", result.TargetContent, result.MediaCopied, result.ManifestCopied)
+	}
+	if operation == "assemble" {
+		return nil
 	}
 
 	if _, _, err := a.prepareNode(true); err != nil {

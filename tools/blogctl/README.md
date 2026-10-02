@@ -280,6 +280,12 @@ cd ThinkerQAQ.github.io
 blogctl build
 ```
 
+Assemble canonical content without building the site:
+
+```bash
+blogctl site assemble --content-root ../blog-content
+```
+
 Build with canonical content assembled from `blog-content`:
 
 ```bash
@@ -430,7 +436,7 @@ tools/blogctl/
 └── renderers/    thin ecosystem adapters
 ```
 
-Root `scripts/` is reserved for site/toolchain concerns such as Astro content assembly, site diagrams, Pagefind, public-content safety and frontend tests. Publishing backend logic must not be reintroduced there.
+Root `scripts/` is reserved for site/toolchain concerns such as site diagrams, Pagefind, public-content safety and frontend tests. Publishing backend logic must not be reintroduced there.
 
 ## Development rule
 

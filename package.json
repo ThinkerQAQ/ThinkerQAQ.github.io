@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "assemble:fixtures": "node scripts/assemble-content.mjs fixtures",
+    "assemble:fixtures": "go run ./tools/blogctl/cmd site assemble --content-root fixtures",
     "dev": "npm run assemble:fixtures && npm run dev:site",
     "dev:site": "npm run diagrams && astro dev --port 4321",
     "diagrams": "node scripts/render-diagrams.mjs",
