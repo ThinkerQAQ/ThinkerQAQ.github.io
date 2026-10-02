@@ -90,13 +90,6 @@ func searchProviders(args []string) ([]string, error) {
 	return result, nil
 }
 
-func envOrConfig(name, configured string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return strings.TrimSpace(configured)
-}
-
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
@@ -163,7 +156,7 @@ func (a app) runSearchInventory(args []string) error {
 }
 
 func searchSiteURL(args []string) (string, error) {
-	value, err := searchOption(args, "--site-url", strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SITE_URL")))
+	value, err := searchOption(args, "--site-url", "")
 	if err != nil {
 		return "", err
 	}
@@ -255,9 +248,9 @@ func (a app) runSearchSubmit(args []string) error {
 		config, err := blogsearch.ResolveIndexNowConfig(
 			origin,
 			publicRoot,
-			envOrConfig("INDEXNOW_ENDPOINT", localConfig.IndexNowEndpoint),
-			envOrConfig("INDEXNOW_KEY", localConfig.IndexNowKey),
-			envOrConfig("INDEXNOW_KEY_LOCATION", localConfig.IndexNowKeyLocation),
+			strings.TrimSpace(localConfig.IndexNowEndpoint),
+			strings.TrimSpace(localConfig.IndexNowKey),
+			strings.TrimSpace(localConfig.IndexNowKeyLocation),
 			true,
 		)
 		if err != nil {
@@ -271,15 +264,15 @@ func (a app) runSearchSubmit(args []string) error {
 	}
 
 	if containsString(providers, "baidu") {
-		token := envOrConfig("BAIDU_PUSH_TOKEN", localConfig.BaiduToken)
+		token := strings.TrimSpace(localConfig.BaiduToken)
 		if token == "" {
 			if searchFlag(args, "--optional-baidu") {
-				fmt.Fprintln(a.out, "[search:baidu] skipped: BAIDU_PUSH_TOKEN is not configured")
+				fmt.Fprintln(a.out, "[search:baidu] skipped: Baidu token is not configured in blogctl.toml")
 			} else {
-				return errors.New("BAIDU_PUSH_TOKEN is required for Baidu submission")
+				return errors.New("Baidu token is required in blogctl.toml for Baidu submission")
 			}
 		} else {
-			site := envOrConfig("BAIDU_SITE", localConfig.BaiduSite)
+			site := strings.TrimSpace(localConfig.BaiduSite)
 			config, err := blogsearch.ResolveBaiduConfig(origin, site, token)
 			if err != nil {
 				return err
@@ -298,7 +291,7 @@ func (a app) runSearchSubmit(args []string) error {
 			return err
 		}
 		if accessToken == "" {
-			fmt.Fprintln(a.out, "[search:google] skipped: GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON is not configured")
+			fmt.Fprintln(a.out, "[search:google] skipped: Google service account is not configured in blogctl.toml")
 		} else {
 			results, err := blogsearch.SubmitGoogleSitemaps(ctx, client, siteURL, origin, accessToken)
 			if err != nil {
@@ -311,12 +304,12 @@ func (a app) runSearchSubmit(args []string) error {
 }
 
 func googleAccessTokenForCLI(ctx context.Context, client *http.Client, configured string, optional bool) (string, error) {
-	raw := envOrConfig("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", configured)
+	raw := strings.TrimSpace(configured)
 	if raw == "" {
 		if optional {
 			return "", nil
 		}
-		return "", errors.New("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON is required")
+		return "", errors.New("Google service account is required in blogctl.toml")
 	}
 	credentials, err := blogsearch.ParseGoogleServiceAccount(raw)
 	if err != nil {
