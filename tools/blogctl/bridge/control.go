@@ -1234,6 +1234,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		},
 		ToolPaths:  config.ToolPaths,
 		HTTPClient: s.httpClient,
+		R2:         config.Publishing.Assets.R2,
 	}
 	service.NativePublisher = bridgeNativePublisher{server: s}
 	service.OnEvent = onEvent
