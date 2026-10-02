@@ -1,5 +1,7 @@
 name: Temp BlogCTL Compiler Domain Validation
 
+# Branch-only validation; removed after the domain migration is green.
+
 on:
   push:
     branches:
