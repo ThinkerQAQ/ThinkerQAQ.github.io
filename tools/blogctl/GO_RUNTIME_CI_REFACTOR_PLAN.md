@@ -430,35 +430,29 @@ Thin `background.js` by moving non-browser business logic into Go.
 
 ## 8. Platform registry boundary
 
-Current platform metadata exists in both:
+### Checkpoint — 2026-10-02
+
+Completed on `refactor/blogctl-platform-registry-boundary-20261002`:
+
+- Go remains the single source of truth for platform IDs, labels, default language, and publishing capabilities.
+- Extension `PLATFORM_AUTH` is deleted.
+- Browser auth probes and cookie/session descriptors are unified under `PLATFORM_SESSIONS`.
+- Extension status enrichment joins browser login state with Go registry metadata by platform ID.
+- Browser descriptors are structurally forbidden from defining `label`, `language`, or `capabilities`.
+- Full validation passed: Go tests, Extension tests, architecture boundary tests, and BlogCTL build.
+
+End state:
 
 ```text
-extension/platforms.js
-platform/capabilities.go
+Go platform registry
+  ├── ID / label / language
+  └── publishing capabilities
+
+Extension browser descriptor
+  ├── auth probe
+  ├── cookie domains / names
+  └── partition/session details
 ```
-
-Split ownership explicitly:
-
-### Go
-
-Own platform domain metadata:
-
-- ID
-- label
-- default language
-- publishing capabilities
-
-### Browser JS
-
-Own browser-session descriptors only:
-
-- cookie domains
-- cookie names
-- probe URL
-- partition key
-- login probe
-
-Do not maintain general platform capability data in two runtimes.
 
 ---
 
