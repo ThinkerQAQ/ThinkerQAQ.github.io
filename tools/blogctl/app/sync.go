@@ -40,6 +40,7 @@ type SyncConfig struct {
 
 type SyncPlan struct {
 	Group     string
+	Compiler  string
 	Script    string
 	Args      []string
 	Platforms []string
@@ -107,14 +108,17 @@ func (OSCommandRunner) Run(ctx context.Context, name string, args []string, dir 
 	return string(output), err
 }
 
+type CompilePlatformFunc func(context.Context, blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error)
+
 type SyncService struct {
 	Runner          CommandRunner
+	Compiler        CompilePlatformFunc
 	NativePublisher NativeDraftPublisher
 	OnEvent         func(SyncEvent)
 }
 
 func NewSyncService() SyncService {
-	return SyncService{Runner: OSCommandRunner{}}
+	return SyncService{Runner: OSCommandRunner{}, Compiler: blogcompiler.CompilePlatform}
 }
 
 func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
@@ -199,8 +203,14 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		if request.Draft {
 			args = append(args, "--draft")
 		}
+		compilerKind := "go"
+		script := ""
+		if platform == "medium" {
+			compilerKind = "node-medium"
+			script = "tools/blogctl/compiler/node/index.mjs"
+		}
 		plans = append(plans, SyncPlan{
-			Group: "native-publishing", Script: "tools/blogctl/compiler/node/index.mjs", Args: args,
+			Group: "native-publishing", Compiler: compilerKind, Script: script, Args: args,
 			Platforms: []string{platform}, Native: true,
 		})
 	}
@@ -306,18 +316,38 @@ func (s SyncService) runSyncPlan(
 		result.events = append(result.events, event)
 	}
 
-	script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
-	commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
-	result.output = commandOutput
-	if runErr != nil {
-		detail := scriptFailureMessage(commandOutput)
-		if detail == "" {
-			detail = runErr.Error()
+	var compiledArticles []blogcompiler.CompiledArticle
+	var compileErr error
+	if entry.Compiler == "go" {
+		compile := s.Compiler
+		if compile == nil {
+			compile = blogcompiler.CompilePlatform
 		}
-		message := fmt.Sprintf("%s: %s", entry.Group, detail)
+		compiledArticles, compileErr = compile(ctx, blogcompiler.CompileOptions{
+			EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
+			PublishingJSON: config.PublishingJSON, Node: node, Env: env,
+			Platform: entry.Platforms[0], Articles: append([]string{}, request.Articles...),
+			All: request.All, DryRun: request.DryRun,
+		})
+	} else {
+		script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
+		commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
+		result.output = commandOutput
+		if runErr != nil {
+			detail := scriptFailureMessage(commandOutput)
+			if detail == "" {
+				detail = runErr.Error()
+			}
+			compileErr = errors.New(detail)
+		} else {
+			compiledArticles, compileErr = ParseCompiledArticles(commandOutput)
+		}
+	}
+	if compileErr != nil {
+		message := entry.Group + ": " + compileErr.Error()
 		for _, platform := range entry.Platforms {
 			if !terminal[platform] {
-				emit(SyncEvent{Platform: platform, State: "failed", Message: message})
+				emit(SyncEvent{Platform: platform, State: "failed", Message: compileErr.Error()})
 				terminal[platform] = true
 			}
 		}
@@ -326,18 +356,6 @@ func (s SyncService) runSyncPlan(
 	}
 
 	if entry.Native {
-		compiledArticles, compileErr := ParseCompiledArticles(commandOutput)
-		if compileErr != nil {
-			message := entry.Group + ": " + compileErr.Error()
-			for _, platform := range entry.Platforms {
-				if !terminal[platform] {
-					emit(SyncEvent{Platform: platform, State: "failed", Message: compileErr.Error()})
-					terminal[platform] = true
-				}
-			}
-			result.failures = append(result.failures, message)
-			return result
-		}
 
 		validationFailed := false
 		if request.All {
