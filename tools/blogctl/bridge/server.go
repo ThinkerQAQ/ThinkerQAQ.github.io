@@ -373,10 +373,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleCNBlogsBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
-	if path == "v1/cnblogs/binding/update" && request.Method == http.MethodPost {
-		s.handleCNBlogsPublishedUpdate(response, request, request.URL.Query().Get("article"))
-		return
-	}
 
 	if path == "v1/health" && request.Method == http.MethodGet {
 		if !allowReadOnlyBridgeStatus(response, request) {
@@ -416,10 +412,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-	if path == "v1/publications/reconcile" && request.Method == http.MethodPost {
-		s.handlePublicationReconcile(response, request)
-		return
-	}
 
 	if path == "v1/publications/pending/resolve" && request.Method == http.MethodPost {
 		s.handlePublicationPendingResolve(response, request)
@@ -581,11 +573,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && parts[4] == "retry" && request.Method == http.MethodPost {
 		s.handleSyncJobRetry(response, request, parts[3])
-		return
-	}
-
-	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "sync" && parts[2] == "jobs" && parts[4] == "publish" && request.Method == http.MethodPost {
-		s.handleSyncJobPublish(response, request, parts[3])
 		return
 	}
 
@@ -1008,25 +995,6 @@ func (s *Server) handleSyncJobRetry(response http.ResponseWriter, request *http.
 			writeAPIError(response, http.StatusNotFound, "sync_job_not_found", err.Error(), map[string]any{"id": id})
 		case "running sync job cannot be retried":
 			writeAPIError(response, http.StatusConflict, "sync_job_running", err.Error(), map[string]any{"id": id})
-		default:
-			writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), map[string]any{"id": id})
-		}
-		return
-	}
-	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
-}
-
-func (s *Server) handleSyncJobPublish(response http.ResponseWriter, request *http.Request, id string) {
-	if _, ok := allowExtensionWrite(response, request); !ok {
-		return
-	}
-	job, err := s.publishSyncJob(id)
-	if err != nil {
-		switch err.Error() {
-		case "sync job not found":
-			writeAPIError(response, http.StatusNotFound, "sync_job_not_found", err.Error(), map[string]any{"id": id})
-		case "sync job is not completed":
-			writeAPIError(response, http.StatusConflict, "sync_job_not_completed", err.Error(), map[string]any{"id": id})
 		default:
 			writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), map[string]any{"id": id})
 		}
