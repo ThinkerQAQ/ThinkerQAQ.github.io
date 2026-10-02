@@ -112,6 +112,7 @@ func TestNormalizePlantUMLSourcePreservesSandboxRules(t *testing.T) {
 		"!include https://example.com/a.puml",
 		"!theme cerulean",
 		"@startuml\nAlice -> Bob\n@endmindmap",
+		"@enduml\n@startuml\nAlice -> Bob",
 	} {
 		if _, err := normalizePlantUMLSource(source); err == nil {
 			t.Fatalf("unsafe/invalid PlantUML accepted: %q", source)
