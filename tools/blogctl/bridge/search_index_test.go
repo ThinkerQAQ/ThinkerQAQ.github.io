@@ -1,7 +1,11 @@
 package bridge
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -243,6 +247,29 @@ func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
 	}
 }
 
+
+func testGoogleServiceAccountJSON(t *testing.T) (string, string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	payload, err := json.Marshal(map[string]string{
+		"type":         "service_account",
+		"client_email": "search@example.iam.gserviceaccount.com",
+		"private_key":  privateKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(payload), privateKey
+}
+
 func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *testing.T) {
 	if err := validateGoogleServiceAccountJSON(`{"installed":{"client_id":"x"}}`); err == nil || !strings.Contains(err.Error(), "OAuth Desktop Client") {
 		t.Fatalf("desktop OAuth client error = %v", err)
@@ -250,7 +277,7 @@ func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *t
 	if err := validateGoogleServiceAccountJSON(`{"type":"service_account"}`); err == nil || !strings.Contains(err.Error(), "client_email") || !strings.Contains(err.Error(), "private_key") {
 		t.Fatalf("missing field error = %v", err)
 	}
-	valid := `{"type":"service_account","client_email":"search@example.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n"}`
+	valid, _ := testGoogleServiceAccountJSON(t)
 	if err := validateGoogleServiceAccountJSON(valid); err != nil {
 		t.Fatalf("valid service account error = %v", err)
 	}
@@ -262,7 +289,8 @@ func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.config.GoogleSearchConsoleServiceJSON = "{\"type\":\"service_account\",\"client_email\":\"search@example.iam.gserviceaccount.com\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\nTOP-SECRET\\n-----END PRIVATE KEY-----\\n\"}"
+	serviceAccountJSON, privateKey := testGoogleServiceAccountJSON(t)
+	server.config.GoogleSearchConsoleServiceJSON = serviceAccountJSON
 	request := httptest.NewRequest(http.MethodGet, "/v1/search/index", nil)
 	request.Header.Set("origin", "chrome-extension://test")
 	response := httptest.NewRecorder()
@@ -270,7 +298,7 @@ func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d", response.Code)
 	}
-	if strings.Contains(response.Body.String(), "TOP-SECRET") {
+	if strings.Contains(response.Body.String(), privateKey) || strings.Contains(response.Body.String(), "BEGIN PRIVATE KEY") {
 		t.Fatalf("response exposed credential: %s", response.Body.String())
 	}
 	if !strings.Contains(response.Body.String(), "\"credentialsConfigured\":true") {
