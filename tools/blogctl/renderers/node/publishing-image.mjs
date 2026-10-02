@@ -7,7 +7,6 @@ import path from "node:path";
 import sharp from "sharp";
 
 import { ensureJar, renderSvg } from "../../../../scripts/plantuml/runtime.mjs";
-import { loadBlogctlPublishingRuntimeConfig } from "../../compiler/node/runtime-config.mjs";
 
 const MAX_DIMENSION = 4096;
 
@@ -60,9 +59,11 @@ function mermaidInvocation() {
   return { command: process.execPath, prefix: [cli] };
 }
 
-async function renderMermaid(sourceFile, outputFile, renderer) {
-  const policy = loadBlogctlPublishingRuntimeConfig(process.env).mermaid;
-  if (policy.format !== "png") throw new Error("Publishing Mermaid renderer supports only PNG");
+async function renderMermaid(sourceFile, outputFile, renderer, width, scale) {
+  const resolvedWidth = Number(width);
+  const resolvedScale = Number(scale);
+  if (!Number.isFinite(resolvedWidth) || resolvedWidth <= 0) throw new Error("--width must be a positive number");
+  if (!Number.isFinite(resolvedScale) || resolvedScale <= 0) throw new Error("--scale must be a positive number");
   const temporary = await mkdtemp(path.join(os.tmpdir(), "blogctl-mermaid-renderer-"));
   try {
     const configFile = path.join(temporary, "mermaid-config.json");
@@ -74,8 +75,8 @@ async function renderMermaid(sourceFile, outputFile, renderer) {
       "--input", sourceFile,
       "--output", outputFile,
       "--backgroundColor", "white",
-      "--width", String(policy.width),
-      "--scale", String(policy.scale),
+      "--width", String(resolvedWidth),
+      "--scale", String(resolvedScale),
       "--configFile", configFile,
     ];
     const puppeteer = String(process.env.MERMAID_PUPPETEER_CONFIG_FILE || "").trim();
@@ -118,7 +119,7 @@ async function main() {
   const source = await readFile(input, "utf8");
 
   if (args.kind === "mermaid") {
-    await renderMermaid(input, output, args.renderer);
+    await renderMermaid(input, output, args.renderer, args.width, args.scale);
   } else if (args.kind === "plantuml") {
     await renderPlantUML(source, output);
   } else {
