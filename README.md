@@ -73,8 +73,7 @@ thinkerqaq-blog/
 ```bash
 cd ThinkerQAQ.github.io
 npm ci
-node scripts/validate-content-source.mjs ../blog-content
-node scripts/assemble-content.mjs ../blog-content
+go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
 npm run dev:site
 ```
 
@@ -161,10 +160,9 @@ Content Template 默认不带自动触发部署的 Workflow，避免模板绑定
 
 ```text
 src/                  Astro 页面、组件和内容 Schema
-scripts/              构建、搜索、分发和维护脚本
+scripts/              Astro / Pagefind / 图渲染与前端测试脚本
 workers/              Cloudflare Workers
 tools/blogctl/         BlogCTL
-docs/                  详细文档
 fixtures/              Public Engine 测试内容
 .github/workflows/     CI / CD
 ```
@@ -172,9 +170,6 @@ fixtures/              Public Engine 测试内容
 ### 详细文档
 
 - [BlogCTL](tools/blogctl/README.md)
-- [Diagrams](docs/diagrams.md)
-- [Analytics](docs/analytics.md)
-- [International Syndication](docs/international-syndication.md)
 - [Publishing Language](tools/blogctl/PUBLISHING_LANGUAGE.md)
 
 ## License
