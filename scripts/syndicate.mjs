@@ -2,7 +2,6 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArticle, resolveArticleAssetUrl } from "./distribute.mjs";
-import { preparePublishingAssetList } from "../tools/blogctl/assets/node/assets.mjs";
 import {
   collectPublishingAssets,
   compilePublishingMarkdown,
@@ -328,10 +327,9 @@ export async function runSyndication({
   }));
 
   const publishingAssets = loaded.flatMap(({ article }) => collectPublishingAssets(article.body));
-  await preparePublishingAssetList(publishingAssets, {
-    dryRun,
-    cacheRoot: path.join(process.env.BLOG_CONTENT_ROOT || process.cwd(), ".distribution", "assets"),
-  });
+  if (!dryRun && publishingAssets.length > 0) {
+    throw new Error("Legacy syndicate CLI no longer prepares generated assets. Use blogctl sync so the Go asset pipeline renders and delivers them.");
+  }
 
   if (dryRun) {
     for (const item of desiredArticles) {
