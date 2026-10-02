@@ -2,6 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { renderArticle, useNativeImageUpload } from "./renderer.mjs";
+const ASSET = {
+  kind: "mermaid",
+  id: "0123456789abcdef01234567",
+  renderer: "@mermaid-js/mermaid-cli@11.17.0",
+  definition: "flowchart LR\n  accTitle: Compile path\n  A --> B",
+  objectKey: "generated/mermaid/0123456789abcdef01234567.png",
+  publicUrl: ASSET_BASE + "generated/mermaid/0123456789abcdef01234567.png",
+  alt: "Compile path",
+};
 
 const ARTICLE = {
   title: "Compiled",
@@ -12,11 +21,7 @@ const ARTICLE = {
   tags: ["Go", "Concurrency"],
   body: `## Body
 
-\`\`\`mermaid
-flowchart LR
-  accTitle: Compile path
-  A --> B
-\`\`\`
+![Compile path](${ASSET.publicUrl})
 `,
 };
 
@@ -48,6 +53,7 @@ test("renderer returns versioned content from an already parsed article", () => 
     assetBaseUrl: ASSET_BASE,
     dryRun: true,
     sourceDir: "/content/articles",
+    assets: [ASSET],
   });
 
   assert.equal(article.version, 1);
@@ -59,7 +65,7 @@ test("renderer returns versioned content from an already parsed article", () => 
   assert.match(article.contentHash, /^[a-f0-9]{64}$/u);
   assert.equal(article.assets.length, 1);
   assert.equal(article.assets[0].renderer, "@mermaid-js/mermaid-cli@11.17.0");
-  assert.match(article.assets[0].definition, /flowchart LR/u);
+  assert.equal(article.assets[0].definition, ASSET.definition);
 });
 
 test("DEV.to renderer preserves normalized tags and canonical URL", () => {
@@ -72,6 +78,7 @@ test("DEV.to renderer preserves normalized tags and canonical URL", () => {
     assetBaseUrl: ASSET_BASE,
     dryRun: true,
     sourceDir: "/content/articles/en",
+    assets: [ASSET],
   });
 
   assert.equal(article.published, false);
@@ -91,6 +98,7 @@ test("DEV.to renderer hash is independent from save versus publish orchestration
     assetBaseUrl: ASSET_BASE,
     dryRun: true,
     sourceDir: "/content/articles/en",
+    assets: [ASSET],
   };
   assert.equal(renderArticle(request).contentHash, renderArticle(request).contentHash);
 });
