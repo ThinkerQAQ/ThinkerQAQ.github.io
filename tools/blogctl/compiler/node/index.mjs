@@ -275,7 +275,6 @@ export async function compileArticle({
       dryRun,
       cacheRoot: path.join(contentRoot, ".distribution", "assets"),
       env,
-      uploadFallback: !nativeImageUpload,
     });
   } catch (error) {
     logAssetStage(env, "error", {
@@ -299,7 +298,6 @@ export async function compileArticle({
       delivery: nativeImageUpload ? "platform-native" : "r2",
       rendered: assetPreparation.rendered,
       cached: assetPreparation.cached,
-      uploaded: assetPreparation.uploaded,
       dryRun: assetPreparation.dryRun,
       durationMs: Date.now() - assetStartedAt,
     });
