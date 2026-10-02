@@ -61,6 +61,8 @@ test("compileArticle returns versioned in-memory publishing content without writ
     assert.match(article.html, /generated\/mermaid\/[a-f0-9]{24}\.png/u);
     assert.match(article.contentHash, /^[a-f0-9]{64}$/u);
     assert.equal(article.assets.length, 1);
+    assert.equal(article.assets[0].renderer, "@mermaid-js/mermaid-cli@11.17.0");
+    assert.match(article.assets[0].definition, /flowchart LR/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
