@@ -297,6 +297,13 @@ func (p *Pipeline) renderMermaid(ctx context.Context, asset blogcompiler.Asset, 
 }
 
 func (p *Pipeline) renderPlantUML(ctx context.Context, asset blogcompiler.Asset, output string) error {
+	renderer := strings.TrimSpace(asset.Renderer)
+	if renderer == "" {
+		renderer = blogcompiler.PlantUMLRendererVersion
+	}
+	if renderer != blogcompiler.PlantUMLRendererVersion {
+		return fmt.Errorf("unsupported PlantUML renderer %q", renderer)
+	}
 	source, err := blogcompiler.NormalizePlantUMLSource(asset.Definition)
 	if err != nil {
 		return err
