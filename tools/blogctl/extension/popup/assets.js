@@ -1,9 +1,9 @@
 "use strict";
 
 (function (root) {
-  const state = { initialized: false, active: false, compiler: {}, assets: {}, assetStatus: {} };
+  const state = { initialized: false, active: false, editing: false, compiler: {}, assets: {}, assetStatus: {} };
   let mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, r2AccessKeyId, r2SecretAccessKey, r2AccountId, r2Endpoint;
-  let assetStatus, assetStatusDetail, saveButton, message;
+  let assetStatus, assetStatusDetail, editButton, cancelButton, saveButton, editActions, message;
 
   function writeForm() {
     const mermaid = state.compiler?.mermaid ?? {};
@@ -25,6 +25,16 @@
       ? "共享 R2 已就绪；所有发布平台在平台原生图片上传失败时统一使用该兜底。"
       : `平台原生图片上传仍可使用；共享 R2 缺少：${missing.join("、") || "未知配置"}。平台原生上传失败时将无法使用 R2 兜底。`;
   }
+
+  function setEditing(editing) {
+    state.editing = editing;
+    for (const element of [mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, r2AccessKeyId, r2SecretAccessKey, r2AccountId, r2Endpoint]) {
+      element.disabled = !editing;
+    }
+    editButton.hidden = editing;
+    editActions.hidden = !editing;
+  }
+
 
   function readForm() {
     return {
@@ -62,6 +72,7 @@
       state.assets = response.assets ?? state.assets;
       state.assetStatus = response.assetStatus ?? state.assetStatus;
       writeForm();
+      setEditing(false);
       BlogCTLPopup.setMessage(message, "共享资产配置已保存，所有平台将使用同一套 R2 配置。", "ok");
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -96,13 +107,23 @@
     r2Endpoint = document.getElementById("r2Endpoint");
     assetStatus = document.getElementById("assetStatus");
     assetStatusDetail = document.getElementById("assetStatusDetail");
+    editButton = document.getElementById("editAssets");
+    cancelButton = document.getElementById("cancelAssets");
     saveButton = document.getElementById("saveAssets");
+    editActions = document.getElementById("assetEditActions");
     message = document.getElementById("assetsMessage");
 
     for (const element of [mermaidWidth, mermaidScale, r2Bucket, r2PublicBaseUrl, r2AccessKeyId, r2SecretAccessKey, r2AccountId, r2Endpoint]) {
       element.addEventListener("input", () => BlogCTLPopup.setMessage(message));
     }
+    editButton.addEventListener("click", () => setEditing(true));
+    cancelButton.addEventListener("click", () => {
+      writeForm();
+      setEditing(false);
+      BlogCTLPopup.setMessage(message);
+    });
     saveButton.addEventListener("click", save);
+    setEditing(false);
     state.initialized = true;
   }
 
