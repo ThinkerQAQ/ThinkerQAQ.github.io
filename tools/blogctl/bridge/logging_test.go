@@ -8,7 +8,7 @@ import (
 )
 
 func TestLoggingDefaultsAndToolRegistry(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	config := defaultBridgeConfig()
 	if config.LogLevel != "info" {
 		t.Fatalf("default log level = %q", config.LogLevel)
@@ -32,7 +32,7 @@ func TestLoggingDefaultsAndToolRegistry(t *testing.T) {
 }
 
 func TestApplyLoggingConfigWritesAndReadsStructuredLog(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	config := defaultBridgeConfig()
 	config.LogDirectory = filepath.Join(t.TempDir(), "logs")
 	config.LogLevel = "debug"
