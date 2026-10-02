@@ -302,8 +302,11 @@
       <section class="status-card">
         <div class="section-title">环境与工具</div>
 
-        <div class="status-row">
-          <strong>Config · blogctl.toml</strong>
+        <div class="tool-card environment-config-file">
+          <div class="status-row">
+            <strong>Config</strong>
+            <code class="config-file-name">blogctl.toml</code>
+          </div>
           <code id="environmentConfigPath" class="path-value">正在读取 blogctl.toml…</code>
         </div>
 
@@ -330,7 +333,13 @@
             <label class="field"><span>Account ID</span><input id="r2AccountId" type="text" autocomplete="off"></label>
             <label class="field"><span>Endpoint（可选）</span><input id="r2Endpoint" type="url" placeholder="留空时由 Account ID 自动生成"></label>
             <p class="card-hint">R2 配置统一保存在本机 <code>blogctl.toml</code>；Secret Access Key 不会回显到插件。</p>
-            <div class="button-row"><button id="saveAssets" class="primary inline-primary" type="button">保存共享资产配置</button></div>
+            <div class="tool-edit-controls">
+              <button id="editAssets" class="secondary tool-edit-button" type="button">✎ 编辑</button>
+              <div id="assetEditActions" class="tool-edit-actions" hidden>
+                <button id="cancelAssets" class="secondary" type="button">取消</button>
+                <button id="saveAssets" class="primary inline-primary" type="button">保存</button>
+              </div>
+            </div>
             <p id="assetsMessage" class="message" role="status"></p>
           </div>
         </details>
@@ -365,7 +374,14 @@
             <label class="field"><span>Campaign</span><input id="trackingCampaign" type="text" placeholder="article_syndication"></label>
             
             <div class="preview-box"><div class="section-title">预览</div><pre id="publishingPreview"></pre></div>
-            <div class="button-row"><button id="resetPublishing" class="secondary" type="button">恢复默认</button><button id="savePublishing" class="primary inline-primary" type="button">保存</button></div>
+            <div class="tool-edit-controls">
+              <button id="editPublishing" class="secondary tool-edit-button" type="button">✎ 编辑</button>
+              <div id="publishingEditActions" class="tool-edit-actions" hidden>
+                <button id="resetPublishing" class="secondary" type="button">恢复默认</button>
+                <button id="cancelPublishing" class="secondary" type="button">取消</button>
+                <button id="savePublishing" class="primary inline-primary" type="button">保存</button>
+              </div>
+            </div>
             <p id="publishingMessage" class="message" role="status"></p>
           </div>
         </details>
