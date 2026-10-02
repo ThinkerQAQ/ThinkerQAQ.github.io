@@ -225,7 +225,7 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, image RehostImage) (st
 	}
 	filename := inferImageFilename(image.Source, image.ContentType)
 
-	target, currentErr := c.uploadImageRequest(
+	return c.uploadImageRequest(
 		ctx,
 		"https://upload.cnblogs.com/v2/images/cors-upload",
 		nil,
@@ -234,33 +234,6 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, image RehostImage) (st
 		filename,
 		image.ContentType,
 		token,
-	)
-	if currentErr == nil {
-		return target, nil
-	}
-
-	// Legacy endpoint fallback. Keeping this path makes BlogCTL tolerant of
-	// CNBlogs switching traffic between the old and v2 upload handlers.
-	target, legacyErr := c.uploadImageRequest(
-		ctx,
-		"https://upload.cnblogs.com/imageuploader/CorsUpload",
-		map[string]string{"host": "www.cnblogs.com", "uploadType": "Paste"},
-		"imageFile",
-		image.Payload,
-		filename,
-		image.ContentType,
-		token,
-	)
-	if legacyErr == nil {
-		return target, nil
-	}
-	return "", platformError(
-		ErrUpload,
-		c.ID(),
-		"image-upload",
-		0,
-		"v2 upload failed: "+currentErr.Error()+"; legacy upload failed: "+legacyErr.Error(),
-		true,
 	)
 }
 
