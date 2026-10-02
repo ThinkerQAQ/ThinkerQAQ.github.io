@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
+	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 	"github.com/pelletier/go-toml/v2"
 )
 
