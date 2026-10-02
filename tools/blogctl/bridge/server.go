@@ -796,7 +796,7 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 
 	if action == "update" {
 		switch name {
-		case "node", "npm", "git":
+		case "node", "npm", "git", "java":
 		default:
 			writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported dependency update", map[string]any{"tool": name})
 			return
