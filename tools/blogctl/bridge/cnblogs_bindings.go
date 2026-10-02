@@ -305,29 +305,3 @@ func (s *Server) handleCNBlogsBindingDelete(response http.ResponseWriter, reques
 	slog.Info("cnblogs publication reference removed", "operation", "publication-delete", "slug", slug, "postId", body.PostID, "state", body.State)
 	writeJSON(response, http.StatusOK, map[string]any{"removed": true})
 }
-
-func (s *Server) handleCNBlogsPublishedUpdate(response http.ResponseWriter, request *http.Request, slug string) {
-	if _, ok := allowExtensionWrite(response, request); !ok {
-		return
-	}
-	_, root, err := s.cnBlogsArticle(slug)
-	if err != nil {
-		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
-		return
-	}
-	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
-	if err != nil {
-		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
-		return
-	}
-	if !found || binding.PublishedRemoteID == "" || binding.PublishedURL == "" {
-		writeAPIError(response, http.StatusConflict, "published_binding_required", "bind a published CNBlogs post first", nil)
-		return
-	}
-	if _, _, err := (bridgeNativePublisher{server: s}).publisherSession("cnblogs"); err != nil {
-		writeAPIError(response, http.StatusBadRequest, "session_required", err.Error(), nil)
-		return
-	}
-	job := s.startSyncJob(syncRequest{Article: slug, Platforms: []string{"cnblogs"}, Operation: "update-published"})
-	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
-}
