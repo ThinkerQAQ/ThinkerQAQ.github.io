@@ -72,7 +72,7 @@ func (a app) runSite(args []string) error {
 	if err != nil {
 		return err
 	}
-	pagefind := filepath.Join(a.root, "scripts", "build-search.mjs")
+	pagefind := filepath.Join(a.root, "scripts", "build-pagefind.mjs")
 	if !fileExists(pagefind) {
 		return fmt.Errorf("Pagefind build script was not found: %s", pagefind)
 	}
