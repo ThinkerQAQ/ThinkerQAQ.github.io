@@ -1,0 +1,49 @@
+name: Temp BlogCTL R2 Refactor Validation
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-r2-go-runtime-20261002
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l tools/blogctl)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Test BlogCTL Go
+        run: go test ./tools/blogctl/...
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Test compiler and asset helper
+        run: npm run test:distribute
+
+      - name: Test BlogCTL extension
+        run: npm run test:blogctl-extension
+
+      - name: Build BlogCTL
+        run: go build ./tools/blogctl/cmd
