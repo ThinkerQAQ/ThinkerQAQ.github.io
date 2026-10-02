@@ -36,7 +36,10 @@ jobs:
           fi
       - name: Test BlogCTL Go packages
         run: go test ./tools/blogctl/...
-      - name: Check renderer syntax
+      - name: Smoke-test content assembly
+        run: go run ./tools/blogctl/cmd site assemble --content-root fixtures
+      - name: Check JavaScript boundaries
         run: |
           node --check tools/blogctl/renderers/node/markdown-html.mjs
           node --check tools/blogctl/renderers/node/publishing-image.mjs
+          node --check tools/blogctl/extension/background.js
