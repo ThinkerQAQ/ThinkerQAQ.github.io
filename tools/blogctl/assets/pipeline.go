@@ -29,7 +29,6 @@ const (
 )
 
 var (
-	assetIDPattern          = regexp.MustCompile(`^[a-f0-9]{16,64}$`)
 	plantUMLExternalPattern = regexp.MustCompile(`(?im)^\s*!\s*(?:include\w*|import|theme)\b|%(?:getenv|load\w*|filename|dirpath)\s*\(`)
 	plantUMLStartPattern    = regexp.MustCompile(`(?im)^\s*@start(\w+)\b`)
 	plantUMLEndPattern      = regexp.MustCompile(`(?im)^\s*@end(\w+)\b`)
@@ -108,7 +107,223 @@ func (p *Pipeline) Prepare(ctx context.Context, input []blogcompiler.Asset) erro
 func (p *Pipeline) prepareOne(ctx context.Context, asset blogcompiler.Asset) error {
 	kind := strings.ToLower(strings.TrimSpace(asset.Kind))
 	id := strings.TrimSpace(asset.ID)
-	if (kind != "mermaid" && kind != "plantuml") || !assetIDPattern.MatchString(id) {
+	validID := (kind == "mermaid" && regexp.MustCompile(`^[a-f0-9]{24}package assets
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"image/png"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+	"sync"
+
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+)
+
+const (
+	MermaidCLIPackage      = "@mermaid-js/mermaid-cli@11.17.0"
+	PlantUMLVersion        = "1.2026.7"
+	PlantUMLJarSHA256      = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
+	MaxPublishingImageSize = 4096
+)
+
+var (
+	plantUMLExternalPattern = regexp.MustCompile(`(?im)^\s*!\s*(?:include\w*|import|theme)\b|%(?:getenv|load\w*|filename|dirpath)\s*\(`)
+	plantUMLStartPattern    = regexp.MustCompile(`(?im)^\s*@start(\w+)\b`)
+	plantUMLEndPattern      = regexp.MustCompile(`(?im)^\s*@end(\w+)\b`)
+)
+
+type MermaidPolicy struct {
+	Width int
+	Scale float64
+}
+
+type ProcessRunner interface {
+	Run(ctx context.Context, name string, args []string, dir string, env []string, stdin []byte) ([]byte, error)
+}
+
+type OSProcessRunner struct{}
+
+func (OSProcessRunner) Run(ctx context.Context, name string, args []string, dir string, env []string, stdin []byte) ([]byte, error) {
+	command := exec.CommandContext(ctx, name, args...)
+	command.Dir = dir
+	command.Env = env
+	if stdin != nil {
+		command.Stdin = bytes.NewReader(stdin)
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			detail = err.Error()
+		}
+		return nil, fmt.Errorf("%s failed: %s", filepath.Base(name), detail)
+	}
+	return stdout.Bytes(), nil
+}
+
+type Pipeline struct {
+	EngineRoot  string
+	ContentRoot string
+	Mermaid     MermaidPolicy
+	ToolPaths   map[string]string
+	HTTPClient  *http.Client
+	Runner      ProcessRunner
+
+	mu sync.Mutex
+}
+
+func (p *Pipeline) Prepare(ctx context.Context, input []blogcompiler.Asset) error {
+	if len(input) == 0 {
+		return nil
+	}
+	if strings.TrimSpace(p.ContentRoot) == "" {
+		return errors.New("asset pipeline content root is required")
+	}
+	if strings.TrimSpace(p.EngineRoot) == "" {
+		return errors.New("asset pipeline engine root is required")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	seen := map[string]struct{}{}
+	for _, asset := range input {
+		key := asset.Kind + ":" + asset.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		if err := p.prepareOne(ctx, asset); err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+	}
+	return nil
+}
+
+func (p *Pipeline) prepareOne(ctx context.Context, asset blogcompiler.Asset) error {
+).MatchString(id)) ||
+		(kind == "plantuml" && regexp.MustCompile(`^[a-f0-9]{64}package assets
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"image/png"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+	"sync"
+
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+)
+
+const (
+	MermaidCLIPackage      = "@mermaid-js/mermaid-cli@11.17.0"
+	PlantUMLVersion        = "1.2026.7"
+	PlantUMLJarSHA256      = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
+	MaxPublishingImageSize = 4096
+)
+
+var (
+	plantUMLExternalPattern = regexp.MustCompile(`(?im)^\s*!\s*(?:include\w*|import|theme)\b|%(?:getenv|load\w*|filename|dirpath)\s*\(`)
+	plantUMLStartPattern    = regexp.MustCompile(`(?im)^\s*@start(\w+)\b`)
+	plantUMLEndPattern      = regexp.MustCompile(`(?im)^\s*@end(\w+)\b`)
+)
+
+type MermaidPolicy struct {
+	Width int
+	Scale float64
+}
+
+type ProcessRunner interface {
+	Run(ctx context.Context, name string, args []string, dir string, env []string, stdin []byte) ([]byte, error)
+}
+
+type OSProcessRunner struct{}
+
+func (OSProcessRunner) Run(ctx context.Context, name string, args []string, dir string, env []string, stdin []byte) ([]byte, error) {
+	command := exec.CommandContext(ctx, name, args...)
+	command.Dir = dir
+	command.Env = env
+	if stdin != nil {
+		command.Stdin = bytes.NewReader(stdin)
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			detail = err.Error()
+		}
+		return nil, fmt.Errorf("%s failed: %s", filepath.Base(name), detail)
+	}
+	return stdout.Bytes(), nil
+}
+
+type Pipeline struct {
+	EngineRoot  string
+	ContentRoot string
+	Mermaid     MermaidPolicy
+	ToolPaths   map[string]string
+	HTTPClient  *http.Client
+	Runner      ProcessRunner
+
+	mu sync.Mutex
+}
+
+func (p *Pipeline) Prepare(ctx context.Context, input []blogcompiler.Asset) error {
+	if len(input) == 0 {
+		return nil
+	}
+	if strings.TrimSpace(p.ContentRoot) == "" {
+		return errors.New("asset pipeline content root is required")
+	}
+	if strings.TrimSpace(p.EngineRoot) == "" {
+		return errors.New("asset pipeline engine root is required")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	seen := map[string]struct{}{}
+	for _, asset := range input {
+		key := asset.Kind + ":" + asset.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		if err := p.prepareOne(ctx, asset); err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+	}
+	return nil
+}
+
+func (p *Pipeline) prepareOne(ctx context.Context, asset blogcompiler.Asset) error {
+).MatchString(id))
+	if !validID {
 		return errors.New("invalid generated asset identity")
 	}
 	if strings.TrimSpace(asset.Definition) == "" {
@@ -268,12 +483,19 @@ func normalizePlantUMLSource(source string) (string, error) {
 	if plantUMLExternalPattern.MatchString(text) {
 		return "", errors.New("external includes, themes and environment/file access are disabled for diagrams")
 	}
-	starts := plantUMLStartPattern.FindAllStringSubmatch(text, -1)
-	ends := plantUMLEndPattern.FindAllStringSubmatch(text, -1)
+	starts := plantUMLStartPattern.FindAllStringSubmatchIndex(text, -1)
+	ends := plantUMLEndPattern.FindAllStringSubmatchIndex(text, -1)
 	if len(starts) == 0 && len(ends) == 0 {
 		text = "@startuml\n" + text + "\n@enduml"
-	} else if len(starts) != 1 || len(ends) != 1 || !strings.EqualFold(starts[0][1], ends[0][1]) {
-		return "", errors.New("each PlantUML diagram must contain exactly one matching @start/@end pair")
+	} else {
+		if len(starts) != 1 || len(ends) != 1 || starts[0][0] >= ends[0][0] {
+			return "", errors.New("each PlantUML diagram must contain exactly one matching @start/@end pair")
+		}
+		startKind := text[starts[0][2]:starts[0][3]]
+		endKind := text[ends[0][2]:ends[0][3]]
+		if !strings.EqualFold(startKind, endKind) {
+			return "", errors.New("each PlantUML diagram must contain exactly one matching @start/@end pair")
+		}
 	}
 	return text + "\n", nil
 }
