@@ -169,7 +169,7 @@ changed_only = false
 
 Platform configuration also supports footer, canonical and tracking policies. Defaults are generated automatically when those fields are absent.
 
-BlogCTL migrates the old `config.json` format once and keeps the original as `config.json.migrated.bak`.
+BlogCTL reads user configuration only from `blogctl.toml`; the legacy `config.json` format is no longer supported.
 
 ## Article publishing
 
