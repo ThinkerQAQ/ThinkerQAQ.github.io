@@ -61,12 +61,11 @@ export async function preparePublishingAssetList(assets, {
 } = {}) {
   const unique = dedupePublishingAssets([assets]);
   if (dryRun || unique.length === 0) {
-    return { assets: unique.length, rendered: 0, cached: 0, uploaded: 0, dryRun };
+    return { assets: unique.length, rendered: 0, cached: 0, dryRun };
   }
 
   let rendered = 0;
   let cached = 0;
-  let uploaded = 0;
 
   const defaultRenderers = {
     mermaid: renderMermaidAsset,
@@ -87,7 +86,7 @@ export async function preparePublishingAssetList(assets, {
 
   }
 
-  return { assets: unique.length, rendered, cached, uploaded, dryRun: false };
+  return { assets: unique.length, rendered, cached, dryRun: false };
 }
 
 export async function preparePublishingAssets(markdown, options = {}) {
