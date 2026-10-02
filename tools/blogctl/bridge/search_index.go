@@ -239,10 +239,12 @@ func loadSearchIndexState() searchIndexState {
 	if json.Unmarshal(data, &state) != nil {
 		return defaultSearchIndexState()
 	}
+	migratedLegacyState := false
 	if state.IndexNow.State == "" {
 		if legacy, ok := migrateLegacyIndexNowState(data); ok {
 			state.IndexNow = legacy
 			state.Bing = searchOperationState{State: "idle"}
+			migratedLegacyState = true
 		} else {
 			state.IndexNow.State = "idle"
 		}
@@ -261,6 +263,9 @@ func loadSearchIndexState() searchIndexState {
 	}
 	if state.Google.RequestQueue.State == "" {
 		state.Google.RequestQueue.State = "idle"
+	}
+	if migratedLegacyState {
+		_ = saveSearchIndexState(state)
 	}
 	return state
 }
