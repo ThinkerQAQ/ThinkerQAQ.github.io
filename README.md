@@ -170,7 +170,6 @@ fixtures/              Public Engine 测试内容
 ### 详细文档
 
 - [BlogCTL](tools/blogctl/README.md)
-- [Publishing Language](tools/blogctl/PUBLISHING_LANGUAGE.md)
 
 ## License
 
