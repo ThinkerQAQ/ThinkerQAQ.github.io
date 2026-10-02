@@ -84,7 +84,6 @@ func TestServiceCompilesThroughNodeRenderer(t *testing.T) {
 	}
 }
 
-
 func TestServiceMediumPayloadUsesGoPolicy(t *testing.T) {
 	if os.Getenv("BLOGCTL_COMPILER_INTEGRATION") != "1" {
 		t.Skip("set BLOGCTL_COMPILER_INTEGRATION=1 after npm ci")

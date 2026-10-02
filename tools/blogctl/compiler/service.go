@@ -56,14 +56,14 @@ type publishingProfileLanguage struct {
 }
 
 type rendererRequest struct {
-	Article      Article         `json:"article"`
-	Slug         string          `json:"slug"`
-	Platform     string          `json:"platform"`
-	Profile      json.RawMessage `json:"profile"`
-	Language     string          `json:"language"`
-	SourceDir    string          `json:"sourceDir"`
-	Assets       []Asset         `json:"assets"`
-	Policy       rendererPolicy  `json:"policy"`
+	Article   Article         `json:"article"`
+	Slug      string          `json:"slug"`
+	Platform  string          `json:"platform"`
+	Profile   json.RawMessage `json:"profile"`
+	Language  string          `json:"language"`
+	SourceDir string          `json:"sourceDir"`
+	Assets    []Asset         `json:"assets"`
+	Policy    rendererPolicy  `json:"policy"`
 }
 
 func normalizeRequestedArticles(values []string) []string {
@@ -240,7 +240,7 @@ func (s Service) Compile(ctx context.Context, request CompileRequest) ([]Compile
 		}
 		compiled, err := s.render(ctx, rendererRequest{
 			Article: article, Slug: slug, Platform: platform, Profile: profile, Language: language,
-			SourceDir:    filepath.Dir(sourceFile), Assets: assets, Policy: policy,
+			SourceDir: filepath.Dir(sourceFile), Assets: assets, Policy: policy,
 		})
 		if err != nil {
 			return nil, err
