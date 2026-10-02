@@ -77,20 +77,6 @@ func (a app) runNPM(prepare bool, args ...string) error {
 	return nil
 }
 
-func (a app) runNotes(args []string) error {
-	if len(args) != 1 {
-		return errors.New("usage: blogctl notes <sync|check|timestamps>")
-	}
-	scripts := map[string]string{
-		"sync": "sync:notes", "check": "check:vnote-metadata", "timestamps": "sync:vnote-timestamps",
-	}
-	script, ok := scripts[args[0]]
-	if !ok {
-		return errors.New("usage: blogctl notes <sync|check|timestamps>")
-	}
-	return a.runNPM(true, "run", script)
-}
-
 func (a app) runDiagrams(args []string) error {
 	if len(args) > 1 {
 		return errors.New("usage: blogctl diagrams [plantuml|drawio]")
