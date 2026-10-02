@@ -31,9 +31,6 @@ type SyncConfig struct {
 	EngineRoot     string
 	ContentRoot    string
 	PublishingJSON string
-	BridgeOrigin   string
-	BridgeToken    string
-	DevtoAPIKey    string
 	ToolPaths      map[string]string
 }
 
@@ -507,25 +504,7 @@ func npmInvocation(goos, node, npm string, args []string) (string, []string, err
 }
 
 func syncEnvironment(config SyncConfig) []string {
-	env := os.Environ()
-	env = setEnvironment(env, "BLOG_CONTENT_ROOT", config.ContentRoot)
-	env = setEnvironment(env, "BLOGCTL_ENGINE_ROOT", config.EngineRoot)
-	if strings.TrimSpace(config.PublishingJSON) != "" {
-		env = setEnvironment(env, "BLOGCTL_PUBLISHING_JSON", strings.TrimSpace(config.PublishingJSON))
-	}
-	if config.BridgeOrigin != "" {
-		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_ORIGIN", config.BridgeOrigin)
-	}
-	if config.BridgeToken != "" {
-		env = setEnvironment(env, "THINKERQAQ_SYNDICATION_BRIDGE_TOKEN", config.BridgeToken)
-	}
-	if strings.TrimSpace(config.DevtoAPIKey) != "" {
-		env = setEnvironment(env, "DEVTO_API_KEY", strings.TrimSpace(config.DevtoAPIKey))
-	}
-	if java := strings.TrimSpace(config.ToolPaths["java"]); java != "" {
-		env = setEnvironment(env, "PLANTUML_JAVA", java)
-	}
-	return prependToolDirectories(env, config.ToolPaths)
+	return prependToolDirectories(os.Environ(), config.ToolPaths)
 }
 
 func prependToolDirectories(env []string, toolPaths map[string]string) []string {
@@ -556,18 +535,6 @@ func prependToolDirectories(env []string, toolPaths map[string]string) []string 
 		filtered = append(filtered, item)
 	}
 	return append(filtered, "PATH="+strings.Join(append(directories, pathValue), string(os.PathListSeparator)))
-}
-
-func setEnvironment(env []string, key, value string) []string {
-	prefix := strings.ToUpper(key) + "="
-	filtered := make([]string, 0, len(env)+1)
-	for _, item := range env {
-		if strings.HasPrefix(strings.ToUpper(item), prefix) {
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-	return append(filtered, key+"="+value)
 }
 
 func usesPlatform(platforms []string, target string) bool {
