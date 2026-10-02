@@ -74,7 +74,7 @@ func searchProviders(args []string) ([]string, error) {
 			continue
 		}
 		switch provider {
-		case "indexnow", "bing", "baidu", "google":
+		case "indexnow", "baidu", "google":
 		default:
 			return nil, fmt.Errorf("unsupported search provider: %s", provider)
 		}
@@ -231,7 +231,7 @@ func (a app) runSearchSubmit(args []string) error {
 	distRoot = filepath.Join(a.root, distRoot)
 	publicRoot = filepath.Join(a.root, publicRoot)
 
-	needsURLs := containsString(providers, "indexnow") || containsString(providers, "bing") || containsString(providers, "baidu")
+	needsURLs := containsString(providers, "indexnow") || containsString(providers, "baidu")
 	var urls []string
 	if needsURLs {
 		urls, err = searchURLs(args, origin, distRoot)
@@ -261,24 +261,6 @@ func (a app) runSearchSubmit(args []string) error {
 			return err
 		}
 		fmt.Fprintf(a.out, "[search:indexnow] submitted=%d batches=%d http=%d\n", result.URLCount, result.BatchCount, aggregateProviderStatus(result))
-	}
-
-	if containsString(providers, "bing") {
-		key := strings.TrimSpace(localConfig.BingAPIKey)
-		if key == "" {
-			return errors.New("Bing Webmaster API key is required in blogctl.toml for Bing submission")
-		}
-		config, err := blogsearch.ResolveBingConfig(origin, strings.TrimSpace(localConfig.BingSite), key)
-		if err != nil {
-			return err
-		}
-		result, err := blogsearch.SubmitBing(ctx, client, urls, config)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(a.out, "[search:bing] requested=%d submitted=%d pending=%d dailyQuota=%d monthlyQuota=%d batches=%d\n",
-			result.RequestedCount, result.SubmittedCount, result.RemainingCount,
-			result.Quota.DailyQuota, result.Quota.MonthlyQuota, result.BatchCount)
 	}
 
 	if containsString(providers, "baidu") {
@@ -504,9 +486,9 @@ func (a app) runSearchNotify(args []string) error {
 		return err
 	}
 
-	// Deploy notification is intentionally stateless. Bing and Baidu incremental
-	// submission require durable provider state in the local Bridge, so CI does
-	// not silently convert either provider into a full-site push.
+	// Deploy notification is intentionally stateless. Baidu incremental
+	// submission requires durable provider state in the local Bridge, so CI does
+	// not silently convert it into a full-site push.
 	providers := "indexnow,google"
 	fmt.Fprintf(a.out, "[search] live inventory: %s (%d URLs)\n", inventory.Source, inventory.Total)
 	submitArgs := []string{
