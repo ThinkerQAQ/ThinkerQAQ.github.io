@@ -7,7 +7,7 @@ import (
 )
 
 func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 
 	server, err := New("token")
 	if err != nil {
@@ -44,7 +44,7 @@ func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 }
 
 func TestPublishingTaskMirrorSurvivesBridgeRestart(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 
 	server, err := New("token")
 	if err != nil {
@@ -85,7 +85,7 @@ func TestPublishingTaskMirrorSurvivesBridgeRestart(t *testing.T) {
 }
 
 func TestRunningRequestIndexingTaskRecoversPaused(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 
 	server, err := New("token")
 	if err != nil {
@@ -142,7 +142,7 @@ func TestRunningRequestIndexingTaskRecoversPaused(t *testing.T) {
 }
 
 func TestPublishingTaskPayloadCanRestoreAfterMemoryPrune(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 
 	server, err := New("token")
 	if err != nil {
@@ -182,7 +182,7 @@ func TestPublishingTaskPayloadCanRestoreAfterMemoryPrune(t *testing.T) {
 }
 
 func TestSearchStateUsesRunningDurableTaskAsLiveStatus(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 
 	server, err := New("token")
 	if err != nil {
