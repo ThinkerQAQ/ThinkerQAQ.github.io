@@ -1,14 +1,14 @@
 # ThinkerQAQ Blog
 
-[English](./README_EN.md)
+[中文](./README_ZH.md)
 
-在线博客：<https://thinkerqaq.github.io/>
+Live site: <https://thinkerqaq.github.io/>
 
-## 简介
+## Introduction
 
-这是一个基于 [Astro](https://astro.build/) 的中英双语个人技术博客与数字花园。
+This is a bilingual personal technical blog and digital garden built with [Astro](https://astro.build/).
 
-博客拆成两个部分：
+The blog is split into two parts:
 
 ```text
 blog-content
@@ -22,31 +22,31 @@ Astro / Search / SEO / BlogCTL / CI
 GitHub Pages
 ```
 
-当前仓库负责网站引擎；真实内容保存在独立的 Content Repository 中，在构建时注入。
+This repository contains the public site engine. The real content lives in a separate Content Repository and is injected at build time.
 
-主要能力：
+Main capabilities:
 
 - Articles / Notes / Series / Projects
-- 中文站点与 `/en/` 英文站点
-- Pagefind 全文搜索
+- Chinese site and English site under `/en/`
+- Pagefind full-text search
 - Cloudflare AI Search / Workers
-- utterances 评论
-- Umami 访问统计
-- canonical、Open Graph、JSON-LD、`hreflang`、RSS、sitemap、IndexNow
-- BlogCTL 与多平台文章分发
-- GitHub Actions + GitHub Pages 自动构建与发布
+- utterances comments
+- Umami analytics
+- canonical URLs, Open Graph, JSON-LD, `hreflang`, RSS, sitemap, and IndexNow
+- BlogCTL and multi-platform article distribution
+- GitHub Actions + GitHub Pages deployment
 
 ## Tutorial
 
 ### 1. Clone
 
-如果只是想看 Public Engine：
+To work on the Public Engine only:
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
 ```
 
-如果想带一套完整示例内容一起运行：
+To run it with a complete sample Content Repository:
 
 ```bash
 mkdir thinkerqaq-blog
@@ -56,7 +56,7 @@ git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
 git clone https://github.com/ThinkerQAQ/blog-content-template.git blog-content
 ```
 
-目录保持为：
+Keep the repositories as siblings:
 
 ```text
 thinkerqaq-blog/
@@ -64,11 +64,11 @@ thinkerqaq-blog/
 └── blog-content/
 ```
 
-`blog-content-template` 只是一套示例内容，不参与当前博客的生产部署。
+`blog-content-template` is sample content only. It is not part of the production deployment of this site.
 
-### 2. 本地运行
+### 2. Run locally
 
-进入 Public Engine：
+Enter the Public Engine:
 
 ```bash
 cd ThinkerQAQ.github.io
@@ -77,13 +77,13 @@ go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
 npm run dev:site
 ```
 
-默认访问：
+Open:
 
 ```text
 http://localhost:4321
 ```
 
-如果只验证 Public Engine，不需要 Content Repository：
+To validate the Public Engine without a Content Repository:
 
 ```bash
 npm run assemble:fixtures
@@ -91,9 +91,9 @@ npm run check
 npm run build
 ```
 
-### 3. 添加内容
+### 3. Add content
 
-内容放在 `blog-content`：
+Content belongs in `blog-content`:
 
 ```text
 src/content/
@@ -108,13 +108,13 @@ src/content/
 public/media/
 ```
 
-可以直接从 [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template) 中复制示例修改。
+You can copy and edit the examples from [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template).
 
-完整字段定义以 [`src/content.config.ts`](src/content.config.ts) 为准。
+See [`src/content.config.ts`](src/content.config.ts) for the complete schema.
 
-### 4. 部署
+### 4. Deploy
 
-当前博客的生产链路是：
+The production pipeline for this site is:
 
 ```text
 ThinkerQAQ/blog-content
@@ -126,26 +126,26 @@ trigger-public-engine.yml
         ▼
 ThinkerQAQ.github.io / deploy.yml
         │
-        ├── checkout 指定 content commit
+        ├── checkout the selected content commit
         ├── validate + assemble
         ├── test + build
-        └── deploy GitHub Pages
+        └── deploy to GitHub Pages
 ```
 
-Public Engine 使用 `CONTENT_REPOSITORY` 指定内容仓库；私有 Content Repository 通过 `BLOG_CONTENT_DEPLOY_KEY` 读取。
+The Public Engine uses `CONTENT_REPOSITORY` to select the content repository. A private Content Repository is read through `BLOG_CONTENT_DEPLOY_KEY`.
 
-如果部署自己的 fork，需要同时修改 `.github/workflows/deploy.yml` 中针对 `ThinkerQAQ/ThinkerQAQ.github.io` 的仓库判断，并配置自己的 `CONTENT_REPOSITORY`、GitHub Pages 和相关 Secrets。
+To deploy your own fork, also update the repository guards in `.github/workflows/deploy.yml` that currently target `ThinkerQAQ/ThinkerQAQ.github.io`, then configure your own `CONTENT_REPOSITORY`, GitHub Pages, and required Secrets.
 
-Content Template 默认不带自动触发部署的 Workflow，避免模板绑定具体账号、Token 或仓库名。
+The Content Template intentionally does not include an automatic deployment trigger workflow, so it is not tied to a specific account, token, or repository name.
 
 ## Documentation
 
-### 主要组件
+### Main components
 
-| 能力 | 实现 |
+| Capability | Implementation |
 | --- | --- |
 | Site | Astro + Markdown + Content Collections |
-| Content | 独立 Content Repository |
+| Content | Separate Content Repository |
 | Search | Pagefind |
 | AI Search | Cloudflare Workers + AI Search |
 | Comments | utterances |
@@ -156,21 +156,21 @@ Content Template 默认不带自动触发部署的 Workflow，避免模板绑定
 | CI/CD | GitHub Actions |
 | Deployment | GitHub Pages |
 
-### 仓库结构
+### Repository layout
 
 ```text
-src/                  Astro 页面、组件和内容 Schema
-scripts/              Astro / Pagefind / 图渲染与前端测试脚本
+src/                  Astro pages, components, and content schema
+scripts/              Astro / Pagefind / diagram rendering and frontend test scripts
 workers/              Cloudflare Workers
 tools/blogctl/         BlogCTL
-fixtures/              Public Engine 测试内容
+fixtures/              Public Engine test content
 .github/workflows/     CI / CD
 ```
 
-### 详细文档
+### Detailed documentation
 
 - [BlogCTL](tools/blogctl/README.md)
 
 ## License
 
-本仓库代码使用 [MIT License](LICENSE)。
+This repository is licensed under the [MIT License](LICENSE).
