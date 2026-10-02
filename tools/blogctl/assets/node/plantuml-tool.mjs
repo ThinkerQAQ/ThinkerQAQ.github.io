@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 import * as vizModule from "@viz-js/viz";
@@ -70,7 +69,8 @@ export async function main(argv = process.argv.slice(2)) {
   console.debug = (...args) => console.error(...args);
 
   const { format } = parseArgs(argv);
-  const source = await readFile(0, "utf8");
+  let source = "";
+  for await (const chunk of process.stdin) source += chunk;
   if (format === "svg") {
     process.stdout.write(await renderPlantUMLSVG(source));
     return;
