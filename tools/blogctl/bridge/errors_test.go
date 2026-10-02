@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestWriteAPIErrorKeepsLegacyErrorAndAddsStructuredFields(t *testing.T) {
+func TestWriteAPIErrorProducesStructuredFields(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	writeAPIError(recorder, http.StatusBadRequest, "invalid_platform", "unsupported platform", map[string]any{
 		"platform": "unknown",
@@ -20,7 +20,7 @@ func TestWriteAPIErrorKeepsLegacyErrorAndAddsStructuredFields(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Error != "unsupported platform" || payload.Code != "invalid_platform" || payload.Message != "unsupported platform" {
+	if payload.Code != "invalid_platform" || payload.Message != "unsupported platform" {
 		t.Fatalf("payload = %#v", payload)
 	}
 	if payload.Details["platform"] != "unknown" {
@@ -56,7 +56,7 @@ func TestWriteErrorProducesStructuredResponse(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Error != "invalid JSON" || payload.Code != "invalid_request" || payload.Message != "invalid JSON" {
+	if payload.Code != "invalid_request" || payload.Message != "invalid JSON" {
 		t.Fatalf("payload = %#v", payload)
 	}
 }
