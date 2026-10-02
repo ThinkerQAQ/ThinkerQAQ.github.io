@@ -289,10 +289,7 @@ func executableHealth(config bridgeConfig, name string) toolHealth {
 }
 
 func devtoAPIKey(config bridgeConfig) string {
-	if configured := strings.TrimSpace(config.DevtoAPIKey); configured != "" {
-		return configured
-	}
-	return strings.TrimSpace(os.Getenv("DEVTO_API_KEY"))
+	return strings.TrimSpace(config.DevtoAPIKey)
 }
 
 func devtoAPIHealth(config bridgeConfig) toolHealth {
@@ -1223,25 +1220,18 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
 
-	publishingJSON, publishingErr := resolvedPublishingJSON(config)
-	if publishingErr != nil {
-		return "", publishingErr
-	}
 	applicationConfig := blogapp.SyncConfig{
-		EngineRoot:     config.EngineRoot,
-		ContentRoot:    config.ContentRoot,
-		PublishingJSON: publishingJSON,
-		BridgeOrigin:   "http://" + DefaultAddress,
-		BridgeToken:    s.token,
-		DevtoAPIKey:    config.DevtoAPIKey,
-		ToolPaths:      config.ToolPaths,
+		EngineRoot:  config.EngineRoot,
+		ContentRoot: config.ContentRoot,
+		Publishing:  config.Publishing,
+		ToolPaths:   config.ToolPaths,
 	}
 	if request.Operation == "update-published" {
 		started := time.Now()
 		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
 		compiledArticles, compileErr := blogcompiler.CompilePlatform(ctx, blogcompiler.CompileOptions{
 			EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
-			PublishingJSON: publishingJSON, Node: config.ToolPaths["node"],
+			Publishing: config.Publishing, Node: config.ToolPaths["node"],
 			Platform: "cnblogs", Articles: []string{request.Article}, DryRun: true,
 		})
 		if compileErr != nil {
