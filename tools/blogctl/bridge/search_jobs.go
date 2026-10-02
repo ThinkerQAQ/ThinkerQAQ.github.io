@@ -167,37 +167,12 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 	_ = saveSearchIndexState(state)
 
 	previous := loadBingIndexSnapshot()
-	raw, err := s.runSearchNode(ctx, s.config, "bing-submit", map[string]any{
-		"mode":     input.Mode,
-		"previous": previous,
-	})
+	payload, err := s.submitBingIndexNow(ctx, input.Mode, previous)
 	if err != nil {
 		state.Bing.State = "failed"
 		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Bing.Error = err.Error()
 		_ = saveSearchIndexState(state)
-		return err
-	}
-
-	var payload struct {
-		Inventory searchInventoryState `json:"inventory"`
-		Diff      struct {
-			Mode           string `json:"mode"`
-			SelectedCount  int    `json:"selectedCount"`
-			AddedCount     int    `json:"addedCount"`
-			ChangedCount   int    `json:"changedCount"`
-			DeletedCount   int    `json:"deletedCount"`
-			UnchangedCount int    `json:"unchangedCount"`
-		} `json:"diff"`
-		Result struct {
-			URLCount   int `json:"urlCount"`
-			BatchCount int `json:"batchCount"`
-			Results    []struct {
-				HTTPStatus int `json:"httpStatus"`
-			} `json:"results"`
-		} `json:"result"`
-	}
-	if err := decodeSearchResult(raw, &payload); err != nil {
 		return err
 	}
 	if err := saveBingIndexSnapshot(payload.Inventory); err != nil {
@@ -210,7 +185,7 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
 		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
 		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
-		HTTPStatus: aggregateHTTPStatus(payload.Result.Results),
+		HTTPStatus: maxSearchHTTPStatus(payload.Result.Results),
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
