@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -354,13 +353,3 @@ func (a app) runSearchNotify(args []string) error {
 	})
 }
 
-func parsePositiveInt(value string, fallback int) (int, error) {
-	if strings.TrimSpace(value) == "" {
-		return fallback, nil
-	}
-	number, err := strconv.Atoi(value)
-	if err != nil || number < 0 {
-		return 0, fmt.Errorf("invalid integer %q", value)
-	}
-	return number, nil
-}
