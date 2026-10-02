@@ -15,19 +15,21 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: refactor/blogctl-r2-go-runtime-20261002
+
       - uses: actions/setup-go@v6
         with:
           go-version-file: tools/blogctl/go.mod
           cache: false
-      - name: Format changed Go files
+
+      - name: Format BlogCTL Go tree
         shell: bash
         run: |
-          gofmt -w             tools/blogctl/assets/pipeline.go             tools/blogctl/assets/pipeline_test.go             tools/blogctl/bridge/control.go
+          gofmt -w tools/blogctl
           if git diff --quiet; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add             tools/blogctl/assets/pipeline.go             tools/blogctl/assets/pipeline_test.go             tools/blogctl/bridge/control.go
-          git commit -m "style(assets): gofmt Go asset pipeline"
+          git add tools/blogctl
+          git commit -m "style(blogctl): gofmt Go runtime"
           git push origin HEAD:refactor/blogctl-r2-go-runtime-20261002
