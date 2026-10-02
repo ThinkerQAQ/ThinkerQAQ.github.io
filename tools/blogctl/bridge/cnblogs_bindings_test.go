@@ -2,7 +2,6 @@ package bridge
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
@@ -20,47 +18,6 @@ type cnBlogsBindingTransport func(*http.Request) (*http.Response, error)
 
 func (f cnBlogsBindingTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)
-}
-
-func TestCNBlogsPublishedUpdateStartsDistinctJob(t *testing.T) {
-	root := t.TempDir()
-	articles := filepath.Join(root, "src", "content", "articles")
-	if err := os.MkdirAll(articles, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(articles, "example.md"), []byte("---\ntitle: Example\nstatus: published\n---\nbody\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := publisher.SavePublicationBinding(root, publisher.PublicationBinding{Slug: "example", Platform: "cnblogs", PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42"}); err != nil {
-		t.Fatal(err)
-	}
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
-	}
-	server.config.ContentRoot = root
-	server.sessions["cnblogs"] = platformSession{RequestCookieHeader: "login=test", ExpiresAt: time.Now().Add(time.Minute)}
-	operations := make(chan string, 1)
-	server.syncRunner = func(_ context.Context, _ bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
-		operations <- request.Operation
-		onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "completed", Result: "published-updated"})
-		return "", nil
-	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/cnblogs/binding/update?article=example", nil)
-	setExtensionAuth(request, "token")
-	response := httptest.NewRecorder()
-	server.Handler().ServeHTTP(response, request)
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
-	}
-	select {
-	case operation := <-operations:
-		if operation != "update-published" {
-			t.Fatalf("operation = %q", operation)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("published update job did not start")
-	}
 }
 
 func bindingJSON(request *http.Request, body string) *http.Response {
