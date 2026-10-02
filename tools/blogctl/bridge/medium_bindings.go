@@ -62,26 +62,6 @@ func mediumLocalCanonicalURL(article articleSummary) string {
 	return "https://thinkerqaq.github.io" + prefix + strings.Join(parts, "/") + "/"
 }
 
-func (s *Server) handleMediumLookupContext(response http.ResponseWriter, request *http.Request, slug string) {
-	if _, ok := allowExtensionWrite(response, request); !ok {
-		return
-	}
-	article, root, err := s.cnBlogsArticle(slug)
-	if err != nil {
-		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
-		return
-	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "medium")
-	if err != nil {
-		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{
-		"title": article.Title, "canonicalUrl": mediumLocalCanonicalURL(article),
-		"bindings": mediumBindingViews(binding),
-	})
-}
-
 func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []mediumPost, publisher.PublicationBinding, error,
 ) {
