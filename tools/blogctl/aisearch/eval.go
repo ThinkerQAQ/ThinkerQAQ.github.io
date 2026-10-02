@@ -41,7 +41,7 @@ type EvalDiagnostic struct {
 }
 
 var DefaultEvalCases = []EvalCase{
-	{Language: "zh", Query: "Go CAS 为什么可以无锁？", ExpectedAny: []string{"/articles/concurrency-series-05-atomic-cas/", "/articles/concurrency-series-06-atomic-implementation/"}},
+	{Language: "zh", Query: "Go CAS 为什么可以无锁？", ExpectedAny: []string{"/articles/concurrency-series-05-atomic-cas/", "/articles/concurrency-series-06-atomic-implementation/", "/notes/algorithm-concurrent/cas/", "/notes/algorithm-concurrent/lock-free-queue/"}},
 	{Language: "zh", Query: "Go CAS 在 amd64 上如何实现？", ExpectedAny: []string{"/articles/concurrency-series-06-atomic-implementation/"}},
 	{Language: "zh", Query: "AtomicInteger 底层如何实现？", ExpectedAny: []string{"/articles/concurrency-series-06-atomic-implementation/"}},
 	{Language: "zh", Query: "Java synchronized 底层怎么实现？", ExpectedAny: []string{"/articles/concurrency-series-04-mutex-implementation/"}},
