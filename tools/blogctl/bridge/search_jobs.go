@@ -23,6 +23,26 @@ type googleInspectionTaskPayload struct {
 	Done   bool `json:"done,omitempty"`
 }
 
+func reconcileRecoveredGoogleInspectionPayload(payload googleInspectionTaskPayload, inspection searchInspectionState) googleInspectionTaskPayload {
+	if payload.Done || payload.Limit <= 0 || inspection.NextOffset == nil {
+		return payload
+	}
+	nextOffset := *inspection.NextOffset
+	if nextOffset <= payload.Offset {
+		return payload
+	}
+	batchEnd := payload.Offset + payload.Limit
+	if nextOffset >= batchEnd {
+		payload.Offset = batchEnd
+		payload.Limit = 0
+		payload.Done = true
+		return payload
+	}
+	payload.Offset = nextOffset
+	payload.Limit = batchEnd - nextOffset
+	return payload
+}
+
 func taskCapabilities(retry, pause, resume bool) struct {
 	Retry  bool
 	Pause  bool
@@ -943,6 +963,23 @@ func recoverSearchTasksAfterRestart(s *Server) {
 	}
 
 	if job := s.latestDurableSearchTask("google-inspection"); job != nil && job.State == "queued" {
+		var payload googleInspectionTaskPayload
+		if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &payload) == nil {
+			resumed := reconcileRecoveredGoogleInspectionPayload(payload, state.Google.Inspection)
+			if resumed != payload {
+				raw, err := json.Marshal(resumed)
+				if err == nil {
+					_, _ = s.updateDurableTaskJob(job.ID, func(current *durableTaskJob) {
+						current.Payload = raw
+						current.Progress.Current = min(resumed.Offset, current.Progress.Total)
+						current.Detail = map[string]any{
+							"phase":      "recovered",
+							"nextOffset": resumed.Offset,
+						}
+					})
+				}
+			}
+		}
 		s.launchSearchTaskJob(job.ID)
 	}
 }
