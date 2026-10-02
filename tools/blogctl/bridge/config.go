@@ -391,6 +391,9 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
+	// PlantUML rendering is TeaVM/Viz.js based; legacy Java tool configuration
+	// is no longer part of the BlogCTL runtime.
+	delete(config.ToolPaths, "java")
 
 	config.ProxyHost = strings.TrimSpace(config.ProxyHost)
 	_, host, port, err := normalizeProxyAddress(config.ProxyHost, config.ProxyPort)
