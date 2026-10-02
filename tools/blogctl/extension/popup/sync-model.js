@@ -1,10 +1,6 @@
 "use strict";
 
 (function (root) {
-  const LEGACY_PUBLISHER_AUTH_PLATFORMS = new Set([
-    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto",
-  ]);
-
   function platformID(platform) {
     return typeof platform === "object" && platform ? platform.id : platform;
   }
@@ -16,7 +12,10 @@
   function deliveryToolAvailability(platform, tools = []) {
     const id = platformID(platform);
     const capabilities = platformCapabilities(platform);
-    const needsAPIKey = capabilities.apiKey === true || (Object.keys(capabilities).length === 0 && id === "devto");
+    if (Object.keys(capabilities).length === 0) {
+      return { available: false, reason: "平台能力未知" };
+    }
+    const needsAPIKey = capabilities.apiKey === true;
     if (!needsAPIKey) return { available: true, reason: "" };
     const tool = tools.find((item) => item.name === "devto-api");
     if (!tool) return { available: false, reason: "DEV.to API 状态未知" };
@@ -27,9 +26,10 @@
   function platformAvailability(article, platform, publishingProfile = {}) {
     if (platform && typeof platform === "object") {
       const capabilities = platformCapabilities(platform);
-      const capabilityAware = Object.keys(capabilities).length > 0;
-      const publisherManagedAuth = capabilities.browserSession === true || capabilities.apiKey === true ||
-        (!capabilityAware && LEGACY_PUBLISHER_AUTH_PLATFORMS.has(platform.id));
+      if (Object.keys(capabilities).length === 0) {
+        return { available: false, reason: "平台能力未知" };
+      }
+      const publisherManagedAuth = capabilities.browserSession === true || capabilities.apiKey === true;
       if (!publisherManagedAuth) {
         if (platform.known === false) return { available: false, reason: "登录状态检测失败" };
         if (!platform.loggedIn) return { available: false, reason: "未登录" };
@@ -54,10 +54,6 @@
       return platform.capabilities.publishedUpdate === true;
     }
     return platforms[0] === "cnblogs";
-  }
-
-  function canUpdateCNBlogsPublished(slug, platforms, bridgeRunning) {
-    return Boolean(slug) && Boolean(bridgeRunning) && platforms.length === 1 && platforms[0] === "cnblogs";
   }
 
   function canConfirmPublish(job, status) {
@@ -127,7 +123,6 @@
     statePresentation,
     platformAvailability,
     canUpdatePublished,
-    canUpdateCNBlogsPublished,
     canConfirmPublish,
   };
 })(globalThis);
