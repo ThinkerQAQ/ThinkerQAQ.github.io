@@ -20,5 +20,6 @@ test("published update follows platform capabilities", () => {
   assert.equal(canUpdatePublished("example", ["cnblogs", "juejin"], true, status), false);
   assert.equal(canUpdatePublished("example", ["juejin"], true, status), false);
   assert.equal(canUpdatePublished("example", ["cnblogs"], false, status), false);
+  assert.equal(canUpdatePublished("example", ["cnblogs"], true, { platforms: [{ id: "cnblogs", capabilities: {} }] }), false);
 });
 
