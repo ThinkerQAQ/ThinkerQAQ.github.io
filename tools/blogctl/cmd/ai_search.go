@@ -185,26 +185,84 @@ func (a app) runAISearchSync(args []string) error {
 	}
 	forceFull := hasArg(args, "--force-full") || strings.TrimSpace(os.Getenv("AI_SEARCH_FORCE_FULL_SYNC")) == "1"
 
-	node, _, err := a.prepareNode(false)
+	accountID := strings.TrimSpace(os.Getenv("CLOUDFLARE_ACCOUNT_ID"))
+	token := strings.TrimSpace(os.Getenv("CLOUDFLARE_AI_SEARCH_TOKEN"))
+	instance := strings.TrimSpace(os.Getenv("CLOUDFLARE_AI_SEARCH_INSTANCE"))
+	if instance == "" {
+		instance = "thinkerqaq-blog"
+	}
+	blogOrigin := strings.TrimSpace(os.Getenv("BLOG_ORIGIN"))
+	if blogOrigin == "" {
+		blogOrigin = blogaisearch.DefaultBlogOrigin
+	}
+	requestTimeout, err := durationFromMillisecondsEnv("AI_SEARCH_REQUEST_TIMEOUT_MS", 30*time.Second)
 	if err != nil {
 		return err
 	}
-	script := filepath.Join(a.root, "scripts", "run-ai-search-sync.mjs")
-	if !fileExists(script) {
-		return fmt.Errorf("AI Search sync script was not found: %s", script)
+	maxRetries, err := intFromEnv("AI_SEARCH_REQUEST_RETRIES", 8)
+	if err != nil {
+		return err
 	}
-	env := os.Environ()
-	env = withEnvironment(env, "AI_SEARCH_CHANGE_MANIFEST", manifest)
-	if forceFull {
-		env = withEnvironment(env, "AI_SEARCH_FORCE_FULL_SYNC", "1")
+	retryBase, err := durationFromMillisecondsEnv("AI_SEARCH_RETRY_BASE_MS", 2*time.Second)
+	if err != nil {
+		return err
 	}
-	if err := a.runner.Run(node, []string{script}, env); err != nil {
+	retryMax, err := durationFromMillisecondsEnv("AI_SEARCH_RETRY_MAX_MS", 15*time.Second)
+	if err != nil {
+		return err
+	}
+
+	result, err := blogaisearch.Sync(
+		context.Background(),
+		&http.Client{},
+		blogaisearch.SyncConfig{
+			AccountID: accountID,
+			APIToken: token,
+			InstanceName: instance,
+			BlogOrigin: blogOrigin,
+			ContentRoot: filepath.Join(a.root, "src", "content"),
+			ChangeManifestPath: manifest,
+			ForceFull: forceFull,
+			RequestTimeout: requestTimeout,
+			MaxRetries: maxRetries,
+			RetryBase: retryBase,
+			RetryMax: retryMax,
+		},
+	)
+	if err != nil {
 		return fmt.Errorf("sync AI Search: %w", err)
 	}
+	payload, _ := json.Marshal(result)
+	fmt.Fprintf(a.out, "[ai-search] sync %s\n", payload)
+
 	if !verify {
 		return nil
 	}
 	return a.runAISearchVerify(args)
+}
+
+func intFromEnv(name string, fallback int) (int, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative integer", name)
+	}
+	return value, nil
+}
+
+func durationFromMillisecondsEnv(name string, fallback time.Duration) (time.Duration, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative millisecond value", name)
+	}
+	return time.Duration(value) * time.Millisecond, nil
 }
 
 func aiSearchDuration(args []string, name string, fallback time.Duration) (time.Duration, error) {
