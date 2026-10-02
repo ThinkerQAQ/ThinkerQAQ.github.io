@@ -24,6 +24,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Check Go formatting
         shell: bash
         run: |
