@@ -1,0 +1,38 @@
+name: Temporary BlogCTL Gofmt
+
+on:
+  push:
+    branches:
+      - docs/blogctl-go-runtime-ci-refactor-20261001
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: docs/blogctl-go-runtime-ci-refactor-20261001
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+
+      - name: Format BlogCTL Go
+        run: gofmt -w tools/blogctl
+
+      - name: Commit formatting
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/blogctl
+          git commit -m "style(blogctl): gofmt Go sources"
+          git push origin HEAD:docs/blogctl-go-runtime-ci-refactor-20261001
