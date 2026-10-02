@@ -87,8 +87,6 @@ func (a app) run(args []string) error {
 		return a.runDiagrams(args)
 	case "search":
 		return a.runSearch(args)
-	case "distribute":
-		return a.runNPM(true, append([]string{"run", "distribute", "--"}, args...)...)
 	case "sync":
 		return a.runSync(args)
 	case "doctor":
@@ -131,7 +129,6 @@ Usage:
   blogctl notes <sync|check|timestamps>
   blogctl diagrams [plantuml|drawio]
   blogctl search <build|inventory|submit|audit|notify> [options]
-  blogctl distribute [args...]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
 

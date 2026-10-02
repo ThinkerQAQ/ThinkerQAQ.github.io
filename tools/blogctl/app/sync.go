@@ -1,9 +1,7 @@
 package app
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -40,9 +38,6 @@ type SyncConfig struct {
 
 type SyncPlan struct {
 	Group     string
-	Compiler  string
-	Script    string
-	Args      []string
 	Platforms []string
 	Native    bool
 }
@@ -189,108 +184,11 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 		if !blogplatform.For(platform).DraftCreate {
 			continue
 		}
-		args := make([]string, 0, len(request.Articles)*2+5)
-		for _, article := range request.Articles {
-			args = append(args, "--article", article)
-		}
-		if request.All {
-			args = append(args, "--all")
-		}
-		args = append(args, "--platforms", platform)
-		if request.DryRun {
-			args = append(args, "--dry-run")
-		}
-		if request.Draft {
-			args = append(args, "--draft")
-		}
-		compilerKind := "go"
-		script := ""
-		if platform == "medium" {
-			compilerKind = "node-medium"
-			script = "tools/blogctl/compiler/node/index.mjs"
-		}
 		plans = append(plans, SyncPlan{
-			Group: "native-publishing", Compiler: compilerKind, Script: script, Args: args,
-			Platforms: []string{platform}, Native: true,
+			Group: "native-publishing", Platforms: []string{platform}, Native: true,
 		})
 	}
 	return plans
-}
-
-func ParseCompiledArticles(output string) ([]blogcompiler.CompiledArticle, error) {
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	buffer := make([]byte, 0, 64*1024)
-	scanner.Buffer(buffer, 16*1024*1024)
-	articles := []blogcompiler.CompiledArticle{}
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || !strings.HasPrefix(line, "{") {
-			continue
-		}
-		var envelope struct {
-			Operation string                       `json:"operation"`
-			Status    string                       `json:"status"`
-			Message   string                       `json:"message"`
-			Article   blogcompiler.CompiledArticle `json:"article"`
-		}
-		if err := json.Unmarshal([]byte(line), &envelope); err != nil || envelope.Operation != "blogctl-compile" {
-			continue
-		}
-		if envelope.Status == "failed" {
-			if strings.TrimSpace(envelope.Message) == "" {
-				envelope.Message = "publishing compiler failed"
-			}
-			return nil, errors.New(envelope.Message)
-		}
-		if envelope.Status != "completed" {
-			continue
-		}
-		if err := envelope.Article.Validate(); err != nil {
-			return nil, err
-		}
-		articles = append(articles, envelope.Article)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return articles, nil
-}
-
-func compiledArticleFor(articles []blogcompiler.CompiledArticle, slug, platform string) (blogcompiler.CompiledArticle, error) {
-	for _, article := range articles {
-		if article.Slug == slug && article.Platform == platform {
-			return article, nil
-		}
-	}
-	return blogcompiler.CompiledArticle{}, fmt.Errorf("publishing compiler returned no article for %s/%s", platform, slug)
-}
-
-func scriptFailureMessage(output string) string {
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	buffer := make([]byte, 0, 64*1024)
-	scanner.Buffer(buffer, 1024*1024)
-	message := ""
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || !strings.HasPrefix(line, "{") {
-			continue
-		}
-		var raw scriptFailureEvent
-		if err := json.Unmarshal([]byte(line), &raw); err != nil {
-			continue
-		}
-		if raw.Status != "failed" {
-			continue
-		}
-		candidate := strings.TrimSpace(raw.Exception.Message)
-		if candidate == "" {
-			candidate = strings.TrimSpace(raw.Message)
-		}
-		if candidate != "" {
-			message = candidate
-		}
-	}
-	return message
 }
 
 type syncPlanExecution struct {
@@ -304,7 +202,6 @@ func (s SyncService) runSyncPlan(
 	ctx context.Context,
 	config SyncConfig,
 	request SyncRequest,
-	runner CommandRunner,
 	node string,
 	env []string,
 	index int,
@@ -316,33 +213,16 @@ func (s SyncService) runSyncPlan(
 		result.events = append(result.events, event)
 	}
 
-	var compiledArticles []blogcompiler.CompiledArticle
-	var compileErr error
-	if entry.Compiler == "go" {
-		compile := s.Compiler
-		if compile == nil {
-			compile = blogcompiler.CompilePlatform
-		}
-		compiledArticles, compileErr = compile(ctx, blogcompiler.CompileOptions{
-			EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
-			PublishingJSON: config.PublishingJSON, Node: node, Env: env,
-			Platform: entry.Platforms[0], Articles: append([]string{}, request.Articles...),
-			All: request.All, DryRun: request.DryRun,
-		})
-	} else {
-		script := filepath.Join(config.EngineRoot, filepath.FromSlash(entry.Script))
-		commandOutput, runErr := runner.Run(ctx, node, append([]string{script}, entry.Args...), config.EngineRoot, env)
-		result.output = commandOutput
-		if runErr != nil {
-			detail := scriptFailureMessage(commandOutput)
-			if detail == "" {
-				detail = runErr.Error()
-			}
-			compileErr = errors.New(detail)
-		} else {
-			compiledArticles, compileErr = ParseCompiledArticles(commandOutput)
-		}
+	compile := s.Compiler
+	if compile == nil {
+		compile = blogcompiler.CompilePlatform
 	}
+	compiledArticles, compileErr := compile(ctx, blogcompiler.CompileOptions{
+		EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
+		PublishingJSON: config.PublishingJSON, Node: node, Env: env,
+		Platform: entry.Platforms[0], Articles: append([]string{}, request.Articles...),
+		All: request.All, DryRun: request.DryRun,
+	})
 	if compileErr != nil {
 		message := entry.Group + ": " + compileErr.Error()
 		for _, platform := range entry.Platforms {
@@ -528,7 +408,7 @@ func (s SyncService) Run(ctx context.Context, config SyncConfig, request SyncReq
 	for index, entry := range plans {
 		index, entry := index, entry
 		go func() {
-			executionCh <- s.runSyncPlan(ctx, config, request, runner, node, env, index, entry)
+			executionCh <- s.runSyncPlan(ctx, config, request, node, env, index, entry)
 		}()
 	}
 
