@@ -599,6 +599,16 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			}},
 			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["git"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 git")},
 		},
+		{
+			Name: "java", DisplayName: "Java (PlantUML)", Kind: "dependency", Required: false,
+			Description: "可选。只有网站构建或发布内容包含 PlantUML（puml / plantuml / UML）时才需要，用于运行 PlantUML JAR 渲染图表。",
+			Health:      executableHealth(config, "java"),
+			Actions: []toolAction{{
+				ID: "update", Label: "更新",
+				Description: "按当前 JDK vendor/major 识别 WinGet 包后升级；无法安全识别时不会切换发行版。",
+			}},
+			Config: toolConfigView{Scope: "bridge", Values: map[string]any{"path": config.ToolPaths["java"]}, Schema: pathField("path", "Executable", "留空时从 PATH 自动检测 java")},
+		},
 	}
 }
 
@@ -677,7 +687,7 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 			}
 			config.GoogleSearchConsoleServiceJSON = value
 		}
-	case "node", "npm", "git":
+	case "node", "npm", "git", "java":
 		if config.ToolPaths == nil {
 			config.ToolPaths = map[string]string{}
 		}
