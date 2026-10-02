@@ -163,11 +163,7 @@ func saveSearchProviderSnapshot(filename string, snapshot searchInventoryState) 
 }
 
 func loadIndexNowSnapshot() searchInventoryState {
-	current := loadSearchProviderSnapshot("indexnow-snapshot.json")
-	if current.Source != "" || current.Total > 0 || len(current.URLs) > 0 || len(current.Fingerprints) > 0 {
-		return current
-	}
-	return migrateLegacyIndexNowSnapshot()
+	return loadSearchProviderSnapshot("indexnow-snapshot.json")
 }
 
 type bingIndexSnapshot struct {
@@ -239,15 +235,8 @@ func loadSearchIndexState() searchIndexState {
 	if json.Unmarshal(data, &state) != nil {
 		return defaultSearchIndexState()
 	}
-	migratedLegacyState := false
 	if state.IndexNow.State == "" {
-		if legacy, ok := migrateLegacyIndexNowState(data); ok {
-			state.IndexNow = legacy
-			state.Bing = searchOperationState{State: "idle"}
-			migratedLegacyState = true
-		} else {
-			state.IndexNow.State = "idle"
-		}
+		state.IndexNow.State = "idle"
 	}
 	if state.Bing.State == "" {
 		state.Bing.State = "idle"
@@ -263,9 +252,6 @@ func loadSearchIndexState() searchIndexState {
 	}
 	if state.Google.RequestQueue.State == "" {
 		state.Google.RequestQueue.State = "idle"
-	}
-	if migratedLegacyState {
-		_ = saveSearchIndexState(state)
 	}
 	return state
 }
