@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { micromark } from "micromark";
 
 function splitTableRow(line) {
@@ -75,5 +74,6 @@ function renderPlatformHtml(markdown) {
   }
   return micromark(output.join("\n"), { allowDangerousHtml: true });
 }
-const input = await readFile(0, "utf8");
+let input = "";
+for await (const chunk of process.stdin) input += chunk;
 process.stdout.write(renderPlatformHtml(input));

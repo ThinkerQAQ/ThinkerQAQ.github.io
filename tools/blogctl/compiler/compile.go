@@ -46,13 +46,26 @@ func truncateRunes(value string,limit int)string{
 	if limit<1||utf8.RuneCountInString(value)<=limit{return value}
 	r:=[]rune(value);return string(r[:limit-1])+"…"
 }
-func trackedURL(canonical string,config PlatformConfig)string{
-	u,err:=url.Parse(canonical);if err!=nil{return canonical};if !config.Tracking.Enabled{return u.String()}
-	q:=u.Query()
-	if v:=strings.TrimSpace(config.Tracking.Source);v!=""{q.Set("utm_source",v)}
-	if v:=strings.TrimSpace(config.Tracking.Medium);v!=""{q.Set("utm_medium",v)}
-	if v:=strings.TrimSpace(config.Tracking.Campaign);v!=""{q.Set("utm_campaign",v)}
-	u.RawQuery=q.Encode();return u.String()
+func trackedURL(canonical string, config PlatformConfig) string {
+	u, err := url.Parse(canonical)
+	if err != nil {
+		return canonical
+	}
+	if !config.Tracking.Enabled {
+		return u.String()
+	}
+	pairs := make([]string, 0, 3)
+	for _, item := range [][2]string{
+		{"utm_source", strings.TrimSpace(config.Tracking.Source)},
+		{"utm_medium", strings.TrimSpace(config.Tracking.Medium)},
+		{"utm_campaign", strings.TrimSpace(config.Tracking.Campaign)},
+	} {
+		if item[1] != "" {
+			pairs = append(pairs, url.QueryEscape(item[0])+"="+url.QueryEscape(item[1]))
+		}
+	}
+	u.RawQuery = strings.Join(pairs, "&")
+	return u.String()
 }
 func renderFooter(config PlatformConfig,canonical,title string)string{
 	if !config.Footer.Enabled{return ""}
