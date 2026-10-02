@@ -134,9 +134,11 @@ blogctl search audit --provider google --limit 500 --output .search/google-audit
 blogctl search notify
 ```
 
-Google Search Console authentication uses the `GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON` secret. The service-account identity must be granted access to the Search Console property. Override the property with `GOOGLE_SEARCH_CONSOLE_SITE_URL` when needed; the default is `https://thinkerqaq.github.io/`.
+The Search backend is native Go. It owns the canonical URL inventory, fingerprints, per-provider diffs/snapshots, IndexNow, Baidu ordinary URL submission, Google service-account OAuth, sitemap submission, and URL Inspection.
 
-Google integration intentionally supports sitemap submission and URL Inspection audit only. It does not use Google's restricted Indexing API as a bulk-indexing workaround for ordinary blog pages. IndexNow supports both explicit full-site bootstrap (`--all`) and incremental URL-file submission. The legacy `blogctl indexnow` command remains a compatibility wrapper while CI and local usage migrate.
+Local Bridge credentials/configuration belong in the user-level `blogctl.toml`. GitHub Actions injects CI-only secrets as environment variables into the current-checkout BlogCTL process. Google integration intentionally does not use the restricted Google Indexing API for ordinary blog pages. Google **Request Indexing** stays in Extension JS because it requires Search Console browser automation.
+
+IndexNow supports explicit full-site bootstrap (`--all`) and URL-file submission. Baidu uses an independent snapshot: incremental mode submits only added/changed URLs, records deletions without submitting them, and refuses to advance the snapshot when Baidu reports only a partial aggregate success.
 
 See [SEARCH_DISCOVERY_CONTROL_PLANE.md](./SEARCH_DISCOVERY_CONTROL_PLANE.md).
 
@@ -167,8 +169,8 @@ BlogCTL follows the same proxy model as DownKit: proxy configuration belongs to 
 The configuration is stored under the operating system user-config directory in `BlogCTL/blogctl.toml`. On Windows this resolves to `%APPDATA%\BlogCTL\blogctl.toml`. When a Bridge starts, it loads that file automatically. Existing `config.json` is migrated once to TOML and retained as `config.json.migrated.bak`. Changing the proxy while the Bridge is running rebuilds the Bridge HTTP client immediately.
 
 - Enabled: Bridge-originated external HTTP/HTTPS traffic uses the configured HTTP proxy; HTTPS destinations use CONNECT through it.
-- Search Node and other BlogCTL child processes receive the same proxy through `HTTP_PROXY` / `HTTPS_PROXY` / `NODE_USE_ENV_PROXY=1`.
-- The proxy is component-scoped, like DownKit: it is injected into BlogCTL HTTP transports and child-process environments instead of changing the browser or operating-system proxy.
+- Go search providers use the Bridge HTTP client directly, so IndexNow/Baidu/Google follow the same BlogCTL proxy policy.
+- Remaining external child processes receive scoped proxy variables only when they actually need outbound access; the browser and operating system are not modified.
 - Chrome/Edge tabs, Google Search Console UI, and unrelated applications keep using their existing network configuration.
 - Disabled: the configured host and port are retained, while BlogCTL external traffic uses explicit direct mode.
 - Loopback communication between the CLI, Extension, and Bridge never uses the configured external proxy.
