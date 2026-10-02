@@ -23,6 +23,7 @@ import (
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 )
 
 type articleSummary struct {
@@ -353,6 +354,34 @@ func indexNowKeyPlaceholder(config bridgeConfig) string {
 	return "IndexNow key"
 }
 
+func baiduSite(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.BaiduSite); configured != "" {
+		return configured
+	}
+	return blogsearch.DefaultSiteOrigin
+}
+
+func baiduToken(config bridgeConfig) string {
+	return strings.TrimSpace(config.BaiduToken)
+}
+
+func baiduHealth(config bridgeConfig) toolHealth {
+	if baiduToken(config) == "" {
+		return toolHealth{Status: "missing", Summary: "推送 Token 未配置"}
+	}
+	return toolHealth{
+		OK: true, Status: "ok", Summary: "已配置",
+		Detail: baiduSite(config),
+	}
+}
+
+func baiduTokenPlaceholder(config bridgeConfig) string {
+	if baiduToken(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "百度资源推送 Token"
+}
+
 func googleSearchConsoleServiceJSON(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.GoogleSearchConsoleServiceJSON); configured != "" {
 		return configured
@@ -557,6 +586,29 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "baidu-search-resource", DisplayName: "Baidu Search Resource", Kind: "runtime", Required: false,
+			Description: "百度普通资源推送使用官方 URL 提交 API。只提交新增或内容变化的 URL；删除 URL 仅统计，不通过普通推送接口提交。",
+			Health:      baiduHealth(config),
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{
+					"site": baiduSite(config),
+				},
+				Schema: []toolField{
+					{
+						Key: "site", Label: "Site", Type: "text",
+						Placeholder: blogsearch.DefaultSiteOrigin,
+						Description: "百度站点地址；必须与当前博客 Origin 一致。",
+					},
+					{
+						Key: "token", Label: "Push Token", Type: "secret",
+						Placeholder: baiduTokenPlaceholder(config),
+						Description: "百度搜索资源平台普通收录 API Token；留空保存时保持当前 Token。",
+					},
+				},
+			},
+		},
+		{
 			Name: "google-search-console-api", DisplayName: "Google Search Console API", Kind: "runtime", Required: false,
 			Description: "Sitemap 与 URL Inspection 使用 Service Account。先在 Google Cloud 启用 Search Console API、创建 Service Account JSON，再把 JSON 中 client_email 加到对应 Search Console Property 的 Users and permissions（Full user）。凭据只保存在本机 Bridge。",
 			Health:      googleSearchConsoleAPIHealth(config),
@@ -666,6 +718,13 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		}
 		if keyLocation := stringConfig(values, "keyLocation"); keyLocation != "" {
 			config.IndexNowKeyLocation = keyLocation
+		}
+	case "baidu-search-resource":
+		if site := stringConfig(values, "site"); site != "" {
+			config.BaiduSite = site
+		}
+		if token := stringConfig(values, "token"); token != "" {
+			config.BaiduToken = token
 		}
 	case "google-search-console-api":
 		if value := stringConfig(values, "serviceAccountJson"); value != "" {
