@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SUPPORTED_PLATFORMS = new Set(["devto", "medium"]);
+const SUPPORTED_PLATFORMS = new Set(["devto"]);
 
 export function normalizeExplicitSyndicationArgs(argv) {
   if (argv.includes("--help") || argv.includes("-h")) return [...argv];
@@ -70,12 +70,8 @@ function main() {
   const baseArgs = removePlatformsArg(args);
 
   for (const platform of platforms) {
-    const script = platform === "medium"
-      ? path.join(scriptDir, "syndicate-medium-cli.mjs")
-      : path.join(scriptDir, "syndicate.mjs");
-    const platformArgs = platform === "devto"
-      ? [...baseArgs, "--platforms", "devto"]
-      : baseArgs;
+    const script = path.join(scriptDir, "syndicate.mjs");
+    const platformArgs = [...baseArgs, "--platforms", platform];
     try {
       const status = runChild(script, platformArgs);
       if (status !== 0) {
