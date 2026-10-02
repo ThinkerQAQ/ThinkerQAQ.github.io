@@ -257,7 +257,7 @@ func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) 
 	state.Google.CredentialsConfigured = true
 }
 
-func applyActiveTaskToOperation(state *searchOperationState, job *durableTaskJob) {
+func applyDurableTaskToOperation(state *searchOperationState, job *durableTaskJob) {
 	if state == nil || job == nil {
 		return
 	}
@@ -269,12 +269,31 @@ func applyActiveTaskToOperation(state *searchOperationState, job *durableTaskJob
 		if job.StartedAt != "" {
 			state.StartedAt = job.StartedAt
 		}
+	case "failed":
+		state.State = "failed"
+		state.Error = job.Error
+		state.FinishedAt = job.FinishedAt
 	}
 }
 
-func applyActiveTaskToInspection(state *searchInspectionState, job *durableTaskJob) {
+func applyDurableTaskToInspection(state *searchInspectionState, job *durableTaskJob) {
 	if state == nil || job == nil {
 		return
+	}
+	var payload googleInspectionTaskPayload
+	if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &payload) == nil {
+		state.Offset = payload.Offset
+		state.Limit = payload.Limit
+		if payload.Offset < state.Total {
+			next := payload.Offset
+			state.NextOffset = &next
+		} else if state.Total > 0 {
+			state.NextOffset = nil
+		}
+	}
+	if job.Progress.Total > 0 {
+		state.Total = job.Progress.Total
+		state.Remaining = max(0, state.Total-state.Inspected)
 	}
 	switch job.State {
 	case "queued", "running":
@@ -284,14 +303,20 @@ func applyActiveTaskToInspection(state *searchInspectionState, job *durableTaskJ
 		if job.StartedAt != "" {
 			state.StartedAt = job.StartedAt
 		}
-		var payload googleInspectionTaskPayload
-		if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &payload) == nil {
-			state.Offset = payload.Offset
-			state.Limit = payload.Limit
+	case "failed":
+		state.State = "failed"
+		state.Error = job.Error
+		state.FinishedAt = job.FinishedAt
+	case "paused":
+		if reason, _ := job.Detail["reason"].(string); reason == "quota_blocked" {
+			state.State = "quota_blocked"
+			state.Error = job.Progress.Message
 		}
-		if job.Progress.Total > 0 {
-			state.Total = job.Progress.Total
-			state.Remaining = max(0, state.Total-state.Inspected)
+	case "completed":
+		if state.State == "queued" || state.State == "running" {
+			state.State = "completed"
+			state.Error = ""
+			state.FinishedAt = job.FinishedAt
 		}
 	}
 }
@@ -300,10 +325,10 @@ func (s *Server) reconcileSearchStateWithDurableTasks(state *searchIndexState) {
 	if state == nil {
 		return
 	}
-	applyActiveTaskToOperation(&state.Bing, s.latestDurableSearchTask("bing-indexnow"))
-	applyActiveTaskToOperation(&state.Baidu, s.latestDurableSearchTask("baidu-submit"))
-	applyActiveTaskToOperation(&state.Google.Sitemaps, s.latestDurableSearchTask("google-sitemaps"))
-	applyActiveTaskToInspection(&state.Google.Inspection, s.latestDurableSearchTask("google-inspection"))
+	applyDurableTaskToOperation(&state.Bing, s.latestDurableSearchTask("bing-indexnow"))
+	applyDurableTaskToOperation(&state.Baidu, s.latestDurableSearchTask("baidu-submit"))
+	applyDurableTaskToOperation(&state.Google.Sitemaps, s.latestDurableSearchTask("google-sitemaps"))
+	applyDurableTaskToInspection(&state.Google.Inspection, s.latestDurableSearchTask("google-inspection"))
 
 	if job := s.latestDurableSearchTask("google-request-indexing"); job != nil && job.State == "running" {
 		state.Google.RequestQueue.State = "running"
