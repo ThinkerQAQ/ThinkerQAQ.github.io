@@ -456,8 +456,8 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleSearchInventoryRefresh(response, request)
 		return
 	}
-	if path == "v1/search/index/jobs/bing" && request.Method == http.MethodPost {
-		s.handleSearchBingJobStart(response, request)
+	if path == "v1/search/index/jobs/indexnow" && request.Method == http.MethodPost {
+		s.handleSearchIndexNowJobStart(response, request)
 		return
 	}
 	if path == "v1/search/index/jobs/baidu" && request.Method == http.MethodPost {
@@ -798,7 +798,7 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 	var detail map[string]any
 	var err error
 	switch name {
-	case "bing-indexnow":
+	case "indexnow":
 		detail, err = s.checkIndexNowNative(request.Context())
 	case "google-search-console-api":
 		detail, err = s.checkGoogleSearchConsoleNative(request.Context())
@@ -811,8 +811,8 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 		return
 	}
 	message := "配置检测通过"
-	if name == "bing-indexnow" {
-		message = "Bing / IndexNow 配置检测通过"
+	if name == "indexnow" {
+		message = "IndexNow 配置检测通过"
 	}
 	if name == "google-search-console-api" {
 		message = "Google Search Console API 配置检测通过"

@@ -87,7 +87,7 @@ type googleIndexRequestQueue struct {
 
 type searchIndexState struct {
 	Inventory       searchInventoryState `json:"inventory"`
-	Bing            searchOperationState `json:"bing"`
+	IndexNow        searchOperationState `json:"indexNow"`
 	Baidu           searchOperationState `json:"baidu"`
 	BaiduConfigured bool                 `json:"baiduConfigured"`
 	Google          struct {
@@ -101,7 +101,7 @@ type searchIndexState struct {
 
 func defaultSearchIndexState() searchIndexState {
 	state := searchIndexState{}
-	state.Bing.State = "idle"
+	state.IndexNow.State = "idle"
 	state.Baidu.State = "idle"
 	state.Google.Sitemaps.State = "idle"
 	state.Google.Inspection.State = "idle"
@@ -156,20 +156,30 @@ func saveSearchProviderSnapshot(filename string, snapshot searchInventoryState) 
 	return os.WriteFile(path, data, 0o600)
 }
 
-func bingIndexSnapshotPath() (string, error) {
-	return searchProviderSnapshotPath("bing-indexnow-snapshot.json")
+func indexNowSnapshotPath() (string, error) {
+	return searchProviderSnapshotPath("indexnow-snapshot.json")
 }
 
-func loadBingIndexSnapshot() searchInventoryState {
-	return loadSearchProviderSnapshot("bing-indexnow-snapshot.json")
+func loadIndexNowSnapshot() searchInventoryState {
+	current := loadSearchProviderSnapshot("indexnow-snapshot.json")
+	if current.Source != "" || current.Total > 0 || len(current.URLs) > 0 || len(current.Fingerprints) > 0 {
+		return current
+	}
+
+	// One-time filename migration; subsequent writes use only indexnow-snapshot.json.
+	legacy := loadSearchProviderSnapshot("bing-indexnow-snapshot.json")
+	if legacy.Source != "" || legacy.Total > 0 || len(legacy.URLs) > 0 || len(legacy.Fingerprints) > 0 {
+		_ = saveIndexNowSnapshot(legacy)
+	}
+	return legacy
 }
 
 func loadBaiduIndexSnapshot() searchInventoryState {
 	return loadSearchProviderSnapshot("baidu-snapshot.json")
 }
 
-func saveBingIndexSnapshot(snapshot searchInventoryState) error {
-	return saveSearchProviderSnapshot("bing-indexnow-snapshot.json", snapshot)
+func saveIndexNowSnapshot(snapshot searchInventoryState) error {
+	return saveSearchProviderSnapshot("indexnow-snapshot.json", snapshot)
 }
 
 func saveBaiduIndexSnapshot(snapshot searchInventoryState) error {
@@ -195,8 +205,16 @@ func loadSearchIndexState() searchIndexState {
 	if json.Unmarshal(data, &state) != nil {
 		return defaultSearchIndexState()
 	}
-	if state.Bing.State == "" {
-		state.Bing.State = "idle"
+	if state.IndexNow.State == "" {
+		// One-time state-schema migration from the pre-IndexNow provider name.
+		var legacy struct {
+			Bing searchOperationState `json:"bing"`
+		}
+		if json.Unmarshal(data, &legacy) == nil && legacy.Bing.State != "" {
+			state.IndexNow = legacy.Bing
+		} else {
+			state.IndexNow.State = "idle"
+		}
 	}
 	if state.Baidu.State == "" {
 		state.Baidu.State = "idle"
@@ -327,7 +345,7 @@ func (s *Server) reconcileSearchStateWithDurableTasks(state *searchIndexState) {
 	if state == nil {
 		return
 	}
-	applyDurableTaskToOperation(&state.Bing, s.latestDurableSearchTask("bing-indexnow"))
+	applyDurableTaskToOperation(&state.IndexNow, s.latestDurableSearchTask("indexnow-submit"))
 	applyDurableTaskToOperation(&state.Baidu, s.latestDurableSearchTask("baidu-submit"))
 	applyDurableTaskToOperation(&state.Google.Sitemaps, s.latestDurableSearchTask("google-sitemaps"))
 	applyDurableTaskToInspection(&state.Google.Inspection, s.latestDurableSearchTask("google-inspection"))

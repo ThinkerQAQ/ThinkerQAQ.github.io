@@ -450,7 +450,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "network-proxy", DisplayName: "Network Proxy", Kind: "runtime", Required: false,
-			Description: "启用后只代理 BlogCTL 自己的网络组件：Bridge HTTP Client 与 Search Node / 工具子进程；不会修改 Chrome/Edge、系统或其他应用的代理。",
+			Description: "启用后只代理 BlogCTL 自己的网络组件：Bridge HTTP Client 与 BlogCTL 启动的外部工具进程；不会修改 Chrome/Edge、系统或其他应用的代理。",
 			Health: func() toolHealth {
 				if !config.ProxyEnabled {
 					return toolHealth{OK: true, Status: "disabled", Summary: "直连"}
@@ -510,8 +510,8 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
-			Name: "bing-indexnow", DisplayName: "Bing / IndexNow", Kind: "runtime", Required: false,
-			Description: "Bing 索引通知通过 IndexNow HTTP API。检测只验证 Endpoint 配置和站点 Key 文件，不会提交测试 URL。",
+			Name: "indexnow", DisplayName: "IndexNow", Kind: "runtime", Required: false,
+			Description: "索引通知通过 IndexNow HTTP API。检测只验证 Endpoint 配置和站点 Key 文件，不会提交测试 URL。",
 			Health:      indexNowHealth(config),
 			Actions: []toolAction{{
 				ID: "check", Label: "检测配置",
@@ -527,7 +527,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 					{
 						Key: "endpoint", Label: "Endpoint", Type: "text",
 						Placeholder: "https://www.bing.com/indexnow",
-						Description: "Bing IndexNow endpoint；通常保持默认值。",
+						Description: "IndexNow endpoint；通常保持默认值。",
 					},
 					{
 						Key: "key", Label: "IndexNow Key", Type: "secret",
@@ -666,7 +666,7 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
 		}
-	case "bing-indexnow":
+	case "indexnow":
 		if endpoint := stringConfig(values, "endpoint"); endpoint != "" {
 			config.IndexNowEndpoint = endpoint
 		}

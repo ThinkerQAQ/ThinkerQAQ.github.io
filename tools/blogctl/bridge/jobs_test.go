@@ -14,8 +14,8 @@ func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	job, err := server.createDurableTaskJob(
-		"bing-indexnow",
-		"Bing 增量索引",
+		"indexnow-submit",
+		"IndexNow 增量提交",
 		searchSubmissionTaskPayload{Mode: "incremental"},
 		taskProgress{Current: 3, Total: 3, Unit: "URL"},
 		taskCapabilities(true, false, false),
@@ -38,7 +38,7 @@ func TestDurableSearchTaskSurvivesBridgeRestart(t *testing.T) {
 	if restored == nil {
 		t.Fatal("durable task was not restored")
 	}
-	if restored.State != "completed" || restored.Type != "bing-indexnow" {
+	if restored.State != "completed" || restored.Type != "indexnow-submit" {
 		t.Fatalf("restored task = %#v", restored)
 	}
 }

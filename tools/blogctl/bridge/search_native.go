@@ -22,7 +22,7 @@ type searchHTTPResult struct {
 	HTTPStatus int `json:"httpStatus"`
 }
 
-type bingSubmissionPayload struct {
+type indexNowSubmissionPayload struct {
 	Inventory searchInventoryState `json:"inventory"`
 	Diff      searchDiffPayload    `json:"diff"`
 	Result    struct {
@@ -90,16 +90,16 @@ func (s *Server) fetchSearchInventory(ctx context.Context) (searchInventoryState
 	return searchInventoryFromCore(inventory), nil
 }
 
-func (s *Server) submitBingIndexNow(ctx context.Context, mode string, previous searchInventoryState) (bingSubmissionPayload, error) {
+func (s *Server) submitIndexNow(ctx context.Context, mode string, previous searchInventoryState) (indexNowSubmissionPayload, error) {
 	inventory, err := s.fetchSearchInventory(ctx)
 	if err != nil {
-		return bingSubmissionPayload{}, err
+		return indexNowSubmissionPayload{}, err
 	}
 	diff, err := blogsearch.DiffInventories(searchInventoryToCore(previous), searchInventoryToCore(inventory), mode, true)
 	if err != nil {
-		return bingSubmissionPayload{}, err
+		return indexNowSubmissionPayload{}, err
 	}
-	payload := bingSubmissionPayload{
+	payload := indexNowSubmissionPayload{
 		Inventory: inventory,
 		Diff:      diffPayload(diff),
 	}
@@ -108,7 +108,7 @@ func (s *Server) submitBingIndexNow(ctx context.Context, mode string, previous s
 	}
 	engineRoot := strings.TrimSpace(s.config.EngineRoot)
 	if engineRoot == "" {
-		return bingSubmissionPayload{}, errors.New("Public Engine path is not configured")
+		return indexNowSubmissionPayload{}, errors.New("Public Engine path is not configured")
 	}
 	config, err := blogsearch.ResolveIndexNowConfig(
 		inventory.Origin,
@@ -119,11 +119,11 @@ func (s *Server) submitBingIndexNow(ctx context.Context, mode string, previous s
 		true,
 	)
 	if err != nil {
-		return bingSubmissionPayload{}, err
+		return indexNowSubmissionPayload{}, err
 	}
 	result, err := blogsearch.SubmitIndexNow(ctx, s.httpClient, diff.Selected, config)
 	if err != nil {
-		return bingSubmissionPayload{}, err
+		return indexNowSubmissionPayload{}, err
 	}
 	payload.Result.URLCount = result.URLCount
 	payload.Result.BatchCount = result.BatchCount

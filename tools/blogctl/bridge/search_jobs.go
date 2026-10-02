@@ -143,8 +143,8 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 
 		var err error
 		switch job.Type {
-		case "bing-indexnow":
-			err = s.executeBingIndexTask(context.Background(), jobID, job.Payload)
+		case "indexnow-submit":
+			err = s.executeIndexNowTask(context.Background(), jobID, job.Payload)
 		case "baidu-submit":
 			err = s.executeBaiduIndexTask(context.Background(), jobID, job.Payload)
 		case "google-sitemaps":
@@ -160,7 +160,7 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 	}()
 }
 
-func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayload json.RawMessage) error {
+func (s *Server) executeIndexNowTask(ctx context.Context, jobID string, rawPayload json.RawMessage) error {
 	var input searchSubmissionTaskPayload
 	if err := json.Unmarshal(rawPayload, &input); err != nil {
 		return err
@@ -170,35 +170,35 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 		input.Mode = "incremental"
 	}
 	if input.Mode != "incremental" && input.Mode != "full" {
-		return errors.New("Bing submission mode must be incremental or full")
+		return errors.New("IndexNow submission mode must be incremental or full")
 	}
 
 	state := loadSearchIndexState()
 	started := s.now().UTC()
-	state.Bing = searchOperationState{
+	state.IndexNow = searchOperationState{
 		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
 	}
 	_ = saveSearchIndexState(state)
 
-	previous := loadBingIndexSnapshot()
+	previous := loadIndexNowSnapshot()
 	payload, err := s.submitBingIndexNow(ctx, input.Mode, previous)
 	if err != nil {
-		state.Bing.State = "failed"
-		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Bing.Error = err.Error()
+		state.IndexNow.State = "failed"
+		state.IndexNow.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.IndexNow.Error = err.Error()
 		_ = saveSearchIndexState(state)
 		return err
 	}
-	if err := saveBingIndexSnapshot(payload.Inventory); err != nil {
-		state.Bing.State = "failed"
-		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Bing.Error = err.Error()
+	if err := saveIndexNowSnapshot(payload.Inventory); err != nil {
+		state.IndexNow.State = "failed"
+		state.IndexNow.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.IndexNow.Error = err.Error()
 		_ = saveSearchIndexState(state)
 		return err
 	}
 
 	state.Inventory = compactSearchInventory(payload.Inventory)
-	state.Bing = searchOperationState{
+	state.IndexNow = searchOperationState{
 		State: "completed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
 		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
@@ -217,7 +217,7 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 		"changed":    payload.Diff.ChangedCount,
 		"deleted":    payload.Diff.DeletedCount,
 		"unchanged":  payload.Diff.UnchangedCount,
-		"httpStatus": state.Bing.HTTPStatus,
+		"httpStatus": state.IndexNow.HTTPStatus,
 	}
 	s.completeDurableTask(jobID, taskProgress{
 		Current: payload.Result.URLCount,
@@ -624,20 +624,20 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	return nil
 }
 
-func (s *Server) startBingIndexTask(mode string) (*durableTaskJob, error) {
+func (s *Server) startIndexNowTask(mode string) (*durableTaskJob, error) {
 	mode = strings.TrimSpace(mode)
 	if mode == "" {
 		mode = "incremental"
 	}
 	if mode != "incremental" && mode != "full" {
-		return nil, errors.New("Bing submission mode must be incremental or full")
+		return nil, errors.New("IndexNow submission mode must be incremental or full")
 	}
-	title := "Bing 增量索引"
+	title := "IndexNow 增量提交"
 	if mode == "full" {
-		title = "Bing 全量索引"
+		title = "IndexNow 全量提交"
 	}
 	job, err := s.createDurableTaskJob(
-		"bing-indexnow", title, searchSubmissionTaskPayload{Mode: mode},
+		"indexnow-submit", title, searchSubmissionTaskPayload{Mode: mode},
 		taskProgress{Unit: "URL", Message: "等待执行"},
 		taskCapabilities(true, false, false),
 	)
@@ -713,7 +713,7 @@ func (s *Server) startGoogleInspectionTask(offset, limit int) (*durableTaskJob, 
 	return job, nil
 }
 
-func (s *Server) handleSearchBingJobStart(response http.ResponseWriter, request *http.Request) {
+func (s *Server) handleSearchIndexNowJobStart(response http.ResponseWriter, request *http.Request) {
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
@@ -722,9 +722,9 @@ func (s *Server) handleSearchBingJobStart(response http.ResponseWriter, request 
 		writeError(response, err)
 		return
 	}
-	job, err := s.startBingIndexTask(input.Mode)
+	job, err := s.startIndexNowTask(input.Mode)
 	if err != nil {
-		writeAPIError(response, http.StatusBadRequest, "invalid_bing_submit_mode", err.Error(), nil)
+		writeAPIError(response, http.StatusBadRequest, "invalid_indexnow_submit_mode", err.Error(), nil)
 		return
 	}
 	writeJSON(response, http.StatusAccepted, map[string]any{
@@ -789,7 +789,7 @@ func (s *Server) retrySearchTaskJob(job *durableTaskJob) (*durableTaskJob, error
 		return nil, errors.New("task is not a search job")
 	}
 	switch job.Type {
-	case "bing-indexnow", "baidu-submit", "google-sitemaps", "google-inspection":
+	case "indexnow-submit", "baidu-submit", "google-sitemaps", "google-inspection":
 		updated, err := s.updateDurableTaskJob(job.ID, func(current *durableTaskJob) {
 			current.State = "queued"
 			current.Error = ""
