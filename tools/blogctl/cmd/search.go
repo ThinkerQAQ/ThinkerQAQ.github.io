@@ -299,7 +299,11 @@ func (a app) runSearchSubmit(args []string) error {
 	}
 
 	if containsString(providers, "google") {
-		accessToken, err := googleAccessTokenForCLI(ctx, client, localConfig.GoogleServiceAccountJSON, searchFlag(args, "--optional-google"))
+		serviceAccount, err := googleServiceAccountForCLI(args, localConfig.GoogleServiceAccountJSON)
+		if err != nil {
+			return err
+		}
+		accessToken, err := googleAccessTokenForCLI(ctx, client, serviceAccount, searchFlag(args, "--optional-google"))
 		if err != nil {
 			return err
 		}
@@ -314,6 +318,22 @@ func (a app) runSearchSubmit(args []string) error {
 		}
 	}
 	return nil
+}
+
+func googleServiceAccountForCLI(args []string, configured string) (string, error) {
+	path, err := searchOption(args, "--google-service-account-file", "")
+	if err != nil {
+		return "", err
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return configured, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read Google service account file: %w", err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func googleAccessTokenForCLI(ctx context.Context, client *http.Client, configured string, optional bool) (string, error) {
@@ -408,7 +428,11 @@ func (a app) runSearchAudit(args []string) error {
 	client := &http.Client{Timeout: 45 * time.Second}
 	ctx := context.Background()
 	localConfig := blogbridge.ResolvedSearchRuntimeConfig()
-	accessToken, err := googleAccessTokenForCLI(ctx, client, localConfig.GoogleServiceAccountJSON, false)
+	serviceAccount, err := googleServiceAccountForCLI(args, localConfig.GoogleServiceAccountJSON)
+	if err != nil {
+		return err
+	}
+	accessToken, err := googleAccessTokenForCLI(ctx, client, serviceAccount, false)
 	if err != nil {
 		return err
 	}
@@ -485,11 +509,19 @@ func (a app) runSearchNotify(args []string) error {
 	// not silently convert either provider into a full-site push.
 	providers := "indexnow,google"
 	fmt.Fprintf(a.out, "[search] live inventory: %s (%d URLs)\n", inventory.Source, inventory.Total)
-	return a.runSearchSubmit([]string{
+	submitArgs := []string{
 		"--providers", providers,
 		"--urls-file", name,
 		"--site-url", siteURL,
 		"--optional-google",
 		"--public", "public",
-	})
+	}
+	serviceAccountFile, err := searchOption(args, "--google-service-account-file", "")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(serviceAccountFile) != "" {
+		submitArgs = append(submitArgs, "--google-service-account-file", serviceAccountFile)
+	}
+	return a.runSearchSubmit(submitArgs)
 }
