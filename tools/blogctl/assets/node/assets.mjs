@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import sharp from "sharp";
 
 import { collectPublishingAssets } from "../../compiler/node/compiler.mjs";
-import { readRenderedAsset, renderMermaidAsset } from "./mermaid-assets.mjs";
+import { renderMermaidAsset } from "./mermaid-assets.mjs";
 import { renderPlantUMLAsset } from "./plantuml-assets.mjs";
 
 export const DEFAULT_PUBLISHING_IMAGE_MAX_DIMENSION = 4096;
@@ -83,7 +83,6 @@ export async function preparePublishingAssetList(assets, {
     // Keep both dimensions within 4096px so DEV.to accepts generated diagrams.
     // This also normalizes previously cached oversized images before reuse.
     await constrain(result.outputFile, { maxDimension });
-
   }
 
   return { assets: unique.length, rendered, cached, dryRun: false };
