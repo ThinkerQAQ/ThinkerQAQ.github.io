@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -25,7 +26,7 @@ func (a app) runSite(args []string) error {
 			contentRoot = args[index+1]
 			index++
 		default:
-			return fmt.Errorf("unknown site build option %q", args[index])
+			return fmt.Errorf("unknown site option %q", args[index])
 		}
 	}
 	if operation == "assemble" && contentRoot == "" {
