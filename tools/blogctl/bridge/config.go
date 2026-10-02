@@ -61,12 +61,6 @@ type publishingConfig struct {
 	Platforms map[string]publishingPlatformConfig `json:"platforms" toml:"platforms"`
 }
 
-type legacyPublishingPlatformConfig struct {
-	FooterEnabled  bool   `json:"footerEnabled"`
-	FooterTemplate string `json:"footerTemplate"`
-	TrackingQuery  string `json:"trackingQuery"`
-}
-
 type bridgeConfig struct {
 	ProxyEnabled bool   `json:"proxyEnabled" toml:"proxy_enabled"`
 	ProxyHost    string `json:"proxyHost" toml:"proxy_host"`
@@ -294,14 +288,6 @@ func ConfigPath() (string, error) {
 	return filepath.Join(dir, "blogctl.toml"), nil
 }
 
-func legacyConfigPath() (string, error) {
-	dir, err := ConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "config.json"), nil
-}
-
 func bridgeConfigPath() (string, error) { return ConfigPath() }
 
 func normalizeStoredPath(value string) string {
@@ -391,10 +377,6 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	for name, value := range config.ToolPaths {
 		config.ToolPaths[name] = normalizeStoredPath(value)
 	}
-	// PlantUML rendering is TeaVM/Viz.js based; legacy Java tool configuration
-	// is no longer part of the BlogCTL runtime.
-	delete(config.ToolPaths, "java")
-
 	config.ProxyHost = strings.TrimSpace(config.ProxyHost)
 	_, host, port, err := normalizeProxyAddress(config.ProxyHost, config.ProxyPort)
 	if err != nil {
@@ -469,73 +451,6 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	return config, nil
 }
 
-func migrateLegacyPublishing(data []byte, config bridgeConfig) bridgeConfig {
-	if len(config.Publishing.Platforms) > 0 {
-		return config
-	}
-	var envelope struct {
-		Publishing json.RawMessage `json:"publishing"`
-	}
-	if json.Unmarshal(data, &envelope) != nil || len(envelope.Publishing) == 0 {
-		return config
-	}
-	legacy := map[string]legacyPublishingPlatformConfig{}
-	if json.Unmarshal(envelope.Publishing, &legacy) != nil {
-		return config
-	}
-	migrated := map[string]publishingPlatformConfig{}
-	for _, platform := range publishingPlatformOrder {
-		old, ok := legacy[platform]
-		if !ok {
-			continue
-		}
-		profile := defaultPlatformPublishingConfig(platform)
-		profile.Footer.Enabled = old.FooterEnabled
-		if template := strings.TrimSpace(old.FooterTemplate); template != "" {
-			profile.Footer.Template = template
-		}
-		if query := strings.TrimSpace(strings.TrimPrefix(old.TrackingQuery, "?")); query != "" {
-			if values, err := url.ParseQuery(query); err == nil {
-				if source := strings.TrimSpace(values.Get("utm_source")); source != "" {
-					profile.Tracking.Source = source
-				}
-				if medium := strings.TrimSpace(values.Get("utm_medium")); medium != "" {
-					profile.Tracking.Medium = medium
-				}
-				if campaign := strings.TrimSpace(values.Get("utm_campaign")); campaign != "" {
-					profile.Tracking.Campaign = campaign
-				}
-			}
-		}
-		migrated[platform] = profile
-	}
-	if len(migrated) > 0 {
-		config.Publishing.Platforms = migrated
-	}
-	return config
-}
-
-func loadLegacyJSONConfig() (bridgeConfig, string, bool) {
-	path, err := legacyConfigPath()
-	if err != nil {
-		return bridgeConfig{}, "", false
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return bridgeConfig{}, path, false
-	}
-	var config bridgeConfig
-	if json.Unmarshal(data, &config) != nil {
-		return bridgeConfig{}, path, false
-	}
-	config = migrateLegacyPublishing(data, config)
-	normalized, err := normalizeBridgeConfig(config)
-	if err != nil {
-		return bridgeConfig{}, path, false
-	}
-	return normalized, path, true
-}
-
 func loadBridgeConfig() bridgeConfig {
 	defaults := defaultBridgeConfig()
 	path, err := bridgeConfigPath()
@@ -544,15 +459,6 @@ func loadBridgeConfig() bridgeConfig {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return defaults
-		}
-		if migrated, legacyPath, ok := loadLegacyJSONConfig(); ok {
-			if saveBridgeConfig(migrated) == nil {
-				_ = os.Rename(legacyPath, legacyPath+".migrated.bak")
-			}
-			return migrated
-		}
 		return defaults
 	}
 	var config bridgeConfig
