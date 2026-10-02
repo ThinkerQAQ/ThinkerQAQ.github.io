@@ -412,7 +412,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-
 	if path == "v1/publications/pending/resolve" && request.Method == http.MethodPost {
 		s.handlePublicationPendingResolve(response, request)
 		return
