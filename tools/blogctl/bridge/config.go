@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
+	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -48,7 +48,7 @@ type publishingCompilerConfig struct {
 	Mermaid publishingMermaidConfig `json:"mermaid" toml:"mermaid"`
 }
 
-type publishingR2Config = blogassets.R2Config
+type publishingR2Config = blogr2.Config
 
 type publishingAssetsConfig struct {
 	Store string             `json:"store" toml:"store"`
@@ -425,7 +425,7 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	if config.Publishing.Assets.Store != "r2" {
 		return config, errors.New("publishing asset store must be r2")
 	}
-	normalizedR2, err := blogassets.NormalizeR2Config(config.Publishing.Assets.R2)
+	normalizedR2, err := blogr2.NormalizeConfig(config.Publishing.Assets.R2)
 	if err != nil {
 		if strings.Contains(err.Error(), "public base URL") {
 			return config, errors.New("publishing R2 publicBaseUrl must be an HTTPS URL")
