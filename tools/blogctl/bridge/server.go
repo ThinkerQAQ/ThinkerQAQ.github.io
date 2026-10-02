@@ -13,7 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version")
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
+)
 
 const (
 	DefaultAddress = "127.0.0.1:32145"
@@ -596,7 +597,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
 		return
 	}
-
 
 	writeAPIError(response, http.StatusNotFound, "not_found", "not found", map[string]any{"path": "/" + path})
 }
