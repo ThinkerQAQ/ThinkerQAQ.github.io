@@ -1,5 +1,3 @@
-import path from "node:path";
-import { preparePublishingAssetList } from "../tools/blogctl/assets/node/assets.mjs";
 import { buildMediumDraft, writeMediumCopyHtml } from "./medium.mjs";
 
 function configuredBridge() {
@@ -97,9 +95,9 @@ export async function runMediumSyndication(loadedArticles, {
   }
 
   const item = prepared[0];
-  await preparePublishingAssetList(item.draft.publishingAssets, {
-    cacheRoot: path.resolve(outputRoot, "..", "assets"),
-  });
+  if (item.draft.publishingAssets.length > 0) {
+    throw new Error("Legacy Medium syndication no longer prepares generated assets. Use blogctl sync so the Go asset pipeline renders and delivers them.");
+  }
   if (item.draft.requiresHtmlFallback) {
     throw new Error("Medium live draft adapter cannot safely insert body images yet. Use the generated copy/paste fallback: " + item.fallbackPath);
   }
