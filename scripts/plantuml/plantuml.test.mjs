@@ -7,7 +7,7 @@ import remarkParse from "remark-parse";
 import { CACHE, normalize, diagramKey, diagramUrl, validateSvg, visitCode } from "./core.mjs";
 import plantumlMarkdown, { diagramImage } from "./markdown.mjs";
 import { createSatteriMarkdownProcessor } from "@astrojs/markdown-satteri";
-import { ensureJar, renderSvg } from "./runtime.mjs";
+import { renderSvg } from "./runtime.mjs";
 
 test("legacy snippets and Windows newlines normalize to the same diagram", () => {
   const full = "@startuml\nAlice -> Bob: hello\n@enduml\n";
@@ -61,7 +61,6 @@ test("missing cache fails with actionable file context", () => {
 });
 
 test("local renderer supports Chinese and rejects syntax errors", async () => {
-  await ensureJar();
   const svg = await renderSvg("Alice -> Bob: 中文图表");
   assert.match(svg, /<svg/);
   assert.ok(svg.includes("中文图表") || svg.includes("&#"));
