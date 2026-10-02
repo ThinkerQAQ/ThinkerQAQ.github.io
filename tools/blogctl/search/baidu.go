@@ -1,0 +1,174 @@
+package search
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+const (
+	BaiduSubmitEndpoint = "http://data.zz.baidu.com/urls"
+	MaxBaiduURLs        = 2_000
+)
+
+type BaiduConfig struct {
+	Site  string
+	Token string
+}
+
+type BaiduBatchResult struct {
+	HTTPStatus  int      `json:"httpStatus"`
+	Submitted   int      `json:"submitted"`
+	Success     int      `json:"success"`
+	Remain      int      `json:"remain"`
+	NotSameSite []string `json:"notSameSite,omitempty"`
+	NotValid    []string `json:"notValid,omitempty"`
+	Complete    bool     `json:"complete"`
+}
+
+type BaiduResult struct {
+	URLCount     int                `json:"urlCount"`
+	SuccessCount int                `json:"successCount"`
+	Remain       int                `json:"remain"`
+	BatchCount   int                `json:"batchCount"`
+	Complete     bool               `json:"complete"`
+	Results      []BaiduBatchResult `json:"results"`
+	Skipped      bool               `json:"skipped,omitempty"`
+}
+
+func ResolveBaiduConfig(origin, site, token string) (BaiduConfig, error) {
+	origin, err := NormalizeOrigin(origin)
+	if err != nil {
+		return BaiduConfig{}, err
+	}
+	site = strings.TrimSpace(site)
+	if site == "" {
+		site = origin
+	}
+	normalizedSite, err := NormalizeOrigin(site)
+	if err != nil {
+		return BaiduConfig{}, err
+	}
+	if normalizedSite != origin {
+		return BaiduConfig{}, fmt.Errorf("Baidu site must match %s", origin)
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return BaiduConfig{}, errors.New("Baidu push token is required")
+	}
+	if strings.ContainsAny(token, "\r\n") {
+		return BaiduConfig{}, errors.New("Baidu push token is invalid")
+	}
+	return BaiduConfig{Site: normalizedSite, Token: token}, nil
+}
+
+func SubmitBaidu(ctx context.Context, client *http.Client, urls []string, config BaiduConfig) (BaiduResult, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	if len(urls) == 0 {
+		return BaiduResult{Complete: true, Skipped: true}, nil
+	}
+	origin, err := NormalizeOrigin(config.Site)
+	if err != nil {
+		return BaiduResult{}, err
+	}
+	unique := map[string]struct{}{}
+	for _, rawURL := range urls {
+		normalized, err := NormalizeURL(rawURL, origin, "submitted page URL")
+		if err != nil {
+			return BaiduResult{}, err
+		}
+		unique[normalized] = struct{}{}
+	}
+	ordered := make([]string, 0, len(unique))
+	for rawURL := range unique {
+		ordered = append(ordered, rawURL)
+	}
+	sortStrings(ordered)
+
+	result := BaiduResult{URLCount: len(ordered), Complete: true}
+	for start := 0; start < len(ordered); start += MaxBaiduURLs {
+		end := minInt(start+MaxBaiduURLs, len(ordered))
+		batch, err := submitBaiduBatch(ctx, client, ordered[start:end], config)
+		if err != nil {
+			return result, err
+		}
+		result.Results = append(result.Results, batch)
+		result.SuccessCount += batch.Success
+		result.Remain = batch.Remain
+		if !batch.Complete {
+			result.Complete = false
+		}
+	}
+	result.BatchCount = len(result.Results)
+	if !result.Complete {
+		return result, fmt.Errorf("Baidu accepted %d of %d submitted URLs; snapshot was not advanced because accepted URLs are ambiguous", result.SuccessCount, result.URLCount)
+	}
+	return result, nil
+}
+
+func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, config BaiduConfig) (BaiduBatchResult, error) {
+	endpoint, _ := url.Parse(BaiduSubmitEndpoint)
+	query := endpoint.Query()
+	query.Set("site", config.Site)
+	query.Set("token", config.Token)
+	endpoint.RawQuery = query.Encode()
+
+	body := []byte(strings.Join(urls, "\n"))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
+	if err != nil {
+		return BaiduBatchResult{}, err
+	}
+	request.Header.Set("content-type", "text/plain")
+	response, err := client.Do(request)
+	if err != nil {
+		return BaiduBatchResult{}, err
+	}
+	payload, readErr := io.ReadAll(io.LimitReader(response.Body, 2<<20))
+	response.Body.Close()
+	if readErr != nil {
+		return BaiduBatchResult{}, readErr
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return BaiduBatchResult{}, fmt.Errorf("Baidu submit returned HTTP %d: %s", response.StatusCode, redactBaiduResponse(string(payload), config.Token))
+	}
+
+	var decoded struct {
+		Remain      int      `json:"remain"`
+		Success     int      `json:"success"`
+		NotSameSite []string `json:"not_same_site"`
+		NotValid    []string `json:"not_valid"`
+		Message     string   `json:"message"`
+		Error       int      `json:"error"`
+	}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return BaiduBatchResult{}, fmt.Errorf("decode Baidu response: %w", err)
+	}
+	if decoded.Error != 0 {
+		return BaiduBatchResult{}, fmt.Errorf("Baidu submit error %d: %s", decoded.Error, redactBaiduResponse(decoded.Message, config.Token))
+	}
+	result := BaiduBatchResult{
+		HTTPStatus: response.StatusCode,
+		Submitted: len(urls),
+		Success: decoded.Success,
+		Remain: decoded.Remain,
+		NotSameSite: decoded.NotSameSite,
+		NotValid: decoded.NotValid,
+	}
+	result.Complete = decoded.Success == len(urls)
+	return result, nil
+}
+
+func redactBaiduResponse(value, token string) string {
+	if token == "" {
+		return value
+	}
+	return strings.ReplaceAll(value, token, "[REDACTED]")
+}
