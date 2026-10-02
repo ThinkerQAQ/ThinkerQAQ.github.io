@@ -490,9 +490,9 @@ func (a app) runSearchNotify(args []string) error {
 		return err
 	}
 
-	// Deploy notification is intentionally stateless. Baidu incremental
-	// submission requires its durable provider snapshot, which lives in the
-	// local Bridge, so it is not silently converted into a full-site CI push.
+	// Deploy notification is intentionally stateless. Bing and Baidu incremental
+	// submission require durable provider state in the local Bridge, so CI does
+	// not silently convert either provider into a full-site push.
 	providers := "indexnow,google"
 	fmt.Fprintf(a.out, "[search] live inventory: %s (%d URLs)\n", inventory.Source, inventory.Total)
 	return a.runSearchSubmit([]string{
@@ -500,7 +500,6 @@ func (a app) runSearchNotify(args []string) error {
 		"--urls-file", name,
 		"--site-url", siteURL,
 		"--optional-google",
-		"--optional-baidu",
 		"--public", "public",
 	})
 }
