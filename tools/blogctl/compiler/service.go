@@ -61,7 +61,6 @@ type rendererRequest struct {
 	Platform     string          `json:"platform"`
 	Profile      json.RawMessage `json:"profile"`
 	Language     string          `json:"language"`
-	AssetBaseURL string          `json:"assetBaseUrl"`
 	SourceDir    string          `json:"sourceDir"`
 	Assets       []Asset         `json:"assets"`
 	Policy       rendererPolicy  `json:"policy"`
@@ -241,7 +240,6 @@ func (s Service) Compile(ctx context.Context, request CompileRequest) ([]Compile
 		}
 		compiled, err := s.render(ctx, rendererRequest{
 			Article: article, Slug: slug, Platform: platform, Profile: profile, Language: language,
-			AssetBaseURL: runtime.Assets.R2.PublicBaseURL,
 			SourceDir:    filepath.Dir(sourceFile), Assets: assets, Policy: policy,
 		})
 		if err != nil {
