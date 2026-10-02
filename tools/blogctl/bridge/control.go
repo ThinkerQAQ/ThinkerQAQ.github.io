@@ -366,12 +366,17 @@ func baiduToken(config bridgeConfig) string {
 }
 
 func baiduHealth(config bridgeConfig) toolHealth {
-	if baiduToken(config) == "" {
+	token := baiduToken(config)
+	if token == "" {
 		return toolHealth{Status: "missing", Summary: "推送 Token 未配置"}
+	}
+	resolved, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, baiduSite(config), token)
+	if err != nil {
+		return toolHealth{Status: "error", Summary: "配置无效", Detail: err.Error()}
 	}
 	return toolHealth{
 		OK: true, Status: "ok", Summary: "已配置",
-		Detail: baiduSite(config),
+		Detail: resolved.Site,
 	}
 }
 
@@ -681,12 +686,25 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 			config.IndexNowKeyLocation = keyLocation
 		}
 	case "baidu-search-resource":
+		nextSite := config.BaiduSite
+		nextToken := config.BaiduToken
 		if site := stringConfig(values, "site"); site != "" {
-			config.BaiduSite = site
+			nextSite = site
 		}
 		if token := stringConfig(values, "token"); token != "" {
-			config.BaiduToken = token
+			nextToken = token
 		}
+		if strings.TrimSpace(nextToken) != "" {
+			if _, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, nextSite, nextToken); err != nil {
+				return config, err
+			}
+		} else if strings.TrimSpace(nextSite) != "" {
+			if _, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, nextSite, "validation-token"); err != nil {
+				return config, err
+			}
+		}
+		config.BaiduSite = nextSite
+		config.BaiduToken = nextToken
 	case "google-search-console-api":
 		if value := stringConfig(values, "serviceAccountJson"); value != "" {
 			if err := validateGoogleServiceAccountJSON(value); err != nil {
