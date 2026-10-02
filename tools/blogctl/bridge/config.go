@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -157,7 +158,9 @@ func defaultBridgeConfig() bridgeConfig {
 	return bridgeConfig{
 		LogLevel:         "info",
 		ToolPaths:        map[string]string{},
-		IndexNowEndpoint: "https://www.bing.com/indexnow",
+		IndexNowEndpoint:    blogsearch.DefaultIndexNowEndpoint,
+		IndexNowKey:         blogsearch.DefaultIndexNowKey,
+		IndexNowKeyLocation: blogsearch.DefaultSiteOrigin + "/" + blogsearch.DefaultIndexNowKey + ".txt",
 		Publishing:       defaultPublishingConfig(),
 	}
 }
