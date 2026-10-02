@@ -1,199 +1,447 @@
-# blogctl
+# BlogCTL
 
-`blogctl` is the cross-platform developer tool for the ThinkerQAQ blog. Its implementation remains in the public engine repository:
+BlogCTL is the local control plane for the ThinkerQAQ blog. It provides one command surface for site builds, article syndication, publishing assets, search-engine discovery, AI Search maintenance, and the browser Extension/Bridge workflow.
 
-```text
-tools/blogctl/
-├── cmd/        # Go CLI and orchestration
-├── app/        # control-plane workflows
-├── compiler/   # deterministic publishing compiler (Node runtime is internal)
-├── assets/     # generated publishing assets: Mermaid, R2
-├── publisher/  # remote platform adapters and draft/publish transport
-├── search/     # search discovery inventory, Google Search Console, IndexNow
-├── bridge/     # loopback bridge between the CLI and browser
-└── extension/  # BlogCTL Extension
-```
-
-The root `scripts/` directory also stays in the public engine for Astro and compatibility wrappers. Publishing-specific compiler and generated-asset capabilities belong under `tools/blogctl/`; `blogctl` is the single user-facing control plane and calls its internal Node runtime when Markdown/HTML transformation is required.
-
-## Repository model
-
-The blog is split into two repositories:
+## Architecture
 
 ```text
-ThinkerQAQ.github.io      Public engine and BlogCTL implementation
-blog-content              Private canonical Articles / Notes / Series / Projects
+blog-content
+    │ canonical Articles / Notes / Series / Projects
+    ▼
+BlogCTL Go Core
+    ├── compiler
+    ├── assets
+    ├── publishers
+    ├── search
+    ├── AI Search
+    ├── durable jobs
+    └── local configuration
+         │
+         ├── Browser Extension / Native Messaging
+         │      └── browser-owned cookies, tabs and Search Console UI
+         │
+         └── External ecosystem tools
+                ├── Astro / Pagefind
+                ├── Mermaid CLI
+                └── PlantUML / Java
 ```
 
-Engine operations such as preview, build, check, diagrams, and tests still run from `ThinkerQAQ.github.io`.
+Backend and control-plane logic belongs to Go. JavaScript remains only where the browser runtime or the underlying toolchain requires it.
 
-Content syndication is different: run `blogctl sync` from `blog-content`. BlogCTL reads article source directly from that repository and uses the public engine checkout only for the syndication implementation and Node dependencies.
+The repositories are intentionally separate:
 
-When the repositories are sibling directories named `ThinkerQAQ.github.io` and `blog-content`, BlogCTL discovers both automatically. Arbitrary layouts are also supported:
+```text
+ThinkerQAQ.github.io   public site engine + BlogCTL implementation
+blog-content           canonical content repository
+```
 
-- `BLOG_CONTENT_ROOT` points to the canonical `blog-content` checkout.
-- `BLOGCTL_ENGINE_ROOT` points to the `ThinkerQAQ.github.io` checkout.
+A sibling checkout is the simplest layout:
 
-The sibling layout is therefore a convenience, not a requirement.
+```text
+blog/
+├── ThinkerQAQ.github.io/
+└── blog-content/
+```
+
+BlogCTL discovers this layout automatically. The Extension can also persist explicit Engine Root and Content Root values in `blogctl.toml`.
 
 ## Install
 
-Tagged releases are built by GitHub Actions from `tools/blogctl/VERSION`. Each release contains Windows, macOS, and Linux binaries for amd64/arm64, the matching browser extension, Native Messaging install/uninstall scripts, and `SHA256SUMS`.
+GitHub releases contain BlogCTL binaries, the browser extension, Native Messaging install scripts, and checksums.
 
-Validated owner PRs that change `tools/blogctl/**` explicitly dispatch the BlogCTL release workflow after auto-merge. Release creation is idempotent for an existing version tag, so ordinary follow-up runs do not replace an already published release.
-
-After downloading the binary for the current platform, put it on `PATH` or keep it in a fixed tools directory.
-
-The BlogCTL Extension follows the same local-bridge lifecycle as DownKit: register the binary once as a Chromium Native Messaging Host, then the extension can start or reconnect to the Bridge on demand. The Bridge does not need to be kept open manually.
-
-Windows example:
+Windows:
 
 ```powershell
 .\Install-Windows.ps1 -Executable C:\software\Coding\blogctl\blogctl-windows-amd64.exe
 ```
 
-Chrome and Edge should then load the matching `extension` directory. The extension has a stable manifest key, so its Native Messaging origin remains stable across reloads. Linux and macOS use the matching `Install-Linux.sh` and `Install-macOS.command` scripts.
+Linux:
 
-Engine commands:
+```bash
+./Install-Linux.sh /path/to/blogctl
+```
+
+macOS:
+
+```bash
+./Install-macOS.command /path/to/blogctl
+```
+
+Load the packaged `extension` directory in Chrome or Edge after installing the Native Messaging host.
+
+For development:
 
 ```bash
 cd ThinkerQAQ.github.io
-blogctl preview
-blogctl build
-blogctl site build --content-root ../blog-content
-blogctl ai-search prepare --output .tmp/ai-search --content-root ../blog-content
-blogctl ai-search sync --verify
-blogctl check
-blogctl notes sync
-blogctl diagrams
+go build -o blogctl ./tools/blogctl/cmd
+./blogctl help
+```
+
+## Runtime requirements
+
+The released BlogCTL binary does not require Go.
+
+Some operations still use ecosystem tools:
+
+- Node.js 22+ and npm: Astro, Pagefind, Markdown HTML rendering, Mermaid CLI and browser-side tests.
+- Java: PlantUML rendering when a publishing/site diagram is not already cached.
+- Git: repository discovery and AI Search incremental-content calculations.
+
+Run:
+
+```bash
 blogctl doctor
 ```
 
-Syndication commands:
+to verify the basic local toolchain.
 
-```bash
-cd blog-content
-blogctl sync --article concurrency-series-00 --platforms devto,medium --dry-run
+## Configuration
+
+User configuration is stored in `blogctl.toml`.
+
+Default locations follow the operating-system user-config directory. On Windows:
+
+```text
+%APPDATA%\BlogCTL\blogctl.toml
 ```
 
-Building from source remains available for development:
+For example:
+
+```text
+C:\Users\zsk\AppData\Roaming\BlogCTL\blogctl.toml
+```
+
+The Extension's **Environment & Configuration** page is the normal way to edit workspace paths, proxy settings, publishing policy, Search credentials and R2 configuration.
+
+Example:
+
+```toml
+content_root = "C:\\Users\\zsk\\code\\blog\\blog-content"
+engine_root = "C:\\Users\\zsk\\code\\blog\\ThinkerQAQ.github.io"
+log_level = "info"
+
+proxy_enabled = false
+proxy_host = "127.0.0.1"
+proxy_port = 7890
+
+devto_api_key = ""
+
+indexnow_endpoint = "https://www.bing.com/indexnow"
+indexnow_key = ""
+indexnow_key_location = ""
+
+baidu_site = "https://thinkerqaq.github.io"
+baidu_token = ""
+
+google_search_console_service_json = ""
+
+[publishing.compiler.mermaid]
+format = "png"
+width = 1200
+scale = 2
+
+[publishing.assets]
+store = "r2"
+
+[publishing.assets.r2]
+bucket = "thinkerqaq-asset"
+public_base_url = "https://pub-366a15b6733345039775c083a1fffb3e.r2.dev/"
+access_key_id = ""
+secret_access_key = ""
+account_id = ""
+endpoint = ""
+
+[publishing.platforms.devto]
+language = "en"
+changed_only = false
+
+[publishing.platforms.medium]
+language = "en"
+changed_only = false
+
+[publishing.platforms.juejin]
+language = "zh-CN"
+changed_only = false
+```
+
+Platform configuration also supports footer, canonical and tracking policies. Defaults are generated automatically when those fields are absent.
+
+BlogCTL migrates the old `config.json` format once and keeps the original as `config.json.migrated.bak`.
+
+## Article publishing
+
+Run syndication commands from `blog-content`.
+
+Dry-run compiles locally and does not mutate a remote platform:
+
+```bash
+blogctl sync \
+  --article concurrency-series-00 \
+  --platforms devto,medium \
+  --dry-run
+```
+
+Live draft creation/update:
+
+```bash
+blogctl sync \
+  --article concurrency-series-00 \
+  --platforms cnblogs,juejin,csdn,segmentfault,zhihu,51cto,oschina,toutiao,devto,medium
+```
+
+Only changed content:
+
+```bash
+blogctl sync \
+  --article concurrency-series-00 \
+  --platforms devto,medium \
+  --changed
+```
+
+Intentional full syndication:
+
+```bash
+blogctl sync --all --platforms devto,medium
+```
+
+Article and platform scopes are deliberately explicit. `--all` cannot be combined with `--article`.
+
+### Publishing pipeline
+
+```text
+canonical Markdown
+      ↓
+Go Compiler
+      ↓
+CompiledArticle
+      ↓
+Go Asset Pipeline
+  ├── Mermaid → renderer → PNG
+  └── PlantUML → renderer → PNG
+      ↓
+Go Publisher
+  ├── native platform image upload
+  └── shared Go R2 fallback
+      ↓
+remote draft
+      ↓
+explicit publish confirmation
+```
+
+The compiler owns article/frontmatter parsing, language selection, canonical/footer/tracking policy, Markdown normalization, diagram extraction, platform payload generation and content hashes.
+
+Generated publishing artifacts are stored under:
+
+```text
+blog-content/.distribution/
+```
+
+Durable remote bindings and publication state are stored under:
+
+```text
+blog-content/.blogctl/publications.json
+```
+
+Keep `.blogctl/publications.json`; `.distribution/` is generated local state.
+
+### Language policy
+
+Each platform has one persistent publishing language:
+
+- Chinese platforms default to `zh-CN`.
+- DEV.to and Medium default to `en`.
+
+The selected language controls the complete source article and its canonical/footer URL.
+
+### Browser session and Bridge
+
+Live publishing uses the persistent local Bridge:
+
+```text
+CLI / Extension
+      ↓
+Native Messaging
+      ↓
+BlogCTL Bridge
+      ↓
+Go publisher adapters
+```
+
+The Extension acquires only platform-approved browser cookies and the browser user agent. The Bridge keeps session material in memory for a short time; it is not written into `blogctl.toml`.
+
+The browser Extension is required for browser-authenticated platforms and Google Search Console Request Indexing.
+
+## Site build
+
+Build the current engine checkout:
 
 ```bash
 cd ThinkerQAQ.github.io
-go run ./tools/blogctl/cmd help
-go build -o blogctl ./tools/blogctl/cmd
+blogctl build
 ```
 
-The released binary removes the need to install Go for normal use. Astro/site and syndication operations still require the public engine repository's Node.js dependencies, and PlantUML rendering still requires Java when a new diagram must be rendered.
-
-
-## CI control plane
-
-GitHub Actions should keep only GitHub-native orchestration in YAML. Repository-specific operations are routed through the BlogCTL binary built from the current checkout:
-
-```text
-checkout
-→ setup Go
-→ go build ./tools/blogctl/cmd
-→ blogctl site build / ai-search / search ...
-```
-
-The current-checkout binary is required in CI so the workflow and BlogCTL implementation cannot drift across versions. BlogCTL may still invoke ecosystem tools such as Astro, Node, Java, Mermaid CLI, Wrangler, or EdgeOne internally; those are implementation details rather than separate user-facing control planes.
-
-## Publishing control plane
-
-BlogCTL owns the publishing pipeline end to end:
-
-```text
-canonical article
-  -> BlogCTL compiler
-  -> generated asset preparation (for example Mermaid -> PNG -> R2)
-  -> platform publisher
-  -> draft / explicit publish state
-```
-
-The personal site is separate: Mermaid source is rendered by Mermaid.js in the browser and does not require publishing PNGs.
-
-Compiler, asset policy, and R2 credentials are stored in the user-level BlogCTL TOML config. On Windows the default path is `%APPDATA%\BlogCTL\blogctl.toml` (for example `C:\Users\zsk\AppData\Roaming\BlogCTL\blogctl.toml`). R2 credentials are never written to content or distribution artifacts, and the Secret Access Key is not returned to the Extension UI.
-
-See [UNIFIED_PUBLISHING_PIPELINE.md](./UNIFIED_PUBLISHING_PIPELINE.md).
-
-## Search discovery control plane
-
-BlogCTL also owns standards/API-based search discovery. The generated Astro sitemap chain remains the source of truth for indexable routes; BlogCTL derives a flat `/sitemap-all.txt` from that same inventory and never maintains a second Chinese/English URL list.
-
-Useful commands:
+Build with canonical content assembled from `blog-content`:
 
 ```bash
-blogctl search inventory
+blogctl site build --content-root ../blog-content
+```
+
+The site build remains an Astro/Node ecosystem operation. After Astro finishes, BlogCTL generates the canonical Search inventory and then runs Pagefind.
+
+Useful development commands:
+
+```bash
+blogctl dev
+blogctl check
+blogctl diagrams
+blogctl diagrams plantuml
+blogctl diagrams drawio
+blogctl test
+```
+
+## Search discovery
+
+BlogCTL Search uses the built site as the source of truth.
+
+Build/search inventory:
+
+```bash
 blogctl search build
+blogctl search inventory
+blogctl search inventory --json
+```
+
+Submit a full inventory:
+
+```bash
 blogctl search submit --providers indexnow --all
-blogctl search submit --providers indexnow --urls-file changed-urls.txt
-blogctl search submit --providers google
-blogctl search audit --provider google --limit 500 --output .search/google-audit.json
+```
+
+Submit an explicit URL set:
+
+```bash
+blogctl search submit \
+  --providers indexnow,baidu,google \
+  --urls-file changed-urls.txt
+```
+
+Google URL Inspection audit:
+
+```bash
+blogctl search audit \
+  --provider google \
+  --limit 500 \
+  --output .search/google-audit.json
+```
+
+Post-deployment discovery notification:
+
+```bash
 blogctl search notify
 ```
 
-The Search backend is native Go. It owns the canonical URL inventory, fingerprints, per-provider diffs/snapshots, IndexNow, Baidu ordinary URL submission, Google service-account OAuth, sitemap submission, and URL Inspection.
+Provider ownership:
 
-Local Bridge credentials/configuration belong in the user-level `blogctl.toml`. GitHub Actions injects CI-only secrets as environment variables into the current-checkout BlogCTL process. Google integration intentionally does not use the restricted Google Indexing API for ordinary blog pages. Google **Request Indexing** stays in Extension JS because it requires Search Console browser automation.
+- IndexNow: Go.
+- Baidu ordinary URL submission: Go.
+- Google service-account OAuth, sitemap submission and URL Inspection: Go.
+- Google **Request Indexing**: Extension browser automation against the real Search Console UI.
 
-IndexNow supports explicit full-site bootstrap (`--all`) and URL-file submission. Baidu uses an independent snapshot: incremental mode submits only added/changed URLs, records deletions without submitting them, and refuses to advance the snapshot when Baidu reports only a partial aggregate success.
+Request Indexing intentionally does not replay private Google RPCs or persist Google cookies/tokens.
 
-See [SEARCH_DISCOVERY_CONTROL_PLANE.md](./SEARCH_DISCOVERY_CONTROL_PLANE.md).
+## AI Search
 
-## Syndication
-
-Article and platform scopes are always explicit:
-
-```bash
-blogctl sync --article concurrency-series-00 --platforms devto,medium --dry-run
-```
-
-The source article is loaded from `BLOG_CONTENT_ROOT/src/content/articles/**`; English syndication reads `BLOG_CONTENT_ROOT/src/content/articles/en/**`. Generated publishing artifacts are written to `BLOG_CONTENT_ROOT/.distribution/**`, so content-derived outputs stay with the content workspace instead of polluting the public engine checkout. `.distribution/` is local-only and should remain ignored by Git. Remote draft/published identity, hashes, URLs, and sync timestamps live in `BLOG_CONTENT_ROOT/.blogctl/publications.json`; that durable file survives generated-output cleanup and should be retained with the content repository.
-
-BlogCTL Extension independently reports browser login status for the publishing platforms it knows how to inspect: 博客园, 掘金, CSDN, 思否, 知乎, 51CTO, 开源中国, 今日头条, DEV.to, and Medium. A failed probe is isolated to that platform and does not make the other platform or Bridge states unknown.
-
-The extension contacts the registered Native Messaging Host whenever Bridge access is required. The host reuses an existing healthy Bridge or starts `blogctl --bridge` in the background, then returns the current loopback endpoint. All live `blogctl sync` commands now submit jobs to that same persistent Bridge; dry-run stays local because it performs no browser-session or remote mutation. `--all` expands into one Bridge job per published local article so every live mutation keeps explicit article-level task state.
-
-Platforms that publish through browser-authenticated native adapters use a short-lived browser-session handoff internally. This is an implementation detail and is not exposed as a separate Session control in the popup; users only see the normal platform login state.
-
-Before creating a draft, retrying a failed job, or confirming publication, the BlogCTL Extension refreshes the approved session for the selected platform automatically. Only adapter-approved browser cookies plus the browser user agent are handed to the local Bridge, and the Bridge keeps them in memory with a short TTL rather than persisting them in BlogCTL configuration.
-
-Publishing language is a persistent per-platform policy under **发布配置**. Chinese platforms default to `zh-CN`; DEV.to and Medium default to `en`. Either default can be changed. The selected language controls the complete source article (title, description, tags and body) plus the blog canonical/Footer URL. See [PUBLISHING_LANGUAGE.md](./PUBLISHING_LANGUAGE.md).
-
-### Network proxy
-
-BlogCTL follows the same proxy model as DownKit: proxy configuration belongs to the local Bridge rather than to an individual `sync` invocation. The Extension exposes a persistent **Network Proxy** card with an explicit enable switch plus proxy host and port fields.
-
-The configuration is stored under the operating system user-config directory in `BlogCTL/blogctl.toml`. On Windows this resolves to `%APPDATA%\BlogCTL\blogctl.toml`. When a Bridge starts, it loads that file automatically. Existing `config.json` is migrated once to TOML and retained as `config.json.migrated.bak`. Changing the proxy while the Bridge is running rebuilds the Bridge HTTP client immediately.
-
-- Enabled: Bridge-originated external HTTP/HTTPS traffic uses the configured HTTP proxy; HTTPS destinations use CONNECT through it.
-- Go search providers use the Bridge HTTP client directly, so IndexNow/Baidu/Google follow the same BlogCTL proxy policy.
-- Remaining external child processes receive scoped proxy variables only when they actually need outbound access; the browser and operating system are not modified.
-- Chrome/Edge tabs, Google Search Console UI, and unrelated applications keep using their existing network configuration.
-- Disabled: the configured host and port are retained, while BlogCTL external traffic uses explicit direct mode.
-- Loopback communication between the CLI, Extension, and Bridge never uses the configured external proxy.
-- `HTTP_PROXY`, `HTTPS_PROXY`, and a per-command `--proxy` flag are not required for normal BlogCTL operation.
-
-This keeps the command stable:
+Prepare content:
 
 ```bash
-blogctl sync --article concurrency-series-01-hardware --platforms medium
+blogctl ai-search prepare \
+  --output .tmp/ai-search \
+  --content-root ../blog-content
 ```
 
-Current routing uses one BlogCTL control plane:
+Sync Cloudflare AI Search:
 
-- DEV.to uses the official Forem API through the Go publisher adapter.
-- Medium consumes the same `CompiledArticle` protocol and runs through the persistent Bridge; it remains draft-oriented and fails closed when body-image insertion or existing-draft update is not verified.
-- 博客园、掘金、CSDN、思否、知乎、51CTO、开源中国、今日头条 use BlogCTL's native Go publisher adapters. They do not require the Wechatsync CLI or Wechatsync browser extension.
-- CLI and Extension live publishing both execute through Bridge jobs, so they share workspace config, browser sessions, publisher state, retry behavior, and publication inventory.
-- Native Chinese publishing follows two explicit phases: first create or update the remote draft and return its preview URL; after preview, use **确定发布** from the task page. BlogCTL refuses confirmation when the source content hash no longer matches the reviewed draft.
+```bash
+blogctl ai-search sync
+```
 
-The browser extension is therefore the only browser-side component required by BlogCTL publishing.
+Sync and wait for indexing/retrieval verification:
 
-### CNBlogs existing article bindings
+```bash
+blogctl ai-search sync --verify
+```
 
-In **同步发布**, select a local article and use **博客园文章绑定** to search the signed-in CNBlogs editor's posts or enter a CNBlogs article URL/ID. Search results are candidates; selecting one does not bind it until **验证并绑定** reads its editor detail. Existing bindings can be reverified, and changing an ID requires an explicit confirmation. BlogCTL-created drafts and confirmed bindings are kept in the content repository's `.blogctl/publications.json`, outside the generated `.distribution/` directory. The first visit to this section migrates existing CNBlogs IDs from `.distribution/manifest.json` into the durable file. Commit that file with the content repository to retain bindings across machines.
+Run verification separately:
 
-A published binding cannot be sent through **创建/更新草稿**. Use **更新已发布文章** explicitly; BlogCTL checks the signed-in account, reads the remote post, compares its update time with the last verified baseline, and stops if the post changed remotely. Reverify the binding to accept a new remote baseline before retrying. These controls currently apply to CNBlogs only.
+```bash
+blogctl ai-search verify
+```
+
+CI supplies Cloudflare credentials at the CI boundary. Local user configuration remains in `blogctl.toml`; CI-only secrets are not a second interactive configuration model.
+
+## Network proxy
+
+Proxy settings belong to the Bridge and are persisted in `blogctl.toml`.
+
+When enabled:
+
+- Bridge-originated external Go HTTP traffic uses the configured HTTP proxy.
+- HTTPS uses CONNECT through that proxy.
+- Search providers use the same proxy policy.
+- Loopback CLI/Extension/Bridge communication never uses the external proxy.
+- Browser tabs and unrelated applications are not modified.
+
+When disabled, BlogCTL uses explicit direct mode while retaining the saved host/port values.
+
+## State and ownership
+
+```text
+User config directory/
+├── blogctl.toml        durable user configuration
+├── bridge.json         local Bridge discovery
+├── jobs.json           durable job state
+└── provider snapshots  Search incremental baselines
+
+blog-content/
+├── src/content/        canonical content
+├── .blogctl/           durable publication bindings/state
+└── .distribution/      generated publishing artifacts
+
+ThinkerQAQ.github.io/
+├── tools/blogctl/      BlogCTL implementation
+├── scripts/            site/ecosystem tooling only
+└── dist/               built site + Search inventory
+```
+
+## Source layout
+
+```text
+tools/blogctl/
+├── cmd/          CLI entry points
+├── app/          workflows and orchestration
+├── compiler/     Go publishing compiler
+├── assets/       Go publishing asset pipeline
+├── publisher/    platform adapters
+├── storage/r2/   shared R2 client/signing
+├── search/       Search discovery providers
+├── aisearch/     Cloudflare AI Search
+├── bridge/       durable local control plane
+├── extension/    Chromium Extension
+└── renderers/    thin ecosystem adapters
+```
+
+Root `scripts/` is reserved for site/toolchain concerns such as Astro content assembly, site diagrams, Pagefind, public-content safety and frontend tests. Publishing backend logic must not be reintroduced there.
+
+## Development rule
+
+The architectural boundary is:
+
+```text
+Go owns domain logic and orchestration.
+Browser JavaScript owns browser APIs and DOM automation.
+External Node/Java tools are invoked as renderers/toolchain dependencies.
+```
+
+Do not add a second publishing/search backend in `scripts/` or the Extension.
+
+Historical release details remain in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
