@@ -37,6 +37,32 @@ count++                     count++
 > **Why does this work?**`,
 };
 
+const EN_PROFILE = {
+  language: "en",
+  footer: {
+    enabled: true,
+    template: "> This article was first published on [{site}]({url}) and syndicated here by the author. The original article may be revised over time; please refer to the personal blog for the latest version.",
+  },
+  tracking: {
+    enabled: true,
+    source: "medium",
+    medium: "referral",
+    campaign: "article_syndication",
+  },
+};
+
+function mediumOptions(slug, {
+  language = "en",
+  footer = EN_PROFILE.footer,
+  tracking = EN_PROFILE.tracking,
+} = {}) {
+  const prefix = language === "en" ? "/en/articles/" : "/articles/";
+  return {
+    canonicalUrl: `https://thinkerqaq.github.io${prefix}${slug}/`,
+    publishingConfig: { language, footer, tracking },
+  };
+}
+
 test("removes the article table of contents", () => {
   const result = stripMediumToc(article.body);
   assert.doesNotMatch(result, /Table of Contents/u);
@@ -106,9 +132,7 @@ test("preserves whitespace-sensitive text fences as PRE deltas", () => {
 });
 
 test("builds a Medium draft with canonical footer matching DEV.to wording", () => {
-  const draft = buildMediumDraft(article, { slug: "concurrency-series-00" });
-  assert.equal(draft.canonicalUrl, "https://thinkerqaq.github.io/en/articles/concurrency-series-00/");
-  assert.equal(draft.tags.length, 5);
+  const draft = buildMediumDraft(article, mediumOptions("concurrency-series-00"));
   assert.deepEqual(draft.coverImage, {
     url: "https://thinkerqaq.github.io/media/articles/concurrency-series-00/cover.png",
     alt: "Concurrency series cover",
@@ -131,52 +155,39 @@ test("Medium canonical and footer follow configured content language", () => {
     ...article,
     title: "并发编程",
     body: "## 正文\n\n内容。",
-  }, {
-    slug: "concurrency-series-00",
-    publishingConfig: {
-      language: "zh-CN",
-      footer: { enabled: true, template: "> 来源：[{site}]({url})" },
-      canonical: { mode: "native" },
-      tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
-    },
-  });
-  assert.equal(draft.canonicalUrl, "https://thinkerqaq.github.io/articles/concurrency-series-00/");
+  }, mediumOptions("concurrency-series-00", {
+    language: "zh-CN",
+    footer: { enabled: true, template: "> 来源：[{site}]({url})" },
+    tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
+  }));
   const footer = draft.deltas.at(-1).paragraph;
   assert.match(footer.text, /ThinkerQAQ 的个人博客/u);
   const link = footer.markups.find((markup) => markup.type === 3);
   assert.equal(link.href, "https://thinkerqaq.github.io/articles/concurrency-series-00/");
 });
 
-test("Medium publishing profile controls footer tracking and native canonical", () => {
-  const draft = buildMediumDraft(article, {
-    slug: "concurrency-series-00",
-    publishingConfig: {
-      footer: { enabled: true, template: "> Source: [{site}]({url})" },
-      canonical: { mode: "none" },
-      tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
-    },
+test("Medium renderer follows the Go-resolved footer profile", () => {
+  const options = mediumOptions("concurrency-series-00", {
+    footer: { enabled: true, template: "> Source: [{site}]({url})" },
+    tracking: { enabled: false, source: "medium", medium: "referral", campaign: "article_syndication" },
   });
-  assert.equal(draft.canonicalUrl, "");
+  const draft = buildMediumDraft(article, options);
   const footer = draft.deltas.at(-1).paragraph;
   assert.equal(footer.type, 9);
   assert.equal(footer.text, "Source: ThinkerQAQ's personal blog");
   const link = footer.markups.find((markup) => markup.type === 3);
-  assert.equal(link.href, "https://thinkerqaq.github.io/en/articles/concurrency-series-00/");
+  assert.equal(link.href, options.canonicalUrl);
 
-  const output = buildMediumCopyHtml(article, {
-    slug: "concurrency-series-00",
-    publishingConfig: {
-      footer: { enabled: false, template: "> ignored {url}" },
-      canonical: { mode: "native" },
-      tracking: { enabled: true, source: "medium", medium: "referral", campaign: "article_syndication" },
-    },
-  });
+  const output = buildMediumCopyHtml(article, mediumOptions("concurrency-series-00", {
+    footer: { enabled: false, template: "> ignored {url}" },
+    tracking: EN_PROFILE.tracking,
+  }));
   assert.doesNotMatch(output, /ignored/u);
   assert.doesNotMatch(output, /<hr>/u);
 });
 
 test("builds a copy/paste HTML fallback without TOC and with copy button", () => {
-  const output = buildMediumCopyHtml(article, { slug: "concurrency-series-00" });
+  const output = buildMediumCopyHtml(article, mediumOptions("concurrency-series-00"));
   assert.match(output, /Copy for Medium/u);
   assert.doesNotMatch(output, /Table of Contents/u);
   assert.match(output, /<pre><code class="language-text">Thread A                    Thread B/u);
@@ -185,30 +196,28 @@ test("builds a copy/paste HTML fallback without TOC and with copy button", () =>
 });
 
 
-test("Medium compiles Mermaid to an image delta for native upload", () => {
-  const fence = String.fromCharCode(96).repeat(3);
-  const withMermaid = {
+test("Medium renderer consumes a Go-compiled diagram image", () => {
+  const imageUrl = "https://cdn.example.com/generated/mermaid/0123456789abcdef01234567.png";
+  const compiled = {
     ...article,
-    body: "## Start\n\n" + fence + "mermaid\nflowchart LR\n  accTitle: Mutex path\n  A --> B\n" + fence,
+    body: "## Start\n\n![Mutex path](" + imageUrl + ")",
   };
-  const draft = buildMediumDraft(withMermaid, { slug: "concurrency-series-00" });
-  assert.equal(draft.publishingAssets.length, 1);
+  const draft = buildMediumDraft(compiled, mediumOptions("concurrency-series-00"));
+  assert.deepEqual(draft.publishingAssets, []);
   assert.equal(draft.requiresHtmlFallback, false);
-  assert.equal(draft.deltas.some((delta) => /flowchart LR/u.test(delta.paragraph.text)), false);
-  assert.ok(draft.deltas.some((delta) => delta.image?.alt === "Mutex path"));
+  assert.ok(draft.deltas.some((delta) => delta.image?.url === imageUrl && delta.image?.alt === "Mutex path"));
 
-  const output = buildMediumCopyHtml(withMermaid, { slug: "concurrency-series-00" });
-  assert.doesNotMatch(output, /flowchart LR/u);
-  assert.match(output, /<figure class="body-image"><img src="https:\/\/pub-366a15b6733345039775c083a1fffb3e\.r2\.dev\/generated\/mermaid\/[a-f0-9]{24}\.png" alt="Mutex path"><figcaption>Mutex path<\/figcaption><\/figure>/u);
+  const output = buildMediumCopyHtml(compiled, mediumOptions("concurrency-series-00"));
+  assert.match(output, /generated\/mermaid\/0123456789abcdef01234567\.png/u);
+  assert.match(output, /<figcaption>Mutex path<\/figcaption>/u);
 });
-
 
 test("Medium copy fallback drops source separators and keeps image captions", () => {
   const withImage = {
     ...article,
     body: "## Start\n\n---\n\n![Mutex path](https://example.com/mutex.png)",
   };
-  const output = buildMediumCopyHtml(withImage, { slug: "medium-formatting" });
+  const output = buildMediumCopyHtml(withImage, mediumOptions("medium-formatting"));
   assert.equal((output.match(/<hr>/gu) ?? []).length, 1);
   assert.match(output, /<figcaption>Mutex path<\/figcaption>/u);
 });
@@ -245,7 +254,7 @@ Intro.
 
 End.`,
   };
-  const draft = buildMediumDraft(fixture, { slug: "concurrency-series-01-hardware" });
+  const draft = buildMediumDraft(fixture, mediumOptions("concurrency-series-01-hardware"));
   assert.equal(draft.deltas[0].paragraph.type, 4);
   assert.equal(draft.deltas.filter((delta) => delta.paragraph.type === 3).length, 2);
   assert.deepEqual(
