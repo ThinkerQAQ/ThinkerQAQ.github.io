@@ -348,6 +348,36 @@ func indexNowKeyPlaceholder(config bridgeConfig) string {
 	return "IndexNow key"
 }
 
+func bingSite(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.BingSite); configured != "" {
+		return configured
+	}
+	return blogsearch.DefaultSiteOrigin
+}
+
+func bingAPIKey(config bridgeConfig) string {
+	return strings.TrimSpace(config.BingAPIKey)
+}
+
+func bingHealth(config bridgeConfig) toolHealth {
+	key := bingAPIKey(config)
+	if key == "" {
+		return toolHealth{Status: "missing", Summary: "API Key 未配置"}
+	}
+	resolved, err := blogsearch.ResolveBingConfig(blogsearch.DefaultSiteOrigin, bingSite(config), key)
+	if err != nil {
+		return toolHealth{Status: "error", Summary: "配置无效", Detail: err.Error()}
+	}
+	return toolHealth{OK: true, Status: "ok", Summary: "已配置", Detail: resolved.Site}
+}
+
+func bingAPIKeyPlaceholder(config bridgeConfig) string {
+	if bingAPIKey(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "Bing Webmaster API Key"
+}
+
 func baiduSite(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.BaiduSite); configured != "" {
 		return configured
@@ -543,6 +573,31 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "bing-webmaster", DisplayName: "Bing Webmaster", Kind: "runtime", Required: false,
+			Description: "使用 Bing Webmaster JSON API 提交 URL。提交前读取官方 URL submission quota；未提交 URL 保留为 pending，后续增量提交继续处理。",
+			Health:      bingHealth(config),
+			Actions: []toolAction{{
+				ID: "check", Label: "检测配置",
+				Description: "读取 Bing URL Submission Quota；不会提交测试 URL。",
+			}},
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{"site": bingSite(config)},
+				Schema: []toolField{
+					{
+						Key: "site", Label: "Site", Type: "text",
+						Placeholder: blogsearch.DefaultSiteOrigin,
+						Description: "Bing Webmaster 中已验证的站点；必须与当前博客 Origin 一致。",
+					},
+					{
+						Key: "apiKey", Label: "API Key", Type: "secret",
+						Placeholder: bingAPIKeyPlaceholder(config),
+						Description: "Bing Webmaster Tools → Settings → API Access 生成；留空保存时保持当前 Key。",
+					},
+				},
+			},
+		},
+		{
 			Name: "baidu-search-resource", DisplayName: "Baidu Search Resource", Kind: "runtime", Required: false,
 			Description: "百度普通资源推送使用官方 URL 提交 API。只提交新增或内容变化的 URL；删除 URL 仅统计，不通过普通推送接口提交。",
 			Health:      baiduHealth(config),
@@ -676,6 +731,26 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		if keyLocation := stringConfig(values, "keyLocation"); keyLocation != "" {
 			config.IndexNowKeyLocation = keyLocation
 		}
+	case "bing-webmaster":
+		nextSite := config.BingSite
+		nextKey := config.BingAPIKey
+		if site := stringConfig(values, "site"); site != "" {
+			nextSite = site
+		}
+		if key := stringConfig(values, "apiKey"); key != "" {
+			nextKey = key
+		}
+		if strings.TrimSpace(nextKey) != "" {
+			if _, err := blogsearch.ResolveBingConfig(blogsearch.DefaultSiteOrigin, nextSite, nextKey); err != nil {
+				return config, err
+			}
+		} else if strings.TrimSpace(nextSite) != "" {
+			if _, err := blogsearch.ResolveBingConfig(blogsearch.DefaultSiteOrigin, nextSite, "validation-key"); err != nil {
+				return config, err
+			}
+		}
+		config.BingSite = nextSite
+		config.BingAPIKey = nextKey
 	case "baidu-search-resource":
 		nextSite := config.BaiduSite
 		nextToken := config.BaiduToken
