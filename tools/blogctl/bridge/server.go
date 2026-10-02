@@ -460,6 +460,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleSearchIndexNowJobStart(response, request)
 		return
 	}
+	if path == "v1/search/index/jobs/bing" && request.Method == http.MethodPost {
+		s.handleSearchBingJobStart(response, request)
+		return
+	}
 	if path == "v1/search/index/jobs/baidu" && request.Method == http.MethodPost {
 		s.handleSearchBaiduJobStart(response, request)
 		return
@@ -800,6 +804,8 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 	switch name {
 	case "indexnow":
 		detail, err = s.checkIndexNowNative(request.Context())
+	case "bing-webmaster":
+		detail, err = s.checkBingNative(request.Context())
 	case "google-search-console-api":
 		detail, err = s.checkGoogleSearchConsoleNative(request.Context())
 	default:
@@ -813,6 +819,9 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 	message := "配置检测通过"
 	if name == "indexnow" {
 		message = "IndexNow 配置检测通过"
+	}
+	if name == "bing-webmaster" {
+		message = "Bing Webmaster 配置检测通过"
 	}
 	if name == "google-search-console-api" {
 		message = "Google Search Console API 配置检测通过"
