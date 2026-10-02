@@ -146,10 +146,23 @@ func mutating7017(status int, body []byte) bool {
 	if status != http.StatusServiceUnavailable {
 		return false
 	}
-	text := string(body)
-	return strings.Contains(text, "unable_to_connect_to_ai_search") ||
-		strings.Contains(text, `"code":7017`) ||
-		strings.Contains(text, `"code": 7017`)
+	if strings.Contains(string(body), "unable_to_connect_to_ai_search") {
+		return true
+	}
+	var envelope struct {
+		Errors []struct {
+			Code any `json:"code"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal(body, &envelope) != nil {
+		return false
+	}
+	for _, entry := range envelope.Errors {
+		if fmt.Sprint(entry.Code) == "7017" {
+			return true
+		}
+	}
+	return false
 }
 
 func retryAfter(response *http.Response) time.Duration {
@@ -167,6 +180,13 @@ func retryAfter(response *http.Response) time.Duration {
 		}
 	}
 	return 0
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func minDuration(a, b time.Duration) time.Duration {
