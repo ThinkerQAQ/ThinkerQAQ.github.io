@@ -22,17 +22,6 @@ type googleInspectionTaskPayload struct {
 	Limit  int `json:"limit"`
 }
 
-func googleInspectionDisplayTotal(totalAvailable, offset, taskTotal int) int {
-	if totalAvailable > 0 {
-		return totalAvailable
-	}
-	total := offset + taskTotal
-	if total < taskTotal {
-		return taskTotal
-	}
-	return total
-}
-
 func taskCapabilities(retry, pause, resume bool) struct {
 	Retry  bool
 	Pause  bool
@@ -640,7 +629,7 @@ func (s *Server) startGoogleInspectionTask(offset, limit int) (*durableTaskJob, 
 	}
 	state := loadSearchIndexState()
 	total := state.Inventory.Total
-	if total < offset+limit {
+	if total <= 0 {
 		total = offset + limit
 	}
 	job, err := s.createDurableTaskJob(
