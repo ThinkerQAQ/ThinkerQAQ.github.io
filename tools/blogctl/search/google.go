@@ -320,12 +320,16 @@ func googleAPIRequest(ctx context.Context, client *http.Client, method, endpoint
 	return payload, response.StatusCode, nil
 }
 
+func googlePathSegment(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
+}
+
 func CheckGoogleSearchConsoleSite(ctx context.Context, client *http.Client, siteURL, accessToken string) (map[string]any, error) {
 	normalized, err := NormalizeSearchConsoleSiteURL(siteURL)
 	if err != nil {
 		return nil, err
 	}
-	endpoint := GoogleSearchConsoleAPI + "/sites/" + url.PathEscape(normalized)
+	endpoint := GoogleSearchConsoleAPI + "/sites/" + googlePathSegment(normalized)
 	payload, status, err := googleAPIRequest(ctx, client, http.MethodGet, endpoint, accessToken, nil)
 	if err != nil {
 		return nil, err
@@ -353,7 +357,7 @@ func SubmitGoogleSitemaps(ctx context.Context, client *http.Client, siteURL, ori
 	results := make([]GoogleSitemapResult, 0, len(GoogleDefaultSitemaps))
 	for _, name := range GoogleDefaultSitemaps {
 		feedPath := strings.TrimRight(origin, "/") + "/" + strings.TrimLeft(name, "/")
-		endpoint := GoogleSearchConsoleAPI + "/sites/" + url.PathEscape(normalizedSite) + "/sitemaps/" + url.PathEscape(feedPath)
+		endpoint := GoogleSearchConsoleAPI + "/sites/" + googlePathSegment(normalizedSite) + "/sitemaps/" + googlePathSegment(feedPath)
 		_, status, err := googleAPIRequest(ctx, client, http.MethodPut, endpoint, accessToken, nil)
 		if err != nil {
 			return results, err
