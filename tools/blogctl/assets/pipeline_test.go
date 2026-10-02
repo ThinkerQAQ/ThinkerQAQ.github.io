@@ -5,12 +5,15 @@ import (
 	"context"
 	"image"
 	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 )
 
 type pipelineRunnerFunc func(context.Context, string, []string, string, []string, []byte) ([]byte, error)
@@ -97,6 +100,62 @@ func TestPipelineRendersMermaidThroughGoOrchestration(t *testing.T) {
 	output := filepath.Join(root, ".distribution", "assets", "mermaid", asset.ID+".png")
 	if _, err := os.Stat(output); err != nil {
 		t.Fatalf("rendered asset missing: %v", err)
+	}
+}
+
+func TestPipelineUploadsGeneratedAssetWhenPlatformHasNoNativeImageUpload(t *testing.T) {
+	root := t.TempDir()
+	id := "eeeeeeeeeeeeeeeeeeeeeeee"
+	output := filepath.Join(root, ".distribution", "assets", "mermaid", id+".png")
+	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(output, testPNG(t, 16, 16), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var uploaded bool
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		uploaded = true
+		if request.Method != http.MethodPut {
+			t.Fatalf("method = %s", request.Method)
+		}
+		if request.URL.Path != "/bucket/generated/mermaid/"+id+".png" {
+			t.Fatalf("path = %s", request.URL.Path)
+		}
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	publicURL := "https://cdn.example.com/generated/mermaid/" + id + ".png"
+	pipeline := &Pipeline{
+		EngineRoot: root,
+		ContentRoot: root,
+		HTTPClient: server.Client(),
+		R2: blogr2.Config{
+			AccessKeyID: "access",
+			SecretAccessKey: "secret",
+			Endpoint: server.URL,
+			Bucket: "bucket",
+			PublicBaseURL: "https://cdn.example.com/",
+		},
+		Runner: pipelineRunnerFunc(func(context.Context, string, []string, string, []string, []byte) ([]byte, error) {
+			t.Fatal("cached asset must not invoke renderer")
+			return nil, nil
+		}),
+	}
+	if err := pipeline.Prepare(context.Background(), []blogcompiler.Asset{{
+		Kind: "mermaid",
+		ID: id,
+		Definition: "flowchart LR\nA --> B",
+		ObjectKey: "generated/mermaid/" + id + ".png",
+		PublicURL: publicURL,
+		Source: publicURL,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if !uploaded {
+		t.Fatal("generated asset was not uploaded to R2")
 	}
 }
 
