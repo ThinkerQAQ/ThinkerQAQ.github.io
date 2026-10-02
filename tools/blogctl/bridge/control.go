@@ -19,6 +19,7 @@ import (
 	"time"
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
+blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
@@ -1224,6 +1225,16 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		return output, nil
 	}
 	service := blogapp.NewSyncService()
+	service.AssetPreparer = &blogassets.Pipeline{
+		EngineRoot: config.EngineRoot,
+		ContentRoot: config.ContentRoot,
+		Mermaid: blogassets.MermaidPolicy{
+			Width: config.Publishing.Compiler.Mermaid.Width,
+			Scale: config.Publishing.Compiler.Mermaid.Scale,
+		},
+		ToolPaths:  config.ToolPaths,
+		HTTPClient: s.httpClient,
+	}
 	service.NativePublisher = bridgeNativePublisher{server: s}
 	service.OnEvent = onEvent
 	changedByPlatform := changedPoliciesForRequest(config, request)
