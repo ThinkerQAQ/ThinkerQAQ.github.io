@@ -305,6 +305,26 @@ func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	}
 }
 
+func TestReconcileRecoveredGoogleInspectionPayloadUsesPersistedProgress(t *testing.T) {
+	nextOffset := 38
+	payload := reconcileRecoveredGoogleInspectionPayload(
+		googleInspectionTaskPayload{Offset: 37, Limit: 12},
+		searchInspectionState{NextOffset: &nextOffset},
+	)
+	if payload.Offset != 38 || payload.Limit != 11 || payload.Done {
+		t.Fatalf("reconciled payload = %#v", payload)
+	}
+
+	nextOffset = 49
+	payload = reconcileRecoveredGoogleInspectionPayload(
+		googleInspectionTaskPayload{Offset: 37, Limit: 12},
+		searchInspectionState{NextOffset: &nextOffset},
+	)
+	if payload.Offset != 49 || payload.Limit != 0 || !payload.Done {
+		t.Fatalf("completed payload = %#v", payload)
+	}
+}
+
 func TestLatestDurableSearchTaskReturnsNewest(t *testing.T) {
 	server := &Server{
 		taskJobs: map[string]*durableTaskJob{
