@@ -83,19 +83,6 @@ func diffPayload(value blogsearch.Diff) searchDiffPayload {
 }
 
 func (s *Server) fetchSearchInventory(ctx context.Context) (searchInventoryState, error) {
-	// Preserve the injected runner as a test seam while production no longer
-	// starts Node for inventory discovery.
-	if s.searchRunner != nil {
-		raw, err := s.runInjectedSearch(ctx, s.config, "inventory", nil)
-		if err != nil {
-			return searchInventoryState{}, err
-		}
-		var inventory searchInventoryState
-		if err := decodeSearchResult(raw, &inventory); err != nil {
-			return searchInventoryState{}, err
-		}
-		return inventory, nil
-	}
 	inventory, err := blogsearch.FetchRemoteInventory(ctx, s.httpClient, blogsearch.DefaultSiteOrigin)
 	if err != nil {
 		return searchInventoryState{}, err
@@ -104,21 +91,6 @@ func (s *Server) fetchSearchInventory(ctx context.Context) (searchInventoryState
 }
 
 func (s *Server) submitBingIndexNow(ctx context.Context, mode string, previous searchInventoryState) (bingSubmissionPayload, error) {
-	if s.searchRunner != nil {
-		raw, err := s.runInjectedSearch(ctx, s.config, "bing-submit", map[string]any{
-			"mode": mode,
-			"previous": previous,
-		})
-		if err != nil {
-			return bingSubmissionPayload{}, err
-		}
-		var payload bingSubmissionPayload
-		if err := decodeSearchResult(raw, &payload); err != nil {
-			return bingSubmissionPayload{}, err
-		}
-		return payload, nil
-	}
-
 	inventory, err := s.fetchSearchInventory(ctx)
 	if err != nil {
 		return bingSubmissionPayload{}, err
@@ -217,17 +189,6 @@ func (s *Server) googleAccessToken(ctx context.Context) (string, error) {
 }
 
 func (s *Server) submitGoogleSitemapsNative(ctx context.Context) (googleSitemapsPayload, error) {
-	if s.searchRunner != nil {
-		raw, err := s.runInjectedSearch(ctx, s.config, "google-sitemaps", nil)
-		if err != nil {
-			return googleSitemapsPayload{}, err
-		}
-		var payload googleSitemapsPayload
-		if err := decodeSearchResult(raw, &payload); err != nil {
-			return googleSitemapsPayload{}, err
-		}
-		return payload, nil
-	}
 	inventory, err := s.fetchSearchInventory(ctx)
 	if err != nil {
 		return googleSitemapsPayload{}, err
@@ -267,17 +228,6 @@ func coreInspectionResult(value blogsearch.GoogleInspectionResult) searchInspect
 }
 
 func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error) {
-	if s.searchRunner != nil {
-		raw, err := s.runInjectedSearch(ctx, s.config, "bing-check", nil)
-		if err != nil {
-			return nil, err
-		}
-		var detail map[string]any
-		if err := decodeSearchResult(raw, &detail); err != nil {
-			return nil, err
-		}
-		return detail, nil
-	}
 	engineRoot := strings.TrimSpace(s.config.EngineRoot)
 	if engineRoot == "" {
 		return nil, errors.New("Public Engine path is not configured")
@@ -304,17 +254,6 @@ func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error
 }
 
 func (s *Server) checkGoogleSearchConsoleNative(ctx context.Context) (map[string]any, error) {
-	if s.searchRunner != nil {
-		raw, err := s.runInjectedSearch(ctx, s.config, "google-check", nil)
-		if err != nil {
-			return nil, err
-		}
-		var detail map[string]any
-		if err := decodeSearchResult(raw, &detail); err != nil {
-			return nil, err
-		}
-		return detail, nil
-	}
 	accessToken, err := s.googleAccessToken(ctx)
 	if err != nil {
 		return nil, err
