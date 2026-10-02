@@ -1,0 +1,34 @@
+name: Temporary BlogCTL Refactor Validation
+
+on:
+  push:
+    branches:
+      - docs/blogctl-go-runtime-ci-refactor-20261001
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check Go formatting
+        run: |
+          files="$(gofmt -l tools/blogctl)"
+          test -z "$files" || { echo "$files"; exit 1; }
+      - name: Test BlogCTL Go packages
+        run: go test ./tools/blogctl/...
+      - name: Check renderer syntax
+        run: |
+          node --check tools/blogctl/renderers/node/markdown-html.mjs
+          node --check tools/blogctl/renderers/node/publishing-image.mjs
