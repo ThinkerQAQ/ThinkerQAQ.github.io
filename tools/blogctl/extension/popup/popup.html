@@ -304,17 +304,26 @@
 
         <div class="tool-card environment-config-file">
           <div class="status-row">
-            <strong>Config</strong>
+            <span class="tool-identity">
+              <strong>Config</strong>
+              <span class="tool-requirement required">必选</span>
+            </span>
             <code class="config-file-name">blogctl.toml</code>
           </div>
           <code id="environmentConfigPath" class="path-value">正在读取 blogctl.toml…</code>
+          <div class="tool-edit-controls">
+            <button id="editConfigFile" class="secondary tool-edit-button" type="button">✎ 编辑</button>
+          </div>
         </div>
 
         <div id="environmentRuntimeTools" class="tool-list"><div class="platform-loading">正在检测本机环境…</div></div>
 
         <details id="assetConfigEnvironmentCard" class="tool-card environment-large-card">
           <summary class="status-row">
-            <strong>共享图片资产</strong>
+            <span class="tool-identity">
+              <strong>共享图片资产</strong>
+              <span class="tool-requirement optional">可选</span>
+            </span>
             <strong id="assetStatus" class="status checking">检测中</strong>
           </summary>
           <div class="tool-card-body environment-embedded-tool">
@@ -346,7 +355,10 @@
 
         <details id="platformConfigEnvironmentCard" class="tool-card environment-large-card">
           <summary class="status-row">
-            <strong>平台配置</strong>
+            <span class="tool-identity">
+              <strong>平台配置</strong>
+              <span class="tool-requirement required">必选</span>
+            </span>
             <span class="status ok">已加载</span>
           </summary>
           <div class="tool-card-body environment-embedded-tool">
@@ -388,7 +400,10 @@
 
         <details id="searchEngineEnvironmentCard" class="tool-card environment-large-card">
           <summary class="status-row">
-            <strong>搜索引擎</strong>
+            <span class="tool-identity">
+              <strong>搜索引擎</strong>
+              <span class="tool-requirement optional">可选</span>
+            </span>
             <span id="searchEngineEnvironmentStatus" class="status checking">检测中</span>
           </summary>
           <div class="tool-card-body">
