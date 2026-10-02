@@ -210,6 +210,8 @@ jobs:
     env:
       GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'https://thinkerqaq.github.io/' }}
+      BAIDU_PUSH_TOKEN: ${{ secrets.BAIDU_PUSH_TOKEN }}
+      BAIDU_SITE: ${{ vars.BAIDU_SITE || 'https://thinkerqaq.github.io' }}
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
@@ -226,11 +228,6 @@ jobs:
       - name: Build BlogCTL
         working-directory: engine/tools/blogctl
         run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
 
       - name: Notify search engines
         working-directory: engine
