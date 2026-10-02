@@ -41,7 +41,7 @@ func IsR2Configured(config R2Config) bool {
 		strings.TrimSpace(config.PublicBaseURL) != ""
 }
 
-func ResolveR2Config(config R2Config) (R2Config, error) {
+func NormalizeR2Config(config R2Config) (R2Config, error) {
 	config.AccessKeyID = strings.TrimSpace(config.AccessKeyID)
 	config.SecretAccessKey = strings.TrimSpace(config.SecretAccessKey)
 	config.AccountID = strings.TrimSpace(config.AccountID)
@@ -51,6 +51,32 @@ func ResolveR2Config(config R2Config) (R2Config, error) {
 
 	if config.Endpoint == "" && config.AccountID != "" {
 		config.Endpoint = "https://" + config.AccountID + ".r2.cloudflarestorage.com"
+	}
+	if config.Endpoint != "" {
+		endpoint, err := url.Parse(config.Endpoint)
+		if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
+			return R2Config{}, errors.New("R2 endpoint must be a valid HTTPS URL")
+		}
+		if endpoint.RawQuery != "" || endpoint.Fragment != "" || (endpoint.Path != "" && endpoint.Path != "/") {
+			return R2Config{}, errors.New("R2 endpoint must not contain a path, query, or fragment")
+		}
+	}
+	if config.PublicBaseURL != "" {
+		publicBase, err := url.Parse(config.PublicBaseURL)
+		if err != nil || publicBase.Scheme != "https" || publicBase.Host == "" {
+			return R2Config{}, errors.New("R2 public base URL must be a valid HTTPS URL")
+		}
+		if publicBase.RawQuery != "" || publicBase.Fragment != "" {
+			return R2Config{}, errors.New("R2 public base URL must not contain a query or fragment")
+		}
+	}
+	return config, nil
+}
+
+func ResolveR2Config(config R2Config) (R2Config, error) {
+	config, err := NormalizeR2Config(config)
+	if err != nil {
+		return R2Config{}, err
 	}
 	switch {
 	case config.AccessKeyID == "":
@@ -63,22 +89,6 @@ func ResolveR2Config(config R2Config) (R2Config, error) {
 		return R2Config{}, errors.New("R2 endpoint or account ID is required")
 	case config.PublicBaseURL == "":
 		return R2Config{}, errors.New("R2 public base URL is required")
-	}
-
-	endpoint, err := url.Parse(config.Endpoint)
-	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
-		return R2Config{}, errors.New("R2 endpoint must be a valid HTTPS URL")
-	}
-	if endpoint.RawQuery != "" || endpoint.Fragment != "" || (endpoint.Path != "" && endpoint.Path != "/") {
-		return R2Config{}, errors.New("R2 endpoint must not contain a path, query, or fragment")
-	}
-
-	publicBase, err := url.Parse(config.PublicBaseURL)
-	if err != nil || publicBase.Scheme != "https" || publicBase.Host == "" {
-		return R2Config{}, errors.New("R2 public base URL must be a valid HTTPS URL")
-	}
-	if publicBase.RawQuery != "" || publicBase.Fragment != "" {
-		return R2Config{}, errors.New("R2 public base URL must not contain a query or fragment")
 	}
 	return config, nil
 }
