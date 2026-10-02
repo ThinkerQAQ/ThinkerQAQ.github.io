@@ -99,6 +99,7 @@ type googleIndexRequestQueue struct {
 type searchIndexState struct {
 	Inventory searchInventoryState `json:"inventory"`
 	Bing      searchOperationState `json:"bing"`
+	Baidu     searchOperationState `json:"baidu"`
 	Google    struct {
 		CredentialsConfigured bool                    `json:"credentialsConfigured"`
 		CredentialsError      string                  `json:"credentialsError,omitempty"`
@@ -111,6 +112,7 @@ type searchIndexState struct {
 func defaultSearchIndexState() searchIndexState {
 	state := searchIndexState{}
 	state.Bing.State = "idle"
+	state.Baidu.State = "idle"
 	state.Google.Sitemaps.State = "idle"
 	state.Google.Inspection.State = "idle"
 	state.Google.RequestQueue.State = "idle"
@@ -125,16 +127,16 @@ func searchIndexStatePath() (string, error) {
 	return filepath.Join(filepath.Dir(configPath), "search-index.json"), nil
 }
 
-func bingIndexSnapshotPath() (string, error) {
+func searchProviderSnapshotPath(filename string) (string, error) {
 	configPath, err := ConfigPath()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(filepath.Dir(configPath), "bing-indexnow-snapshot.json"), nil
+	return filepath.Join(filepath.Dir(configPath), filename), nil
 }
 
-func loadBingIndexSnapshot() searchInventoryState {
-	path, err := bingIndexSnapshotPath()
+func loadSearchProviderSnapshot(filename string) searchInventoryState {
+	path, err := searchProviderSnapshotPath(filename)
 	if err != nil {
 		return searchInventoryState{}
 	}
@@ -149,8 +151,8 @@ func loadBingIndexSnapshot() searchInventoryState {
 	return snapshot
 }
 
-func saveBingIndexSnapshot(snapshot searchInventoryState) error {
-	path, err := bingIndexSnapshotPath()
+func saveSearchProviderSnapshot(filename string, snapshot searchInventoryState) error {
+	path, err := searchProviderSnapshotPath(filename)
 	if err != nil {
 		return err
 	}
@@ -162,6 +164,26 @@ func saveBingIndexSnapshot(snapshot searchInventoryState) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o600)
+}
+
+func bingIndexSnapshotPath() (string, error) {
+	return searchProviderSnapshotPath("bing-indexnow-snapshot.json")
+}
+
+func loadBingIndexSnapshot() searchInventoryState {
+	return loadSearchProviderSnapshot("bing-indexnow-snapshot.json")
+}
+
+func loadBaiduIndexSnapshot() searchInventoryState {
+	return loadSearchProviderSnapshot("baidu-snapshot.json")
+}
+
+func saveBingIndexSnapshot(snapshot searchInventoryState) error {
+	return saveSearchProviderSnapshot("bing-indexnow-snapshot.json", snapshot)
+}
+
+func saveBaiduIndexSnapshot(snapshot searchInventoryState) error {
+	return saveSearchProviderSnapshot("baidu-snapshot.json", snapshot)
 }
 
 func compactSearchInventory(inventory searchInventoryState) searchInventoryState {
@@ -185,6 +207,9 @@ func loadSearchIndexState() searchIndexState {
 	}
 	if state.Bing.State == "" {
 		state.Bing.State = "idle"
+	}
+	if state.Baidu.State == "" {
+		state.Baidu.State = "idle"
 	}
 	if state.Google.Sitemaps.State == "" {
 		state.Google.Sitemaps.State = "idle"
