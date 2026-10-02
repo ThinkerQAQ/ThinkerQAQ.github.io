@@ -23,6 +23,7 @@ import (
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 )
 
 type articleSummary struct {
@@ -319,20 +320,14 @@ func indexNowKey(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.IndexNowKey); configured != "" {
 		return configured
 	}
-	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY")); env != "" {
-		return env
-	}
-	return "fb26fca3ba9449c6816b6d79b0a41cec"
+	return blogsearch.DefaultIndexNowKey
 }
 
 func indexNowKeyLocation(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.IndexNowKeyLocation); configured != "" {
 		return configured
 	}
-	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY_LOCATION")); env != "" {
-		return env
-	}
-	return "https://thinkerqaq.github.io/" + indexNowKey(config) + ".txt"
+	return blogsearch.DefaultSiteOrigin + "/" + indexNowKey(config) + ".txt"
 }
 
 func indexNowHealth(config bridgeConfig) toolHealth {
@@ -353,55 +348,46 @@ func indexNowKeyPlaceholder(config bridgeConfig) string {
 	return "IndexNow key"
 }
 
-func googleSearchConsoleServiceJSON(config bridgeConfig) string {
-	if configured := strings.TrimSpace(config.GoogleSearchConsoleServiceJSON); configured != "" {
+func baiduSite(config bridgeConfig) string {
+	if configured := strings.TrimSpace(config.BaiduSite); configured != "" {
 		return configured
 	}
-	return strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON"))
+	return blogsearch.DefaultSiteOrigin
 }
 
-type googleServiceAccountConfig struct {
-	Type        string `json:"type"`
-	ClientEmail string `json:"client_email"`
-	PrivateKey  string `json:"private_key"`
+func baiduToken(config bridgeConfig) string {
+	return strings.TrimSpace(config.BaiduToken)
+}
+
+func baiduHealth(config bridgeConfig) toolHealth {
+	token := baiduToken(config)
+	if token == "" {
+		return toolHealth{Status: "missing", Summary: "推送 Token 未配置"}
+	}
+	resolved, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, baiduSite(config), token)
+	if err != nil {
+		return toolHealth{Status: "error", Summary: "配置无效", Detail: err.Error()}
+	}
+	return toolHealth{
+		OK: true, Status: "ok", Summary: "已配置",
+		Detail: resolved.Site,
+	}
+}
+
+func baiduTokenPlaceholder(config bridgeConfig) string {
+	if baiduToken(config) != "" {
+		return "已配置；留空保存时保持不变"
+	}
+	return "百度资源推送 Token"
+}
+
+func googleSearchConsoleServiceJSON(config bridgeConfig) string {
+	return strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
 }
 
 func validateGoogleServiceAccountJSON(raw string) error {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return errors.New("Service Account JSON 未配置")
-	}
-	var probe map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &probe); err != nil {
-		return fmt.Errorf("Service Account JSON 不是有效 JSON: %w", err)
-	}
-	if _, ok := probe["installed"]; ok {
-		return errors.New("当前 JSON 是 OAuth Desktop Client 凭据，不是 Service Account JSON；请在 Google Cloud → IAM & Admin → Service Accounts 创建 JSON Key")
-	}
-	if _, ok := probe["web"]; ok {
-		return errors.New("当前 JSON 是 OAuth Web Client 凭据，不是 Service Account JSON；请在 Google Cloud → IAM & Admin → Service Accounts 创建 JSON Key")
-	}
-	var credentials googleServiceAccountConfig
-	if err := json.Unmarshal([]byte(raw), &credentials); err != nil {
-		return fmt.Errorf("Service Account JSON 解析失败: %w", err)
-	}
-	if value := strings.TrimSpace(credentials.Type); value != "" && value != "service_account" {
-		return fmt.Errorf("Google 凭据类型是 %q，不是 service_account", value)
-	}
-	missing := []string{}
-	if strings.TrimSpace(credentials.ClientEmail) == "" {
-		missing = append(missing, "client_email")
-	}
-	if strings.TrimSpace(credentials.PrivateKey) == "" {
-		missing = append(missing, "private_key")
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("Service Account JSON 缺少字段：%s；请粘贴完整的 Service Account JSON Key 文件内容", strings.Join(missing, ", "))
-	}
-	if !strings.Contains(credentials.PrivateKey, "PRIVATE KEY") {
-		return errors.New("Service Account JSON 的 private_key 格式无效")
-	}
-	return nil
+	_, err := blogsearch.ParseGoogleServiceAccount(raw)
+	return err
 }
 
 func googleSearchConsoleAPIHealth(config bridgeConfig) toolHealth {
@@ -464,7 +450,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		},
 		{
 			Name: "network-proxy", DisplayName: "Network Proxy", Kind: "runtime", Required: false,
-			Description: "启用后只代理 BlogCTL 自己的网络组件：Bridge HTTP Client 与 Search Node / 工具子进程；不会修改 Chrome/Edge、系统或其他应用的代理。",
+			Description: "启用后只代理 BlogCTL 自己的网络组件：Bridge HTTP Client 与 BlogCTL 启动的外部工具进程；不会修改 Chrome/Edge、系统或其他应用的代理。",
 			Health: func() toolHealth {
 				if !config.ProxyEnabled {
 					return toolHealth{OK: true, Status: "disabled", Summary: "直连"}
@@ -524,8 +510,8 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
-			Name: "bing-indexnow", DisplayName: "Bing / IndexNow", Kind: "runtime", Required: false,
-			Description: "Bing 索引通知通过 IndexNow HTTP API。检测只验证 Endpoint 配置和站点 Key 文件，不会提交测试 URL。",
+			Name: "indexnow", DisplayName: "IndexNow", Kind: "runtime", Required: false,
+			Description: "索引通知通过 IndexNow HTTP API。检测只验证 Endpoint 配置和站点 Key 文件，不会提交测试 URL。",
 			Health:      indexNowHealth(config),
 			Actions: []toolAction{{
 				ID: "check", Label: "检测配置",
@@ -541,7 +527,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 					{
 						Key: "endpoint", Label: "Endpoint", Type: "text",
 						Placeholder: "https://www.bing.com/indexnow",
-						Description: "Bing IndexNow endpoint；通常保持默认值。",
+						Description: "IndexNow endpoint；通常保持默认值。",
 					},
 					{
 						Key: "key", Label: "IndexNow Key", Type: "secret",
@@ -552,6 +538,29 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 						Key: "keyLocation", Label: "Key Location", Type: "text",
 						Placeholder: indexNowKeyLocation(config),
 						Description: "公开 Key 文件 URL；留空时按站点根目录和 Key 自动推导。",
+					},
+				},
+			},
+		},
+		{
+			Name: "baidu-search-resource", DisplayName: "Baidu Search Resource", Kind: "runtime", Required: false,
+			Description: "百度普通资源推送使用官方 URL 提交 API。只提交新增或内容变化的 URL；删除 URL 仅统计，不通过普通推送接口提交。",
+			Health:      baiduHealth(config),
+			Config: toolConfigView{
+				Scope: "bridge",
+				Values: map[string]any{
+					"site": baiduSite(config),
+				},
+				Schema: []toolField{
+					{
+						Key: "site", Label: "Site", Type: "text",
+						Placeholder: blogsearch.DefaultSiteOrigin,
+						Description: "百度站点地址；必须与当前博客 Origin 一致。",
+					},
+					{
+						Key: "token", Label: "Push Token", Type: "secret",
+						Placeholder: baiduTokenPlaceholder(config),
+						Description: "百度搜索资源平台普通收录 API Token；留空保存时保持当前 Token。",
 					},
 				},
 			},
@@ -657,7 +666,7 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key
 		}
-	case "bing-indexnow":
+	case "indexnow":
 		if endpoint := stringConfig(values, "endpoint"); endpoint != "" {
 			config.IndexNowEndpoint = endpoint
 		}
@@ -667,6 +676,26 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		if keyLocation := stringConfig(values, "keyLocation"); keyLocation != "" {
 			config.IndexNowKeyLocation = keyLocation
 		}
+	case "baidu-search-resource":
+		nextSite := config.BaiduSite
+		nextToken := config.BaiduToken
+		if site := stringConfig(values, "site"); site != "" {
+			nextSite = site
+		}
+		if token := stringConfig(values, "token"); token != "" {
+			nextToken = token
+		}
+		if strings.TrimSpace(nextToken) != "" {
+			if _, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, nextSite, nextToken); err != nil {
+				return config, err
+			}
+		} else if strings.TrimSpace(nextSite) != "" {
+			if _, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, nextSite, "validation-token"); err != nil {
+				return config, err
+			}
+		}
+		config.BaiduSite = nextSite
+		config.BaiduToken = nextToken
 	case "google-search-console-api":
 		if value := stringConfig(values, "serviceAccountJson"); value != "" {
 			if err := validateGoogleServiceAccountJSON(value); err != nil {
@@ -1146,37 +1175,27 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	if request.Operation == "update-published" {
 		started := time.Now()
 		slog.Info("cnblogs published update started", "operation", "update-published", "slug", request.Article)
-		output, err := blogapp.NewSyncService().Run(ctx, applicationConfig, blogapp.SyncRequest{
-			Articles: []string{request.Article}, Platforms: []string{"cnblogs"}, DryRun: true, Draft: true, Operation: "draft",
+		compiledArticles, compileErr := blogcompiler.CompilePlatform(ctx, blogcompiler.CompileOptions{
+			EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
+			PublishingJSON: publishingJSON, Node: config.ToolPaths["node"],
+			Platform: "cnblogs", Articles: []string{request.Article}, DryRun: true,
 		})
-		if err != nil {
-			slog.Warn("cnblogs published update export failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
-			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
-			return output, err
+		if compileErr != nil {
+			slog.Warn("cnblogs published update compile failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", compileErr))
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return "", compileErr
 		}
+		if len(compiledArticles) != 1 {
+			compileErr = errors.New("publishing compiler returned no CNBlogs article")
+			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
+			return "", compileErr
+		}
+		compiled := compiledArticles[0]
 		session, client, err := (bridgeNativePublisher{server: s}).publisherSession("cnblogs")
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
-			return output, err
-		}
-		compiledArticles, compileErr := blogapp.ParseCompiledArticles(output)
-		if compileErr != nil {
-			slog.Warn("cnblogs published update compile result invalid", "operation", "update-published", "slug", request.Article, "error", compileErr)
-			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
-			return output, compileErr
-		}
-		compiled, compileErr := func() (blogcompiler.CompiledArticle, error) {
-			for _, article := range compiledArticles {
-				if article.Slug == request.Article && article.Platform == "cnblogs" {
-					return article, nil
-				}
-			}
-			return blogcompiler.CompiledArticle{}, errors.New("publishing compiler returned no CNBlogs article")
-		}()
-		if compileErr != nil {
-			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: compileErr.Error()})
-			return output, compileErr
+			return "", err
 		}
 		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublishedInput(
 			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config),
@@ -1184,7 +1203,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
-			return output, err
+			return "", err
 		}
 		resultName := "published-updated"
 		if skipped {
@@ -1192,7 +1211,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		}
 		onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "completed", Result: resultName, URL: result.URL})
 		slog.Info("cnblogs published update completed", "operation", "update-published", "slug", request.Article, "result", resultName, "durationMs", time.Since(started).Milliseconds())
-		return output, nil
+		return "", nil
 	}
 	service := blogapp.NewSyncService()
 	service.NativePublisher = bridgeNativePublisher{server: s}

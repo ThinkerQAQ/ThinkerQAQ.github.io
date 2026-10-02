@@ -1,0 +1,47 @@
+name: Validate
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check BlogCTL formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l tools/blogctl)"
+          test -z "$files" || { echo "$files"; exit 1; }
+
+      - name: Test BlogCTL
+        run: go test ./tools/blogctl/...
+
+      - name: Check browser and renderer JavaScript
+        run: |
+          node --check tools/blogctl/extension/background.js
+          node --check tools/blogctl/renderers/node/markdown-html.mjs
+          node --check tools/blogctl/renderers/node/publishing-image.mjs
+
+      - name: Check repository boundary
+        run: npm run test:boundary

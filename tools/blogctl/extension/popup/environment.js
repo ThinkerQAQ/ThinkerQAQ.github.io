@@ -226,7 +226,7 @@
 
   function renderTools() {
     const tools = state.tools.filter((item) => item.kind !== "publishing");
-    const searchNames = new Set(["bing-indexnow", "google-search-console-api"]);
+    const searchNames = new Set(["bing-indexnow", "baidu-search-resource", "google-search-console-api"]);
     const searchTools = tools.filter((item) => searchNames.has(item.name));
     const dependencyItems = tools.filter((item) => item.kind === "dependency");
     const runtimeItems = tools.filter((item) =>

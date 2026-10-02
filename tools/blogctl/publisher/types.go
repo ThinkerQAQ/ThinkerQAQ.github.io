@@ -3,6 +3,8 @@ package publisher
 import (
 	"context"
 	"net/http"
+
+	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 )
 
 type BrowserCookie struct {
@@ -40,14 +42,7 @@ type PublishingAsset struct {
 	Source    string
 }
 
-type R2FallbackConfig struct {
-	AccessKeyID     string
-	SecretAccessKey string
-	AccountID       string
-	Endpoint        string
-	Bucket          string
-	PublicBaseURL   string
-}
+type R2FallbackConfig = blogr2.Config
 
 type DraftInput struct {
 	Slug               string

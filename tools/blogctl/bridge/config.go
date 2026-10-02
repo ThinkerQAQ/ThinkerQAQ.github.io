@@ -87,6 +87,8 @@ type bridgeConfig struct {
 	IndexNowEndpoint               string            `json:"indexNowEndpoint,omitempty" toml:"indexnow_endpoint"`
 	IndexNowKey                    string            `json:"indexNowKey,omitempty" toml:"indexnow_key"`
 	IndexNowKeyLocation            string            `json:"indexNowKeyLocation,omitempty" toml:"indexnow_key_location"`
+	BaiduSite                      string            `json:"baiduSite,omitempty" toml:"baidu_site"`
+	BaiduToken                     string            `json:"baiduToken,omitempty" toml:"baidu_token"`
 	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty" toml:"google_search_console_service_json"`
 	Publishing                     publishingConfig  `json:"publishing" toml:"publishing"`
 }
@@ -175,6 +177,27 @@ func resolvedPublishingJSON(config bridgeConfig) (string, error) {
 
 func ResolvedPublishingJSON() (string, error) {
 	return resolvedPublishingJSON(loadBridgeConfig())
+}
+
+type SearchRuntimeConfig struct {
+	IndexNowEndpoint         string
+	IndexNowKey              string
+	IndexNowKeyLocation      string
+	BaiduSite                string
+	BaiduToken               string
+	GoogleServiceAccountJSON string
+}
+
+func ResolvedSearchRuntimeConfig() SearchRuntimeConfig {
+	config := loadBridgeConfig()
+	return SearchRuntimeConfig{
+		IndexNowEndpoint:         strings.TrimSpace(config.IndexNowEndpoint),
+		IndexNowKey:              strings.TrimSpace(config.IndexNowKey),
+		IndexNowKeyLocation:      strings.TrimSpace(config.IndexNowKeyLocation),
+		BaiduSite:                strings.TrimSpace(config.BaiduSite),
+		BaiduToken:               strings.TrimSpace(config.BaiduToken),
+		GoogleServiceAccountJSON: strings.TrimSpace(config.GoogleSearchConsoleServiceJSON),
+	}
 }
 
 func defaultConfigDir() (string, error) {
@@ -359,6 +382,8 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.IndexNowEndpoint = strings.TrimSpace(config.IndexNowEndpoint)
 	config.IndexNowKey = strings.TrimSpace(config.IndexNowKey)
 	config.IndexNowKeyLocation = strings.TrimSpace(config.IndexNowKeyLocation)
+	config.BaiduSite = strings.TrimSpace(config.BaiduSite)
+	config.BaiduToken = strings.TrimSpace(config.BaiduToken)
 	config.GoogleSearchConsoleServiceJSON = strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
 	config.LogDirectory = normalizeStoredPath(config.LogDirectory)
 	config.LogLevel = strings.ToLower(strings.TrimSpace(config.LogLevel))

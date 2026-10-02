@@ -72,7 +72,11 @@ func (a app) run(args []string) error {
 	case "stop":
 		return a.runNPM(false, "run", "stop:local")
 	case "build":
-		return a.runNPM(true, "run", "build")
+		return a.runSite([]string{"build"})
+	case "site":
+		return a.runSite(args)
+	case "ai-search":
+		return a.runAISearch(args)
 	case "check":
 		return a.runCheck()
 	case "test":
@@ -83,10 +87,6 @@ func (a app) run(args []string) error {
 		return a.runDiagrams(args)
 	case "search":
 		return a.runSearch(args)
-	case "indexnow":
-		return a.runIndexNow(args)
-	case "distribute":
-		return a.runNPM(true, append([]string{"run", "distribute", "--"}, args...)...)
 	case "sync":
 		return a.runSync(args)
 	case "doctor":
@@ -97,12 +97,7 @@ func (a app) run(args []string) error {
 }
 
 func (a app) runCheck() error {
-	for index, script := range []string{"check", "build", "verify"} {
-		if err := a.runNPM(index == 0, "run", script); err != nil {
-			return err
-		}
-	}
-	return nil
+	return a.runNPM(true, "run", "check")
 }
 
 func (a app) doctor() error {
@@ -129,11 +124,11 @@ func (a app) printHelp() {
 Usage:
   blogctl [preview]
   blogctl dev | stop | build | check | test
+  blogctl site build --content-root <path>
+  blogctl ai-search <prepare|sync|verify> [options]
   blogctl notes <sync|check|timestamps>
   blogctl diagrams [plantuml|drawio]
-  blogctl search <build|inventory|submit|audit> [options]
-  blogctl indexnow <prepare|submit> [args...]  # compatibility
-  blogctl distribute [args...]
+  blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
 

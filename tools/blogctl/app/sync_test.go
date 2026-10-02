@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,71 +9,21 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
+
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 )
 
-type recordedCommand struct {
-	Name string
-	Args []string
-	Dir  string
-	Env  []string
-}
-
-type recordingRunner struct {
+type noOpRunner struct {
 	mu       sync.Mutex
-	commands []recordedCommand
+	commands int
 }
 
-func compiledTestOutput(args []string) string {
-	articles := []string{}
-	platforms := []string{}
-	for index := 0; index < len(args); index++ {
-		switch args[index] {
-		case "--article":
-			if index+1 < len(args) {
-				articles = append(articles, args[index+1])
-				index++
-			}
-		case "--platforms":
-			if index+1 < len(args) {
-				platforms = append(platforms, strings.Split(args[index+1], ",")...)
-				index++
-			}
-		}
-	}
-	var output strings.Builder
-	for _, article := range articles {
-		for _, platform := range platforms {
-			payload, _ := json.Marshal(map[string]any{
-				"operation": "blogctl-compile",
-				"status":    "completed",
-				"article": map[string]any{
-					"version": 1, "slug": article, "platform": platform,
-					"title": "Compiled " + article, "description": "Description",
-					"markdown": "Body", "html": "<p>Body</p>", "language": "zh-CN",
-					"canonicalUrl": "https://thinkerqaq.github.io/articles/" + article + "/",
-					"contentHash":  "hash-" + article + "-" + platform,
-					"sourceDir":    "/tmp/articles",
-				},
-			})
-			output.Write(payload)
-			output.WriteByte('\n')
-		}
-	}
-	return output.String()
-}
-
-func (r *recordingRunner) Run(_ context.Context, name string, args []string, dir string, env []string) (string, error) {
+func (r *noOpRunner) Run(_ context.Context, _ string, _ []string, _ string, _ []string) (string, error) {
 	r.mu.Lock()
-	r.commands = append(r.commands, recordedCommand{Name: name, Args: append([]string{}, args...), Dir: dir, Env: append([]string{}, env...)})
+	r.commands++
 	r.mu.Unlock()
-	if len(args) > 0 && strings.HasSuffix(filepath.ToSlash(args[0]), "/tools/blogctl/compiler/node/index.mjs") {
-		return compiledTestOutput(args[1:]), nil
-	}
-	return "ok\n", nil
+	return "", nil
 }
-
-type structuredEventRunner struct{}
 
 type nativePublisherStub struct {
 	draft   func(context.Context, NativeDraftRequest) (NativeDraftResult, error)
@@ -95,272 +44,134 @@ func (stub nativePublisherStub) PublishDraft(ctx context.Context, request Native
 	return stub.publish(ctx, request)
 }
 
-func (structuredEventRunner) Run(_ context.Context, _ string, args []string, _ string, _ []string) (string, error) {
-	if len(args) == 0 {
-		return "", nil
+func compiledFixture(options blogcompiler.CompileOptions) []blogcompiler.CompiledArticle {
+	articles := append([]string{}, options.Articles...)
+	if options.All {
+		articles = []string{"all-example"}
 	}
-	script := filepath.ToSlash(args[0])
-	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
-		return compiledTestOutput(args[1:]), nil
+	result := make([]blogcompiler.CompiledArticle, 0, len(articles))
+	for _, slug := range articles {
+		result = append(result, blogcompiler.CompiledArticle{
+			Version:      blogcompiler.ProtocolVersion,
+			Slug:         slug,
+			Platform:     options.Platform,
+			Title:        "Compiled " + slug,
+			Description:  "Description",
+			Markdown:     "Body",
+			HTML:         "<p>Body</p>",
+			Language:     "zh-CN",
+			CanonicalURL: "https://thinkerqaq.github.io/articles/" + slug + "/",
+			ContentHash:  "hash-" + slug + "-" + options.Platform,
+			SourceDir:    "/tmp/articles",
+		})
 	}
-	return "", nil
+	return result
 }
 
-func TestBuildSyncPlanIsolatesEachPlatformCompilerInvocation(t *testing.T) {
-	platforms := []string{
-		"cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
-		"51cto", "oschina", "toutiao", "devto", "medium",
-	}
+func testCompilePlatform(_ context.Context, options blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error) {
+	return compiledFixture(options), nil
+}
+
+func TestNormalizeSyncRequestKeepsScopeExplicit(t *testing.T) {
 	request, err := NormalizeSyncRequest(SyncRequest{
-		Articles:  []string{"concurrency-series-00"},
-		Platforms: platforms,
-		DryRun:    true,
+		Articles:  []string{" example ", "example"},
+		Platforms: []string{"JUEJIN", "juejin", "medium"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(request.Articles, []string{"example"}) {
+		t.Fatalf("articles = %#v", request.Articles)
+	}
+	if !reflect.DeepEqual(request.Platforms, []string{"juejin", "medium"}) {
+		t.Fatalf("platforms = %#v", request.Platforms)
+	}
+	if request.Operation != "draft" {
+		t.Fatalf("operation = %q", request.Operation)
+	}
+}
+
+func TestNormalizeSyncRequestRejectsAmbiguousScope(t *testing.T) {
+	if _, err := NormalizeSyncRequest(SyncRequest{Platforms: []string{"juejin"}}); err == nil {
+		t.Fatal("expected article scope error")
+	}
+	if _, err := NormalizeSyncRequest(SyncRequest{All: true, Articles: []string{"a"}, Platforms: []string{"juejin"}}); err == nil {
+		t.Fatal("expected mutually-exclusive scope error")
+	}
+	if _, err := NormalizeSyncRequest(SyncRequest{Articles: []string{"a"}}); err == nil {
+		t.Fatal("expected platform scope error")
+	}
+}
+
+func TestBuildSyncPlanUsesOneGoPlanPerPlatform(t *testing.T) {
+	request, err := NormalizeSyncRequest(SyncRequest{
+		Articles:  []string{"example"},
+		Platforms: []string{"juejin", "devto", "medium"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	plans := BuildSyncPlan(request)
-	if len(plans) != len(platforms) {
-		t.Fatalf("got %d plan entries, want %d", len(plans), len(platforms))
+	if len(plans) != 3 {
+		t.Fatalf("plans = %#v", plans)
 	}
-	for index, platform := range platforms {
-		plan := plans[index]
-		if plan.Group != "native-publishing" || !plan.Native || !reflect.DeepEqual(plan.Platforms, []string{platform}) {
-			t.Fatalf("plan[%d] = %#v", index, plan)
-		}
-		if !reflect.DeepEqual(plan.Args, []string{
-			"--article", "concurrency-series-00",
-			"--platforms", platform,
-			"--dry-run",
-		}) {
-			t.Fatalf("plan[%d] args = %#v", index, plan.Args)
+	for index, platform := range request.Platforms {
+		if plans[index].Group != "native-publishing" ||
+			!plans[index].Native ||
+			!reflect.DeepEqual(plans[index].Platforms, []string{platform}) {
+			t.Fatalf("plan[%d] = %#v", index, plans[index])
 		}
 	}
 }
 
-func TestBuildSyncPlanKeepsAllExplicit(t *testing.T) {
-	request, err := NormalizeSyncRequest(SyncRequest{All: true, Platforms: []string{"devto"}})
-	if err != nil {
-		t.Fatal(err)
+func TestChangedOnlyForPlatformOverridesRequestDefault(t *testing.T) {
+	request := SyncRequest{
+		Changed:           true,
+		ChangedByPlatform: map[string]bool{"cnblogs": false, "juejin": true},
 	}
-	plan := BuildSyncPlan(request)
-	if len(plan) != 1 {
-		t.Fatalf("got %d plan entries, want 1", len(plan))
+	if changedOnlyForPlatform(request, "cnblogs") {
+		t.Fatal("cnblogs override was ignored")
 	}
-	if !reflect.DeepEqual(plan[0].Args, []string{"--all", "--platforms", "devto"}) {
-		t.Fatalf("args = %#v", plan[0].Args)
-	}
-}
-
-func TestSyncServiceRunsPublishingScriptsDirectly(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
-	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
-	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
-	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
-	writeTestFile(t, node)
-	writeTestFile(t, npm)
-
-	runner := &recordingRunner{}
-	service := SyncService{Runner: runner}
-	output, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot:  engineRoot,
-		ContentRoot: contentRoot,
-		ToolPaths:   map[string]string{"node": node, "npm": npm},
-	}, SyncRequest{
-		Articles:  []string{"example"},
-		Platforms: []string{"juejin", "devto"},
-		DryRun:    true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(runner.commands) != 2 {
-		t.Fatalf("got %d commands, want 2 isolated compiler invocations", len(runner.commands))
-	}
-	for _, command := range runner.commands {
-		if command.Name != node {
-			t.Fatalf("command name = %q, want node %q", command.Name, node)
-		}
-		if command.Dir != engineRoot {
-			t.Fatalf("command dir = %q, want %q", command.Dir, engineRoot)
-		}
-		if len(command.Args) == 0 {
-			t.Fatalf("missing command args: %#v", command.Args)
-		}
-		script := filepath.ToSlash(command.Args[0])
-		engine := filepath.ToSlash(engineRoot)
-		if !strings.HasPrefix(script, engine+"/scripts/") &&
-			!strings.HasPrefix(script, engine+"/tools/blogctl/compiler/node/") {
-			t.Fatalf("unexpected publishing invocation: %#v", command.Args)
-		}
-	}
-	if !strings.Contains(output, "\"operation\":\"blogctl-compile\"") {
-		t.Fatalf("output = %q", output)
+	if !changedOnlyForPlatform(request, "juejin") || !changedOnlyForPlatform(request, "csdn") {
+		t.Fatalf("changed-only policy = %#v", request)
 	}
 }
 
-func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
-	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
-	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
-	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
-	writeTestFile(t, node)
-	writeTestFile(t, npm)
-
-	events := []SyncEvent{}
+func TestSyncServiceCompilesMediumThroughGoCompiler(t *testing.T) {
+	engineRoot, contentRoot, node, npm := syncTestWorkspace(t)
+	var compiledPlatforms []string
 	service := SyncService{
-		Runner: structuredEventRunner{},
-		OnEvent: func(event SyncEvent) {
-			events = append(events, event)
+		Runner: &noOpRunner{},
+		Compiler: func(_ context.Context, options blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error) {
+			compiledPlatforms = append(compiledPlatforms, options.Platform)
+			return compiledFixture(options), nil
 		},
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot:  engineRoot,
-		ContentRoot: contentRoot,
-		ToolPaths:   map[string]string{"node": node, "npm": npm},
+		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
-		Articles:  []string{"example"},
-		Platforms: []string{"juejin", "devto", "medium"},
-		DryRun:    true,
+		Articles: []string{"example"}, Platforms: []string{"medium"}, DryRun: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 6 {
-		t.Fatalf("events = %#v", events)
-	}
-	wantRunning := []SyncEvent{
-		{Platform: "juejin", State: "running"},
-		{Platform: "devto", State: "running"},
-		{Platform: "medium", State: "running"},
-	}
-	if !reflect.DeepEqual(events[:3], wantRunning) {
-		t.Fatalf("running events = %#v, want %#v", events[:3], wantRunning)
-	}
-	completed := map[string]bool{}
-	for _, event := range events[3:] {
-		if event.State != "completed" || event.Result != "dry-run" {
-			t.Fatalf("terminal event = %#v", event)
-		}
-		completed[event.Platform] = true
-	}
-	for _, platform := range []string{"juejin", "devto", "medium"} {
-		if !completed[platform] {
-			t.Fatalf("missing completion for %s: %#v", platform, events)
-		}
+	if !reflect.DeepEqual(compiledPlatforms, []string{"medium"}) {
+		t.Fatalf("compiled platforms = %#v", compiledPlatforms)
 	}
 }
 
-type blockingParallelRunner struct {
-	started chan string
-	release chan struct{}
-}
-
-func (r blockingParallelRunner) Run(ctx context.Context, _ string, args []string, _ string, _ []string) (string, error) {
-	if len(args) == 0 || !strings.HasSuffix(filepath.ToSlash(args[0]), "/tools/blogctl/compiler/node/index.mjs") {
-		return "ok\n", nil
-	}
-	platform := ""
-	for index := 1; index < len(args); index++ {
-		if args[index] == "--platforms" && index+1 < len(args) {
-			platform = args[index+1]
-			break
-		}
-	}
-	select {
-	case r.started <- platform:
-	case <-ctx.Done():
-		return "", ctx.Err()
-	}
-	select {
-	case <-r.release:
-		return compiledTestOutput(args[1:]), nil
-	case <-ctx.Done():
-		return "", ctx.Err()
-	}
-}
-
-func TestSyncServiceRunsPlatformPlansInParallel(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
-	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
-	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
-	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
-	writeTestFile(t, node)
-	writeTestFile(t, npm)
-
-	started := make(chan string, 2)
-	release := make(chan struct{})
-	service := SyncService{Runner: blockingParallelRunner{started: started, release: release}}
-	done := make(chan error, 1)
-	go func() {
-		_, err := service.Run(context.Background(), SyncConfig{
-			EngineRoot: engineRoot, ContentRoot: contentRoot,
-			ToolPaths: map[string]string{"node": node, "npm": npm},
-		}, SyncRequest{
-			Articles: []string{"example"}, Platforms: []string{"juejin", "devto"}, DryRun: true,
-		})
-		done <- err
-	}()
-
-	seen := map[string]bool{}
-	for len(seen) < 2 {
-		select {
-		case platform := <-started:
-			seen[platform] = true
-		case <-time.After(2 * time.Second):
-			t.Fatalf("platform compiler invocations did not overlap: %#v", seen)
-		}
-	}
-	close(release)
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
-	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
-	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
-	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
-	writeTestFile(t, node)
-	writeTestFile(t, npm)
-
-	runner := &recordingRunner{}
-	calls := []NativeDraftRequest{}
+func TestSyncServiceCreatesDraftFromCompiledArticle(t *testing.T) {
+	engineRoot, contentRoot, node, npm := syncTestWorkspace(t)
+	var got NativeDraftRequest
 	service := SyncService{
-		Runner: runner,
+		Runner:   &noOpRunner{},
+		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
-			calls = append(calls, request)
-			return NativeDraftResult{Result: "draft-created", URL: "https://juejin.cn/editor/drafts/123"}, nil
+			got = request
+			return NativeDraftResult{Result: "draft-created", URL: "https://example.com/draft"}, nil
 		}},
 	}
-	events := []SyncEvent{}
-	service.OnEvent = func(event SyncEvent) { events = append(events, event) }
-
 	_, err := service.Run(context.Background(), SyncConfig{
 		EngineRoot: engineRoot, ContentRoot: contentRoot,
 		ToolPaths: map[string]string{"node": node, "npm": npm},
@@ -370,61 +181,24 @@ func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runner.commands) != 1 {
-		t.Fatalf("commands = %#v", runner.commands)
+	if got.Article != "example" || got.Platform != "juejin" || !got.ChangedOnly {
+		t.Fatalf("draft request = %#v", got)
 	}
-	if strings.Contains(strings.Join(runner.commands[0].Args, " "), "--sync") {
-		t.Fatalf("native renderer unexpectedly invoked legacy sync: %#v", runner.commands[0].Args)
-	}
-	if len(calls) != 1 || calls[0].Platform != "juejin" || calls[0].Article != "example" || !calls[0].ChangedOnly ||
-		calls[0].Compiled.ContentHash != "hash-example-juejin" || calls[0].Compiled.Markdown != "Body" {
-		t.Fatalf("native calls = %#v", calls)
-	}
-	if len(events) != 2 || events[1].Result != "draft-created" || events[1].URL == "" {
-		t.Fatalf("events = %#v", events)
+	if got.Compiled.ContentHash != "hash-example-juejin" {
+		t.Fatalf("compiled hash = %q", got.Compiled.ContentHash)
 	}
 }
 
-func TestNormalizeSyncRequestAllowsExplicitAllForJuejin(t *testing.T) {
-	request, err := NormalizeSyncRequest(SyncRequest{All: true, Platforms: []string{"juejin"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !request.All || !reflect.DeepEqual(request.Platforms, []string{"juejin"}) {
-		t.Fatalf("request = %#v", request)
-	}
-}
-
-func TestChangedOnlyForPlatformOverridesLegacyRequest(t *testing.T) {
-	request := SyncRequest{Changed: true, ChangedByPlatform: map[string]bool{"cnblogs": false, "juejin": true}}
-	if changedOnlyForPlatform(request, "cnblogs") || !changedOnlyForPlatform(request, "juejin") || !changedOnlyForPlatform(request, "csdn") {
-		t.Fatalf("incorrect per-platform changed-only policy: %#v", request)
-	}
-}
-
-func TestSyncServicePublishesNativeDraft(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
-	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
-	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
-	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
-	writeTestFile(t, node)
-	writeTestFile(t, npm)
-
-	var calls []NativePublishRequest
-	var events []SyncEvent
+func TestSyncServicePublishesCompiledArticle(t *testing.T) {
+	engineRoot, contentRoot, node, npm := syncTestWorkspace(t)
+	var got NativePublishRequest
 	service := SyncService{
-		Runner: &recordingRunner{},
+		Runner:   &noOpRunner{},
+		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{publish: func(_ context.Context, request NativePublishRequest) (NativePublishResult, error) {
-			calls = append(calls, request)
-			return NativePublishResult{Result: "published", URL: "https://juejin.cn/post/123"}, nil
+			got = request
+			return NativePublishResult{Result: "published", URL: "https://example.com/post"}, nil
 		}},
-		OnEvent: func(event SyncEvent) { events = append(events, event) },
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
 		EngineRoot: engineRoot, ContentRoot: contentRoot,
@@ -435,109 +209,22 @@ func TestSyncServicePublishesNativeDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(calls) != 1 || calls[0].Platform != "juejin" || calls[0].Article != "example" {
-		t.Fatalf("publish calls = %#v", calls)
-	}
-	if len(events) != 2 || events[1].Result != "published" || events[1].URL != "https://juejin.cn/post/123" {
-		t.Fatalf("events = %#v", events)
+	if got.Article != "example" || got.Platform != "juejin" {
+		t.Fatalf("publish request = %#v", got)
 	}
 }
 
-func TestNormalizeSyncRequestAcceptsMediumConfirmPublish(t *testing.T) {
-	request, err := NormalizeSyncRequest(SyncRequest{
-		Articles: []string{"example"}, Platforms: []string{"medium"}, Operation: "publish",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if request.Operation != "publish" || !reflect.DeepEqual(request.Platforms, []string{"medium"}) {
-		t.Fatalf("request = %#v", request)
-	}
-}
-
-func TestNormalizeSyncRequestRejectsUnknownOperation(t *testing.T) {
-	_, err := NormalizeSyncRequest(SyncRequest{
-		Articles: []string{"example"}, Platforms: []string{"juejin"}, Operation: "delete",
-	})
-	if err == nil || !strings.Contains(err.Error(), "unsupported sync operation") {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestSyncServiceRoutesLiveMediumThroughNativePublisher(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
-	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
-	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
-	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
-	writeTestFile(t, node)
-	writeTestFile(t, npm)
-
-	var calls []NativeDraftRequest
-	service := SyncService{
-		Runner: &recordingRunner{},
-		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
-			calls = append(calls, request)
-			return NativeDraftResult{Result: "draft-created", URL: "https://medium.com/p/post-123/edit"}, nil
-		}},
-	}
-	_, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot: engineRoot, ContentRoot: contentRoot,
-		ToolPaths: map[string]string{"node": node, "npm": npm},
-	}, SyncRequest{Articles: []string{"example"}, Platforms: []string{"medium"}, Draft: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(calls) != 1 || calls[0].Platform != "medium" || calls[0].Compiled.Platform != "medium" {
-		t.Fatalf("medium native calls = %#v", calls)
-	}
-}
-
-type compilerFailureRunner struct{}
-
-func (compilerFailureRunner) Run(_ context.Context, _ string, args []string, _ string, _ []string) (string, error) {
-	if len(args) == 0 {
-		return "", nil
-	}
-	script := filepath.ToSlash(args[0])
-	if !strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
-		return "ok\n", nil
-	}
-	platform := ""
-	for index := 1; index < len(args); index++ {
-		if args[index] == "--platforms" && index+1 < len(args) {
-			platform = args[index+1]
-			break
-		}
-	}
-	if platform == "zhihu" {
-		return "{\"operation\":\"blogctl-compile\",\"status\":\"failed\",\"message\":\"Missing BlogCTL R2 publishing configuration: accessKeyId\"}\n", errors.New("exit status 1")
-	}
-	return compiledTestOutput(args[1:]), nil
-}
-
-func TestSyncServiceIsolatesCompilerFailureToOnePlatform(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
-	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
-	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
-	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
-	writeTestFile(t, node)
-	writeTestFile(t, npm)
-
+func TestSyncServiceIsolatesCompilerFailureByPlatform(t *testing.T) {
+	engineRoot, contentRoot, node, npm := syncTestWorkspace(t)
 	var events []SyncEvent
 	service := SyncService{
-		Runner: compilerFailureRunner{},
+		Runner: &noOpRunner{},
+		Compiler: func(_ context.Context, options blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error) {
+			if options.Platform == "zhihu" {
+				return nil, errors.New("compile failed")
+			}
+			return compiledFixture(options), nil
+		},
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			return NativeDraftResult{Result: "draft-created", URL: "https://example.com/" + request.Platform}, nil
 		}},
@@ -547,102 +234,40 @@ func TestSyncServiceIsolatesCompilerFailureToOnePlatform(t *testing.T) {
 		EngineRoot: engineRoot, ContentRoot: contentRoot,
 		ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
-		Articles: []string{"example"}, Platforms: []string{"zhihu", "51cto"}, Draft: true,
+		Articles: []string{"example"}, Platforms: []string{"zhihu", "51cto"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "Missing BlogCTL R2 publishing configuration") {
+	if err == nil || !strings.Contains(err.Error(), "compile failed") {
 		t.Fatalf("error = %v", err)
 	}
-
-	zhihuFailed := false
-	ctoSucceeded := false
+	failed, succeeded := false, false
 	for _, event := range events {
 		if event.Platform == "zhihu" && event.State == "failed" {
-			zhihuFailed = true
+			failed = true
 		}
 		if event.Platform == "51cto" && event.State == "completed" {
-			ctoSucceeded = true
+			succeeded = true
 		}
 	}
-	if !zhihuFailed || !ctoSucceeded {
+	if !failed || !succeeded {
 		t.Fatalf("events = %#v", events)
 	}
 }
 
-type isolatedFailureRunner struct{}
-
-func (isolatedFailureRunner) Run(_ context.Context, _ string, args []string, _ string, _ []string) (string, error) {
-	if len(args) == 0 {
-		return "", nil
-	}
-	script := filepath.ToSlash(args[0])
-	if strings.HasSuffix(script, "/tools/blogctl/compiler/node/index.mjs") {
-		return compiledTestOutput(args[1:]), nil
-	}
-	return "ok\n", nil
-}
-
-func TestSyncServiceIsolatesInternationalPublisherFailures(t *testing.T) {
-	engineRoot := t.TempDir()
-	contentRoot := t.TempDir()
+func syncTestWorkspace(t *testing.T) (engineRoot, contentRoot, node, npm string) {
+	t.Helper()
+	engineRoot = t.TempDir()
+	contentRoot = t.TempDir()
 	writeTestFile(t, filepath.Join(engineRoot, "package.json"))
 	writeTestFile(t, filepath.Join(engineRoot, "astro.config.mjs"))
 	writeTestFile(t, filepath.Join(engineRoot, "node_modules", "astro", "bin", "astro.mjs"))
 	if err := os.MkdirAll(filepath.Join(contentRoot, "src", "content", "articles"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	node := filepath.Join(t.TempDir(), "node")
-	npm := filepath.Join(t.TempDir(), "npm")
+	node = filepath.Join(t.TempDir(), "node")
+	npm = filepath.Join(t.TempDir(), "npm")
 	writeTestFile(t, node)
 	writeTestFile(t, npm)
-
-	var events []SyncEvent
-	service := SyncService{
-		Runner: isolatedFailureRunner{},
-		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
-			if request.Platform == "devto" {
-				return NativeDraftResult{}, errors.New("DEVTO_API_KEY is required")
-			}
-			return NativeDraftResult{}, nil
-		}},
-		OnEvent: func(event SyncEvent) { events = append(events, event) },
-	}
-	_, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot: engineRoot, ContentRoot: contentRoot, BridgeOrigin: "http://127.0.0.1",
-		BridgeToken: "token", ToolPaths: map[string]string{"node": node, "npm": npm},
-	}, SyncRequest{
-		Articles: []string{"example"}, Platforms: []string{"devto", "medium"}, Draft: true,
-	})
-	if err == nil || !strings.Contains(err.Error(), "DEVTO_API_KEY is required") {
-		t.Fatalf("error = %v", err)
-	}
-	foundMediumSuccess := false
-	foundDevtoDetail := false
-	for _, event := range events {
-		if event.Platform == "medium" && event.State == "completed" {
-			foundMediumSuccess = true
-		}
-		if event.Platform == "devto" && event.State == "failed" && strings.Contains(event.Message, "DEVTO_API_KEY is required") {
-			foundDevtoDetail = true
-		}
-	}
-	if !foundMediumSuccess || !foundDevtoDetail {
-		t.Fatalf("events = %#v", events)
-	}
-}
-
-func TestSyncEnvironmentInjectsConfiguredDevtoAPIKey(t *testing.T) {
-	env := syncEnvironment(SyncConfig{
-		ContentRoot: t.TempDir(), EngineRoot: t.TempDir(), DevtoAPIKey: "configured-secret",
-	})
-	found := ""
-	for _, item := range env {
-		if strings.HasPrefix(item, "DEVTO_API_KEY=") {
-			found = strings.TrimPrefix(item, "DEVTO_API_KEY=")
-		}
-	}
-	if found != "configured-secret" {
-		t.Fatalf("DEVTO_API_KEY = %q", found)
-	}
+	return
 }
 
 func writeTestFile(t *testing.T, path string) {

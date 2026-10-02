@@ -104,15 +104,3 @@ func (a app) runDiagrams(args []string) error {
 	}
 	return a.runNPM(true, "run", target)
 }
-
-func (a app) runIndexNow(args []string) error {
-	if len(args) == 0 || (args[0] != "prepare" && args[0] != "submit") {
-		return errors.New("usage: blogctl indexnow <prepare|submit> [args...]")
-	}
-	npmArgs := []string{"run", "indexnow:" + args[0]}
-	if len(args) > 1 {
-		npmArgs = append(npmArgs, "--")
-		npmArgs = append(npmArgs, args[1:]...)
-	}
-	return a.runNPM(true, npmArgs...)
-}

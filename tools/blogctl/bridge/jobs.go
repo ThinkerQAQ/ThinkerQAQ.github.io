@@ -163,6 +163,12 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 		if job == nil {
 			continue
 		}
+		if job.Kind == "search" && job.Type == "bing-indexnow" {
+			job.Type = "indexnow-submit"
+			job.Title = strings.Replace(job.Title, "Bing", "IndexNow", 1)
+			job.UpdatedAt = stamp
+			changed = true
+		}
 		switch job.State {
 		case "running", "queued":
 			if job.Type == "google-request-indexing" {
@@ -174,6 +180,18 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 					job.Detail = map[string]any{}
 				}
 				job.Detail["recovered"] = "Bridge restarted; waiting for browser resume"
+			} else if job.Kind == "search" && job.Type == "google-inspection" {
+				job.State = "queued"
+				job.CanRetry = true
+				job.CanPause = false
+				job.CanResume = false
+				job.Error = ""
+				job.FinishedAt = ""
+				job.Progress.Message = "等待从断点继续"
+				if job.Detail == nil {
+					job.Detail = map[string]any{}
+				}
+				job.Detail["recovered"] = "Bridge restarted; resuming from persisted inspection cursor"
 			} else {
 				job.State = "failed"
 				job.CanRetry = job.Kind != "publishing" || job.Operation != "publish"
@@ -200,7 +218,7 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 func (s *Server) latestDurableSearchTask(taskType string) *durableTaskJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for index := len(s.taskJobOrder) - 1; index >= 0; index-- {
+	for index := 0; index < len(s.taskJobOrder); index++ {
 		job := s.taskJobs[s.taskJobOrder[index]]
 		if job == nil || job.Kind != "search" || job.Type != taskType {
 			continue

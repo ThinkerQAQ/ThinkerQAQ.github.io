@@ -148,7 +148,9 @@
   function render() {
     const index = state.index || {};
     const inventory = index.inventory || {};
-    const bing = index.bing || {};
+    const indexNow = index.indexNow || {};
+    const baidu = index.baidu || {};
+    const baiduReady = Boolean(index.baiduConfigured);
     const google = index.google || {};
     const sitemaps = google.sitemaps || {};
     const inspection = google.inspection || {};
@@ -169,15 +171,29 @@
     );
     setText(elements.inventoryFetchedAt, formatDate(inventory.fetchedAt));
 
-    setStatus(elements.bingStatus, operationKind(bing.state), operationLabel(bing.state), bing.error || "");
-    setText(elements.bingFinishedAt, formatDate(bing.finishedAt));
-    setText(elements.bingMode, bing.mode === "full" ? "全量" : bing.mode === "incremental" ? "增量" : "-");
-    setText(elements.bingCount, Number.isFinite(Number(bing.count)) ? Number(bing.count) : "-");
-    setText(elements.bingNewCount, Number.isFinite(Number(bing.newCount)) ? Number(bing.newCount) : "-");
-    setText(elements.bingChangedCount, Number.isFinite(Number(bing.changedCount)) ? Number(bing.changedCount) : "-");
-    setText(elements.bingDeletedCount, Number.isFinite(Number(bing.deletedCount)) ? Number(bing.deletedCount) : "-");
-    setText(elements.bingUnchangedCount, Number.isFinite(Number(bing.unchangedCount)) ? Number(bing.unchangedCount) : "-");
-    setText(elements.bingHTTP, bing.httpStatus || (bing.state === "completed" && Number(bing.count || 0) === 0 ? "未请求" : "-"));
+    setStatus(elements.indexNowStatus, operationKind(indexNow.state), operationLabel(indexNow.state), indexNow.error || "");
+    setText(elements.indexNowFinishedAt, formatDate(indexNow.finishedAt));
+    setText(elements.indexNowMode, indexNow.mode === "full" ? "全量" : indexNow.mode === "incremental" ? "增量" : "-");
+    setText(elements.indexNowCount, Number.isFinite(Number(indexNow.count)) ? Number(indexNow.count) : "-");
+    setText(elements.indexNowNewCount, Number.isFinite(Number(indexNow.newCount)) ? Number(indexNow.newCount) : "-");
+    setText(elements.indexNowChangedCount, Number.isFinite(Number(indexNow.changedCount)) ? Number(indexNow.changedCount) : "-");
+    setText(elements.indexNowDeletedCount, Number.isFinite(Number(indexNow.deletedCount)) ? Number(indexNow.deletedCount) : "-");
+    setText(elements.indexNowUnchangedCount, Number.isFinite(Number(indexNow.unchangedCount)) ? Number(indexNow.unchangedCount) : "-");
+    setText(elements.indexNowHTTP, indexNow.httpStatus || (indexNow.state === "completed" && Number(indexNow.count || 0) === 0 ? "未请求" : "-"));
+
+    if (baiduReady) {
+      setStatus(elements.baiduStatus, operationKind(baidu.state), operationLabel(baidu.state), baidu.error || "");
+    } else {
+      setStatus(elements.baiduStatus, "disabled", "未配置", "请先在「环境与配置」中填写 Baidu Push Token。");
+    }
+    setText(elements.baiduFinishedAt, formatDate(baidu.finishedAt));
+    setText(elements.baiduMode, baidu.mode === "full" ? "全量" : baidu.mode === "incremental" ? "增量" : "-");
+    setText(elements.baiduCount, Number.isFinite(Number(baidu.count)) ? Number(baidu.count) : "-");
+    setText(elements.baiduNewCount, Number.isFinite(Number(baidu.newCount)) ? Number(baidu.newCount) : "-");
+    setText(elements.baiduChangedCount, Number.isFinite(Number(baidu.changedCount)) ? Number(baidu.changedCount) : "-");
+    setText(elements.baiduDeletedCount, Number.isFinite(Number(baidu.deletedCount)) ? Number(baidu.deletedCount) : "-");
+    setText(elements.baiduUnchangedCount, Number.isFinite(Number(baidu.unchangedCount)) ? Number(baidu.unchangedCount) : "-");
+    setText(elements.baiduHTTP, baidu.httpStatus || (baidu.state === "completed" && Number(baidu.count || 0) === 0 ? "未请求" : "-"));
 
     setStatus(
       elements.googleCredentials,
@@ -234,8 +250,10 @@
     const inventoryReady = Number(inventory.total || 0) > 0;
     const inspectionReady = iStats.checked > 0;
     elements.refreshInventory.disabled = state.busy.has("inventory");
-    elements.bingSubmitIncremental.disabled = !inventoryReady || state.busy.has("bing");
-    elements.bingSubmitFull.disabled = !inventoryReady || state.busy.has("bing");
+    elements.indexNowSubmitIncremental.disabled = !inventoryReady || state.busy.has("indexnow");
+    elements.indexNowSubmitFull.disabled = !inventoryReady || state.busy.has("indexnow");
+    elements.baiduSubmitIncremental.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
+    elements.baiduSubmitFull.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
     const sitemapState = String(sitemaps.state || "idle");
     elements.googleSitemaps.disabled = !google.credentialsConfigured || ["queued", "running"].includes(sitemapState) || state.busy.has("sitemaps");
     const inspectionComplete = inventoryReady && iStats.checked >= Number(inventory.total || 0);
@@ -304,12 +322,20 @@
     await run("inventory", { type: "blogctl.index.inventory.refresh" }, "URL Inventory 已刷新。");
   }
 
-  async function submitBing(mode) {
+  async function submitIndexNow(mode) {
     const label = mode === "full" ? "全量" : "增量";
-    await run("bing", {
-      type: "blogctl.index.bing.submit",
+    await run("indexnow", {
+      type: "blogctl.index.indexnow.submit",
       payload: { mode },
-    }, `Bing / IndexNow ${label}任务已创建。`);
+    }, `IndexNow ${label}任务已创建。`);
+  }
+
+  async function submitBaidu(mode) {
+    const label = mode === "full" ? "全量" : "增量";
+    await run("baidu", {
+      type: "blogctl.index.baidu.submit",
+      payload: { mode },
+    }, `Baidu Search Resource ${label}任务已创建。`);
   }
 
   async function submitGoogleSitemaps() {
@@ -378,17 +404,28 @@
       inventoryFingerprintCoverage: el("indexInventoryFingerprintCoverage"),
       inventoryFetchedAt: el("indexInventoryFetchedAt"),
       refreshInventory: el("indexRefreshInventory"),
-      bingStatus: el("indexBingStatus"),
-      bingFinishedAt: el("indexBingFinishedAt"),
-      bingMode: el("indexBingMode"),
-      bingCount: el("indexBingCount"),
-      bingNewCount: el("indexBingNewCount"),
-      bingChangedCount: el("indexBingChangedCount"),
-      bingDeletedCount: el("indexBingDeletedCount"),
-      bingUnchangedCount: el("indexBingUnchangedCount"),
-      bingHTTP: el("indexBingHTTP"),
-      bingSubmitIncremental: el("indexBingSubmitIncremental"),
-      bingSubmitFull: el("indexBingSubmitFull"),
+      indexNowStatus: el("indexNowStatus"),
+      indexNowFinishedAt: el("indexNowFinishedAt"),
+      indexNowMode: el("indexNowMode"),
+      indexNowCount: el("indexNowCount"),
+      indexNowNewCount: el("indexNowNewCount"),
+      indexNowChangedCount: el("indexNowChangedCount"),
+      indexNowDeletedCount: el("indexNowDeletedCount"),
+      indexNowUnchangedCount: el("indexNowUnchangedCount"),
+      indexNowHTTP: el("indexNowHTTP"),
+      indexNowSubmitIncremental: el("indexNowSubmitIncremental"),
+      indexNowSubmitFull: el("indexNowSubmitFull"),
+      baiduStatus: el("indexBaiduStatus"),
+      baiduFinishedAt: el("indexBaiduFinishedAt"),
+      baiduMode: el("indexBaiduMode"),
+      baiduCount: el("indexBaiduCount"),
+      baiduNewCount: el("indexBaiduNewCount"),
+      baiduChangedCount: el("indexBaiduChangedCount"),
+      baiduDeletedCount: el("indexBaiduDeletedCount"),
+      baiduUnchangedCount: el("indexBaiduUnchangedCount"),
+      baiduHTTP: el("indexBaiduHTTP"),
+      baiduSubmitIncremental: el("indexBaiduSubmitIncremental"),
+      baiduSubmitFull: el("indexBaiduSubmitFull"),
       googleCredentials: el("indexGoogleCredentials"),
       googleSitemapStatus: el("indexGoogleSitemapStatus"),
       googleSitemapFinishedAt: el("indexGoogleSitemapFinishedAt"),
@@ -419,8 +456,10 @@
     };
 
     elements.refreshInventory.addEventListener("click", refreshInventory);
-    elements.bingSubmitIncremental.addEventListener("click", () => submitBing("incremental"));
-    elements.bingSubmitFull.addEventListener("click", () => submitBing("full"));
+    elements.indexNowSubmitIncremental.addEventListener("click", () => submitIndexNow("incremental"));
+    elements.indexNowSubmitFull.addEventListener("click", () => submitIndexNow("full"));
+    elements.baiduSubmitIncremental.addEventListener("click", () => submitBaidu("incremental"));
+    elements.baiduSubmitFull.addEventListener("click", () => submitBaidu("full"));
     elements.googleSitemaps.addEventListener("click", submitGoogleSitemaps);
     elements.googleInspect.addEventListener("click", inspectGoogle);
     elements.googleOpen.addEventListener("click", openGSC);

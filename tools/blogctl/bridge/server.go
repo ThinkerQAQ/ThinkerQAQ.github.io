@@ -155,14 +155,13 @@ func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []br
 }
 
 type Server struct {
-	token        string
-	now          func() time.Time
-	httpClient   *http.Client
-	config       bridgeConfig
-	restart      func()
-	syncRunner   syncRunner
-	searchRunner searchNodeRunner
-	searchMu     sync.Mutex
+	token      string
+	now        func() time.Time
+	httpClient *http.Client
+	config     bridgeConfig
+	restart    func()
+	syncRunner syncRunner
+	searchMu   sync.Mutex
 
 	mu             sync.Mutex
 	distributionMu sync.Mutex
@@ -457,8 +456,12 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleSearchInventoryRefresh(response, request)
 		return
 	}
-	if path == "v1/search/index/jobs/bing" && request.Method == http.MethodPost {
-		s.handleSearchBingJobStart(response, request)
+	if path == "v1/search/index/jobs/indexnow" && request.Method == http.MethodPost {
+		s.handleSearchIndexNowJobStart(response, request)
+		return
+	}
+	if path == "v1/search/index/jobs/baidu" && request.Method == http.MethodPost {
+		s.handleSearchBaiduJobStart(response, request)
 		return
 	}
 	if path == "v1/search/index/jobs/google/sitemaps" && request.Method == http.MethodPost {
@@ -467,18 +470,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if path == "v1/search/index/jobs/google/inspect" && request.Method == http.MethodPost {
 		s.handleSearchGoogleInspectionJobStart(response, request)
-		return
-	}
-	if path == "v1/search/index/bing/submit" && request.Method == http.MethodPost {
-		s.handleSearchBingSubmit(response, request)
-		return
-	}
-	if path == "v1/search/index/google/sitemaps" && request.Method == http.MethodPost {
-		s.handleSearchGoogleSitemaps(response, request)
-		return
-	}
-	if path == "v1/search/index/google/inspect" && request.Method == http.MethodPost {
-		s.handleSearchGoogleInspect(response, request)
 		return
 	}
 	if path == "v1/search/index/google/request-queue" && request.Method == http.MethodPost {
@@ -665,6 +656,7 @@ func (s *Server) handleOptions(response http.ResponseWriter, request *http.Reque
 func publicBridgeConfig(config bridgeConfig) bridgeConfig {
 	config.DevtoAPIKey = ""
 	config.IndexNowKey = ""
+	config.BaiduToken = ""
 	config.GoogleSearchConsoleServiceJSON = ""
 	config.Publishing.Assets.R2.SecretAccessKey = ""
 	return config
@@ -803,30 +795,24 @@ func (s *Server) handleToolAction(response http.ResponseWriter, request *http.Re
 		return
 	}
 
-	var command string
+	var detail map[string]any
+	var err error
 	switch name {
-	case "bing-indexnow":
-		command = "bing-check"
+	case "indexnow":
+		detail, err = s.checkIndexNowNative(request.Context())
 	case "google-search-console-api":
-		command = "google-check"
+		detail, err = s.checkGoogleSearchConsoleNative(request.Context())
 	default:
 		writeAPIError(response, http.StatusBadRequest, "invalid_tool_action", "unsupported tool check", map[string]any{"tool": name})
 		return
 	}
-
-	raw, err := s.runSearchNode(request.Context(), config, command, nil)
 	if err != nil {
 		writeAPIError(response, http.StatusBadRequest, "tool_check_failed", err.Error(), map[string]any{"tool": name})
 		return
 	}
-	var detail map[string]any
-	if err := decodeSearchResult(raw, &detail); err != nil {
-		writeError(response, err)
-		return
-	}
 	message := "配置检测通过"
-	if name == "bing-indexnow" {
-		message = "Bing / IndexNow 配置检测通过"
+	if name == "indexnow" {
+		message = "IndexNow 配置检测通过"
 	}
 	if name == "google-search-console-api" {
 		message = "Google Search Console API 配置检测通过"

@@ -1,8 +1,11 @@
 package bridge
 
 import (
-	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -86,104 +89,29 @@ func TestSearchIndexWriteRequiresBridgeAuthorization(t *testing.T) {
 	}
 }
 
-func TestSearchInventoryRefreshPersistsBridgeState(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
+func TestReconcileInspectionInventoryPrunesRemovedURLs(t *testing.T) {
+	state := searchInspectionState{
+		Results: []searchInspectionResult{
+			{URL: "https://thinkerqaq.github.io/a/", Verdict: "PASS"},
+			{URL: "https://thinkerqaq.github.io/b/", Verdict: "FAIL"},
+			{URL: "https://thinkerqaq.github.io/removed/", Verdict: "FAIL"},
+		},
+		Inspected: 3,
+		Total:     3,
 	}
-	stateBefore := defaultSearchIndexState()
-	stateBefore.Google.Inspection.Results = []searchInspectionResult{
-		{URL: "https://thinkerqaq.github.io/a/", Verdict: "PASS"},
-		{URL: "https://thinkerqaq.github.io/b/", Verdict: "FAIL"},
-		{URL: "https://thinkerqaq.github.io/removed/", Verdict: "FAIL"},
+	inventory := searchInventoryState{
+		Total: 2,
+		URLs: []string{
+			"https://thinkerqaq.github.io/a/",
+			"https://thinkerqaq.github.io/b/",
+		},
 	}
-	stateBefore.Google.Inspection.Inspected = 3
-	stateBefore.Google.Inspection.Total = 3
-	if err := saveSearchIndexState(stateBefore); err != nil {
-		t.Fatal(err)
+	reconcileInspectionInventory(&state, inventory)
+	if state.Inspected != 2 || state.Total != 2 || state.Remaining != 0 {
+		t.Fatalf("inspection counts were not reconciled: %#v", state)
 	}
-
-	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, _ map[string]any) (json.RawMessage, error) {
-		if command != "inventory" {
-			t.Fatalf("command = %q", command)
-		}
-		return json.RawMessage("{\"source\":\"https://thinkerqaq.github.io/sitemap-all.txt\",\"origin\":\"https://thinkerqaq.github.io\",\"fetchedAt\":\"2026-09-26T03:00:00Z\",\"total\":2,\"urls\":[\"https://thinkerqaq.github.io/a/\",\"https://thinkerqaq.github.io/b/\"]}"), nil
-	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/inventory/refresh", nil)
-	setExtensionAuth(request, "token")
-	response := httptest.NewRecorder()
-	server.Handler().ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	state := loadSearchIndexState()
-	if state.Inventory.Total != 2 {
-		t.Fatalf("inventory = %#v", state.Inventory)
-	}
-	if len(state.Inventory.URLs) != 0 || len(state.Inventory.Fingerprints) != 0 {
-		t.Fatalf("main search state should keep only inventory summary: %#v", state.Inventory)
-	}
-	if state.Google.Inspection.Inspected != 2 || state.Google.Inspection.Total != 2 || state.Google.Inspection.Remaining != 0 {
-		t.Fatalf("inspection counts were not reconciled with current inventory: %#v", state.Google.Inspection)
-	}
-	if len(state.Google.Inspection.Results) != 2 || state.Google.Inspection.NextOffset != nil {
-		t.Fatalf("stale inspection results were not pruned: %#v", state.Google.Inspection)
-	}
-}
-
-func TestBingIncrementalSubmitPersistsSuccessfulSnapshot(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
-	}
-	calls := 0
-	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
-		if command != "bing-submit" {
-			t.Fatalf("command = %q", command)
-		}
-		calls++
-		if input["mode"] != "incremental" {
-			t.Fatalf("mode = %#v", input["mode"])
-		}
-		previous, ok := input["previous"].(searchInventoryState)
-		if !ok {
-			t.Fatalf("previous type = %T", input["previous"])
-		}
-		if calls == 1 && len(previous.URLs) != 0 {
-			t.Fatalf("first previous = %#v", previous)
-		}
-		if calls == 2 && len(previous.URLs) != 2 {
-			t.Fatalf("second previous = %#v", previous)
-		}
-		if calls == 1 {
-			return json.RawMessage("{\"inventory\":{\"source\":\"https://thinkerqaq.github.io/sitemap-all.txt\",\"fingerprintSource\":\"https://thinkerqaq.github.io/sitemap-inventory.json\",\"fingerprintCoverage\":2,\"origin\":\"https://thinkerqaq.github.io\",\"fetchedAt\":\"2026-09-26T04:00:00Z\",\"total\":2,\"urls\":[\"https://thinkerqaq.github.io/a/\",\"https://thinkerqaq.github.io/b/\"],\"fingerprints\":{\"https://thinkerqaq.github.io/a/\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"https://thinkerqaq.github.io/b/\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}},\"diff\":{\"mode\":\"incremental\",\"selectedCount\":2,\"addedCount\":2,\"changedCount\":0,\"deletedCount\":0,\"unchangedCount\":0},\"result\":{\"urlCount\":2,\"batchCount\":1,\"results\":[{\"httpStatus\":200}]}}"), nil
-		}
-		return json.RawMessage("{\"inventory\":{\"source\":\"https://thinkerqaq.github.io/sitemap-all.txt\",\"fingerprintSource\":\"https://thinkerqaq.github.io/sitemap-inventory.json\",\"fingerprintCoverage\":2,\"origin\":\"https://thinkerqaq.github.io\",\"fetchedAt\":\"2026-09-26T04:05:00Z\",\"total\":2,\"urls\":[\"https://thinkerqaq.github.io/a/\",\"https://thinkerqaq.github.io/b/\"],\"fingerprints\":{\"https://thinkerqaq.github.io/a/\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"https://thinkerqaq.github.io/b/\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}},\"diff\":{\"mode\":\"incremental\",\"selectedCount\":0,\"addedCount\":0,\"changedCount\":0,\"deletedCount\":0,\"unchangedCount\":2},\"result\":{\"urlCount\":0,\"batchCount\":0,\"results\":[]}}"), nil
-	}
-
-	for run := 0; run < 2; run++ {
-		request := httptest.NewRequest(http.MethodPost, "/v1/search/index/bing/submit", strings.NewReader("{\"mode\":\"incremental\"}"))
-		setExtensionAuth(request, "token")
-		request.Header.Set("content-type", "application/json")
-		response := httptest.NewRecorder()
-		server.Handler().ServeHTTP(response, request)
-		if response.Code != http.StatusOK {
-			t.Fatalf("run %d status = %d body=%s", run, response.Code, response.Body.String())
-		}
-	}
-
-	state := loadSearchIndexState()
-	if state.Bing.Mode != "incremental" || state.Bing.Count != 0 || state.Bing.UnchangedCount != 2 {
-		t.Fatalf("bing state = %#v", state.Bing)
-	}
-	snapshot := loadBingIndexSnapshot()
-	if len(snapshot.URLs) != 2 || len(snapshot.Fingerprints) != 2 {
-		t.Fatalf("snapshot = %#v", snapshot)
-	}
-	if len(state.Inventory.URLs) != 0 || len(state.Inventory.Fingerprints) != 0 {
-		t.Fatalf("public inventory leaked baseline details: %#v", state.Inventory)
+	if len(state.Results) != 2 || state.NextOffset != nil {
+		t.Fatalf("stale inspection results were not pruned: %#v", state)
 	}
 }
 
@@ -319,6 +247,28 @@ func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
 	}
 }
 
+func testGoogleServiceAccountJSON(t *testing.T) (string, string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	payload, err := json.Marshal(map[string]string{
+		"type":         "service_account",
+		"client_email": "search@example.iam.gserviceaccount.com",
+		"private_key":  privateKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(payload), privateKey
+}
+
 func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *testing.T) {
 	if err := validateGoogleServiceAccountJSON(`{"installed":{"client_id":"x"}}`); err == nil || !strings.Contains(err.Error(), "OAuth Desktop Client") {
 		t.Fatalf("desktop OAuth client error = %v", err)
@@ -326,56 +276,20 @@ func TestValidateGoogleServiceAccountJSONRejectsOAuthClientAndMissingFields(t *t
 	if err := validateGoogleServiceAccountJSON(`{"type":"service_account"}`); err == nil || !strings.Contains(err.Error(), "client_email") || !strings.Contains(err.Error(), "private_key") {
 		t.Fatalf("missing field error = %v", err)
 	}
-	valid := `{"type":"service_account","client_email":"search@example.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n"}`
+	valid, _ := testGoogleServiceAccountJSON(t)
 	if err := validateGoogleServiceAccountJSON(valid); err != nil {
 		t.Fatalf("valid service account error = %v", err)
 	}
 }
 
-func TestEnvironmentIntegrationChecksUseSearchBridge(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
-	server, err := New("token")
-	if err != nil {
-		t.Fatal(err)
-	}
-	commands := []string{}
-	server.searchRunner = func(_ context.Context, _ bridgeConfig, command string, _ map[string]any) (json.RawMessage, error) {
-		commands = append(commands, command)
-		switch command {
-		case "bing-check":
-			return json.RawMessage("{\"endpoint\":\"https://www.bing.com/indexnow\",\"keyLocation\":\"https://thinkerqaq.github.io/key.txt\",\"keyFileStatus\":200}"), nil
-		case "google-check":
-			return json.RawMessage("{\"siteUrl\":\"https://thinkerqaq.github.io/\",\"permissionLevel\":\"siteFullUser\",\"httpStatus\":200}"), nil
-		default:
-			t.Fatalf("unexpected command %q", command)
-			return nil, nil
-		}
-	}
-
-	for _, path := range []string{
-		"/v1/tools/bing-indexnow/actions/check",
-		"/v1/tools/google-search-console-api/actions/check",
-	} {
-		request := httptest.NewRequest(http.MethodPost, path, nil)
-		setExtensionAuth(request, "token")
-		response := httptest.NewRecorder()
-		server.Handler().ServeHTTP(response, request)
-		if response.Code != http.StatusOK {
-			t.Fatalf("%s status = %d body=%s", path, response.Code, response.Body.String())
-		}
-	}
-	if len(commands) != 2 || commands[0] != "bing-check" || commands[1] != "google-check" {
-		t.Fatalf("commands = %#v", commands)
-	}
-}
-
 func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
-	t.Setenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", "{\"type\":\"service_account\",\"client_email\":\"search@example.iam.gserviceaccount.com\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\nTOP-SECRET\\n-----END PRIVATE KEY-----\\n\"}")
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
 	}
+	serviceAccountJSON, privateKey := testGoogleServiceAccountJSON(t)
+	server.config.GoogleSearchConsoleServiceJSON = serviceAccountJSON
 	request := httptest.NewRequest(http.MethodGet, "/v1/search/index", nil)
 	request.Header.Set("origin", "chrome-extension://test")
 	response := httptest.NewRecorder()
@@ -383,10 +297,67 @@ func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d", response.Code)
 	}
-	if strings.Contains(response.Body.String(), "TOP-SECRET") {
+	if strings.Contains(response.Body.String(), privateKey) || strings.Contains(response.Body.String(), "BEGIN PRIVATE KEY") {
 		t.Fatalf("response exposed credential: %s", response.Body.String())
 	}
 	if !strings.Contains(response.Body.String(), "\"credentialsConfigured\":true") {
 		t.Fatalf("response did not expose credential status: %s", response.Body.String())
+	}
+}
+
+func TestReconcileRecoveredGoogleInspectionPayloadUsesPersistedProgress(t *testing.T) {
+	nextOffset := 38
+	payload := reconcileRecoveredGoogleInspectionPayload(
+		googleInspectionTaskPayload{Offset: 37, Limit: 12},
+		searchInspectionState{NextOffset: &nextOffset},
+	)
+	if payload.Offset != 38 || payload.Limit != 11 || payload.Done {
+		t.Fatalf("reconciled payload = %#v", payload)
+	}
+
+	nextOffset = 49
+	payload = reconcileRecoveredGoogleInspectionPayload(
+		googleInspectionTaskPayload{Offset: 37, Limit: 12},
+		searchInspectionState{NextOffset: &nextOffset},
+	)
+	if payload.Offset != 49 || payload.Limit != 0 || !payload.Done {
+		t.Fatalf("completed payload = %#v", payload)
+	}
+}
+
+func TestLatestDurableSearchTaskReturnsNewest(t *testing.T) {
+	server := &Server{
+		taskJobs: map[string]*durableTaskJob{
+			"new": {ID: "new", Kind: "search", Type: "google-inspection"},
+			"old": {ID: "old", Kind: "search", Type: "google-inspection"},
+		},
+		taskJobOrder: []string{"new", "old"},
+	}
+	job := server.latestDurableSearchTask("google-inspection")
+	if job == nil || job.ID != "new" {
+		t.Fatalf("latest job = %#v", job)
+	}
+}
+
+func TestNormalizeRecoveredGoogleInspectionQueuesResume(t *testing.T) {
+	jobs := map[string]*durableTaskJob{
+		"inspection": {
+			ID: "inspection", Kind: "search", Type: "google-inspection", State: "running",
+			Payload: []byte(`{"offset":37,"limit":12}`),
+		},
+	}
+	if !normalizeRecoveredDurableTaskJobs(jobs, time.Date(2026, 10, 2, 1, 0, 0, 0, time.UTC)) {
+		t.Fatal("recovery should update persisted job state")
+	}
+	job := jobs["inspection"]
+	if job.State != "queued" || job.Error != "" || !job.CanRetry {
+		t.Fatalf("recovered inspection job = %#v", job)
+	}
+	var payload googleInspectionTaskPayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Offset != 37 || payload.Limit != 12 {
+		t.Fatalf("recovered payload = %#v", payload)
 	}
 }

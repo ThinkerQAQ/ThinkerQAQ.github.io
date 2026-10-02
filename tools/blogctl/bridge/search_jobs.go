@@ -9,26 +9,38 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 )
 
-type bingIndexTaskPayload struct {
+type searchSubmissionTaskPayload struct {
 	Mode string `json:"mode"`
 }
 
 type googleInspectionTaskPayload struct {
-	Offset int `json:"offset"`
-	Limit  int `json:"limit"`
+	Offset int  `json:"offset"`
+	Limit  int  `json:"limit"`
+	Done   bool `json:"done,omitempty"`
 }
 
-func googleInspectionDisplayTotal(totalAvailable, offset, taskTotal int) int {
-	if totalAvailable > 0 {
-		return totalAvailable
+func reconcileRecoveredGoogleInspectionPayload(payload googleInspectionTaskPayload, inspection searchInspectionState) googleInspectionTaskPayload {
+	if payload.Done || payload.Limit <= 0 || inspection.NextOffset == nil {
+		return payload
 	}
-	total := offset + taskTotal
-	if total < taskTotal {
-		return taskTotal
+	nextOffset := *inspection.NextOffset
+	if nextOffset <= payload.Offset {
+		return payload
 	}
-	return total
+	batchEnd := payload.Offset + payload.Limit
+	if nextOffset >= batchEnd {
+		payload.Offset = batchEnd
+		payload.Limit = 0
+		payload.Done = true
+		return payload
+	}
+	payload.Offset = nextOffset
+	payload.Limit = batchEnd - nextOffset
+	return payload
 }
 
 func taskCapabilities(retry, pause, resume bool) struct {
@@ -131,8 +143,10 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 
 		var err error
 		switch job.Type {
-		case "bing-indexnow":
-			err = s.executeBingIndexTask(context.Background(), jobID, job.Payload)
+		case "indexnow-submit":
+			err = s.executeIndexNowTask(context.Background(), jobID, job.Payload)
+		case "baidu-submit":
+			err = s.executeBaiduIndexTask(context.Background(), jobID, job.Payload)
 		case "google-sitemaps":
 			err = s.executeGoogleSitemapsTask(context.Background(), jobID)
 		case "google-inspection":
@@ -146,8 +160,8 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 	}()
 }
 
-func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayload json.RawMessage) error {
-	var input bingIndexTaskPayload
+func (s *Server) executeIndexNowTask(ctx context.Context, jobID string, rawPayload json.RawMessage) error {
+	var input searchSubmissionTaskPayload
 	if err := json.Unmarshal(rawPayload, &input); err != nil {
 		return err
 	}
@@ -156,61 +170,40 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 		input.Mode = "incremental"
 	}
 	if input.Mode != "incremental" && input.Mode != "full" {
-		return errors.New("Bing submission mode must be incremental or full")
+		return errors.New("IndexNow submission mode must be incremental or full")
 	}
 
 	state := loadSearchIndexState()
 	started := s.now().UTC()
-	state.Bing = searchOperationState{
+	state.IndexNow = searchOperationState{
 		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
 	}
 	_ = saveSearchIndexState(state)
 
-	previous := loadBingIndexSnapshot()
-	raw, err := s.runSearchNode(ctx, s.config, "bing-submit", map[string]any{
-		"mode":     input.Mode,
-		"previous": previous,
-	})
+	previous := loadIndexNowSnapshot()
+	payload, err := s.submitIndexNow(ctx, input.Mode, previous)
 	if err != nil {
-		state.Bing.State = "failed"
-		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Bing.Error = err.Error()
+		state.IndexNow.State = "failed"
+		state.IndexNow.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.IndexNow.Error = err.Error()
+		_ = saveSearchIndexState(state)
+		return err
+	}
+	if err := saveIndexNowSnapshot(payload.Inventory); err != nil {
+		state.IndexNow.State = "failed"
+		state.IndexNow.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.IndexNow.Error = err.Error()
 		_ = saveSearchIndexState(state)
 		return err
 	}
 
-	var payload struct {
-		Inventory searchInventoryState `json:"inventory"`
-		Diff      struct {
-			Mode           string `json:"mode"`
-			SelectedCount  int    `json:"selectedCount"`
-			AddedCount     int    `json:"addedCount"`
-			ChangedCount   int    `json:"changedCount"`
-			DeletedCount   int    `json:"deletedCount"`
-			UnchangedCount int    `json:"unchangedCount"`
-		} `json:"diff"`
-		Result struct {
-			URLCount   int `json:"urlCount"`
-			BatchCount int `json:"batchCount"`
-			Results    []struct {
-				HTTPStatus int `json:"httpStatus"`
-			} `json:"results"`
-		} `json:"result"`
-	}
-	if err := decodeSearchResult(raw, &payload); err != nil {
-		return err
-	}
-	if err := saveBingIndexSnapshot(payload.Inventory); err != nil {
-		return err
-	}
-
 	state.Inventory = compactSearchInventory(payload.Inventory)
-	state.Bing = searchOperationState{
+	state.IndexNow = searchOperationState{
 		State: "completed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
 		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
 		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
-		HTTPStatus: aggregateHTTPStatus(payload.Result.Results),
+		HTTPStatus: maxSearchHTTPStatus(payload.Result.Results),
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
@@ -224,7 +217,7 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 		"changed":    payload.Diff.ChangedCount,
 		"deleted":    payload.Diff.DeletedCount,
 		"unchanged":  payload.Diff.UnchangedCount,
-		"httpStatus": state.Bing.HTTPStatus,
+		"httpStatus": state.IndexNow.HTTPStatus,
 	}
 	s.completeDurableTask(jobID, taskProgress{
 		Current: payload.Result.URLCount,
@@ -235,13 +228,96 @@ func (s *Server) executeBingIndexTask(ctx context.Context, jobID string, rawPayl
 	return nil
 }
 
+func (s *Server) executeBaiduIndexTask(ctx context.Context, jobID string, rawPayload json.RawMessage) error {
+	var input searchSubmissionTaskPayload
+	if err := json.Unmarshal(rawPayload, &input); err != nil {
+		return err
+	}
+	input.Mode = strings.TrimSpace(input.Mode)
+	if input.Mode == "" {
+		input.Mode = "incremental"
+	}
+	if input.Mode != "incremental" && input.Mode != "full" {
+		return errors.New("Baidu submission mode must be incremental or full")
+	}
+
+	state := loadSearchIndexState()
+	started := s.now().UTC()
+	state.Baidu = searchOperationState{
+		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
+	}
+	_ = saveSearchIndexState(state)
+
+	previous := loadBaiduIndexSnapshot()
+	payload, err := s.submitBaidu(ctx, input.Mode, previous)
+	if err != nil {
+		// Baidu reports only aggregate accepted counts. Keep the provider
+		// snapshot unchanged on partial acceptance, but persist the observed
+		// submission statistics so Bridge/UI state reflects what actually
+		// happened and the whole batch can be retried safely.
+		if payload.Inventory.Total > 0 || payload.Result.URLCount > 0 {
+			state.Inventory = compactSearchInventory(payload.Inventory)
+			state.Baidu = searchOperationState{
+				State: "failed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
+				FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
+				NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
+				DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
+				HTTPStatus: maxSearchHTTPStatus(payload.Result.Results), Error: err.Error(),
+			}
+		} else {
+			state.Baidu.State = "failed"
+			state.Baidu.FinishedAt = s.now().UTC().Format(time.RFC3339)
+			state.Baidu.Error = err.Error()
+		}
+		_ = saveSearchIndexState(state)
+		return err
+	}
+	if err := saveBaiduIndexSnapshot(payload.Inventory); err != nil {
+		state.Baidu.State = "failed"
+		state.Baidu.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.Baidu.Error = err.Error()
+		_ = saveSearchIndexState(state)
+		return err
+	}
+
+	state.Inventory = compactSearchInventory(payload.Inventory)
+	state.Baidu = searchOperationState{
+		State: "completed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
+		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.SuccessCount,
+		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
+		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
+		HTTPStatus: maxSearchHTTPStatus(payload.Result.Results),
+	}
+	if err := saveSearchIndexState(state); err != nil {
+		return err
+	}
+	s.completeDurableTask(jobID, taskProgress{
+		Current: payload.Result.SuccessCount,
+		Total:   payload.Result.URLCount,
+		Unit:    "URL",
+		Message: "Baidu URLs submitted",
+	}, map[string]any{
+		"mode":             payload.Diff.Mode,
+		"submitted":        payload.Result.URLCount,
+		"accepted":         payload.Result.SuccessCount,
+		"remain":           payload.Result.Remain,
+		"added":            payload.Diff.AddedCount,
+		"changed":          payload.Diff.ChangedCount,
+		"deleted":          payload.Diff.DeletedCount,
+		"deletedSubmitted": 0,
+		"unchanged":        payload.Diff.UnchangedCount,
+		"httpStatus":       state.Baidu.HTTPStatus,
+	})
+	return nil
+}
+
 func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) error {
 	state := loadSearchIndexState()
 	started := s.now().UTC()
 	state.Google.Sitemaps = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
 	_ = saveSearchIndexState(state)
 
-	raw, err := s.runSearchNode(ctx, s.config, "google-sitemaps", nil)
+	payload, err := s.submitGoogleSitemapsNative(ctx)
 	if err != nil {
 		state.Google.Sitemaps.State = "failed"
 		state.Google.Sitemaps.FinishedAt = s.now().UTC().Format(time.RFC3339)
@@ -250,24 +326,13 @@ func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) er
 		_ = saveSearchIndexState(state)
 		return err
 	}
-	var payload struct {
-		Inventory searchInventoryState `json:"inventory"`
-		Result    []struct {
-			SiteURL    string `json:"siteUrl"`
-			FeedPath   string `json:"feedPath"`
-			HTTPStatus int    `json:"httpStatus"`
-		} `json:"result"`
-	}
-	if err := decodeSearchResult(raw, &payload); err != nil {
-		return err
-	}
 	httpStatus := 0
 	for _, result := range payload.Result {
 		if result.HTTPStatus > httpStatus {
 			httpStatus = result.HTTPStatus
 		}
 	}
-	state.Inventory = payload.Inventory
+	state.Inventory = compactSearchInventory(payload.Inventory)
 	state.Google.Sitemaps = searchOperationState{
 		State: "completed", StartedAt: started.Format(time.RFC3339),
 		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: len(payload.Result),
@@ -292,21 +357,39 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	if err := json.Unmarshal(rawPayload, &input); err != nil {
 		return err
 	}
-	if input.Limit == 0 {
-		input.Limit = 2000
+	if input.Limit == 0 && input.Offset > 0 {
+		input.Done = true
 	}
-	if input.Offset < 0 || input.Limit < 1 || input.Limit > 2000 {
-		return errors.New("Google inspection requires offset >= 0 and 1 <= limit <= 2000")
-	}
-
-	job := s.durableTaskJob(jobID)
-	baseCompleted := 0
-	taskTotal := input.Limit
-	if job != nil {
-		baseCompleted = job.Progress.Current
-		if job.Progress.Total > 0 {
-			taskTotal = job.Progress.Total
+	if input.Done {
+		state := loadSearchIndexState()
+		state.Google.Inspection.State = "completed"
+		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
+		state.Google.Inspection.Offset = input.Offset
+		state.Google.Inspection.Limit = 0
+		state.Google.Inspection.Error = ""
+		refreshSearchCredentialsFlag(&state, s.config)
+		if err := saveSearchIndexState(state); err != nil {
+			return err
 		}
+		total := state.Google.Inspection.Total
+		current := min(input.Offset, total)
+		s.completeDurableTask(jobID, taskProgress{
+			Current: current, Total: total, Unit: "URL", Message: "URL Inspection batch completed",
+		}, map[string]any{
+			"nextOffset":   input.Offset,
+			"checkedCount": state.Google.Inspection.Inspected,
+			"remaining":    state.Google.Inspection.Remaining,
+		})
+		return nil
+	}
+	if input.Limit == 0 {
+		input.Limit = blogsearch.GoogleURLInspectionDailySiteLimit
+	}
+	if input.Offset < 0 || input.Limit < 1 || input.Limit > blogsearch.GoogleURLInspectionDailySiteLimit {
+		return fmt.Errorf(
+			"Google inspection requires offset >= 0 and 1 <= limit <= %d",
+			blogsearch.GoogleURLInspectionDailySiteLimit,
+		)
 	}
 
 	state := loadSearchIndexState()
@@ -318,175 +401,164 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	state.Google.Inspection.FinishedAt = ""
 	state.Google.Inspection.Offset = input.Offset
 	state.Google.Inspection.Limit = input.Limit
-	if taskTotal > 0 {
-		state.Google.Inspection.Total = taskTotal
-		state.Google.Inspection.Remaining = max(0, taskTotal-state.Google.Inspection.Inspected)
-	}
 	state.Google.Inspection.Error = ""
 	_ = saveSearchIndexState(state)
 
-	lastProgress := baseCompleted
-	totalAvailable := state.Google.Inspection.Total
+	inventory, err := s.fetchSearchInventory(ctx)
+	if err != nil {
+		return err
+	}
+	state = loadSearchIndexState()
+	reconcileInspectionInventory(&state.Google.Inspection, inventory)
+	state.Inventory = compactSearchInventory(inventory)
+	state.Google.Inspection.State = "running"
+	state.Google.Inspection.Offset = input.Offset
+	state.Google.Inspection.Limit = input.Limit
+	state.Google.Inspection.Total = inventory.Total
+	state.Google.Inspection.Remaining = max(0, inventory.Total-len(state.Google.Inspection.Results))
+	refreshSearchCredentialsFlag(&state, s.config)
+	if err := saveSearchIndexState(state); err != nil {
+		return err
+	}
+	_, err = s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+		job.Progress = taskProgress{
+			Current: min(input.Offset, inventory.Total),
+			Total:   inventory.Total,
+			Unit:    "URL",
+			Message: fmt.Sprintf("URL inventory 已读取：%d URLs", inventory.Total),
+		}
+		job.Detail = map[string]any{"phase": "inventory_ready"}
+		appendTaskOutput(job, fmt.Sprintf("[stage] URL inventory 已读取：%d URLs", inventory.Total))
+	})
+	if err != nil {
+		return err
+	}
 
-	raw, err := s.runSearchNodeWithProgress(
+	_, err = s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+		job.Progress.Message = "正在获取 Google OAuth token"
+		job.Detail = map[string]any{"phase": "oauth_start"}
+		appendTaskOutput(job, "[stage] 正在获取 Google OAuth token")
+	})
+	if err != nil {
+		return err
+	}
+	accessToken, err := s.googleAccessToken(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+		job.Progress.Message = "Google OAuth token 已获取"
+		job.Detail = map[string]any{"phase": "oauth_ready"}
+		appendTaskOutput(job, "[stage] Google OAuth token 已获取")
+	})
+	if err != nil {
+		return err
+	}
+
+	report, err := blogsearch.AuditGoogleURLs(
 		ctx,
-		s.config,
-		"google-inspect",
-		map[string]any{
-			"offset": input.Offset,
-			"limit":  input.Limit,
-		},
-		func(progressRaw json.RawMessage) error {
-			var event struct {
-				Type           string                 `json:"type"`
-				Stage          string                 `json:"stage"`
-				Message        string                 `json:"message"`
-				URL            string                 `json:"url"`
-				Offset         int                    `json:"offset"`
-				Inspected      int                    `json:"inspected"`
-				RequestNumber  int                    `json:"requestNumber"`
-				AbsoluteIndex  int                    `json:"absoluteIndex"`
-				DurationMS     int64                  `json:"durationMs"`
-				TotalAvailable int                    `json:"totalAvailable"`
-				Remaining      int                    `json:"remaining"`
-				NextOffset     *int                   `json:"nextOffset"`
-				Result         searchInspectionResult `json:"result"`
-				Inventory      searchInventoryState   `json:"inventory"`
-				URLs           []string               `json:"urls"`
-			}
-			if err := json.Unmarshal(progressRaw, &event); err != nil {
-				return err
-			}
-
+		s.httpClient,
+		inventory.URLs,
+		blogsearch.DefaultSiteOrigin+"/",
+		inventory.Origin,
+		accessToken,
+		input.Offset,
+		input.Limit,
+		blogsearch.GoogleURLInspectionDefaultDelay,
+		func(event blogsearch.GoogleInspectionProgress) error {
 			switch event.Type {
-			case "stage":
-				if event.Stage == "inventory_ready" && len(event.URLs) > 0 {
-					event.Inventory.URLs = append([]string(nil), event.URLs...)
-					if event.Inventory.Total <= 0 {
-						event.Inventory.Total = len(event.URLs)
-					}
-					state = loadSearchIndexState()
-					reconcileInspectionInventory(&state.Google.Inspection, event.Inventory)
-					state.Inventory = compactSearchInventory(event.Inventory)
-					refreshSearchCredentialsFlag(&state, s.config)
-					if err := saveSearchIndexState(state); err != nil {
-						return err
-					}
-				}
-				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
-					job.Progress.Message = event.Message
-					job.Detail = map[string]any{
-						"phase": event.Stage,
-					}
-					appendTaskOutput(job, "[stage] "+event.Message)
-				})
-				return err
 			case "request_start":
 				if strings.TrimSpace(event.URL) == "" {
 					return errors.New("Google URL Inspection request_start missing URL")
 				}
 				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+					cursor := max(0, event.AbsoluteIndex-1)
+					job.Progress.Current = min(cursor, event.TotalAvailable)
+					job.Progress.Total = event.TotalAvailable
+					job.Progress.Unit = "URL"
 					job.Progress.Message = fmt.Sprintf(
 						"正在检查 %d / %d · %s",
 						event.AbsoluteIndex,
-						googleInspectionDisplayTotal(event.TotalAvailable, input.Offset, taskTotal),
+						event.TotalAvailable,
 						event.URL,
 					)
 					job.Detail = map[string]any{
-						"phase":         "request",
-						"currentUrl":    event.URL,
-						"absoluteIndex": event.AbsoluteIndex,
-						"inspected":     lastProgress,
+						"phase":      "request",
+						"currentUrl": event.URL,
+						"nextOffset": cursor,
+					}
+					appendTaskOutput(job, fmt.Sprintf("[request] start #%d %s", event.AbsoluteIndex, event.URL))
+				})
+				return err
+
+			case "request_complete":
+				if event.Result == nil || strings.TrimSpace(event.Result.URL) == "" || event.Inspected <= 0 {
+					return errors.New("Google URL Inspection progress record is invalid")
+				}
+				result := coreInspectionResult(*event.Result)
+				result.CheckedAt = s.now().UTC().Format(time.RFC3339)
+
+				currentState := loadSearchIndexState()
+				currentState.Google.Inspection.Results = mergeInspectionResults(
+					currentState.Google.Inspection.Results,
+					[]searchInspectionResult{result},
+				)
+				currentState.Google.Inspection.State = "running"
+				currentState.Google.Inspection.FinishedAt = ""
+				currentState.Google.Inspection.Offset = input.Offset
+				currentState.Google.Inspection.Limit = input.Limit
+				currentState.Google.Inspection.Inspected = len(currentState.Google.Inspection.Results)
+				currentState.Google.Inspection.Total = event.TotalAvailable
+				currentState.Google.Inspection.Remaining = max(0, event.TotalAvailable-len(currentState.Google.Inspection.Results))
+				currentState.Google.Inspection.NextOffset = event.NextOffset
+				currentState.Google.Inspection.Error = ""
+				refreshSearchCredentialsFlag(&currentState, s.config)
+				if err := saveSearchIndexState(currentState); err != nil {
+					return err
+				}
+
+				nextOffset := input.Offset + event.Inspected
+				remainingBatch := max(0, input.Limit-event.Inspected)
+				nextPayload, _ := json.Marshal(googleInspectionTaskPayload{
+					Offset: nextOffset,
+					Limit:  remainingBatch,
+					Done:   remainingBatch == 0,
+				})
+				_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
+					job.Progress = taskProgress{
+						Current: min(event.AbsoluteIndex, event.TotalAvailable),
+						Total:   event.TotalAvailable,
+						Unit:    "URL",
+						Message: fmt.Sprintf(
+							"已检查 %d / %d · %s",
+							event.AbsoluteIndex,
+							event.TotalAvailable,
+							result.URL,
+						),
+					}
+					job.Payload = nextPayload
+					job.Detail = map[string]any{
+						"phase":          "completed_request",
+						"currentUrl":     result.URL,
+						"nextOffset":     nextOffset,
+						"checkedCount":   currentState.Google.Inspection.Inspected,
+						"durationMs":     event.Duration.Milliseconds(),
+						"totalAvailable": event.TotalAvailable,
+						"remaining":      currentState.Google.Inspection.Remaining,
 					}
 					appendTaskOutput(job, fmt.Sprintf(
-						"[request] start #%d %s",
+						"[request] done #%d %s duration=%dms verdict=%s",
 						event.AbsoluteIndex,
-						event.URL,
+						result.URL,
+						event.Duration.Milliseconds(),
+						result.Verdict,
 					))
 				})
 				return err
-			case "", "request_complete":
-				// Backward compatible with the earlier progress record shape where type was absent.
+
 			default:
 				return fmt.Errorf("unknown Google URL Inspection progress event: %s", event.Type)
 			}
-
-			if event.Inspected <= 0 || strings.TrimSpace(event.Result.URL) == "" {
-				return errors.New("Google URL Inspection progress record is invalid")
-			}
-
-			checkedAt := s.now().UTC().Format(time.RFC3339)
-			event.Result.CheckedAt = checkedAt
-			current := baseCompleted + event.Inspected
-			if current > taskTotal {
-				current = taskTotal
-			}
-			lastProgress = current
-			totalAvailable = event.TotalAvailable
-			currentOffset := input.Offset + event.Inspected
-			remainingTask := input.Limit - event.Inspected
-			if remainingTask < 0 {
-				remainingTask = 0
-			}
-
-			state = loadSearchIndexState()
-			state.Google.Inspection.Results = mergeInspectionResults(
-				state.Google.Inspection.Results,
-				[]searchInspectionResult{event.Result},
-			)
-			globalRemaining := event.TotalAvailable - len(state.Google.Inspection.Results)
-			if globalRemaining < 0 {
-				globalRemaining = 0
-			}
-			state.Google.Inspection.State = "running"
-			state.Google.Inspection.FinishedAt = ""
-			state.Google.Inspection.Offset = input.Offset
-			state.Google.Inspection.Limit = input.Limit
-			state.Google.Inspection.Inspected = len(state.Google.Inspection.Results)
-			state.Google.Inspection.Total = event.TotalAvailable
-			state.Google.Inspection.Remaining = globalRemaining
-			state.Google.Inspection.NextOffset = event.NextOffset
-			state.Google.Inspection.Error = ""
-			refreshSearchCredentialsFlag(&state, s.config)
-			if err := saveSearchIndexState(state); err != nil {
-				return err
-			}
-
-			nextPayload, _ := json.Marshal(googleInspectionTaskPayload{
-				Offset: currentOffset,
-				Limit:  remainingTask,
-			})
-			_, err := s.updateDurableTaskJob(jobID, func(job *durableTaskJob) {
-				job.Progress = taskProgress{
-					Current: current,
-					Total:   taskTotal,
-					Unit:    "URL",
-					Message: fmt.Sprintf(
-						"已检查 %d / %d · %s",
-						event.AbsoluteIndex,
-						googleInspectionDisplayTotal(event.TotalAvailable, input.Offset, taskTotal),
-						event.Result.URL,
-					),
-				}
-				job.Payload = nextPayload
-				job.Detail = map[string]any{
-					"phase":          "completed_request",
-					"currentUrl":     event.Result.URL,
-					"currentOffset":  currentOffset,
-					"inspected":      current,
-					"durationMs":     event.DurationMS,
-					"totalAvailable": event.TotalAvailable,
-					"remaining":      globalRemaining,
-				}
-				appendTaskOutput(job, fmt.Sprintf(
-					"[request] done #%d %s duration=%dms verdict=%s",
-					event.AbsoluteIndex,
-					event.Result.URL,
-					event.DurationMS,
-					event.Result.Verdict,
-				))
-			})
-			return err
 		},
 	)
 	if err != nil {
@@ -522,63 +594,77 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		return err
 	}
 
-	var report struct {
-		Inspected      int `json:"inspected"`
-		TotalAvailable int `json:"totalAvailable"`
-		Remaining      int `json:"remaining"`
-	}
-	if err := decodeSearchResult(raw, &report); err != nil {
-		return err
-	}
-	if report.Inspected <= 0 && input.Limit > 0 {
+	if report.Inspected == 0 && input.Offset < report.TotalAvailable {
 		return errors.New("Google URL Inspection returned no progress")
 	}
-	if totalAvailable == 0 {
-		totalAvailable = report.TotalAvailable
-	}
-	if lastProgress == baseCompleted {
-		lastProgress = baseCompleted + report.Inspected
-		if lastProgress > taskTotal {
-			lastProgress = taskTotal
-		}
-	}
-
 	state = loadSearchIndexState()
 	state.Google.Inspection.State = "completed"
 	state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
+	state.Google.Inspection.Total = report.TotalAvailable
+	state.Google.Inspection.Remaining = report.Remaining
+	state.Google.Inspection.NextOffset = report.NextOffset
 	state.Google.Inspection.Error = ""
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		return err
 	}
 
+	current := min(input.Offset+report.Inspected, report.TotalAvailable)
 	s.completeDurableTask(jobID, taskProgress{
-		Current: lastProgress,
-		Total:   taskTotal,
+		Current: current,
+		Total:   report.TotalAvailable,
 		Unit:    "URL",
 		Message: "URL Inspection batch completed",
 	}, map[string]any{
-		"inspected":      lastProgress,
-		"totalAvailable": totalAvailable,
-		"remaining":      state.Google.Inspection.Remaining,
+		"nextOffset":     current,
+		"checkedCount":   state.Google.Inspection.Inspected,
+		"totalAvailable": report.TotalAvailable,
+		"remaining":      report.Remaining,
 	})
 	return nil
 }
 
-func (s *Server) startBingIndexTask(mode string) (*durableTaskJob, error) {
+func (s *Server) startIndexNowTask(mode string) (*durableTaskJob, error) {
 	mode = strings.TrimSpace(mode)
 	if mode == "" {
 		mode = "incremental"
 	}
 	if mode != "incremental" && mode != "full" {
-		return nil, errors.New("Bing submission mode must be incremental or full")
+		return nil, errors.New("IndexNow submission mode must be incremental or full")
 	}
-	title := "Bing 增量索引"
+	title := "IndexNow 增量提交"
 	if mode == "full" {
-		title = "Bing 全量索引"
+		title = "IndexNow 全量提交"
 	}
 	job, err := s.createDurableTaskJob(
-		"bing-indexnow", title, bingIndexTaskPayload{Mode: mode},
+		"indexnow-submit", title, searchSubmissionTaskPayload{Mode: mode},
+		taskProgress{Unit: "URL", Message: "等待执行"},
+		taskCapabilities(true, false, false),
+	)
+	if err != nil {
+		return nil, err
+	}
+	s.launchSearchTaskJob(job.ID)
+	return job, nil
+}
+
+func (s *Server) startBaiduIndexTask(mode string) (*durableTaskJob, error) {
+	mode = strings.TrimSpace(mode)
+	if mode == "" {
+		mode = "incremental"
+	}
+	if mode != "incremental" && mode != "full" {
+		return nil, errors.New("Baidu submission mode must be incremental or full")
+	}
+	if baiduToken(s.config) == "" {
+		return nil, errors.New("Baidu push token is not configured")
+	}
+	title := "Baidu 增量索引"
+	if mode == "full" {
+		title = "Baidu 全量索引"
+	}
+	job, err := s.createDurableTaskJob(
+		"baidu-submit", title, searchSubmissionTaskPayload{Mode: mode},
 		taskProgress{Unit: "URL", Message: "等待执行"},
 		taskCapabilities(true, false, false),
 	)
@@ -611,7 +697,7 @@ func (s *Server) startGoogleInspectionTask(offset, limit int) (*durableTaskJob, 
 	}
 	state := loadSearchIndexState()
 	total := state.Inventory.Total
-	if total < offset+limit {
+	if total <= 0 {
 		total = offset + limit
 	}
 	job, err := s.createDurableTaskJob(
@@ -627,18 +713,37 @@ func (s *Server) startGoogleInspectionTask(offset, limit int) (*durableTaskJob, 
 	return job, nil
 }
 
-func (s *Server) handleSearchBingJobStart(response http.ResponseWriter, request *http.Request) {
+func (s *Server) handleSearchIndexNowJobStart(response http.ResponseWriter, request *http.Request) {
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
-	var input bingIndexTaskPayload
+	var input searchSubmissionTaskPayload
 	if err := readJSON(request, maxBodyBytes, &input); err != nil {
 		writeError(response, err)
 		return
 	}
-	job, err := s.startBingIndexTask(input.Mode)
+	job, err := s.startIndexNowTask(input.Mode)
 	if err != nil {
-		writeAPIError(response, http.StatusBadRequest, "invalid_bing_submit_mode", err.Error(), nil)
+		writeAPIError(response, http.StatusBadRequest, "invalid_indexnow_submit_mode", err.Error(), nil)
+		return
+	}
+	writeJSON(response, http.StatusAccepted, map[string]any{
+		"ok": true, "job": durableTaskView(job), "index": s.searchState(),
+	})
+}
+
+func (s *Server) handleSearchBaiduJobStart(response http.ResponseWriter, request *http.Request) {
+	if !s.allowSyncControlWrite(response, request) {
+		return
+	}
+	var input searchSubmissionTaskPayload
+	if err := readJSON(request, maxBodyBytes, &input); err != nil {
+		writeError(response, err)
+		return
+	}
+	job, err := s.startBaiduIndexTask(input.Mode)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_baidu_submit", err.Error(), nil)
 		return
 	}
 	writeJSON(response, http.StatusAccepted, map[string]any{
@@ -684,7 +789,7 @@ func (s *Server) retrySearchTaskJob(job *durableTaskJob) (*durableTaskJob, error
 		return nil, errors.New("task is not a search job")
 	}
 	switch job.Type {
-	case "bing-indexnow", "google-sitemaps", "google-inspection":
+	case "indexnow-submit", "baidu-submit", "google-sitemaps", "google-inspection":
 		updated, err := s.updateDurableTaskJob(job.ID, func(current *durableTaskJob) {
 			current.State = "queued"
 			current.Error = ""
@@ -847,14 +952,34 @@ func (s *Server) updateGoogleRequestTaskFromQueue(queue googleIndexRequestQueue)
 func recoverSearchTasksAfterRestart(s *Server) {
 	state := loadSearchIndexState()
 	queue := &state.Google.RequestQueue
-	if queue.State != "running" {
-		return
+	if queue.State == "running" {
+		queue.State = "paused"
+		queue.LastError = ""
+		queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
+		_ = saveSearchIndexState(state)
+		if queue.JobID != "" {
+			_, _ = s.updateGoogleRequestTaskFromQueue(*queue)
+		}
 	}
-	queue.State = "paused"
-	queue.LastError = ""
-	queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
-	_ = saveSearchIndexState(state)
-	if queue.JobID != "" {
-		_, _ = s.updateGoogleRequestTaskFromQueue(*queue)
+
+	if job := s.latestDurableSearchTask("google-inspection"); job != nil && job.State == "queued" {
+		var payload googleInspectionTaskPayload
+		if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &payload) == nil {
+			resumed := reconcileRecoveredGoogleInspectionPayload(payload, state.Google.Inspection)
+			if resumed != payload {
+				raw, err := json.Marshal(resumed)
+				if err == nil {
+					_, _ = s.updateDurableTaskJob(job.ID, func(current *durableTaskJob) {
+						current.Payload = raw
+						current.Progress.Current = min(resumed.Offset, current.Progress.Total)
+						current.Detail = map[string]any{
+							"phase":      "recovered",
+							"nextOffset": resumed.Offset,
+						}
+					})
+				}
+			}
+		}
+		s.launchSearchTaskJob(job.ID)
 	}
 }
