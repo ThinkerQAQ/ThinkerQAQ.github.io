@@ -282,7 +282,7 @@ export async function compileArticle({
       slug,
       platform,
       assetCount: assets.length,
-      delivery: nativeImageUpload ? "platform-native" : "r2",
+      delivery: nativeImageUpload ? "platform-native" : "render-only",
       durationMs: Date.now() - assetStartedAt,
       error: { name: error?.name || "Error", message: error?.message || String(error) },
     });
@@ -295,7 +295,7 @@ export async function compileArticle({
       platform,
       assetCount: assets.length,
       assetKinds: [...new Set(assets.map((asset) => asset.kind))],
-      delivery: nativeImageUpload ? "platform-native" : "r2",
+      delivery: nativeImageUpload ? "platform-native" : "render-only",
       rendered: assetPreparation.rendered,
       cached: assetPreparation.cached,
       dryRun: assetPreparation.dryRun,
