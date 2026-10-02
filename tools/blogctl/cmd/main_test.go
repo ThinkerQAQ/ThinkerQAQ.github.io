@@ -48,18 +48,18 @@ func TestNPMInvocationRunsNPMDirectlyOnUnix(t *testing.T) {
 	}
 }
 
-func TestSearchLiveOrigin(t *testing.T) {
+func TestSearchOrigin(t *testing.T) {
 	tests := map[string]string{
-		"https://thinkerqaq.github.io/":  "https://thinkerqaq.github.io",
+		"https://thinkerqaq.github.io/": "https://thinkerqaq.github.io",
 		"sc-domain:thinkerqaq.github.io": "https://thinkerqaq.github.io",
 	}
 	for input, want := range tests {
-		got, err := searchLiveOrigin(input)
+		got, err := searchOrigin(input)
 		if err != nil {
-			t.Fatalf("searchLiveOrigin(%q): %v", input, err)
+			t.Fatalf("searchOrigin(%q): %v", input, err)
 		}
 		if got != want {
-			t.Fatalf("searchLiveOrigin(%q) = %q, want %q", input, got, want)
+			t.Fatalf("searchOrigin(%q) = %q, want %q", input, got, want)
 		}
 	}
 }
