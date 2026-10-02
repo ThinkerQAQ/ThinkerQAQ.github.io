@@ -317,23 +317,18 @@ func indexNowEndpoint(config bridgeConfig) string {
 }
 
 func indexNowKey(config bridgeConfig) string {
-	if configured := strings.TrimSpace(config.IndexNowKey); configured != "" {
-		return configured
-	}
-	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY")); env != "" {
-		return env
-	}
-	return "fb26fca3ba9449c6816b6d79b0a41cec"
+	return strings.TrimSpace(config.IndexNowKey)
 }
 
 func indexNowKeyLocation(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.IndexNowKeyLocation); configured != "" {
 		return configured
 	}
-	if env := strings.TrimSpace(os.Getenv("INDEXNOW_KEY_LOCATION")); env != "" {
-		return env
+	key := indexNowKey(config)
+	if key == "" {
+		return ""
 	}
-	return "https://thinkerqaq.github.io/" + indexNowKey(config) + ".txt"
+	return blogsearch.DefaultSiteOrigin + "/" + key + ".txt"
 }
 
 func indexNowHealth(config bridgeConfig) toolHealth {
@@ -388,10 +383,7 @@ func baiduTokenPlaceholder(config bridgeConfig) string {
 }
 
 func googleSearchConsoleServiceJSON(config bridgeConfig) string {
-	if configured := strings.TrimSpace(config.GoogleSearchConsoleServiceJSON); configured != "" {
-		return configured
-	}
-	return strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON"))
+	return strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
 }
 
 func validateGoogleServiceAccountJSON(raw string) error {
