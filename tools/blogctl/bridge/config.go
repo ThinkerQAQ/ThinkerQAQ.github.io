@@ -426,6 +426,9 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	}
 	normalizedR2, err := blogassets.NormalizeR2Config(config.Publishing.Assets.R2)
 	if err != nil {
+		if strings.Contains(err.Error(), "public base URL") {
+			return config, errors.New("publishing R2 publicBaseUrl must be an HTTPS URL")
+		}
 		return config, fmt.Errorf("publishing R2 config: %w", err)
 	}
 	config.Publishing.Assets.R2 = normalizedR2
