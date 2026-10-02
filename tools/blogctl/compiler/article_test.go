@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseArticleMatchesPublishingFrontmatterShape(t *testing.T) {
-	source := "﻿---\r\n" +
+	source := string(rune(0xFEFF)) + "---\\r\\n" +
 		"title: \"Example\"\r\n" +
 		"description: 'A description'\r\n" +
 		"status: published\r\n" +
