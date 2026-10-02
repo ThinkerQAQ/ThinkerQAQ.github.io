@@ -1,0 +1,79 @@
+name: Temp BlogCTL Search Refactor Validation
+
+on:
+  push:
+    branches:
+      - docs/blogctl-go-runtime-ci-refactor-20261001
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l tools/blogctl)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Test BlogCTL Go
+        run: go test ./tools/blogctl/...
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Test BlogCTL extension
+        run: npm run test:blogctl-extension
+
+      - name: Build fixture site
+        run: |
+          npm run assemble:fixtures
+          npm run build:astro
+
+      - name: Validate Go search build and inventory
+        run: |
+          go run ./tools/blogctl/cmd search build
+          go run ./tools/blogctl/cmd search inventory
+
+      - name: Validate Bridge startup
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/blogctl" ./tools/blogctl/cmd
+          export BLOGCTL_CONFIG_DIR="$RUNNER_TEMP/blogctl-config"
+          mkdir -p "$BLOGCTL_CONFIG_DIR"
+          "$RUNNER_TEMP/blogctl" --bridge >"$RUNNER_TEMP/bridge.stdout" 2>"$RUNNER_TEMP/bridge.stderr" &
+          pid=$!
+          cleanup() {
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for _ in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:32145/v1/health >/dev/null; then
+              exit 0
+            fi
+            sleep 0.1
+          done
+          cat "$RUNNER_TEMP/bridge.stdout" || true
+          cat "$RUNNER_TEMP/bridge.stderr" || true
+          exit 1
