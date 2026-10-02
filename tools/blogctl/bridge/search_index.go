@@ -1,8 +1,6 @@
 package bridge
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,15 +8,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 )
-
-const searchBridgeResultPrefix = "__BLOGCTL_SEARCH_RESULT__"
-const searchBridgeProgressPrefix = "__BLOGCTL_SEARCH_PROGRESS__"
 
 type searchNodeRunner func(context.Context, bridgeConfig, string, map[string]any) (json.RawMessage, error)
 
@@ -240,215 +234,10 @@ func saveSearchIndexState(state searchIndexState) error {
 }
 
 func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
-	runner := s.searchRunner
-	if runner != nil {
-		return runner(ctx, config, command, input)
+	if s.searchRunner == nil {
+		return nil, errors.New("legacy search runner is not configured")
 	}
-	node, err := configuredExecutable(config, "node")
-	if err != nil {
-		return nil, err
-	}
-	engineRoot := strings.TrimSpace(config.EngineRoot)
-	if engineRoot == "" {
-		return nil, errors.New("Public Engine path is not configured")
-	}
-	script := filepath.Join(engineRoot, "tools", "blogctl", "search", "node", "bridge-cli.mjs")
-	if !filePresent(script) {
-		return nil, fmt.Errorf("BlogCTL search bridge runtime was not found: %s", script)
-	}
-	if input == nil {
-		input = map[string]any{}
-	}
-	input["publicRoot"] = filepath.Join(engineRoot, "public")
-	payload, err := json.Marshal(input)
-	if err != nil {
-		return nil, err
-	}
-	cmd := exec.CommandContext(ctx, node, script, command)
-	cmd.Dir = engineRoot
-	cmd.Env, err = processEnvironmentForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	cmd.Env = append(cmd.Env,
-		"INDEXNOW_ENDPOINT="+indexNowEndpoint(config),
-		"INDEXNOW_KEY="+indexNowKey(config),
-		"INDEXNOW_KEY_LOCATION="+indexNowKeyLocation(config),
-	)
-	if credential := googleSearchConsoleServiceJSON(config); credential != "" {
-		cmd.Env = append(cmd.Env, "GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON="+credential)
-	}
-	cmd.Stdin = bytes.NewReader(payload)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		detail := strings.TrimSpace(stderr.String())
-		if detail == "" {
-			detail = strings.TrimSpace(stdout.String())
-		}
-		if detail == "" {
-			detail = err.Error()
-		}
-		return nil, fmt.Errorf("search %s failed: %s", command, detail)
-	}
-	for _, line := range strings.Split(stdout.String(), "\n") {
-		if !strings.HasPrefix(line, searchBridgeResultPrefix) {
-			continue
-		}
-		raw := strings.TrimPrefix(line, searchBridgeResultPrefix)
-		if !json.Valid([]byte(raw)) {
-			return nil, errors.New("search bridge returned invalid JSON")
-		}
-		return json.RawMessage(raw), nil
-	}
-	return nil, errors.New("search bridge did not return a result")
-}
-
-func (s *Server) runSearchNodeWithProgress(
-	ctx context.Context,
-	config bridgeConfig,
-	command string,
-	input map[string]any,
-	onProgress func(json.RawMessage) error,
-) (json.RawMessage, error) {
-	runner := s.searchRunner
-	if runner != nil {
-		raw, err := runner(ctx, config, command, input)
-		if err != nil {
-			return nil, err
-		}
-		if command == "google-inspect" && onProgress != nil {
-			var report struct {
-				Offset         int                      `json:"offset"`
-				Inspected      int                      `json:"inspected"`
-				TotalAvailable int                      `json:"totalAvailable"`
-				Results        []searchInspectionResult `json:"results"`
-			}
-			if err := decodeSearchResult(raw, &report); err != nil {
-				return nil, err
-			}
-			for index, result := range report.Results {
-				nextOffset := report.Offset + index + 1
-				var next *int
-				if nextOffset < report.TotalAvailable {
-					value := nextOffset
-					next = &value
-				}
-				progress, err := json.Marshal(map[string]any{
-					"offset":         report.Offset,
-					"inspected":      index + 1,
-					"totalAvailable": report.TotalAvailable,
-					"remaining":      max(0, report.TotalAvailable-nextOffset),
-					"nextOffset":     next,
-					"result":         result,
-				})
-				if err != nil {
-					return nil, err
-				}
-				if err := onProgress(progress); err != nil {
-					return nil, err
-				}
-			}
-		}
-		return raw, nil
-	}
-
-	node, err := configuredExecutable(config, "node")
-	if err != nil {
-		return nil, err
-	}
-	engineRoot := strings.TrimSpace(config.EngineRoot)
-	if engineRoot == "" {
-		return nil, errors.New("Public Engine path is not configured")
-	}
-	script := filepath.Join(engineRoot, "tools", "blogctl", "search", "node", "bridge-cli.mjs")
-	if !filePresent(script) {
-		return nil, fmt.Errorf("BlogCTL search bridge runtime was not found: %s", script)
-	}
-	if input == nil {
-		input = map[string]any{}
-	}
-	input["publicRoot"] = filepath.Join(engineRoot, "public")
-	payload, err := json.Marshal(input)
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := exec.CommandContext(ctx, node, script, command)
-	cmd.Dir = engineRoot
-	cmd.Env, err = processEnvironmentForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	cmd.Env = append(cmd.Env,
-		"INDEXNOW_ENDPOINT="+indexNowEndpoint(config),
-		"INDEXNOW_KEY="+indexNowKey(config),
-		"INDEXNOW_KEY_LOCATION="+indexNowKeyLocation(config),
-	)
-	if credential := googleSearchConsoleServiceJSON(config); credential != "" {
-		cmd.Env = append(cmd.Env, "GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON="+credential)
-	}
-	cmd.Stdin = bytes.NewReader(payload)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 64*1024), 32*1024*1024)
-	var result json.RawMessage
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch {
-		case strings.HasPrefix(line, searchBridgeProgressPrefix):
-			if onProgress == nil {
-				continue
-			}
-			raw := strings.TrimPrefix(line, searchBridgeProgressPrefix)
-			if !json.Valid([]byte(raw)) {
-				_ = cmd.Process.Kill()
-				_ = cmd.Wait()
-				return nil, errors.New("search bridge returned invalid progress JSON")
-			}
-			if err := onProgress(json.RawMessage(raw)); err != nil {
-				_ = cmd.Process.Kill()
-				_ = cmd.Wait()
-				return nil, err
-			}
-		case strings.HasPrefix(line, searchBridgeResultPrefix):
-			raw := strings.TrimPrefix(line, searchBridgeResultPrefix)
-			if !json.Valid([]byte(raw)) {
-				_ = cmd.Process.Kill()
-				_ = cmd.Wait()
-				return nil, errors.New("search bridge returned invalid JSON")
-			}
-			result = append(json.RawMessage(nil), []byte(raw)...)
-		}
-	}
-	scanErr := scanner.Err()
-	waitErr := cmd.Wait()
-	if scanErr != nil {
-		return nil, fmt.Errorf("search %s output failed: %w", command, scanErr)
-	}
-	if waitErr != nil {
-		detail := strings.TrimSpace(stderr.String())
-		if detail == "" {
-			detail = waitErr.Error()
-		}
-		return nil, fmt.Errorf("search %s failed: %s", command, detail)
-	}
-	if len(result) == 0 {
-		return nil, errors.New("search bridge did not return a result")
-	}
-	return result, nil
+	return s.searchRunner(ctx, config, command, input)
 }
 
 func googleInspectionQuotaExceeded(err error) bool {
@@ -578,18 +367,6 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
 }
 
-func aggregateHTTPStatus(results []struct {
-	HTTPStatus int `json:"httpStatus"`
-}) int {
-	status := 0
-	for _, result := range results {
-		if result.HTTPStatus > status {
-			status = result.HTTPStatus
-		}
-	}
-	return status
-}
-
 func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *http.Request) {
 	if !s.allowSyncControlWrite(response, request) {
 		return
@@ -644,49 +421,6 @@ func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *h
 		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
 		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
 		HTTPStatus: maxSearchHTTPStatus(payload.Result.Results),
-	}
-	refreshSearchCredentialsFlag(&state, s.config)
-	if err := saveSearchIndexState(state); err != nil {
-		writeError(response, err)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
-}
-
-func (s *Server) handleSearchGoogleSitemaps(response http.ResponseWriter, request *http.Request) {
-	if !s.allowSyncControlWrite(response, request) {
-		return
-	}
-	state := loadSearchIndexState()
-	started := s.now().UTC()
-	state.Google.Sitemaps = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
-	_ = saveSearchIndexState(state)
-
-	raw, err := s.runSearchNode(request.Context(), s.config, "google-sitemaps", nil)
-	if err != nil {
-		state.Google.Sitemaps.State = "failed"
-		state.Google.Sitemaps.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Google.Sitemaps.Error = err.Error()
-		refreshSearchCredentialsFlag(&state, s.config)
-		_ = saveSearchIndexState(state)
-		writeError(response, err)
-		return
-	}
-	var payload struct {
-		Inventory searchInventoryState `json:"inventory"`
-		Result    []struct {
-			HTTPStatus int `json:"httpStatus"`
-		} `json:"result"`
-	}
-	if err := decodeSearchResult(raw, &payload); err != nil {
-		writeError(response, err)
-		return
-	}
-	state.Inventory = payload.Inventory
-	state.Google.Sitemaps = searchOperationState{
-		State: "completed", StartedAt: started.Format(time.RFC3339),
-		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: len(payload.Result),
-		HTTPStatus: aggregateHTTPStatus(payload.Result),
 	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
@@ -763,108 +497,6 @@ func mergeInspectionResults(existing, incoming []searchInspectionResult) []searc
 		result = append(result, byURL[url])
 	}
 	return result
-}
-
-func (s *Server) handleSearchGoogleInspect(response http.ResponseWriter, request *http.Request) {
-	if !s.allowSyncControlWrite(response, request) {
-		return
-	}
-	var input struct {
-		Offset int `json:"offset"`
-		Limit  int `json:"limit"`
-	}
-	if err := readJSON(request, maxBodyBytes, &input); err != nil {
-		writeError(response, err)
-		return
-	}
-	if input.Limit == 0 {
-		input.Limit = 2000
-	}
-	if input.Offset < 0 || input.Limit < 1 || input.Limit > 2000 {
-		writeAPIError(response, http.StatusBadRequest, "invalid_search_inspection_range", "Google inspection requires offset >= 0 and 1 <= limit <= 2000", nil)
-		return
-	}
-	state := loadSearchIndexState()
-	started := s.now().UTC()
-	state.Google.Inspection.State = "running"
-	state.Google.Inspection.StartedAt = started.Format(time.RFC3339)
-	state.Google.Inspection.Offset = input.Offset
-	state.Google.Inspection.Limit = input.Limit
-	state.Google.Inspection.Error = ""
-	_ = saveSearchIndexState(state)
-
-	raw, err := s.runSearchNode(request.Context(), s.config, "google-inspect", map[string]any{
-		"offset": input.Offset,
-		"limit":  input.Limit,
-	})
-	if err != nil {
-		if googleInspectionQuotaExceeded(err) {
-			state.Google.Inspection.State = "quota_blocked"
-			state.Google.Inspection.FinishedAt = ""
-			state.Google.Inspection.Error = googleInspectionQuotaMessage()
-			refreshSearchCredentialsFlag(&state, s.config)
-			_ = saveSearchIndexState(state)
-			writeAPIError(response, http.StatusTooManyRequests, "google_inspection_quota_blocked", googleInspectionQuotaMessage(), nil)
-			return
-		}
-		state.Google.Inspection.State = "failed"
-		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Google.Inspection.Error = err.Error()
-		refreshSearchCredentialsFlag(&state, s.config)
-		_ = saveSearchIndexState(state)
-		writeError(response, err)
-		return
-	}
-	var report struct {
-		Offset         int                      `json:"offset"`
-		Limit          int                      `json:"limit"`
-		Inspected      int                      `json:"inspected"`
-		TotalAvailable int                      `json:"totalAvailable"`
-		Remaining      int                      `json:"remaining"`
-		NextOffset     *int                     `json:"nextOffset"`
-		Results        []searchInspectionResult `json:"results"`
-		Inventory      searchInventoryState     `json:"inventory"`
-		InventoryURLs  []string                 `json:"inventoryUrls"`
-	}
-	if err := decodeSearchResult(raw, &report); err != nil {
-		writeError(response, err)
-		return
-	}
-	checkedAt := s.now().UTC().Format(time.RFC3339)
-	for index := range report.Results {
-		report.Results[index].CheckedAt = checkedAt
-	}
-	if len(report.InventoryURLs) > 0 {
-		report.Inventory.URLs = append([]string(nil), report.InventoryURLs...)
-		if report.Inventory.Total <= 0 {
-			report.Inventory.Total = len(report.InventoryURLs)
-		}
-		reconcileInspectionInventory(&state.Google.Inspection, report.Inventory)
-		state.Inventory = compactSearchInventory(report.Inventory)
-	}
-	mergedResults := mergeInspectionResults(state.Google.Inspection.Results, report.Results)
-	state.Google.Inspection = searchInspectionState{
-		State: "completed", StartedAt: started.Format(time.RFC3339), FinishedAt: checkedAt,
-		Offset: report.Offset, Limit: report.Limit, Results: mergedResults,
-	}
-	if len(report.InventoryURLs) > 0 {
-		report.Inventory.URLs = append([]string(nil), report.InventoryURLs...)
-		reconcileInspectionInventory(&state.Google.Inspection, report.Inventory)
-	} else {
-		state.Google.Inspection.Inspected = len(mergedResults)
-		state.Google.Inspection.Total = report.TotalAvailable
-		state.Google.Inspection.Remaining = max(0, report.TotalAvailable-len(mergedResults))
-		state.Google.Inspection.NextOffset = report.NextOffset
-		if state.Google.Inspection.Remaining == 0 {
-			state.Google.Inspection.NextOffset = nil
-		}
-	}
-	refreshSearchCredentialsFlag(&state, s.config)
-	if err := saveSearchIndexState(state); err != nil {
-		writeError(response, err)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
 }
 
 func googleRequestCandidate(result searchInspectionResult) bool {
