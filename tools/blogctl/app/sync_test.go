@@ -85,12 +85,12 @@ func testCompilePlatform(_ context.Context, options blogcompiler.CompileOptions)
 	for _, article := range articles {
 		result = append(result, blogcompiler.CompiledArticle{
 			Version: blogcompiler.ProtocolVersion,
-			Slug: article, Platform: options.Platform,
+			Slug:    article, Platform: options.Platform,
 			Title: "Compiled " + article, Description: "Description",
 			Markdown: "Body", HTML: "<p>Body</p>", Language: "zh-CN",
 			CanonicalURL: "https://thinkerqaq.github.io/articles/" + article + "/",
-			ContentHash: "hash-" + article + "-" + options.Platform,
-			SourceDir: "/tmp/articles",
+			ContentHash:  "hash-" + article + "-" + options.Platform,
+			SourceDir:    "/tmp/articles",
 		})
 	}
 	return result, nil
@@ -233,7 +233,7 @@ func TestSyncServiceEmitsPlatformEvents(t *testing.T) {
 
 	events := []SyncEvent{}
 	service := SyncService{
-		Runner: structuredEventRunner{},
+		Runner:   structuredEventRunner{},
 		Compiler: testCompilePlatform,
 		OnEvent: func(event SyncEvent) {
 			events = append(events, event)
@@ -380,7 +380,7 @@ func TestSyncServiceCreatesNativeJuejinDraftWithoutWechatsync(t *testing.T) {
 	runner := &recordingRunner{}
 	calls := []NativeDraftRequest{}
 	service := SyncService{
-		Runner: runner,
+		Runner:   runner,
 		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			calls = append(calls, request)
@@ -445,7 +445,7 @@ func TestSyncServicePublishesNativeDraft(t *testing.T) {
 	var calls []NativePublishRequest
 	var events []SyncEvent
 	service := SyncService{
-		Runner: &recordingRunner{},
+		Runner:   &recordingRunner{},
 		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{publish: func(_ context.Context, request NativePublishRequest) (NativePublishResult, error) {
 			calls = append(calls, request)
@@ -507,7 +507,7 @@ func TestSyncServiceRoutesLiveMediumThroughNativePublisher(t *testing.T) {
 
 	var calls []NativeDraftRequest
 	service := SyncService{
-		Runner: &recordingRunner{},
+		Runner:   &recordingRunner{},
 		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			calls = append(calls, request)
@@ -631,7 +631,7 @@ func TestSyncServiceIsolatesInternationalPublisherFailures(t *testing.T) {
 
 	var events []SyncEvent
 	service := SyncService{
-		Runner: isolatedFailureRunner{},
+		Runner:   isolatedFailureRunner{},
 		Compiler: testCompilePlatform,
 		NativePublisher: nativePublisherStub{draft: func(_ context.Context, request NativeDraftRequest) (NativeDraftResult, error) {
 			if request.Platform == "devto" {

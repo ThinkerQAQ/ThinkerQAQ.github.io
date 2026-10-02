@@ -11,26 +11,30 @@ import (
 const DefaultAssetBaseURL = "https://pub-366a15b6733345039775c083a1fffb3e.r2.dev/"
 
 type FooterConfig struct {
-	Enabled bool `json:"enabled"`
+	Enabled  bool   `json:"enabled"`
 	Template string `json:"template"`
 }
-type CanonicalConfig struct { Mode string `json:"mode"` }
+type CanonicalConfig struct {
+	Mode string `json:"mode"`
+}
 type TrackingConfig struct {
-	Enabled bool `json:"enabled"`
-	Source string `json:"source"`
-	Medium string `json:"medium"`
+	Enabled  bool   `json:"enabled"`
+	Source   string `json:"source"`
+	Medium   string `json:"medium"`
 	Campaign string `json:"campaign"`
 }
 type PlatformConfig struct {
-	Language string `json:"language"`
-	ChangedOnly bool `json:"changedOnly"`
-	Footer FooterConfig `json:"footer"`
-	Canonical CanonicalConfig `json:"canonical"`
-	Tracking TrackingConfig `json:"tracking"`
+	Language    string          `json:"language"`
+	ChangedOnly bool            `json:"changedOnly"`
+	Footer      FooterConfig    `json:"footer"`
+	Canonical   CanonicalConfig `json:"canonical"`
+	Tracking    TrackingConfig  `json:"tracking"`
 }
 type PublishingConfig struct {
 	Assets struct {
-		R2 struct { PublicBaseURL string `json:"publicBaseUrl"` } `json:"r2"`
+		R2 struct {
+			PublicBaseURL string `json:"publicBaseUrl"`
+		} `json:"r2"`
 	} `json:"assets"`
 	Platforms map[string]PlatformConfig `json:"platforms"`
 }
@@ -43,29 +47,43 @@ func defaultFooterTemplate(language string) string {
 }
 func defaultPlatformConfig(id string) PlatformConfig {
 	language := blogplatform.DefaultLanguage(id)
-	if language == "" { language = "zh-CN" }
+	if language == "" {
+		language = "zh-CN"
+	}
 	mode := "footer"
-	if id == "devto" || id == "medium" { mode = "native" }
+	if id == "devto" || id == "medium" {
+		mode = "native"
+	}
 	return PlatformConfig{
-		Language: language,
-		Footer: FooterConfig{Enabled:true, Template:defaultFooterTemplate(language)},
-		Canonical: CanonicalConfig{Mode:mode},
-		Tracking: TrackingConfig{Enabled:true, Source:id, Medium:"referral", Campaign:"article_syndication"},
+		Language:  language,
+		Footer:    FooterConfig{Enabled: true, Template: defaultFooterTemplate(language)},
+		Canonical: CanonicalConfig{Mode: mode},
+		Tracking:  TrackingConfig{Enabled: true, Source: id, Medium: "referral", Campaign: "article_syndication"},
 	}
 }
 func ParsePublishingConfig(raw string) (PublishingConfig, error) {
-	config := PublishingConfig{Platforms:map[string]PlatformConfig{}}
+	config := PublishingConfig{Platforms: map[string]PlatformConfig{}}
 	config.Assets.R2.PublicBaseURL = DefaultAssetBaseURL
-	for _, id := range blogplatform.IDs() { config.Platforms[id] = defaultPlatformConfig(id) }
-	if strings.TrimSpace(raw) == "" { return config, nil }
+	for _, id := range blogplatform.IDs() {
+		config.Platforms[id] = defaultPlatformConfig(id)
+	}
+	if strings.TrimSpace(raw) == "" {
+		return config, nil
+	}
 	var decoded PublishingConfig
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
 		return PublishingConfig{}, errors.New("invalid publishing JSON: " + err.Error())
 	}
-	if decoded.Platforms == nil { return PublishingConfig{}, errors.New("publishing JSON is missing platforms") }
-	if strings.TrimSpace(decoded.Assets.R2.PublicBaseURL) == "" { decoded.Assets.R2.PublicBaseURL = DefaultAssetBaseURL }
+	if decoded.Platforms == nil {
+		return PublishingConfig{}, errors.New("publishing JSON is missing platforms")
+	}
+	if strings.TrimSpace(decoded.Assets.R2.PublicBaseURL) == "" {
+		decoded.Assets.R2.PublicBaseURL = DefaultAssetBaseURL
+	}
 	for _, id := range blogplatform.IDs() {
-		if _, ok := decoded.Platforms[id]; !ok { decoded.Platforms[id] = defaultPlatformConfig(id) }
+		if _, ok := decoded.Platforms[id]; !ok {
+			decoded.Platforms[id] = defaultPlatformConfig(id)
+		}
 	}
 	return decoded, nil
 }

@@ -22,26 +22,26 @@ type mediumImage struct {
 }
 
 type mediumParagraphPayload struct {
-	Type int `json:"type"`
-	Text string `json:"text"`
-	Markups []mediumMarkup `json:"markups"`
-	Layout *int `json:"layout,omitempty"`
+	Type     int            `json:"type"`
+	Text     string         `json:"text"`
+	Markups  []mediumMarkup `json:"markups"`
+	Layout   *int           `json:"layout,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 type mediumDeltaPayload struct {
-	Type int `json:"type"`
-	Index int `json:"index"`
+	Type      int                    `json:"type"`
+	Index     int                    `json:"index"`
 	Paragraph mediumParagraphPayload `json:"paragraph"`
-	Image *mediumImage `json:"image,omitempty"`
+	Image     *mediumImage           `json:"image,omitempty"`
 }
 
 type mediumPayload struct {
-	Title string `json:"title"`
-	Deltas []mediumDeltaPayload `json:"deltas"`
-	CanonicalURL string `json:"canonicalUrl"`
-	Tags []string `json:"tags"`
-	CoverImage *mediumImage `json:"coverImage"`
+	Title        string               `json:"title"`
+	Deltas       []mediumDeltaPayload `json:"deltas"`
+	CanonicalURL string               `json:"canonicalUrl"`
+	Tags         []string             `json:"tags"`
+	CoverImage   *mediumImage         `json:"coverImage"`
 }
 
 func mediumFooter(article Article, canonical string, profile PlatformConfig) *mediumInline {
@@ -61,7 +61,9 @@ func mediumFooter(article Article, canonical string, profile PlatformConfig) *me
 
 func firstMediumTags(tags []string) []string {
 	limit := len(tags)
-	if limit > 5 { limit = 5 }
+	if limit > 5 {
+		limit = 5
+	}
 	return append([]string{}, tags[:limit]...)
 }
 
@@ -71,84 +73,126 @@ func buildMediumPayload(article Article, slug string, profile PlatformConfig, co
 	coverURL := resolveArticleAssetURL(article.CoverImage)
 	content := blocks
 	if coverURL != "" {
-		content = append([]mediumBlock{{Kind:"image", URL:coverURL, Alt:article.CoverImageAlt}}, blocks...)
+		content = append([]mediumBlock{{Kind: "image", URL: coverURL, Alt: article.CoverImageAlt}}, blocks...)
 	}
 	deltas := make([]mediumDeltaPayload, 0, len(content)+1)
 	for index, block := range content {
 		if block.Kind == "image" {
 			layout := 1
 			deltas = append(deltas, mediumDeltaPayload{
-				Type:1, Index:index,
-				Paragraph:mediumParagraphPayload{
-					Type:mediumImageParagraph, Text:"", Markups:[]mediumMarkup{},
-					Layout:&layout, Metadata:map[string]any{},
+				Type: 1, Index: index,
+				Paragraph: mediumParagraphPayload{
+					Type: mediumImageParagraph, Text: "", Markups: []mediumMarkup{},
+					Layout: &layout, Metadata: map[string]any{},
 				},
-				Image:&mediumImage{URL:block.URL, Alt:block.Alt},
+				Image: &mediumImage{URL: block.URL, Alt: block.Alt},
 			})
 			continue
 		}
 		markups := block.Markups
-		if markups == nil { markups = []mediumMarkup{} }
+		if markups == nil {
+			markups = []mediumMarkup{}
+		}
 		deltas = append(deltas, mediumDeltaPayload{
-			Type:1, Index:index,
-			Paragraph:mediumParagraphPayload{Type:block.ParagraphType, Text:block.Text, Markups:markups},
+			Type: 1, Index: index,
+			Paragraph: mediumParagraphPayload{Type: block.ParagraphType, Text: block.Text, Markups: markups},
 		})
 	}
 	if footer := mediumFooter(article, canonical, profile); footer != nil {
 		deltas = append(deltas, mediumDeltaPayload{
-			Type:1, Index:len(deltas),
-			Paragraph:mediumParagraphPayload{Type:mediumBlockquote, Text:footer.Text, Markups:footer.Markups},
+			Type: 1, Index: len(deltas),
+			Paragraph: mediumParagraphPayload{Type: mediumBlockquote, Text: footer.Text, Markups: footer.Markups},
 		})
 	}
 	nativeCanonical := ""
-	if profile.Canonical.Mode == "native" { nativeCanonical = canonical }
+	if profile.Canonical.Mode == "native" {
+		nativeCanonical = canonical
+	}
 	var cover *mediumImage
-	if coverURL != "" { cover=&mediumImage{URL:coverURL,Alt:article.CoverImageAlt} }
+	if coverURL != "" {
+		cover = &mediumImage{URL: coverURL, Alt: article.CoverImageAlt}
+	}
 	return mediumPayload{
-		Title:article.Title, Deltas:deltas, CanonicalURL:nativeCanonical,
-		Tags:firstMediumTags(article.Tags), CoverImage:cover,
+		Title: article.Title, Deltas: deltas, CanonicalURL: nativeCanonical,
+		Tags: firstMediumTags(article.Tags), CoverImage: cover,
 	}, warnings
 }
 
 func renderMediumBlocks(blocks []mediumBlock) string {
-	out:=[]string{};listKind:=""
-	closeList:=func(){if listKind!=""{if listKind=="uli"{out=append(out,"</ul>")}else{out=append(out,"</ol>")};listKind=""}}
-	for _,block:=range blocks {
-		if block.Kind=="uli"||block.Kind=="oli"{
-			if listKind!=block.Kind{closeList();if block.Kind=="uli"{out=append(out,"<ul>")}else{out=append(out,"<ol>")};listKind=block.Kind}
-			out=append(out,"<li>"+block.HTML+"</li>");continue
+	out := []string{}
+	listKind := ""
+	closeList := func() {
+		if listKind != "" {
+			if listKind == "uli" {
+				out = append(out, "</ul>")
+			} else {
+				out = append(out, "</ol>")
+			}
+			listKind = ""
+		}
+	}
+	for _, block := range blocks {
+		if block.Kind == "uli" || block.Kind == "oli" {
+			if listKind != block.Kind {
+				closeList()
+				if block.Kind == "uli" {
+					out = append(out, "<ul>")
+				} else {
+					out = append(out, "<ol>")
+				}
+				listKind = block.Kind
+			}
+			out = append(out, "<li>"+block.HTML+"</li>")
+			continue
 		}
 		closeList()
 		switch block.Kind {
 		case "image":
-			caption:="";if block.Alt!=""{caption="<figcaption>"+mediumEscapeHTML(block.Alt)+"</figcaption>"}
-			out=append(out,"<figure class=\"body-image\"><img src=\""+mediumEscapeHTML(block.URL)+"\" alt=\""+mediumEscapeHTML(block.Alt)+"\">"+caption+"</figure>")
+			caption := ""
+			if block.Alt != "" {
+				caption = "<figcaption>" + mediumEscapeHTML(block.Alt) + "</figcaption>"
+			}
+			out = append(out, "<figure class=\"body-image\"><img src=\""+mediumEscapeHTML(block.URL)+"\" alt=\""+mediumEscapeHTML(block.Alt)+"\">"+caption+"</figure>")
 		case "pre":
-			language:="";if block.Language!=""{language=" class=\"language-"+mediumEscapeHTML(block.Language)+"\""}
-			out=append(out,"<pre><code"+language+">"+mediumEscapeHTML(block.Text)+"</code></pre>")
+			language := ""
+			if block.Language != "" {
+				language = " class=\"language-" + mediumEscapeHTML(block.Language) + "\""
+			}
+			out = append(out, "<pre><code"+language+">"+mediumEscapeHTML(block.Text)+"</code></pre>")
 		case "blockquote":
-			out=append(out,"<blockquote><p>"+strings.ReplaceAll(block.HTML,"\n","<br>")+"</p></blockquote>")
+			out = append(out, "<blockquote><p>"+strings.ReplaceAll(block.HTML, "\n", "<br>")+"</p></blockquote>")
 		case "heading":
-			level:=3;if block.Level<=2{level=2}
-			out=append(out,fmt.Sprintf("<h%d>%s</h%d>",level,block.HTML,level))
+			level := 3
+			if block.Level <= 2 {
+				level = 2
+			}
+			out = append(out, fmt.Sprintf("<h%d>%s</h%d>", level, block.HTML, level))
 		default:
-			out=append(out,"<p>"+block.HTML+"</p>")
+			out = append(out, "<p>"+block.HTML+"</p>")
 		}
 	}
-	closeList();return strings.Join(out,"\n")
+	closeList()
+	return strings.Join(out, "\n")
 }
 
 func buildMediumCopyHTML(article Article, slug string, profile PlatformConfig, compiledMarkdown string) string {
-	canonical:=CanonicalURL(slug,profile.Language)
-	blocks,_:=parseMediumBlocks(compiledMarkdown)
-	body:=renderMediumBlocks(blocks)
-	coverURL:=resolveArticleAssetURL(article.CoverImage)
-	coverHTML:=""
-	if coverURL!=""{coverHTML="<figure class=\"cover\"><img src=\""+mediumEscapeHTML(coverURL)+"\" alt=\""+mediumEscapeHTML(article.CoverImageAlt)+"\"></figure>\n"}
-	footerHTML:=""
-	if footer:=mediumFooter(article,canonical,profile);footer!=nil{footerHTML="\n<hr>\n<blockquote><p>"+footer.HTML+"</p></blockquote>"}
-	language:=profile.Language;if language!="zh-CN"{language="en"}
-	template:=`<!doctype html>
+	canonical := CanonicalURL(slug, profile.Language)
+	blocks, _ := parseMediumBlocks(compiledMarkdown)
+	body := renderMediumBlocks(blocks)
+	coverURL := resolveArticleAssetURL(article.CoverImage)
+	coverHTML := ""
+	if coverURL != "" {
+		coverHTML = "<figure class=\"cover\"><img src=\"" + mediumEscapeHTML(coverURL) + "\" alt=\"" + mediumEscapeHTML(article.CoverImageAlt) + "\"></figure>\n"
+	}
+	footerHTML := ""
+	if footer := mediumFooter(article, canonical, profile); footer != nil {
+		footerHTML = "\n<hr>\n<blockquote><p>" + footer.HTML + "</p></blockquote>"
+	}
+	language := profile.Language
+	if language != "zh-CN" {
+		language = "en"
+	}
+	template := `<!doctype html>
 <html lang="{{LANG}}">
 <head>
 <meta charset="utf-8">
@@ -190,43 +234,65 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 </body>
 </html>`
 	return strings.NewReplacer(
-		"{{LANG}}",language,
-		"{{TITLE}}",mediumEscapeHTML(article.Title),
-		"{{COVER}}",coverHTML,
-		"{{BODY}}",body,
-		"{{FOOTER}}",footerHTML,
+		"{{LANG}}", language,
+		"{{TITLE}}", mediumEscapeHTML(article.Title),
+		"{{COVER}}", coverHTML,
+		"{{BODY}}", body,
+		"{{FOOTER}}", footerHTML,
 	).Replace(template)
 }
 
-func jsonStringify(value any) (string,error) {
+func jsonStringify(value any) (string, error) {
 	var buffer bytes.Buffer
-	encoder:=json.NewEncoder(&buffer);encoder.SetEscapeHTML(false)
-	if err:=encoder.Encode(value);err!=nil{return "",err}
-	return strings.TrimSuffix(buffer.String(),"\n"),nil
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(buffer.String(), "\n"), nil
 }
 
-func compileMedium(ctx compileContext) (CompiledArticle,error) {
-	article:=ctx.article
-	portable,assets,err:=CompilePublishingMarkdown(article.Body,ctx.assetBase);if err!=nil{return CompiledArticle{},err};portable=strings.TrimSpace(portable)
-	payload,warnings:=buildMediumPayload(article,ctx.slug,ctx.profile,portable)
-	fallback:=buildMediumCopyHTML(article,ctx.slug,ctx.profile,portable)
-	hashValue,err:=jsonStringify(struct{
-		Payload mediumPayload `json:"payload"`
-		FallbackHTML string `json:"fallbackHTML"`
-		RequiresFallback bool `json:"requiresFallback"`
-	}{payload,fallback,false});if err!=nil{return CompiledArticle{},err}
-	payloadJSON,err:=json.Marshal(payload);if err!=nil{return CompiledArticle{},err}
-	html:=fallback;markdown:=portable
-	if !ctx.options.DryRun{
-		markdown=replaceAssetURLs(markdown,assets);html=replaceAssetURLs(html,assets)
-		payloadText:=replaceAssetURLs(string(payloadJSON),assets);payloadJSON=[]byte(payloadText)
-		for index:=range assets{assets[index].Source="blogctl-asset://"+assets[index].Kind+"/"+assets[index].ID}
-	}else{for index:=range assets{assets[index].Source=assets[index].PublicURL}}
+func compileMedium(ctx compileContext) (CompiledArticle, error) {
+	article := ctx.article
+	portable, assets, err := CompilePublishingMarkdown(article.Body, ctx.assetBase)
+	if err != nil {
+		return CompiledArticle{}, err
+	}
+	portable = strings.TrimSpace(portable)
+	payload, warnings := buildMediumPayload(article, ctx.slug, ctx.profile, portable)
+	fallback := buildMediumCopyHTML(article, ctx.slug, ctx.profile, portable)
+	hashValue, err := jsonStringify(struct {
+		Payload          mediumPayload `json:"payload"`
+		FallbackHTML     string        `json:"fallbackHTML"`
+		RequiresFallback bool          `json:"requiresFallback"`
+	}{payload, fallback, false})
+	if err != nil {
+		return CompiledArticle{}, err
+	}
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return CompiledArticle{}, err
+	}
+	html := fallback
+	markdown := portable
+	if !ctx.options.DryRun {
+		markdown = replaceAssetURLs(markdown, assets)
+		html = replaceAssetURLs(html, assets)
+		payloadText := replaceAssetURLs(string(payloadJSON), assets)
+		payloadJSON = []byte(payloadText)
+		for index := range assets {
+			assets[index].Source = "blogctl-asset://" + assets[index].Kind + "/" + assets[index].ID
+		}
+	} else {
+		for index := range assets {
+			assets[index].Source = assets[index].PublicURL
+		}
+	}
 	return CompiledArticle{
-		Version:ProtocolVersion,Slug:ctx.slug,Platform:"medium",Title:article.Title,Description:article.Description,
-		Markdown:markdown,HTML:html,Language:ctx.profile.Language,CanonicalURL:CanonicalURL(ctx.slug,ctx.profile.Language),
-		NativeCanonicalURL:payload.CanonicalURL,Tags:payload.Tags,CoverImageURL:resolveArticleAssetURL(article.CoverImage),
-		Published:false,Payload:payloadJSON,FallbackHTML:fallback,RequiresFallback:false,Warnings:warnings,
-		ContentHash:hashText(hashValue),SourceDir:ctx.sourceDir,Assets:assets,
-	},nil
+		Version: ProtocolVersion, Slug: ctx.slug, Platform: "medium", Title: article.Title, Description: article.Description,
+		Markdown: markdown, HTML: html, Language: ctx.profile.Language, CanonicalURL: CanonicalURL(ctx.slug, ctx.profile.Language),
+		NativeCanonicalURL: payload.CanonicalURL, Tags: payload.Tags, CoverImageURL: resolveArticleAssetURL(article.CoverImage),
+		Published: false, Payload: payloadJSON, FallbackHTML: fallback, RequiresFallback: false, Warnings: warnings,
+		ContentHash: hashText(hashValue), SourceDir: ctx.sourceDir, Assets: assets,
+	}, nil
 }

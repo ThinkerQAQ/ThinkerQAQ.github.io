@@ -7,39 +7,39 @@ import (
 )
 
 const (
-	mediumParagraph = 1
-	mediumH2 = 3
+	mediumParagraph      = 1
+	mediumH2             = 3
 	mediumImageParagraph = 4
-	mediumH3 = 8
-	mediumBlockquote = 9
-	mediumPre = 10
-	mediumULI = 13
-	mediumOLI = 15
+	mediumH3             = 8
+	mediumBlockquote     = 9
+	mediumPre            = 10
+	mediumULI            = 13
+	mediumOLI            = 15
 
-	mediumMarkupBold = 1
+	mediumMarkupBold   = 1
 	mediumMarkupItalic = 2
-	mediumMarkupLink = 3
-	mediumMarkupCode = 10
+	mediumMarkupLink   = 3
+	mediumMarkupCode   = 10
 	mediumMarkupStrike = 11
 )
 
 type mediumMarkup struct {
-	Type int `json:"type"`
-	Start int `json:"start"`
-	End int `json:"end"`
-	Href string `json:"href,omitempty"`
-	AnchorType *int `json:"anchorType,omitempty"`
+	Type       int    `json:"type"`
+	Start      int    `json:"start"`
+	End        int    `json:"end"`
+	Href       string `json:"href,omitempty"`
+	AnchorType *int   `json:"anchorType,omitempty"`
 }
 
 type mediumInline struct {
-	Text string
+	Text    string
 	Markups []mediumMarkup
-	HTML string
+	HTML    string
 }
 
 type inlineTokenPattern struct {
 	kind string
-	re *regexp.Regexp
+	re   *regexp.Regexp
 }
 
 var mediumInlinePatterns = []inlineTokenPattern{
@@ -52,10 +52,10 @@ var mediumInlinePatterns = []inlineTokenPattern{
 }
 
 type mediumInlineToken struct {
-	kind string
-	start int
-	end int
-	first string
+	kind   string
+	start  int
+	end    int
+	first  string
 	second string
 }
 

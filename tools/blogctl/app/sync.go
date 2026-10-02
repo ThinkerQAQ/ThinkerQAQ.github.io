@@ -273,7 +273,7 @@ func (s SyncService) runSyncPlan(
 
 		if !request.DryRun && request.Operation == "draft" {
 			stats, assetErr := blogassets.Prepare(ctx, compiledArticles, blogassets.Config{
-				EngineRoot: config.EngineRoot,
+				EngineRoot:  config.EngineRoot,
 				ContentRoot: config.ContentRoot,
 				Node:        node,
 				Env:         env,
