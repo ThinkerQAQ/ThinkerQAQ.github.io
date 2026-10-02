@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -77,7 +78,10 @@ func ResolveIndexNowConfig(origin, publicRoot, endpoint, key, keyLocation string
 		if err != nil {
 			return IndexNowConfig{}, err
 		}
-		file := filepath.Join(publicRoot, filepath.FromSlash(relative))
+		file, err := safePath(publicRoot, filepath.FromSlash(relative), "IndexNow key file")
+		if err != nil {
+			return IndexNowConfig{}, err
+		}
 		hosted, err := os.ReadFile(file)
 		if err != nil {
 			return IndexNowConfig{}, err
@@ -114,7 +118,7 @@ func SubmitIndexNow(ctx context.Context, client *http.Client, urls []string, con
 		ordered = append(ordered, rawURL)
 	}
 	// URL order does not matter to IndexNow, but deterministic payloads help logs/tests.
-	sortStrings(ordered)
+	sort.Strings(ordered)
 
 	result := IndexNowResult{URLCount: len(ordered)}
 	for start := 0; start < len(ordered); start += MaxIndexNowURLs {
@@ -195,17 +199,6 @@ func CheckIndexNowKey(ctx context.Context, client *http.Client, config IndexNowC
 		return errors.New("IndexNow key location content does not match configured key")
 	}
 	return nil
-}
-
-func sortStrings(values []string) {
-	if len(values) < 2 {
-		return
-	}
-	for i := 1; i < len(values); i++ {
-		for j := i; j > 0 && values[j] < values[j-1]; j-- {
-			values[j], values[j-1] = values[j-1], values[j]
-		}
-	}
 }
 
 func mustURL(value string) *url.URL {
