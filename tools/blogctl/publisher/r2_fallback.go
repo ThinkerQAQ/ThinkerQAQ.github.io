@@ -10,15 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
+	blogr2 "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/storage/r2"
 )
 
 func r2FallbackReady(config R2FallbackConfig) bool {
-	return blogassets.IsR2Configured(config)
+	return blogr2.IsConfigured(config)
 }
 
 func r2PublicURL(config R2FallbackConfig, objectKey string) (string, error) {
-	return blogassets.R2PublicURL(config, objectKey)
+	return blogr2.PublicURL(config, objectKey)
 }
 
 func r2FallbackObject(input DraftInput, image RehostImage) (string, string) {
@@ -55,7 +55,7 @@ func uploadR2Fallback(ctx context.Context, client *http.Client, input DraftInput
 		return "", errors.New("R2 fallback object key is empty")
 	}
 
-	uploaded, err := blogassets.UploadR2Object(ctx, client, config, objectKey, image.Payload, image.ContentType)
+	uploaded, err := blogr2.UploadObject(ctx, client, config, objectKey, image.Payload, image.ContentType)
 	if err != nil {
 		return "", err
 	}
