@@ -19,8 +19,9 @@ const (
 )
 
 type BaiduConfig struct {
-	Site  string
-	Token string
+	Endpoint string
+	Site     string
+	Token    string
 }
 
 type BaiduBatchResult struct {
@@ -66,7 +67,7 @@ func ResolveBaiduConfig(origin, site, token string) (BaiduConfig, error) {
 	if strings.ContainsAny(token, "\r\n") {
 		return BaiduConfig{}, errors.New("Baidu push token is invalid")
 	}
-	return BaiduConfig{Site: normalizedSite, Token: token}, nil
+	return BaiduConfig{Endpoint: BaiduSubmitEndpoint, Site: normalizedSite, Token: token}, nil
 }
 
 func SubmitBaidu(ctx context.Context, client *http.Client, urls []string, config BaiduConfig) (BaiduResult, error) {
@@ -116,7 +117,14 @@ func SubmitBaidu(ctx context.Context, client *http.Client, urls []string, config
 }
 
 func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, config BaiduConfig) (BaiduBatchResult, error) {
-	endpoint, _ := url.Parse(BaiduSubmitEndpoint)
+	endpointValue := strings.TrimSpace(config.Endpoint)
+	if endpointValue == "" {
+		endpointValue = BaiduSubmitEndpoint
+	}
+	endpoint, err := url.Parse(endpointValue)
+	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {
+		return BaiduBatchResult{}, errors.New("Baidu submit endpoint is invalid")
+	}
 	query := endpoint.Query()
 	query.Set("site", config.Site)
 	query.Set("token", config.Token)
