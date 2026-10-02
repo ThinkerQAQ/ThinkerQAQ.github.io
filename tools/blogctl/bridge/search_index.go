@@ -1,9 +1,7 @@
 package bridge
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,8 +10,6 @@ import (
 	"strings"
 	"time"
 )
-
-type searchRunnerFunc func(context.Context, bridgeConfig, string, map[string]any) (json.RawMessage, error)
 
 type searchInventoryState struct {
 	Source              string            `json:"source"`
@@ -232,13 +228,6 @@ func saveSearchIndexState(state searchIndexState) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-func (s *Server) runInjectedSearch(ctx context.Context, config bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
-	if s.searchRunner == nil {
-		return nil, errors.New("legacy search runner is not configured")
-	}
-	return s.searchRunner(ctx, config, command, input)
-}
-
 func googleInspectionQuotaExceeded(err error) bool {
 	if err == nil {
 		return false
@@ -332,13 +321,6 @@ func (s *Server) searchState() searchIndexState {
 	return state
 }
 
-func decodeSearchResult(raw json.RawMessage, target any) error {
-	if len(raw) == 0 {
-		return errors.New("empty search result")
-	}
-	return json.Unmarshal(raw, target)
-}
-
 func (s *Server) handleSearchIndexGet(response http.ResponseWriter, request *http.Request) {
 	if !allowReadOnlyBridgeStatus(response, request) {
 		return
@@ -358,69 +340,6 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 	state := loadSearchIndexState()
 	reconcileInspectionInventory(&state.Google.Inspection, inventory)
 	state.Inventory = compactSearchInventory(inventory)
-	refreshSearchCredentialsFlag(&state, s.config)
-	if err := saveSearchIndexState(state); err != nil {
-		writeError(response, err)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "index": state})
-}
-
-func (s *Server) handleSearchBingSubmit(response http.ResponseWriter, request *http.Request) {
-	if !s.allowSyncControlWrite(response, request) {
-		return
-	}
-	var input struct {
-		Mode string `json:"mode"`
-	}
-	if err := readJSON(request, maxBodyBytes, &input); err != nil {
-		writeError(response, err)
-		return
-	}
-	input.Mode = strings.TrimSpace(input.Mode)
-	if input.Mode == "" {
-		input.Mode = "incremental"
-	}
-	if input.Mode != "incremental" && input.Mode != "full" {
-		writeAPIError(response, http.StatusBadRequest, "invalid_bing_submit_mode", "Bing submission mode must be incremental or full", nil)
-		return
-	}
-
-	state := loadSearchIndexState()
-	started := s.now().UTC()
-	state.Bing = searchOperationState{
-		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
-	}
-	_ = saveSearchIndexState(state)
-
-	previous := loadBingIndexSnapshot()
-	payload, err := s.submitBingIndexNow(request.Context(), input.Mode, previous)
-	if err != nil {
-		state.Bing.State = "failed"
-		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Bing.Error = err.Error()
-		_ = saveSearchIndexState(state)
-		writeError(response, err)
-		return
-	}
-
-	if err := saveBingIndexSnapshot(payload.Inventory); err != nil {
-		state.Bing.State = "failed"
-		state.Bing.FinishedAt = s.now().UTC().Format(time.RFC3339)
-		state.Bing.Error = err.Error()
-		_ = saveSearchIndexState(state)
-		writeError(response, err)
-		return
-	}
-
-	state.Inventory = compactSearchInventory(payload.Inventory)
-	state.Bing = searchOperationState{
-		State: "completed", Mode: payload.Diff.Mode, StartedAt: started.Format(time.RFC3339),
-		FinishedAt: s.now().UTC().Format(time.RFC3339), Count: payload.Result.URLCount,
-		NewCount: payload.Diff.AddedCount, ChangedCount: payload.Diff.ChangedCount,
-		DeletedCount: payload.Diff.DeletedCount, UnchangedCount: payload.Diff.UnchangedCount,
-		HTTPStatus: maxSearchHTTPStatus(payload.Result.Results),
-	}
 	refreshSearchCredentialsFlag(&state, s.config)
 	if err := saveSearchIndexState(state); err != nil {
 		writeError(response, err)
