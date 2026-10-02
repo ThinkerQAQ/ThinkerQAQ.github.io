@@ -98,8 +98,9 @@ type googleIndexRequestQueue struct {
 
 type searchIndexState struct {
 	Inventory searchInventoryState `json:"inventory"`
-	Bing      searchOperationState `json:"bing"`
-	Baidu     searchOperationState `json:"baidu"`
+	Bing            searchOperationState `json:"bing"`
+	Baidu           searchOperationState `json:"baidu"`
+	BaiduConfigured bool                 `json:"baiduConfigured"`
 	Google    struct {
 		CredentialsConfigured bool                    `json:"credentialsConfigured"`
 		CredentialsError      string                  `json:"credentialsError,omitempty"`
@@ -465,6 +466,7 @@ func googleInspectionQuotaMessage() string {
 }
 
 func refreshSearchCredentialsFlag(state *searchIndexState, config bridgeConfig) {
+	state.BaiduConfigured = baiduToken(config) != ""
 	raw := googleSearchConsoleServiceJSON(config)
 	state.Google.CredentialsConfigured = false
 	state.Google.CredentialsError = ""
@@ -522,6 +524,7 @@ func (s *Server) reconcileSearchStateWithDurableTasks(state *searchIndexState) {
 		return
 	}
 	applyActiveTaskToOperation(&state.Bing, s.latestDurableSearchTask("bing-indexnow"))
+	applyActiveTaskToOperation(&state.Baidu, s.latestDurableSearchTask("baidu-submit"))
 	applyActiveTaskToOperation(&state.Google.Sitemaps, s.latestDurableSearchTask("google-sitemaps"))
 	applyActiveTaskToInspection(&state.Google.Inspection, s.latestDurableSearchTask("google-inspection"))
 
