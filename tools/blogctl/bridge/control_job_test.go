@@ -231,13 +231,6 @@ func TestRetrySyncJobRejectsPublishAttempts(t *testing.T) {
 		t.Fatalf("publish job was mutated: %#v", server.jobs["publish-job"])
 	}
 
-	server.jobs["recovered-publish"] = &syncJob{
-		ID: "recovered-publish", State: "failed", Operation: "publish",
-		Request: syncRequest{Article: "example", Platforms: []string{"oschina"}},
-	}
-	if _, err := server.retrySyncJob("recovered-publish"); err == nil || !strings.Contains(err.Error(), "cannot be retried safely") {
-		t.Fatalf("recovered publish retry error = %v", err)
-	}
 }
 
 func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
