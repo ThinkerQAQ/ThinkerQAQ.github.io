@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type searchNodeRunner func(context.Context, bridgeConfig, string, map[string]any) (json.RawMessage, error)
+type searchRunnerFunc func(context.Context, bridgeConfig, string, map[string]any) (json.RawMessage, error)
 
 type searchInventoryState struct {
 	Source              string            `json:"source"`
@@ -233,7 +233,7 @@ func saveSearchIndexState(state searchIndexState) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-func (s *Server) runSearchNode(ctx context.Context, config bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
+func (s *Server) runInjectedSearch(ctx context.Context, config bridgeConfig, command string, input map[string]any) (json.RawMessage, error) {
 	if s.searchRunner == nil {
 		return nil, errors.New("legacy search runner is not configured")
 	}
