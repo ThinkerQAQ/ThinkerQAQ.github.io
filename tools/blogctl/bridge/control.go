@@ -456,7 +456,6 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				ID: "restart", Label: "重启 Bridge",
 				Description: "重新启动本地服务；存在运行中的同步任务时会拒绝操作。",
 			}},
-
 		},
 		{
 			Name: "content-workspace", DisplayName: "Content Repository", Kind: "runtime", Required: true,
