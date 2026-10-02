@@ -11,11 +11,10 @@ import {
   compilePublishingMarkdown,
 } from "./compiler.mjs";
 
-function compileDevto(article, { profile, policy, assetBaseUrl }) {
+function compileDevto(article, { profile, policy }) {
   const body = compilePublishingMarkdown(article.body, {
     platform: "devto",
     siteOrigin: "https://thinkerqaq.github.io",
-    assetBaseUrl,
   }).markdown.trim();
   const footer = renderPublishingFooter(profile, {
     canonicalUrl: policy.canonicalUrl,
@@ -43,24 +42,22 @@ export function renderArticle(request) {
     platform,
     profile,
     language,
-    assetBaseUrl,
     sourceDir = "",
     assets = [],
     policy,
   } = request || {};
-  if (!article || !slug || !platform || !profile || !language || !assetBaseUrl || !policy) {
+  if (!article || !slug || !platform || !profile || !language || !policy) {
     throw new Error("invalid compiler renderer request");
   }
 
   let compiled;
   if (platform === "devto") {
-    compiled = compileDevto(article, { profile, policy, assetBaseUrl });
+    compiled = compileDevto(article, { profile, policy });
   } else if (platform === "medium") {
     const mediumDraft = buildMediumDraft(article, { canonicalUrl: policy.canonicalUrl, publishingConfig: profile });
     const portable = compilePublishingMarkdown(article.body, {
       platform: "medium",
       siteOrigin: "https://thinkerqaq.github.io",
-      assetBaseUrl,
     }).markdown.trim();
     const fallbackHTML = buildMediumCopyHtml(article, { canonicalUrl: policy.canonicalUrl, publishingConfig: profile });
     compiled = {
@@ -88,7 +85,6 @@ export function renderArticle(request) {
     const body = compilePublishingMarkdown(article.body, {
       platform,
       siteOrigin: "https://thinkerqaq.github.io",
-      assetBaseUrl,
     }).markdown;
     const footer = renderPublishingFooter(profile, {
       canonicalUrl: policy.canonicalUrl,
@@ -99,7 +95,6 @@ export function renderArticle(request) {
     const portable = compilePublishingMarkdown(renderedBody, {
       platform,
       siteOrigin: "https://thinkerqaq.github.io",
-      assetBaseUrl,
     }).markdown.trim();
     compiled = {
       title: article.title,
