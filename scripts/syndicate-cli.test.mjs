@@ -38,9 +38,11 @@ test("defaults international syndication to DEV.to", () => {
   assert.deepEqual(extractRequestedPlatforms(["--article", "x"]), ["devto"]);
 });
 
-test("accepts Medium and mixed explicit platform selections", () => {
-  assert.deepEqual(extractRequestedPlatforms(["--platforms", "medium", "--article", "x"]), ["medium"]);
-  assert.deepEqual(extractRequestedPlatforms(["--platforms", "devto,medium", "--article", "x"]), ["devto", "medium"]);
+test("rejects Medium on the legacy Node syndication CLI", () => {
+  assert.throws(
+    () => extractRequestedPlatforms(["--platforms", "medium", "--article", "x"]),
+    /Unsupported platform/u,
+  );
 });
 
 test("rejects unsupported international platforms", () => {
