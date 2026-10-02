@@ -17,7 +17,6 @@ import {
 } from "../../../../scripts/medium.mjs";
 import {
   assertNoUncompiledDiagrams,
-  collectPublishingAssets,
   compilePublishingMarkdown,
 } from "./compiler.mjs";
 
@@ -106,6 +105,7 @@ export function renderArticle(request) {
     assetBaseUrl,
     dryRun = false,
     sourceDir = "",
+    assets = [],
   } = request || {};
   if (!article || !slug || !platform || !profile || !language || !assetBaseUrl) {
     throw new Error("invalid compiler renderer request");
@@ -194,7 +194,6 @@ export function renderArticle(request) {
   assertNoUncompiledDiagrams(compiled.markdown, { platform });
   assertNoUncompiledDiagrams(compiled.html, { platform });
 
-  const assets = collectPublishingAssets(article.body, { assetBaseUrl });
   const nativeImageUpload = useNativeImageUpload(platform) && !dryRun;
   if (nativeImageUpload && assets.length) {
     compiled.markdown = replaceAssetUrls(compiled.markdown, assets);
