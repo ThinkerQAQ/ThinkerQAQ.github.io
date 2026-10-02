@@ -40,7 +40,7 @@ func buildCanonicalURL(slug, language string) (string, error) {
 		if part == "" || part == "." || part == ".." {
 			return "", errors.New("invalid article slug")
 		}
-		encoded = append(encoded, url.PathEscape(part))
+		encoded = append(encoded, strings.ReplaceAll(url.QueryEscape(part), "+", "%20"))
 	}
 	prefix := "/articles/"
 	if language == "en" {
@@ -215,27 +215,6 @@ func replaceAssetURLs(value string, assets []Asset) string {
 	return result
 }
 
-func replaceAssetURLsDeep(value any, assets []Asset) any {
-	switch typed := value.(type) {
-	case string:
-		return replaceAssetURLs(typed, assets)
-	case []any:
-		result := make([]any, len(typed))
-		for index, item := range typed {
-			result[index] = replaceAssetURLsDeep(item, assets)
-		}
-		return result
-	case map[string]any:
-		result := make(map[string]any, len(typed))
-		for key, item := range typed {
-			result[key] = replaceAssetURLsDeep(item, assets)
-		}
-		return result
-	default:
-		return value
-	}
-}
-
 func applyAssetDeliveryPolicy(article *CompiledArticle, nativeImageUpload bool) error {
 	for index := range article.Assets {
 		if nativeImageUpload {
@@ -250,16 +229,16 @@ func applyAssetDeliveryPolicy(article *CompiledArticle, nativeImageUpload bool) 
 	article.Markdown = replaceAssetURLs(article.Markdown, article.Assets)
 	article.HTML = replaceAssetURLs(article.HTML, article.Assets)
 	if len(article.Payload) > 0 {
-		var payload any
-		if err := json.Unmarshal(article.Payload, &payload); err != nil {
-			return err
+		payload := string(article.Payload)
+		for _, asset := range article.Assets {
+			if asset.PublicURL != "" {
+				payload = strings.ReplaceAll(payload, asset.PublicURL, internalAssetRef(asset))
+			}
 		}
-		payload = replaceAssetURLsDeep(payload, article.Assets)
-		encoded, err := json.Marshal(payload)
-		if err != nil {
-			return err
+		if !json.Valid([]byte(payload)) {
+			return errors.New("asset replacement produced invalid payload JSON")
 		}
-		article.Payload = encoded
+		article.Payload = json.RawMessage(payload)
 	}
 	return nil
 }
