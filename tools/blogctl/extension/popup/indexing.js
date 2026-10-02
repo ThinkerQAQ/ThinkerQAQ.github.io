@@ -247,8 +247,9 @@
     elements.refreshInventory.disabled = state.busy.has("inventory");
     elements.bingSubmitIncremental.disabled = !inventoryReady || state.busy.has("bing");
     elements.bingSubmitFull.disabled = !inventoryReady || state.busy.has("bing");
-    elements.baiduSubmitIncremental.disabled = !inventoryReady || state.busy.has("baidu");
-    elements.baiduSubmitFull.disabled = !inventoryReady || state.busy.has("baidu");
+    const baiduReady = Boolean(index.baiduConfigured);
+    elements.baiduSubmitIncremental.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
+    elements.baiduSubmitFull.disabled = !inventoryReady || !baiduReady || state.busy.has("baidu");
     const sitemapState = String(sitemaps.state || "idle");
     elements.googleSitemaps.disabled = !google.credentialsConfigured || ["queued", "running"].includes(sitemapState) || state.busy.has("sitemaps");
     const inspectionComplete = inventoryReady && iStats.checked >= Number(inventory.total || 0);
