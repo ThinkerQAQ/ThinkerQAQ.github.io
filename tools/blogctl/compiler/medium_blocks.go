@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -115,10 +116,7 @@ func flattenMediumTables(markdown string) string {
 	}
 	return strings.Join(out,"\n")
 }
-func itoaMedium(value int) string {
-	if value < 10 { return string(rune('0'+value)) }
-	return "10"
-}
+func itoaMedium(value int) string { return strconv.Itoa(value) }
 func mediumIsBlockStart(line string) bool {
 	value:=strings.TrimSpace(line)
 	if value==""||mediumFenceEnd.MatchString(value)||mediumAnyHeading.MatchString(value)||strings.HasPrefix(value,">")||mediumUnordered.MatchString(value)||mediumOrdered.MatchString(value)||mediumStandaloneImage.MatchString(value){return true}

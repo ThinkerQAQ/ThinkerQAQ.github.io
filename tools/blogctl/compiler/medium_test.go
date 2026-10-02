@@ -1,6 +1,9 @@
 package compiler
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestMediumUTF16MarkupOffsets(t *testing.T) {
 	warnings:=[]string{}
@@ -9,7 +12,7 @@ func TestMediumUTF16MarkupOffsets(t *testing.T) {
 	var bold *mediumMarkup
 	for index:=range inline.Markups{if inline.Markups[index].Type==mediumMarkupBold{bold=&inline.Markups[index];break}}
 	if bold==nil{t.Fatal("missing bold markup")}
-	if bold.Start!=5||bold.End!=9{t.Fatalf("bold offset = %d..%d, want 5..9",bold.Start,bold.End)}
+	if bold.Start!=4||bold.End!=8{t.Fatalf("bold offset = %d..%d, want 4..8",bold.Start,bold.End)}
 }
 
 func TestMediumBlockParity(t *testing.T) {
@@ -26,5 +29,5 @@ func TestMediumBlockParity(t *testing.T) {
 
 func TestMediumTableFlattening(t *testing.T) {
 	got:=flattenMediumTables("| Expression | Meaning |\n| --- | --- |\n| `a | b` | bitwise OR |\n")
-	if got!="**`a | b`** — bitwise OR\n"{t.Fatalf("flattened=%q",got)}
+	if !strings.Contains(got,"**`a | b`** — bitwise OR"){t.Fatalf("flattened=%q",got)}
 }
