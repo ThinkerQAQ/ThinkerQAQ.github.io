@@ -13,9 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
-	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
-)
+	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version")
 
 const (
 	DefaultAddress = "127.0.0.1:32145"
@@ -345,10 +343,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleMediumArticleList(response, request, request.URL.Query().Get("article"))
 		return
 	}
-	if path == "v1/medium/lookup-context" && request.Method == http.MethodPost {
-		s.handleMediumLookupContext(response, request, request.URL.Query().Get("article"))
-		return
-	}
 	if path == "v1/medium/binding" && request.Method == http.MethodPost {
 		s.handleMediumBindingPut(response, request, request.URL.Query().Get("article"))
 		return
@@ -603,10 +597,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "platforms" && parts[3] == "drafts" && request.Method == http.MethodPost {
-		s.handleDraft(response, request, parts[2])
-		return
-	}
 
 	writeAPIError(response, http.StatusNotFound, "not_found", "not found", map[string]any{"path": "/" + path})
 }
@@ -1142,37 +1132,6 @@ func (s *Server) handleStatus(response http.ResponseWriter, platform string) {
 		}
 	}
 	writeJSON(response, http.StatusOK, payload)
-}
-
-func (s *Server) handleDraft(response http.ResponseWriter, request *http.Request, platform string) {
-	if platform != "medium" {
-		writeAPIError(response, http.StatusNotImplemented, "not_implemented", platform+" draft transport is not implemented by the browser bridge", map[string]any{"platform": platform})
-		return
-	}
-	s.mu.Lock()
-	session, ok := s.sessions[platform]
-	if ok && !session.ExpiresAt.After(s.now()) {
-		delete(s.sessions, platform)
-		ok = false
-	}
-	httpClient := s.httpClient
-	s.mu.Unlock()
-	if !ok {
-		writeAPIError(response, http.StatusPreconditionRequired, "medium_session_required", "medium_session_required", nil)
-		return
-	}
-	var draft mediumDraft
-	if err := readJSON(request, maxBodyBytes, &draft); err != nil {
-		writeError(response, err)
-		return
-	}
-	client := mediumClient{httpClient: httpClient}
-	result, err := client.createDraft(request.Context(), session, draft, publisher.DraftInput{})
-	if err != nil {
-		writeAPIError(response, http.StatusBadGateway, "upstream_error", err.Error(), nil)
-		return
-	}
-	writeJSON(response, http.StatusCreated, result)
 }
 
 func validBrowserExtensionOrigin(origin string) bool {
