@@ -6,9 +6,6 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/analytics-query.yml"
-      - "workers/blog-ai/src/analytics.js"
-      - "workers/blog-ai/src/bot-observation.js"
-      - "workers/blog-ai/src/worker.js"
   schedule:
     - cron: "12 * * * *"
 
@@ -24,127 +21,57 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
+      ANALYTICS_BASE_URL: ${{ vars.PUBLIC_ASK_BLOG_WORKER_URL || 'https://thinkerqaq-blog-ai.blog-ai.workers.dev/chat' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Query production analytics from Workers KV
+      - name: Query production analytics
         shell: bash
         run: |
           set -euo pipefail
 
           node --input-type=module <<'NODE'
-          import fs from "node:fs";
+          const origin = new URL(process.env.ANALYTICS_BASE_URL).origin;
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-          const HOUR_MS = 60 * 60 * 1000;
-          const HEALTH_GRACE_MS = 15 * 60 * 1000;
-          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-          const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-
-          if (!accountId || !apiToken) {
-            throw new Error("Cloudflare account/token is required for query-only KV access.");
-          }
-
-          const wrangler = fs.readFileSync("workers/blog-ai/wrangler.jsonc", "utf8");
-          const namespaceMatch = wrangler.match(
-            /"binding"\s*:\s*"ANALYTICS_KV"[\s\S]{0,300}?"id"\s*:\s*"([^"]+)"/,
-          );
-          if (!namespaceMatch) {
-            throw new Error("Could not resolve ANALYTICS_KV namespace id from wrangler.jsonc.");
-          }
-          const namespaceId = namespaceMatch[1];
-
-          async function kvGet(key, { required = true } = {}) {
-            const url =
-              `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}` +
-              `/storage/kv/namespaces/${encodeURIComponent(namespaceId)}` +
-              `/values/${encodeURIComponent(key)}`;
-            const response = await fetch(url, {
-              headers: { authorization: `Bearer ${apiToken}` },
+          async function getJson(path) {
+            const response = await fetch(origin + path, {
+              headers: { accept: "application/json" },
             });
-            if (response.status === 404 && !required) return null;
             if (!response.ok) {
               const detail = await response.text().catch(() => "");
               throw new Error(
-                `KV read failed for ${key}: ${response.status}${detail ? ` ${detail.slice(0, 200)}` : ""}`,
+                `${path} returned ${response.status}${detail ? ` ${detail.slice(0, 200)}` : ""}`,
               );
             }
-            const text = await response.text();
-            return text ? JSON.parse(text) : null;
+            return response.json();
           }
 
-          function floorHour(timestamp) {
-            return Math.floor(timestamp / HOUR_MS) * HOUR_MS;
-          }
-
-          function pendingHours(lastFinalizedHourEnd, now, graceMs = 0) {
-            if (!Number.isFinite(lastFinalizedHourEnd)) return null;
-            const expectedHourEnd = floorHour(now - graceMs);
-            return Math.max(
-              0,
-              Math.floor((expectedHourEnd - lastFinalizedHourEnd) / HOUR_MS),
-            );
-          }
-
-          const take = (value, limit = 50) =>
-            Array.isArray(value) ? value.slice(0, limit) : [];
-
-          const trimWindow = window => ({
-            ...(window?.weekStartDate ? { weekStartDate: window.weekStartDate } : {}),
-            ...(Number.isFinite(window?.timezoneOffsetMinutes)
-              ? { timezoneOffsetMinutes: window.timezoneOffsetMinutes }
-              : {}),
-            startAt: window?.startAt,
-            endAt: window?.endAt,
-            stats: window?.stats,
-            paths: take(window?.paths),
-            entryPages: take(window?.entryPages),
-            referrers: take(window?.referrers),
-            channels: take(window?.channels),
-            countries: take(window?.countries),
-            events: take(window?.events),
-            utmSources: take(window?.utmSources),
-            warnings: take(window?.warnings),
-          });
-
-          const trimDelta = delta => {
-            if (!delta) return delta;
-            const result = { stats: delta.stats };
-            for (const [key, value] of Object.entries(delta)) {
-              if (key === "stats") continue;
-              if (/Regions$|Cities$/.test(key)) continue;
-              if (Array.isArray(value)) result[key] = value.slice(0, 50);
+          async function loadReports() {
+            let lastError;
+            for (let attempt = 1; attempt <= 12; attempt += 1) {
+              try {
+                const reports = await Promise.all([
+                  getJson("/analytics/health"),
+                  getJson("/analytics/hourly"),
+                  getJson("/analytics/weekly"),
+                  getJson("/analytics/bot-observation"),
+                ]);
+                if (reports[2]?.available === false) {
+                  throw new Error("weekly analytics are not available yet");
+                }
+                return reports;
+              } catch (error) {
+                lastError = error;
+                if (attempt === 12) break;
+                console.log(
+                  `Analytics endpoint attempt ${attempt}/12 failed: ${error instanceof Error ? error.message : String(error)}; retrying in 5s`,
+                );
+                await sleep(5000);
+              }
             }
-            return result;
-          };
+            throw lastError;
+          }
 
-          const [meta, hourly, weekly, botObservation] = await Promise.all([
-            kvGet("analytics:meta"),
-            kvGet("analytics:latest"),
-            kvGet("analytics:weekly:latest"),
-            kvGet("analytics:bot:latest", { required: false }),
-          ]);
-
-          const now = Date.now();
-          const pending = pendingHours(
-            Number(meta?.lastFinalizedHourEnd),
-            now,
-            HEALTH_GRACE_MS,
-          );
-          const lastSuccessMs = Date.parse(meta?.lastSuccessAt || "");
-          const health = {
-            healthy:
-              !meta?.lastError &&
-              pending === 0 &&
-              Number.isFinite(lastSuccessMs) &&
-              now - lastSuccessMs < 2 * HOUR_MS,
-            now: new Date(now).toISOString(),
-            lastSuccessAt: meta?.lastSuccessAt || null,
-            pendingHours: pending,
-            hasError: Boolean(meta?.lastError),
-          };
+          const [health, hourly, weekly, botObservation] = await loadReports();
 
           if (
             health.healthy !== true ||
@@ -154,44 +81,32 @@ jobs:
           ) {
             throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
           }
-
           if (!hourly?.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
-            throw new Error("analytics:latest is missing persisted current/previous windows");
+            throw new Error("analytics/hourly is missing current/previous windows");
+          }
+          if (!weekly?.generatedAt || !weekly.current?.stats || !weekly.previous?.stats) {
+            throw new Error("analytics/weekly is missing two complete calendar weeks");
           }
 
-          if (!weekly?.generatedAt || !weekly.current?.stats || !weekly.previous?.stats) {
-            throw new Error("analytics:weekly:latest is missing two complete calendar weeks");
-          }
+          const take = (value, limit = 50) =>
+            Array.isArray(value) ? value.slice(0, limit) : [];
 
           const result = {
             queriedAt: new Date().toISOString(),
             health,
             hourly: {
-              generatedAt: hourly.generatedAt,
-              windowHours: hourly.windowHours,
-              current: trimWindow(hourly.current),
-              previous: trimWindow(hourly.previous),
-              delta: trimDelta(hourly.delta),
+              ...hourly,
+              current: { ...hourly.current, paths: take(hourly.current.paths), entryPages: take(hourly.current.entryPages), referrers: take(hourly.current.referrers), channels: take(hourly.current.channels), countries: take(hourly.current.countries), events: take(hourly.current.events), utmSources: take(hourly.current.utmSources), warnings: take(hourly.current.warnings) },
+              previous: { ...hourly.previous, paths: take(hourly.previous.paths), entryPages: take(hourly.previous.entryPages), referrers: take(hourly.previous.referrers), channels: take(hourly.previous.channels), countries: take(hourly.previous.countries), events: take(hourly.previous.events), utmSources: take(hourly.previous.utmSources), warnings: take(hourly.previous.warnings) },
             },
             weekly: {
-              generatedAt: weekly.generatedAt,
-              timezoneOffsetMinutes: weekly.timezoneOffsetMinutes,
-              current: trimWindow(weekly.current),
-              previous: trimWindow(weekly.previous),
-              delta: trimDelta(weekly.delta),
+              ...weekly,
+              current: { ...weekly.current, paths: take(weekly.current.paths), entryPages: take(weekly.current.entryPages), referrers: take(weekly.current.referrers), channels: take(weekly.current.channels), countries: take(weekly.current.countries), events: take(weekly.current.events), utmSources: take(weekly.current.utmSources), warnings: take(weekly.current.warnings) },
+              previous: { ...weekly.previous, paths: take(weekly.previous.paths), entryPages: take(weekly.previous.entryPages), referrers: take(weekly.previous.referrers), channels: take(weekly.previous.channels), countries: take(weekly.previous.countries), events: take(weekly.previous.events), utmSources: take(weekly.previous.utmSources), warnings: take(weekly.previous.warnings) },
             },
             botObservation: botObservation
               ? {
-                  generatedAt: botObservation.generatedAt,
-                  windowHours: botObservation.windowHours,
-                  clientsObserved: botObservation.clientsObserved,
-                  suspectedClients: botObservation.suspectedClients,
-                  totalObservedPageviews: botObservation.totalObservedPageviews,
-                  blockedHits: botObservation.blockedHits,
-                  largestClientPageviewShare: botObservation.largestClientPageviewShare,
-                  dominantSingleClient: botObservation.dominantSingleClient,
-                  distributedScanCohorts: botObservation.distributedScanCohorts,
-                  distributedBlockedHits: botObservation.distributedBlockedHits,
+                  ...botObservation,
                   topDistributedSuspects: take(botObservation.topDistributedSuspects, 10),
                   topSuspected: take(botObservation.topSuspected, 10),
                 }

@@ -251,6 +251,16 @@ function publicHourlyReport(report) {
   };
 }
 
+function publicWeeklyReport(report) {
+  if (!report) return report;
+  return {
+    ...report,
+    current: publicWindow(report.current),
+    previous: publicWindow(report.previous),
+    delta: publicDelta(report.delta),
+  };
+}
+
 function publicTodayReport(report) {
   if (!report) return report;
   const {
@@ -587,6 +597,24 @@ export async function handleAnalyticsRequest(request, env, ctx) {
         return publicHourlyReport(latest);
       },
       60,
+    );
+  }
+
+  if (url.pathname === "/analytics/weekly") {
+    return cachedJson(
+      request,
+      ctx,
+      async () => {
+        const weekly = await readJson(kv, WEEKLY_LATEST_KEY);
+        if (!weekly) {
+          return {
+            available: false,
+            message: "Weekly analytics have not been collected yet.",
+          };
+        }
+        return publicWeeklyReport(weekly);
+      },
+      300,
     );
   }
 
