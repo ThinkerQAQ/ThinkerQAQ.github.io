@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,9 +27,7 @@ func (a app) runSearch(args []string) error {
 	case "submit":
 		return a.runSearchSubmit(args[1:])
 	case "audit":
-		// Google URL Inspection is still on the legacy runtime until the Google
-		// provider migration lands. Keep the user-facing command stable.
-		return a.runSearchNode(args)
+		return a.runSearchAudit(args[1:])
 	case "notify":
 		return a.runSearchNotify(args[1:])
 	default:
@@ -152,21 +151,6 @@ func (a app) runSearchInventory(args []string) error {
 		return nil
 	}
 	fmt.Fprintf(a.out, "[search] origin=%s childSitemaps=%d urls=%d\n", inventory.Origin, len(inventory.SitemapURLs), len(inventory.URLList))
-	return nil
-}
-
-func (a app) runSearchNode(args []string) error {
-	node, _, err := a.prepareNode(false)
-	if err != nil {
-		return err
-	}
-	script := filepath.Join(a.root, "tools", "blogctl", "search", "node", "cli.mjs")
-	if !fileExists(script) {
-		return fmt.Errorf("BlogCTL search runtime was not found: %s", script)
-	}
-	if err := a.runner.Run(node, append([]string{script}, args...), os.Environ()); err != nil {
-		return fmt.Errorf("blogctl search %s: %w", args[0], err)
-	}
 	return nil
 }
 
@@ -300,14 +284,156 @@ func (a app) runSearchSubmit(args []string) error {
 	}
 
 	if containsString(providers, "google") {
-		nodeArgs := []string{"submit", "--providers", "google", "--site-url", siteURL}
-		if searchFlag(args, "--optional-google") {
-			nodeArgs = append(nodeArgs, "--optional-google")
-		}
-		if err := a.runSearchNode(nodeArgs); err != nil {
+		accessToken, err := googleAccessTokenFromEnvironment(ctx, client, searchFlag(args, "--optional-google"))
+		if err != nil {
 			return err
 		}
+		if accessToken == "" {
+			fmt.Fprintln(a.out, "[search:google] skipped: GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON is not configured")
+		} else {
+			results, err := blogsearch.SubmitGoogleSitemaps(ctx, client, siteURL, origin, accessToken)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(a.out, "[search:google] submitted=%d sitemaps\n", len(results))
+		}
 	}
+	return nil
+}
+
+func googleAccessTokenFromEnvironment(ctx context.Context, client *http.Client, optional bool) (string, error) {
+	raw := strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON"))
+	if raw == "" {
+		if optional {
+			return "", nil
+		}
+		return "", errors.New("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON is required")
+	}
+	credentials, err := blogsearch.ParseGoogleServiceAccount(raw)
+	if err != nil {
+		return "", err
+	}
+	token, err := blogsearch.FetchGoogleAccessToken(ctx, client, credentials)
+	if err != nil {
+		return "", err
+	}
+	return token.AccessToken, nil
+}
+
+func nonNegativeIntOption(args []string, name string, fallback int) (int, error) {
+	raw, err := searchOption(args, name, strconv.Itoa(fallback))
+	if err != nil {
+		return 0, err
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative integer", name)
+	}
+	return value, nil
+}
+
+func (a app) runSearchAudit(args []string) error {
+	provider, err := searchOption(args, "--provider", "")
+	if err != nil {
+		return err
+	}
+	if provider != "google" {
+		return errors.New("only --provider google is supported for search audit")
+	}
+	siteURL, err := searchSiteURL(args)
+	if err != nil {
+		return err
+	}
+	origin, err := searchOrigin(siteURL)
+	if err != nil {
+		return err
+	}
+	offset, err := nonNegativeIntOption(args, "--offset", 0)
+	if err != nil {
+		return err
+	}
+	limit, err := nonNegativeIntOption(args, "--limit", blogsearch.GoogleURLInspectionDailySiteLimit)
+	if err != nil {
+		return err
+	}
+	if limit < 1 || limit > blogsearch.GoogleURLInspectionDailySiteLimit {
+		return fmt.Errorf("--limit must be between 1 and %d", blogsearch.GoogleURLInspectionDailySiteLimit)
+	}
+	delayMS, err := nonNegativeIntOption(args, "--request-delay-ms", int(blogsearch.GoogleURLInspectionDefaultDelay/time.Millisecond))
+	if err != nil {
+		return err
+	}
+
+	urlsFile, err := searchOption(args, "--urls-file", "")
+	if err != nil {
+		return err
+	}
+	var urls []string
+	if urlsFile != "" {
+		urls, err = blogsearch.ReadURLFile(urlsFile, origin)
+	} else {
+		distRoot, optionErr := searchOption(args, "--dist", "dist")
+		if optionErr != nil {
+			return optionErr
+		}
+		inventory, inventoryErr := blogsearch.LoadGeneratedInventory(
+			filepath.Join(a.root, distRoot),
+			blogsearch.DefaultSitemapIndex,
+			origin,
+		)
+		if inventoryErr != nil {
+			return inventoryErr
+		}
+		urls = inventory.URLList
+	}
+	if err != nil {
+		return err
+	}
+
+	client := &http.Client{Timeout: 45 * time.Second}
+	ctx := context.Background()
+	accessToken, err := googleAccessTokenFromEnvironment(ctx, client, false)
+	if err != nil {
+		return err
+	}
+	report, err := blogsearch.AuditGoogleURLs(
+		ctx,
+		client,
+		urls,
+		siteURL,
+		origin,
+		accessToken,
+		offset,
+		limit,
+		time.Duration(delayMS)*time.Millisecond,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	output, err := searchOption(args, "--output", "")
+	if err != nil {
+		return err
+	}
+	if output == "" {
+		fmt.Fprintln(a.out, string(data))
+		return nil
+	}
+	outputPath, err := filepath.Abs(output)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(outputPath, append(data, '\n'), 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "[search:google] inspection report written: %s\n", outputPath)
 	return nil
 }
 
