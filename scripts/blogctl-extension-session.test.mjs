@@ -146,13 +146,23 @@ test("all native platform sessions declare domain-wide cookie discovery", async 
   }
 });
 
-test("cnblogs auth probe uses the JSON /api/user endpoint", async () => {
-  const { PLATFORM_AUTH } = await import("../tools/blogctl/extension/platforms.js");
-  const cnblogs = PLATFORM_AUTH.find((entry) => entry.id === "cnblogs");
-  assert.ok(cnblogs, "cnblogs platform auth definition exists");
-  assert.equal(cnblogs.probe.kind, "json");
-  assert.equal(cnblogs.probe.url, "https://i.cnblogs.com/api/user");
-  assert.equal(cnblogs.probe.path, "loginName");
+test("cnblogs auth probe lives with its browser session descriptor", async () => {
+  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  const cnblogs = PLATFORM_SESSIONS.cnblogs;
+  assert.ok(cnblogs, "cnblogs browser session definition exists");
+  assert.equal(cnblogs.authProbe.kind, "json");
+  assert.equal(cnblogs.authProbe.url, "https://i.cnblogs.com/api/user");
+  assert.equal(cnblogs.authProbe.path, "loginName");
+});
+
+test("browser platform registry contains no domain metadata", async () => {
+  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  for (const [platform, descriptor] of Object.entries(PLATFORM_SESSIONS)) {
+    assert.ok(descriptor.authProbe?.kind, platform + " must define a browser auth probe");
+    assert.equal(Object.prototype.hasOwnProperty.call(descriptor, "label"), false, platform);
+    assert.equal(Object.prototype.hasOwnProperty.call(descriptor, "language"), false, platform);
+    assert.equal(Object.prototype.hasOwnProperty.call(descriptor, "capabilities"), false, platform);
+  }
 });
 
 
