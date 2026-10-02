@@ -129,15 +129,15 @@ func TestPipelineUploadsGeneratedAssetWhenPlatformHasNoNativeImageUpload(t *test
 
 	publicURL := "https://cdn.example.com/generated/mermaid/" + id + ".png"
 	pipeline := &Pipeline{
-		EngineRoot: root,
+		EngineRoot:  root,
 		ContentRoot: root,
-		HTTPClient: server.Client(),
+		HTTPClient:  server.Client(),
 		R2: blogr2.Config{
-			AccessKeyID: "access",
+			AccessKeyID:     "access",
 			SecretAccessKey: "secret",
-			Endpoint: server.URL,
-			Bucket: "bucket",
-			PublicBaseURL: "https://cdn.example.com/",
+			Endpoint:        server.URL,
+			Bucket:          "bucket",
+			PublicBaseURL:   "https://cdn.example.com/",
 		},
 		Runner: pipelineRunnerFunc(func(context.Context, string, []string, string, []string, []byte) ([]byte, error) {
 			t.Fatal("cached asset must not invoke renderer")
@@ -145,12 +145,12 @@ func TestPipelineUploadsGeneratedAssetWhenPlatformHasNoNativeImageUpload(t *test
 		}),
 	}
 	if err := pipeline.Prepare(context.Background(), []blogcompiler.Asset{{
-		Kind: "mermaid",
-		ID: id,
+		Kind:       "mermaid",
+		ID:         id,
 		Definition: "flowchart LR\nA --> B",
-		ObjectKey: "generated/mermaid/" + id + ".png",
-		PublicURL: publicURL,
-		Source: publicURL,
+		ObjectKey:  "generated/mermaid/" + id + ".png",
+		PublicURL:  publicURL,
+		Source:     publicURL,
 	}}); err != nil {
 		t.Fatal(err)
 	}
