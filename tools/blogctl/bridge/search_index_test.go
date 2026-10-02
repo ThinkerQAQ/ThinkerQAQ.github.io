@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -278,5 +279,42 @@ func TestSearchStateNeverExposesGoogleCredentialValue(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), "\"credentialsConfigured\":true") {
 		t.Fatalf("response did not expose credential status: %s", response.Body.String())
+	}
+}
+
+func TestLatestDurableSearchTaskReturnsNewest(t *testing.T) {
+	server := &Server{
+		taskJobs: map[string]*durableTaskJob{
+			"new": {ID: "new", Kind: "search", Type: "google-inspection"},
+			"old": {ID: "old", Kind: "search", Type: "google-inspection"},
+		},
+		taskJobOrder: []string{"new", "old"},
+	}
+	job := server.latestDurableSearchTask("google-inspection")
+	if job == nil || job.ID != "new" {
+		t.Fatalf("latest job = %#v", job)
+	}
+}
+
+func TestNormalizeRecoveredGoogleInspectionQueuesResume(t *testing.T) {
+	jobs := map[string]*durableTaskJob{
+		"inspection": {
+			ID: "inspection", Kind: "search", Type: "google-inspection", State: "running",
+			Payload: []byte(`{"offset":37,"limit":12}`),
+		},
+	}
+	if !normalizeRecoveredDurableTaskJobs(jobs, time.Date(2026, 10, 2, 1, 0, 0, 0, time.UTC)) {
+		t.Fatal("recovery should update persisted job state")
+	}
+	job := jobs["inspection"]
+	if job.State != "queued" || job.Error != "" || !job.CanRetry {
+		t.Fatalf("recovered inspection job = %#v", job)
+	}
+	var payload googleInspectionTaskPayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Offset != 37 || payload.Limit != 12 {
+		t.Fatalf("recovered payload = %#v", payload)
 	}
 }
