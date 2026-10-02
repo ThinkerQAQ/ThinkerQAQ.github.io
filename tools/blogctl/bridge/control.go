@@ -582,7 +582,9 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			}},
 			Config: toolConfigView{
 				Scope: "bridge",
-				Values: map[string]any{"site": bingSite(config)},
+				Values: map[string]any{
+					"site": bingSite(config),
+				},
 				Schema: []toolField{
 					{
 						Key: "site", Label: "Site", Type: "text",
