@@ -181,7 +181,7 @@ func (s *Server) executeIndexNowTask(ctx context.Context, jobID string, rawPaylo
 	_ = saveSearchIndexState(state)
 
 	previous := loadIndexNowSnapshot()
-	payload, err := s.submitBingIndexNow(ctx, input.Mode, previous)
+	payload, err := s.submitIndexNow(ctx, input.Mode, previous)
 	if err != nil {
 		state.IndexNow.State = "failed"
 		state.IndexNow.FinishedAt = s.now().UTC().Format(time.RFC3339)

@@ -1599,10 +1599,10 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/search/index/inventory/refresh", { method: "POST" });
       return { ok: true, index: result?.index ?? {} };
     }
-    case "blogctl.index.bing.submit": {
+    case "blogctl.index.indexnow.submit": {
       const mode = String(message.mode || "incremental");
       const result = await fetchJSON(
-        "/v1/search/index/jobs/bing",
+        "/v1/search/index/jobs/indexnow",
         jsonOptions("POST", { mode }),
       );
       return { ok: true, index: result?.index ?? {}, job: result?.job };
