@@ -1,5 +1,3 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import {
   defaultPlatformPublishingConfig,
   nativeCanonicalUrl,
@@ -616,15 +614,4 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 </script>
 </body>
 </html>`;
-}
-
-export async function writeMediumCopyHtml(article, {
-  slug,
-  outputRoot = ".distribution/medium",
-  publishingConfig = defaultPlatformPublishingConfig("medium"),
-} = {}) {
-  const outputFile = path.resolve(outputRoot, `${slug}.html`);
-  await mkdir(path.dirname(outputFile), { recursive: true });
-  await writeFile(outputFile, buildMediumCopyHtml(article, { slug, publishingConfig }), "utf8");
-  return outputFile;
 }
