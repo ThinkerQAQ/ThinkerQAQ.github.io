@@ -452,7 +452,7 @@ func TestBridgeRejectsSessionPostWithoutExtensionOrigin(t *testing.T) {
 }
 
 func TestBridgeProxyConfigUpdatesTransportAndPersists(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
@@ -503,7 +503,7 @@ func TestBridgeProxyConfigUpdatesTransportAndPersists(t *testing.T) {
 }
 
 func TestBridgeProxyConfigWriteRequiresExtensionOrigin(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, _ := New("token")
 	handler := httptest.NewServer(server.Handler())
 	defer handler.Close()
@@ -581,7 +581,7 @@ func TestSyncStartRejectsInvalidBridgeTokenWithoutExtensionOrigin(t *testing.T) 
 }
 
 func TestSyncStartReloadsPersistedWorkspaceRoots(t *testing.T) {
-	t.Setenv("BLOGCTL_CONFIG_DIR", t.TempDir())
+	useIsolatedUserConfigDir(t)
 	server, err := New("token")
 	if err != nil {
 		t.Fatal(err)
