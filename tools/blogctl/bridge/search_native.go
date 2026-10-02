@@ -86,7 +86,7 @@ func (s *Server) fetchSearchInventory(ctx context.Context) (searchInventoryState
 	// Preserve the injected runner as a test seam while production no longer
 	// starts Node for inventory discovery.
 	if s.searchRunner != nil {
-		raw, err := s.runSearchNode(ctx, s.config, "inventory", nil)
+		raw, err := s.runInjectedSearch(ctx, s.config, "inventory", nil)
 		if err != nil {
 			return searchInventoryState{}, err
 		}
@@ -105,7 +105,7 @@ func (s *Server) fetchSearchInventory(ctx context.Context) (searchInventoryState
 
 func (s *Server) submitBingIndexNow(ctx context.Context, mode string, previous searchInventoryState) (bingSubmissionPayload, error) {
 	if s.searchRunner != nil {
-		raw, err := s.runSearchNode(ctx, s.config, "bing-submit", map[string]any{
+		raw, err := s.runInjectedSearch(ctx, s.config, "bing-submit", map[string]any{
 			"mode": mode,
 			"previous": previous,
 		})
@@ -218,7 +218,7 @@ func (s *Server) googleAccessToken(ctx context.Context) (string, error) {
 
 func (s *Server) submitGoogleSitemapsNative(ctx context.Context) (googleSitemapsPayload, error) {
 	if s.searchRunner != nil {
-		raw, err := s.runSearchNode(ctx, s.config, "google-sitemaps", nil)
+		raw, err := s.runInjectedSearch(ctx, s.config, "google-sitemaps", nil)
 		if err != nil {
 			return googleSitemapsPayload{}, err
 		}
@@ -268,7 +268,7 @@ func coreInspectionResult(value blogsearch.GoogleInspectionResult) searchInspect
 
 func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error) {
 	if s.searchRunner != nil {
-		raw, err := s.runSearchNode(ctx, s.config, "bing-check", nil)
+		raw, err := s.runInjectedSearch(ctx, s.config, "bing-check", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -305,7 +305,7 @@ func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error
 
 func (s *Server) checkGoogleSearchConsoleNative(ctx context.Context) (map[string]any, error) {
 	if s.searchRunner != nil {
-		raw, err := s.runSearchNode(ctx, s.config, "google-check", nil)
+		raw, err := s.runInjectedSearch(ctx, s.config, "google-check", nil)
 		if err != nil {
 			return nil, err
 		}
