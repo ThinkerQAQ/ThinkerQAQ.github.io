@@ -1,8 +1,13 @@
-import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "mcp-js-0.2.2";
+import {
+  VERSION,
+  normalizePlantUML,
+  plantUMLDiagramKey,
+} from "../../tools/blogctl/compiler/node/plantuml-domain.mjs";
+
+export { VERSION };
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 export const CACHE = path.join(ROOT, ".astro", "plantuml", "svg");
 export const OUTPUT = path.join(ROOT, "public", "diagrams", "plantuml");
@@ -24,23 +29,11 @@ export function visitCode(tree, callback) {
 }
 
 export function normalize(source) {
-  let text = source.replaceAll("\r\n", "\n").trim();
-  if (!text) throw new Error("Empty PlantUML diagram");
-  // Reject external preprocessing explicitly before the local TeaVM renderer sees the diagram.
-  if (/^\s*!\s*(?:include\w*|import|theme)\b/im.test(text) || /%(?:getenv|load\w*|filename|dirpath)\s*\(/i.test(text)) {
-    throw new Error("External includes, themes and environment/file access are disabled for diagrams");
-  }
-  const starts = [...text.matchAll(/^\s*@start(\w+)\b/gim)];
-  const ends = [...text.matchAll(/^\s*@end(\w+)\b/gim)];
-  if (starts.length === 0 && ends.length === 0) text = `@startuml\n${text}\n@enduml`;
-  else if (starts.length !== 1 || ends.length !== 1 || starts[0][1].toLowerCase() !== ends[0][1].toLowerCase() || starts[0].index > ends[0].index) {
-    throw new Error("Each code block must contain exactly one matching @start… / @end… pair");
-  }
-  return text + "\n";
+  return normalizePlantUML(source);
 }
 
 export function diagramKey(source) {
-  return createHash("sha256").update(`plantuml:${VERSION}:sandbox:utf8:svg:v1\n${normalize(source)}`).digest("hex");
+  return plantUMLDiagramKey(source);
 }
 
 export function diagramUrl(key) {
