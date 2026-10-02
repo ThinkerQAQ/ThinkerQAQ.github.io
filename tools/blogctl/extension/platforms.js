@@ -1,100 +1,10 @@
-export const PLATFORM_AUTH = Object.freeze([
-  {
-    id: "cnblogs",
-    label: "博客园",
-    probe: {
+export const PLATFORM_SESSIONS = Object.freeze({
+  cnblogs: {
+    authProbe: {
       kind: "json",
       url: "https://i.cnblogs.com/api/user",
       path: "loginName",
     },
-  },
-  {
-    id: "juejin",
-    label: "掘金",
-    probe: {
-      kind: "json",
-      url: "https://api.juejin.cn/user_api/v1/user/get",
-      path: "data.user_id",
-    },
-  },
-  {
-    id: "csdn",
-    label: "CSDN",
-    probe: {
-      kind: "json",
-      url: "https://g-api.csdn.net/community/toolbar-api/v1/get-user-info",
-      path: "data.nickName",
-    },
-  },
-  {
-    id: "segmentfault",
-    label: "思否",
-    probe: {
-      kind: "html",
-      url: "https://segmentfault.com/user/settings",
-      match: "href=[\"']\/u\/[^\"']+[\"']",
-    },
-  },
-  {
-    id: "zhihu",
-    label: "知乎",
-    probe: {
-      kind: "json",
-      url: "https://www.zhihu.com/api/v4/me",
-      path: "id",
-      headers: { "x-requested-with": "fetch" },
-    },
-  },
-  {
-    id: "51cto",
-    label: "51CTO",
-    probe: {
-      kind: "html",
-      url: "https://blog.51cto.com/blogger/publish",
-      match: "https?://blog\\.51cto\\.com/[A-Za-z0-9_-]+/?[\"']",
-    },
-  },
-  {
-    id: "oschina",
-    label: "开源中国",
-    probe: {
-      kind: "json",
-      url: "https://apiv1.oschina.net/oschinapi/user/myDetails",
-      path: "result.userId",
-    },
-  },
-  {
-    id: "toutiao",
-    label: "今日头条",
-    probe: {
-      kind: "json",
-      url: "https://mp.toutiao.com/mp/agw/media/user_login_status_api",
-      path: "data.is_login",
-      equals: true,
-    },
-  },
-  {
-    id: "devto",
-    label: "DEV.to",
-    probe: {
-      kind: "final-url",
-      url: "https://dev.to/settings/account",
-      loggedOutPathPatterns: ["/enter", "/login", "/users/sign_in"],
-    },
-  },
-  {
-    id: "medium",
-    label: "Medium",
-    probe: {
-      kind: "cookies",
-      cookieUrl: "https://medium.com/",
-      requiredCookieNames: ["sid"],
-    },
-  },
-]);
-
-export const PLATFORM_SESSIONS = Object.freeze({
-  cnblogs: {
     sessionProbeUrl: "https://i.cnblogs.com/api/user",
     cookieDomains: ["cnblogs.com"],
     // Chrome cookies.getAll defaults to unpartitioned cookies. CNBlogs can also
@@ -113,12 +23,22 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
   juejin: {
+    authProbe: {
+      kind: "json",
+      url: "https://api.juejin.cn/user_api/v1/user/get",
+      path: "data.user_id",
+    },
     sessionProbeUrl: "https://api.juejin.cn/user_api/v1/user/get",
     cookieDomains: ["juejin.cn"],
     cookieUrls: ["https://juejin.cn/", "https://api.juejin.cn/"],
     requiredCookieNames: [],
   },
   csdn: {
+    authProbe: {
+      kind: "json",
+      url: "https://g-api.csdn.net/community/toolbar-api/v1/get-user-info",
+      path: "data.nickName",
+    },
     sessionProbeUrl: "https://bizapi.csdn.net/blog-console-api/v3/editor/getBaseInfo",
     cookieDomains: ["csdn.net"],
     cookieUrls: [
@@ -135,6 +55,11 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
   segmentfault: {
+    authProbe: {
+      kind: "html",
+      url: "https://segmentfault.com/user/settings",
+      match: "href=[\\\"']\\/u\\/[^\\\"']+[\\\"']",
+    },
     sessionProbeUrl: "https://segmentfault.com/write",
     cookieDomains: ["segmentfault.com"],
     cookieUrls: ["https://segmentfault.com/", "https://segmentfault.com/user/settings/profile", "https://segmentfault.com/write"],
@@ -142,6 +67,12 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
   zhihu: {
+    authProbe: {
+      kind: "json",
+      url: "https://www.zhihu.com/api/v4/me",
+      path: "id",
+      headers: { "x-requested-with": "fetch" },
+    },
     sessionProbeUrl: "https://www.zhihu.com/api/v4/me",
     cookieDomains: ["zhihu.com"],
     cookieUrls: ["https://www.zhihu.com/", "https://www.zhihu.com/api/v4/me", "https://zhuanlan.zhihu.com/"],
@@ -149,6 +80,11 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
   "51cto": {
+    authProbe: {
+      kind: "html",
+      url: "https://blog.51cto.com/blogger/publish",
+      match: "https?://blog\\.51cto\\.com/[A-Za-z0-9_-]+/?[\\\"']",
+    },
     sessionProbeUrl: "https://blog.51cto.com/blogger/publish",
     cookieDomains: ["51cto.com"],
     cookieUrls: [
@@ -166,6 +102,11 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
   oschina: {
+    authProbe: {
+      kind: "json",
+      url: "https://apiv1.oschina.net/oschinapi/user/myDetails",
+      path: "result.userId",
+    },
     sessionProbeUrl: "https://apiv1.oschina.net/oschinapi/user/myDetails",
     cookieDomains: ["oschina.net"],
     cookieUrls: ["https://www.oschina.net/", "https://my.oschina.net/", "https://apiv1.oschina.net/"],
@@ -173,12 +114,23 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
   toutiao: {
+    authProbe: {
+      kind: "json",
+      url: "https://mp.toutiao.com/mp/agw/media/user_login_status_api",
+      path: "data.is_login",
+      equals: true,
+    },
     sessionProbeUrl: "https://mp.toutiao.com/mp/agw/media/user_login_status_api",
     cookieDomains: ["toutiao.com"],
     cookieUrls: ["https://mp.toutiao.com/"],
     requiredCookieNames: [],
   },
   devto: {
+    authProbe: {
+      kind: "final-url",
+      url: "https://dev.to/settings/account",
+      loggedOutPathPatterns: ["/enter", "/login", "/users/sign_in"],
+    },
     sessionProbeUrl: "https://dev.to/dashboard",
     cookieDomains: ["dev.to"],
     cookieUrls: ["https://dev.to/", "https://dev.to/dashboard", "https://dev.to/new"],
@@ -187,6 +139,11 @@ export const PLATFORM_SESSIONS = Object.freeze({
     optional: true,
   },
   medium: {
+    authProbe: {
+      kind: "cookies",
+      cookieUrl: "https://medium.com/",
+      requiredCookieNames: ["sid"],
+    },
     sessionProbeUrl: "https://medium.com/me/stories",
     cookieDomains: ["medium.com"],
     cookieUrls: ["https://medium.com/", "https://medium.com/me/stories", "https://medium.com/_/graphql"],
