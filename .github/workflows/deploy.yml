@@ -187,11 +187,6 @@ jobs:
         working-directory: engine/tools/blogctl
         run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
       - name: Download public AI Search input
         uses: actions/download-artifact@v5
         with:
