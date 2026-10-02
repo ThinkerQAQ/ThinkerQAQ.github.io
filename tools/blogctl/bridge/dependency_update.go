@@ -77,8 +77,6 @@ func dependencyVersion(config bridgeConfig, name string) (string, string) {
 		args = []string{"--version"}
 	case "git":
 		args = []string{"--version"}
-	case "java":
-		args = []string{"-version"}
 	default:
 		return "", ""
 	}
@@ -104,18 +102,6 @@ func dependencyVersion(config bridgeConfig, name string) (string, string) {
 		value := strings.TrimSpace(strings.TrimPrefix(raw, "git version"))
 		if values := strings.Fields(value); len(values) > 0 {
 			return values[0], raw
-		}
-	case "java":
-		for _, line := range strings.Split(raw, "\n") {
-			line = strings.TrimSpace(line)
-			if !strings.Contains(line, "version") {
-				continue
-			}
-			if first := strings.Index(line, `"`); first >= 0 {
-				if rest := line[first+1:]; strings.Contains(rest, `"`) {
-					return strings.SplitN(rest, `"`, 2)[0], raw
-				}
-			}
 		}
 	}
 	return "", raw
@@ -180,70 +166,6 @@ func updateWithWinget(ctx context.Context, config bridgeConfig, packageID string
 	return runDependencyCommand(ctx, config, winget, args...)
 }
 
-func javaVendorAndMajor(config bridgeConfig) (string, int, error) {
-	path, err := configuredExecutable(config, "java")
-	if err != nil {
-		return "", 0, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	command := commandForExecutable(ctx, path, "-XshowSettings:properties", "-version")
-	var output bytes.Buffer
-	command.Stdout = &output
-	command.Stderr = &output
-	_ = command.Run()
-	raw := output.String()
-	vendor := ""
-	version := ""
-	for _, line := range strings.Split(raw, "\n") {
-		line = strings.TrimSpace(line)
-		if value, ok := strings.CutPrefix(line, "java.vendor ="); ok {
-			vendor = strings.TrimSpace(value)
-		}
-		if value, ok := strings.CutPrefix(line, "java.version ="); ok {
-			version = strings.TrimSpace(value)
-		}
-	}
-	if version == "" {
-		version, _ = dependencyVersion(config, "java")
-	}
-	major, _, _ := parseVersionParts(version)
-	if major == 1 {
-		parts := strings.Split(strings.TrimPrefix(version, "1."), ".")
-		if len(parts) > 0 {
-			major, _ = strconv.Atoi(parts[0])
-		}
-	}
-	if vendor == "" || major <= 0 {
-		return vendor, major, errors.New("无法识别当前 Java vendor/version，已停止自动更新以避免替换为错误的 JDK")
-	}
-	return vendor, major, nil
-}
-
-func javaWingetPackageForVendor(vendor string, major int) (string, error) {
-	lower := strings.ToLower(strings.TrimSpace(vendor))
-	switch {
-	case strings.Contains(lower, "adoptium"), strings.Contains(lower, "temurin"):
-		return fmt.Sprintf("EclipseAdoptium.Temurin.%d.JDK", major), nil
-	case strings.Contains(lower, "microsoft"):
-		return fmt.Sprintf("Microsoft.OpenJDK.%d", major), nil
-	case strings.Contains(lower, "oracle"):
-		return fmt.Sprintf("Oracle.JDK.%d", major), nil
-	case strings.Contains(lower, "azul"):
-		return fmt.Sprintf("Azul.Zulu.%d.JDK", major), nil
-	default:
-		return "", fmt.Errorf("当前 Java vendor %q 未配置安全的自动更新映射；不会擅自切换 JDK 发行版", vendor)
-	}
-}
-
-func javaWingetPackage(config bridgeConfig) (string, error) {
-	vendor, major, err := javaVendorAndMajor(config)
-	if err != nil {
-		return "", err
-	}
-	return javaWingetPackageForVendor(vendor, major)
-}
-
 func compactDependencyOutput(value string) string {
 	value = strings.TrimSpace(value)
 	if len(value) <= 500 {
@@ -275,13 +197,6 @@ func updateDependency(ctx context.Context, config bridgeConfig, name string) (de
 	case "git":
 		result.Method = "winget:Git.Git"
 		output, err = updateWithWinget(updateContext, config, "Git.Git")
-	case "java":
-		var packageID string
-		packageID, err = javaWingetPackage(config)
-		if err == nil {
-			result.Method = "winget:" + packageID
-			output, err = updateWithWinget(updateContext, config, packageID)
-		}
 	default:
 		err = fmt.Errorf("dependency update is not supported: %s", name)
 	}
