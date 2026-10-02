@@ -22,17 +22,17 @@ import (
 )
 
 const (
-	MermaidCLIPackage       = "@mermaid-js/mermaid-cli@11.17.0"
-	PlantUMLVersion         = "1.2026.7"
-	PlantUMLJarSHA256       = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
+	MermaidCLIPackage      = "@mermaid-js/mermaid-cli@11.17.0"
+	PlantUMLVersion        = "1.2026.7"
+	PlantUMLJarSHA256      = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
 	MaxPublishingImageSize = 4096
 )
 
 var (
-	assetIDPattern = regexp.MustCompile(`^[a-f0-9]{16,64}$`)
+	assetIDPattern          = regexp.MustCompile(`^[a-f0-9]{16,64}$`)
 	plantUMLExternalPattern = regexp.MustCompile(`(?im)^\s*!\s*(?:include\w*|import|theme)\b|%(?:getenv|load\w*|filename|dirpath)\s*\(`)
-	plantUMLStartPattern = regexp.MustCompile(`(?im)^\s*@start(\w+)\b`)
-	plantUMLEndPattern = regexp.MustCompile(`(?im)^\s*@end(\w+)\b`)
+	plantUMLStartPattern    = regexp.MustCompile(`(?im)^\s*@start(\w+)\b`)
+	plantUMLEndPattern      = regexp.MustCompile(`(?im)^\s*@end(\w+)\b`)
 )
 
 type MermaidPolicy struct {

@@ -39,7 +39,7 @@ func TestPipelineReusesCachedGeneratedAsset(t *testing.T) {
 	}
 
 	pipeline := &Pipeline{
-		EngineRoot: root,
+		EngineRoot:  root,
 		ContentRoot: root,
 		Runner: pipelineRunnerFunc(func(context.Context, string, []string, string, []string, []byte) ([]byte, error) {
 			t.Fatal("cached asset must not invoke a renderer")
@@ -62,10 +62,10 @@ func TestPipelineRendersMermaidThroughGoOrchestration(t *testing.T) {
 	}
 	called := false
 	pipeline := &Pipeline{
-		EngineRoot: root,
+		EngineRoot:  root,
 		ContentRoot: root,
-		Mermaid: MermaidPolicy{Width: 1200, Scale: 2},
-		ToolPaths: map[string]string{"npm": executable},
+		Mermaid:     MermaidPolicy{Width: 1200, Scale: 2},
+		ToolPaths:   map[string]string{"npm": executable},
 		Runner: pipelineRunnerFunc(func(_ context.Context, _ string, args []string, _ string, _ []string, _ []byte) ([]byte, error) {
 			called = true
 			output := ""

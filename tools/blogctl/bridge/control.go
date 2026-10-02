@@ -19,7 +19,7 @@ import (
 	"time"
 
 	blogapp "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/app"
-blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
+	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/internal/version"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
@@ -1226,7 +1226,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	}
 	service := blogapp.NewSyncService()
 	service.AssetPreparer = &blogassets.Pipeline{
-		EngineRoot: config.EngineRoot,
+		EngineRoot:  config.EngineRoot,
 		ContentRoot: config.ContentRoot,
 		Mermaid: blogassets.MermaidPolicy{
 			Width: config.Publishing.Compiler.Mermaid.Width,
