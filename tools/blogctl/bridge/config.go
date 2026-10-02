@@ -21,6 +21,29 @@ type publishingR2Config = blogpublishing.R2Config
 type publishingAssetsConfig = blogpublishing.AssetsConfig
 type publishingConfig = blogpublishing.Config
 
+type bridgeConfig struct {
+	ProxyEnabled bool   `json:"proxyEnabled" toml:"proxy_enabled"`
+	ProxyHost    string `json:"proxyHost" toml:"proxy_host"`
+	ProxyPort    int    `json:"proxyPort" toml:"proxy_port"`
+
+	LogDirectory string `json:"logDirectory,omitempty" toml:"log_directory"`
+	LogLevel     string `json:"logLevel,omitempty" toml:"log_level"`
+
+	ContentRoot                    string            `json:"contentRoot" toml:"content_root"`
+	EngineRoot                     string            `json:"engineRoot" toml:"engine_root"`
+	ToolPaths                      map[string]string `json:"toolPaths" toml:"tool_paths"`
+	DevtoAPIKey                    string            `json:"devtoApiKey,omitempty" toml:"devto_api_key"`
+	IndexNowEndpoint               string            `json:"indexNowEndpoint,omitempty" toml:"indexnow_endpoint"`
+	IndexNowKey                    string            `json:"indexNowKey,omitempty" toml:"indexnow_key"`
+	IndexNowKeyLocation            string            `json:"indexNowKeyLocation,omitempty" toml:"indexnow_key_location"`
+	BingSite                       string            `json:"bingSite,omitempty" toml:"bing_site"`
+	BingAPIKey                     string            `json:"bingApiKey,omitempty" toml:"bing_api_key"`
+	BaiduSite                      string            `json:"baiduSite,omitempty" toml:"baidu_site"`
+	BaiduToken                     string            `json:"baiduToken,omitempty" toml:"baidu_token"`
+	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty" toml:"google_search_console_service_json"`
+	Publishing                     publishingConfig  `json:"publishing" toml:"publishing"`
+}
+
 var publishingPlatformOrder = blogpublishing.PlatformIDs()
 
 func defaultFooterTemplate(language string) string {
