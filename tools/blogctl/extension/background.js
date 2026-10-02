@@ -1355,6 +1355,14 @@ async function handleMessage(message) {
       );
       return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
+    case "blogctl.index.bing.submit": {
+      const mode = String(message.mode || "incremental");
+      const result = await fetchJSON(
+        "/v1/search/index/jobs/bing",
+        jsonOptions("POST", { mode }),
+      );
+      return { ok: true, index: result?.index ?? {}, job: result?.job };
+    }
     case "blogctl.index.baidu.submit": {
       const mode = String(message.mode || "incremental");
       const result = await fetchJSON(
