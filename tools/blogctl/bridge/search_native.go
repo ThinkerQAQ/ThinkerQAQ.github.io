@@ -266,62 +266,6 @@ func coreInspectionResult(value blogsearch.GoogleInspectionResult) searchInspect
 	}
 }
 
-type googleInspectionNativeReport struct {
-	Inventory      searchInventoryState
-	Inspected      int
-	TotalAvailable int
-	Remaining      int
-	NextOffset     *int
-	Results        []searchInspectionResult
-}
-
-func (s *Server) inspectGoogleURLsNative(
-	ctx context.Context,
-	offset, limit int,
-	onProgress func(blogsearch.GoogleInspectionProgress) error,
-) (googleInspectionNativeReport, error) {
-	inventory, err := s.fetchSearchInventory(ctx)
-	if err != nil {
-		return googleInspectionNativeReport{}, err
-	}
-	accessToken, err := s.googleAccessToken(ctx)
-	if err != nil {
-		return googleInspectionNativeReport{}, err
-	}
-	report, err := blogsearch.AuditGoogleURLs(
-		ctx,
-		s.httpClient,
-		inventory.URLs,
-		blogsearch.DefaultSiteOrigin+"/",
-		inventory.Origin,
-		accessToken,
-		offset,
-		limit,
-		blogsearch.GoogleURLInspectionDefaultDelay,
-		func(event blogsearch.GoogleInspectionProgress) error {
-			if onProgress == nil {
-				return nil
-			}
-			return onProgress(event)
-		},
-	)
-	if err != nil {
-		return googleInspectionNativeReport{}, err
-	}
-	results := make([]searchInspectionResult, 0, len(report.Results))
-	for _, item := range report.Results {
-		results = append(results, coreInspectionResult(item))
-	}
-	return googleInspectionNativeReport{
-		Inventory: inventory,
-		Inspected: report.Inspected,
-		TotalAvailable: report.TotalAvailable,
-		Remaining: report.Remaining,
-		NextOffset: report.NextOffset,
-		Results: results,
-	}, nil
-}
-
 func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error) {
 	if s.searchRunner != nil {
 		raw, err := s.runSearchNode(ctx, s.config, "bing-check", nil)
