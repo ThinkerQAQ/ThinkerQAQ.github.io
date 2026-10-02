@@ -309,27 +309,21 @@ func publishingDurableTask(job *syncJob, existing *durableTaskJob, now time.Time
 }
 
 func syncJobFromDurable(job *durableTaskJob) *syncJob {
-	if job == nil || job.Kind != "publishing" {
+	if job == nil || job.Kind != "publishing" || len(job.Payload) == 0 {
 		return nil
 	}
 	var request syncRequest
-	if len(job.Payload) > 0 && json.Unmarshal(job.Payload, &request) != nil {
+	if json.Unmarshal(job.Payload, &request) != nil ||
+		strings.TrimSpace(request.Article) == "" ||
+		len(request.Platforms) == 0 ||
+		strings.TrimSpace(request.Operation) == "" {
 		return nil
 	}
-	if request.Article == "" {
-		request.Article = job.Article
-	}
-	if len(request.Platforms) == 0 {
-		request.Platforms = append([]string{}, job.Platforms...)
-	}
-	if request.Operation == "" {
-		request.Operation = job.Operation
-	}
 	restored := &syncJob{
-		ID: job.ID, Article: job.Article, Platforms: append([]string{}, job.Platforms...),
-		Operation: job.Operation, Request: request, Results: make(map[string]syncPlatformResult, len(job.Results)),
+		ID: job.ID, Article: request.Article, Platforms: append([]string{}, request.Platforms...),
+		Operation: request.Operation, Request: request, Results: make(map[string]syncPlatformResult, len(job.Results)),
 		Events: append([]syncJobEvent{}, job.Events...), State: job.State, StartedAt: job.StartedAt,
-		FinishedAt: job.FinishedAt, Output: job.Output, Error: job.Error, DryRun: job.DryRun,
+		FinishedAt: job.FinishedAt, Output: job.Output, Error: job.Error, DryRun: request.DryRun,
 	}
 	for platform, value := range job.Results {
 		restored.Results[platform] = value
