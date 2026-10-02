@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	blogbridge "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
 	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 )
 
@@ -87,6 +88,13 @@ func searchProviders(args []string) ([]string, error) {
 		return nil, errors.New("--providers is required")
 	}
 	return result, nil
+}
+
+func envOrConfig(name, configured string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return strings.TrimSpace(configured)
 }
 
 func containsString(values []string, target string) bool {
@@ -241,14 +249,15 @@ func (a app) runSearchSubmit(args []string) error {
 
 	client := &http.Client{Timeout: 45 * time.Second}
 	ctx := context.Background()
+	localConfig := blogbridge.ResolvedSearchRuntimeConfig()
 
 	if containsString(providers, "indexnow") {
 		config, err := blogsearch.ResolveIndexNowConfig(
 			origin,
 			publicRoot,
-			strings.TrimSpace(os.Getenv("INDEXNOW_ENDPOINT")),
-			strings.TrimSpace(os.Getenv("INDEXNOW_KEY")),
-			strings.TrimSpace(os.Getenv("INDEXNOW_KEY_LOCATION")),
+			envOrConfig("INDEXNOW_ENDPOINT", localConfig.IndexNowEndpoint),
+			envOrConfig("INDEXNOW_KEY", localConfig.IndexNowKey),
+			envOrConfig("INDEXNOW_KEY_LOCATION", localConfig.IndexNowKeyLocation),
 			true,
 		)
 		if err != nil {
@@ -262,7 +271,7 @@ func (a app) runSearchSubmit(args []string) error {
 	}
 
 	if containsString(providers, "baidu") {
-		token := strings.TrimSpace(os.Getenv("BAIDU_PUSH_TOKEN"))
+		token := envOrConfig("BAIDU_PUSH_TOKEN", localConfig.BaiduToken)
 		if token == "" {
 			if searchFlag(args, "--optional-baidu") {
 				fmt.Fprintln(a.out, "[search:baidu] skipped: BAIDU_PUSH_TOKEN is not configured")
@@ -270,7 +279,7 @@ func (a app) runSearchSubmit(args []string) error {
 				return errors.New("BAIDU_PUSH_TOKEN is required for Baidu submission")
 			}
 		} else {
-			site := strings.TrimSpace(os.Getenv("BAIDU_SITE"))
+			site := envOrConfig("BAIDU_SITE", localConfig.BaiduSite)
 			config, err := blogsearch.ResolveBaiduConfig(origin, site, token)
 			if err != nil {
 				return err
@@ -284,7 +293,7 @@ func (a app) runSearchSubmit(args []string) error {
 	}
 
 	if containsString(providers, "google") {
-		accessToken, err := googleAccessTokenFromEnvironment(ctx, client, searchFlag(args, "--optional-google"))
+		accessToken, err := googleAccessTokenForCLI(ctx, client, localConfig.GoogleServiceAccountJSON, searchFlag(args, "--optional-google"))
 		if err != nil {
 			return err
 		}
@@ -301,8 +310,8 @@ func (a app) runSearchSubmit(args []string) error {
 	return nil
 }
 
-func googleAccessTokenFromEnvironment(ctx context.Context, client *http.Client, optional bool) (string, error) {
-	raw := strings.TrimSpace(os.Getenv("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON"))
+func googleAccessTokenForCLI(ctx context.Context, client *http.Client, configured string, optional bool) (string, error) {
+	raw := envOrConfig("GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON", configured)
 	if raw == "" {
 		if optional {
 			return "", nil
@@ -392,7 +401,8 @@ func (a app) runSearchAudit(args []string) error {
 
 	client := &http.Client{Timeout: 45 * time.Second}
 	ctx := context.Background()
-	accessToken, err := googleAccessTokenFromEnvironment(ctx, client, false)
+	localConfig := blogbridge.ResolvedSearchRuntimeConfig()
+	accessToken, err := googleAccessTokenForCLI(ctx, client, localConfig.GoogleServiceAccountJSON, false)
 	if err != nil {
 		return err
 	}
