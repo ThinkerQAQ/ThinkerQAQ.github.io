@@ -266,46 +266,36 @@ func (a app) runSearchSubmit(args []string) error {
 	if containsString(providers, "bing") {
 		key := strings.TrimSpace(localConfig.BingAPIKey)
 		if key == "" {
-			if searchFlag(args, "--optional-bing") {
-				fmt.Fprintln(a.out, "[search:bing] skipped: Bing Webmaster API key is not configured in blogctl.toml")
-			} else {
-				return errors.New("Bing Webmaster API key is required in blogctl.toml for Bing submission")
-			}
-		} else {
-			config, err := blogsearch.ResolveBingConfig(origin, strings.TrimSpace(localConfig.BingSite), key)
-			if err != nil {
-				return err
-			}
-			result, err := blogsearch.SubmitBing(ctx, client, urls, config)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(a.out, "[search:bing] requested=%d submitted=%d pending=%d dailyQuota=%d monthlyQuota=%d batches=%d\n",
-				result.RequestedCount, result.SubmittedCount, result.RemainingCount,
-				result.Quota.DailyQuota, result.Quota.MonthlyQuota, result.BatchCount)
+			return errors.New("Bing Webmaster API key is required in blogctl.toml for Bing submission")
 		}
+		config, err := blogsearch.ResolveBingConfig(origin, strings.TrimSpace(localConfig.BingSite), key)
+		if err != nil {
+			return err
+		}
+		result, err := blogsearch.SubmitBing(ctx, client, urls, config)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(a.out, "[search:bing] requested=%d submitted=%d pending=%d dailyQuota=%d monthlyQuota=%d batches=%d\n",
+			result.RequestedCount, result.SubmittedCount, result.RemainingCount,
+			result.Quota.DailyQuota, result.Quota.MonthlyQuota, result.BatchCount)
 	}
 
 	if containsString(providers, "baidu") {
 		token := strings.TrimSpace(localConfig.BaiduToken)
 		if token == "" {
-			if searchFlag(args, "--optional-baidu") {
-				fmt.Fprintln(a.out, "[search:baidu] skipped: Baidu token is not configured in blogctl.toml")
-			} else {
-				return errors.New("Baidu token is required in blogctl.toml for Baidu submission")
-			}
-		} else {
-			site := strings.TrimSpace(localConfig.BaiduSite)
-			config, err := blogsearch.ResolveBaiduConfig(origin, site, token)
-			if err != nil {
-				return err
-			}
-			result, err := blogsearch.SubmitBaidu(ctx, client, urls, config)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(a.out, "[search:baidu] submitted=%d success=%d remain=%d batches=%d\n", result.URLCount, result.SuccessCount, result.Remain, result.BatchCount)
+			return errors.New("Baidu token is required in blogctl.toml for Baidu submission")
 		}
+		site := strings.TrimSpace(localConfig.BaiduSite)
+		config, err := blogsearch.ResolveBaiduConfig(origin, site, token)
+		if err != nil {
+			return err
+		}
+		result, err := blogsearch.SubmitBaidu(ctx, client, urls, config)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(a.out, "[search:baidu] submitted=%d success=%d remain=%d batches=%d\n", result.URLCount, result.SuccessCount, result.Remain, result.BatchCount)
 	}
 
 	if containsString(providers, "google") {
