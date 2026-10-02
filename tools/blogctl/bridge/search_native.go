@@ -197,6 +197,169 @@ func (s *Server) submitBaidu(ctx context.Context, mode string, previous searchIn
 	return payload, nil
 }
 
+
+type googleSitemapsPayload struct {
+	Inventory searchInventoryState            `json:"inventory"`
+	Result    []blogsearch.GoogleSitemapResult `json:"result"`
+}
+
+func (s *Server) googleAccessToken(ctx context.Context) (string, error) {
+	raw := googleSearchConsoleServiceJSON(s.config)
+	credentials, err := blogsearch.ParseGoogleServiceAccount(raw)
+	if err != nil {
+		return "", err
+	}
+	token, err := blogsearch.FetchGoogleAccessToken(ctx, s.httpClient, credentials)
+	if err != nil {
+		return "", err
+	}
+	return token.AccessToken, nil
+}
+
+func (s *Server) submitGoogleSitemapsNative(ctx context.Context) (googleSitemapsPayload, error) {
+	if s.searchRunner != nil {
+		raw, err := s.runSearchNode(ctx, s.config, "google-sitemaps", nil)
+		if err != nil {
+			return googleSitemapsPayload{}, err
+		}
+		var payload googleSitemapsPayload
+		if err := decodeSearchResult(raw, &payload); err != nil {
+			return googleSitemapsPayload{}, err
+		}
+		return payload, nil
+	}
+	inventory, err := s.fetchSearchInventory(ctx)
+	if err != nil {
+		return googleSitemapsPayload{}, err
+	}
+	accessToken, err := s.googleAccessToken(ctx)
+	if err != nil {
+		return googleSitemapsPayload{}, err
+	}
+	results, err := blogsearch.SubmitGoogleSitemaps(
+		ctx,
+		s.httpClient,
+		blogsearch.DefaultSiteOrigin+"/",
+		inventory.Origin,
+		accessToken,
+	)
+	if err != nil {
+		return googleSitemapsPayload{}, err
+	}
+	return googleSitemapsPayload{Inventory: inventory, Result: results}, nil
+}
+
+func coreInspectionResult(value blogsearch.GoogleInspectionResult) searchInspectionResult {
+	return searchInspectionResult{
+		URL: value.URL,
+		Verdict: value.Verdict,
+		CoverageState: value.CoverageState,
+		RobotsTxtState: value.RobotsTxtState,
+		IndexingState: value.IndexingState,
+		LastCrawlTime: value.LastCrawlTime,
+		PageFetchState: value.PageFetchState,
+		UserCanonical: value.UserCanonical,
+		GoogleCanonical: value.GoogleCanonical,
+		CrawledAs: value.CrawledAs,
+		ReferringURLs: append([]string{}, value.ReferringURLs...),
+		Sitemap: append([]string{}, value.Sitemap...),
+	}
+}
+
+type googleInspectionNativeReport struct {
+	Inventory      searchInventoryState
+	Inspected      int
+	TotalAvailable int
+	Remaining      int
+	NextOffset     *int
+	Results        []searchInspectionResult
+}
+
+func (s *Server) inspectGoogleURLsNative(
+	ctx context.Context,
+	offset, limit int,
+	onProgress func(blogsearch.GoogleInspectionProgress) error,
+) (googleInspectionNativeReport, error) {
+	inventory, err := s.fetchSearchInventory(ctx)
+	if err != nil {
+		return googleInspectionNativeReport{}, err
+	}
+	accessToken, err := s.googleAccessToken(ctx)
+	if err != nil {
+		return googleInspectionNativeReport{}, err
+	}
+	report, err := blogsearch.AuditGoogleURLs(
+		ctx,
+		s.httpClient,
+		inventory.URLs,
+		blogsearch.DefaultSiteOrigin+"/",
+		inventory.Origin,
+		accessToken,
+		offset,
+		limit,
+		blogsearch.GoogleURLInspectionDefaultDelay,
+		func(event blogsearch.GoogleInspectionProgress) {
+			if onProgress != nil {
+				_ = onProgress(event)
+			}
+		},
+	)
+	if err != nil {
+		return googleInspectionNativeReport{}, err
+	}
+	results := make([]searchInspectionResult, 0, len(report.Results))
+	for _, item := range report.Results {
+		results = append(results, coreInspectionResult(item))
+	}
+	return googleInspectionNativeReport{
+		Inventory: inventory,
+		Inspected: report.Inspected,
+		TotalAvailable: report.TotalAvailable,
+		Remaining: report.Remaining,
+		NextOffset: report.NextOffset,
+		Results: results,
+	}, nil
+}
+
+func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error) {
+	engineRoot := strings.TrimSpace(s.config.EngineRoot)
+	if engineRoot == "" {
+		return nil, errors.New("Public Engine path is not configured")
+	}
+	config, err := blogsearch.ResolveIndexNowConfig(
+		blogsearch.DefaultSiteOrigin,
+		filepath.Join(engineRoot, "public"),
+		indexNowEndpoint(s.config),
+		indexNowKey(s.config),
+		indexNowKeyLocation(s.config),
+		false,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := blogsearch.CheckIndexNowKey(ctx, s.httpClient, config); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"endpoint": config.Endpoint,
+		"keyLocation": config.KeyLocation,
+		"keyFileStatus": 200,
+	}, nil
+}
+
+func (s *Server) checkGoogleSearchConsoleNative(ctx context.Context) (map[string]any, error) {
+	accessToken, err := s.googleAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return blogsearch.CheckGoogleSearchConsoleSite(
+		ctx,
+		s.httpClient,
+		blogsearch.DefaultSiteOrigin+"/",
+		accessToken,
+	)
+}
+
 func maxSearchHTTPStatus(results []searchHTTPResult) int {
 	status := 0
 	for _, result := range results {
