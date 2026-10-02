@@ -16,24 +16,28 @@ Completed:
 - simplified `deploy.yml`; CI now builds BlogCTL from the current checkout
 - added `blogctl site build`, `blogctl ai-search prepare|sync|verify`, and `blogctl search notify`
 - moved Search inventory, fingerprinting, diff/snapshot logic, IndexNow, Baidu, Google OAuth, sitemap submission, and URL Inspection to Go
-- added Baidu TOML config, durable task state, separate snapshot, Bridge route, and Extension UI
-- removed the complete `tools/blogctl/search/node/` runtime and the legacy root IndexNow script
+- normalized the Search provider domain from the legacy `Bing` name to `IndexNow`; old persisted state/snapshot names are migration-only
+- moved AI Search preparation, sync, readiness polling, and retrieval evaluation to `tools/blogctl/aisearch` in Go
+- removed the complete `tools/blogctl/search/node/` runtime and the legacy root IndexNow scripts
 - kept Google **Request Indexing** in Extension JS because that path is browser/Search Console UI automation
-- removed standalone AI Search health scheduling; health polling now runs through BlogCTL after sync
+- created shared Go R2 storage under `tools/blogctl/storage/r2` and moved publisher fallback onto it
+- moved publishing asset dedupe/cache/render dispatch into Go; Node/Java remain only thin renderer ecosystem adapters
+- removed the complete legacy `tools/blogctl/assets/node/` runtime
+- removed obsolete syndication CLIs/wrappers and the old Node Medium transport
 - deployment search notification is now a pure Go BlogCTL job; Node is no longer required in `notify-search`
 
 Remaining compatibility boundary:
 
-- AI Search document preparation/sync/retrieval evaluation still invokes existing Node scripts internally
-- site assembly and Pagefind remain Node-based ecosystem tools behind `blogctl site build`
-- compiler/assets/Medium cleanup is still pending
+- publishing compilation still runs through `tools/blogctl/compiler/node/index.mjs`
+- the Node compiler still imports backend logic from root `scripts/distribute.mjs`, `scripts/publishing-config.mjs`, and `scripts/medium.mjs`
+- Astro, Pagefind, browser code, Mermaid CLI, PlantUML and renderer-local image conversion remain Node/Java ecosystem boundaries by design
 
 Next slice:
 
-1. finish Search review/tests and remove stale documentation/references
-2. migrate AI Search prepare/sync/evaluation backend logic to Go
-3. unify R2/storage in Go
-4. migrate asset orchestration and then compiler backend logic
+1. migrate article/frontmatter/platform/hash/diagram compiler domain logic to Go
+2. remove the dependency direction `BlogCTL compiler → root scripts/*`
+3. delete `compiler/node/*` and backend compatibility scripts once the Go compiler reaches output parity
+4. finish package/CI cleanup after compiler ownership is singular
 
 
 ---
@@ -142,80 +146,48 @@ After migration, remove `tools/blogctl/search/node`.
 
 ---
 
-## 3. R2 / storage: unify in Go
+## 3. R2 / storage: unify in Go — completed
 
-Current duplicate implementations:
-
-```text
-tools/blogctl/assets/node/r2.mjs
-tools/blogctl/publisher/r2_fallback.go
-```
-
-Both implement S3/R2 SigV4, upload and public URL construction.
-
-Target:
+Shared implementation:
 
 ```text
 tools/blogctl/storage/r2/
 ├── config.go
 ├── signer.go
-├── client.go
-└── url.go
+└── client.go
 ```
 
-Both asset delivery and publisher fallback use the same Go client.
+The publisher fallback now delegates R2 configuration validation, SigV4 signing, public URL construction and upload to this package.
 
-Delete `assets/node/r2.mjs`.
+The duplicate `tools/blogctl/assets/node/r2.mjs` implementation and its tests are deleted.
 
 Config source remains `blogctl.toml`. Do not create a second user-managed ENV configuration path.
 
 ---
 
-## 4. Assets: Go orchestration, external renderers only
+## 4. Assets: Go orchestration, external renderers only — completed
 
-Current `assets/node/assets.mjs` mixes:
-
-- dedupe
-- cache
-- renderer selection
-- image constraints
-- R2 upload
-- lifecycle state
-
-Move these responsibilities to Go.
-
-Target:
+Current boundary:
 
 ```text
-Go Asset Pipeline
-├── collect
-├── dedupe
-├── cache
-├── render dispatch
-├── image constraints
-└── storage upload
-       │
-       ├── Mermaid renderer → exec mmdc
-       └── PlantUML renderer → exec java -jar plantuml.jar
+Compiler
+   ↓ asset descriptions
+Go assets package
+   ├── dedupe
+   ├── cache
+   ├── validation
+   └── renderer dispatch
+          ↓
+thin renderer adapter
+   ├── Mermaid CLI
+   └── PlantUML + image conversion
 ```
 
-### Mermaid
+`tools/blogctl/assets/assets.go` owns backend asset orchestration.
 
-Keep Mermaid CLI itself. Replace our Node wrapper with a Go process adapter.
+`tools/blogctl/renderers/node/publishing-image.mjs` is intentionally a thin ecosystem adapter. It does not own publishing state, R2 credentials, upload policy, dedupe or cache policy.
 
-```text
-Go → mmdc / npx → PNG
-```
-
-### PlantUML
-
-Replace the Node wrapper with Go process execution.
-
-```text
-Go → java -jar plantuml.jar → PNG/SVG
-```
-
-Prefer direct PNG output for publishing when it avoids `SVG → sharp → PNG`.
+The legacy `tools/blogctl/assets/node/` runtime is deleted.
 
 ---
 
@@ -282,12 +254,11 @@ Do not switch Markdown engines without corpus/golden tests because HTML differen
 
 ## 6. Medium / publishing: remove duplicate JS backend logic
 
-There are currently overlapping implementations:
+The old Node Medium transport and standalone syndication runtime are removed.
+
+The remaining compatibility piece is `scripts/medium.mjs`, which is still imported by the Node compiler for Medium payload/fallback generation. Runtime Medium HTTP/session/publish ownership is already Go:
 
 ```text
-tools/blogctl/transport/node/medium.mjs
-scripts/medium.mjs
-scripts/syndicate-medium.mjs
 tools/blogctl/bridge/medium.go
 tools/blogctl/bridge/medium_transport.go
 ```
@@ -312,7 +283,7 @@ Go Publisher
 Medium
 ```
 
-Delete the Node transport after parity is confirmed.
+The Node transport is already deleted. Remove `scripts/medium.mjs` when the Go compiler owns Medium payload generation.
 
 The extension currently also contains Medium list/match logic. Move API/list/match/binding logic into Go. Extension JS should only acquire browser-owned session material and hand it to the Bridge.
 
@@ -612,14 +583,14 @@ when the goal is simply to produce and deploy the site.
 
 As Go migrations complete, remove BlogCTL backend suites from `npm run test:engine`.
 
-Candidates to remove from Node test aggregation after Go parity:
+Remaining candidates to remove from Node test aggregation after compiler parity:
 
 ```text
-test:search-discovery
 test:distribute
-test:syndicate
-BlogCTL compiler/assets Node tests
+BlogCTL compiler Node tests
 ```
+
+The old syndication and Node asset suites have already been removed.
 
 Keep site/browser suites:
 
@@ -703,13 +674,13 @@ Likewise, BlogCTL release, Worker release and analytics remain separate because 
 - deleted standalone `search-submit.yml`
 - deploy search notification → current-checkout BlogCTL Go binary
 
-## R3 — Shared R2 + assets
+## R3 — Shared R2 + assets — completed
 
-- create shared Go R2 package
-- migrate asset orchestration
-- Go Mermaid process adapter
-- Go PlantUML process adapter
-- remove Node R2 implementation
+- shared Go R2 package owns config/signing/upload
+- Go owns asset dedupe/cache/validation/render dispatch
+- thin renderer adapter invokes Mermaid CLI / PlantUML ecosystem tools
+- removed Node R2 implementation
+- removed legacy `tools/blogctl/assets/node/` orchestration
 
 ## R4 — Compiler
 
@@ -718,11 +689,13 @@ Likewise, BlogCTL release, Worker release and analytics remain separate because 
 - golden tests on real representative Markdown
 - only then evaluate replacing micromark/sharp
 
-## R5 — Publishing cleanup
+## R5 — Publishing cleanup — partially completed
 
-- remove Node Medium transport
-- move Medium lookup/match from extension background into Go
-- delete obsolete syndication compatibility paths
+- removed Node Medium transport
+- removed obsolete syndication compatibility paths
+- Go owns Medium HTTP/session/create/update/publish
+- remaining: move compiler-side Medium payload generation out of `scripts/medium.mjs`
+- remaining: keep Extension JS limited to browser-owned session/UI responsibilities
 
 ## R6 — CI cleanup
 
