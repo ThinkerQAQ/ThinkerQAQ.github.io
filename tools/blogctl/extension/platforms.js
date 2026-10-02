@@ -152,16 +152,3 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
   },
 });
-
-export const PLATFORM_HOSTS = Object.freeze({
-  cnblogs: "https://*.cnblogs.com/*",
-  juejin: "https://*.juejin.cn/*",
-  csdn: "https://*.csdn.net/*",
-  segmentfault: "https://*.segmentfault.com/*",
-  zhihu: "https://*.zhihu.com/*",
-  "51cto": "https://*.51cto.com/*",
-  oschina: "https://*.oschina.net/*",
-  toutiao: "https://*.toutiao.com/*",
-  devto: "https://dev.to/*",
-  medium: "https://medium.com/*",
-});
