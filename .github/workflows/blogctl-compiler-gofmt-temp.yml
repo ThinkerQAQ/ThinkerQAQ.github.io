@@ -1,0 +1,31 @@
+name: Temp BlogCTL Compiler Gofmt
+
+on:
+  push:
+    branches:
+      - refactor/blogctl-compiler-go-runtime-20261002
+
+permissions:
+  contents: write
+
+jobs:
+  gofmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/blogctl/go.mod
+          cache: false
+      - name: Format Go runtime
+        shell: bash
+        run: |
+          gofmt -w tools/blogctl
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/blogctl
+          git commit -m "style(compiler): gofmt PlantUML and compiler runtime"
+          git push
