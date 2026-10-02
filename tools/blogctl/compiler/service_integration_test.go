@@ -25,23 +25,25 @@ func TestServiceCompilesThroughNodeRenderer(t *testing.T) {
 	if err := os.MkdirAll(articleRoot, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	source := `---
-title: "Integration"
-description: "Compiler integration fixture."
-status: published
-coverImage: "/cover.png"
-coverImageAlt: "Cover"
-tags:
-  - Go
----
-
-## Body
-
-```mermaid
-flowchart LR
-  A --> B
-```
-`
+	source := strings.Join([]string{
+		"---",
+		"title: \"Integration\"",
+		"description: \"Compiler integration fixture.\"",
+		"status: published",
+		"coverImage: \"/cover.png\"",
+		"coverImageAlt: \"Cover\"",
+		"tags:",
+		"  - Go",
+		"---",
+		"",
+		"## Body",
+		"",
+		"```mermaid",
+		"flowchart LR",
+		"  A --> B",
+		"```",
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(articleRoot, "example.md"), []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
