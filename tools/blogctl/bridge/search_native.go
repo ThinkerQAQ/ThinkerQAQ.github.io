@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
@@ -31,13 +30,6 @@ type indexNowSubmissionPayload struct {
 		BatchCount int                `json:"batchCount"`
 		Results    []searchHTTPResult `json:"results"`
 	} `json:"result"`
-}
-
-type bingSubmissionPayload struct {
-	Inventory searchInventoryState  `json:"inventory"`
-	Diff      searchDiffPayload     `json:"diff"`
-	Snapshot  bingIndexSnapshot     `json:"snapshot"`
-	Result    blogsearch.BingResult `json:"result"`
 }
 
 type baiduSubmissionPayload struct {
@@ -139,113 +131,6 @@ func (s *Server) submitIndexNow(ctx context.Context, mode string, previous searc
 		payload.Result.Results = append(payload.Result.Results, searchHTTPResult{HTTPStatus: batch.HTTPStatus})
 	}
 	return payload, nil
-}
-
-func uniqueCurrentURLs(values []string, current searchInventoryState) []string {
-	currentSet := make(map[string]struct{}, len(current.URLs))
-	for _, item := range current.URLs {
-		currentSet[item] = struct{}{}
-	}
-	seen := map[string]struct{}{}
-	result := make([]string, 0, len(values))
-	for _, item := range values {
-		if _, ok := currentSet[item]; !ok {
-			continue
-		}
-		if _, ok := seen[item]; ok {
-			continue
-		}
-		seen[item] = struct{}{}
-		result = append(result, item)
-	}
-	sort.Strings(result)
-	return result
-}
-
-func advanceBingInventory(previous, current searchInventoryState, submitted []string) searchInventoryState {
-	currentSet := make(map[string]struct{}, len(current.URLs))
-	for _, item := range current.URLs {
-		currentSet[item] = struct{}{}
-	}
-	urlSet := map[string]struct{}{}
-	fingerprints := map[string]string{}
-	for _, item := range previous.URLs {
-		if _, ok := currentSet[item]; !ok {
-			continue
-		}
-		urlSet[item] = struct{}{}
-		if value := strings.TrimSpace(previous.Fingerprints[item]); value != "" {
-			fingerprints[item] = value
-		}
-	}
-	for _, item := range submitted {
-		if _, ok := currentSet[item]; !ok {
-			continue
-		}
-		urlSet[item] = struct{}{}
-		if value := strings.TrimSpace(current.Fingerprints[item]); value != "" {
-			fingerprints[item] = value
-		} else {
-			delete(fingerprints, item)
-		}
-	}
-	urls := make([]string, 0, len(urlSet))
-	for item := range urlSet {
-		urls = append(urls, item)
-	}
-	sort.Strings(urls)
-	return searchInventoryState{
-		Source: current.Source, FingerprintSource: current.FingerprintSource,
-		FingerprintCoverage: len(fingerprints), Origin: current.Origin,
-		FetchedAt: current.FetchedAt, Total: len(urls), URLs: urls, Fingerprints: fingerprints,
-	}
-}
-
-func (s *Server) submitBing(ctx context.Context, mode string, previous bingIndexSnapshot) (bingSubmissionPayload, error) {
-	inventory, err := s.fetchSearchInventory(ctx)
-	if err != nil {
-		return bingSubmissionPayload{}, err
-	}
-	diff, err := blogsearch.DiffInventories(searchInventoryToCore(previous.Inventory), searchInventoryToCore(inventory), mode, false)
-	if err != nil {
-		return bingSubmissionPayload{}, err
-	}
-	candidates := append([]string{}, previous.Pending...)
-	candidates = append(candidates, diff.Selected...)
-	candidates = uniqueCurrentURLs(candidates, inventory)
-	payload := bingSubmissionPayload{Inventory: inventory, Diff: diffPayload(diff)}
-	if len(candidates) == 0 {
-		payload.Snapshot = bingIndexSnapshot{Inventory: advanceBingInventory(previous.Inventory, inventory, nil)}
-		return payload, nil
-	}
-	config, err := blogsearch.ResolveBingConfig(inventory.Origin, bingSite(s.config), bingAPIKey(s.config))
-	if err != nil {
-		return payload, err
-	}
-	result, submitErr := blogsearch.SubmitBing(ctx, s.httpClient, candidates, config)
-	payload.Result = result
-	payload.Snapshot = bingIndexSnapshot{
-		Inventory: advanceBingInventory(previous.Inventory, inventory, result.SubmittedURLs),
-		Pending:   uniqueCurrentURLs(result.RemainingURLs, inventory),
-	}
-	if submitErr != nil {
-		return payload, submitErr
-	}
-	return payload, nil
-}
-
-func (s *Server) checkBingNative(ctx context.Context) (map[string]any, error) {
-	config, err := blogsearch.ResolveBingConfig(blogsearch.DefaultSiteOrigin, bingSite(s.config), bingAPIKey(s.config))
-	if err != nil {
-		return nil, err
-	}
-	quota, err := blogsearch.GetBingURLSubmissionQuota(ctx, s.httpClient, config)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{
-		"site": config.Site, "dailyQuota": quota.DailyQuota, "monthlyQuota": quota.MonthlyQuota,
-	}, nil
 }
 
 func (s *Server) submitBaidu(ctx context.Context, mode string, previous searchInventoryState) (baiduSubmissionPayload, error) {
