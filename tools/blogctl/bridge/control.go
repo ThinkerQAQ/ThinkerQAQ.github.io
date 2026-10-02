@@ -1168,9 +1168,6 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		EngineRoot:     config.EngineRoot,
 		ContentRoot:    config.ContentRoot,
 		PublishingJSON: publishingJSON,
-		BridgeOrigin:   "http://" + DefaultAddress,
-		BridgeToken:    s.token,
-		DevtoAPIKey:    config.DevtoAPIKey,
 		ToolPaths:      config.ToolPaths,
 	}
 	if request.Operation == "update-published" {
