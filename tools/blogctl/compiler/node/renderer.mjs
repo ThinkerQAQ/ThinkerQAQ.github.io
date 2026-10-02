@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -229,7 +228,8 @@ export function renderArticle(request) {
 }
 
 export async function main() {
-  const raw = await readFile(0, "utf8");
+  let raw = "";
+  for await (const chunk of process.stdin) raw += chunk;
   const request = JSON.parse(raw);
   process.stdout.write(JSON.stringify(renderArticle(request)) + "\n");
 }
