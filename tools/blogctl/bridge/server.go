@@ -161,7 +161,6 @@ type Server struct {
 	config       bridgeConfig
 	restart      func()
 	syncRunner   syncRunner
-	searchRunner searchRunnerFunc
 	searchMu     sync.Mutex
 
 	mu             sync.Mutex
@@ -471,10 +470,6 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if path == "v1/search/index/jobs/google/inspect" && request.Method == http.MethodPost {
 		s.handleSearchGoogleInspectionJobStart(response, request)
-		return
-	}
-	if path == "v1/search/index/bing/submit" && request.Method == http.MethodPost {
-		s.handleSearchBingSubmit(response, request)
 		return
 	}
 	if path == "v1/search/index/google/request-queue" && request.Method == http.MethodPost {
