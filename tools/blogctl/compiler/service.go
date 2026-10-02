@@ -64,6 +64,7 @@ type rendererRequest struct {
 	AssetBaseURL string          `json:"assetBaseUrl"`
 	DryRun       bool            `json:"dryRun"`
 	SourceDir    string          `json:"sourceDir"`
+	Assets       []Asset         `json:"assets"`
 }
 
 func normalizeRequestedArticles(values []string) []string {
@@ -211,10 +212,15 @@ func (s Service) Compile(ctx context.Context, request CompileRequest) ([]Compile
 		if article.Status != "published" {
 			return nil, fmt.Errorf("article is not published: %s", slug)
 		}
+		renderedBody, assets, err := CompileDiagramAssets(article.Body, runtime.Assets.R2.PublicBaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("compile diagrams for %s: %w", slug, err)
+		}
+		article.Body = renderedBody
 		compiled, err := s.render(ctx, rendererRequest{
 			Article: article, Slug: slug, Platform: platform, Profile: profile, Language: language,
 			AssetBaseURL: runtime.Assets.R2.PublicBaseURL, DryRun: request.DryRun,
-			SourceDir: filepath.Dir(sourceFile),
+			SourceDir: filepath.Dir(sourceFile), Assets: assets,
 		})
 		if err != nil {
 			return nil, err
