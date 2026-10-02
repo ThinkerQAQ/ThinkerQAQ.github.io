@@ -48,8 +48,8 @@ func compiledFixture(slug, platform string) blogcompiler.CompiledArticle {
 		Title: "Compiled " + slug, Description: "Description",
 		Markdown: "Body", HTML: "<p>Body</p>", Language: language,
 		CanonicalURL: "https://thinkerqaq.github.io/articles/" + slug + "/",
-		ContentHash: "hash-" + slug + "-" + platform,
-		SourceDir:   "/tmp/articles",
+		ContentHash:  "hash-" + slug + "-" + platform,
+		SourceDir:    "/tmp/articles",
 	}
 }
 
