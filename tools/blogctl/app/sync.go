@@ -510,7 +510,7 @@ func syncEnvironment(config SyncConfig) []string {
 func prependToolDirectories(env []string, toolPaths map[string]string) []string {
 	directories := []string{}
 	seen := map[string]struct{}{}
-	for _, name := range []string{"node", "npm", "git", "java"} {
+	for _, name := range []string{"node", "npm", "git"} {
 		path := strings.TrimSpace(toolPaths[name])
 		if path == "" {
 			continue
