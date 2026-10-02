@@ -38,6 +38,6 @@ test("Go-resolved publishing JSON is authoritative for compiler and asset policy
   });
   assert.deepEqual(config, {
     mermaid: { format: "png", width: 1800, scale: 4 },
-    assets: { store: "r2", r2: { bucket: "go-bucket", publicBaseUrl: "https://go.example.com/" } },
+    assets: { r2: { publicBaseUrl: "https://go.example.com/" } },
   });
 });
