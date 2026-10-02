@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
 )
@@ -370,6 +371,30 @@ func (s SyncService) runSyncPlan(
 		}
 		if validationFailed {
 			return result
+		}
+
+		if !request.DryRun && request.Operation == "draft" {
+			stats, assetErr := blogassets.Prepare(ctx, compiledArticles, blogassets.Config{
+				EngineRoot: config.EngineRoot,
+				ContentRoot: config.ContentRoot,
+				Node:        node,
+				Env:         env,
+			})
+			if assetErr != nil {
+				message := "publishing assets: " + assetErr.Error()
+				for _, platform := range entry.Platforms {
+					emit(SyncEvent{Platform: platform, State: "failed", Message: assetErr.Error()})
+					terminal[platform] = true
+				}
+				result.failures = append(result.failures, message)
+				return result
+			}
+			if stats.Assets > 0 {
+				appendOutput(&result.output, fmt.Sprintf(
+					"[assets] prepared=%d rendered=%d cached=%d",
+					stats.Assets, stats.Rendered, stats.Cached,
+				))
+			}
 		}
 
 		if request.DryRun {
