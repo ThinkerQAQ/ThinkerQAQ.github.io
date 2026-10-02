@@ -160,7 +160,7 @@ The Content Template intentionally does not include an automatic deployment trig
 
 ```text
 src/                  Astro pages, components, and content schema
-scripts/              Build, search, distribution, and maintenance scripts
+scripts/              Astro / Pagefind / diagram rendering and frontend test scripts
 workers/              Cloudflare Workers
 tools/blogctl/         BlogCTL
 fixtures/              Public Engine test content
