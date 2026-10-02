@@ -29,6 +29,68 @@ const (
 )
 
 var (
+	mermaidAssetIDPattern   = regexp.MustCompile(`^[a-f0-9]{24}package assets
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"image/png"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+	"sync"
+
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+)
+
+const (
+	MermaidCLIPackage      = "@mermaid-js/mermaid-cli@11.17.0"
+	PlantUMLVersion        = "1.2026.7"
+	PlantUMLJarSHA256      = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
+	MaxPublishingImageSize = 4096
+)
+
+)
+	plantUMLAssetIDPattern  = regexp.MustCompile(`^[a-f0-9]{64}package assets
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"image/png"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+	"sync"
+
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
+)
+
+const (
+	MermaidCLIPackage      = "@mermaid-js/mermaid-cli@11.17.0"
+	PlantUMLVersion        = "1.2026.7"
+	PlantUMLJarSHA256      = "33aa7ed0ca843e300690230d09268e1f526fdde7e86fecdfa39fb80412cafcde"
+	MaxPublishingImageSize = 4096
+)
+
+)
 	plantUMLExternalPattern = regexp.MustCompile(`(?im)^\s*!\s*(?:include\w*|import|theme)\b|%(?:getenv|load\w*|filename|dirpath)\s*\(`)
 	plantUMLStartPattern    = regexp.MustCompile(`(?im)^\s*@start(\w+)\b`)
 	plantUMLEndPattern      = regexp.MustCompile(`(?im)^\s*@end(\w+)\b`)
