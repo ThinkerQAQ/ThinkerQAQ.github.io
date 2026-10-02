@@ -191,6 +191,15 @@ func BuildSyncPlan(request SyncRequest) []SyncPlan {
 	return plans
 }
 
+func compiledArticleFor(articles []blogcompiler.CompiledArticle, slug, platform string) (blogcompiler.CompiledArticle, error) {
+	for _, article := range articles {
+		if article.Slug == slug && article.Platform == platform {
+			return article, nil
+		}
+	}
+	return blogcompiler.CompiledArticle{}, fmt.Errorf("publishing compiler returned no article for %s/%s", platform, slug)
+}
+
 type syncPlanExecution struct {
 	index    int
 	output   string
@@ -288,10 +297,10 @@ func (s SyncService) runSyncPlan(
 				return result
 			}
 			if stats.Assets > 0 {
-				appendOutput(&result.output, fmt.Sprintf(
-					"[assets] prepared=%d rendered=%d cached=%d",
+				result.output += fmt.Sprintf(
+					"[assets] prepared=%d rendered=%d cached=%d\n",
 					stats.Assets, stats.Rendered, stats.Cached,
-				))
+				)
 			}
 		}
 
