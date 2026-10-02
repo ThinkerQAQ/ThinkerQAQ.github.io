@@ -90,16 +90,12 @@
     return statusPlatform(status, id)?.label || id;
   }
 
-  function fallbackResult(job, platform) {
-    if (job?.state === "failed") return { state: "failed", error: job.error || "同步失败" };
-    if (job?.state === "completed") return { state: "completed", result: "completed" };
-    if (job?.state === "running") return { state: "running" };
-    return { state: "queued" };
-  }
-
   function platformRows(job, status) {
     return (job?.platforms ?? []).map((platform) => {
-      const result = job?.results?.[platform] || fallbackResult(job, platform);
+      const result = job?.results?.[platform] || {
+        state: "unknown",
+        error: "任务缺少平台结果",
+      };
       const presentation = statePresentation(result.state, result.result);
       const platformStatus = statusPlatform(status, platform);
       return {
