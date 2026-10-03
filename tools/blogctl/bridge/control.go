@@ -1135,7 +1135,7 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 	if request.Platform == "medium" {
 		return p.createOrUpdateMediumDraft(ctx, request, session, httpClient)
 	}
-	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath(), DistributionRoot: request.DistributionRoot}
+	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath()}
 	result, err := service.CreateOrUpdateDraftInput(
 		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config), request.ChangedOnly,
 	)
@@ -1198,7 +1198,7 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 		}
 		return blogapp.NativePublishResult{Result: "published", URL: publishedURL}, nil
 	}
-	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath(), DistributionRoot: request.DistributionRoot}
+	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath()}
 	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config))
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
@@ -1244,7 +1244,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
 			return "", err
 		}
-		result, skipped, err := (publisher.Service{HTTPClient: client, PublicationPath: config.PublicationBindingsPath, DistributionRoot: config.DistributionRoot}).UpdateCNBlogsPublishedInput(
+		result, skipped, err := (publisher.Service{HTTPClient: client, PublicationPath: config.PublicationBindingsPath}).UpdateCNBlogsPublishedInput(
 			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config.DistributionRoot, config),
 		)
 		if err != nil {
