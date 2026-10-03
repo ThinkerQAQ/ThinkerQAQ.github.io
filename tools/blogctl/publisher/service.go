@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"path/filepath"
 )
 
 type Service struct {
@@ -17,18 +16,12 @@ type Service struct {
 	DistributionRoot string
 }
 
-func (s Service) publicationPath(contentRoot string) string {
-	if path := strings.TrimSpace(s.PublicationPath); path != "" {
-		return path
-	}
-	return LegacyPublicationBindingsPath(contentRoot)
+func (s Service) publicationPath() string {
+	return strings.TrimSpace(s.PublicationPath)
 }
 
-func (s Service) distributionRoot(contentRoot string) string {
-	if path := strings.TrimSpace(s.DistributionRoot); path != "" {
-		return path
-	}
-	return filepath.Join(contentRoot, ".distribution")
+func (s Service) distributionRoot() string {
+	return strings.TrimSpace(s.DistributionRoot)
 }
 
 func (s Service) now() time.Time {
@@ -73,7 +66,7 @@ func (s Service) CreateOrUpdateDraft(
 	slug string,
 	changedOnly bool,
 ) (DraftResult, error) {
-	input, _, err := LoadDraftInputFromDistribution(contentRoot, s.distributionRoot(contentRoot), platform, slug)
+	input, _, err := LoadDraftInput(contentRoot, s.distributionRoot(), platform, slug)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -90,7 +83,7 @@ func (s Service) CreateOrUpdateDraftInput(
 ) (DraftResult, error) {
 	slug := input.Slug
 	input.ChangedOnly = changedOnly
-	state, _, err := LoadPublicationState(s.publicationPath(contentRoot), slug, platform)
+	state, _, err := LoadPublicationState(s.publicationPath(), slug, platform)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -193,16 +186,16 @@ func (s Service) CreateOrUpdateDraftInput(
 	if result.ID == "" || result.URL == "" {
 		return DraftResult{}, fmt.Errorf("%s adapter returned an incomplete draft result", platform)
 	}
-	if err := SavePublicationDraftResult(s.publicationPath(contentRoot), slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationDraftResult(s.publicationPath(), slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return DraftResult{}, err
 	}
 	if platform == "devto" && input.Published {
-		if err := SavePublicationPublishResult(s.publicationPath(contentRoot), slug, platform, input.ContentHash, PublishResult{ID: result.ID, URL: result.URL}, s.now()); err != nil {
+		if err := SavePublicationPublishResult(s.publicationPath(), slug, platform, input.ContentHash, PublishResult{ID: result.ID, URL: result.URL}, s.now()); err != nil {
 			return DraftResult{}, err
 		}
 	}
 	if platform == "cnblogs" {
-		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(contentRoot), slug, platform)
+		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(), slug, platform)
 		if loadErr != nil {
 			return DraftResult{}, loadErr
 		}
@@ -212,13 +205,13 @@ func (s Service) CreateOrUpdateDraftInput(
 				binding.Source = "blogctl"
 			}
 			binding.VerifiedAt = verifiedAt(s.now())
-			if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
+			if err := SavePublicationBinding(s.publicationPath(), binding); err != nil {
 				return DraftResult{}, err
 			}
 		}
 	}
 	if platform == "csdn" {
-		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(contentRoot), slug, platform)
+		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(), slug, platform)
 		if loadErr != nil {
 			return DraftResult{}, loadErr
 		}
@@ -228,7 +221,7 @@ func (s Service) CreateOrUpdateDraftInput(
 				binding.Source = "blogctl"
 			}
 			binding.VerifiedAt = verifiedAt(s.now())
-			if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
+			if err := SavePublicationBinding(s.publicationPath(), binding); err != nil {
 				return DraftResult{}, err
 			}
 		}
@@ -243,7 +236,7 @@ func (s Service) PublishDraft(
 	contentRoot string,
 	slug string,
 ) (PublishResult, error) {
-	input, _, err := LoadDraftInputFromDistribution(contentRoot, s.distributionRoot(contentRoot), platform, slug)
+	input, _, err := LoadDraftInput(contentRoot, s.distributionRoot(), platform, slug)
 	if err != nil {
 		return PublishResult{}, err
 	}
@@ -258,7 +251,7 @@ func (s Service) PublishDraftInput(
 	input DraftInput,
 ) (PublishResult, error) {
 	slug := input.Slug
-	state, _, err := LoadPublicationState(s.publicationPath(contentRoot), slug, platform)
+	state, _, err := LoadPublicationState(s.publicationPath(), slug, platform)
 	if err != nil {
 		return PublishResult{}, err
 	}
@@ -296,12 +289,12 @@ func (s Service) PublishDraftInput(
 	if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.URL) == "" {
 		return PublishResult{}, fmt.Errorf("%s adapter returned an incomplete publish result", platform)
 	}
-	if err := SavePublicationPublishResult(s.publicationPath(contentRoot), slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationPublishResult(s.publicationPath(), slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return PublishResult{}, err
 	}
 	if platform == "cnblogs" {
 		cnblogs := adapter.(*cnBlogsAdapter)
-		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(contentRoot), slug, platform)
+		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(), slug, platform)
 		if loadErr != nil {
 			return PublishResult{}, loadErr
 		}
@@ -320,7 +313,7 @@ func (s Service) PublishDraftInput(
 			binding.DraftURL = ""
 			binding.DraftHash = ""
 			binding.DraftSyncedAt = ""
-			if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
+			if err := SavePublicationBinding(s.publicationPath(), binding); err != nil {
 				return PublishResult{}, err
 			}
 		}
@@ -330,7 +323,7 @@ func (s Service) PublishDraftInput(
 
 // UpdateCNBlogsPublished is an explicit operation; the draft path never changes a public post.
 func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, contentRoot, slug string) (PublishResult, bool, error) {
-	input, _, err := LoadDraftInputFromDistribution(contentRoot, s.distributionRoot(contentRoot), "cnblogs", slug)
+	input, _, err := LoadDraftInput(contentRoot, s.distributionRoot(), "cnblogs", slug)
 	if err != nil {
 		return PublishResult{}, false, err
 	}
@@ -339,7 +332,7 @@ func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, co
 
 func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Session, contentRoot string, input DraftInput) (PublishResult, bool, error) {
 	slug := input.Slug
-	binding, found, err := LoadPublicationBinding(s.publicationPath(contentRoot), slug, "cnblogs")
+	binding, found, err := LoadPublicationBinding(s.publicationPath(), slug, "cnblogs")
 	if err != nil {
 		return PublishResult{}, false, err
 	}
@@ -396,7 +389,7 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 	if binding.Source == "" {
 		binding.Source = "blogctl"
 	}
-	if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
+	if err := SavePublicationBinding(s.publicationPath(), binding); err != nil {
 		return PublishResult{}, false, err
 	}
 	return PublishResult{URL: binding.PublishedURL}, false, nil
