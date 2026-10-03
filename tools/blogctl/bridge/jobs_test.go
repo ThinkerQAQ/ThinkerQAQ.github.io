@@ -115,7 +115,7 @@ func TestRunningRequestIndexingTaskRecoversPaused(t *testing.T) {
 		JobID:        job.ID,
 		State:        "running",
 		CurrentIndex: 1,
-		Items: []googleIndexRequestItem{
+		Items:        []googleIndexRequestItem{
 			{URL: "https://thinkerqaq.github.io/a/", Status: "requested"},
 			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
 		},
@@ -140,7 +140,6 @@ func TestRunningRequestIndexingTaskRecoversPaused(t *testing.T) {
 		t.Fatalf("restored progress = %#v", restoredJob.Progress)
 	}
 }
-
 
 func TestQuotaBlockedRequestQueueRecoversMissingTask(t *testing.T) {
 	useIsolatedUserConfigDir(t)
