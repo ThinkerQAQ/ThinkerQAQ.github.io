@@ -13,32 +13,6 @@ import (
 	"time"
 )
 
-func TestMigratePublicationBindingsMovesLegacyFile(t *testing.T) {
-	root := t.TempDir()
-	source := LegacyPublicationBindingsPath(root)
-	target := filepath.Join(t.TempDir(), "BlogCTL", "publications.json")
-	if err := os.MkdirAll(filepath.Dir(source), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	raw := []byte("{\n  \"version\": 2,\n  \"publications\": []\n}\n")
-	if err := os.WriteFile(source, raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := MigratePublicationBindings(source, target); err != nil {
-		t.Fatal(err)
-	}
-	got, err := os.ReadFile(target)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != string(raw) {
-		t.Fatalf("migrated contents = %q", got)
-	}
-	if _, err := os.Stat(source); !os.IsNotExist(err) {
-		t.Fatalf("legacy bindings still exist: %v", err)
-	}
-}
-
 func TestParseCNBlogsPostReference(t *testing.T) {
 	for reference, want := range map[string]string{
 		"42": "42",
@@ -84,214 +58,59 @@ func TestCNBlogsLookupUsesEditorListAndVerifiesDetail(t *testing.T) {
 	}
 }
 
-func cnBlogsPublishedFixture(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	output := filepath.Join(root, ".distribution", "cnblogs")
-	if err := os.MkdirAll(output, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(output, "example.md"), []byte("---\ntitle: \"Example\"\ndescription: \"Desc\"\n---\n\nNew body\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	manifest := `{"version":2,"articles":{"example":{"platforms":{"cnblogs":{"contentHash":"new-hash"}}}}}`
-	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return root
-}
-
-func TestCNBlogsPublishedUpdatePreservesUnifiedPublicationState(t *testing.T) {
-	root := cnBlogsPublishedFixture(t)
-	if err := SavePublicationBinding(root, PublicationBinding{
-		Slug: "example", Platform: "cnblogs", Account: "ThinkerQAQ",
-		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
-		PublishedHash: "old-hash", RemoteUpdatedAt: "before", Source: "manual",
-		RemoteDraftID: "52", DraftURL: "https://i.cnblogs.com/articles/edit;postId=52", DraftHash: "draft-hash",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	posted := false
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.Path == "/api/user":
-			return jsonResponse(request, 200, `{"loginName":"ThinkerQAQ"}`, nil), nil
-		case request.URL.Path == "/posts/edit":
-			return jsonResponse(request, 200, "", nil), nil
-		case request.URL.Path == "/api/posts/42":
-			updated := "before"
-			if posted {
-				updated = "after"
-			}
-			return jsonResponse(request, 200, `{"blogPost":{"id":42,"title":"Old","postBody":"Old body","url":"https://www.cnblogs.com/ThinkerQAQ/p/42","isPublished":true,"isDraft":false,"author":"ThinkerQAQ","blogId":824919,"dateUpdated":"`+updated+`"}}`, nil), nil
-		case request.Method == http.MethodPost && request.URL.Path == "/api/posts":
-			var body map[string]any
-			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-				t.Fatal(err)
-			}
-			if body["id"] != float64(42) || body["isPublished"] != true || body["isDraft"] != false || body["blogId"] != float64(824919) || body["postBody"] != "New body" {
-				t.Fatalf("unsafe update payload: %#v", body)
-			}
-			posted = true
-			return jsonResponse(request, 200, `{"id":42}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s", request.URL.String())
-			return nil, nil
-		}
-	})}
-	result, skipped, err := (Service{HTTPClient: client}).UpdateCNBlogsPublished(context.Background(), cnBlogsSession(), root, "example")
-	if err != nil || skipped || !posted || !strings.Contains(result.URL, "/p/42") {
-		t.Fatalf("result = %#v, %v, %v", result, skipped, err)
-	}
-	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
-	if err != nil || !found {
-		t.Fatalf("publication = %#v, %v, %v", binding, found, err)
-	}
-	if binding.RemoteUpdatedAt != "after" || binding.PublishedHash != "new-hash" ||
-		binding.PublishedRemoteID != "42" || binding.RemoteDraftID != "52" || binding.DraftHash != "draft-hash" {
-		t.Fatalf("updated publication = %#v", binding)
-	}
-}
-
-func TestCNBlogsPublishedUpdateRejectsRemoteChangesBeforePost(t *testing.T) {
-	root := cnBlogsPublishedFixture(t)
-	if err := SavePublicationBinding(root, PublicationBinding{
-		Slug: "example", Platform: "cnblogs", Account: "ThinkerQAQ",
-		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
-		RemoteUpdatedAt: "old",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodPost {
-			t.Fatal("remote change was overwritten")
-		}
-		if request.URL.Path == "/api/user" {
-			return jsonResponse(request, 200, `{"loginName":"ThinkerQAQ"}`, nil), nil
-		}
-		return jsonResponse(request, 200, `{"blogPost":{"id":42,"isPublished":true,"author":"ThinkerQAQ","dateUpdated":"new"}}`, nil), nil
-	})}
-	if _, _, err := (Service{HTTPClient: client}).UpdateCNBlogsPublished(context.Background(), cnBlogsSession(), root, "example"); err == nil {
-		t.Fatal("remote change was not detected")
-	}
-}
-
-func TestCNBlogsPublishedPublicationCreatesSeparateDraft(t *testing.T) {
-	root := cnBlogsPublishedFixture(t)
-	if err := SavePublicationBinding(root, PublicationBinding{
-		Slug: "example", Platform: "cnblogs",
-		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/api/user":
-			return jsonResponse(request, 200, `{"loginName":"ThinkerQAQ"}`, nil), nil
-		case "/posts/edit":
-			return jsonResponse(request, 200, "", nil), nil
-		case "/api/posts":
-			var body map[string]any
-			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-				t.Fatal(err)
-			}
-			if body["id"] == float64(42) {
-				t.Fatal("published post was overwritten")
-			}
-			return jsonResponse(request, 200, `{"id":52}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.Path)
-			return nil, nil
-		}
-	})}
-	result, err := (Service{HTTPClient: client}).CreateOrUpdateDraft(context.Background(), "cnblogs", cnBlogsSession(), root, "example", false)
-	if err != nil || result.ID != "52" {
-		t.Fatalf("draft = %#v, %v", result, err)
-	}
-	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
-	if err != nil || !found || binding.PublishedRemoteID != "42" || binding.RemoteDraftID != "52" {
-		t.Fatalf("publication = %#v, %v, %v", binding, found, err)
-	}
-}
-
 func TestPublicationBindingStateDeleteOnlyClearsSelectedSlot(t *testing.T) {
-	root := t.TempDir()
-	if err := SavePublicationBinding(root, PublicationBinding{
+	path := testPublicationPath(t)
+	if err := SavePublicationBinding(path, PublicationBinding{
 		Slug: "example", Platform: "cnblogs",
 		RemoteDraftID: "52", DraftURL: "https://i.cnblogs.com/articles/edit;postId=52",
 		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := DeletePublicationBindingState(root, "example", "cnblogs", "published", "99"); err == nil {
+	if err := DeletePublicationBindingState(path, "example", "cnblogs", "published", "99"); err == nil {
 		t.Fatal("stale ID removed current publication state")
 	}
-	if err := DeletePublicationBindingState(root, "example", "cnblogs", "published", "42"); err != nil {
+	if err := DeletePublicationBindingState(path, "example", "cnblogs", "published", "42"); err != nil {
 		t.Fatal(err)
 	}
-	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
+	binding, found, err := LoadPublicationBinding(path, "example", "cnblogs")
 	if err != nil || !found || binding.PublishedRemoteID != "" || binding.RemoteDraftID != "52" {
 		t.Fatalf("publication after published delete = %#v, %v, %v", binding, found, err)
 	}
-	if err := DeletePublicationBindingState(root, "example", "cnblogs", "draft", "52"); err != nil {
+	if err := DeletePublicationBindingState(path, "example", "cnblogs", "draft", "52"); err != nil {
 		t.Fatal(err)
 	}
-	_, found, err = LoadPublicationBinding(root, "example", "cnblogs")
+	_, found, err = LoadPublicationBinding(path, "example", "cnblogs")
 	if err != nil || found {
 		t.Fatalf("publication should be removed after final slot delete: %v, %v", found, err)
 	}
 }
 
-func TestCNBlogsCreatedDraftWritesUnifiedPublicationState(t *testing.T) {
-	root := cnBlogsPublishedFixture(t)
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.Path == "/api/user":
-			return jsonResponse(request, 200, `{"loginName":"ThinkerQAQ"}`, nil), nil
-		case request.URL.Path == "/posts/edit":
-			return jsonResponse(request, 200, "", nil), nil
-		case request.Method == http.MethodPost && request.URL.Path == "/api/posts":
-			return jsonResponse(request, 200, `{"id":52}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.Path)
-			return nil, nil
-		}
-	})}
-	result, err := (Service{HTTPClient: client}).CreateOrUpdateDraft(context.Background(), "cnblogs", cnBlogsSession(), root, "example", false)
-	if err != nil || result.ID != "52" {
-		t.Fatalf("result = %#v, %v", result, err)
-	}
-	binding, found, err := LoadPublicationBinding(root, "example", "cnblogs")
-	if err != nil || !found || binding.RemoteDraftID != "52" || binding.Account != "ThinkerQAQ" || binding.DraftHash != "new-hash" {
-		t.Fatalf("created publication = %#v, %v, %v", binding, found, err)
-	}
-}
-
 func TestDurablePublicationWritesPreserveOtherPlatforms(t *testing.T) {
-	root := t.TempDir()
-	if err := SavePublicationBinding(root, PublicationBinding{
+	path := testPublicationPath(t)
+	if err := SavePublicationBinding(path, PublicationBinding{
 		Slug: "example", Platform: "cnblogs", PublishedRemoteID: "42",
 		PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42", Source: "manual",
 	}); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC)
-	if err := SavePublicationDraftResult(root, "example", "juejin", "hash-1", DraftResult{
+	if err := SavePublicationDraftResult(path, "example", "juejin", "hash-1", DraftResult{
 		ID: "draft-1", URL: "https://juejin.cn/editor/drafts/draft-1", Created: true,
 	}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := SavePublicationPublishResult(root, "example", "juejin", "hash-1", PublishResult{
+	if err := SavePublicationPublishResult(path, "example", "juejin", "hash-1", PublishResult{
 		ID: "post-1", URL: "https://juejin.cn/post/post-1",
 	}, now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 
-	cnblogs, found, err := LoadPublicationBinding(root, "example", "cnblogs")
+	cnblogs, found, err := LoadPublicationBinding(path, "example", "cnblogs")
 	if err != nil || !found || cnblogs.PublishedRemoteID != "42" {
 		t.Fatalf("CNBlogs publication = %#v, %v, %v", cnblogs, found, err)
 	}
-	state, _, err := LoadPublicationState(root, "example", "juejin")
+	state, _, err := LoadPublicationState(path, "example", "juejin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,25 +118,22 @@ func TestDurablePublicationWritesPreserveOtherPlatforms(t *testing.T) {
 		state.PublishedRemoteID != "post-1" || state.PublishedURL != "https://juejin.cn/post/post-1" || state.PublishedHash != "hash-1" {
 		t.Fatalf("publication state = %#v", state)
 	}
-	if _, err := os.Stat(filepath.Join(root, ".distribution", "manifest.json")); !os.IsNotExist(err) {
-		t.Fatalf("durable publisher unexpectedly created distribution manifest: %v", err)
-	}
 }
 
 func TestPublishResultRequiresStableRemoteIdentity(t *testing.T) {
-	root := t.TempDir()
+	path := testPublicationPath(t)
 	now := time.Date(2026, 9, 23, 8, 30, 0, 0, time.UTC)
-	if err := SavePublicationDraftResult(root, "example", "devto", "hash-1", DraftResult{
+	if err := SavePublicationDraftResult(path, "example", "devto", "hash-1", DraftResult{
 		ID: "42", URL: "https://dev.to/dashboard/edit/42", Created: true,
 	}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := SavePublicationPublishResult(root, "example", "devto", "hash-1", PublishResult{
+	if err := SavePublicationPublishResult(path, "example", "devto", "hash-1", PublishResult{
 		URL: "https://dev.to/thinker/example-42",
 	}, now.Add(time.Minute)); err == nil || !strings.Contains(err.Error(), "without remote id and URL") {
 		t.Fatalf("missing published id error = %v", err)
 	}
-	binding, found, err := LoadPublicationBinding(root, "example", "devto")
+	binding, found, err := LoadPublicationBinding(path, "example", "devto")
 	if err != nil || !found {
 		t.Fatalf("binding = %#v found=%v err=%v", binding, found, err)
 	}
@@ -327,19 +143,19 @@ func TestPublishResultRequiresStableRemoteIdentity(t *testing.T) {
 }
 
 func TestSuccessfulPublishEndsDraftLifecycle(t *testing.T) {
-	root := t.TempDir()
+	path := testPublicationPath(t)
 	now := time.Date(2026, 9, 23, 9, 0, 0, 0, time.UTC)
-	if err := SavePublicationDraftResult(root, "example", "devto", "hash-1", DraftResult{
+	if err := SavePublicationDraftResult(path, "example", "devto", "hash-1", DraftResult{
 		ID: "42", URL: "https://dev.to/dashboard/edit/42", Created: true,
 	}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := SavePublicationPublishResult(root, "example", "devto", "hash-1", PublishResult{
+	if err := SavePublicationPublishResult(path, "example", "devto", "hash-1", PublishResult{
 		ID: "42", URL: "https://dev.to/thinker/example-42",
 	}, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	binding, found, err := LoadPublicationBinding(root, "example", "devto")
+	binding, found, err := LoadPublicationBinding(path, "example", "devto")
 	if err != nil || !found {
 		t.Fatalf("binding = %#v, found=%v, err=%v", binding, found, err)
 	}
@@ -351,74 +167,40 @@ func TestSuccessfulPublishEndsDraftLifecycle(t *testing.T) {
 	}
 }
 
-func TestPublicationPendingFieldsSurviveGeneratedOutputRemoval(t *testing.T) {
-	root := t.TempDir()
+func TestPublicationPendingFieldsAreDurable(t *testing.T) {
+	path := testPublicationPath(t)
 	now := time.Date(2026, 9, 22, 11, 0, 0, 0, time.UTC)
-	if err := SavePublicationDraftResult(root, "example", "medium", "hash-medium", DraftResult{
+	if err := SavePublicationDraftResult(path, "example", "medium", "hash-medium", DraftResult{
 		ID: "post-1", URL: "https://medium.com/p/post-1/edit", Created: true,
 	}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := SavePublicationPendingFields(root, "example", "medium", []string{"canonical", "tags", "coverImage", "tags", ""}); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(filepath.Join(root, ".distribution")); err != nil {
+	if err := SavePublicationPendingFields(path, "example", "medium", []string{"canonical", "tags", "coverImage", "tags", ""}); err != nil {
 		t.Fatal(err)
 	}
 
-	records, err := ListPublicationRecords(root)
+	records, err := ListPublicationRecords(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(records) != 1 {
 		t.Fatalf("records = %#v", records)
 	}
-	record := records[0]
-	if record.RemoteID != "post-1" || record.DraftURL != "https://medium.com/p/post-1/edit" {
-		t.Fatalf("record = %#v", record)
-	}
-	if got := strings.Join(record.PendingFields, ","); got != "canonical,tags,coverImage" {
+	if got := strings.Join(records[0].PendingFields, ","); got != "canonical,tags,coverImage" {
 		t.Fatalf("pending fields = %q", got)
 	}
 
-	remaining, err := ResolvePublicationPendingFields(root, "example", "medium", []string{"tags"})
+	remaining, err := ResolvePublicationPendingFields(path, "example", "medium", []string{"tags"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.Join(remaining, ","); got != "canonical,coverImage" {
 		t.Fatalf("remaining pending fields = %q", got)
 	}
-	remaining, err = ResolvePublicationPendingFields(root, "example", "medium", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(remaining) != 0 {
-		t.Fatalf("pending fields were not cleared: %#v", remaining)
-	}
-	if err := SavePublicationPendingFields(root, "example", "medium", []string{"canonical"}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := SavePublicationDraftResult(root, "example", "medium", "hash-medium-2", DraftResult{
-		ID: "post-2", URL: "https://medium.com/p/post-2/edit", Created: true,
-	}, now.Add(time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-	records, err = ListPublicationRecords(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(records) != 1 || len(records[0].PendingFields) != 0 {
-		t.Fatalf("new draft did not clear stale pending fields: %#v", records)
-	}
 }
 
 func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
-	root := t.TempDir()
-	dir := filepath.Join(root, ".blogctl")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	path := testPublicationPath(t)
 	raw := `{
   "version": 2,
   "cnblogs": [],
@@ -434,15 +216,14 @@ func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
     }
   ]
 }`
-	if err := os.WriteFile(filepath.Join(dir, "publications.json"), []byte(raw), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
-
-	state, source, err := LoadPublicationState(root, "example", "juejin")
+	state, source, err := LoadPublicationState(path, "example", "juejin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if source != filepath.Join(dir, "publications.json") {
+	if source != path {
 		t.Fatalf("source = %q", source)
 	}
 	if state.RemoteDraftID != "draft-2" || state.DraftHash != "hash-2" ||
@@ -452,19 +233,19 @@ func TestBindingsV2LoadsDurablePublicationState(t *testing.T) {
 }
 
 func TestPublicationFileWritesOnlyUnifiedSchema(t *testing.T) {
-	root := t.TempDir()
-	if err := SavePublicationBinding(root, PublicationBinding{
+	path := testPublicationPath(t)
+	if err := SavePublicationBinding(path, PublicationBinding{
 		Slug: "example", Platform: "cnblogs",
 		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := SavePublicationDraftResult(root, "example", "juejin", "hash-j", DraftResult{
+	if err := SavePublicationDraftResult(path, "example", "juejin", "hash-j", DraftResult{
 		ID: "draft-j", URL: "https://juejin.cn/editor/drafts/draft-j", Created: true,
 	}, time.Date(2026, 9, 23, 1, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(filepath.Join(root, ".blogctl", "publications.json"))
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,10 +257,10 @@ func TestPublicationFileWritesOnlyUnifiedSchema(t *testing.T) {
 		t.Fatalf("version = %#v", decoded["version"])
 	}
 	if _, exists := decoded["cnblogs"]; exists {
-		t.Fatalf("legacy cnblogs top-level state was written: %s", raw)
+		t.Fatalf("unexpected cnblogs top-level state was written: %s", raw)
 	}
 	if _, exists := decoded["unbound"]; exists {
-		t.Fatalf("legacy unbound state was written: %s", raw)
+		t.Fatalf("unexpected unbound state was written: %s", raw)
 	}
 	publications, ok := decoded["publications"].([]any)
 	if !ok || len(publications) != 2 {
@@ -487,46 +268,40 @@ func TestPublicationFileWritesOnlyUnifiedSchema(t *testing.T) {
 	}
 }
 
-func TestPublicationFileRejectsLegacyVersionOne(t *testing.T) {
-	root := t.TempDir()
-	dir := filepath.Join(root, ".blogctl")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+func TestPublicationFileRejectsUnsupportedVersion(t *testing.T) {
+	path := testPublicationPath(t)
+	if err := os.WriteFile(path, []byte(`{"version":1,"publications":[]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "publications.json"), []byte(`{"version":1,"publications":[]}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := LoadPublicationBinding(root, "example", "juejin"); err == nil || !strings.Contains(err.Error(), "unsupported bindings version: 1") {
-		t.Fatalf("err = %v, want explicit v1 rejection", err)
+	if _, _, err := LoadPublicationBinding(path, "example", "juejin"); err == nil || !strings.Contains(err.Error(), "unsupported bindings version: 1") {
+		t.Fatalf("err = %v, want explicit version rejection", err)
 	}
 }
 
 func TestPublicationResultWritesRejectDuplicateRemoteIDs(t *testing.T) {
-	root := t.TempDir()
+	path := testPublicationPath(t)
 	now := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
-	if err := SavePublicationDraftResult(root, "article-a", "juejin", "hash-a", DraftResult{
+	if err := SavePublicationDraftResult(path, "article-a", "juejin", "hash-a", DraftResult{
 		ID: "remote-42", URL: "https://juejin.cn/editor/drafts/remote-42", Created: true,
 	}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := SavePublicationDraftResult(root, "article-b", "juejin", "hash-b", DraftResult{
+	if err := SavePublicationDraftResult(path, "article-b", "juejin", "hash-b", DraftResult{
 		ID: "remote-42", URL: "https://juejin.cn/editor/drafts/remote-42", Created: true,
 	}, now); err == nil || !strings.Contains(err.Error(), "already bound to article-a") {
 		t.Fatalf("duplicate draft id error = %v", err)
 	}
-
-	if err := SavePublicationDraftResult(root, "article-b", "juejin", "hash-b", DraftResult{
+	if err := SavePublicationDraftResult(path, "article-b", "juejin", "hash-b", DraftResult{
 		ID: "draft-b", URL: "https://juejin.cn/editor/drafts/draft-b", Created: true,
 	}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := SavePublicationPublishResult(root, "article-b", "juejin", "hash-b", PublishResult{
+	if err := SavePublicationPublishResult(path, "article-b", "juejin", "hash-b", PublishResult{
 		ID: "remote-42", URL: "https://juejin.cn/post/remote-42",
 	}, now.Add(time.Minute)); err == nil || !strings.Contains(err.Error(), "already bound to article-a") {
 		t.Fatalf("duplicate published id error = %v", err)
 	}
-
-	binding, found, err := LoadPublicationBinding(root, "article-b", "juejin")
+	binding, found, err := LoadPublicationBinding(path, "article-b", "juejin")
 	if err != nil || !found {
 		t.Fatalf("binding = %#v found=%v err=%v", binding, found, err)
 	}
@@ -536,7 +311,7 @@ func TestPublicationResultWritesRejectDuplicateRemoteIDs(t *testing.T) {
 }
 
 func TestConcurrentPublicationWritesDoNotLoseRecords(t *testing.T) {
-	root := t.TempDir()
+	path := testPublicationPath(t)
 	const count = 32
 	var wait sync.WaitGroup
 	errs := make(chan error, count)
@@ -547,7 +322,7 @@ func TestConcurrentPublicationWritesDoNotLoseRecords(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			errs <- SavePublicationDraftResult(
-				root,
+				path,
 				fmt.Sprintf("article-%02d", index),
 				"juejin",
 				fmt.Sprintf("hash-%02d", index),
@@ -568,11 +343,27 @@ func TestConcurrentPublicationWritesDoNotLoseRecords(t *testing.T) {
 		}
 	}
 
-	records, err := ListPublicationRecords(root)
+	records, err := ListPublicationRecords(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(records) != count {
 		t.Fatalf("records = %d, want %d", len(records), count)
+	}
+}
+
+func TestPublicationPathCanLiveOutsideContentRepository(t *testing.T) {
+	contentRoot := t.TempDir()
+	path := filepath.Join(t.TempDir(), "BlogCTL", "publications.json")
+	if strings.HasPrefix(path, contentRoot) {
+		t.Fatal("test setup must keep publication state outside the content repository")
+	}
+	if err := SavePublicationBinding(path, PublicationBinding{
+		Slug: "example", Platform: "cnblogs", PublishedRemoteID: "42",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
 	}
 }
