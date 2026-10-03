@@ -64,7 +64,7 @@ func (s *Server) cto51Candidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "51cto")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "51cto")
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -141,7 +141,7 @@ func (s *Server) handleCto51BindingPut(response http.ResponseWriter, request *ht
 		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
 		return
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "51cto")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "51cto")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
 		return
@@ -183,7 +183,7 @@ func (s *Server) handleCto51BindingPut(response http.ResponseWriter, request *ht
 		binding.RemoteDraftID = selected.ID
 		binding.DraftURL = selected.URL
 	}
-	if err := publisher.SavePublicationBinding(root, binding); err != nil {
+	if err := publisher.SavePublicationBinding(s.publicationBindingsPath(), binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
 		return
 	}
@@ -209,7 +209,7 @@ func (s *Server) handleCto51BindingDelete(response http.ResponseWriter, request 
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	if err := publisher.DeletePublicationBindingState(root, slug, "51cto", body.State, body.PostID); err != nil {
+	if err := publisher.DeletePublicationBindingState(s.publicationBindingsPath(), slug, "51cto", body.State, body.PostID); err != nil {
 		writeAPIError(response, http.StatusConflict, "binding_changed", err.Error(), nil)
 		return
 	}
