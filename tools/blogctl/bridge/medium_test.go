@@ -311,10 +311,13 @@ func TestBridgeNativePublisherCreatesMediumDraftAndRecordsState(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
+	distributionRoot := filepath.Join(t.TempDir(), "distribution")
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	server.config.DistributionRoot = distributionRoot
+	server.config.PublicationBindingsPath = publicationPath
 	compiled := compiledMediumArticle(t, "hash-medium")
 	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
-		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiled,
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, DistributionRoot: distributionRoot, Compiled: compiled,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -323,14 +326,14 @@ func TestBridgeNativePublisherCreatesMediumDraftAndRecordsState(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 
-	state, _, err := publisher.LoadPublicationState(contentRoot, "example", "medium")
+	state, _, err := publisher.LoadPublicationState(publicationPath, "example", "medium")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if state.RemoteDraftID != "post-unified" || state.DraftURL != result.URL || state.DraftHash != "hash-medium" {
 		t.Fatalf("state = %#v", state)
 	}
-	records, err := publisher.ListPublicationRecords(contentRoot)
+	records, err := publisher.ListPublicationRecords(publicationPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +344,7 @@ func TestBridgeNativePublisherCreatesMediumDraftAndRecordsState(t *testing.T) {
 		t.Fatalf("result message = %q", result.Message)
 	}
 
-	fallbackPath, err := mediumFallbackPath(contentRoot, "example")
+	fallbackPath, err := mediumFallbackPath(distributionRoot, "example")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,15 +369,18 @@ func TestBridgeNativePublisherSkipsUnchangedMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
-	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "same-hash", publisher.DraftResult{
+	distributionRoot := filepath.Join(t.TempDir(), "distribution")
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	server.config.DistributionRoot = distributionRoot
+	server.config.PublicationBindingsPath = publicationPath
+	if err := publisher.SavePublicationDraftResult(publicationPath, "example", "medium", "same-hash", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
 	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
-		Article: "example", Platform: "medium", ContentRoot: contentRoot,
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, DistributionRoot: distributionRoot,
 		ChangedOnly: false, Compiled: compiledMediumArticle(t, "same-hash"),
 	})
 	if err != nil {
@@ -393,8 +399,11 @@ func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 	installMediumBridgeSession(server)
 
 	contentRoot := t.TempDir()
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
-	assetDir := filepath.Join(contentRoot, ".distribution", "assets", "mermaid")
+	distributionRoot := filepath.Join(t.TempDir(), "distribution")
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	server.config.DistributionRoot = distributionRoot
+	server.config.PublicationBindingsPath = publicationPath
+	assetDir := filepath.Join(distributionRoot, "assets", "mermaid")
 	if err := os.MkdirAll(assetDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +467,7 @@ func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 	}}
 
 	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
-		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiled,
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, DistributionRoot: distributionRoot, Compiled: compiled,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -510,15 +519,18 @@ func TestBridgeNativePublisherUpdatesChangedMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
-	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "old-hash", publisher.DraftResult{
+	distributionRoot := filepath.Join(t.TempDir(), "distribution")
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	server.config.DistributionRoot = distributionRoot
+	server.config.PublicationBindingsPath = publicationPath
+	if err := publisher.SavePublicationDraftResult(publicationPath, "example", "medium", "old-hash", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
 	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
-		Article: "example", Platform: "medium", ContentRoot: contentRoot,
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, DistributionRoot: distributionRoot,
 		ChangedOnly: false, Compiled: compiledMediumArticle(t, "new-hash"),
 	})
 	if err != nil {
@@ -552,8 +564,11 @@ func TestBridgeNativePublisherRefusesToSavePublishedMediumStory(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
-	if err := publisher.SavePublicationBinding(contentRoot, publisher.PublicationBinding{
+	distributionRoot := filepath.Join(t.TempDir(), "distribution")
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	server.config.DistributionRoot = distributionRoot
+	server.config.PublicationBindingsPath = publicationPath
+	if err := publisher.SavePublicationBinding(publicationPath, publisher.PublicationBinding{
 		Slug: "example", Platform: "medium",
 		PublishedRemoteID: "post-existing", PublishedURL: "https://medium.com/@ThinkerQAQ/published-post",
 		PublishedHash: "old-hash",
@@ -562,7 +577,7 @@ func TestBridgeNativePublisherRefusesToSavePublishedMediumStory(t *testing.T) {
 	}
 
 	_, err = (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
-		Article: "example", Platform: "medium", ContentRoot: contentRoot,
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, DistributionRoot: distributionRoot,
 		ChangedOnly: false, Compiled: compiledMediumArticle(t, "new-hash"),
 	})
 	if err == nil || !strings.Contains(err.Error(), "already published") {
@@ -606,15 +621,18 @@ func TestBridgeNativePublisherPublishesMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
-	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "hash-medium", publisher.DraftResult{
+	distributionRoot := filepath.Join(t.TempDir(), "distribution")
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	server.config.DistributionRoot = distributionRoot
+	server.config.PublicationBindingsPath = publicationPath
+	if err := publisher.SavePublicationDraftResult(publicationPath, "example", "medium", "hash-medium", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
 	result, err := (bridgeNativePublisher{server: server}).PublishDraft(context.Background(), blogapp.NativePublishRequest{
-		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiledMediumArticle(t, "hash-medium"),
+		Article: "example", Platform: "medium", ContentRoot: contentRoot, DistributionRoot: distributionRoot, Compiled: compiledMediumArticle(t, "hash-medium"),
 	})
 	if err != nil {
 		t.Fatal(err)
