@@ -409,7 +409,10 @@ func mediumPublishingAsset(input publisher.DraftInput, source string) (publisher
 
 func (c mediumClient) loadImage(ctx context.Context, input publisher.DraftInput, source string) (publisher.RehostImage, error) {
 	if asset, ok := mediumPublishingAsset(input, source); ok && strings.HasPrefix(source, "blogctl-asset://") {
-		path := filepath.Join(input.ContentRoot, ".distribution", "assets", asset.Kind, asset.ID+".png")
+		if strings.TrimSpace(input.DistributionRoot) == "" {
+			return mediumImageData{}, fmt.Errorf("distribution root is missing for generated asset %s", asset.ID)
+		}
+		path := filepath.Join(input.DistributionRoot, "assets", asset.Kind, asset.ID+".png")
 		payload, err := os.ReadFile(path)
 		if err != nil {
 			return publisher.RehostImage{}, err
