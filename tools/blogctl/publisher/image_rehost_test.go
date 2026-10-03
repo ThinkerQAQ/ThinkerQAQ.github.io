@@ -133,8 +133,8 @@ func TestRehostMarkdownImagesPrefersPlatformUploadBeforeR2Fallback(t *testing.T)
 	}))
 	defer r2.Close()
 
-	root := t.TempDir()
-	cacheDir := filepath.Join(root, ".distribution", "assets", "mermaid")
+	distributionRoot := t.TempDir()
+	cacheDir := filepath.Join(distributionRoot, "assets", "mermaid")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -144,8 +144,8 @@ func TestRehostMarkdownImagesPrefersPlatformUploadBeforeR2Fallback(t *testing.T)
 
 	source := "blogctl-asset://mermaid/abc"
 	input := DraftInput{
-		Markdown:    "![asset](" + source + ")",
-		ContentRoot: root,
+		Markdown:         "![asset](" + source + ")",
+		DistributionRoot: distributionRoot,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: "abc", ObjectKey: "generated/mermaid/abc.png",
 			PublicURL: "https://assets.example/generated/mermaid/abc.png", Source: source,
@@ -187,8 +187,8 @@ func TestRehostMarkdownImagesUsesR2OnlyAfterPlatformUploadFails(t *testing.T) {
 	}))
 	defer r2.Close()
 
-	root := t.TempDir()
-	cacheDir := filepath.Join(root, ".distribution", "assets", "mermaid")
+	distributionRoot := t.TempDir()
+	cacheDir := filepath.Join(distributionRoot, "assets", "mermaid")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -198,8 +198,8 @@ func TestRehostMarkdownImagesUsesR2OnlyAfterPlatformUploadFails(t *testing.T) {
 
 	source := "blogctl-asset://mermaid/abc"
 	input := DraftInput{
-		Markdown:    "![asset](" + source + ")",
-		ContentRoot: root,
+		Markdown:         "![asset](" + source + ")",
+		DistributionRoot: distributionRoot,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: "abc", ObjectKey: "generated/mermaid/abc.png",
 			PublicURL: "https://assets.example/generated/mermaid/abc.png", Source: source,

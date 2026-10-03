@@ -247,6 +247,42 @@ func directoryPresent(path string) bool {
 	return err == nil && info.IsDir()
 }
 
+func distributionRootHealth(path string) toolHealth {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return toolHealth{Status: "missing", Summary: "未配置路径"}
+	}
+	info, err := os.Stat(path)
+	if err == nil {
+		if !info.IsDir() {
+			return toolHealth{Status: "error", Summary: "路径无效", Path: path, Detail: "Distribution 必须是目录"}
+		}
+		return toolHealth{OK: true, Status: "ok", Summary: "可用", Path: path}
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return toolHealth{OK: true, Status: "ok", Summary: "待创建", Path: path}
+	}
+	return toolHealth{Status: "error", Summary: "无法访问", Path: path, Detail: err.Error()}
+}
+
+func publicationBindingsHealth(path string) toolHealth {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return toolHealth{Status: "missing", Summary: "未配置路径"}
+	}
+	info, err := os.Stat(path)
+	if err == nil {
+		if info.IsDir() {
+			return toolHealth{Status: "error", Summary: "路径无效", Path: path, Detail: "Publication Bindings 必须是文件路径"}
+		}
+		return toolHealth{OK: true, Status: "ok", Summary: "已加载", Path: path}
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return toolHealth{OK: true, Status: "ok", Summary: "待创建", Path: path}
+	}
+	return toolHealth{Status: "error", Summary: "无法访问", Path: path, Detail: err.Error()}
+}
+
 func workspaceHealth(path, kind string) toolHealth {
 	if path == "" {
 		return toolHealth{Status: "missing", Summary: "未配置路径"}
@@ -435,6 +471,28 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Description: "Astro、BlogCTL scripts 与 publishing adapters 所在仓库。",
 			Health:      workspaceHealth(config.EngineRoot, "engine"),
 			Config:      toolConfigView{Scope: "bridge", Values: map[string]any{"engineRoot": config.EngineRoot}, Schema: []toolField{{Key: "engineRoot", Label: "Engine Repository", Type: "directory", Description: "例如 C:\\Users\\zsk\\code\\blog\\ThinkerQAQ.github.io"}}, DefaultExpanded: true},
+		},
+		{
+			Name: "distribution-root", DisplayName: "Distribution", Kind: "runtime", Required: true,
+			Description: "BlogCTL 生成的发布产物、图片缓存与平台临时输出目录。",
+			Health:      distributionRootHealth(config.DistributionRoot),
+			Config: toolConfigView{
+				Scope:           "bridge",
+				Values:          map[string]any{"path": config.DistributionRoot},
+				Schema:          []toolField{{Key: "path", Label: "Distribution Directory", Type: "directory", Description: "默认位于 C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\distribution"}},
+				DefaultExpanded: true,
+			},
+		},
+		{
+			Name: "publication-bindings", DisplayName: "Publication Bindings", Kind: "runtime", Required: true,
+			Description: "文章与各发布平台远端草稿 / 已发布文章的持久关联状态。",
+			Health:      publicationBindingsHealth(config.PublicationBindingsPath),
+			Config: toolConfigView{
+				Scope:           "bridge",
+				Values:          map[string]any{"path": config.PublicationBindingsPath},
+				Schema:          pathField("path", "Bindings File", "默认位于 BlogCTL 配置目录，例如 C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\publications.json"),
+				DefaultExpanded: true,
+			},
 		},
 		{
 			Name: "network-proxy", DisplayName: "Network Proxy", Kind: "runtime", Required: false,
@@ -639,6 +697,10 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 		config.ContentRoot = stringConfig(values, "contentRoot")
 	case "engine-workspace":
 		config.EngineRoot = stringConfig(values, "engineRoot")
+	case "distribution-root":
+		config.DistributionRoot = stringConfig(values, "path")
+	case "publication-bindings":
+		config.PublicationBindingsPath = stringConfig(values, "path")
 	case "network-proxy":
 		config.ProxyEnabled = boolConfig(values, "proxyEnabled")
 		config.ProxyHost = stringConfig(values, "proxyHost")
@@ -788,6 +850,12 @@ type bridgeNativePublisher struct {
 	server *Server
 }
 
+func (s *Server) publicationBindingsPath() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.config.PublicationBindingsPath
+}
+
 func cloneStringMap(values map[string]string) map[string]string {
 	result := make(map[string]string, len(values))
 	for key, value := range values {
@@ -796,7 +864,7 @@ func cloneStringMap(values map[string]string) map[string]string {
 	return result
 }
 
-func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot string, config bridgeConfig) publisher.DraftInput {
+func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot, distributionRoot string, config bridgeConfig) publisher.DraftInput {
 	assets := make([]publisher.PublishingAsset, 0, len(article.Assets))
 	for _, asset := range article.Assets {
 		assets = append(assets, publisher.PublishingAsset{
@@ -809,7 +877,8 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 		Slug: article.Slug, Title: article.Title, Description: article.Description,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
 		ContentHash: article.ContentHash, SourceDir: article.SourceDir, ContentRoot: contentRoot,
-		Tags: append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
+		DistributionRoot: strings.TrimSpace(distributionRoot),
+		Tags:             append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
 		Assets: assets,
 		R2Fallback: publisher.R2FallbackConfig{
@@ -908,19 +977,19 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 	return publisherSession, httpClient, nil
 }
 
-func mediumFallbackPath(contentRoot, slug string) (string, error) {
+func mediumFallbackPath(distributionRoot, slug string) (string, error) {
 	relative := filepath.Clean(filepath.FromSlash(strings.TrimSpace(slug)))
 	if relative == "." || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
 		return "", errors.New("invalid Medium article slug")
 	}
-	return filepath.Join(contentRoot, ".distribution", "medium", relative+".html"), nil
+	return filepath.Join(distributionRoot, "medium", relative+".html"), nil
 }
 
-func writeMediumFallback(contentRoot string, article blogcompiler.CompiledArticle) (string, error) {
+func writeMediumFallback(distributionRoot string, article blogcompiler.CompiledArticle) (string, error) {
 	if strings.TrimSpace(article.FallbackHTML) == "" {
 		return "", nil
 	}
-	path, err := mediumFallbackPath(contentRoot, article.Slug)
+	path, err := mediumFallbackPath(distributionRoot, article.Slug)
 	if err != nil {
 		return "", err
 	}
@@ -947,7 +1016,7 @@ func mediumPlatformSession(session publisher.Session) platformSession {
 }
 
 func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, request blogapp.NativeDraftRequest, session publisher.Session, httpClient *http.Client) (blogapp.NativeDraftResult, error) {
-	state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
+	state, _, err := publisher.LoadPublicationState(p.server.publicationBindingsPath(), request.Article, "medium")
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
@@ -963,7 +1032,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 		}, nil
 	}
 
-	fallbackPath, err := writeMediumFallback(request.ContentRoot, request.Compiled)
+	fallbackPath, err := writeMediumFallback(strings.TrimSpace(request.DistributionRoot), request.Compiled)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
@@ -975,7 +1044,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	if err := json.Unmarshal(request.Compiled.Payload, &draft); err != nil {
 		return blogapp.NativeDraftResult{}, fmt.Errorf("invalid compiled Medium payload: %w", err)
 	}
-	input := draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config)
+	input := draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config)
 	client := mediumClient{httpClient: httpClient}
 	var result map[string]any
 	if targetID == "" {
@@ -1011,7 +1080,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	}
 
 	if err := publisher.SavePublicationDraftResult(
-		request.ContentRoot,
+		p.server.publicationBindingsPath(),
 		request.Article,
 		"medium",
 		request.Compiled.ContentHash,
@@ -1020,7 +1089,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	); err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
-	if err := publisher.SavePublicationPendingFields(request.ContentRoot, request.Article, "medium", pending); err != nil {
+	if err := publisher.SavePublicationPendingFields(p.server.publicationBindingsPath(), request.Article, "medium", pending); err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
 
@@ -1066,9 +1135,9 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 	if request.Platform == "medium" {
 		return p.createOrUpdateMediumDraft(ctx, request, session, httpClient)
 	}
-	service := publisher.Service{HTTPClient: httpClient}
+	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath()}
 	result, err := service.CreateOrUpdateDraftInput(
-		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config), request.ChangedOnly,
+		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config), request.ChangedOnly,
 	)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
@@ -1092,7 +1161,7 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 		return blogapp.NativePublishResult{}, err
 	}
 	if request.Platform == "medium" {
-		state, _, err := publisher.LoadPublicationState(request.ContentRoot, request.Article, "medium")
+		state, _, err := publisher.LoadPublicationState(p.server.publicationBindingsPath(), request.Article, "medium")
 		if err != nil {
 			return blogapp.NativePublishResult{}, err
 		}
@@ -1118,7 +1187,7 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 			return blogapp.NativePublishResult{}, errors.New("Medium publish response is missing article id or URL")
 		}
 		if err := publisher.SavePublicationPublishResult(
-			request.ContentRoot,
+			p.server.publicationBindingsPath(),
 			request.Article,
 			"medium",
 			request.Compiled.ContentHash,
@@ -1129,8 +1198,8 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 		}
 		return blogapp.NativePublishResult{Result: "published", URL: publishedURL}, nil
 	}
-	service := publisher.Service{HTTPClient: httpClient}
-	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config))
+	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath()}
+	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config))
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
 	}
@@ -1138,16 +1207,17 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 }
 
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
-	// Compiler outputs, asset cache and durable publication state share one content workspace.
-	// Serialize live jobs so independent platform tasks cannot lose each other's state updates.
+	// Publication state is shared by all platform tasks.
+	// Serialize live jobs so independent tasks cannot lose each other's state updates.
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
 
 	applicationConfig := blogapp.SyncConfig{
-		EngineRoot:  config.EngineRoot,
-		ContentRoot: config.ContentRoot,
-		Publishing:  config.Publishing,
-		ToolPaths:   config.ToolPaths,
+		EngineRoot:       config.EngineRoot,
+		ContentRoot:      config.ContentRoot,
+		DistributionRoot: config.DistributionRoot,
+		Publishing:       config.Publishing,
+		ToolPaths:        config.ToolPaths,
 	}
 	if request.Operation == "update-published" {
 		started := time.Now()
@@ -1174,8 +1244,8 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 			onEvent(blogapp.SyncEvent{Platform: "cnblogs", State: "failed", Message: err.Error()})
 			return "", err
 		}
-		result, skipped, err := (publisher.Service{HTTPClient: client}).UpdateCNBlogsPublishedInput(
-			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config),
+		result, skipped, err := (publisher.Service{HTTPClient: client, PublicationPath: config.PublicationBindingsPath}).UpdateCNBlogsPublishedInput(
+			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config.DistributionRoot, config),
 		)
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))

@@ -271,10 +271,15 @@ func (c *csdnAdapter) save(ctx context.Context, refID string, input DraftInput, 
 	if err := doJSON(c.client, req, c.ID(), map[bool]string{true: "publish-draft", false: "save-draft"}[publish], &decoded); err != nil {
 		return nil, err
 	}
-	if int(numberValue(decoded["code"])) != 200 {
-		return nil, platformError(ErrUpstream, c.ID(), "save-article", int(numberValue(decoded["code"])), responseMessage(decoded["msg"], decoded["message"]), false)
+	if int(csdnNumberValue(decoded["code"])) != 200 {
+		return nil, platformError(ErrUpstream, c.ID(), "save-article", int(csdnNumberValue(decoded["code"])), responseMessage(decoded["msg"], decoded["message"]), false)
 	}
 	return decoded, nil
+}
+
+func csdnNumberValue(value any) float64 {
+	number, _ := value.(float64)
+	return number
 }
 
 func csdnSavedID(decoded map[string]any, fallback string) string {

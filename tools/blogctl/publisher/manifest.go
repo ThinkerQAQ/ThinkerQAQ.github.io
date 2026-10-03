@@ -1,36 +1,10 @@
 package publisher
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
-
-const DistributionManifestVersion = 2
-
-func readManifest(path string) (map[string]any, error) {
-	payload, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var manifest map[string]any
-	if err := json.Unmarshal(payload, &manifest); err != nil {
-		return nil, err
-	}
-	if objectValue(manifest["articles"]) == nil {
-		return nil, errors.New("distribution manifest is missing articles")
-	}
-	version := int(numberValue(manifest["version"]))
-	if version != DistributionManifestVersion {
-		return nil, fmt.Errorf("unsupported distribution manifest version: %d", version)
-	}
-	return manifest, nil
-}
 
 type PublicationState struct {
 	RemoteDraftID     string
@@ -45,44 +19,16 @@ type PublicationState struct {
 	VerifiedAt        string
 }
 
-func LoadPublicationState(contentRoot, slug, platform string) (PublicationState, string, error) {
-	binding, found, err := LoadPublicationBinding(contentRoot, slug, platform)
+func LoadPublicationState(storePath, slug, platform string) (PublicationState, string, error) {
+	storePath = strings.TrimSpace(storePath)
+	binding, found, err := LoadPublicationBinding(storePath, slug, platform)
 	if err != nil {
 		return PublicationState{}, "", err
 	}
 	if !found {
-		return PublicationState{}, bindingPath(contentRoot), nil
+		return PublicationState{}, storePath, nil
 	}
-	return publicationBindingState(binding), bindingPath(contentRoot), nil
-}
-
-func stringValue(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
-}
-
-func numberValue(value any) float64 {
-	number, _ := value.(float64)
-	return number
-}
-
-func objectValue(value any) map[string]any {
-	object, _ := value.(map[string]any)
-	return object
-}
-
-func platformState(manifest map[string]any, slug, platform string) (map[string]any, error) {
-	articles := objectValue(manifest["articles"])
-	article := objectValue(articles[slug])
-	if article == nil {
-		return nil, fmt.Errorf("distribution manifest has no article %q", slug)
-	}
-	platforms := objectValue(article["platforms"])
-	state := objectValue(platforms[platform])
-	if state == nil {
-		return nil, fmt.Errorf("distribution manifest has no %s state for %q", platform, slug)
-	}
-	return state, nil
+	return publicationBindingState(binding), storePath, nil
 }
 
 type ArticleLink struct {
@@ -124,9 +70,9 @@ func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord 
 	return record
 }
 
-func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
+func ListPublicationRecords(storePath string) ([]PublicationRecord, error) {
 	records := []PublicationRecord{}
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return nil, err
 	}
@@ -150,9 +96,9 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 }
 
 // LoadArticleLinks reads locally recorded remote references without contacting a platform.
-func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) {
+func LoadArticleLinks(storePath, slug string) (map[string]ArticleLink, error) {
 	result := map[string]ArticleLink{}
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return nil, err
 	}
@@ -225,61 +171,4 @@ func draftIDFromURL(platform, rawURL string) string {
 	default:
 		return ""
 	}
-}
-
-func sourceDirectory(contentRoot, slug, language string) string {
-	root := filepath.Join(contentRoot, "src", "content", "articles")
-	if language == "en" {
-		root = filepath.Join(root, "en")
-	}
-	dir := filepath.Dir(filepath.FromSlash(slug))
-	if dir == "." {
-		return root
-	}
-	return filepath.Join(root, dir)
-}
-
-func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, error) {
-	manifestPath := filepath.Join(contentRoot, ".distribution", "manifest.json")
-	manifest, err := readManifest(manifestPath)
-	if err != nil {
-		return DraftInput{}, "", err
-	}
-	state, err := platformState(manifest, slug, platform)
-	if err != nil {
-		return DraftInput{}, "", err
-	}
-	contentHash := stringValue(state["contentHash"])
-	if contentHash == "" {
-		return DraftInput{}, "", errors.New("distribution state is missing contentHash")
-	}
-	language := stringValue(state["language"])
-	if language == "" {
-		language = "zh-CN"
-	}
-	outputPath := filepath.Join(contentRoot, ".distribution", platform, filepath.FromSlash(slug)+".md")
-	raw, err := os.ReadFile(outputPath)
-	if err != nil {
-		return DraftInput{}, "", err
-	}
-	title, description, markdown, err := parseGeneratedMarkdown(raw)
-	if err != nil {
-		return DraftInput{}, "", err
-	}
-	htmlPath := stringValue(state["htmlOutput"])
-	if htmlPath == "" {
-		htmlPath = filepath.Join(".distribution", platform, filepath.FromSlash(slug)+".html")
-	}
-	if !filepath.IsAbs(htmlPath) {
-		htmlPath = filepath.Join(contentRoot, filepath.FromSlash(htmlPath))
-	}
-	htmlBody := ""
-	if htmlRaw, htmlErr := os.ReadFile(htmlPath); htmlErr == nil {
-		htmlBody = strings.TrimSpace(string(htmlRaw))
-	}
-	return DraftInput{
-		Slug: slug, Title: title, Description: description, Markdown: markdown, HTML: htmlBody,
-		Language: language, ContentHash: contentHash,
-		SourceDir: sourceDirectory(contentRoot, slug, language),
-	}, manifestPath, nil
 }

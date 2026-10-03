@@ -148,7 +148,7 @@ func TestSyncServiceCompilesMediumThroughGoCompiler(t *testing.T) {
 		},
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		EngineRoot: engineRoot, ContentRoot: contentRoot, DistributionRoot: t.TempDir(),
 		ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
 		Articles: []string{"example"}, Platforms: []string{"medium"}, DryRun: true,
@@ -173,7 +173,7 @@ func TestSyncServiceCreatesDraftFromCompiledArticle(t *testing.T) {
 		}},
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		EngineRoot: engineRoot, ContentRoot: contentRoot, DistributionRoot: t.TempDir(),
 		ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
 		Articles: []string{"example"}, Platforms: []string{"juejin"}, Changed: true,
@@ -201,7 +201,7 @@ func TestSyncServicePublishesCompiledArticle(t *testing.T) {
 		}},
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		EngineRoot: engineRoot, ContentRoot: contentRoot, DistributionRoot: t.TempDir(),
 		ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
 		Articles: []string{"example"}, Platforms: []string{"juejin"}, Operation: "publish",
@@ -231,7 +231,7 @@ func TestSyncServiceIsolatesCompilerFailureByPlatform(t *testing.T) {
 		OnEvent: func(event SyncEvent) { events = append(events, event) },
 	}
 	_, err := service.Run(context.Background(), SyncConfig{
-		EngineRoot: engineRoot, ContentRoot: contentRoot,
+		EngineRoot: engineRoot, ContentRoot: contentRoot, DistributionRoot: t.TempDir(),
 		ToolPaths: map[string]string{"node": node, "npm": npm},
 	}, SyncRequest{
 		Articles: []string{"example"}, Platforms: []string{"zhihu", "51cto"},

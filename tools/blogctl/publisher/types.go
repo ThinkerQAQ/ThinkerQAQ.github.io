@@ -62,6 +62,7 @@ type DraftInput struct {
 	Published          bool
 	ChangedOnly        bool
 	ContentRoot        string
+	DistributionRoot   string
 	Assets             []PublishingAsset
 	R2Fallback         R2FallbackConfig
 }

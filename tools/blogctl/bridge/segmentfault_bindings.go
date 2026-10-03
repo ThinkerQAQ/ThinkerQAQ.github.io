@@ -64,7 +64,7 @@ func (s *Server) segmentFaultCandidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "segmentfault")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "segmentfault")
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -126,7 +126,7 @@ func (s *Server) handleSegmentFaultBindingPut(response http.ResponseWriter, requ
 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -141,7 +141,7 @@ func (s *Server) handleSegmentFaultBindingPut(response http.ResponseWriter, requ
 		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
 		return
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "segmentfault")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "segmentfault")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
 		return
@@ -183,7 +183,7 @@ func (s *Server) handleSegmentFaultBindingPut(response http.ResponseWriter, requ
 		binding.RemoteDraftID = selected.ID
 		binding.DraftURL = selected.URL
 	}
-	if err := publisher.SavePublicationBinding(root, binding); err != nil {
+	if err := publisher.SavePublicationBinding(s.publicationBindingsPath(), binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
 		return
 	}
@@ -206,12 +206,12 @@ func (s *Server) handleSegmentFaultBindingDelete(response http.ResponseWriter, r
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	if err := publisher.DeletePublicationBindingState(root, slug, "segmentfault", body.State, body.PostID); err != nil {
+	if err := publisher.DeletePublicationBindingState(s.publicationBindingsPath(), slug, "segmentfault", body.State, body.PostID); err != nil {
 		writeAPIError(response, http.StatusConflict, "binding_changed", err.Error(), nil)
 		return
 	}

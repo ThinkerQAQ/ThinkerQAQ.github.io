@@ -45,7 +45,7 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -58,7 +58,7 @@ func (s *Server) handleDevtoArticleSearch(response http.ResponseWriter, request 
 		writeAPIError(response, http.StatusBadRequest, "api_key_required", "DEV.to API Key is not configured", nil)
 		return
 	}
-	binding, _, bindingErr := publisher.LoadPublicationBinding(root, slug, "devto")
+	binding, _, bindingErr := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "devto")
 	if bindingErr != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", bindingErr.Error(), nil)
 		return

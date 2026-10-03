@@ -87,7 +87,7 @@ func (s *Server) juejinCandidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "juejin")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "juejin")
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -168,7 +168,7 @@ func (s *Server) handleJuejinBindingPut(response http.ResponseWriter, request *h
 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	_, root, account, posts, binding, err := s.juejinCandidates(ctx, slug)
+	_, _, account, posts, binding, err := s.juejinCandidates(ctx, slug)
 	if err != nil {
 		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
 		return
@@ -222,7 +222,7 @@ func (s *Server) handleJuejinBindingPut(response http.ResponseWriter, request *h
 		binding.RemoteDraftID = selected.ID
 		binding.DraftURL = selected.URL
 	}
-	if err := publisher.SavePublicationBinding(root, binding); err != nil {
+	if err := publisher.SavePublicationBinding(s.publicationBindingsPath(), binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
 		return
 	}
@@ -243,12 +243,12 @@ func (s *Server) handleJuejinBindingDelete(response http.ResponseWriter, request
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	if err := publisher.DeletePublicationBindingState(root, slug, "juejin", body.State, body.PostID); err != nil {
+	if err := publisher.DeletePublicationBindingState(s.publicationBindingsPath(), slug, "juejin", body.State, body.PostID); err != nil {
 		writeAPIError(response, http.StatusConflict, "binding_changed", err.Error(), nil)
 		return
 	}

@@ -181,14 +181,21 @@
       detail.textContent = detailText;
       body.append(detail);
     }
-    if (tool.health?.path && tool.name !== "bridge") {
+
+    const configurable = Boolean(tool.config?.toggle || (tool.config?.schema ?? []).length);
+    const configuredPaths = new Set(
+      (tool.config?.schema ?? [])
+        .filter((field) => field.type === "file" || field.type === "directory")
+        .map((field) => String(tool.config?.values?.[field.key] ?? "").trim())
+        .filter(Boolean),
+    );
+    if (tool.health?.path && tool.name !== "bridge" && !configuredPaths.has(String(tool.health.path).trim())) {
       const pathValue = document.createElement("code");
       pathValue.className = "path-value";
       pathValue.textContent = tool.health.path;
       body.append(pathValue);
     }
 
-    const configurable = Boolean(tool.config?.toggle || (tool.config?.schema ?? []).length);
     if (configurable) {
       const readOnly = document.createElement("div");
       readOnly.className = "tool-config-readonly";

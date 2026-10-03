@@ -8,6 +8,18 @@ import (
 	"testing"
 )
 
+func TestBridgeConfigDefaultsPublicationBindingsPath(t *testing.T) {
+	dir := useIsolatedUserConfigDir(t)
+	config, err := normalizeBridgeConfig(bridgeConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(dir, "publications.json")
+	if config.PublicationBindingsPath != want {
+		t.Fatalf("publication bindings path = %q, want %q", config.PublicationBindingsPath, want)
+	}
+}
+
 func TestBridgeConfigPersistsProxy(t *testing.T) {
 	dir := useIsolatedUserConfigDir(t)
 
@@ -253,6 +265,28 @@ func TestBridgeConfigStoresR2CredentialsInTOML(t *testing.T) {
 	if reloaded.Publishing.Assets.R2.SecretAccessKey != "secret" {
 		t.Fatalf("R2 secret was not reloaded")
 	}
+}
+
+func TestBridgeToolShowsPublicationBindingsPath(t *testing.T) {
+	dir := useIsolatedUserConfigDir(t)
+	config, err := normalizeBridgeConfig(bridgeConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range toolRegistry(config) {
+		if tool.Name != "publication-bindings" {
+			continue
+		}
+		want := filepath.Join(dir, "publications.json")
+		if tool.Health.Path != want {
+			t.Fatalf("publication bindings tool path = %q, want %q", tool.Health.Path, want)
+		}
+		if !tool.Required {
+			t.Fatal("publication bindings tool must be required")
+		}
+		return
+	}
+	t.Fatal("publication bindings tool not found")
 }
 
 func TestBridgeToolShowsConfigPath(t *testing.T) {

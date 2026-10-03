@@ -69,12 +69,12 @@ func (s *Server) handleCNBlogsBindingGet(response http.ResponseWriter, request *
 	if !allowReadOnlyBridgeStatus(response, request) {
 		return
 	}
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
+	binding, found, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "cnblogs")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
 		return
@@ -100,12 +100,12 @@ func (s *Server) handleArticleLinks(response http.ResponseWriter, request *http.
 	if !allowReadOnlyBridgeStatus(response, request) {
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	links, err := publisher.LoadArticleLinks(root, slug)
+	links, err := publisher.LoadArticleLinks(s.publicationBindingsPath(), slug)
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "article_links_read_failed", err.Error(), nil)
 		return
@@ -117,12 +117,12 @@ func (s *Server) handleCNBlogsBindingVerify(response http.ResponseWriter, reques
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
+	binding, found, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "cnblogs")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
 		return
@@ -228,11 +228,7 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 	}
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
-	s.mu.Lock()
-	root := s.config.ContentRoot
-	s.mu.Unlock()
-
-	binding, found, err := publisher.LoadPublicationBinding(root, slug, "cnblogs")
+	binding, found, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "cnblogs")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_read_failed", err.Error(), nil)
 		return
@@ -266,7 +262,7 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 		binding.RemoteDraftID = post.ID
 		binding.DraftURL = "https://i.cnblogs.com/articles/edit;postId=" + post.ID
 	}
-	if err := publisher.SavePublicationBinding(root, binding); err != nil {
+	if err := publisher.SavePublicationBinding(s.publicationBindingsPath(), binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
 		return
 	}
@@ -279,7 +275,7 @@ func (s *Server) handleCNBlogsBindingDelete(response http.ResponseWriter, reques
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -298,7 +294,7 @@ func (s *Server) handleCNBlogsBindingDelete(response http.ResponseWriter, reques
 	}
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
-	if err := publisher.DeletePublicationBindingState(root, slug, "cnblogs", body.State, body.PostID); err != nil {
+	if err := publisher.DeletePublicationBindingState(s.publicationBindingsPath(), slug, "cnblogs", body.State, body.PostID); err != nil {
 		writeAPIError(response, http.StatusConflict, "binding_changed", err.Error(), nil)
 		return
 	}

@@ -41,12 +41,13 @@ func publishingAssetForSource(input DraftInput, source string) (PublishingAsset,
 
 func loadRehostImage(client *http.Client, input DraftInput, source, sourceDir string) ([]byte, string, error) {
 	if asset, ok := publishingAssetForSource(input, source); ok && strings.HasPrefix(source, "blogctl-asset://") {
-		if strings.TrimSpace(input.ContentRoot) == "" {
-			return nil, "", fmt.Errorf("content root is missing for generated asset %s", asset.ID)
+		root := strings.TrimSpace(input.DistributionRoot)
+		if root == "" {
+			return nil, "", fmt.Errorf("distribution root is missing for generated asset %s", asset.ID)
 		}
 		extension := ".png"
-		relative := filepath.ToSlash(filepath.Join(".distribution", "assets", asset.Kind, asset.ID+extension))
-		return loadImage(client, relative, input.ContentRoot)
+		relative := filepath.ToSlash(filepath.Join("assets", asset.Kind, asset.ID+extension))
+		return loadImage(client, relative, root)
 	}
 	return loadImage(client, source, sourceDir)
 }

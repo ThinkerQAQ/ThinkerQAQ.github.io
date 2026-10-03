@@ -103,7 +103,7 @@ func TestZhihuPrepareHTMLUploadsGeneratedAssetWithoutR2(t *testing.T) {
 	root := t.TempDir()
 	assetID := "generated-mermaid"
 	assetSource := "blogctl-asset://mermaid/" + assetID
-	assetDir := filepath.Join(root, ".distribution", "assets", "mermaid")
+	assetDir := filepath.Join(root, "assets", "mermaid")
 	if err := os.MkdirAll(assetDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -161,9 +161,9 @@ func TestZhihuPrepareHTMLUploadsGeneratedAssetWithoutR2(t *testing.T) {
 	}
 	adapter := adapterValue.(*zhihuAdapter)
 	html, err := adapter.prepareHTML(context.Background(), DraftInput{
-		Markdown:    "![diagram](" + assetSource + ")",
-		HTML:        "<p><img src=\"" + assetSource + "\"></p>",
-		ContentRoot: root,
+		Markdown:         "![diagram](" + assetSource + ")",
+		HTML:             "<p><img src=\"" + assetSource + "\"></p>",
+		DistributionRoot: root,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: assetID, Source: assetSource,
 		}},

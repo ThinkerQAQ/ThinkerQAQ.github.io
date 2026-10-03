@@ -66,12 +66,12 @@ func (s *Server) handleMediumLookupContext(response http.ResponseWriter, request
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "medium")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "medium")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
 		return
@@ -116,7 +116,7 @@ func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 			}
 		}
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "medium")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "medium")
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -177,12 +177,12 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 		return
 	}
 
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	binding, _, err := publisher.LoadPublicationBinding(root, slug, "medium")
+	binding, _, err := publisher.LoadPublicationBinding(s.publicationBindingsPath(), slug, "medium")
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_load_failed", err.Error(), nil)
 		return
@@ -243,7 +243,7 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 		binding.RemoteDraftID = selected.ID
 		binding.DraftURL = selected.URL
 	}
-	if err := publisher.SavePublicationBinding(root, binding); err != nil {
+	if err := publisher.SavePublicationBinding(s.publicationBindingsPath(), binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
 		return
 	}
@@ -264,12 +264,12 @@ func (s *Server) handleMediumBindingDelete(response http.ResponseWriter, request
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
 	}
-	if err := publisher.DeletePublicationBindingState(root, slug, "medium", body.State, body.PostID); err != nil {
+	if err := publisher.DeletePublicationBindingState(s.publicationBindingsPath(), slug, "medium", body.State, body.PostID); err != nil {
 		writeAPIError(response, http.StatusConflict, "binding_changed", err.Error(), nil)
 		return
 	}

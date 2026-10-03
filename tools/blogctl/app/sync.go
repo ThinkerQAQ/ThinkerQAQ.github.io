@@ -27,10 +27,11 @@ type SyncRequest struct {
 }
 
 type SyncConfig struct {
-	EngineRoot  string
-	ContentRoot string
-	Publishing  blogcompiler.PublishingConfig
-	ToolPaths   map[string]string
+	EngineRoot       string
+	ContentRoot      string
+	DistributionRoot string
+	Publishing       blogcompiler.PublishingConfig
+	ToolPaths        map[string]string
 }
 
 type SyncPlan struct {
@@ -40,11 +41,12 @@ type SyncPlan struct {
 }
 
 type NativeDraftRequest struct {
-	Article     string
-	Platform    string
-	ContentRoot string
-	ChangedOnly bool
-	Compiled    blogcompiler.CompiledArticle
+	Article          string
+	Platform         string
+	ContentRoot      string
+	DistributionRoot string
+	ChangedOnly      bool
+	Compiled         blogcompiler.CompiledArticle
 }
 
 func changedOnlyForPlatform(request SyncRequest, platform string) bool {
@@ -61,10 +63,11 @@ type NativeDraftResult struct {
 }
 
 type NativePublishRequest struct {
-	Article     string
-	Platform    string
-	ContentRoot string
-	Compiled    blogcompiler.CompiledArticle
+	Article          string
+	Platform         string
+	ContentRoot      string
+	DistributionRoot string
+	Compiled         blogcompiler.CompiledArticle
 }
 
 type NativePublishResult struct {
@@ -279,12 +282,12 @@ func (s SyncService) runSyncPlan(
 
 		if !request.DryRun && request.Operation == "draft" {
 			stats, assetErr := blogassets.Prepare(ctx, compiledArticles, blogassets.Config{
-				EngineRoot:   config.EngineRoot,
-				ContentRoot:  config.ContentRoot,
-				Node:         node,
-				Env:          env,
-				MermaidWidth: config.Publishing.Compiler.Mermaid.Width,
-				MermaidScale: config.Publishing.Compiler.Mermaid.Scale,
+				EngineRoot:       config.EngineRoot,
+				DistributionRoot: config.DistributionRoot,
+				Node:             node,
+				Env:              env,
+				MermaidWidth:     config.Publishing.Compiler.Mermaid.Width,
+				MermaidScale:     config.Publishing.Compiler.Mermaid.Scale,
 			})
 			if assetErr != nil {
 				message := "publishing assets: " + assetErr.Error()
@@ -323,7 +326,8 @@ func (s SyncService) runSyncPlan(
 				platform := compiled.Platform
 				if request.Operation == "publish" {
 					publishResult, publishErr := s.NativePublisher.PublishDraft(ctx, NativePublishRequest{
-						Article: article, Platform: platform, ContentRoot: config.ContentRoot, Compiled: compiled,
+						Article: article, Platform: platform, ContentRoot: config.ContentRoot,
+						DistributionRoot: config.DistributionRoot, Compiled: compiled,
 					})
 					if publishErr != nil {
 						message := platform + ": " + publishErr.Error()
@@ -342,7 +346,8 @@ func (s SyncService) runSyncPlan(
 
 				draftResult, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
 					Article: article, Platform: platform, ContentRoot: config.ContentRoot,
-					ChangedOnly: changedOnlyForPlatform(request, platform), Compiled: compiled,
+					DistributionRoot: config.DistributionRoot,
+					ChangedOnly:      changedOnlyForPlatform(request, platform), Compiled: compiled,
 				})
 				if publishErr != nil {
 					message := platform + ": " + publishErr.Error()
@@ -460,6 +465,9 @@ func validateSyncWorkspaces(config SyncConfig) error {
 	}
 	if !directoryPresent(filepath.Join(config.ContentRoot, "src", "content", "articles")) {
 		return errors.New("Content Repository is not configured or invalid")
+	}
+	if strings.TrimSpace(config.DistributionRoot) == "" {
+		return errors.New("Distribution is not configured")
 	}
 	return nil
 }
