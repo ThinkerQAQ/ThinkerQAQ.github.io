@@ -301,7 +301,7 @@
     return urlVariants(url).some((candidate) => text.includes(candidate));
   }
 
-  function failureSurfaceText() {
+  function feedbackSurfaceText() {
     const selectors = [
       '[role="alert"]',
       '[role="dialog"]',
@@ -319,13 +319,20 @@
   }
 
   function hasVisibleFailureSignal() {
-    return includesAny(failureSurfaceText(), TEXT.failed);
+    return includesAny(feedbackSurfaceText(), TEXT.failed);
+  }
+
+  function signalAdded(afterText, beforeText, candidates) {
+    const after = normalizedText(afterText);
+    const before = normalizedText(beforeText);
+    return includesAny(after, candidates) && !includesAny(before, candidates);
   }
 
   function detectPageState(url = "") {
     const text = bodyText();
-    if (includesAny(text, TEXT.rateLimited)) return { kind: "rate_limited" };
-    if (includesAny(text, TEXT.quota)) return { kind: "quota_blocked" };
+    const feedback = feedbackSurfaceText();
+    if (includesAny(feedback, TEXT.rateLimited)) return { kind: "rate_limited" };
+    if (includesAny(feedback, TEXT.quota)) return { kind: "quota_blocked" };
     if (hasVisibleFailureSignal()) return { kind: "failed" };
 
     const state = includesAny(text, TEXT.notIndexed)
@@ -353,12 +360,25 @@
     ) || null;
   }
 
-  function findSuccessDialogState(beforeText = "") {
+  function findSuccessDialogState(beforeText = "", beforeFeedbackText = "") {
     const text = bodyText();
-    if (includesAny(text, TEXT.rateLimited)) return "rate_limited";
-    if (includesAny(text, TEXT.quota)) return "quota_blocked";
-    if (hasVisibleFailureSignal() && text !== beforeText) return "failed";
-    if (includesAny(text, TEXT.requested) && text !== beforeText) return "requested_indexing";
+    const feedback = feedbackSurfaceText();
+    if (
+      signalAdded(feedback, beforeFeedbackText, TEXT.rateLimited) ||
+      signalAdded(text, beforeText, TEXT.rateLimited)
+    ) return "rate_limited";
+    if (
+      signalAdded(feedback, beforeFeedbackText, TEXT.quota) ||
+      signalAdded(text, beforeText, TEXT.quota)
+    ) return "quota_blocked";
+    if (
+      signalAdded(feedback, beforeFeedbackText, TEXT.failed) ||
+      signalAdded(text, beforeText, TEXT.failed)
+    ) return "failed";
+    if (
+      signalAdded(feedback, beforeFeedbackText, TEXT.requested) ||
+      signalAdded(text, beforeText, TEXT.requested)
+    ) return "requested_indexing";
     return "";
   }
 
@@ -391,11 +411,11 @@
     }) || null;
   }
 
-  async function waitForRequestResult(beforeText, timeoutMs) {
+  async function waitForRequestResult(beforeText, beforeFeedbackText, timeoutMs) {
     const startedAt = Date.now();
     let nextHeartbeatAt = startedAt + 30000;
     while (Date.now() - startedAt < timeoutMs) {
-      const result = findSuccessDialogState(beforeText);
+      const result = findSuccessDialogState(beforeText, beforeFeedbackText);
       if (result) return result;
       const now = Date.now();
       if (now >= nextHeartbeatAt) {
@@ -515,11 +535,14 @@
     let input = findInspectionInput();
     let diagnostic = pageDiagnostic();
     const inspectionPath = /\/search-console\/inspect(?:\/|$)/u.test(location.pathname);
-    let ready = Boolean(input || diagnostic.hasRequestButton || (inspectionPath && diagnostic.inspectionState));
+    const inspectionReady = (value) =>
+      !["quota_blocked", "rate_limited", "failed"].includes(String(value?.inspectionState || "")) &&
+      Boolean(input || value?.hasRequestButton || (inspectionPath && value?.inspectionState));
+    let ready = inspectionReady(diagnostic);
     if (!ready) {
       input = await ensureInspectionInput(15000);
       diagnostic = pageDiagnostic();
-      ready = Boolean(input || diagnostic.hasRequestButton || (inspectionPath && diagnostic.inspectionState));
+      ready = inspectionReady(diagnostic);
     }
     emit(
       ready ? "info" : "warn",
@@ -661,11 +684,12 @@
     }
 
     const beforeText = bodyText();
+    const beforeFeedbackText = feedbackSurfaceText();
     button.click();
     emit("info", "gsc request indexing clicked", { url });
 
     const requestTimeoutMs = Math.max(1000, Number(globalThis.__BLOGCTL_GSC_REQUEST_TIMEOUT_MS__) || 180000);
-    const result = await waitForRequestResult(beforeText, requestTimeoutMs);
+    const result = await waitForRequestResult(beforeText, beforeFeedbackText, requestTimeoutMs);
     if (!result) {
       const diagnostic = pageDiagnostic();
       const recovery = await cancelTimedOutRequestProcessing();
