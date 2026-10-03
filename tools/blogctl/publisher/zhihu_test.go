@@ -161,8 +161,8 @@ func TestZhihuPrepareHTMLUploadsGeneratedAssetWithoutR2(t *testing.T) {
 	}
 	adapter := adapterValue.(*zhihuAdapter)
 	html, err := adapter.prepareHTML(context.Background(), DraftInput{
-		Markdown:    "![diagram](" + assetSource + ")",
-		HTML:        "<p><img src=\"" + assetSource + "\"></p>",
+		Markdown:         "![diagram](" + assetSource + ")",
+		HTML:             "<p><img src=\"" + assetSource + "\"></p>",
 		DistributionRoot: root,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: assetID, Source: assetSource,
