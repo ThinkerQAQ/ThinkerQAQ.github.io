@@ -17,12 +17,11 @@ var assetIDPattern = regexp.MustCompile(`^[a-f0-9]{16,64}$`)
 
 type Config struct {
 	EngineRoot       string
-	ContentRoot      string
 	DistributionRoot string
 	Node             string
-	Env          []string
-	MermaidWidth int
-	MermaidScale float64
+	Env              []string
+	MermaidWidth     int
+	MermaidScale     float64
 }
 
 type Stats struct {
@@ -36,9 +35,6 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 		return Stats{}, errors.New("asset preparation requires engine root")
 	}
 	distributionRoot := strings.TrimSpace(config.DistributionRoot)
-	if distributionRoot == "" && strings.TrimSpace(config.ContentRoot) != "" {
-		distributionRoot = filepath.Join(config.ContentRoot, ".distribution")
-	}
 	if distributionRoot == "" {
 		return Stats{}, errors.New("asset preparation requires distribution root")
 	}
