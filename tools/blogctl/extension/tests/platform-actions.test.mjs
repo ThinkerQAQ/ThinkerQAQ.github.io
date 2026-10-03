@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const htmlPath = new URL("../tools/blogctl/extension/popup/popup.html", import.meta.url);
-const syncPath = new URL("../tools/blogctl/extension/popup/sync.js", import.meta.url);
-const draftsPath = new URL("../tools/blogctl/extension/popup/drafts.js", import.meta.url);
-const publicationsPath = new URL("../tools/blogctl/extension/popup/publications.js", import.meta.url);
-const backgroundPath = new URL("../tools/blogctl/extension/background.js", import.meta.url);
+const htmlPath = new URL("../popup/popup.html", import.meta.url);
+const syncPath = new URL("../popup/sync.js", import.meta.url);
+const draftsPath = new URL("../popup/drafts.js", import.meta.url);
+const publicationsPath = new URL("../popup/publications.js", import.meta.url);
+const backgroundPath = new URL("../background.js", import.meta.url);
 
 test("detection and update keep searchable article inventories collapsible", async () => {
   const [html, sync, drafts] = await Promise.all([

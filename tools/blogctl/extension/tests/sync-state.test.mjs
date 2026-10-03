@@ -1,9 +1,9 @@
-const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
-const { runInNewContext } = require("node:vm");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { runInNewContext } from "node:vm";
 
-const source = readFileSync(__dirname + "/sync-state.js", "utf8");
+const source = await readFile(new URL("../popup/sync-state.js", import.meta.url), "utf8");
 const context = {};
 runInNewContext(source, context);
 const state = context.BlogCTLSyncState;

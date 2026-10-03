@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-await import("../tools/blogctl/extension/popup/task-ui-state.js");
+await import("../popup/task-ui-state.js");
 const model = globalThis.BlogCTLTaskUIState;
 
 function fakeStorage(initial = {}) {
@@ -132,7 +132,7 @@ test("bindDetails restores persisted state and records later toggles", () => {
 });
 
 test("popup loads task state model before the task renderer", async () => {
-  const html = await fs.readFile(new URL("../tools/blogctl/extension/popup/popup.html", import.meta.url), "utf8");
+  const html = await fs.readFile(new URL("../popup/popup.html", import.meta.url), "utf8");
   const stateIndex = html.indexOf('src="task-ui-state.js"');
   const tasksIndex = html.indexOf('src="tasks.js"');
   assert.ok(stateIndex >= 0, "task-ui-state.js is missing from popup");

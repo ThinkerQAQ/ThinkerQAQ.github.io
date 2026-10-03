@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const manifestPath = new URL("../tools/blogctl/extension/manifest.json", import.meta.url);
-const backgroundPath = new URL("../tools/blogctl/extension/background.js", import.meta.url);
+const manifestPath = new URL("../manifest.json", import.meta.url);
+const backgroundPath = new URL("../background.js", import.meta.url);
 
 test("BlogCTL proxy stays scoped to BlogCTL components", async () => {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
