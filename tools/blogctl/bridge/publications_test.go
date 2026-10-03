@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,13 +14,14 @@ import (
 
 func TestPublicationPendingResolveUpdatesOnlyDurableState(t *testing.T) {
 	root := t.TempDir()
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
 	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
-	if err := publisher.SavePublicationDraftResult(root, "example", "medium", "hash", publisher.DraftResult{
+	if err := publisher.SavePublicationDraftResult(publicationPath, "example", "medium", "hash", publisher.DraftResult{
 		ID: "post-1", URL: "https://medium.com/p/post-1/edit", Created: true,
 	}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := publisher.SavePublicationPendingFields(root, "example", "medium", []string{"canonical", "tags"}); err != nil {
+	if err := publisher.SavePublicationPendingFields(publicationPath, "example", "medium", []string{"canonical", "tags"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -28,7 +30,7 @@ func TestPublicationPendingResolveUpdatesOnlyDurableState(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.config.ContentRoot = root
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(root)
+	server.config.PublicationBindingsPath = publicationPath
 
 	body, _ := json.Marshal(map[string]any{"fields": []string{"tags"}})
 	request := httptest.NewRequest(http.MethodPost, "/v1/publications/pending/resolve?article=example&platform=medium", bytes.NewReader(body))
@@ -49,7 +51,7 @@ func TestPublicationPendingResolveUpdatesOnlyDurableState(t *testing.T) {
 		t.Fatalf("pending = %#v", decoded.PendingFields)
 	}
 
-	records, err := publisher.ListPublicationRecords(root)
+	records, err := publisher.ListPublicationRecords(publicationPath)
 	if err != nil {
 		t.Fatal(err)
 	}
