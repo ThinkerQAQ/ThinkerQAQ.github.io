@@ -266,9 +266,10 @@ func (a app) runSync(args []string) error {
 	}
 
 	config := blogapp.SyncConfig{
-		EngineRoot:  a.root,
-		ContentRoot: a.contentRoot,
-		Publishing:  bridge.ResolvedPublishingConfig(),
+		EngineRoot:       a.root,
+		ContentRoot:      a.contentRoot,
+		DistributionRoot: bridge.ResolvedDistributionRoot(),
+		Publishing:       bridge.ResolvedPublishingConfig(),
 	}
 	service := blogapp.NewSyncService()
 	output, err := service.Run(context.Background(), config, blogapp.SyncRequest{
