@@ -46,14 +46,15 @@ type PublicationState struct {
 }
 
 func LoadPublicationState(storePath, slug, platform string) (PublicationState, string, error) {
-	binding, found, err := LoadPublicationBinding(storePath, slug, platform)
+	resolvedPath := publicationStorePath(storePath)
+	binding, found, err := LoadPublicationBinding(resolvedPath, slug, platform)
 	if err != nil {
 		return PublicationState{}, "", err
 	}
 	if !found {
-		return PublicationState{}, storePath, nil
+		return PublicationState{}, resolvedPath, nil
 	}
-	return publicationBindingState(binding), storePath, nil
+	return publicationBindingState(binding), resolvedPath, nil
 }
 
 func stringValue(value any) string {
