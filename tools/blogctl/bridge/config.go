@@ -31,6 +31,7 @@ type bridgeConfig struct {
 
 	ContentRoot                    string            `json:"contentRoot" toml:"content_root"`
 	EngineRoot                     string            `json:"engineRoot" toml:"engine_root"`
+	PublicationBindingsPath        string            `json:"publicationBindingsPath" toml:"publication_bindings_path"`
 	ToolPaths                      map[string]string `json:"toolPaths" toml:"tool_paths"`
 	DevtoAPIKey                    string            `json:"devtoApiKey,omitempty" toml:"devto_api_key"`
 	IndexNowEndpoint               string            `json:"indexNowEndpoint,omitempty" toml:"indexnow_endpoint"`
@@ -57,11 +58,13 @@ func defaultPublishingConfig() publishingConfig {
 }
 
 func defaultBridgeConfig() bridgeConfig {
+	publicationBindingsPath, _ := PublicationBindingsPath()
 	return bridgeConfig{
-		LogLevel:         "info",
-		ToolPaths:        map[string]string{},
-		IndexNowEndpoint: "https://www.bing.com/indexnow",
-		Publishing:       defaultPublishingConfig(),
+		LogLevel:                "info",
+		ToolPaths:               map[string]string{},
+		PublicationBindingsPath: publicationBindingsPath,
+		IndexNowEndpoint:        "https://www.bing.com/indexnow",
+		Publishing:              defaultPublishingConfig(),
 	}
 }
 
@@ -111,6 +114,14 @@ func ConfigPath() (string, error) {
 	return filepath.Join(dir, "blogctl.toml"), nil
 }
 
+func PublicationBindingsPath() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "publications.json"), nil
+}
+
 func bridgeConfigPath() (string, error) { return ConfigPath() }
 
 func normalizeStoredPath(value string) string {
@@ -128,6 +139,9 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	}
 	if strings.TrimSpace(config.LogLevel) == "" {
 		config.LogLevel = defaults.LogLevel
+	}
+	if strings.TrimSpace(config.PublicationBindingsPath) == "" {
+		config.PublicationBindingsPath = defaults.PublicationBindingsPath
 	}
 	if config.ToolPaths == nil {
 		config.ToolPaths = map[string]string{}
@@ -168,6 +182,7 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config = mergeConfigDefaults(config)
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
+	config.PublicationBindingsPath = normalizeStoredPath(config.PublicationBindingsPath)
 	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
 	config.IndexNowEndpoint = strings.TrimSpace(config.IndexNowEndpoint)
 	config.IndexNowKey = strings.TrimSpace(config.IndexNowKey)
