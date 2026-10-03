@@ -240,11 +240,7 @@ func sourceDirectory(contentRoot, slug, language string) string {
 	return filepath.Join(root, dir)
 }
 
-func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, error) {
-	return LoadDraftInputFromDistribution(contentRoot, filepath.Join(contentRoot, ".distribution"), platform, slug)
-}
-
-func LoadDraftInputFromDistribution(contentRoot, distributionRoot, platform, slug string) (DraftInput, string, error) {
+func LoadDraftInput(contentRoot, distributionRoot, platform, slug string) (DraftInput, string, error) {
 	manifestPath := filepath.Join(distributionRoot, "manifest.json")
 	manifest, err := readManifest(manifestPath)
 	if err != nil {
