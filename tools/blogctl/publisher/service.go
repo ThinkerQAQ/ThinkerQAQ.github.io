@@ -10,9 +10,9 @@ import (
 )
 
 type Service struct {
-	HTTPClient       *http.Client
-	Now              func() time.Time
-	PublicationPath  string
+	HTTPClient      *http.Client
+	Now             func() time.Time
+	PublicationPath string
 }
 
 func (s Service) publicationPath() string {
