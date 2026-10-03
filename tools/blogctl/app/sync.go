@@ -34,13 +34,6 @@ type SyncConfig struct {
 	ToolPaths        map[string]string
 }
 
-func distributionRoot(config SyncConfig) string {
-	if value := strings.TrimSpace(config.DistributionRoot); value != "" {
-		return value
-	}
-	return filepath.Join(config.ContentRoot, ".distribution")
-}
-
 type SyncPlan struct {
 	Group     string
 	Platforms []string
@@ -290,11 +283,11 @@ func (s SyncService) runSyncPlan(
 		if !request.DryRun && request.Operation == "draft" {
 			stats, assetErr := blogassets.Prepare(ctx, compiledArticles, blogassets.Config{
 				EngineRoot:       config.EngineRoot,
-				DistributionRoot: distributionRoot(config),
-				Node:         node,
-				Env:          env,
-				MermaidWidth: config.Publishing.Compiler.Mermaid.Width,
-				MermaidScale: config.Publishing.Compiler.Mermaid.Scale,
+				DistributionRoot: config.DistributionRoot,
+				Node:             node,
+				Env:              env,
+				MermaidWidth:     config.Publishing.Compiler.Mermaid.Width,
+				MermaidScale:     config.Publishing.Compiler.Mermaid.Scale,
 			})
 			if assetErr != nil {
 				message := "publishing assets: " + assetErr.Error()
@@ -334,7 +327,7 @@ func (s SyncService) runSyncPlan(
 				if request.Operation == "publish" {
 					publishResult, publishErr := s.NativePublisher.PublishDraft(ctx, NativePublishRequest{
 						Article: article, Platform: platform, ContentRoot: config.ContentRoot,
-						DistributionRoot: distributionRoot(config), Compiled: compiled,
+						DistributionRoot: config.DistributionRoot, Compiled: compiled,
 					})
 					if publishErr != nil {
 						message := platform + ": " + publishErr.Error()
@@ -353,7 +346,7 @@ func (s SyncService) runSyncPlan(
 
 				draftResult, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
 					Article: article, Platform: platform, ContentRoot: config.ContentRoot,
-					DistributionRoot: distributionRoot(config),
+					DistributionRoot: config.DistributionRoot,
 					ChangedOnly: changedOnlyForPlatform(request, platform), Compiled: compiled,
 				})
 				if publishErr != nil {
@@ -472,6 +465,9 @@ func validateSyncWorkspaces(config SyncConfig) error {
 	}
 	if !directoryPresent(filepath.Join(config.ContentRoot, "src", "content", "articles")) {
 		return errors.New("Content Repository is not configured or invalid")
+	}
+	if strings.TrimSpace(config.DistributionRoot) == "" {
+		return errors.New("Distribution is not configured")
 	}
 	return nil
 }
