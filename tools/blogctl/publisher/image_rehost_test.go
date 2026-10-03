@@ -144,7 +144,7 @@ func TestRehostMarkdownImagesPrefersPlatformUploadBeforeR2Fallback(t *testing.T)
 
 	source := "blogctl-asset://mermaid/abc"
 	input := DraftInput{
-		Markdown:    "![asset](" + source + ")",
+		Markdown:         "![asset](" + source + ")",
 		DistributionRoot: distributionRoot,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: "abc", ObjectKey: "generated/mermaid/abc.png",
@@ -198,7 +198,7 @@ func TestRehostMarkdownImagesUsesR2OnlyAfterPlatformUploadFails(t *testing.T) {
 
 	source := "blogctl-asset://mermaid/abc"
 	input := DraftInput{
-		Markdown:    "![asset](" + source + ")",
+		Markdown:         "![asset](" + source + ")",
 		DistributionRoot: distributionRoot,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: "abc", ObjectKey: "generated/mermaid/abc.png",
