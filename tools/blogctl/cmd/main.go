@@ -128,7 +128,7 @@ Usage:
   blogctl doctor
 
 Run sync from the blog-content repository. Engine commands still run from ThinkerQAQ.github.io.
-scripts/ stays at the engine repository root as the Astro/Node implementation layer.`)
+scripts/ contains repository-level Node build, validation and rendering entrypoints.`)
 }
 
 func findRepositoryRoot() (string, error) {

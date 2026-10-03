@@ -9,7 +9,7 @@ import {
   computeReadingProgress,
   qualifiesForDeepRead,
   qualifiesForEngagedRead,
-} from "../src/lib/content-analytics.mjs";
+} from "./content-analytics.mjs";
 
 test("reading progress matches the reading experience boundaries", () => {
   const input = {

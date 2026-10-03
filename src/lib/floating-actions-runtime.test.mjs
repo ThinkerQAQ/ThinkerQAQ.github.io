@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { footerBottomOverlap } from "../src/lib/floating-actions-runtime.js";
+import { footerBottomOverlap } from "./floating-actions-runtime.js";
 
 test("footer overlap is zero before the footer reaches the viewport bottom", () => {
   assert.equal(

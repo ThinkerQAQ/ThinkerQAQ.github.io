@@ -159,8 +159,8 @@ The Content Template intentionally does not include an automatic deployment trig
 ### Repository layout
 
 ```text
-src/                  Astro pages, components, and content schema
-scripts/              Astro / Pagefind / diagram rendering and frontend test scripts
+src/                  Astro pages, components, content schema, and Markdown processing
+scripts/              Repository-level build, validation, Pagefind, and diagram entrypoints
 workers/              Cloudflare Workers
 tools/blogctl/         BlogCTL
 fixtures/              Public Engine test content

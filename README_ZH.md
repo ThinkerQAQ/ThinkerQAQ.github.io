@@ -159,8 +159,8 @@ Content Template 默认不带自动触发部署的 Workflow，避免模板绑定
 ### 仓库结构
 
 ```text
-src/                  Astro 页面、组件和内容 Schema
-scripts/              Astro / Pagefind / 图渲染与前端测试脚本
+src/                  Astro 页面、组件、内容 Schema 与 Markdown 处理
+scripts/              仓库级构建、校验、Pagefind 与图渲染入口
 workers/              Cloudflare Workers
 tools/blogctl/         BlogCTL
 fixtures/              Public Engine 测试内容

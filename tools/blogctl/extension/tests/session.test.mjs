@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "../tools/blogctl/extension/session.js";
+import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "../session.js";
 
 test("captures only the extension's exact CNBlogs auth request Cookie header", () => {
   const origin = "chrome-extension://blogctl";
@@ -17,7 +17,7 @@ test("captures only the extension's exact CNBlogs auth request Cookie header", (
 });
 
 test("CNBlogs also collects cookies in its top-level site partition", async () => {
-  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  const { PLATFORM_SESSIONS } = await import("../platforms.js");
   const filters = [];
   const batches = await collectBrowserSessionCookieBatches(PLATFORM_SESSIONS.cnblogs, async (filter) => {
     filters.push(filter);
@@ -127,7 +127,7 @@ test("selectBrowserSessionCookies keeps only cookies within the allowed domain s
 });
 
 test("all native platform sessions declare domain-wide cookie discovery", async () => {
-  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  const { PLATFORM_SESSIONS } = await import("../platforms.js");
   const expected = {
     cnblogs: "cnblogs.com",
     juejin: "juejin.cn",
@@ -147,7 +147,7 @@ test("all native platform sessions declare domain-wide cookie discovery", async 
 });
 
 test("cnblogs auth probe uses the JSON /api/user endpoint", async () => {
-  const { PLATFORM_AUTH } = await import("../tools/blogctl/extension/platforms.js");
+  const { PLATFORM_AUTH } = await import("../platforms.js");
   const cnblogs = PLATFORM_AUTH.find((entry) => entry.id === "cnblogs");
   assert.ok(cnblogs, "cnblogs platform auth definition exists");
   assert.equal(cnblogs.probe.kind, "json");
@@ -157,7 +157,7 @@ test("cnblogs auth probe uses the JSON /api/user endpoint", async () => {
 
 
 test("captured platform sessions keep auth cookie allowlists without hard cookie-name gates", async () => {
-  const { PLATFORM_SESSIONS } = await import("../tools/blogctl/extension/platforms.js");
+  const { PLATFORM_SESSIONS } = await import("../platforms.js");
   const expected = {
     csdn: ["UserName", "UserToken", "UserInfo", "UserNick", "AU", "UN", "BT", "csrfToken", "SESSION"],
     segmentfault: ["PHPSESSID", "SHARESESSID", "sl-session", "_c_WBKFRo"],

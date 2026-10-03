@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSatteriMarkdownProcessor } from "@astrojs/markdown-satteri";
-import mermaidMarkdown, { isMermaid, mermaidBlock } from "./markdown.mjs";
+import mermaidMarkdown, { isMermaid, mermaidBlock } from "./mermaid.mjs";
 
 test("recognizes Mermaid fences only", () => {
   assert.equal(isMermaid({ type: "code", lang: "mermaid" }), true);

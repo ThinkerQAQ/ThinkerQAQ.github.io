@@ -9,7 +9,7 @@ import {
   hasPanOverflow,
   installPointerPan,
   nextMediaScale,
-} from "../src/lib/content-media-viewer.js";
+} from "./content-media-viewer.js";
 
 test("content media viewer exposes the intended zoom ladder", () => {
   assert.deepEqual(

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { toError } from "../tools/blogctl/extension/errors.js";
+import { toError } from "../errors.js";
 
-await import("../tools/blogctl/extension/popup/sync-model.js");
+await import("../popup/sync-model.js");
 const model = globalThis.BlogCTLSyncModel;
 
 test("maps structured sync results to platform rows", () => {
@@ -141,9 +141,12 @@ test("uses backend capabilities for published-update actions", () => {
     ],
   };
   assert.equal(model.canUpdatePublished("example", ["cnblogs"], true, status), true);
+  assert.equal(model.canUpdatePublished("", ["cnblogs"], true, status), false);
+  assert.equal(model.canUpdatePublished("example", [], true, status), false);
   assert.equal(model.canUpdatePublished("example", ["juejin"], true, status), false);
   assert.equal(model.canUpdatePublished("example", ["cnblogs", "juejin"], true, status), false);
   assert.equal(model.canUpdatePublished("example", ["cnblogs"], false, status), false);
+  assert.equal(model.canUpdatePublished("example", ["cnblogs"], true, { platforms: [{ id: "cnblogs", capabilities: {} }] }), false);
 });
 
 test("uses backend API-key capability for delivery tool requirements", () => {

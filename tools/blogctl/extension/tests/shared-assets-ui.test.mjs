@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const htmlPath = new URL("../tools/blogctl/extension/popup/popup.html", import.meta.url);
-const assetsPath = new URL("../tools/blogctl/extension/popup/assets.js", import.meta.url);
-const publishingPath = new URL("../tools/blogctl/extension/popup/publishing.js", import.meta.url);
-const environmentPath = new URL("../tools/blogctl/extension/popup/environment.js", import.meta.url);
+const htmlPath = new URL("../popup/popup.html", import.meta.url);
+const assetsPath = new URL("../popup/assets.js", import.meta.url);
+const publishingPath = new URL("../popup/publishing.js", import.meta.url);
+const environmentPath = new URL("../popup/environment.js", import.meta.url);
 
 test("shared R2 configuration is outside platform-specific configuration", async () => {
   const html = await readFile(htmlPath, "utf8");

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { CACHE, diagramKey, diagramUrl, isPlantuml } from "./core.mjs";
+import { CACHE, diagramKey, diagramUrl, isPlantuml } from "../../scripts/plantuml/core.mjs";
 
 export function diagramImage(node, file = "Markdown") {
       const key = diagramKey(node.value);

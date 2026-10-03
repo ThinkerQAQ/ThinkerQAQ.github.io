@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const contentScriptPath = new URL("../tools/blogctl/extension/google-indexing-content.js", import.meta.url);
-const backgroundPath = new URL("../tools/blogctl/extension/background.js", import.meta.url);
+const contentScriptPath = new URL("../google-indexing-content.js", import.meta.url);
+const backgroundPath = new URL("../background.js", import.meta.url);
 
 class FakeElement {
   constructor(tagName = "div", { text = "", attrs = {}, onClick = null } = {}) {
