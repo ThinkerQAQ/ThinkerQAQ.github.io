@@ -8,6 +8,18 @@ import (
 	"testing"
 )
 
+func TestBridgeConfigDefaultsPublicationBindingsPath(t *testing.T) {
+	dir := useIsolatedUserConfigDir(t)
+	config, err := normalizeBridgeConfig(bridgeConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(dir, "publications.json")
+	if config.PublicationBindingsPath != want {
+		t.Fatalf("publication bindings path = %q, want %q", config.PublicationBindingsPath, want)
+	}
+}
+
 func TestBridgeConfigPersistsProxy(t *testing.T) {
 	dir := useIsolatedUserConfigDir(t)
 
