@@ -267,6 +267,28 @@ func TestBridgeConfigStoresR2CredentialsInTOML(t *testing.T) {
 	}
 }
 
+func TestBridgeToolShowsPublicationBindingsPath(t *testing.T) {
+	dir := useIsolatedUserConfigDir(t)
+	config, err := normalizeBridgeConfig(bridgeConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range toolRegistry(config) {
+		if tool.Name != "publication-bindings" {
+			continue
+		}
+		want := filepath.Join(dir, "publications.json")
+		if tool.Health.Path != want {
+			t.Fatalf("publication bindings tool path = %q, want %q", tool.Health.Path, want)
+		}
+		if !tool.Required {
+			t.Fatal("publication bindings tool must be required")
+		}
+		return
+	}
+	t.Fatal("publication bindings tool not found")
+}
+
 func TestBridgeToolShowsConfigPath(t *testing.T) {
 	dir := useIsolatedUserConfigDir(t)
 	for _, tool := range toolRegistry(defaultBridgeConfig()) {
