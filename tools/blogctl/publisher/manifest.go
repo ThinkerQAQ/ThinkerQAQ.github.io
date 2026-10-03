@@ -241,7 +241,11 @@ func sourceDirectory(contentRoot, slug, language string) string {
 }
 
 func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, error) {
-	manifestPath := filepath.Join(contentRoot, ".distribution", "manifest.json")
+	return LoadDraftInputFromDistribution(contentRoot, filepath.Join(contentRoot, ".distribution"), platform, slug)
+}
+
+func LoadDraftInputFromDistribution(contentRoot, distributionRoot, platform, slug string) (DraftInput, string, error) {
+	manifestPath := filepath.Join(distributionRoot, "manifest.json")
 	manifest, err := readManifest(manifestPath)
 	if err != nil {
 		return DraftInput{}, "", err
@@ -258,7 +262,7 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	if language == "" {
 		language = "zh-CN"
 	}
-	outputPath := filepath.Join(contentRoot, ".distribution", platform, filepath.FromSlash(slug)+".md")
+	outputPath := filepath.Join(distributionRoot, platform, filepath.FromSlash(slug)+".md")
 	raw, err := os.ReadFile(outputPath)
 	if err != nil {
 		return DraftInput{}, "", err
@@ -269,10 +273,10 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	}
 	htmlPath := stringValue(state["htmlOutput"])
 	if htmlPath == "" {
-		htmlPath = filepath.Join(".distribution", platform, filepath.FromSlash(slug)+".html")
+		htmlPath = filepath.Join(platform, filepath.FromSlash(slug)+".html")
 	}
 	if !filepath.IsAbs(htmlPath) {
-		htmlPath = filepath.Join(contentRoot, filepath.FromSlash(htmlPath))
+		htmlPath = filepath.Join(distributionRoot, filepath.FromSlash(htmlPath))
 	}
 	htmlBody := ""
 	if htmlRaw, htmlErr := os.ReadFile(htmlPath); htmlErr == nil {
@@ -281,6 +285,6 @@ func LoadDraftInput(contentRoot, platform, slug string) (DraftInput, string, err
 	return DraftInput{
 		Slug: slug, Title: title, Description: description, Markdown: markdown, HTML: htmlBody,
 		Language: language, ContentHash: contentHash,
-		SourceDir: sourceDirectory(contentRoot, slug, language),
+		SourceDir: sourceDirectory(contentRoot, slug, language), ContentRoot: contentRoot, DistributionRoot: distributionRoot,
 	}, manifestPath, nil
 }
