@@ -17,7 +17,7 @@ var assetIDPattern = regexp.MustCompile(`^[a-f0-9]{16,64}$`)
 
 type Config struct {
 	EngineRoot   string
-	ContentRoot  string
+	DistributionRoot string
 	Node         string
 	Env          []string
 	MermaidWidth int
@@ -34,8 +34,8 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 	if strings.TrimSpace(config.EngineRoot) == "" {
 		return Stats{}, errors.New("asset preparation requires engine root")
 	}
-	if strings.TrimSpace(config.ContentRoot) == "" {
-		return Stats{}, errors.New("asset preparation requires content root")
+	if strings.TrimSpace(config.DistributionRoot) == "" {
+		return Stats{}, errors.New("asset preparation requires distribution root")
 	}
 
 	unique := make(map[string]blogcompiler.Asset)
@@ -58,7 +58,7 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 		if err := validate(asset); err != nil {
 			return stats, err
 		}
-		output := filepath.Join(config.ContentRoot, ".distribution", "assets", asset.Kind, asset.ID+".png")
+		output := filepath.Join(config.DistributionRoot, "assets", asset.Kind, asset.ID+".png")
 		if info, err := os.Stat(output); err == nil && !info.IsDir() && info.Size() > 0 {
 			stats.Cached++
 			continue
@@ -84,7 +84,7 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 
 	for _, key := range pending {
 		asset := unique[key]
-		output := filepath.Join(config.ContentRoot, ".distribution", "assets", asset.Kind, asset.ID+".png")
+		output := filepath.Join(config.DistributionRoot, "assets", asset.Kind, asset.ID+".png")
 		if strings.TrimSpace(asset.Content) == "" {
 			return stats, fmt.Errorf("publishing asset %s is missing renderer content", key)
 		}
