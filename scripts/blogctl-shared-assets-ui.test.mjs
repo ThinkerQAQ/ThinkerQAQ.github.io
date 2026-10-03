@@ -55,6 +55,12 @@ test("environment owns expansion lifecycle for the shared asset card", async () 
   assert.match(environment, /BlogCTLAssets\.deactivate\(\)/u);
 });
 
+test("environment hides a health path when the configured path already renders it", async () => {
+  const environment = await readFile(environmentPath, "utf8");
+  assert.match(environment, /const configuredPaths = new Set/u);
+  assert.match(environment, /!configuredPaths\.has\(String\(tool\.health\.path\)\.trim\(\)\)/u);
+});
+
 test("environment configuration cards expose edit and requirement affordances", async () => {
   const [html, environment] = await Promise.all([
     readFile(htmlPath, "utf8"),
