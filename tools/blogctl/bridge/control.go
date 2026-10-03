@@ -1215,7 +1215,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	applicationConfig := blogapp.SyncConfig{
 		EngineRoot:       config.EngineRoot,
 		ContentRoot:      config.ContentRoot,
-		DistributionRoot: strings.TrimSpace(distributionRoot),
+		DistributionRoot: config.DistributionRoot,
 		Publishing:       config.Publishing,
 		ToolPaths:        config.ToolPaths,
 	}
