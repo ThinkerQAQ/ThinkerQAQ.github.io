@@ -952,13 +952,33 @@ func (s *Server) updateGoogleRequestTaskFromQueue(queue googleIndexRequestQueue)
 func recoverSearchTasksAfterRestart(s *Server) {
 	state := loadSearchIndexState()
 	queue := &state.Google.RequestQueue
+	queueChanged := false
 	if queue.State == "running" {
 		queue.State = "paused"
 		queue.LastError = ""
 		queue.UpdatedAt = s.now().UTC().Format(time.RFC3339)
-		_ = saveSearchIndexState(state)
+		queueChanged = true
+	}
+
+	if (queue.State == "paused" || queue.State == "quota_blocked") && len(queue.Items) > 0 {
+		if queue.JobID == "" || s.durableTaskJob(queue.JobID) == nil {
+			queue.JobID = ""
+			if _, err := s.ensureGoogleRequestTask(queue); err != nil {
+				slog.Error("request-indexing task recovery failed", "error", err.Error())
+			} else {
+				queueChanged = true
+			}
+		}
 		if queue.JobID != "" {
-			_, _ = s.updateGoogleRequestTaskFromQueue(*queue)
+			if _, err := s.updateGoogleRequestTaskFromQueue(*queue); err != nil {
+				slog.Error("request-indexing task state recovery failed", "jobId", queue.JobID, "error", err.Error())
+			}
+		}
+	}
+
+	if queueChanged {
+		if err := saveSearchIndexState(state); err != nil {
+			slog.Error("request-indexing queue recovery persistence failed", "error", err.Error())
 		}
 	}
 

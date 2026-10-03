@@ -141,6 +141,53 @@ func TestRunningRequestIndexingTaskRecoversPaused(t *testing.T) {
 	}
 }
 
+func TestQuotaBlockedRequestQueueRecoversMissingTask(t *testing.T) {
+	useIsolatedUserConfigDir(t)
+
+	state := defaultSearchIndexState()
+	state.Google.RequestQueue = googleIndexRequestQueue{
+		JobID:        "missing-request-job",
+		State:        "quota_blocked",
+		CurrentIndex: 0,
+		LastError:    "Google Request Indexing daily quota was exhausted",
+		Items: []googleIndexRequestItem{
+			{
+				URL:    "https://thinkerqaq.github.io/a/",
+				Status: "quota_blocked",
+				Error:  "Google Request Indexing daily quota was exhausted",
+			},
+			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+		},
+	}
+	if err := saveSearchIndexState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted, err := New("token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restoredState := loadSearchIndexState()
+	queue := restoredState.Google.RequestQueue
+	if queue.JobID == "" || queue.JobID == "missing-request-job" {
+		t.Fatalf("queue jobId was not repaired: %#v", queue)
+	}
+	restoredJob := restarted.durableTaskJob(queue.JobID)
+	if restoredJob == nil {
+		t.Fatal("recovered request-indexing task is missing")
+	}
+	if restoredJob.State != "paused" || !restoredJob.CanResume {
+		t.Fatalf("recovered request-indexing task = %#v", restoredJob)
+	}
+	if restoredJob.Progress.Total != 2 {
+		t.Fatalf("recovered progress = %#v", restoredJob.Progress)
+	}
+	if reason, _ := restoredJob.Detail["reason"].(string); reason != "quota_blocked" {
+		t.Fatalf("recovered detail = %#v", restoredJob.Detail)
+	}
+}
+
 func TestPublishingTaskPayloadCanRestoreAfterMemoryPrune(t *testing.T) {
 	useIsolatedUserConfigDir(t)
 
