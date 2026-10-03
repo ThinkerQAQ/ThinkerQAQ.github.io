@@ -26,6 +26,7 @@ func TestDevtoArticleSearchReadsAccountArticles(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.config.ContentRoot = root
+	server.config.PublicationBindingsPath = filepath.Join(t.TempDir(), "publications.json")
 	server.config.DevtoAPIKey = "test-api-key"
 	server.httpClient = &http.Client{Transport: cnBlogsBindingTransport(func(request *http.Request) (*http.Response, error) {
 		if request.Method != http.MethodGet || request.URL.Path != "/api/articles/me/all" || request.URL.Query().Get("page") != "1" {
