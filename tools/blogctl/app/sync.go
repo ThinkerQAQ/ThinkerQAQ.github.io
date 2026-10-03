@@ -347,7 +347,7 @@ func (s SyncService) runSyncPlan(
 				draftResult, publishErr := s.NativePublisher.CreateOrUpdateDraft(ctx, NativeDraftRequest{
 					Article: article, Platform: platform, ContentRoot: config.ContentRoot,
 					DistributionRoot: config.DistributionRoot,
-					ChangedOnly: changedOnlyForPlatform(request, platform), Compiled: compiled,
+					ChangedOnly:      changedOnlyForPlatform(request, platform), Compiled: compiled,
 				})
 				if publishErr != nil {
 					message := platform + ": " + publishErr.Error()
