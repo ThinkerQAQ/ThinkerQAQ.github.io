@@ -1,16 +1,20 @@
-# BlogCTL v0.1.103
+# BlogCTL v0.1.104
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次 Release 只保留当前版本；发布完成后旧 GitHub Releases 会自动清理。
 
 ## 本版本更新
 
-### 环境与配置
-- Config 卡片新增 `✎ 编辑`，可直接使用系统编辑器打开固定位置的 `blogctl.toml`。
-- Config 明确标记为必选。
-- 共享图片资产标记为可选。
-- 平台配置标记为必选。
-- 搜索引擎标记为可选。
-- `Java (PlantUML)` 简化为 `Java`；Java 仍作为可选依赖保留，因为当前站点 PlantUML 渲染链路仍执行 PlantUML JAR。
+### 本地状态与生成目录
+- 新增必选的 `Distribution` 配置，Windows 默认目录为 `C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\distribution`。
+- 新增必选的 `Publication Bindings` 配置，Windows 默认文件为 `C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\publications.json`。
+- BlogCTL 生成的发布资产、图片缓存和 Medium fallback 输出统一写入配置的 `Distribution` 目录。
+- 文章与各平台的草稿 / 已发布文章关联统一写入 `publications.json`。
+- Content Repository 不再承担 BlogCTL 的运行状态和生成产物存储。
+- 删除旧 `.distribution`、`.blogctl/publications.json` 的迁移与 fallback 兼容逻辑；新目录结构作为唯一运行模型。
+
+### Environment
+- Distribution 与 Publication Bindings 均可在 Environment 中直接配置路径。
+- 已经由配置字段展示的路径不再重复显示一遍。
 
 ## Release 内容
 
@@ -22,4 +26,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次 Release 只保留
 - Windows / macOS / Linux 卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.103`
+版本：`0.1.104`
