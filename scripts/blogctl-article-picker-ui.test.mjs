@@ -34,3 +34,15 @@ test("article pickers collapse after selection and reopen only on interaction", 
     assert.match(source, /if \(event\.key === "Escape"\)[\s\S]{0,160}setArticleOptionsOpen\(false\)/u);
   }
 });
+
+test("binding bulk actions live inside the remote association card before the platform list", async () => {
+  const html = await readFile(htmlPath, "utf8");
+  const bulkActions = html.indexOf('id="bindingBulkActions"');
+  const platformList = html.indexOf('id="syncPlatforms"');
+  const remoteCardEnd = html.indexOf("</section>", platformList);
+
+  assert.ok(bulkActions >= 0, "binding bulk actions should exist");
+  assert.ok(platformList >= 0, "binding platform list should exist");
+  assert.ok(bulkActions < platformList, "binding actions should appear before the platform list");
+  assert.ok(remoteCardEnd > platformList, "remote association card should close after the platform list");
+});
