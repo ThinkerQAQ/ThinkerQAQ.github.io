@@ -39,60 +39,6 @@ type bindingFile struct {
 	Publications []PublicationBinding `json:"publications"`
 }
 
-func LegacyPublicationBindingsPath(contentRoot string) string {
-	return filepath.Join(contentRoot, ".blogctl", "publications.json")
-}
-
-func publicationStorePath(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	if info, err := os.Stat(value); err == nil && info.IsDir() {
-		return LegacyPublicationBindingsPath(value)
-	}
-	return filepath.Clean(value)
-}
-
-func MigratePublicationBindings(sourcePath, targetPath string) error {
-	sourcePath = strings.TrimSpace(sourcePath)
-	targetPath = strings.TrimSpace(targetPath)
-	if sourcePath == "" || targetPath == "" || filepath.Clean(sourcePath) == filepath.Clean(targetPath) {
-		return nil
-	}
-	if info, err := os.Stat(targetPath); err == nil {
-		if info.IsDir() {
-			return fmt.Errorf("publication bindings target is a directory: %s", targetPath)
-		}
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	raw, err := os.ReadFile(sourcePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o700); err != nil {
-		return err
-	}
-	temporary := targetPath + ".migrate"
-	if err := os.WriteFile(temporary, raw, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(temporary, targetPath); err != nil {
-		_ = os.Remove(temporary)
-		return err
-	}
-	if err := os.Remove(sourcePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	_ = os.Remove(filepath.Dir(sourcePath))
-	return nil
-}
-
 func publicationBindingState(binding PublicationBinding) PublicationState {
 	return PublicationState{
 		RemoteDraftID:     binding.RemoteDraftID,
@@ -387,7 +333,7 @@ func SavePublicationPublishedUpdateResult(storePath, slug, platform, contentHash
 
 func readBindings(storePath string) (bindingFile, error) {
 	result := bindingFile{Version: bindingFileVersion, Publications: []PublicationBinding{}}
-	storePath = publicationStorePath(storePath)
+	storePath = strings.TrimSpace(storePath)
 	if storePath == "" {
 		return result, errors.New("publication bindings path is not configured")
 	}
@@ -411,7 +357,7 @@ func readBindings(storePath string) (bindingFile, error) {
 }
 
 func writeBindings(storePath string, bindings bindingFile) error {
-	storePath = publicationStorePath(storePath)
+	storePath = strings.TrimSpace(storePath)
 	if storePath == "" {
 		return errors.New("publication bindings path is not configured")
 	}
