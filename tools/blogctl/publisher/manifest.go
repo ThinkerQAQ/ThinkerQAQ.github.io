@@ -45,15 +45,15 @@ type PublicationState struct {
 	VerifiedAt        string
 }
 
-func LoadPublicationState(contentRoot, slug, platform string) (PublicationState, string, error) {
-	binding, found, err := LoadPublicationBinding(contentRoot, slug, platform)
+func LoadPublicationState(storePath, slug, platform string) (PublicationState, string, error) {
+	binding, found, err := LoadPublicationBinding(storePath, slug, platform)
 	if err != nil {
 		return PublicationState{}, "", err
 	}
 	if !found {
-		return PublicationState{}, bindingPath(contentRoot), nil
+		return PublicationState{}, storePath, nil
 	}
-	return publicationBindingState(binding), bindingPath(contentRoot), nil
+	return publicationBindingState(binding), storePath, nil
 }
 
 func stringValue(value any) string {
@@ -124,9 +124,9 @@ func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord 
 	return record
 }
 
-func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
+func ListPublicationRecords(storePath string) ([]PublicationRecord, error) {
 	records := []PublicationRecord{}
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return nil, err
 	}
@@ -150,9 +150,9 @@ func ListPublicationRecords(contentRoot string) ([]PublicationRecord, error) {
 }
 
 // LoadArticleLinks reads locally recorded remote references without contacting a platform.
-func LoadArticleLinks(contentRoot, slug string) (map[string]ArticleLink, error) {
+func LoadArticleLinks(storePath, slug string) (map[string]ArticleLink, error) {
 	result := map[string]ArticleLink{}
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return nil, err
 	}
