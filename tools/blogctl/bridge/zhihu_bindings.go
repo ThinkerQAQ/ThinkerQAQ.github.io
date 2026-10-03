@@ -52,7 +52,7 @@ func zhihuBindingState(binding publisher.PublicationBinding, post publisher.Zhih
 func (s *Server) zhihuCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []publisher.ZhihuPost, publisher.PublicationBinding, error,
 ) {
-	article, _, err := s.cnBlogsArticle(slug)
+	article, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
