@@ -9,7 +9,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -174,11 +176,41 @@ type Server struct {
 	taskJobOrder   []string
 }
 
+
+func prepareDistributionRoot(contentRoot, distributionRoot string) error {
+	distributionRoot = strings.TrimSpace(distributionRoot)
+	if distributionRoot == "" {
+		return errors.New("distribution root is not configured")
+	}
+	legacy := ""
+	if strings.TrimSpace(contentRoot) != "" {
+		legacy = filepath.Join(contentRoot, ".distribution")
+	}
+	if legacy == "" || filepath.Clean(legacy) == filepath.Clean(distributionRoot) {
+		return os.MkdirAll(distributionRoot, 0o755)
+	}
+
+	if _, err := os.Stat(legacy); err == nil {
+		if _, targetErr := os.Stat(distributionRoot); errors.Is(targetErr, os.ErrNotExist) {
+			if renameErr := os.Rename(legacy, distributionRoot); renameErr == nil {
+				return nil
+			}
+		}
+		if err := os.RemoveAll(legacy); err != nil {
+			return err
+		}
+	}
+	return os.MkdirAll(distributionRoot, 0o755)
+}
+
 func New(token string) (*Server, error) {
 	if token == "" {
 		return nil, errors.New("bridge token is required")
 	}
 	config := loadBridgeConfig()
+	if err := prepareDistributionRoot(config.ContentRoot, config.DistributionRoot); err != nil {
+		return nil, fmt.Errorf("prepare distribution root: %w", err)
+	}
 	if strings.TrimSpace(config.ContentRoot) != "" {
 		if err := publisher.MigratePublicationBindings(
 			publisher.LegacyPublicationBindingsPath(config.ContentRoot),
@@ -890,6 +922,18 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 			return
 		}
 	}
+	if name == "distribution-root" {
+		if err := prepareDistributionRoot("", normalized.DistributionRoot); err != nil {
+			writeAPIError(response, http.StatusInternalServerError, "distribution_root_prepare_failed", err.Error(), nil)
+			return
+		}
+		if filepath.Clean(current.DistributionRoot) != filepath.Clean(normalized.DistributionRoot) {
+			if err := prepareDistributionRoot(current.DistributionRoot, normalized.DistributionRoot); err != nil {
+				writeAPIError(response, http.StatusInternalServerError, "distribution_root_migration_failed", err.Error(), nil)
+				return
+			}
+		}
+	}
 	if name == "publication-bindings" {
 		if err := publisher.MigratePublicationBindings(current.PublicationBindingsPath, normalized.PublicationBindingsPath); err != nil {
 			writeAPIError(response, http.StatusInternalServerError, "publication_bindings_migration_failed", err.Error(), nil)
@@ -897,6 +941,10 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 		}
 	}
 	if name == "content-workspace" {
+		if err := prepareDistributionRoot(normalized.ContentRoot, normalized.DistributionRoot); err != nil {
+			writeAPIError(response, http.StatusInternalServerError, "distribution_root_migration_failed", err.Error(), nil)
+			return
+		}
 		if err := publisher.MigratePublicationBindings(
 			publisher.LegacyPublicationBindingsPath(normalized.ContentRoot),
 			normalized.PublicationBindingsPath,
