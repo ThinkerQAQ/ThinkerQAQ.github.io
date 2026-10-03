@@ -459,9 +459,9 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Description: "文章与各发布平台远端草稿 / 已发布文章的持久关联状态。",
 			Health:      publicationBindingsHealth(config.PublicationBindingsPath),
 			Config: toolConfigView{
-				Scope: "bridge",
-				Values: map[string]any{"path": config.PublicationBindingsPath},
-				Schema: pathField("path", "Bindings File", "默认位于 BlogCTL 配置目录，例如 C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\publications.json"),
+				Scope:           "bridge",
+				Values:          map[string]any{"path": config.PublicationBindingsPath},
+				Schema:          pathField("path", "Bindings File", "默认位于 BlogCTL 配置目录，例如 C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\publications.json"),
 				DefaultExpanded: true,
 			},
 		},
