@@ -38,7 +38,8 @@ func TestCNBlogsBindingSearchAndManualVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.config.ContentRoot = root
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(root)
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	server.config.PublicationBindingsPath = publicationPath
 	server.sessions["cnblogs"] = platformSession{RequestCookieHeader: "login=test-secret", UserAgent: "test", ExpiresAt: time.Now().Add(time.Minute)}
 	remoteUpdatedAt := "baseline"
 	server.httpClient = &http.Client{Transport: cnBlogsBindingTransport(func(request *http.Request) (*http.Response, error) {
@@ -89,14 +90,14 @@ func TestCNBlogsBindingSearchAndManualVerification(t *testing.T) {
 	if binding["postId"] != "42" || binding["state"] != "published" || binding["remoteUpdatedAt"] != "baseline" {
 		t.Fatalf("binding = %#v", binding)
 	}
-	if _, err := os.Stat(filepath.Join(root, ".blogctl", "publications.json")); err != nil {
+	if _, err := os.Stat(publicationPath); err != nil {
 		t.Fatal(err)
 	}
 	verified := post("/v1/cnblogs/binding/verify?article=example", nil)
 	if verified["found"] != true || verified["post"].(map[string]any)["id"] != "42" {
 		t.Fatalf("verified = %#v", verified)
 	}
-	if err := publisher.SavePublicationBinding(root, publisher.PublicationBinding{Slug: "example", Platform: "cnblogs", Account: "ThinkerQAQ", PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42", RemoteUpdatedAt: "baseline", PublishedHash: "old-hash"}); err != nil {
+	if err := publisher.SavePublicationBinding(publicationPath, publisher.PublicationBinding{Slug: "example", Platform: "cnblogs", Account: "ThinkerQAQ", PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42", RemoteUpdatedAt: "baseline", PublishedHash: "old-hash"}); err != nil {
 		t.Fatal(err)
 	}
 	remoteUpdatedAt = "changed-remotely"
@@ -116,7 +117,8 @@ func TestCNBlogsBindingDeleteOnlyRemovesSelectedLocalSlot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(articles, "example.md"), []byte("---\ntitle: Example\nstatus: published\n---\nbody\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := publisher.SavePublicationBinding(root, publisher.PublicationBinding{
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	if err := publisher.SavePublicationBinding(publicationPath, publisher.PublicationBinding{
 		Slug: "example", Platform: "cnblogs",
 		RemoteDraftID: "52", DraftURL: "https://i.cnblogs.com/articles/edit;postId=52",
 		PublishedRemoteID: "42", PublishedURL: "https://www.cnblogs.com/ThinkerQAQ/p/42",
@@ -128,7 +130,7 @@ func TestCNBlogsBindingDeleteOnlyRemovesSelectedLocalSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.config.ContentRoot = root
-	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(root)
+	server.config.PublicationBindingsPath = publicationPath
 	request := httptest.NewRequest(http.MethodDelete, "/v1/cnblogs/binding?article=example", bytes.NewBufferString(`{"state":"draft","postId":"52"}`))
 	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
@@ -136,7 +138,7 @@ func TestCNBlogsBindingDeleteOnlyRemovesSelectedLocalSlot(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
 	}
-	binding, found, err := publisher.LoadPublicationBinding(root, "example", "cnblogs")
+	binding, found, err := publisher.LoadPublicationBinding(publicationPath, "example", "cnblogs")
 	if err != nil || !found || binding.RemoteDraftID != "" || binding.PublishedRemoteID != "42" {
 		t.Fatalf("publication = %#v, %v, %v", binding, found, err)
 	}
