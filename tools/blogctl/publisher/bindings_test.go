@@ -13,6 +13,32 @@ import (
 	"time"
 )
 
+func TestMigratePublicationBindingsMovesLegacyFile(t *testing.T) {
+	root := t.TempDir()
+	source := LegacyPublicationBindingsPath(root)
+	target := filepath.Join(t.TempDir(), "BlogCTL", "publications.json")
+	if err := os.MkdirAll(filepath.Dir(source), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	raw := []byte("{\n  \"version\": 2,\n  \"publications\": []\n}\n")
+	if err := os.WriteFile(source, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigratePublicationBindings(source, target); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(raw) {
+		t.Fatalf("migrated contents = %q", got)
+	}
+	if _, err := os.Stat(source); !os.IsNotExist(err) {
+		t.Fatalf("legacy bindings still exist: %v", err)
+	}
+}
+
 func TestParseCNBlogsPostReference(t *testing.T) {
 	for reference, want := range map[string]string{
 		"42": "42",
