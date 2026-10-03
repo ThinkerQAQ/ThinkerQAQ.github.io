@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const htmlPath = new URL("../tools/blogctl/extension/popup/popup.html", import.meta.url);
+const htmlPath = new URL("../popup/popup.html", import.meta.url);
 const pickerFiles = [
-  new URL("../tools/blogctl/extension/popup/sync.js", import.meta.url),
-  new URL("../tools/blogctl/extension/popup/drafts.js", import.meta.url),
-  new URL("../tools/blogctl/extension/popup/publications.js", import.meta.url),
+  new URL("../popup/sync.js", import.meta.url),
+  new URL("../popup/drafts.js", import.meta.url),
+  new URL("../popup/publications.js", import.meta.url),
 ];
 
 test("article pickers start collapsed", async () => {

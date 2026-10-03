@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const cssPath = new URL("../tools/blogctl/extension/popup/popup.css", import.meta.url);
-const indexingPath = new URL("../tools/blogctl/extension/popup/indexing.js", import.meta.url);
+const cssPath = new URL("../popup/popup.css", import.meta.url);
+const indexingPath = new URL("../popup/indexing.js", import.meta.url);
 
 test("indexing buttons use black for enabled and gray for disabled", async () => {
   const [css, indexing] = await Promise.all([
