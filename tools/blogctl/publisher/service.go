@@ -10,8 +10,16 @@ import (
 )
 
 type Service struct {
-	HTTPClient *http.Client
-	Now        func() time.Time
+	HTTPClient       *http.Client
+	Now              func() time.Time
+	PublicationPath  string
+}
+
+func (s Service) publicationPath(contentRoot string) string {
+	if path := strings.TrimSpace(s.PublicationPath); path != "" {
+		return path
+	}
+	return LegacyPublicationBindingsPath(contentRoot)
 }
 
 func (s Service) now() time.Time {
@@ -73,7 +81,7 @@ func (s Service) CreateOrUpdateDraftInput(
 ) (DraftResult, error) {
 	slug := input.Slug
 	input.ChangedOnly = changedOnly
-	state, _, err := LoadPublicationState(contentRoot, slug, platform)
+	state, _, err := LoadPublicationState(s.publicationPath(contentRoot), slug, platform)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -176,16 +184,16 @@ func (s Service) CreateOrUpdateDraftInput(
 	if result.ID == "" || result.URL == "" {
 		return DraftResult{}, fmt.Errorf("%s adapter returned an incomplete draft result", platform)
 	}
-	if err := SavePublicationDraftResult(contentRoot, slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationDraftResult(s.publicationPath(contentRoot), slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return DraftResult{}, err
 	}
 	if platform == "devto" && input.Published {
-		if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, PublishResult{ID: result.ID, URL: result.URL}, s.now()); err != nil {
+		if err := SavePublicationPublishResult(s.publicationPath(contentRoot), slug, platform, input.ContentHash, PublishResult{ID: result.ID, URL: result.URL}, s.now()); err != nil {
 			return DraftResult{}, err
 		}
 	}
 	if platform == "cnblogs" {
-		binding, found, loadErr := LoadPublicationBinding(contentRoot, slug, platform)
+		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(contentRoot), slug, platform)
 		if loadErr != nil {
 			return DraftResult{}, loadErr
 		}
@@ -195,13 +203,13 @@ func (s Service) CreateOrUpdateDraftInput(
 				binding.Source = "blogctl"
 			}
 			binding.VerifiedAt = verifiedAt(s.now())
-			if err := SavePublicationBinding(contentRoot, binding); err != nil {
+			if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
 				return DraftResult{}, err
 			}
 		}
 	}
 	if platform == "csdn" {
-		binding, found, loadErr := LoadPublicationBinding(contentRoot, slug, platform)
+		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(contentRoot), slug, platform)
 		if loadErr != nil {
 			return DraftResult{}, loadErr
 		}
@@ -211,7 +219,7 @@ func (s Service) CreateOrUpdateDraftInput(
 				binding.Source = "blogctl"
 			}
 			binding.VerifiedAt = verifiedAt(s.now())
-			if err := SavePublicationBinding(contentRoot, binding); err != nil {
+			if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
 				return DraftResult{}, err
 			}
 		}
@@ -241,7 +249,7 @@ func (s Service) PublishDraftInput(
 	input DraftInput,
 ) (PublishResult, error) {
 	slug := input.Slug
-	state, _, err := LoadPublicationState(contentRoot, slug, platform)
+	state, _, err := LoadPublicationState(s.publicationPath(contentRoot), slug, platform)
 	if err != nil {
 		return PublishResult{}, err
 	}
@@ -279,12 +287,12 @@ func (s Service) PublishDraftInput(
 	if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.URL) == "" {
 		return PublishResult{}, fmt.Errorf("%s adapter returned an incomplete publish result", platform)
 	}
-	if err := SavePublicationPublishResult(contentRoot, slug, platform, input.ContentHash, result, s.now()); err != nil {
+	if err := SavePublicationPublishResult(s.publicationPath(contentRoot), slug, platform, input.ContentHash, result, s.now()); err != nil {
 		return PublishResult{}, err
 	}
 	if platform == "cnblogs" {
 		cnblogs := adapter.(*cnBlogsAdapter)
-		binding, found, loadErr := LoadPublicationBinding(contentRoot, slug, platform)
+		binding, found, loadErr := LoadPublicationBinding(s.publicationPath(contentRoot), slug, platform)
 		if loadErr != nil {
 			return PublishResult{}, loadErr
 		}
@@ -303,7 +311,7 @@ func (s Service) PublishDraftInput(
 			binding.DraftURL = ""
 			binding.DraftHash = ""
 			binding.DraftSyncedAt = ""
-			if err := SavePublicationBinding(contentRoot, binding); err != nil {
+			if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
 				return PublishResult{}, err
 			}
 		}
@@ -322,7 +330,7 @@ func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, co
 
 func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Session, contentRoot string, input DraftInput) (PublishResult, bool, error) {
 	slug := input.Slug
-	binding, found, err := LoadPublicationBinding(contentRoot, slug, "cnblogs")
+	binding, found, err := LoadPublicationBinding(s.publicationPath(contentRoot), slug, "cnblogs")
 	if err != nil {
 		return PublishResult{}, false, err
 	}
@@ -379,7 +387,7 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 	if binding.Source == "" {
 		binding.Source = "blogctl"
 	}
-	if err := SavePublicationBinding(contentRoot, binding); err != nil {
+	if err := SavePublicationBinding(s.publicationPath(contentRoot), binding); err != nil {
 		return PublishResult{}, false, err
 	}
 	return PublishResult{URL: binding.PublishedURL}, false, nil
