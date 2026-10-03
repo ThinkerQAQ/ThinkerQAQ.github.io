@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Server) devtoCandidateByID(ctx context.Context, slug, postID string) (devtoArticleCandidate, string, error) {
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return devtoArticleCandidate{}, "", err
 	}
@@ -115,7 +115,7 @@ func (s *Server) handleDevtoBindingPut(response http.ResponseWriter, request *ht
 	}
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	candidate, root, err := s.devtoCandidateByID(ctx, slug, postID)
+	candidate, _, err := s.devtoCandidateByID(ctx, slug, postID)
 	if err != nil {
 		writeAPIError(response, http.StatusConflict, "candidate_missing", err.Error(), nil)
 		return
@@ -173,7 +173,7 @@ func (s *Server) handleDevtoBindingDelete(response http.ResponseWriter, request 
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
