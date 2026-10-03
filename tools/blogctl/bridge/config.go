@@ -31,6 +31,7 @@ type bridgeConfig struct {
 
 	ContentRoot                    string            `json:"contentRoot" toml:"content_root"`
 	EngineRoot                     string            `json:"engineRoot" toml:"engine_root"`
+	DistributionRoot               string            `json:"distributionRoot" toml:"distribution_root"`
 	PublicationBindingsPath        string            `json:"publicationBindingsPath" toml:"publication_bindings_path"`
 	ToolPaths                      map[string]string `json:"toolPaths" toml:"tool_paths"`
 	DevtoAPIKey                    string            `json:"devtoApiKey,omitempty" toml:"devto_api_key"`
@@ -58,10 +59,12 @@ func defaultPublishingConfig() publishingConfig {
 }
 
 func defaultBridgeConfig() bridgeConfig {
+	distributionRoot, _ := DistributionRoot()
 	publicationBindingsPath, _ := PublicationBindingsPath()
 	return bridgeConfig{
 		LogLevel:                "info",
 		ToolPaths:               map[string]string{},
+		DistributionRoot:        distributionRoot,
 		PublicationBindingsPath: publicationBindingsPath,
 		IndexNowEndpoint:        "https://www.bing.com/indexnow",
 		Publishing:              defaultPublishingConfig(),
@@ -70,6 +73,10 @@ func defaultBridgeConfig() bridgeConfig {
 
 func ResolvedPublishingConfig() publishingConfig {
 	return loadBridgeConfig().Publishing
+}
+
+func ResolvedDistributionRoot() string {
+	return loadBridgeConfig().DistributionRoot
 }
 
 type SearchRuntimeConfig struct {
@@ -114,6 +121,14 @@ func ConfigPath() (string, error) {
 	return filepath.Join(dir, "blogctl.toml"), nil
 }
 
+func DistributionRoot() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "distribution"), nil
+}
+
 func PublicationBindingsPath() (string, error) {
 	dir, err := ConfigDir()
 	if err != nil {
@@ -139,6 +154,9 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	}
 	if strings.TrimSpace(config.LogLevel) == "" {
 		config.LogLevel = defaults.LogLevel
+	}
+	if strings.TrimSpace(config.DistributionRoot) == "" {
+		config.DistributionRoot = defaults.DistributionRoot
 	}
 	if strings.TrimSpace(config.PublicationBindingsPath) == "" {
 		config.PublicationBindingsPath = defaults.PublicationBindingsPath
@@ -182,6 +200,7 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config = mergeConfigDefaults(config)
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
+	config.DistributionRoot = normalizeStoredPath(config.DistributionRoot)
 	config.PublicationBindingsPath = normalizeStoredPath(config.PublicationBindingsPath)
 	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
 	config.IndexNowEndpoint = strings.TrimSpace(config.IndexNowEndpoint)
