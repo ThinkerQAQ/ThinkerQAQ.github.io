@@ -1,6 +1,9 @@
 package publisher
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestLoadArticleLinksReadsLocalReferencesOnly(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "publications.json")
