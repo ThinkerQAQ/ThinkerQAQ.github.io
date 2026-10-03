@@ -168,7 +168,7 @@ func (s *Server) handleJuejinBindingPut(response http.ResponseWriter, request *h
 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	_, root, account, posts, binding, err := s.juejinCandidates(ctx, slug)
+	_, _, account, posts, binding, err := s.juejinCandidates(ctx, slug)
 	if err != nil {
 		writeAPIError(response, http.StatusBadGateway, "lookup_failed", err.Error(), nil)
 		return
@@ -243,7 +243,7 @@ func (s *Server) handleJuejinBindingDelete(response http.ResponseWriter, request
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
