@@ -9,9 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -177,69 +175,11 @@ type Server struct {
 }
 
 
-func migrateDistributionRoot(source, target string) error {
-	source = strings.TrimSpace(source)
-	target = strings.TrimSpace(target)
-	if target == "" {
-		return errors.New("distribution root is not configured")
-	}
-	if source == "" || filepath.Clean(source) == filepath.Clean(target) {
-		return os.MkdirAll(target, 0o755)
-	}
-
-	sourceInfo, sourceErr := os.Stat(source)
-	if errors.Is(sourceErr, os.ErrNotExist) {
-		return os.MkdirAll(target, 0o755)
-	}
-	if sourceErr != nil {
-		return sourceErr
-	}
-	if !sourceInfo.IsDir() {
-		return fmt.Errorf("distribution source is not a directory: %s", source)
-	}
-
-	targetInfo, targetErr := os.Stat(target)
-	if errors.Is(targetErr, os.ErrNotExist) {
-		if err := os.Rename(source, target); err == nil {
-			return nil
-		}
-	} else if targetErr != nil {
-		return targetErr
-	} else if !targetInfo.IsDir() {
-		return fmt.Errorf("distribution target is not a directory: %s", target)
-	}
-
-	// Distribution contains reproducible build/cache artifacts only.
-	// If a target already exists or a cross-volume rename fails, discard the legacy cache.
-	if err := os.RemoveAll(source); err != nil {
-		return err
-	}
-	return os.MkdirAll(target, 0o755)
-}
-
-func prepareDistributionRoot(contentRoot, distributionRoot string) error {
-	if strings.TrimSpace(contentRoot) == "" {
-		return os.MkdirAll(strings.TrimSpace(distributionRoot), 0o755)
-	}
-	return migrateDistributionRoot(filepath.Join(contentRoot, ".distribution"), distributionRoot)
-}
-
 func New(token string) (*Server, error) {
 	if token == "" {
 		return nil, errors.New("bridge token is required")
 	}
 	config := loadBridgeConfig()
-	if err := prepareDistributionRoot(config.ContentRoot, config.DistributionRoot); err != nil {
-		return nil, fmt.Errorf("prepare distribution root: %w", err)
-	}
-	if strings.TrimSpace(config.ContentRoot) != "" {
-		if err := publisher.MigratePublicationBindings(
-			publisher.LegacyPublicationBindingsPath(config.ContentRoot),
-			config.PublicationBindingsPath,
-		); err != nil {
-			return nil, fmt.Errorf("migrate publication bindings: %w", err)
-		}
-	}
 	client, err := httpClientForConfig(config)
 	if err != nil {
 		return nil, err
@@ -940,37 +880,6 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 	if name == "logging" {
 		if err := applyLoggingConfig(normalized); err != nil {
 			writeAPIError(response, http.StatusBadRequest, "invalid_log_config", err.Error(), nil)
-			return
-		}
-	}
-	if name == "distribution-root" {
-		if err := prepareDistributionRoot("", normalized.DistributionRoot); err != nil {
-			writeAPIError(response, http.StatusInternalServerError, "distribution_root_prepare_failed", err.Error(), nil)
-			return
-		}
-		if filepath.Clean(current.DistributionRoot) != filepath.Clean(normalized.DistributionRoot) {
-			if err := migrateDistributionRoot(current.DistributionRoot, normalized.DistributionRoot); err != nil {
-				writeAPIError(response, http.StatusInternalServerError, "distribution_root_migration_failed", err.Error(), nil)
-				return
-			}
-		}
-	}
-	if name == "publication-bindings" {
-		if err := publisher.MigratePublicationBindings(current.PublicationBindingsPath, normalized.PublicationBindingsPath); err != nil {
-			writeAPIError(response, http.StatusInternalServerError, "publication_bindings_migration_failed", err.Error(), nil)
-			return
-		}
-	}
-	if name == "content-workspace" {
-		if err := prepareDistributionRoot(normalized.ContentRoot, normalized.DistributionRoot); err != nil {
-			writeAPIError(response, http.StatusInternalServerError, "distribution_root_migration_failed", err.Error(), nil)
-			return
-		}
-		if err := publisher.MigratePublicationBindings(
-			publisher.LegacyPublicationBindingsPath(normalized.ContentRoot),
-			normalized.PublicationBindingsPath,
-		); err != nil {
-			writeAPIError(response, http.StatusInternalServerError, "publication_bindings_migration_failed", err.Error(), nil)
 			return
 		}
 	}
