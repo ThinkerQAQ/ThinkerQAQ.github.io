@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Server) devtoCandidateByID(ctx context.Context, slug, postID string) (devtoArticleCandidate, string, error) {
-	_, _, err := s.cnBlogsArticle(slug)
+	_, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return devtoArticleCandidate{}, "", err
 	}
