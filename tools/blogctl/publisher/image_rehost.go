@@ -43,10 +43,7 @@ func loadRehostImage(client *http.Client, input DraftInput, source, sourceDir st
 	if asset, ok := publishingAssetForSource(input, source); ok && strings.HasPrefix(source, "blogctl-asset://") {
 		root := strings.TrimSpace(input.DistributionRoot)
 		if root == "" {
-			if strings.TrimSpace(input.ContentRoot) == "" {
-				return nil, "", fmt.Errorf("distribution root is missing for generated asset %s", asset.ID)
-			}
-			root = filepath.Join(input.ContentRoot, ".distribution")
+			return nil, "", fmt.Errorf("distribution root is missing for generated asset %s", asset.ID)
 		}
 		extension := ".png"
 		relative := filepath.ToSlash(filepath.Join("assets", asset.Kind, asset.ID+extension))
