@@ -179,6 +179,14 @@ func New(token string) (*Server, error) {
 		return nil, errors.New("bridge token is required")
 	}
 	config := loadBridgeConfig()
+	if strings.TrimSpace(config.ContentRoot) != "" {
+		if err := publisher.MigratePublicationBindings(
+			publisher.LegacyPublicationBindingsPath(config.ContentRoot),
+			config.PublicationBindingsPath,
+		); err != nil {
+			return nil, fmt.Errorf("migrate publication bindings: %w", err)
+		}
+	}
 	client, err := httpClientForConfig(config)
 	if err != nil {
 		return nil, err
@@ -879,6 +887,21 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 	if name == "logging" {
 		if err := applyLoggingConfig(normalized); err != nil {
 			writeAPIError(response, http.StatusBadRequest, "invalid_log_config", err.Error(), nil)
+			return
+		}
+	}
+	if name == "publication-bindings" {
+		if err := publisher.MigratePublicationBindings(current.PublicationBindingsPath, normalized.PublicationBindingsPath); err != nil {
+			writeAPIError(response, http.StatusInternalServerError, "publication_bindings_migration_failed", err.Error(), nil)
+			return
+		}
+	}
+	if name == "content-workspace" {
+		if err := publisher.MigratePublicationBindings(
+			publisher.LegacyPublicationBindingsPath(normalized.ContentRoot),
+			normalized.PublicationBindingsPath,
+		); err != nil {
+			writeAPIError(response, http.StatusInternalServerError, "publication_bindings_migration_failed", err.Error(), nil)
 			return
 		}
 	}
