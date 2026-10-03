@@ -1175,8 +1175,8 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 }
 
 func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, request syncRequest, onEvent func(blogapp.SyncEvent)) (string, error) {
-	// Compiler outputs, asset cache and durable publication state share one content workspace.
-	// Serialize live jobs so independent platform tasks cannot lose each other's state updates.
+	// Publication state is shared by all platform tasks.
+	// Serialize live jobs so independent tasks cannot lose each other's state updates.
 	s.distributionMu.Lock()
 	defer s.distributionMu.Unlock()
 
