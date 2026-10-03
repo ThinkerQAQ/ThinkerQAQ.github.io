@@ -43,6 +43,17 @@ func LegacyPublicationBindingsPath(contentRoot string) string {
 	return filepath.Join(contentRoot, ".blogctl", "publications.json")
 }
 
+func publicationStorePath(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if info, err := os.Stat(value); err == nil && info.IsDir() {
+		return LegacyPublicationBindingsPath(value)
+	}
+	return filepath.Clean(value)
+}
+
 func MigratePublicationBindings(sourcePath, targetPath string) error {
 	sourcePath = strings.TrimSpace(sourcePath)
 	targetPath = strings.TrimSpace(targetPath)
@@ -376,7 +387,7 @@ func SavePublicationPublishedUpdateResult(storePath, slug, platform, contentHash
 
 func readBindings(storePath string) (bindingFile, error) {
 	result := bindingFile{Version: bindingFileVersion, Publications: []PublicationBinding{}}
-	storePath = strings.TrimSpace(storePath)
+	storePath = publicationStorePath(storePath)
 	if storePath == "" {
 		return result, errors.New("publication bindings path is not configured")
 	}
@@ -400,7 +411,7 @@ func readBindings(storePath string) (bindingFile, error) {
 }
 
 func writeBindings(storePath string, bindings bindingFile) error {
-	storePath = strings.TrimSpace(storePath)
+	storePath = publicationStorePath(storePath)
 	if storePath == "" {
 		return errors.New("publication bindings path is not configured")
 	}
