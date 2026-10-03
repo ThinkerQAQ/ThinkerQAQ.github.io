@@ -199,6 +199,80 @@ test("GSC still recognizes an error inside a visible alert surface", async () =>
   assert.equal(result.inspectionState, "failed");
 });
 
+test("GSC ignores stale quota text outside an active feedback surface", async () => {
+  const url = "https://thinkerqaq.github.io/notes/quota-stale/";
+  const requestButton = new FakeElement("button", { text: "请求编入索引" });
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 请求编入索引 已超出配额`,
+    nodes: [requestButton],
+  });
+
+  const result = await harness.send({ type: "blogctl.google.index.probe" });
+  assert.equal(result.ok, true);
+  assert.equal(result.inspectionState, "not_indexed");
+});
+
+test("Request Indexing does not reuse stale quota text from before the click", async () => {
+  const url = "https://thinkerqaq.github.io/notes/quota-stale-request/";
+  let requested = 0;
+  let closed = 0;
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 请求编入索引 已超出配额`,
+  });
+  const dialog = new FakeElement("div", {
+    text: "已提交编入索引请求 关闭",
+    attrs: { role: "dialog", "aria-modal": "true" },
+  });
+  const closeButton = new FakeElement("button", {
+    text: "关闭",
+    onClick() {
+      closed += 1;
+      harness.body.innerText = "Google Search Console 已超出配额";
+      harness.nodes.splice(harness.nodes.indexOf(dialog), 1);
+      harness.nodes.splice(harness.nodes.indexOf(closeButton), 1);
+    },
+  });
+  closeButton.parent = dialog;
+  const requestButton = new FakeElement("button", {
+    text: "请求编入索引",
+    onClick() {
+      requested += 1;
+      harness.body.innerText = `${url} 已超出配额 已提交编入索引请求 关闭`;
+      harness.nodes.push(dialog, closeButton);
+    },
+  });
+  harness.nodes.push(requestButton);
+
+  const result = await harness.send({ type: "blogctl.google.index.request", url });
+  assert.equal(requested, 1);
+  assert.equal(closed, 1);
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "requested_indexing");
+});
+
+test("Request Indexing still recognizes a newly displayed quota alert", async () => {
+  const url = "https://thinkerqaq.github.io/notes/quota-current/";
+  const harness = await createHarness({
+    bodyText: `${url} 网址尚未收录到 Google 请求编入索引`,
+  });
+  const requestButton = new FakeElement("button", {
+    text: "请求编入索引",
+    onClick() {
+      harness.body.innerText = `${url} 已超出配额`;
+      harness.nodes.push(new FakeElement("div", {
+        text: "已超出配额",
+        attrs: { role: "alert" },
+      }));
+    },
+  });
+  harness.nodes.push(requestButton);
+
+  const result = await harness.send({ type: "blogctl.google.index.request", url });
+  assert.equal(result.ok, false);
+  assert.equal(result.action, "quota_blocked");
+  assert.equal(result.stage, "request_result");
+});
+
 test("Request Indexing closes the success dialog so the next URL can continue", async () => {
   const url = "https://thinkerqaq.github.io/about/";
   let requested = 0;
