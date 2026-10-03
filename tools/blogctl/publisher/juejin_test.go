@@ -427,30 +427,8 @@ func TestJuejinImageUploadRewritesMarkdown(t *testing.T) {
 }
 
 func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
-	root := t.TempDir()
-	output := filepath.Join(root, ".distribution", "juejin")
-	if err := os.MkdirAll(output, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(output, "example.md"), []byte("---\ntitle: \"Example\"\ndescription: \"Desc\"\n---\n\nChanged body\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	manifest := map[string]any{
-		"version": 2,
-		"articles": map[string]any{
-			"example": map[string]any{"platforms": map[string]any{
-				"juejin": map[string]any{
-					"contentHash": "new",
-					"language":    "zh-CN",
-				},
-			}},
-		},
-	}
-	payload, _ := json.Marshal(manifest)
-	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), payload, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := SavePublicationDraftResult(root, "example", "juejin", "old", DraftResult{
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	if err := SavePublicationDraftResult(publicationPath, "example", "juejin", "old", DraftResult{
 		ID: "missing", URL: "https://juejin.cn/editor/drafts/missing", Created: true,
 	}, time.Date(2026, 9, 18, 4, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
@@ -484,10 +462,21 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 	})}
 
 	service := Service{
-		HTTPClient: client,
-		Now:        func() time.Time { return time.Date(2026, 9, 18, 5, 0, 0, 0, time.UTC) },
+		HTTPClient:      client,
+		Now:             func() time.Time { return time.Date(2026, 9, 18, 5, 0, 0, 0, time.UTC) },
+		PublicationPath: publicationPath,
 	}
-	result, err := service.CreateOrUpdateDraft(context.Background(), "juejin", juejinSession(), root, "example", true)
+	result, err := service.CreateOrUpdateDraftInput(
+		context.Background(),
+		"juejin",
+		juejinSession(),
+		"",
+		DraftInput{
+			Slug: "example", Title: "Example", Description: "Desc",
+			Markdown: "Changed body", Language: "zh-CN", ContentHash: "new",
+		},
+		true,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,62 +487,40 @@ func TestServiceRecreatesMissingRemoteDraftExactlyOnce(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 
-	state, _, err := LoadPublicationState(root, "example", "juejin")
+	state, _, err := LoadPublicationState(publicationPath, "example", "juejin")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if state.RemoteDraftID != "replacement" || state.DraftHash != "new" {
 		t.Fatalf("durable state = %#v", state)
 	}
-
-	rawManifest, err := os.ReadFile(filepath.Join(root, ".distribution", "manifest.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var saved map[string]any
-	if err := json.Unmarshal(rawManifest, &saved); err != nil {
-		t.Fatal(err)
-	}
-	generatedState := objectValue(objectValue(objectValue(saved["articles"])["example"])["platforms"])["juejin"]
-	if stringValue(objectValue(generatedState)["remoteDraftId"]) != "" || stringValue(objectValue(generatedState)["draftUrl"]) != "" {
-		t.Fatalf("generated manifest unexpectedly gained durable remote state: %#v", objectValue(generatedState))
-	}
 }
 
 func TestServiceSkipsUnchangedDraftWithoutNetwork(t *testing.T) {
-	root := t.TempDir()
-	output := filepath.Join(root, ".distribution", "juejin")
-	if err := os.MkdirAll(output, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(output, "example.md"), []byte("---\ntitle: \"Example\"\ndescription: \"Desc\"\n---\n\nBody\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	manifest := map[string]any{
-		"version": 2,
-		"articles": map[string]any{
-			"example": map[string]any{"platforms": map[string]any{
-				"juejin": map[string]any{
-					"contentHash": "same",
-					"language":    "zh-CN",
-				},
-			}},
-		},
-	}
-	payload, _ := json.Marshal(manifest)
-	if err := os.WriteFile(filepath.Join(root, ".distribution", "manifest.json"), payload, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := SavePublicationDraftResult(root, "example", "juejin", "same", DraftResult{
+	publicationPath := filepath.Join(t.TempDir(), "publications.json")
+	if err := SavePublicationDraftResult(publicationPath, "example", "juejin", "same", DraftResult{
 		ID: "draft-1", URL: "https://juejin.cn/editor/drafts/draft-1", Created: true,
 	}, time.Date(2026, 9, 18, 4, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		t.Fatalf("network should not run: %s", request.URL)
-		return nil, nil
-	})}}
-	result, err := service.CreateOrUpdateDraft(context.Background(), "juejin", juejinSession(), root, "example", true)
+	service := Service{
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			t.Fatalf("network should not run: %s", request.URL)
+			return nil, nil
+		})},
+		PublicationPath: publicationPath,
+	}
+	result, err := service.CreateOrUpdateDraftInput(
+		context.Background(),
+		"juejin",
+		juejinSession(),
+		"",
+		DraftInput{
+			Slug: "example", Title: "Example", Description: "Desc",
+			Markdown: "Body", Language: "zh-CN", ContentHash: "same",
+		},
+		true,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
