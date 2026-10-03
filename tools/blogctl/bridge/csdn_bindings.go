@@ -62,7 +62,7 @@ func appendCSDNCandidate(posts []publisher.CSDNPost, candidate publisher.CSDNPos
 func (s *Server) csdnCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []publisher.CSDNPost, publisher.PublicationBinding, error,
 ) {
-	article, _, err := s.cnBlogsArticle(slug)
+	article, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
