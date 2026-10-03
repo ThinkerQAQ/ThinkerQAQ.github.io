@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"path/filepath"
 )
 
 type Service struct {
-	HTTPClient      *http.Client
-	Now             func() time.Time
-	PublicationPath string
+	HTTPClient       *http.Client
+	Now              func() time.Time
+	PublicationPath  string
+	DistributionRoot string
 }
 
 func (s Service) publicationPath(contentRoot string) string {
@@ -20,6 +22,13 @@ func (s Service) publicationPath(contentRoot string) string {
 		return path
 	}
 	return LegacyPublicationBindingsPath(contentRoot)
+}
+
+func (s Service) distributionRoot(contentRoot string) string {
+	if path := strings.TrimSpace(s.DistributionRoot); path != "" {
+		return path
+	}
+	return filepath.Join(contentRoot, ".distribution")
 }
 
 func (s Service) now() time.Time {
@@ -64,7 +73,7 @@ func (s Service) CreateOrUpdateDraft(
 	slug string,
 	changedOnly bool,
 ) (DraftResult, error) {
-	input, _, err := LoadDraftInput(contentRoot, platform, slug)
+	input, _, err := LoadDraftInputFromDistribution(contentRoot, s.distributionRoot(contentRoot), platform, slug)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -234,7 +243,7 @@ func (s Service) PublishDraft(
 	contentRoot string,
 	slug string,
 ) (PublishResult, error) {
-	input, _, err := LoadDraftInput(contentRoot, platform, slug)
+	input, _, err := LoadDraftInputFromDistribution(contentRoot, s.distributionRoot(contentRoot), platform, slug)
 	if err != nil {
 		return PublishResult{}, err
 	}
@@ -321,7 +330,7 @@ func (s Service) PublishDraftInput(
 
 // UpdateCNBlogsPublished is an explicit operation; the draft path never changes a public post.
 func (s Service) UpdateCNBlogsPublished(ctx context.Context, session Session, contentRoot, slug string) (PublishResult, bool, error) {
-	input, _, err := LoadDraftInput(contentRoot, "cnblogs", slug)
+	input, _, err := LoadDraftInputFromDistribution(contentRoot, s.distributionRoot(contentRoot), "cnblogs", slug)
 	if err != nil {
 		return PublishResult{}, false, err
 	}
