@@ -52,7 +52,7 @@ func zhihuBindingState(binding publisher.PublicationBinding, post publisher.Zhih
 func (s *Server) zhihuCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []publisher.ZhihuPost, publisher.PublicationBinding, error,
 ) {
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -85,7 +85,7 @@ func (s *Server) handleZhihuLookupContext(response http.ResponseWriter, request 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
 
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -164,7 +164,7 @@ func (s *Server) handleZhihuBindingPut(response http.ResponseWriter, request *ht
 
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -261,7 +261,7 @@ func (s *Server) handleZhihuBindingDelete(response http.ResponseWriter, request 
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
