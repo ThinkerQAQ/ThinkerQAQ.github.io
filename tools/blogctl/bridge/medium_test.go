@@ -311,6 +311,7 @@ func TestBridgeNativePublisherCreatesMediumDraftAndRecordsState(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
 	compiled := compiledMediumArticle(t, "hash-medium")
 	result, err := (bridgeNativePublisher{server: server}).CreateOrUpdateDraft(context.Background(), blogapp.NativeDraftRequest{
 		Article: "example", Platform: "medium", ContentRoot: contentRoot, Compiled: compiled,
@@ -365,6 +366,7 @@ func TestBridgeNativePublisherSkipsUnchangedMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
 	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "same-hash", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
@@ -391,6 +393,7 @@ func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 	installMediumBridgeSession(server)
 
 	contentRoot := t.TempDir()
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
 	assetDir := filepath.Join(contentRoot, ".distribution", "assets", "mermaid")
 	if err := os.MkdirAll(assetDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -507,6 +510,7 @@ func TestBridgeNativePublisherUpdatesChangedMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
 	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "old-hash", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
@@ -548,6 +552,7 @@ func TestBridgeNativePublisherRefusesToSavePublishedMediumStory(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
 	if err := publisher.SavePublicationBinding(contentRoot, publisher.PublicationBinding{
 		Slug: "example", Platform: "medium",
 		PublishedRemoteID: "post-existing", PublishedURL: "https://medium.com/@ThinkerQAQ/published-post",
@@ -601,6 +606,7 @@ func TestBridgeNativePublisherPublishesMediumDraft(t *testing.T) {
 	})}
 
 	contentRoot := t.TempDir()
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(contentRoot)
 	if err := publisher.SavePublicationDraftResult(contentRoot, "example", "medium", "hash-medium", publisher.DraftResult{
 		ID: "post-existing", URL: "https://medium.com/p/post-existing/edit", Created: true,
 	}, time.Now()); err != nil {
