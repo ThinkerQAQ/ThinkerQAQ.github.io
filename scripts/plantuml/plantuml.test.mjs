@@ -5,7 +5,7 @@ import path from "node:path";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import { CACHE, normalize, diagramKey, diagramUrl, validateSvg, visitCode } from "./core.mjs";
-import plantumlMarkdown, { diagramImage } from "./markdown.mjs";
+import plantumlMarkdown, { diagramImage } from "../../src/markdown/plantuml.mjs";
 import { createSatteriMarkdownProcessor } from "@astrojs/markdown-satteri";
 import { ensureJar, renderSvg } from "./runtime.mjs";
 

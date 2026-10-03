@@ -4,11 +4,11 @@ import { fileURLToPath } from "node:url";
 import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
 import { satteri } from "@astrojs/markdown-satteri";
-import plantumlMarkdown from "./scripts/plantuml/markdown.mjs";
-import mermaidMarkdown from "./scripts/mermaid/markdown.mjs";
-import readingTimeMarkdown from "./scripts/reading-time.mjs";
-import markdownImageLoading from "./scripts/image-loading.mjs";
-import textCodeGrid from "./scripts/text-code-grid.mjs";
+import plantumlMarkdown from "./src/markdown/plantuml.mjs";
+import mermaidMarkdown from "./src/markdown/mermaid.mjs";
+import readingTimeMarkdown from "./src/markdown/reading-time.mjs";
+import markdownImageLoading from "./src/markdown/image-loading.mjs";
+import textCodeGrid from "./src/markdown/text-code-grid.mjs";
 
 const manifestPath = fileURLToPath(
   new URL("./src/data/content-manifest.json", import.meta.url),
