@@ -181,7 +181,7 @@ func TestDEVToPublishDraftUsesOfficialArticleAPI(t *testing.T) {
 
 func TestDEVToNativeImageUploadUsesCapturedBrowserFlow(t *testing.T) {
 	root := t.TempDir()
-	cache := filepath.Join(root, ".distribution", "assets", "mermaid")
+	cache := filepath.Join(root, "assets", "mermaid")
 	if err := os.MkdirAll(cache, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestDEVToNativeImageUploadUsesCapturedBrowserFlow(t *testing.T) {
 	defer server.Close()
 
 	input := devtoTestInput()
-	input.ContentRoot = root
+	input.DistributionRoot = root
 	input.SourceDir = root
 	input.Markdown = "![diagram](blogctl-asset://mermaid/diagram)"
 	input.CoverImageURL = server.URL + "/cover.png"
