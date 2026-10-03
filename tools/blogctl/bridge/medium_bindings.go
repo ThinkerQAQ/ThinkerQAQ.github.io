@@ -85,7 +85,7 @@ func (s *Server) handleMediumLookupContext(response http.ResponseWriter, request
 func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []mediumPost, publisher.PublicationBinding, error,
 ) {
-	article, _, err := s.cnBlogsArticle(slug)
+	article, root, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
