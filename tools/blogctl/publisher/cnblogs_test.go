@@ -499,7 +499,7 @@ func TestCNBlogsKeepsRemoteR2ImageWhenCNBlogsUploadIsUnavailable(t *testing.T) {
 
 func TestCNBlogsPublishRehostsCompilerAssets(t *testing.T) {
 	root := t.TempDir()
-	assetDir := filepath.Join(root, ".distribution", "assets", "mermaid")
+	assetDir := filepath.Join(root, "assets", "mermaid")
 	if err := os.MkdirAll(assetDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +545,7 @@ func TestCNBlogsPublishRehostsCompilerAssets(t *testing.T) {
 	_, err = adapter.PublishDraft(context.Background(), DraftRef{ID: "42"}, DraftInput{
 		Title:       "Example",
 		Markdown:    "![diagram](blogctl-asset://mermaid/asset-1)",
-		ContentRoot: root,
+		DistributionRoot: root,
 		Assets: []PublishingAsset{{
 			Kind: "mermaid", ID: "asset-1",
 			Source: "blogctl-asset://mermaid/asset-1",
