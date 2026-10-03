@@ -864,13 +864,6 @@ func cloneStringMap(values map[string]string) map[string]string {
 	return result
 }
 
-func resolvedDistributionRoot(contentRoot, distributionRoot string) string {
-	if value := strings.TrimSpace(distributionRoot); value != "" {
-		return value
-	}
-	return filepath.Join(contentRoot, ".distribution")
-}
-
 func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot, distributionRoot string, config bridgeConfig) publisher.DraftInput {
 	assets := make([]publisher.PublishingAsset, 0, len(article.Assets))
 	for _, asset := range article.Assets {
@@ -884,7 +877,7 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot, d
 		Slug: article.Slug, Title: article.Title, Description: article.Description,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
 		ContentHash: article.ContentHash, SourceDir: article.SourceDir, ContentRoot: contentRoot,
-		DistributionRoot: resolvedDistributionRoot(contentRoot, distributionRoot),
+		DistributionRoot: strings.TrimSpace(distributionRoot),
 		Tags: append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
 		Assets: assets,
@@ -1039,7 +1032,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 		}, nil
 	}
 
-	fallbackPath, err := writeMediumFallback(resolvedDistributionRoot(request.ContentRoot, request.DistributionRoot), request.Compiled)
+	fallbackPath, err := writeMediumFallback(strings.TrimSpace(request.DistributionRoot), request.Compiled)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
@@ -1222,7 +1215,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	applicationConfig := blogapp.SyncConfig{
 		EngineRoot:       config.EngineRoot,
 		ContentRoot:      config.ContentRoot,
-		DistributionRoot: resolvedDistributionRoot(contentRoot, distributionRoot),
+		DistributionRoot: strings.TrimSpace(distributionRoot),
 		Publishing:       config.Publishing,
 		ToolPaths:        config.ToolPaths,
 	}
