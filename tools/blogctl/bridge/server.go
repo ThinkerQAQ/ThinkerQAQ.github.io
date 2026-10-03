@@ -177,30 +177,51 @@ type Server struct {
 }
 
 
-func prepareDistributionRoot(contentRoot, distributionRoot string) error {
-	distributionRoot = strings.TrimSpace(distributionRoot)
-	if distributionRoot == "" {
+func migrateDistributionRoot(source, target string) error {
+	source = strings.TrimSpace(source)
+	target = strings.TrimSpace(target)
+	if target == "" {
 		return errors.New("distribution root is not configured")
 	}
-	legacy := ""
-	if strings.TrimSpace(contentRoot) != "" {
-		legacy = filepath.Join(contentRoot, ".distribution")
-	}
-	if legacy == "" || filepath.Clean(legacy) == filepath.Clean(distributionRoot) {
-		return os.MkdirAll(distributionRoot, 0o755)
+	if source == "" || filepath.Clean(source) == filepath.Clean(target) {
+		return os.MkdirAll(target, 0o755)
 	}
 
-	if _, err := os.Stat(legacy); err == nil {
-		if _, targetErr := os.Stat(distributionRoot); errors.Is(targetErr, os.ErrNotExist) {
-			if renameErr := os.Rename(legacy, distributionRoot); renameErr == nil {
-				return nil
-			}
-		}
-		if err := os.RemoveAll(legacy); err != nil {
-			return err
-		}
+	sourceInfo, sourceErr := os.Stat(source)
+	if errors.Is(sourceErr, os.ErrNotExist) {
+		return os.MkdirAll(target, 0o755)
 	}
-	return os.MkdirAll(distributionRoot, 0o755)
+	if sourceErr != nil {
+		return sourceErr
+	}
+	if !sourceInfo.IsDir() {
+		return fmt.Errorf("distribution source is not a directory: %s", source)
+	}
+
+	targetInfo, targetErr := os.Stat(target)
+	if errors.Is(targetErr, os.ErrNotExist) {
+		if err := os.Rename(source, target); err == nil {
+			return nil
+		}
+	} else if targetErr != nil {
+		return targetErr
+	} else if !targetInfo.IsDir() {
+		return fmt.Errorf("distribution target is not a directory: %s", target)
+	}
+
+	// Distribution contains reproducible build/cache artifacts only.
+	// If a target already exists or a cross-volume rename fails, discard the legacy cache.
+	if err := os.RemoveAll(source); err != nil {
+		return err
+	}
+	return os.MkdirAll(target, 0o755)
+}
+
+func prepareDistributionRoot(contentRoot, distributionRoot string) error {
+	if strings.TrimSpace(contentRoot) == "" {
+		return os.MkdirAll(strings.TrimSpace(distributionRoot), 0o755)
+	}
+	return migrateDistributionRoot(filepath.Join(contentRoot, ".distribution"), distributionRoot)
 }
 
 func New(token string) (*Server, error) {
@@ -928,7 +949,7 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 			return
 		}
 		if filepath.Clean(current.DistributionRoot) != filepath.Clean(normalized.DistributionRoot) {
-			if err := prepareDistributionRoot(current.DistributionRoot, normalized.DistributionRoot); err != nil {
+			if err := migrateDistributionRoot(current.DistributionRoot, normalized.DistributionRoot); err != nil {
 				writeAPIError(response, http.StatusInternalServerError, "distribution_root_migration_failed", err.Error(), nil)
 				return
 			}
