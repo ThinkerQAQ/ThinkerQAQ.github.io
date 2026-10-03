@@ -14,7 +14,7 @@ func (s *Server) handlePublications(response http.ResponseWriter) {
 	s.mu.Unlock()
 
 	s.distributionMu.Lock()
-	records, listErr := publisher.ListPublicationRecords(contentRoot)
+	records, listErr := publisher.ListPublicationRecords(s.publicationBindingsPath())
 	s.distributionMu.Unlock()
 	if listErr != nil {
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", listErr.Error(), nil)
@@ -47,7 +47,7 @@ func (s *Server) handlePublicationPendingResolve(response http.ResponseWriter, r
 	contentRoot := s.config.ContentRoot
 	s.mu.Unlock()
 
-	remaining, err := publisher.ResolvePublicationPendingFields(contentRoot, slug, platformID, body.Fields)
+	remaining, err := publisher.ResolvePublicationPendingFields(s.publicationBindingsPath(), slug, platformID, body.Fields)
 	if err != nil {
 		writeAPIError(response, http.StatusConflict, "pending_fields_resolve_failed", err.Error(), nil)
 		return
