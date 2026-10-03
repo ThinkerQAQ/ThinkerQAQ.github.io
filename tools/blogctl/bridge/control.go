@@ -864,7 +864,14 @@ func cloneStringMap(values map[string]string) map[string]string {
 	return result
 }
 
-func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot string, config bridgeConfig) publisher.DraftInput {
+func resolvedDistributionRoot(contentRoot, distributionRoot string) string {
+	if value := strings.TrimSpace(distributionRoot); value != "" {
+		return value
+	}
+	return filepath.Join(contentRoot, ".distribution")
+}
+
+func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot, distributionRoot string, config bridgeConfig) publisher.DraftInput {
 	assets := make([]publisher.PublishingAsset, 0, len(article.Assets))
 	for _, asset := range article.Assets {
 		assets = append(assets, publisher.PublishingAsset{
@@ -877,7 +884,7 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot st
 		Slug: article.Slug, Title: article.Title, Description: article.Description,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
 		ContentHash: article.ContentHash, SourceDir: article.SourceDir, ContentRoot: contentRoot,
-		DistributionRoot: config.DistributionRoot,
+		DistributionRoot: resolvedDistributionRoot(contentRoot, distributionRoot),
 		Tags: append([]string{}, article.Tags...), CoverImageURL: article.CoverImageURL,
 		NativeCanonicalURL: article.NativeCanonicalURL, Published: article.Published,
 		Assets: assets,
@@ -1032,7 +1039,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 		}, nil
 	}
 
-	fallbackPath, err := writeMediumFallback(request.DistributionRoot, request.Compiled)
+	fallbackPath, err := writeMediumFallback(resolvedDistributionRoot(request.ContentRoot, request.DistributionRoot), request.Compiled)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
 	}
@@ -1044,7 +1051,7 @@ func (p bridgeNativePublisher) createOrUpdateMediumDraft(ctx context.Context, re
 	if err := json.Unmarshal(request.Compiled.Payload, &draft); err != nil {
 		return blogapp.NativeDraftResult{}, fmt.Errorf("invalid compiled Medium payload: %w", err)
 	}
-	input := draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config)
+	input := draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config)
 	client := mediumClient{httpClient: httpClient}
 	var result map[string]any
 	if targetID == "" {
@@ -1137,7 +1144,7 @@ func (p bridgeNativePublisher) CreateOrUpdateDraft(ctx context.Context, request 
 	}
 	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath(), DistributionRoot: request.DistributionRoot}
 	result, err := service.CreateOrUpdateDraftInput(
-		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config), request.ChangedOnly,
+		ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config), request.ChangedOnly,
 	)
 	if err != nil {
 		return blogapp.NativeDraftResult{}, err
@@ -1199,7 +1206,7 @@ func (p bridgeNativePublisher) PublishDraft(ctx context.Context, request blogapp
 		return blogapp.NativePublishResult{Result: "published", URL: publishedURL}, nil
 	}
 	service := publisher.Service{HTTPClient: httpClient, PublicationPath: p.server.publicationBindingsPath(), DistributionRoot: request.DistributionRoot}
-	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, p.server.config))
+	result, err := service.PublishDraftInput(ctx, request.Platform, session, request.ContentRoot, draftInputFromCompiled(request.Compiled, request.ContentRoot, request.DistributionRoot, p.server.config))
 	if err != nil {
 		return blogapp.NativePublishResult{}, err
 	}
@@ -1215,7 +1222,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 	applicationConfig := blogapp.SyncConfig{
 		EngineRoot:       config.EngineRoot,
 		ContentRoot:      config.ContentRoot,
-		DistributionRoot: config.DistributionRoot,
+		DistributionRoot: resolvedDistributionRoot(contentRoot, distributionRoot),
 		Publishing:       config.Publishing,
 		ToolPaths:        config.ToolPaths,
 	}
@@ -1245,7 +1252,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 			return "", err
 		}
 		result, skipped, err := (publisher.Service{HTTPClient: client, PublicationPath: config.PublicationBindingsPath, DistributionRoot: config.DistributionRoot}).UpdateCNBlogsPublishedInput(
-			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config),
+			ctx, session, config.ContentRoot, draftInputFromCompiled(compiled, config.ContentRoot, config.DistributionRoot, config),
 		)
 		if err != nil {
 			slog.Warn("cnblogs published update failed", "operation", "update-published", "slug", request.Article, "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
