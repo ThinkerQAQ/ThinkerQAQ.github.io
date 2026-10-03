@@ -31,9 +31,8 @@ jobs:
       - name: Check BlogCTL formatting
         shell: bash
         run: |
-          gofmt -d tools/blogctl
           files="$(gofmt -l tools/blogctl)"
-          test -z "$files" || exit 1
+          test -z "$files" || { echo "$files"; exit 1; }
 
       - name: Test BlogCTL
         run: go test ./tools/blogctl/...
