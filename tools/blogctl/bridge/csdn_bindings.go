@@ -62,7 +62,7 @@ func appendCSDNCandidate(posts []publisher.CSDNPost, candidate publisher.CSDNPos
 func (s *Server) csdnCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []publisher.CSDNPost, publisher.PublicationBinding, error,
 ) {
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -107,7 +107,7 @@ func (s *Server) handleCSDNLookupContext(response http.ResponseWriter, request *
 	ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 	defer cancel()
 
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -196,7 +196,7 @@ func (s *Server) handleCSDNBindingPut(response http.ResponseWriter, request *htt
 		return
 	}
 
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -274,7 +274,7 @@ func (s *Server) handleCSDNBindingDelete(response http.ResponseWriter, request *
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
