@@ -28,6 +28,7 @@ func TestPublicationPendingResolveUpdatesOnlyDurableState(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.config.ContentRoot = root
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(root)
 
 	body, _ := json.Marshal(map[string]any{"fields": []string{"tags"}})
 	request := httptest.NewRequest(http.MethodPost, "/v1/publications/pending/resolve?article=example&platform=medium", bytes.NewReader(body))
