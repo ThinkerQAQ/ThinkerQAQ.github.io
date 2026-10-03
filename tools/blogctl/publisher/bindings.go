@@ -39,8 +39,47 @@ type bindingFile struct {
 	Publications []PublicationBinding `json:"publications"`
 }
 
-func bindingPath(contentRoot string) string {
+func LegacyPublicationBindingsPath(contentRoot string) string {
 	return filepath.Join(contentRoot, ".blogctl", "publications.json")
+}
+
+func MigratePublicationBindings(sourcePath, targetPath string) error {
+	sourcePath = strings.TrimSpace(sourcePath)
+	targetPath = strings.TrimSpace(targetPath)
+	if sourcePath == "" || targetPath == "" || filepath.Clean(sourcePath) == filepath.Clean(targetPath) {
+		return nil
+	}
+	if info, err := os.Stat(targetPath); err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("publication bindings target is a directory: %s", targetPath)
+		}
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	raw, err := os.ReadFile(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o700); err != nil {
+		return err
+	}
+	temporary := targetPath + ".migrate"
+	if err := os.WriteFile(temporary, raw, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(temporary, targetPath); err != nil {
+		_ = os.Remove(temporary)
+		return err
+	}
+	if err := os.Remove(sourcePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	_ = os.Remove(filepath.Dir(sourcePath))
+	return nil
 }
 
 func publicationBindingState(binding PublicationBinding) PublicationState {
@@ -67,8 +106,8 @@ func publicationBindingFromFile(bindings bindingFile, slug, platform string) (Pu
 	return PublicationBinding{}, false
 }
 
-func LoadPublicationBinding(contentRoot, slug, platform string) (PublicationBinding, bool, error) {
-	bindings, err := readBindings(contentRoot)
+func LoadPublicationBinding(storePath, slug, platform string) (PublicationBinding, bool, error) {
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return PublicationBinding{}, false, err
 	}
@@ -104,7 +143,7 @@ func validatePublicationBindingUniqueness(bindings bindingFile, binding Publicat
 	return nil
 }
 
-func SavePublicationBinding(contentRoot string, binding PublicationBinding) error {
+func SavePublicationBinding(storePath string, binding PublicationBinding) error {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
 	binding.Slug = strings.TrimSpace(binding.Slug)
@@ -112,7 +151,7 @@ func SavePublicationBinding(contentRoot string, binding PublicationBinding) erro
 	if binding.Slug == "" || binding.Platform == "" {
 		return errors.New("invalid publication binding")
 	}
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return err
 	}
@@ -120,13 +159,13 @@ func SavePublicationBinding(contentRoot string, binding PublicationBinding) erro
 		return err
 	}
 	upsertPublicationBinding(&bindings, binding)
-	return writeBindings(contentRoot, bindings)
+	return writeBindings(storePath, bindings)
 }
 
-func DeletePublicationBindingState(contentRoot, slug, platform, state, remoteID string) error {
+func DeletePublicationBindingState(storePath, slug, platform, state, remoteID string) error {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return err
 	}
@@ -166,10 +205,10 @@ func DeletePublicationBindingState(contentRoot, slug, platform, state, remoteID 
 			filtered = append(filtered, existing)
 		}
 		bindings.Publications = filtered
-		return writeBindings(contentRoot, bindings)
+		return writeBindings(storePath, bindings)
 	}
 	upsertPublicationBinding(&bindings, binding)
-	return writeBindings(contentRoot, bindings)
+	return writeBindings(storePath, bindings)
 }
 
 func normalizePendingFields(fields []string) []string {
@@ -189,10 +228,10 @@ func normalizePendingFields(fields []string) []string {
 	return result
 }
 
-func SavePublicationPendingFields(contentRoot, slug, platform string, fields []string) error {
+func SavePublicationPendingFields(storePath, slug, platform string, fields []string) error {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return err
 	}
@@ -202,13 +241,13 @@ func SavePublicationPendingFields(contentRoot, slug, platform string, fields []s
 	}
 	binding.PendingFields = normalizePendingFields(fields)
 	upsertPublicationBinding(&bindings, binding)
-	return writeBindings(contentRoot, bindings)
+	return writeBindings(storePath, bindings)
 }
 
-func ResolvePublicationPendingFields(contentRoot, slug, platform string, resolved []string) ([]string, error) {
+func ResolvePublicationPendingFields(storePath, slug, platform string, resolved []string) ([]string, error) {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return nil, err
 	}
@@ -233,16 +272,16 @@ func ResolvePublicationPendingFields(contentRoot, slug, platform string, resolve
 		binding.PendingFields = remaining
 	}
 	upsertPublicationBinding(&bindings, binding)
-	if err := writeBindings(contentRoot, bindings); err != nil {
+	if err := writeBindings(storePath, bindings); err != nil {
 		return nil, err
 	}
 	return append([]string{}, binding.PendingFields...), nil
 }
 
-func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string, result DraftResult, now time.Time) error {
+func SavePublicationDraftResult(storePath, slug, platform, contentHash string, result DraftResult, now time.Time) error {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return err
 	}
@@ -259,10 +298,10 @@ func SavePublicationDraftResult(contentRoot, slug, platform, contentHash string,
 		return err
 	}
 	upsertPublicationBinding(&bindings, binding)
-	return writeBindings(contentRoot, bindings)
+	return writeBindings(storePath, bindings)
 }
 
-func SavePublicationPublishResult(contentRoot, slug, platform, contentHash string, result PublishResult, now time.Time) error {
+func SavePublicationPublishResult(storePath, slug, platform, contentHash string, result PublishResult, now time.Time) error {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
 	result.ID = strings.TrimSpace(result.ID)
@@ -270,7 +309,7 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 	if result.ID == "" || result.URL == "" {
 		return errors.New("refusing to record publication without remote id and URL")
 	}
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return err
 	}
@@ -280,7 +319,7 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 			return errors.New("refusing to record publication for a stale draft")
 		}
 	} else {
-		state, _, loadErr := LoadPublicationState(contentRoot, slug, platform)
+		state, _, loadErr := LoadPublicationState(storePath, slug, platform)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -307,19 +346,19 @@ func SavePublicationPublishResult(contentRoot, slug, platform, contentHash strin
 		return err
 	}
 	upsertPublicationBinding(&bindings, binding)
-	return writeBindings(contentRoot, bindings)
+	return writeBindings(storePath, bindings)
 }
 
-func SavePublicationPublishedUpdateResult(contentRoot, slug, platform, contentHash string, now time.Time) error {
+func SavePublicationPublishedUpdateResult(storePath, slug, platform, contentHash string, now time.Time) error {
 	publicationBindingsMu.Lock()
 	defer publicationBindingsMu.Unlock()
-	bindings, err := readBindings(contentRoot)
+	bindings, err := readBindings(storePath)
 	if err != nil {
 		return err
 	}
 	binding, found := publicationBindingFromFile(bindings, slug, platform)
 	if !found {
-		state, _, loadErr := LoadPublicationState(contentRoot, slug, platform)
+		state, _, loadErr := LoadPublicationState(storePath, slug, platform)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -332,15 +371,16 @@ func SavePublicationPublishedUpdateResult(contentRoot, slug, platform, contentHa
 	binding.PublishedHash = contentHash
 	binding.PublishedSyncedAt = now.UTC().Format(time.RFC3339)
 	upsertPublicationBinding(&bindings, binding)
-	return writeBindings(contentRoot, bindings)
+	return writeBindings(storePath, bindings)
 }
 
-func readBindings(contentRoot string) (bindingFile, error) {
+func readBindings(storePath string) (bindingFile, error) {
 	result := bindingFile{Version: bindingFileVersion, Publications: []PublicationBinding{}}
-	if strings.TrimSpace(contentRoot) == "" {
-		return result, errors.New("content repository path is not configured")
+	storePath = strings.TrimSpace(storePath)
+	if storePath == "" {
+		return result, errors.New("publication bindings path is not configured")
 	}
-	raw, err := os.ReadFile(bindingPath(contentRoot))
+	raw, err := os.ReadFile(storePath)
 	if errors.Is(err, os.ErrNotExist) {
 		return result, nil
 	}
@@ -359,12 +399,16 @@ func readBindings(contentRoot string) (bindingFile, error) {
 	return result, nil
 }
 
-func writeBindings(contentRoot string, bindings bindingFile) error {
+func writeBindings(storePath string, bindings bindingFile) error {
+	storePath = strings.TrimSpace(storePath)
+	if storePath == "" {
+		return errors.New("publication bindings path is not configured")
+	}
 	bindings.Version = bindingFileVersion
 	if bindings.Publications == nil {
 		bindings.Publications = []PublicationBinding{}
 	}
-	path := bindingPath(contentRoot)
+	path := storePath
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
