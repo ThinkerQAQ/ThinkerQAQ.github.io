@@ -48,17 +48,16 @@
           <button id="invertSyncPlatforms" class="secondary compact" type="button">反选</button>
           <button id="refreshArticleMatches" class="primary inline-primary" type="button" disabled>检测文章关联</button>
         </div>
-        <p class="card-hint">勾选需要检测的平台，可多选；检测只读取所选平台。检测完成后勾选远端文章，在页面底部批量绑定或解绑。</p>
+        <p class="card-hint">勾选需要检测的平台，可多选；检测只读取所选平台。检测完成后勾选远端文章，批量操作栏会固定在平台列表顶部。</p>
+        <div id="bindingBulkActions" class="binding-bulk-actions" hidden>
+          <strong id="bindingSelectionSummary" class="binding-bulk-summary">已选择 0 篇文章</strong>
+          <div class="binding-bulk-buttons">
+            <button id="bindSelectedMatches" class="primary inline-primary" type="button">批量绑定</button>
+            <button id="unbindSelectedMatches" class="secondary" type="button">批量解绑</button>
+          </div>
+        </div>
         <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
       </section>
-
-      <div id="bindingBulkActions" class="binding-bulk-actions" hidden>
-        <strong id="bindingSelectionSummary" class="binding-bulk-summary">已选择 0 篇文章</strong>
-        <div class="binding-bulk-buttons">
-          <button id="bindSelectedMatches" class="primary inline-primary" type="button">批量绑定</button>
-          <button id="unbindSelectedMatches" class="secondary" type="button">批量解绑</button>
-        </div>
-      </div>
       <div class="sync-actions">
         <button id="bindingEnterDrafts" class="primary" type="button" disabled>下一步：进入更新</button>
       </div>
