@@ -172,4 +172,3 @@ func draftIDFromURL(platform, rawURL string) string {
 		return ""
 	}
 }
-
