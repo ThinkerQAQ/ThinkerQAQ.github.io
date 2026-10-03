@@ -174,7 +174,6 @@ type Server struct {
 	taskJobOrder   []string
 }
 
-
 func New(token string) (*Server, error) {
 	if token == "" {
 		return nil, errors.New("bridge token is required")
