@@ -228,7 +228,10 @@ func (c *cnBlogsAdapter) uploadImage(ctx context.Context, image RehostImage) (st
 	return c.uploadImageRequest(
 		ctx,
 		"https://upload.cnblogs.com/v2/images/cors-upload",
-		nil,
+		map[string]string{
+			"app":        "blog",
+			"uploadType": "Select",
+		},
 		"image",
 		image.Payload,
 		filename,

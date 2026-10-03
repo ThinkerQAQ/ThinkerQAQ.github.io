@@ -389,12 +389,16 @@ func imageResponse(request *http.Request, status int, contentType string, body s
 	}
 }
 
-func multipartFileField(t *testing.T, request *http.Request) (string, string, []byte) {
+func multipartRequestParts(t *testing.T, request *http.Request) (map[string]string, string, string, []byte) {
 	t.Helper()
 	reader, err := request.MultipartReader()
 	if err != nil {
 		t.Fatal(err)
 	}
+	fields := map[string]string{}
+	fileField := ""
+	filename := ""
+	var filePayload []byte
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -408,11 +412,17 @@ func multipartFileField(t *testing.T, request *http.Request) (string, string, []
 			t.Fatal(err)
 		}
 		if part.FileName() != "" {
-			return part.FormName(), part.FileName(), payload
+			fileField = part.FormName()
+			filename = part.FileName()
+			filePayload = payload
+			continue
 		}
+		fields[part.FormName()] = string(payload)
 	}
-	t.Fatal("multipart request did not contain a file")
-	return "", "", nil
+	if filename == "" {
+		t.Fatal("multipart request did not contain a file")
+	}
+	return fields, fileField, filename, filePayload
 }
 
 func TestCNBlogsImageUploadUsesV2BrowserContract(t *testing.T) {
@@ -442,9 +452,12 @@ func TestCNBlogsImageUploadUsesV2BrowserContract(t *testing.T) {
 			if request.Header.Get("x-xsrf-token") != xsrf {
 				t.Fatalf("x-xsrf-token = %q, want capture token", request.Header.Get("x-xsrf-token"))
 			}
-			field, filename, payload := multipartFileField(t, request)
+			fields, field, filename, payload := multipartRequestParts(t, request)
 			if field != "image" || filename != "image.png" || string(payload) != "png-bytes" {
 				t.Fatalf("multipart file = %q %q %q", field, filename, string(payload))
+			}
+			if fields["app"] != "blog" || fields["uploadType"] != "Select" {
+				t.Fatalf("multipart fields = %#v, want app=blog and uploadType=Select", fields)
 			}
 			return jsonResponse(request, http.StatusOK, `{"success":true,"message":"`+uploaded+`"}`, nil), nil
 		default:
