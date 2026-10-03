@@ -66,7 +66,7 @@ func (s *Server) handleMediumLookupContext(response http.ResponseWriter, request
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -85,7 +85,7 @@ func (s *Server) handleMediumLookupContext(response http.ResponseWriter, request
 func (s *Server) mediumCandidates(ctx context.Context, slug string) (
 	articleSummary, string, string, []mediumPost, publisher.PublicationBinding, error,
 ) {
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -177,7 +177,7 @@ func (s *Server) handleMediumBindingPut(response http.ResponseWriter, request *h
 		return
 	}
 
-	article, root, err := s.cnBlogsArticle(slug)
+	article, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
@@ -264,7 +264,7 @@ func (s *Server) handleMediumBindingDelete(response http.ResponseWriter, request
 		writeError(response, err)
 		return
 	}
-	_, root, err := s.cnBlogsArticle(slug)
+	_, _, err := s.cnBlogsArticle(slug)
 	if err != nil {
 		writeAPIError(response, http.StatusNotFound, "article_not_found", "local article not found", nil)
 		return
