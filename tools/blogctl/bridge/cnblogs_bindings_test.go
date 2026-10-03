@@ -38,6 +38,7 @@ func TestCNBlogsBindingSearchAndManualVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.config.ContentRoot = root
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(root)
 	server.sessions["cnblogs"] = platformSession{RequestCookieHeader: "login=test-secret", UserAgent: "test", ExpiresAt: time.Now().Add(time.Minute)}
 	remoteUpdatedAt := "baseline"
 	server.httpClient = &http.Client{Transport: cnBlogsBindingTransport(func(request *http.Request) (*http.Response, error) {
@@ -127,6 +128,7 @@ func TestCNBlogsBindingDeleteOnlyRemovesSelectedLocalSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.config.ContentRoot = root
+	server.config.PublicationBindingsPath = publisher.LegacyPublicationBindingsPath(root)
 	request := httptest.NewRequest(http.MethodDelete, "/v1/cnblogs/binding?article=example", bytes.NewBufferString(`{"state":"draft","postId":"52"}`))
 	setExtensionAuth(request, "token")
 	response := httptest.NewRecorder()
