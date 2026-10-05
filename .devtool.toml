@@ -7,7 +7,7 @@ name = "BlogCTL"
 loader = "go"
 
 [extension.project.loader_config]
-module = "./tools/blogctl/devcontrol"
+module = "./devcontrol"
 package = "./cmd/provider"
 
 [extension.environment]
