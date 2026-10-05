@@ -6,6 +6,7 @@ on:
     types: [closed]
     paths:
       - "tools/blogctl/**"
+      - ".devtool.toml"
       - ".github/workflows/blogctl-release.yml"
   workflow_dispatch:
 
@@ -20,17 +21,30 @@ jobs:
   release:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DEVTOOL_VERSION: dfe9e80518606bd6d4d121f43ed9155bd464b739
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version-file: tools/blogctl/go.mod
-          cache: false
+          go-version: '1.27.1'
+          cache: true
+
+      - name: Install DevTool V2
+        run: |
+          GOPROXY=direct go install github.com/thinkerqaq/devtool/cmd/devtool@${DEVTOOL_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Validate DevTool configuration
+        run: devtool config validate
+
+      - name: Inspect BlogCTL project extension
+        run: devtool project inspect --json
 
       - name: Resolve version
         id: version
@@ -65,49 +79,13 @@ jobs:
             gh release delete "$old_tag" --yes
           done
 
-      - name: Test blogctl
+      - name: Verify BlogCTL
         if: steps.version.outputs.exists != 'true'
-        working-directory: tools/blogctl
-        run: go test ./...
+        run: devtool verify
 
-      - name: Build cross-platform binaries
+      - name: Package BlogCTL
         if: steps.version.outputs.exists != 'true'
-        working-directory: tools/blogctl
-        run: |
-          set -euo pipefail
-          mkdir -p ../../dist/blogctl-release
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../../dist/blogctl-release/blogctl-windows-amd64.exe ./cmd
-          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o ../../dist/blogctl-release/blogctl-windows-arm64.exe ./cmd
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../../dist/blogctl-release/blogctl-darwin-amd64 ./cmd
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o ../../dist/blogctl-release/blogctl-darwin-arm64 ./cmd
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../../dist/blogctl-release/blogctl-linux-amd64 ./cmd
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o ../../dist/blogctl-release/blogctl-linux-arm64 ./cmd
-
-      - name: Package browser extension
-        if: steps.version.outputs.exists != 'true'
-        run: |
-          set -euo pipefail
-          mkdir -p dist/blogctl-release
-          (
-            cd tools/blogctl/extension
-            zip -qr ../../../dist/blogctl-release/blogctl-extension.zip .
-          )
-
-      - name: Package native host installers
-        if: steps.version.outputs.exists != 'true'
-        run: |
-          set -euo pipefail
-          cp tools/blogctl/Install-Windows.ps1 dist/blogctl-release/
-          cp tools/blogctl/Uninstall-Windows.ps1 dist/blogctl-release/
-          cp tools/blogctl/Install-Linux.sh dist/blogctl-release/
-          cp tools/blogctl/Uninstall-Linux.sh dist/blogctl-release/
-          cp tools/blogctl/Install-macOS.command dist/blogctl-release/
-          cp tools/blogctl/Uninstall-macOS.command dist/blogctl-release/
-
-      - name: Generate checksums
-        if: steps.version.outputs.exists != 'true'
-        working-directory: dist/blogctl-release
-        run: sha256sum * > SHA256SUMS
+        run: devtool package
 
       - name: Publish GitHub Release
         if: steps.version.outputs.exists != 'true'
@@ -116,7 +94,7 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create "$TAG" dist/blogctl-release/* \
+          gh release create "$TAG" .devtool/artifacts/blogctl-release/* \
             --target "$GITHUB_SHA" \
             --title "blogctl v${VERSION}" \
             --notes-file tools/blogctl/RELEASE_NOTES.md
