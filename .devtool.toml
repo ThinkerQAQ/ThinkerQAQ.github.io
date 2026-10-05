@@ -1,0 +1,102 @@
+version = 1
+
+[project]
+name = "BlogCTL"
+
+[extension.project]
+loader = "go"
+
+[extension.project.loader_config]
+module = "./tools/blogctl/devcontrol"
+package = "./cmd/provider"
+
+[extension.environment]
+loader = "go-module"
+
+[extension.environment.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/environment/docker/cmd/provider"
+
+[extension.environment.settings]
+image = "ghcr.io/thinkerqaq/dev-base@sha256:f922f24b2dd917faa87bfc090dd90321aaf82651cc9a2de320a22519c3b77a8e"
+
+[extension.runtime]
+loader = "go-module"
+
+[extension.runtime.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/runtime/dagger/cmd/provider"
+
+[extension.code-capability]
+loader = "go-module"
+
+[extension.code-capability.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/capability/code/cmd/provider"
+
+[extension.codegraph]
+loader = "go-module"
+
+[extension.codegraph.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/intelligence/codegraph/cmd/provider"
+
+[extension.lsp]
+loader = "go-module"
+
+[extension.lsp.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/intelligence/serena/cmd/provider"
+
+[extension.scm]
+loader = "go-module"
+
+[extension.scm.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/scm/github/cmd/provider"
+
+[service.environment]
+provider = "environment.docker"
+
+[service.portable-runtime]
+provider = "runtime.dagger"
+
+[service.code-indexed]
+provider = "intelligence.codegraph"
+
+[service.code-realtime]
+provider = "intelligence.lsp.serena"
+
+[service.scm-publish]
+provider = "scm.github"
+
+[code]
+workspaces = [".", "tools/blogctl"]
+
+[profile.local.extension.environment]
+loader = "go-module"
+
+[profile.local.extension.environment.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/environment/local/cmd/provider"
+
+[profile.local.service.environment]
+provider = "environment.local"
+
+[profile.railway.extension.environment]
+loader = "go-module"
+
+[profile.railway.extension.environment.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "dfe9e80518606bd6d4d121f43ed9155bd464b739"
+package = "./extensions/environment/local/cmd/provider"
+
+[profile.railway.service.environment]
+provider = "environment.local"
