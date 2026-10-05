@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	contract "github.com/thinkerqaq/devtool/sdk/contract"
 	environmentcontract "github.com/thinkerqaq/devtool/sdk/environment"
@@ -71,6 +72,14 @@ func (p *Provider) Execute(ctx project.Context, command string, args map[string]
 		}
 		return ctx.Emit("result", "BlogCTL binary built: "+filepath.Join(workspace, filepath.FromSlash(relativeOutput)))
 	case "verify":
+		formatResult, err := p.runEnvironmentResult(ctx, workspace, nil, "gofmt", "-l", "tools/blogctl")
+		if err != nil {
+			return fmt.Errorf("gofmt: %w", err)
+		}
+		if files := strings.TrimSpace(formatResult.Stdout); files != "" {
+			return fmt.Errorf("BlogCTL Go files are not gofmt-formatted:\n%s", files)
+		}
+
 		steps := []struct {
 			name string
 			exe  string
