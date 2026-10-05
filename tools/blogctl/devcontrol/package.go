@@ -95,18 +95,8 @@ func (p *Provider) runEnvironment(
 	executable string,
 	args ...string,
 ) error {
-	var result environmentcontract.RunResult
-	if err := ctx.InvokeService(
-		environmentcontract.ServiceName,
-		environmentcontract.MethodRun,
-		environmentcontract.CommandRequest{
-			Root:       workspace,
-			Executable: executable,
-			Args:       args,
-			Env:        env,
-		},
-		&result,
-	); err != nil {
+	result, err := p.runEnvironmentResult(ctx, workspace, env, executable, args...)
+	if err != nil {
 		return err
 	}
 	if text := strings.TrimSpace(result.Stdout); text != "" {
@@ -119,10 +109,34 @@ func (p *Provider) runEnvironment(
 			return err
 		}
 	}
-	if result.ExitCode != 0 {
-		return fmt.Errorf("%s exited with code %d", executable, result.ExitCode)
-	}
 	return nil
+}
+
+func (p *Provider) runEnvironmentResult(
+	ctx project.Context,
+	workspace string,
+	env []string,
+	executable string,
+	args ...string,
+) (environmentcontract.RunResult, error) {
+	var result environmentcontract.RunResult
+	if err := ctx.InvokeService(
+		environmentcontract.ServiceName,
+		environmentcontract.MethodRun,
+		environmentcontract.CommandRequest{
+			Root:       workspace,
+			Executable: executable,
+			Args:       args,
+			Env:        env,
+		},
+		&result,
+	); err != nil {
+		return environmentcontract.RunResult{}, err
+	}
+	if result.ExitCode != 0 {
+		return result, fmt.Errorf("%s exited with code %d", executable, result.ExitCode)
+	}
+	return result, nil
 }
 
 func zipDirectory(sourceDir, destination string) error {
