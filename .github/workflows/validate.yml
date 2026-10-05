@@ -13,35 +13,38 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DEVTOOL_VERSION: dfe9e80518606bd6d4d121f43ed9155bd464b739
     steps:
       - uses: actions/checkout@v6
 
       - uses: actions/setup-go@v6
         with:
-          go-version-file: tools/blogctl/go.mod
-          cache: false
+          go-version: '1.27.1'
+          cache: true
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - name: Check BlogCTL formatting
-        shell: bash
+      - name: Install DevTool V2
         run: |
-          files="$(gofmt -l tools/blogctl)"
-          test -z "$files" || { echo "$files"; exit 1; }
+          GOPROXY=direct go install github.com/thinkerqaq/devtool/cmd/devtool@${DEVTOOL_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Test BlogCTL
-        run: go test ./tools/blogctl/...
+      - name: Validate DevTool configuration
+        run: devtool config validate
 
-      - name: Check browser and renderer JavaScript
+      - name: Inspect BlogCTL project extension
+        run: devtool project inspect --json
+
+      - name: Verify BlogCTL
+        run: devtool verify
+
+      - name: Build BlogCTL
+        run: devtool build
+
+      - name: Package BlogCTL
+        run: devtool package
+
+      - name: Verify DevTool artifacts
         run: |
-          node --check tools/blogctl/extension/background.js
-          node --check tools/blogctl/renderers/node/markdown-html.mjs
-          node --check tools/blogctl/renderers/node/publishing-image.mjs
-
-      - name: Check repository boundary
-        run: npm run test:boundary
+          test -s .devtool/out/blogctl
+          test -s .devtool/artifacts/blogctl-release/SHA256SUMS
