@@ -7,6 +7,10 @@ dist/
 .DS_Store
 npm-debug.log*
 
+# DevTool workspace state.
+.devtool/
+go.work.sum
+
 # Private content is injected only at build time.
 /src/content/
 /public/media/
