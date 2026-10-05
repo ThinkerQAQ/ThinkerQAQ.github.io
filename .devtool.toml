@@ -77,7 +77,7 @@ provider = "intelligence.lsp.serena"
 provider = "scm.github"
 
 [code]
-workspaces = [".", "tools/blogctl"]
+workspaces = ["."]
 
 [profile.local.extension.environment]
 loader = "go-module"
