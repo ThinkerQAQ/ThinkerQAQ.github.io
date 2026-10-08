@@ -1,0 +1,44 @@
+name: Release blog reactions Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/blog-reactions/**"
+      - ".github/workflows/worker-reactions-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blog-reactions-worker-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Test reactions
+        run: node --test workers/blog-reactions/src/index.test.js
+      - name: Deploy reactions Worker
+        run: npx --yes wrangler@latest deploy --config workers/blog-reactions/wrangler.jsonc
+      - name: Verify new and old origins
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://thinkerqaq-blog-reactions.blog-ai.workers.dev/v1/reactions"
+          for domain in thinkerqaq.com thinkerqaq.github.io; do
+            status="$(curl -sS -o /dev/null -w "%{http_code}" -X OPTIONS -H "Origin: https://$domain" -H "Access-Control-Request-Method: PUT" "$url")"
+            test "$status" = 204 || { echo "::error::CORS $domain returned $status"; exit 1; }
+          done
+          echo 'Reaction CORS verification passed'
