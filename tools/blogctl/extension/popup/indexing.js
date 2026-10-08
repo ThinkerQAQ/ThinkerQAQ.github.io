@@ -161,7 +161,7 @@
     const requestCandidateCount = requestStats.candidates;
     const requestPendingCount = requestStats.pending + requestStats.failed;
 
-    setText(elements.source, inventory.source || "https://thinkerqaq.github.io/sitemap-all.txt");
+    setText(elements.source, inventory.source || "https://thinkerqaq.com/sitemap-all.txt");
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
     const fingerprintCoverage = Number(inventory.fingerprintCoverage || 0);
     const inventoryTotal = Number(inventory.total || 0);

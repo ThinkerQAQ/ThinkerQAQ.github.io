@@ -142,7 +142,7 @@
 
   function trackedUrl() {
     const prefix = languageSelect.value === "en" ? "/en/articles/" : "/articles/";
-    const url = new URL(`https://thinkerqaq.github.io${prefix}example/`);
+    const url = new URL(`https://thinkerqaq.com${prefix}example/`);
     if (!trackingEnabled.checked) return url.toString();
     const values = {
       utm_source: trackingSource.value.trim(),

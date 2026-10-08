@@ -2,7 +2,7 @@
 
 [中文](./README_ZH.md)
 
-Live site: <https://thinkerqaq.github.io/>
+Live site: <https://thinkerqaq.com/>
 
 ## Introduction
 
