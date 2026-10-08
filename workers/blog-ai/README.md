@@ -102,6 +102,19 @@ The same Worker also owns the lightweight Umami reporting path.
 
 The existing KV namespace is bound explicitly as `ANALYTICS_KV` in `wrangler.jsonc`. The namespace is provisioned once outside CI; normal deployments only bind and use the existing namespace.
 
+## Temporarily disable public Ask Blog
+
+The public Ask Blog feature is disabled in `wrangler.jsonc` by `ASK_BLOG_ENABLED: "false"`.
+The `/chat` route rejects all request methods with HTTP 404 *before* rate limiting, Turnstile,
+retrieval, or Workers AI. An absent setting also fails closed. To enable Ask Blog again,
+set the variable to `"true"`, redeploy this Worker, and restore the
+`AskBlogSession` mount in the Astro `BaseLayout`.
+
+Do not disable the whole Worker or its `workers.dev` route: this service also
+provides Umami tracking (`/u.js` and `/api/send`), analytics reporting, and
+scheduled analytics snapshots. The BlogCTL AI Search evaluation uses Cloudflare
+AI Search directly and does not require the public `/chat` route.
+
 ## Deploy the Worker
 
 Worker deployment is handled by `.github/workflows/worker-release.yml`. A push to `main` that changes `workers/blog-ai/**` (or the release workflow itself) runs the Worker test suite, deploys, and then smoke-tests the public analytics endpoints with structural/health assertions.
@@ -114,7 +127,7 @@ GitHub Actions authenticates non-interactively with the existing `CLOUDFLARE_ACC
 
 You do not need to run `wrangler login` or `wrangler deploy` locally for normal Worker releases.
 
-After deployment, the existing `/chat` URL remains the frontend endpoint. For the GitHub Pages build, keep these public repository variables configured:
+When Ask Blog is enabled, `/chat` is the frontend endpoint. For the GitHub Pages build, the following public repository variables may remain configured while the UI is hidden:
 
 ```text
 PUBLIC_ASK_BLOG_WORKER_URL
