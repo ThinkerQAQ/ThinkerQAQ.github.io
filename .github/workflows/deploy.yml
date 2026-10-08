@@ -62,7 +62,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: engine/tools/blogctl/go.mod
+          go-version-file: engine/go.work
           cache: false
 
       - name: Build BlogCTL
@@ -180,7 +180,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: engine/tools/blogctl/go.mod
+          go-version-file: engine/go.work
           cache: false
 
       - name: Build BlogCTL
@@ -215,7 +215,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: engine/tools/blogctl/go.mod
+          go-version-file: engine/go.work
           cache: false
 
       - name: Build BlogCTL
