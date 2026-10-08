@@ -22,6 +22,6 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://thinkerqaq.github.io,http://localhost:4321,http://127.0.0.1:4321"
+    "ALLOWED_ORIGINS": "https://thinkerqaq.com,https://thinkerqaq.github.io,http://localhost:4321,http://127.0.0.1:4321"
   }
 }
