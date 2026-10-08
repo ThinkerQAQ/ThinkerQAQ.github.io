@@ -60,7 +60,7 @@ func compiledFixture(options blogcompiler.CompileOptions) []blogcompiler.Compile
 			Markdown:     "Body",
 			HTML:         "<p>Body</p>",
 			Language:     "zh-CN",
-			CanonicalURL: "https://thinkerqaq.github.io/articles/" + slug + "/",
+			CanonicalURL: "https://thinkerqaq.com/articles/" + slug + "/",
 			ContentHash:  "hash-" + slug + "-" + options.Platform,
 			SourceDir:    "/tmp/articles",
 		})

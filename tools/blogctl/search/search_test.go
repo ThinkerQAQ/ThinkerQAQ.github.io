@@ -12,22 +12,22 @@ import (
 func TestDiffInventoriesSkipsDeletedForBaidu(t *testing.T) {
 	previous := Inventory{
 		URLs: []string{
-			"https://thinkerqaq.github.io/a/",
-			"https://thinkerqaq.github.io/deleted/",
+			"https://thinkerqaq.com/a/",
+			"https://thinkerqaq.com/deleted/",
 		},
 		Fingerprints: map[string]string{
-			"https://thinkerqaq.github.io/a/":       "old",
-			"https://thinkerqaq.github.io/deleted/": "old",
+			"https://thinkerqaq.com/a/":       "old",
+			"https://thinkerqaq.com/deleted/": "old",
 		},
 	}
 	current := Inventory{
 		URLs: []string{
-			"https://thinkerqaq.github.io/a/",
-			"https://thinkerqaq.github.io/new/",
+			"https://thinkerqaq.com/a/",
+			"https://thinkerqaq.com/new/",
 		},
 		Fingerprints: map[string]string{
-			"https://thinkerqaq.github.io/a/":   "new",
-			"https://thinkerqaq.github.io/new/": "hash",
+			"https://thinkerqaq.com/a/":   "new",
+			"https://thinkerqaq.com/new/": "hash",
 		},
 	}
 	diff, err := DiffInventories(previous, current, "incremental", false)
@@ -64,8 +64,8 @@ func TestSubmitBaiduUsesTextBodyAndOnlyCompletesFullBatch(t *testing.T) {
 	defer server.Close()
 
 	config, err := ResolveBaiduConfig(
-		"https://thinkerqaq.github.io",
-		"https://thinkerqaq.github.io",
+		"https://thinkerqaq.com",
+		"https://thinkerqaq.com",
 		"secret-token",
 	)
 	if err != nil {
@@ -73,8 +73,8 @@ func TestSubmitBaiduUsesTextBodyAndOnlyCompletesFullBatch(t *testing.T) {
 	}
 	config.Endpoint = server.URL
 	result, err := SubmitBaidu(context.Background(), server.Client(), []string{
-		"https://thinkerqaq.github.io/a/",
-		"https://thinkerqaq.github.io/b/",
+		"https://thinkerqaq.com/a/",
+		"https://thinkerqaq.com/b/",
 	}, config)
 	if err == nil {
 		t.Fatal("partial Baidu acceptance must fail closed")
@@ -82,13 +82,13 @@ func TestSubmitBaiduUsesTextBodyAndOnlyCompletesFullBatch(t *testing.T) {
 	if result.Complete || result.SuccessCount != 1 || result.URLCount != 2 {
 		t.Fatalf("result = %#v", result)
 	}
-	if gotToken != "secret-token" || gotSite != "https://thinkerqaq.github.io" {
+	if gotToken != "secret-token" || gotSite != "https://thinkerqaq.com" {
 		t.Fatalf("query token=%q site=%q", gotToken, gotSite)
 	}
 	if gotContentType != "text/plain" {
 		t.Fatalf("content-type = %q", gotContentType)
 	}
-	if gotBody != "https://thinkerqaq.github.io/a/\nhttps://thinkerqaq.github.io/b/" {
+	if gotBody != "https://thinkerqaq.com/a/\nhttps://thinkerqaq.com/b/" {
 		t.Fatalf("body = %q", gotBody)
 	}
 }

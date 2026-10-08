@@ -4,7 +4,7 @@ import test from "node:test";
 import worker from "./worker.js";
 
 const WORKER_URL = "https://example.workers.dev/chat";
-const BLOG_ORIGIN = "https://thinkerqaq.github.io";
+const BLOG_ORIGIN = "https://thinkerqaq.com";
 
 function createEnv(overrides = {}) {
   return {
@@ -32,7 +32,7 @@ function mockTurnstile() {
     assert.equal(String(url), "https://challenges.cloudflare.com/turnstile/v0/siteverify");
     return Response.json({
       success: true,
-      hostname: "thinkerqaq.github.io",
+      hostname: "thinkerqaq.com",
       action: "ask_blog",
     });
   };

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import worker from "./policy-worker.js";
 
-const BLOG_ORIGIN = "https://thinkerqaq.github.io";
+const BLOG_ORIGIN = "https://thinkerqaq.com";
 
 function request(body) {
   return new Request("https://example.workers.dev/chat", {
@@ -22,7 +22,7 @@ test("adds a domain-neutral abstraction and scope schema to generated answers", 
 
   globalThis.fetch = async () => Response.json({
     success: true,
-    hostname: "thinkerqaq.github.io",
+    hostname: "thinkerqaq.com",
     action: "ask_blog",
   });
 
