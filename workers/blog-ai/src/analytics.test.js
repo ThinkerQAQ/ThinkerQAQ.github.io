@@ -157,9 +157,23 @@ test("cron backfills missing complete hours and persists latest report", async (
       Date.parse("2026-09-20T15:59:59.999Z"),
     );
 
-    // One share lookup plus 10 requests for each of four hourly buckets and
-    // two complete weekly aggregates.
-    assert.equal(umami.calls(), 61);
+    const daily = JSON.parse(
+      await kv.get(analyticsInternals.DAILY_LATEST_KEY),
+    );
+    assert.equal(daily.current.date, "2026-09-23");
+    assert.equal(daily.previous.date, "2026-09-22");
+    assert.equal(
+      daily.current.startAt,
+      Date.parse("2026-09-22T16:00:00Z"),
+    );
+    assert.equal(
+      daily.current.endAt,
+      Date.parse("2026-09-23T15:59:59.999Z"),
+    );
+
+    // One share lookup plus 10 requests for each of four hourly buckets,
+    // two complete daily aggregates, and two complete weekly aggregates.
+    assert.equal(umami.calls(), 81);
   } finally {
     umami.restore();
   }
@@ -177,8 +191,9 @@ test("cron bootstrap builds latest without relying on KV read-after-write consis
     assert.equal(meta.pendingHours, 0);
     assert.equal(latest.current.startAt, Date.parse("2026-09-24T04:00:00Z"));
     assert.equal(latest.previous.startAt, Date.parse("2026-09-24T03:00:00Z"));
+    assert.ok(kv.data.has(analyticsInternals.DAILY_LATEST_KEY));
     assert.ok(kv.data.has(analyticsInternals.WEEKLY_LATEST_KEY));
-    assert.equal(umami.calls(), 41);
+    assert.equal(umami.calls(), 61);
   } finally {
     umami.restore();
   }
@@ -197,6 +212,7 @@ test("deployed policy entrypoint forwards scheduled events to analytics cron", a
     assert.equal(meta.lastFinalizedHourEnd, Date.parse("2026-09-24T05:00:00Z"));
     assert.equal(meta.pendingHours, 0);
     assert.ok(kv.data.has(analyticsInternals.LATEST_KEY));
+    assert.ok(kv.data.has(analyticsInternals.DAILY_LATEST_KEY));
     assert.ok(kv.data.has(analyticsInternals.WEEKLY_LATEST_KEY));
     assert.ok(kv.data.has("analytics:bot:latest"));
   } finally {
@@ -243,7 +259,7 @@ test("today endpoint uses Asia/Shanghai-style offset and persists a short-lived 
   }
 });
 
-test("hourly, weekly, and health endpoints read persisted KV without calling Umami", async () => {
+test("hourly, daily, weekly, and health endpoints read persisted KV without calling Umami", async () => {
   const latest = {
     generatedAt: "2026-09-24T05:07:00.000Z",
     websiteId: WEBSITE_ID,
@@ -264,6 +280,31 @@ test("hourly, weekly, and health endpoints read persisted KV without calling Uma
       newCities: [],
       changedCities: [
         { name: "Singapore", count: 2, country: "SG", previousCount: 1, delta: 1 },
+      ],
+    },
+  };
+  const daily = {
+    generatedAt: "2026-09-24T05:07:00.000Z",
+    timezoneOffsetMinutes: 480,
+    current: {
+      date: "2026-09-23",
+      stats: { visitors: 7 },
+      regions: [{ name: "SG-01", count: 7, country: "SG" }],
+      cities: [{ name: "Singapore", count: 7, country: "SG" }],
+    },
+    previous: {
+      date: "2026-09-22",
+      stats: { visitors: 5 },
+      regions: [],
+      cities: [{ name: "Singapore", count: 5, country: "SG" }],
+    },
+    delta: {
+      stats: { visitors: 2 },
+      newRegions: [{ name: "SG-01", count: 7, country: "SG" }],
+      changedRegions: [],
+      newCities: [],
+      changedCities: [
+        { name: "Singapore", count: 7, country: "SG", previousCount: 5, delta: 2 },
       ],
     },
   };
@@ -295,7 +336,9 @@ test("hourly, weekly, and health endpoints read persisted KV without calling Uma
   const lastFinalizedHourEnd = Date.parse("2026-09-24T05:00:00Z");
   const kv = new MemoryKv({
     [analyticsInternals.LATEST_KEY]: JSON.stringify(latest),
+    [analyticsInternals.DAILY_LATEST_KEY]: JSON.stringify(daily),
     [analyticsInternals.WEEKLY_LATEST_KEY]: JSON.stringify(weekly),
+    [analyticsInternals.dayKey("2026-09-23")]: JSON.stringify(daily.current),
     [analyticsInternals.META_KEY]: JSON.stringify({
       lastFinalizedHourEnd,
       lastSuccessAt: "2026-09-24T05:07:00.000Z",
@@ -320,6 +363,28 @@ test("hourly, weekly, and health endpoints read persisted KV without calling Uma
     assert.equal(hourlyBody.previous.cities, undefined);
     assert.equal(hourlyBody.delta.newRegions, undefined);
     assert.equal(hourlyBody.delta.changedCities, undefined);
+
+    const dailyResponse = await handleAnalyticsRequest(
+      new Request("https://example.workers.dev/analytics/daily"),
+      env(kv),
+      {},
+    );
+    const dailyBody = await dailyResponse.json();
+    assert.equal(dailyBody.timezoneOffsetMinutes, 480);
+    assert.deepEqual(dailyBody.current.stats, { visitors: 7 });
+    assert.equal(dailyBody.current.regions, undefined);
+    assert.equal(dailyBody.current.cities, undefined);
+
+    const datedDailyResponse = await handleAnalyticsRequest(
+      new Request("https://example.workers.dev/analytics/daily?date=2026-09-23"),
+      env(kv),
+      {},
+    );
+    const datedDailyBody = await datedDailyResponse.json();
+    assert.equal(datedDailyBody.date, "2026-09-23");
+    assert.deepEqual(datedDailyBody.stats, { visitors: 7 });
+    assert.equal(datedDailyBody.regions, undefined);
+    assert.equal(datedDailyBody.cities, undefined);
 
     const weeklyResponse = await handleAnalyticsRequest(
       new Request("https://example.workers.dev/analytics/weekly"),
