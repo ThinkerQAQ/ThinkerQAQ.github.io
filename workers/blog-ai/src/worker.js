@@ -124,6 +124,11 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
+    // Keep analytics available while Ask Blog is disabled for public visitors.
+    if (url.pathname === "/chat" && env?.ASK_BLOG_ENABLED !== "true") {
+      return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
+    }
+
     if (url.pathname === UMAMI_SCRIPT_PATH) {
       if (request.method !== "GET") {
         return new Response("Method not allowed", { status: 405 });
