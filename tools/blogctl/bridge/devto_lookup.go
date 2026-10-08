@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
@@ -34,7 +35,13 @@ func devtoArticleMatches(candidate devtoArticleCandidate, slug, title string) bo
 		return true
 	}
 	parsed, err := url.Parse(candidate.Canonical)
-	if err != nil || parsed.Scheme != "https" || !strings.EqualFold(parsed.Hostname(), "thinkerqaq.github.io") {
+	if err != nil || parsed.Scheme != "https" {
+		return false
+	}
+	host := parsed.Hostname()
+	// Previously distributed articles still point to the old host during the migration.
+	if !strings.EqualFold(host, strings.TrimPrefix(blogcompiler.SiteOrigin, "https://")) &&
+		!strings.EqualFold(host, "thinkerqaq.github.io") {
 		return false
 	}
 	segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")

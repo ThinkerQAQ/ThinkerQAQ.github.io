@@ -70,7 +70,7 @@ try {
 }
 
 export default defineConfig({
-  site: "https://thinkerqaq.github.io",
+  site: "https://thinkerqaq.com",
   output: "static",
   server: {
     port: 4321,
