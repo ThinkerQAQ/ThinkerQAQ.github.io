@@ -45,19 +45,22 @@ jobs:
           hourly="$(mktemp)"
           today="$(mktemp)"
           weekly="$(mktemp)"
+          daily="$(mktemp)"
 
           verify() {
             curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/health" > "$health" || return 1
             curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/hourly" > "$hourly" || return 1
             curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/today" > "$today" || return 1
+            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/daily" > "$daily" || return 1
             curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/weekly" > "$weekly" || return 1
 
-            node - "$health" "$hourly" "$today" "$weekly" <<'NODE'
+            node - "$health" "$hourly" "$today" "$daily" "$weekly" <<'NODE'
           const fs = require("fs");
-          const [healthPath, hourlyPath, todayPath, weeklyPath] = process.argv.slice(2);
+          const [healthPath, hourlyPath, todayPath, dailyPath, weeklyPath] = process.argv.slice(2);
           const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
           const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
           const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
+          const daily = JSON.parse(fs.readFileSync(dailyPath, "utf8"));
           const weekly = JSON.parse(fs.readFileSync(weeklyPath, "utf8"));
 
           if (health.healthy !== true || !health.lastSuccessAt || health.pendingHours !== 0 || health.hasError === true) {
@@ -68,6 +71,9 @@ jobs:
           }
           if (!today.generatedAt || !today.date || !today.current?.stats) {
             throw new Error("analytics/today is missing the current-day aggregate");
+          }
+          if (!daily.generatedAt || !daily.current?.stats || !daily.previous?.stats) {
+            throw new Error("analytics/daily is missing two complete calendar days");
           }
           if (!weekly.generatedAt || !weekly.current?.stats || !weekly.previous?.stats) {
             throw new Error("analytics/weekly is missing two complete calendar weeks");
@@ -87,6 +93,10 @@ jobs:
             ["today.generatedAtMs", today.generatedAtMs],
             ["today.current.regions", today.current?.regions],
             ["today.current.cities", today.current?.cities],
+            ["daily.current.regions", daily.current?.regions],
+            ["daily.current.cities", daily.current?.cities],
+            ["daily.previous.regions", daily.previous?.regions],
+            ["daily.previous.cities", daily.previous?.cities],
             ["weekly.current.regions", weekly.current?.regions],
             ["weekly.current.cities", weekly.current?.cities],
             ["weekly.previous.regions", weekly.previous?.regions],
