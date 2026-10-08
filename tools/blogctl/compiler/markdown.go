@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const SiteOrigin = "https://thinkerqaq.github.io"
+const SiteOrigin = "https://thinkerqaq.com"
 const MermaidRenderer = "@mermaid-js/mermaid-cli@11.17.0"
 const plantUMLVersion = "1.2026.7"
 

@@ -8,7 +8,7 @@ export const SITE = {
   icpLookupUrl: "https://beian.miit.gov.cn/",
   authorProfilePath: "/about/",
   alternateNames: ["Thinker QAQ"],
-  url: "https://thinkerqaq.github.io",
+  url: "https://thinkerqaq.com",
   github: "https://github.com/ThinkerQAQ",
   profiles: ["https://github.com/ThinkerQAQ", "https://dev.to/thinkerqaq"],
   repository: "https://github.com/ThinkerQAQ/ThinkerQAQ.github.io",

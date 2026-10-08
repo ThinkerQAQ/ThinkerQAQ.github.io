@@ -33,8 +33,8 @@ func TestParseArticleParity(t *testing.T) {
 
 func TestTrackedURLKeepsLegacyParameterOrder(t *testing.T) {
 	config := defaultPlatformConfig("juejin")
-	got := trackedURL("https://thinkerqaq.github.io/articles/example/", config)
-	want := "https://thinkerqaq.github.io/articles/example/?utm_source=juejin&utm_medium=referral&utm_campaign=article_syndication"
+	got := trackedURL("https://thinkerqaq.com/articles/example/", config)
+	want := "https://thinkerqaq.com/articles/example/?utm_source=juejin&utm_medium=referral&utm_campaign=article_syndication"
 	if got != want {
 		t.Fatalf("tracked URL = %q, want %q", got, want)
 	}
@@ -60,10 +60,10 @@ func TestCompilePublishingMarkdownNormalizesLinksAndDiagrams(t *testing.T) {
 	if len(assets) != 1 || assets[0].Kind != "mermaid" || len(assets[0].ID) != 24 || assets[0].Alt != "Lock path" {
 		t.Fatalf("assets = %#v", assets)
 	}
-	if !strings.Contains(output, "[outside](https://thinkerqaq.github.io/articles/a/)") {
+	if !strings.Contains(output, "[outside](https://thinkerqaq.com/articles/a/)") {
 		t.Fatalf("root link not normalized: %s", output)
 	}
-	if !strings.Contains(output, "<img src='https://thinkerqaq.github.io/media/a.png'>") {
+	if !strings.Contains(output, "<img src='https://thinkerqaq.com/media/a.png'>") {
 		t.Fatalf("HTML link quote was not preserved: %s", output)
 	}
 	if !strings.Contains(output, "[inside](/articles/b/)") {

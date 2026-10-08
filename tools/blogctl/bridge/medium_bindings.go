@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
@@ -51,15 +52,7 @@ func mediumBindingState(binding publisher.PublicationBinding, post mediumPost) (
 }
 
 func mediumLocalCanonicalURL(article articleSummary) string {
-	prefix := "/articles/"
-	if article.Language == "en" {
-		prefix = "/en/articles/"
-	}
-	parts := strings.Split(strings.TrimSpace(article.Slug), "/")
-	for index, part := range parts {
-		parts[index] = url.PathEscape(part)
-	}
-	return "https://thinkerqaq.github.io" + prefix + strings.Join(parts, "/") + "/"
+	return blogcompiler.CanonicalURL(strings.TrimSpace(article.Slug), article.Language)
 }
 
 func (s *Server) handleMediumLookupContext(response http.ResponseWriter, request *http.Request, slug string) {
