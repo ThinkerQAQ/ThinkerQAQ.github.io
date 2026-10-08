@@ -1,5 +1,4 @@
 ---
-import AskBlog from "../components/AskBlogSession.astro";
 import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
 import ContentMediaViewer from "../components/ContentMediaViewer.astro";
 import MermaidRuntime from "../components/MermaidRuntime.astro";
@@ -169,7 +168,6 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
       <slot />
     </main>
     <SiteFooter locale={locale} />
-    <AskBlog locale={locale} />
     <ContentAnalyticsRuntime />
     <MermaidRuntime />
     <ContentMediaViewer locale={locale} />

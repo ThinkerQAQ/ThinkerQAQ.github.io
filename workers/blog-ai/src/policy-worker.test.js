@@ -35,6 +35,7 @@ test("adds a domain-neutral abstraction and scope schema to generated answers", 
       {
         ALLOWED_ORIGINS: BLOG_ORIGIN,
         BLOG_ORIGIN,
+        ASK_BLOG_ENABLED: "true",
         TURNSTILE_SECRET_KEY: "test-secret",
         AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
         AI_SEARCH: {
