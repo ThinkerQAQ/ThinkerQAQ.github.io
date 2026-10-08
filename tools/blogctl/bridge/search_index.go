@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 )
 
 type searchInventoryState struct {
@@ -138,6 +140,11 @@ func loadSearchProviderSnapshot(filename string) searchInventoryState {
 	if json.Unmarshal(data, &snapshot) != nil {
 		return searchInventoryState{}
 	}
+	// A previous site's URL list must not be interpreted as removed URLs
+	// and submitted to the new domain's IndexNow endpoint.
+	if snapshot.Origin != "" && strings.TrimRight(snapshot.Origin, "/") != blogsearch.DefaultSiteOrigin {
+		return searchInventoryState{}
+	}
 	return snapshot
 }
 
@@ -189,6 +196,11 @@ func loadSearchIndexState() searchIndexState {
 		return state
 	}
 	if json.Unmarshal(data, &state) != nil {
+		return defaultSearchIndexState()
+	}
+	// Search inspection and request queues belong to an origin. A domain
+	// migration starts with a new inventory rather than resuming old URLs.
+	if state.Inventory.Origin != "" && strings.TrimRight(state.Inventory.Origin, "/") != blogsearch.DefaultSiteOrigin {
 		return defaultSearchIndexState()
 	}
 	if state.IndexNow.State == "" {
