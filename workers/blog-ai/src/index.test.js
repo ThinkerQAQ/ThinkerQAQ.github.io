@@ -10,6 +10,7 @@ function createEnv(overrides = {}) {
   return {
     ALLOWED_ORIGINS: BLOG_ORIGIN,
     BLOG_ORIGIN,
+    ASK_BLOG_ENABLED: "true",
     AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
     ...overrides,
   };
@@ -68,6 +69,31 @@ function noteChunk({ key, slug, title, text }) {
     },
   };
 }
+
+test("rejects Ask Blog requests when disabled without invoking AI dependencies", async () => {
+  let limiterCalled = false;
+  const disabled = createEnv({
+    ASK_BLOG_ENABLED: "false",
+    AI_RATE_LIMITER: { limit: async () => { limiterCalled = true; throw new Error("Should not run"); } },
+  });
+
+  for (const method of ["POST", "OPTIONS", "GET"]) {
+    const response = await worker.fetch(
+      new Request(WORKER_URL, {
+        method,
+        headers: { origin: BLOG_ORIGIN },
+        ...(method === "POST" ? { body: JSON.stringify({ question: "test" }) } : {}),
+      }),
+      disabled,
+    );
+    assert.equal(response.status, 404);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  }
+
+  assert.equal(limiterCalled, false);
+  const missingFlag = createEnv({ ASK_BLOG_ENABLED: undefined });
+  assert.equal((await worker.fetch(createRequest({ question: "test" }), missingFlag)).status, 404);
+});
 
 test("accepts the compact question and token request", async () => {
   const request = createRequest({
