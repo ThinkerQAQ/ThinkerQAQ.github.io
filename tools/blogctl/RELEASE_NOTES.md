@@ -1,12 +1,13 @@
-# BlogCTL v0.1.107
+# BlogCTL v0.1.108
 
-BlogCTL is the local publishing and search-indexing control plane for the ThinkerQAQ blog.
+BlogCTL now uses `https://thinkerqaq.com` consistently across the browser extension, website inventory, and search-indexing flows.
 
 ## Changes
 
-- Switch generated canonical URLs, article links, sitemap/search defaults, and AI Search document origins to `https://thinkerqaq.com`.
-- Keep DEV.to binding discovery compatible with articles originally published with the `thinkerqaq.github.io` canonical origin, without changing historical posts by default.
-- Use the latest BlogCTL code built from the public engine on the main branch, including the prior indexing-queue and durable task fixes.
-- Retain Windows, macOS and Linux command-line packages, the browser extension and native messaging installation scripts.
+- Switch the Google Search Console browser property and the indexing inventory source to the canonical domain.
+- Show new-domain URLs in publishing preview and refresh repository documentation.
+- Isolate persisted search inventories, IndexNow snapshots, and Google request queues by site origin, so records from the former `github.io` domain cannot be resumed or submitted as removals on the new site.
+- Keep legacy DEV.to canonical matching and Reaction source-origin compatibility for previously published links.
+- Keep CLI, extension, and release versions aligned.
 
-The GitHub Pages hostname remains a legacy URL; do not assume server-side redirects are in place until separately verified.
+The website's Search Console property still requires separate ownership verification and authorization before submission.

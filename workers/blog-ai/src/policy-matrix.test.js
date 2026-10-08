@@ -3,7 +3,7 @@ import test from "node:test";
 
 import worker from "./policy-worker.js";
 
-const BLOG_ORIGIN = "https://thinkerqaq.github.io";
+const BLOG_ORIGIN = "https://thinkerqaq.com";
 
 const cases = [
   ["Java", "Java synchronized 从 JVM 一直下钻到 CPU 怎么实现？", "java-sync", "Java synchronized", "JVM 与 CPU 属于不同抽象层。"],
@@ -61,7 +61,7 @@ test("applies the same abstraction policy across Java, Go, MySQL, Redis and Kafk
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({
     success: true,
-    hostname: "thinkerqaq.github.io",
+    hostname: "thinkerqaq.com",
     action: "ask_blog",
   });
 

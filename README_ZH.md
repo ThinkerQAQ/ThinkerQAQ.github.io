@@ -2,7 +2,7 @@
 
 [English](./README.md)
 
-在线博客：<https://thinkerqaq.github.io/>
+在线博客：<https://thinkerqaq.com/>
 
 ## 简介
 

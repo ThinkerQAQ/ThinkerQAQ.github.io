@@ -4,7 +4,7 @@ import test from "node:test";
 import { authorizeAskRequest } from "./security.js";
 import { issueAskSession } from "./session.js";
 
-const origin = "https://thinkerqaq.github.io";
+const origin = "https://thinkerqaq.com";
 const turnstileSecret = "local-turnstile-signing-value-0123456789";
 
 function request() {
@@ -42,7 +42,7 @@ test("the first Turnstile verification mints a reusable Ask session", async () =
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({
     success: true,
-    hostname: "thinkerqaq.github.io",
+    hostname: "thinkerqaq.com",
     action: "ask_blog",
   });
 

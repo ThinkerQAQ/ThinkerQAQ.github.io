@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { issueAskSession, verifyAskSession } from "./session.js";
 
-const origin = "https://thinkerqaq.github.io";
+const origin = "https://thinkerqaq.com";
 const signingValue = "local-test-signing-value-0123456789";
 
 test("Ask session is valid for the issuing origin", async () => {

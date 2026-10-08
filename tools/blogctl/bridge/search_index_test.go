@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 	"strings"
 	"testing"
 	"time"
@@ -16,28 +18,28 @@ import (
 func TestBuildGoogleRequestQueueKeepsOnlyEligibleNotIndexedURLs(t *testing.T) {
 	now := time.Date(2026, 9, 26, 3, 0, 0, 0, time.UTC)
 	results := []searchInspectionResult{
-		{URL: "https://thinkerqaq.github.io/indexed/", Verdict: "PASS", IndexingState: "INDEXING_ALLOWED"},
-		{URL: "https://thinkerqaq.github.io/ok/", Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED", RobotsTxtState: "ALLOWED"},
-		{URL: "https://thinkerqaq.github.io/never-crawled/", Verdict: "NEUTRAL", IndexingState: "INDEXING_STATE_UNSPECIFIED", RobotsTxtState: "ROBOTS_TXT_STATE_UNSPECIFIED"},
-		{URL: "https://thinkerqaq.github.io/meta/", Verdict: "FAIL", IndexingState: "BLOCKED_BY_META_TAG"},
-		{URL: "https://thinkerqaq.github.io/header/", Verdict: "FAIL", IndexingState: "BLOCKED_BY_HTTP_HEADER"},
-		{URL: "https://thinkerqaq.github.io/robots/", Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED", RobotsTxtState: "DISALLOWED"},
+		{URL: "https://thinkerqaq.com/indexed/", Verdict: "PASS", IndexingState: "INDEXING_ALLOWED"},
+		{URL: "https://thinkerqaq.com/ok/", Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED", RobotsTxtState: "ALLOWED"},
+		{URL: "https://thinkerqaq.com/never-crawled/", Verdict: "NEUTRAL", IndexingState: "INDEXING_STATE_UNSPECIFIED", RobotsTxtState: "ROBOTS_TXT_STATE_UNSPECIFIED"},
+		{URL: "https://thinkerqaq.com/meta/", Verdict: "FAIL", IndexingState: "BLOCKED_BY_META_TAG"},
+		{URL: "https://thinkerqaq.com/header/", Verdict: "FAIL", IndexingState: "BLOCKED_BY_HTTP_HEADER"},
+		{URL: "https://thinkerqaq.com/robots/", Verdict: "FAIL", IndexingState: "INDEXING_ALLOWED", RobotsTxtState: "DISALLOWED"},
 	}
 	queue := buildGoogleRequestQueue(results, googleIndexRequestQueue{}, now)
 	if len(queue.Items) != 2 {
 		t.Fatalf("queue items = %#v", queue.Items)
 	}
-	if queue.Items[0].URL != "https://thinkerqaq.github.io/never-crawled/" || queue.Items[0].Status != "queued" {
+	if queue.Items[0].URL != "https://thinkerqaq.com/never-crawled/" || queue.Items[0].Status != "queued" {
 		t.Fatalf("queue item 0 = %#v", queue.Items[0])
 	}
-	if queue.Items[1].URL != "https://thinkerqaq.github.io/ok/" || queue.Items[1].Status != "queued" {
+	if queue.Items[1].URL != "https://thinkerqaq.com/ok/" || queue.Items[1].Status != "queued" {
 		t.Fatalf("queue item 1 = %#v", queue.Items[1])
 	}
 }
 
 func TestBuildGoogleRequestQueuePreservesRequestedState(t *testing.T) {
 	now := time.Date(2026, 9, 26, 3, 0, 0, 0, time.UTC)
-	url := "https://thinkerqaq.github.io/a/"
+	url := "https://thinkerqaq.com/a/"
 	previous := googleIndexRequestQueue{
 		JobID:     "request-job-1",
 		CreatedAt: "2026-09-25T00:00:00Z",
@@ -61,7 +63,7 @@ func TestBuildGoogleRequestQueuePreservesRequestedState(t *testing.T) {
 
 func TestBuildGoogleRequestQueueNeverAutoRequeuesRequestedURL(t *testing.T) {
 	now := time.Date(2026, 9, 26, 3, 0, 0, 0, time.UTC)
-	url := "https://thinkerqaq.github.io/a/"
+	url := "https://thinkerqaq.com/a/"
 	previous := googleIndexRequestQueue{
 		Items: []googleIndexRequestItem{{
 			URL: url, Status: "requested", RequestedAt: now.Add(-30 * 24 * time.Hour).Format(time.RFC3339),
@@ -92,9 +94,9 @@ func TestSearchIndexWriteRequiresBridgeAuthorization(t *testing.T) {
 func TestReconcileInspectionInventoryPrunesRemovedURLs(t *testing.T) {
 	state := searchInspectionState{
 		Results: []searchInspectionResult{
-			{URL: "https://thinkerqaq.github.io/a/", Verdict: "PASS"},
-			{URL: "https://thinkerqaq.github.io/b/", Verdict: "FAIL"},
-			{URL: "https://thinkerqaq.github.io/removed/", Verdict: "FAIL"},
+			{URL: "https://thinkerqaq.com/a/", Verdict: "PASS"},
+			{URL: "https://thinkerqaq.com/b/", Verdict: "FAIL"},
+			{URL: "https://thinkerqaq.com/removed/", Verdict: "FAIL"},
 		},
 		Inspected: 3,
 		Total:     3,
@@ -102,8 +104,8 @@ func TestReconcileInspectionInventoryPrunesRemovedURLs(t *testing.T) {
 	inventory := searchInventoryState{
 		Total: 2,
 		URLs: []string{
-			"https://thinkerqaq.github.io/a/",
-			"https://thinkerqaq.github.io/b/",
+			"https://thinkerqaq.com/a/",
+			"https://thinkerqaq.com/b/",
 		},
 	}
 	reconcileInspectionInventory(&state, inventory)
@@ -126,15 +128,15 @@ func TestGoogleRequestQueueSystemicFailurePausesWithoutAdvancing(t *testing.T) {
 		State:        "running",
 		CurrentIndex: 0,
 		Items: []googleIndexRequestItem{
-			{URL: "https://thinkerqaq.github.io/a/", Status: "queued"},
-			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/a/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/b/", Status: "queued"},
 		},
 	}
 	if err := saveSearchIndexState(state); err != nil {
 		t.Fatal(err)
 	}
 
-	body := `{"url":"https://thinkerqaq.github.io/a/","result":"failed","error":"Google Search Console returned an inspection error"}`
+	body := `{"url":"https://thinkerqaq.com/a/","result":"failed","error":"Google Search Console returned an inspection error"}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/google/request-queue/result", strings.NewReader(body))
 	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
@@ -169,9 +171,9 @@ func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	state.Google.RequestQueue = googleIndexRequestQueue{
 		State: "running",
 		Items: []googleIndexRequestItem{
-			{URL: "https://thinkerqaq.github.io/a/", Status: "queued"},
-			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
-			{URL: "https://thinkerqaq.github.io/c/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/a/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/b/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/c/", Status: "queued"},
 		},
 	}
 	if err := saveSearchIndexState(state); err != nil {
@@ -179,9 +181,9 @@ func TestGoogleRequestQueueStopsAfterThreeFailures(t *testing.T) {
 	}
 
 	for _, url := range []string{
-		"https://thinkerqaq.github.io/a/",
-		"https://thinkerqaq.github.io/b/",
-		"https://thinkerqaq.github.io/c/",
+		"https://thinkerqaq.com/a/",
+		"https://thinkerqaq.com/b/",
+		"https://thinkerqaq.com/c/",
 	} {
 		body := "{\"url\":\"" + url + "\",\"result\":\"ui_changed\",\"error\":\"selector missing\"}"
 		request := httptest.NewRequest(http.MethodPost, "/v1/search/index/google/request-queue/result", strings.NewReader(body))
@@ -213,8 +215,8 @@ func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
 	state.Google.RequestQueue = googleIndexRequestQueue{
 		State: "running",
 		Items: []googleIndexRequestItem{
-			{URL: "https://thinkerqaq.github.io/a/", Status: "queued"},
-			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/a/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/b/", Status: "queued"},
 		},
 	}
 	job, err := server.ensureGoogleRequestTask(&state.Google.RequestQueue)
@@ -225,7 +227,7 @@ func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/google/request-queue/result", strings.NewReader(`{"url":"https://thinkerqaq.github.io/a/","result":"processing","error":""}`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/search/index/google/request-queue/result", strings.NewReader(`{"url":"https://thinkerqaq.com/a/","result":"processing","error":""}`))
 	setExtensionAuth(request, "token")
 	request.Header.Set("content-type", "application/json")
 	response := httptest.NewRecorder()
@@ -242,7 +244,7 @@ func TestGoogleRequestQueueProcessingPublishesHeartbeat(t *testing.T) {
 	if updated == nil || updated.Progress.Message != "正在处理第 1 / 2 个 URL" {
 		t.Fatalf("job = %#v", updated)
 	}
-	if updated.Detail["currentItemStatus"] != "processing" || updated.Detail["currentUrl"] != "https://thinkerqaq.github.io/a/" {
+	if updated.Detail["currentItemStatus"] != "processing" || updated.Detail["currentUrl"] != "https://thinkerqaq.com/a/" {
 		t.Fatalf("job detail = %#v", updated.Detail)
 	}
 }
@@ -359,5 +361,61 @@ func TestNormalizeRecoveredGoogleInspectionQueuesResume(t *testing.T) {
 	}
 	if payload.Offset != 37 || payload.Limit != 12 {
 		t.Fatalf("recovered payload = %#v", payload)
+	}
+}
+
+func TestSearchIndexDropsOldSiteStateAfterDomainMigration(t *testing.T) {
+	useIsolatedUserConfigDir(t)
+	state := defaultSearchIndexState()
+	state.Inventory = searchInventoryState{
+		Origin: "https://thinkerqaq.github.io",
+		Source: "https://thinkerqaq.github.io/sitemap-all.txt",
+		URLs:   []string{"https://thinkerqaq.github.io/articles/example/"},
+	}
+	state.Google.RequestQueue = googleIndexRequestQueue{
+		State: "paused",
+		Items: []googleIndexRequestItem{{URL: "https://thinkerqaq.github.io/articles/example/", Status: "queued"}},
+	}
+	if err := saveSearchIndexState(state); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadSearchIndexState()
+	if loaded.Inventory.Origin != "" || len(loaded.Google.RequestQueue.Items) != 0 || loaded.Google.RequestQueue.State != "idle" {
+		t.Fatalf("stale search index survived domain migration: %#v", loaded)
+	}
+	state.Inventory.Origin = blogsearch.DefaultSiteOrigin
+	state.Inventory.Source = blogsearch.DefaultSiteOrigin + "/sitemap-all.txt"
+	state.Inventory.URLs = []string{blogsearch.DefaultSiteOrigin + "/articles/example/"}
+	state.Google.RequestQueue.Items = []googleIndexRequestItem{{URL: blogsearch.DefaultSiteOrigin + "/articles/example/", Status: "queued"}}
+	if err := saveSearchIndexState(state); err != nil {
+		t.Fatal(err)
+	}
+	loaded = loadSearchIndexState()
+	if loaded.Inventory.Origin != blogsearch.DefaultSiteOrigin || len(loaded.Google.RequestQueue.Items) != 1 {
+		t.Fatalf("current site's state was not preserved: %#v", loaded)
+	}
+}
+
+func TestIndexNowSnapshotNeverReusesOldDomain(t *testing.T) {
+	useIsolatedUserConfigDir(t)
+	old := searchInventoryState{
+		Origin: "https://thinkerqaq.github.io",
+		URLs:   []string{"https://thinkerqaq.github.io/articles/old/"},
+	}
+	if err := saveIndexNowSnapshot(old); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadIndexNowSnapshot(); got.Origin != "" || len(got.URLs) != 0 {
+		t.Fatalf("old domain snapshot should start a fresh baseline: %#v", got)
+	}
+	current := searchInventoryState{
+		Origin: blogsearch.DefaultSiteOrigin,
+		URLs:   []string{blogsearch.DefaultSiteOrigin + "/articles/current/"},
+	}
+	if err := saveIndexNowSnapshot(current); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadIndexNowSnapshot(); got.Origin != current.Origin || len(got.URLs) != 1 {
+		t.Fatalf("new domain snapshot was not preserved: %#v", got)
 	}
 }

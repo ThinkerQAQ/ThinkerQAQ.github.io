@@ -67,7 +67,7 @@ class FakeDb {
 
 function env() {
   return {
-    ALLOWED_ORIGINS: "https://thinkerqaq.github.io,http://localhost:4321",
+    ALLOWED_ORIGINS: "https://thinkerqaq.com,https://thinkerqaq.github.io,http://localhost:4321",
     REACTION_HMAC_SECRET: "test-secret",
     REACTIONS_DB: new FakeDb(),
     REACTION_RATE_LIMITER: {
@@ -78,7 +78,7 @@ function env() {
   };
 }
 
-function request(method, path, visitor = "123e4567-e89b-12d3-a456-426614174000", origin = "https://thinkerqaq.github.io") {
+function request(method, path, visitor = "123e4567-e89b-12d3-a456-426614174000", origin = "https://thinkerqaq.com") {
   return new Request(`https://reactions.example${path}`, {
     method,
     headers: {
@@ -157,4 +157,16 @@ test("rate limits mutation requests", async () => {
     runtime,
   );
   assert.equal(response.status, 429);
+});
+
+test("allows current and legacy blog origins without allowing third-party origins", async () => {
+  const runtime = env();
+  const url = "/v1/reactions?contentType=article&contentId=go-cas";
+  for (const origin of ["https://thinkerqaq.com", "https://thinkerqaq.github.io"]) {
+    const response = await handleRequest(request("GET", url, undefined, origin), runtime);
+    assert.equal(response.status, 200, origin);
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
+  }
+  const forbidden = await handleRequest(request("GET", url, undefined, "https://evil.example"), runtime);
+  assert.equal(forbidden.status, 403);
 });

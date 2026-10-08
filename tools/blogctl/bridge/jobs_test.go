@@ -116,8 +116,8 @@ func TestRunningRequestIndexingTaskRecoversPaused(t *testing.T) {
 		State:        "running",
 		CurrentIndex: 1,
 		Items: []googleIndexRequestItem{
-			{URL: "https://thinkerqaq.github.io/a/", Status: "requested"},
-			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/a/", Status: "requested"},
+			{URL: "https://thinkerqaq.com/b/", Status: "queued"},
 		},
 	}
 	if err := saveSearchIndexState(state); err != nil {
@@ -152,11 +152,11 @@ func TestQuotaBlockedRequestQueueRecoversMissingTask(t *testing.T) {
 		LastError:    "Google Request Indexing daily quota was exhausted",
 		Items: []googleIndexRequestItem{
 			{
-				URL:    "https://thinkerqaq.github.io/a/",
+				URL:    "https://thinkerqaq.com/a/",
 				Status: "quota_blocked",
 				Error:  "Google Request Indexing daily quota was exhausted",
 			},
-			{URL: "https://thinkerqaq.github.io/b/", Status: "queued"},
+			{URL: "https://thinkerqaq.com/b/", Status: "queued"},
 		},
 	}
 	if err := saveSearchIndexState(state); err != nil {
