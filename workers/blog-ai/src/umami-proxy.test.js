@@ -3,7 +3,7 @@ import test from "node:test";
 
 import worker from "./worker.js";
 
-const BLOG_ORIGIN = "https://thinkerqaq.github.io";
+const BLOG_ORIGIN = "https://thinkerqaq.com";
 const WORKER_ORIGIN = "https://example.workers.dev";
 
 function env() {
@@ -44,7 +44,7 @@ test("forwards Umami tracker identity and session headers to Cloud", async () =>
   globalThis.fetch = async (url, options) => {
     assert.equal(String(url), "https://gateway.umami.is/api/send");
     assert.equal(options.headers.get("x-umami-website-id"), "website-id");
-    assert.equal(options.headers.get("x-umami-hostname"), "thinkerqaq.github.io");
+    assert.equal(options.headers.get("x-umami-hostname"), "thinkerqaq.com");
     assert.equal(options.headers.get("x-umami-cache"), "session-cache");
     return Response.json({ cache: "next-cache" });
   };
@@ -57,14 +57,14 @@ test("forwards Umami tracker identity and session headers to Cloud", async () =>
           origin: BLOG_ORIGIN,
           "content-type": "application/json",
           "x-umami-website-id": "website-id",
-          "x-umami-hostname": "thinkerqaq.github.io",
+          "x-umami-hostname": "thinkerqaq.com",
           "x-umami-cache": "session-cache",
         },
         body: JSON.stringify({
           type: "event",
           payload: {
             website: "website-id",
-            hostname: "thinkerqaq.github.io",
+            hostname: "thinkerqaq.com",
             url: `${BLOG_ORIGIN}/`,
           },
         }),
@@ -107,7 +107,7 @@ test("forwards Cloudflare visitor geography to Umami Cloud without trusting clie
         type: "event",
         payload: {
           website: "website-id",
-          hostname: "thinkerqaq.github.io",
+          hostname: "thinkerqaq.com",
           url: `${BLOG_ORIGIN}/articles/example/`,
         },
       }),
@@ -151,7 +151,7 @@ test("omits Umami client geo headers when Cloudflare geo metadata is unavailable
           type: "event",
           payload: {
             website: "website-id",
-            hostname: "thinkerqaq.github.io",
+            hostname: "thinkerqaq.com",
             url: `${BLOG_ORIGIN}/`,
           },
         }),

@@ -39,6 +39,7 @@ jobs:
       PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY: ${{ vars.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY }}
       PUBLIC_REACTION_WORKER_URL: ${{ vars.PUBLIC_REACTION_WORKER_URL }}
       PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.PUBLIC_UMAMI_WEBSITE_ID }}
+      PUBLIC_UMAMI_PROXY_ORIGIN: ${{ vars.PUBLIC_UMAMI_PROXY_ORIGIN || 'https://thinkerqaq-blog-ai.blog-ai.workers.dev' }}
       CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
     steps:
       - name: Checkout public engine
@@ -204,7 +205,7 @@ jobs:
     continue-on-error: true
     env:
       GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
-      GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'https://thinkerqaq.github.io/' }}
+      GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'https://thinkerqaq.com/' }}
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6

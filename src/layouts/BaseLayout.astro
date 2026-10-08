@@ -102,11 +102,11 @@ const defaultAlternative = languageAlternatives.find(
 );
 const umamiWebsiteId = import.meta.env.PUBLIC_UMAMI_WEBSITE_ID?.trim();
 const umamiDomain = new URL(SITE.url).hostname;
-const askBlogWorkerUrl = import.meta.env.PUBLIC_ASK_BLOG_WORKER_URL?.trim();
+const umamiProxyUrl = import.meta.env.PUBLIC_UMAMI_PROXY_ORIGIN?.trim();
 let umamiProxyOrigin = "";
-if (askBlogWorkerUrl) {
+if (umamiProxyUrl) {
   try {
-    umamiProxyOrigin = new URL(askBlogWorkerUrl).origin;
+    umamiProxyOrigin = new URL(umamiProxyUrl).origin;
   } catch {
     umamiProxyOrigin = "";
   }
