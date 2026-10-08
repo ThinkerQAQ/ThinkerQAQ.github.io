@@ -72,8 +72,10 @@ jobs:
           if (!today.generatedAt || !today.date || !today.current?.stats) {
             throw new Error("analytics/today is missing the current-day aggregate");
           }
-          if (!daily.generatedAt || !daily.current?.stats || !daily.previous?.stats) {
-            throw new Error("analytics/daily is missing two complete calendar days");
+          if (daily.available === false) {
+            console.log("analytics/daily is not populated yet; waiting for the next scheduled collector run");
+          } else if (!daily.generatedAt || !daily.current?.stats || !daily.previous?.stats) {
+            throw new Error("analytics/daily returned an invalid populated response");
           }
           if (!weekly.generatedAt || !weekly.current?.stats || !weekly.previous?.stats) {
             throw new Error("analytics/weekly is missing two complete calendar weeks");
