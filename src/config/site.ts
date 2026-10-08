@@ -4,6 +4,8 @@ export const SITE = {
   description:
     "ThinkerQAQ 的个人技术博客，记录后端工程、Go、Java、并发编程、分布式系统、数据系统与软件工程实践。",
   author: "ThinkerQAQ",
+  icpRecord: "粤ICP备2026150158号-1",
+  icpLookupUrl: "https://beian.miit.gov.cn/",
   authorProfilePath: "/about/",
   alternateNames: ["Thinker QAQ"],
   url: "https://thinkerqaq.github.io",
