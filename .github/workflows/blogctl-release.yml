@@ -67,18 +67,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Remove superseded releases
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          set -euo pipefail
-          gh release list --limit 100 --json tagName --jq '.[].tagName' | while IFS= read -r old_tag; do
-            [[ -z "$old_tag" || "$old_tag" == "$TAG" ]] && continue
-            echo "Deleting superseded release: $old_tag"
-            gh release delete "$old_tag" --yes
-          done
-
       - name: Verify BlogCTL
         if: steps.version.outputs.exists != 'true'
         run: devtool verify
@@ -109,3 +97,16 @@ jobs:
           gh release edit "$TAG" \
             --title "blogctl v${VERSION}" \
             --notes-file tools/blogctl/RELEASE_NOTES.md
+
+      - name: Remove superseded releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release list --limit 100 --json tagName --jq '.[].tagName' | while IFS= read -r old_tag; do
+            [[ -z "$old_tag" || "$old_tag" == "$TAG" ]] && continue
+            echo "Deleting superseded release: $old_tag"
+            gh release delete "$old_tag" --yes
+          done
+
