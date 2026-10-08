@@ -25,6 +25,7 @@ function envFor(slug, title, source, capture) {
   return {
     ALLOWED_ORIGINS: BLOG_ORIGIN,
     BLOG_ORIGIN,
+    ASK_BLOG_ENABLED: "true",
     TURNSTILE_SECRET_KEY: "test-secret",
     AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
     AI_SEARCH: {
