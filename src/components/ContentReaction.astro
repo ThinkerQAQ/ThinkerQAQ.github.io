@@ -13,7 +13,8 @@ const enabled = Boolean(endpoint);
 const isChinese = language === "zh";
 const label = isChinese ? "有帮助" : "Helpful";
 const loadingLabel = isChinese ? "正在加载有帮助数量" : "Loading helpful count";
-const errorLabel = isChinese ? "暂时无法记录，请稍后再试。" : "Unable to record this right now.";
+const errorLabel = isChinese ? "暂时无法连接点赞服务，请重试。" : "Unable to reach the reaction service. Please retry.";
+const retryLabel = isChinese ? "重试" : "Retry";
 ---
 
 {enabled && (
@@ -25,6 +26,7 @@ const errorLabel = isChinese ? "暂时无法记录，请稍后再试。" : "Unab
     data-content-type={contentType}
     data-content-id={contentId}
     data-error-label={errorLabel}
+    data-loading-label={loadingLabel}
     aria-label={isChinese ? "内容反馈" : "Article feedback"}
   >
     <button
@@ -40,7 +42,8 @@ const errorLabel = isChinese ? "暂时无法记录，请稍后再试。" : "Unab
       <span>{label}</span>
       <span class="content-reaction__count" data-reaction-count hidden></span>
     </button>
-    <span class="visually-hidden" role="status" aria-live="polite" data-reaction-status>{loadingLabel}</span>
+    <button class="content-reaction__retry" type="button" data-reaction-retry hidden>{retryLabel}</button>
+    <span class="visually-hidden" role="status" aria-live="polite" data-reaction-status></span>
   </section>
 )}
 
@@ -104,36 +107,58 @@ const errorLabel = isChinese ? "暂时无法记录，请稍后再试。" : "Unab
       url.searchParams.set("contentType", contentType);
       url.searchParams.set("contentId", contentId);
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "x-reaction-visitor": getVisitorId(),
-        },
-      });
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), method === "GET" ? 4000 : 6000);
+      try {
+        const response = await fetch(url, {
+          method,
+          signal: controller.signal,
+          headers: {
+            "x-reaction-visitor": getVisitorId(),
+          },
+        });
 
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-      return body;
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+        return body;
+      } finally {
+        window.clearTimeout(timeout);
+      }
     };
 
-    const initialize = async (root) => {
+    const initialize = (root) => {
       if (root.dataset.initialized === "true") return;
       root.dataset.initialized = "true";
 
       const button = root.querySelector("[data-reaction-button]");
+      const retryButton = root.querySelector("[data-reaction-retry]");
       const status = root.querySelector("[data-reaction-status]");
-      const errorLabel = root.dataset.errorLabel || "Unable to record this right now.";
+      const errorLabel = root.dataset.errorLabel || "Unable to reach the reaction service.";
+      const loadingLabel = root.dataset.loadingLabel || "Loading helpful count";
 
+      // Initial state is unknown until the GET succeeds. Do not permit a write
+      // based on a guessed state, but provide a separate retry on failure.
       button.disabled = true;
-      try {
-        const state = await request(root);
-        setState(root, state.reacted, state.count);
-        status.textContent = "";
-      } catch {
-        status.textContent = errorLabel;
-      } finally {
-        button.disabled = false;
-      }
+      const load = async () => {
+        if (root.dataset.loading === "true") return;
+        root.dataset.loading = "true";
+        retryButton.hidden = true;
+        status.textContent = loadingLabel;
+        try {
+          const state = await request(root);
+          setState(root, state.reacted, state.count);
+          root.dataset.loaded = "true";
+          status.textContent = "";
+        } catch {
+          root.dataset.loaded = "false";
+          status.textContent = errorLabel;
+          retryButton.hidden = false;
+        } finally {
+          root.dataset.loading = "false";
+          button.disabled = root.dataset.loaded !== "true";
+        }
+      };
+      retryButton.addEventListener("click", load);
 
       button.addEventListener("click", async () => {
         if (button.disabled) return;
@@ -158,6 +183,19 @@ const errorLabel = isChinese ? "暂时无法记录，请稍后再试。" : "Unab
           button.disabled = false;
         }
       });
+
+      // Unlike page load, this GET starts only as the reaction controls
+      // approach the viewport. Non-IO browsers retain a working fallback.
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver((entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          observer.disconnect();
+          void load();
+        }, { rootMargin: "400px 0px" });
+        observer.observe(root);
+      } else {
+        void load();
+      }
     };
 
     for (const root of document.querySelectorAll("[data-content-reaction]")) {
@@ -171,7 +209,20 @@ const errorLabel = isChinese ? "暂时无法记录，请稍后再试。" : "Unab
     display: flex;
     justify-content: center;
     align-items: center;
+    gap: 0.75rem;
     margin: 3.25rem 0 1.25rem;
+  }
+
+  .content-reaction__retry:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.5rem 0.8rem;
+    font: inherit;
   }
 
   .content-reaction__button {
