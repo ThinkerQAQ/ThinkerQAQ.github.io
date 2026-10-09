@@ -15,6 +15,8 @@ go.work.sum
 /src/content/
 /public/media/
 /src/data/content-manifest.json
+/src/data/drawio-manifest.json
 
 # Generated diagram output.
 /public/diagrams/plantuml/
+/public/diagrams/mermaid/

@@ -151,10 +151,16 @@ The Content Template intentionally does not include an automatic deployment trig
 | Comments | utterances |
 | Analytics | Umami |
 | SEO | canonical / Open Graph / JSON-LD / hreflang / RSS / sitemap / IndexNow |
-| Diagrams | PlantUML / Graphviz / draw.io |
+| Diagrams | Mermaid / PlantUML / Graphviz / draw.io |
 | Tooling | BlogCTL |
 | CI/CD | GitHub Actions |
 | Deployment | GitHub Pages |
+
+### Static diagrams and media
+
+The site build pre-renders Mermaid and PlantUML as SVGs inside the ignored `public/diagrams/` directory, which becomes part of the deployment-only `dist/` artifact. Astro dev renders cached Mermaid diagrams and re-renders changed diagrams automatically. No generated SVGs are committed to Git or uploaded to R2. Multi-platform BlogCTL publishing continues to render diagrams as PNG and upload them to target platforms or the R2 fallback.
+
+Original article images still live in R2. The optional EdgeOne S3-compatible accelerated image origin is documented in [`docs/edgeone-r2-media.md`](docs/edgeone-r2-media.md); no production image URL migration should occur until that origin has been validated.
 
 ### Repository layout
 

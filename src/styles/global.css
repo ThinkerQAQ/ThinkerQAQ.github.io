@@ -1554,40 +1554,27 @@ main {
   margin: 0 auto;
 }
 
-.prose pre.mermaid-diagram {
+.prose .mermaid-diagram {
   max-width: 100%;
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 0.35rem;
-  background: #fff !important;
-  color: #24292f;
+  background: #fff;
   box-shadow: var(--shadow);
-  overflow-x: auto;
-  white-space: pre;
 }
 
-.prose pre.mermaid-diagram[data-processed="true"] {
-  white-space: normal;
-}
-
-.prose pre.mermaid-diagram.media-viewer {
+.prose .mermaid-diagram.media-viewer {
   padding: 0;
-  overflow: visible;
 }
 
-.prose pre.mermaid-diagram .media-viewer-viewport {
+.prose .mermaid-diagram .media-viewer-viewport {
   padding: 1rem;
 }
 
-.prose pre.mermaid-diagram svg {
+.prose .mermaid-diagram img {
   display: block;
-  max-width: 100%;
-  height: auto;
+  max-width: none;
   margin: 0 auto;
-}
-
-.prose pre.mermaid-diagram[data-mermaid-failed="true"] {
-  border-style: dashed;
 }
 
 .media-viewer-dialog {

@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { renderAll as renderPlantUml } from "./render-plantuml.mjs";
+import { renderAll as renderMermaid } from "./render-mermaid.mjs";
 import { renderAll as renderDrawIo } from "./render-drawio.mjs";
 
 function log(status, details = {}, severity = "info") {
@@ -17,6 +18,7 @@ export async function renderAll() {
   const startedAt = Date.now();
   log("started");
   await renderPlantUml();
+  await renderMermaid();
   await renderDrawIo();
   log("completed", { durationMs: Date.now() - startedAt });
 }

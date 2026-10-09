@@ -1,7 +1,6 @@
 ---
 import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
 import ContentMediaViewer from "../components/ContentMediaViewer.astro";
-import MermaidRuntime from "../components/MermaidRuntime.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import {
@@ -169,7 +168,6 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     </main>
     <SiteFooter locale={locale} />
     <ContentAnalyticsRuntime />
-    <MermaidRuntime />
     <ContentMediaViewer locale={locale} />
     <script>
       import { initFloatingActionLayout } from "../lib/floating-actions-runtime.js";
