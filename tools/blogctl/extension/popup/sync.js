@@ -328,6 +328,26 @@
     result.append(manual);
   }
 
+  async function reverifyToutiaoPublished(item) {
+    const article = state.selectedSlug;
+    if (!article || state.bindingMutating || !item?.bound || !item?.published) return;
+    state.bindingMutating = true;
+    updateControls();
+    BlogCTLPopup.setMessage(message, "正在重新验证头条原文章及远端版本…");
+    try {
+      await BlogCTLPopup.send("blogctl.toutiao.bind", {
+        article, state: "published", postId: item.id, replace: false,
+      });
+      await refreshArticleMatches(["toutiao"]);
+      BlogCTLPopup.setMessage(message, "已重新验证头条文章；可继续使用「更新已发布」。", "ok");
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+    } finally {
+      state.bindingMutating = false;
+      updateControls();
+    }
+  }
+
   function appendMatchRows(platform, match, result) {
     for (const item of match.items ?? []) {
       const row = document.createElement("div");
@@ -377,6 +397,15 @@
           edit.target = "_blank";
           edit.rel = "noopener noreferrer";
           links.append(edit);
+          if (item.bound && item.bindingState === "published") {
+            const reverify = document.createElement("button");
+            reverify.type = "button";
+            reverify.className = "secondary compact";
+            reverify.textContent = "重新校验版本";
+            reverify.disabled = state.bindingMutating;
+            reverify.addEventListener("click", () => reverifyToutiaoPublished(item));
+            links.append(reverify);
+          }
         }
         row.append(links);
       }
