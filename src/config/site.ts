@@ -6,6 +6,8 @@ export const SITE = {
   author: "ThinkerQAQ",
   icpRecord: "粤ICP备2026150158号-1",
   icpLookupUrl: "https://beian.miit.gov.cn/",
+  publicSecurityRecord: "粤公网安备44140202000301号",
+  publicSecurityLookupUrl: "https://beian.mps.gov.cn/#/query/webSearch?code=44140202000301",
   authorProfilePath: "/about/",
   alternateNames: ["Thinker QAQ"],
   url: "https://thinkerqaq.com",

@@ -16,6 +16,10 @@ const contactHref = localizePath(locale, "/contact/");
     <span class="footer-copyright">© {new Date().getFullYear()} {SITE.author}</span>
     <div class="footer-registration">
       <a href={SITE.icpLookupUrl} target="_blank" rel="noopener noreferrer">{SITE.icpRecord}</a>
+      <a href={SITE.publicSecurityLookupUrl} target="_blank" rel="noopener noreferrer">
+        <img src="/gongan-beian.png" alt="" width="18" height="20" />
+        {SITE.publicSecurityRecord}
+      </a>
     </div>
     <span class="footer-links">
       <a href="/rss.xml">RSS</a>
