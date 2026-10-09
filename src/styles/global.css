@@ -1021,19 +1021,48 @@ main {
   font-size: 0.82rem;
 }
 
+.site-footer .footer-inner {
+  padding-block: 1.25rem;
+}
+
+.footer-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
 .footer-links {
   display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 1rem;
 }
 
 .footer-registration {
-  padding-bottom: 1rem;
-  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
 }
 
 .footer-registration a {
   color: inherit;
   text-underline-offset: 0.2em;
+}
+
+@media (max-width: 640px) {
+  .site-footer .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .footer-links {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 1200px) {
