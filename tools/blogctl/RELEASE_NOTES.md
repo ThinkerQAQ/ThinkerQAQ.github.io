@@ -1,3 +1,21 @@
+# BlogCTL v0.1.116 (local experimental build)
+
+Align the Windows Bridge, Native Host, and Edge/Chrome extension at v0.1.116.
+
+- Add a **direct HTTP** Toutiao creator CSRF preflight and HAR-grounded draft
+  request format. No creator-editor window, DOM automation, or browser relay.
+- Add a standalone, explicit opt-in Toutiao HTTP diagnostic command. Its
+  default is read-only; draft creation requires a separate confirmation flag.
+- Shorten disabled-platform status labels and avoid repeating explanatory
+  messages in the extension UI.
+- Keep the Toutiao draft/publish UI **disabled** until a real private draft
+  save and creator inventory readback succeed. Existing publication data
+  and all other platforms remain unchanged.
+
+This is a local test build from PR #177, not a published stable release.
+
+---
+
 # BlogCTL v0.1.115
 
 Remove the Toutiao browser editor relay introduced in v0.1.114.
