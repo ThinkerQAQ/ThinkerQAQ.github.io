@@ -34,6 +34,9 @@ func TestToutiaoUpdatePublishedRepublishesExactCreatorArticle(t *testing.T) {
 			if form.Get("save") != "1" || form.Get("pgc_id") != articleID || form.Get("article_type") != "0" || form.Get("entrance") != "main" {
 				t.Fatalf("published edit form does not match HAR: save=%q id=%q article_type=%q entrance=%q", form.Get("save"), form.Get("pgc_id"), form.Get("article_type"), form.Get("entrance"))
 			}
+			if form.Get("draft_form_data") != `{"coverType":1}` || !strings.Contains(form.Get("extra"), `"source_type":-1`) {
+				t.Fatal("republish metadata does not match HAR")
+			}
 			if form.Get("title") != "新的文章标题" || !strings.Contains(form.Get("content"), "更新后的正文") {
 				t.Fatal("local update content missing")
 			}

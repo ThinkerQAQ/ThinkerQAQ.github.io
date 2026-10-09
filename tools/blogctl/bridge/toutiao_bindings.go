@@ -153,6 +153,9 @@ func (s *Server) handleToutiaoBindingPut(response http.ResponseWriter, request *
 	binding.Source = "manual"
 	binding.VerifiedAt = time.Now().UTC().Format(time.RFC3339)
 	if body.State == "published" {
+		if binding.PublishedRemoteID != selected.ID || binding.RemoteUpdatedAt != selected.ModifiedAt {
+			binding.PublishedHash = ""
+		}
 		binding.PublishedRemoteID = selected.ID
 		binding.PublishedURL = selected.URL
 		binding.RemoteUpdatedAt = selected.ModifiedAt
