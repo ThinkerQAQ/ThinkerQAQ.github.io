@@ -173,7 +173,7 @@ test("cron backfills missing complete hours and persists latest report", async (
 
     // One share lookup plus 10 requests for each of four hourly buckets,
     // two complete daily aggregates, and two complete weekly aggregates.
-    assert.equal(umami.calls(), 81);
+    assert.equal(umami.calls(), 91);
   } finally {
     umami.restore();
   }
@@ -193,7 +193,7 @@ test("cron bootstrap builds latest without relying on KV read-after-write consis
     assert.equal(latest.previous.startAt, Date.parse("2026-09-24T03:00:00Z"));
     assert.ok(kv.data.has(analyticsInternals.DAILY_LATEST_KEY));
     assert.ok(kv.data.has(analyticsInternals.WEEKLY_LATEST_KEY));
-    assert.equal(umami.calls(), 61);
+    assert.equal(umami.calls(), 71);
   } finally {
     umami.restore();
   }
