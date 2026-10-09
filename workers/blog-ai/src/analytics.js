@@ -14,8 +14,6 @@ const TODAY_PREFIX = "analytics:today:";
 const HOUR_PREFIX = "analytics:hour:";
 const WEEK_PREFIX = "analytics:week:";
 const WEEKLY_LATEST_KEY = "analytics:weekly:latest";
-const DAY_PREFIX = "analytics:day:";
-const DAILY_LATEST_KEY = "analytics:daily:latest";
 
 const METRIC_TYPES = Object.freeze({
   paths: "path",
@@ -263,16 +261,6 @@ function publicWeeklyReport(report) {
   };
 }
 
-function publicDailyReport(report) {
-  if (!report) return report;
-  return {
-    ...report,
-    current: publicWindow(report.current),
-    previous: publicWindow(report.previous),
-    delta: publicDelta(report.delta),
-  };
-}
-
 function publicTodayReport(report) {
   if (!report) return report;
   const {
@@ -352,27 +340,6 @@ function weekKey(weekStartDate) {
   return `${WEEK_PREFIX}${weekStartDate}`;
 }
 
-function localDayWindow(timestamp, offsetMinutes, daysAgo = 1) {
-  const offsetMs = offsetMinutes * 60 * 1000;
-  const shifted = new Date(timestamp + offsetMs);
-  const dayStartShifted = Date.UTC(
-    shifted.getUTCFullYear(),
-    shifted.getUTCMonth(),
-    shifted.getUTCDate() - daysAgo,
-  );
-  const startAt = dayStartShifted - offsetMs;
-
-  return {
-    date: new Date(dayStartShifted).toISOString().slice(0, 10),
-    startAt,
-    endAt: startAt + DAY_MS - 1,
-  };
-}
-
-function dayKey(date) {
-  return `${DAY_PREFIX}${date}`;
-}
-
 function emptyWindow(startAt, endAt) {
   return {
     startAt,
@@ -396,41 +363,6 @@ function pendingHours(lastFinalizedHourEnd, now, graceMs = 0) {
     0,
     Math.floor((expectedHourEnd - lastFinalizedHourEnd) / HOUR_MS),
   );
-}
-
-async function refreshDaily(kv, share, scheduledTime, env) {
-  const offsetMinutes = timezoneOffsetMinutes(env);
-  const periods = [
-    localDayWindow(scheduledTime, offsetMinutes, 1),
-    localDayWindow(scheduledTime, offsetMinutes, 2),
-  ];
-  const windows = [];
-
-  for (const period of periods) {
-    const key = dayKey(period.date);
-    let window = await readJson(kv, key);
-
-    if (!window) {
-      window = {
-        ...(await collectWindow(share, period.startAt, period.endAt)),
-        date: period.date,
-        timezoneOffsetMinutes: offsetMinutes,
-      };
-      await writeJson(kv, key, window);
-    }
-
-    windows.push(window);
-  }
-
-  const daily = {
-    generatedAt: new Date(scheduledTime).toISOString(),
-    timezoneOffsetMinutes: offsetMinutes,
-    current: windows[0],
-    previous: windows[1],
-    delta: buildDelta(windows[0], windows[1]),
-  };
-  await writeJson(kv, DAILY_LATEST_KEY, daily);
-  return daily;
 }
 
 async function refreshWeekly(kv, share, scheduledTime, env) {
@@ -550,8 +482,6 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
       meta.lastFinalizedHourEnd,
       freshWindows,
     );
-    const today = await loadToday(env, scheduledTime, share);
-    const daily = await refreshDaily(kv, share, scheduledTime, env);
     const weekly = await refreshWeekly(kv, share, scheduledTime, env);
 
     meta = {
@@ -565,7 +495,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
     };
     await writeJson(kv, META_KEY, meta);
 
-    return { latest, today, daily, weekly, meta };
+    return { latest, weekly, meta };
   } catch (error) {
     meta = {
       ...meta,
@@ -577,7 +507,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
   }
 }
 
-async function loadToday(env, now, resolvedShare = null) {
+async function loadToday(env, now) {
   const kv = requireKv(env);
   const offsetMinutes = timezoneOffsetMinutes(env);
   const { date, startAt } = localDateParts(now, offsetMinutes);
@@ -592,8 +522,7 @@ async function loadToday(env, now, resolvedShare = null) {
     return stored;
   }
 
-  const share =
-    resolvedShare || (await resolveShare(env.UMAMI_SHARE_SLUG || ""));
+  const share = await resolveShare(env.UMAMI_SHARE_SLUG || "");
   const current = await collectWindow(share, startAt, now);
   const report = {
     generatedAt: new Date(now).toISOString(),
@@ -671,43 +600,6 @@ export async function handleAnalyticsRequest(request, env, ctx) {
     );
   }
 
-  if (url.pathname === "/analytics/daily") {
-    return cachedJson(
-      request,
-      ctx,
-      async () => {
-        const date = url.searchParams.get("date");
-        if (date) {
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            return {
-              available: false,
-              message: "date must use YYYY-MM-DD.",
-            };
-          }
-          const dailyWindow = await readJson(kv, dayKey(date));
-          if (!dailyWindow) {
-            return {
-              available: false,
-              date,
-              message: "Daily analytics have not been collected for this date.",
-            };
-          }
-          return publicWindow(dailyWindow);
-        }
-
-        const daily = await readJson(kv, DAILY_LATEST_KEY);
-        if (!daily) {
-          return {
-            available: false,
-            message: "Daily analytics have not been collected yet.",
-          };
-        }
-        return publicDailyReport(daily);
-      },
-      300,
-    );
-  }
-
   if (url.pathname === "/analytics/weekly") {
     return cachedJson(
       request,
@@ -767,11 +659,8 @@ export const analyticsInternals = {
   META_KEY,
   LATEST_KEY,
   WEEKLY_LATEST_KEY,
-  DAILY_LATEST_KEY,
   hourKey,
   weekKey,
-  dayKey,
   localDateParts,
-  localDayWindow,
   localWeekWindow,
 };
