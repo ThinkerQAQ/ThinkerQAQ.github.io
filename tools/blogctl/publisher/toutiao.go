@@ -224,6 +224,15 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		return "", err
 	}
 	values := toutiaoArticleValues(input, html, strings.TrimSpace(refID), covers, publish)
+	if publish {
+		// Captured editor republish form (save=1) for an already-published article.
+		values.Set("article_type", "0")
+		values.Set("entrance", "main")
+		values.Set("praise", "0")
+		for _, name := range []string{"ic_uri_list", "appid_list", "stock_ids", "concern_list", "title_id"} {
+			values.Set(name, "")
+		}
+	}
 	req, err := t.request(ctx, http.MethodPost,
 		toutiaoOrigin+"/mp/agw/article/publish?source=mp&type=article&aid=1231&mp_publish_ab_val=0",
 		strings.NewReader(values.Encode()))
