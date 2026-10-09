@@ -1,6 +1,7 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
+import { validateToutiaoBrowserRequest, executeToutiaoEditorFetch } from "./toutiao-browser.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -21,6 +22,7 @@ let googleSearchConsoleStatus = {
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
 // Browser-observed Toutiao editor headers live only in extension memory.
+const toutiaoBrowserPumps = new Map();
 const toutiaoEditorHeaders = {};
 let toutiaoEditorHeadersCapturedAt = 0;
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
@@ -570,6 +572,67 @@ async function syncSessionsForPlatforms(platforms = []) {
       throw error;
     }
   }
+}
+
+async function ensureToutiaoEditorTab() {
+  const tabs = await chrome.tabs.query({ url: ["https://mp.toutiao.com/*"] });
+  const editor = tabs.find((tab) => tab.url?.startsWith("https://mp.toutiao.com/profile_v4/graphic/publish"));
+  const tab = editor ?? tabs[0] ?? await chrome.tabs.create({
+    url: "https://mp.toutiao.com/profile_v4/graphic/publish", active: false,
+  });
+  const loaded = await waitForTabLoaded(tab.id, 20000);
+  if (!loaded.url?.startsWith("https://mp.toutiao.com/")) {
+    throw new Error("Please sign in to the Toutiao creator editor.");
+  }
+  return loaded.id;
+}
+
+async function processToutiaoBrowserRequest(request) {
+  const valid = validateToutiaoBrowserRequest(request);
+  try {
+    const tabId = await ensureToutiaoEditorTab();
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: executeToutiaoEditorFetch,
+      args: [valid.path, valid.body],
+    });
+    const result = results?.[0]?.result;
+    if (!result || typeof result.status !== "number") {
+      throw new Error("Toutiao editor did not return a browser response");
+    }
+    await fetchJSON("/v1/toutiao/browser/complete", jsonOptions("POST", {
+      id: valid.id, status: result.status,
+      body: String(result.body || "").slice(0, 2 * 1024 * 1024),
+      error: String(result.error || "").slice(0, 350),
+    }));
+  } catch (error) {
+    await fetchJSON("/v1/toutiao/browser/complete", jsonOptions("POST", {
+      id: valid.id, status: 0, body: "",
+      error: errorMessage(error).slice(0, 350),
+    })).catch(() => null);
+  }
+}
+
+function kickToutiaoBrowserPump(jobId) {
+  if (toutiaoBrowserPumps.has(jobId)) return;
+  const task = (async () => {
+    const deadline = Date.now() + 12 * 60 * 1000;
+    while (Date.now() < deadline) {
+      try {
+        const next = await fetchJSON("/v1/toutiao/browser/next");
+        if (next?.request) {
+          await processToutiaoBrowserRequest(next.request);
+        }
+        const state = await fetchJSON("/v1/jobs/" + encodeURIComponent(jobId));
+        if (state?.job && !["queued", "running"].includes(state.job.state)) break;
+      } catch (error) {
+        console.warn("Toutiao browser request pump:", errorMessage(error));
+      }
+      await delay(800);
+    }
+  })().finally(() => toutiaoBrowserPumps.delete(jobId));
+  toutiaoBrowserPumps.set(jobId, task);
 }
 
 async function waitForTabLoaded(tabId, timeoutMs = 20000) {
@@ -1482,6 +1545,9 @@ async function handleMessage(message) {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
+      if (result?.job?.id && (request.platforms ?? []).includes("toutiao")) {
+        kickToutiaoBrowserPump(result.job.id);
+      }
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
@@ -1507,6 +1573,9 @@ async function handleMessage(message) {
       }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      if (result?.job?.id && (result.job.platforms ?? []).includes("toutiao")) {
+        kickToutiaoBrowserPump(result.job.id);
+      }
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.pause": {

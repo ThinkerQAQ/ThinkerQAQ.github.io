@@ -177,13 +177,15 @@ func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []br
 }
 
 type Server struct {
-	token      string
-	now        func() time.Time
-	httpClient *http.Client
-	config     bridgeConfig
-	restart    func()
-	syncRunner syncRunner
-	searchMu   sync.Mutex
+	token              string
+	now                func() time.Time
+	httpClient         *http.Client
+	config             bridgeConfig
+	restart            func()
+	syncRunner         syncRunner
+	searchMu           sync.Mutex
+	toutiaoBrowserOnce sync.Once
+	toutiaoBrowser     *toutiaoBrowserRequests
 
 	mu             sync.Mutex
 	distributionMu sync.Mutex
@@ -325,6 +327,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if path == "v1/zhihu/binding" && request.Method == http.MethodDelete {
 		s.handleZhihuBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/toutiao/browser/next" || path == "v1/toutiao/browser/complete" {
+		if request.Header.Get("x-thinkerqaq-token") != s.token {
+			writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
+			return
+		}
+		if path == "v1/toutiao/browser/next" {
+			s.handleToutiaoBrowserNext(response, request)
+		} else {
+			s.handleToutiaoBrowserComplete(response, request)
+		}
 		return
 	}
 	if path == "v1/toutiao/articles/list" && request.Method == http.MethodPost {
