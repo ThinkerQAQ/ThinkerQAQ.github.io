@@ -44,7 +44,7 @@ test("each platform exposes an isolated detection or update action", async () =>
   assert.match(drafts, /startSavePlatforms\(\[platform\.id\]\)/u);
 });
 
-test("publishing platforms never drive hidden browser tabs or platform DOM", async () => {
+test("publishing platforms never automate DOM; Toutiao uses scoped editor MAIN-world fetch", async () => {
   const background = await readFile(backgroundPath, "utf8");
 
   assert.doesNotMatch(background, /cto51PublishInBrowser|waitForPublishedURL/u);
@@ -53,7 +53,8 @@ test("publishing platforms never drive hidden browser tabs or platform DOM", asy
   assert.doesNotMatch(background, /\/v1\/browser-ops/u);
 
   const executeScriptCalls = background.match(/chrome\.scripting\.executeScript/g) || [];
-  assert.equal(executeScriptCalls.length, 1);
+  assert.equal(executeScriptCalls.length, 2);
+  assert.match(background, /world: "MAIN"/u);
   assert.match(background, /files: \["google-indexing-content\.js"\]/u);
 });
 
