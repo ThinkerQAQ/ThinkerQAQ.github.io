@@ -59,9 +59,12 @@ var definitions = []Definition{
 	},
 	{
 		ID: "toutiao", Label: "今日头条", DefaultLanguage: "zh-CN",
-		// Discovery and binding are supported. Writing requires an unverified
-		// dynamic creator signature; never advertise it as operational.
-		Capabilities: Capabilities{BrowserSession: true, RemoteList: true},
+		// Native HTTP draft and verified published-update operations are opt-in.
+		// Explicit publishing a NEW article remains disabled.
+		Capabilities: Capabilities{
+			BrowserSession: true, DraftCreate: true, DraftUpdate: true,
+			PublishedUpdate: true, RemoteList: true, BodyImages: true, BodyImageRehost: true,
+		},
 	},
 	{
 		ID: "devto", Label: "DEV.to", DefaultLanguage: "en",
