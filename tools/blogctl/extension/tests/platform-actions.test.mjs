@@ -75,3 +75,18 @@ test("Toutiao uses only ephemeral browser-observed creator editor request header
   assert.match(background, /Date\.now\(\) - toutiaoEditorHeadersCapturedAt < 10 \* 60 \* 1000/u);
   assert.match(background, /platform === "toutiao".*toutiaoEditorHeadersCapturedAt/su);
 });
+
+
+test("Toutiao published edits are explicit, confirmed, and separate from draft saves", async () => {
+  const [drafts, sync] = await Promise.all([
+    readFile(draftsPath, "utf8"), readFile(syncPath, "utf8"),
+  ]);
+  assert.match(drafts, /function startPublishedUpdate\(platformID\)/u);
+  assert.match(drafts, /window\.confirm\(/u);
+  assert.match(drafts, /operation: "update-published"/u);
+  assert.match(drafts, /"更新已发布"/u);
+  assert.match(drafts, /operation: "draft"/u);
+  assert.match(sync, /from=edit&pgc_id=/u);
+  assert.match(sync, /function reverifyToutiaoPublished\(item\)/u);
+  assert.match(sync, /"重新校验版本"/u);
+});

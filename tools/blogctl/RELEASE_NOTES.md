@@ -1,14 +1,15 @@
-# BlogCTL v0.1.112
+# BlogCTL v0.1.113
 
-Align Toutiao image uploads with authenticated creator-editor traffic captured in the browser HAR.
+Add explicit published-article editing and republishing for Toutiao, using the captured creator-editor workflow.
 
 ## Changes
 
-- Upload local images to POST /spice/image with multipart field image and upload_source=20020002.
-- Import remote images using multipart imageUrl with upload_source=20020003 and need_cover_url=1.
-- Parse the creator API result using code=0 and data.image_url; reject failed or malformed responses.
-- Recognize Toutiao-hosted images to prevent unnecessary duplicate uploads.
-- Reuse observed Toutiao editor CSRF and anti-token request headers from the browser session. Capture is ephemeral, name-restricted, and expires after 10 minutes; credentials are not persisted.
-- Align CLI, Bridge, Native Host, and browser-extension versions to v0.1.112.
+- Open an owned Toutiao article in its original editor using from=edit and pgc_id.
+- Provide an explicit "Update Published" action distinct from saving or creating drafts.
+- Submit the original published pgc_id to /mp/agw/article/publish using the captured save=1 contract and published editor metadata.
+- Check the current creator account, published status, and remote modify_time against the manually verified binding before submission.
+- Preserve the original published ID and URL, never create a duplicate draft as a side effect, and require re-verification after republish submission.
+- Treat a successful response as submitted for publishing review, not proof the updated public page is live.
+- Align Windows CLI, Native Host, Bridge, and browser extension to v0.1.113.
 
-The captured HAR confirms the upload protocol. Live account upload and formal publication remain separate acceptance tests.
+Authenticated live republishing is intentionally not performed automatically; verification used captured HAR contracts and a mocked creator endpoint.

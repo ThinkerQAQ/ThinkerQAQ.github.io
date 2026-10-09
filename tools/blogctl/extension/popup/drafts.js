@@ -46,6 +46,11 @@
     const record = publicationRecord(platform.id);
     const hasDraft = Boolean(record?.remoteId || record?.draftUrl);
     const hasPublished = Boolean(record?.publishedRemoteId || record?.publishedUrl);
+    // An already-published Toutiao article is edited only via the separate
+    // explicit republish action, never through the ordinary draft save path.
+    if (platform.id === "toutiao" && !hasDraft && hasPublished) {
+      return { available: false, reason: "已发布文章请使用「更新已发布」" };
+    }
     if (!hasDraft && hasPublished && platform.capabilities?.publishedUpdate !== true &&
       platform.capabilities?.publishedDraftEdit !== true) {
       return { available: false, reason: "已有已发布文章；该平台暂不支持原文更新" };
@@ -113,7 +118,7 @@
   function platformLifecycleText(platformId) {
     const record = publicationRecord(platformId);
     if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 本次更新";
-    if (record?.publishedUrl) return "已有已发布记录";
+    if (record?.publishedUrl) return "已有已发布记录 · 可单独更新已发布内容";
     return "没有草稿关系 · 本次创建";
   }
 
@@ -177,6 +182,17 @@
         !state.status?.bridge?.running || running;
       updatePlatformButton.addEventListener("click", () => startSavePlatforms([platform.id]));
       actions.append(updatePlatformButton);
+      const record = publicationRecord(platform.id);
+      if (platform.id === "toutiao" && platform.capabilities?.publishedUpdate === true &&
+          (record?.publishedRemoteId && record?.publishedUrl)) {
+        const republish = document.createElement("button");
+        republish.type = "button";
+        republish.className = "secondary compact";
+        republish.textContent = running ? "提交中…" : "更新已发布";
+        republish.disabled = !state.selectedSlug || !state.status?.bridge?.running || running;
+        republish.addEventListener("click", () => startPublishedUpdate(platform.id));
+        actions.append(republish);
+      }
       wrapper.append(actions);
 
       const taskResult = platformTaskResult(platform.id);
@@ -246,7 +262,8 @@
     if (terminal) {
       const successful = completedPlatforms(job);
       viewTaskButton.disabled = false;
-      enterPublishButton.disabled = successful.length === 0;
+      enterPublishButton.disabled = job.operation === "update-published" || successful.length === 0;
+      enterPublishButton.hidden = job.operation === "update-published";
       enterPublishButton.textContent = successful.length > 0 && successful.length < (job.platforms ?? []).length
         ? `发布成功的 ${successful.length} 个平台`
         : "进入发布";
@@ -290,7 +307,9 @@
         const publications = await BlogCTLPopup.send("blogctl.publications");
         state.records = publications.records ?? state.records;
         renderPlatforms();
-        BlogCTLPopup.setMessage(message, "更新完成。可查看任务，或进入发布。", "ok");
+        BlogCTLPopup.setMessage(message, state.currentJob.operation === "update-published"
+          ? "已提交头条文章更新，请在头条后台确认审核及线上生效情况。"
+          : "更新完成。可查看任务，或进入发布。", "ok");
         return;
       }
       if (state.currentJob.state === "failed") {
@@ -312,6 +331,32 @@
     }
 
     state.pollTimer = setTimeout(() => pollJob(jobID), 1200);
+  }
+
+  async function startPublishedUpdate(platformID) {
+    const article = state.selectedSlug;
+    const record = publicationRecord(platformID);
+    if (platformID !== "toutiao" || !article || !record?.publishedRemoteId ||
+        !record?.publishedUrl || !state.status?.bridge?.running ||
+        ["queued", "running"].includes(state.currentJob?.state)) return;
+    if (!window.confirm("将本地文章内容提交到今日头条已发布文章（ID " +
+        record.publishedRemoteId + "），可能直接影响公开页面。确认更新？")) return;
+    resetWorkflow();
+    BlogCTLPopup.setMessage(message, "正在提交已发布文章更新任务…");
+    try {
+      const response = await BlogCTLPopup.send("blogctl.job.start", {
+        request: {
+          article, platforms: [platformID], dryRun: false,
+          draft: false, operation: "update-published",
+        },
+      });
+      state.currentJob = response.job ?? null;
+      renderPlatforms();
+      BlogCTLPopup.setMessage(message, "已发布文章更新任务已启动。", "ok");
+      if (state.currentJob?.id) pollJob(state.currentJob.id);
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+    }
   }
 
   async function startSavePlatforms(platforms) {
