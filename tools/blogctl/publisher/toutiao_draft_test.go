@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -130,5 +131,42 @@ func TestToutiaoPublishIsNotDraftSave(t *testing.T) {
 	result, err := adapterValue.PublishDraft(context.Background(), DraftRef{ID: "123"}, DraftInput{Title: "发布", Markdown: "正文"})
 	if err != nil || result.URL != "https://www.toutiao.com/article/123/" {
 		t.Fatalf("result=%+v err=%v", result, err)
+	}
+}
+
+func TestToutiaoUpdateDraftPreservesExistingCoverMetadata(t *testing.T) {
+	const originalCovers = `[{"url":"https://example.invalid/cover.jpg","thumb_width":750,"thumb_height":422}]`
+	metadata, err := json.Marshal(map[string]string{"pgc_feed_covers": originalCovers})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"code":       0,
+		"draft_list": []map[string]any{{"gid": "111", "title": "existing", "graphic_extra": string(metadata)}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Path {
+		case "/mp/agw/creator_center/draft_list":
+			return jsonResponse(req, 200, string(payload), nil), nil
+		case "/mp/agw/article/publish":
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+			if req.PostForm.Get("pgc_feed_covers") != originalCovers {
+				t.Fatalf("lost existing draft cover metadata: %q", req.PostForm.Get("pgc_feed_covers"))
+			}
+			return jsonResponse(req, 200, `{"code":0,"err_no":0,"data":{"pgc_id":"111"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s", req.URL)
+			return nil, nil
+		}
+	})}
+	adapterValue, _ := NewToutiaoAdapter(client, toutiaoTestSession())
+	_, err = adapterValue.UpdateDraft(context.Background(), DraftRef{ID: "111"}, DraftInput{Title: "changed", Markdown: "changed body"})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
