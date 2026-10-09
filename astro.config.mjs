@@ -6,6 +6,7 @@ import { defineConfig } from "astro/config";
 import { satteri } from "@astrojs/markdown-satteri";
 import plantumlMarkdown from "./src/markdown/plantuml.mjs";
 import mermaidMarkdown from "./src/markdown/mermaid.mjs";
+import { renderAll as renderMermaid } from "./scripts/render-mermaid.mjs";
 import readingTimeMarkdown from "./src/markdown/reading-time.mjs";
 import markdownImageLoading from "./src/markdown/image-loading.mjs";
 import textCodeGrid from "./src/markdown/text-code-grid.mjs";
@@ -76,6 +77,23 @@ export default defineConfig({
     port: 4321,
   },
   vite: {
+    plugins: [{
+      name: "mermaid-static-preview",
+      apply: "serve",
+      async handleHotUpdate({ file, server }) {
+        const normalized = file.split(path.sep).join("/");
+        if (!normalized.includes("/src/content/") || !normalized.endsWith(".md")) return;
+        try {
+          // Wait before reloading: the Markdown transform needs the SVG cache.
+          await renderMermaid();
+          server.ws.send({ type: "full-reload" });
+          return [];
+        } catch (error) {
+          server.config.logger.error("[mermaid] " + (error?.message || error));
+          throw error;
+        }
+      },
+    }],
     server: {
       strictPort: true,
     },

@@ -3,7 +3,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  MERMAID_RENDERED_EVENT,
   MEDIA_VIEWER_SCALE_STEPS,
   formatMediaScale,
   hasPanOverflow,
@@ -38,22 +37,12 @@ test("content media viewer formats zoom percentages for the toolbar", () => {
 });
 
 
-test("Mermaid runtime signals the viewer only after mermaid.run finishes", async () => {
-  assert.equal(MERMAID_RENDERED_EVENT, "blog:mermaid-rendered");
-
-  const source = await readFile(
-    new URL("../src/components/MermaidRuntime.astro", import.meta.url),
-    "utf8",
-  );
-  const renderIndex = source.indexOf("await mermaid.run");
-  const readyIndex = source.indexOf("diagram.dataset.mermaidReady");
-  const eventIndex = source.indexOf('new CustomEvent("blog:mermaid-rendered"');
-
-  assert.ok(renderIndex >= 0);
-  assert.ok(readyIndex > renderIndex);
-  assert.ok(eventIndex > readyIndex);
+test("Mermaid SVG shares the image viewer with PlantUML", async () => {
+  const source = await readFile(new URL("./content-media-viewer.js", import.meta.url), "utf8");
+  assert.match(source, /\.plantuml-diagram, \.mermaid-diagram/);
+  assert.match(source, /kind: diagramHost\.classList\.contains\("mermaid-diagram"\)/);
+  assert.ok(!source.includes("blog:mermaid-rendered"));
 });
-
 
 function createPanHost() {
   const listeners = new Map();
@@ -166,7 +155,7 @@ test("touch inline drag keeps pointerdown available for normal vertical page scr
 
 test("inline media CSS does not trap vertical wheel scrolling", async () => {
   const css = await readFile(
-    new URL("../src/styles/global.css", import.meta.url),
+    new URL("../styles/global.css", import.meta.url),
     "utf8",
   );
 
