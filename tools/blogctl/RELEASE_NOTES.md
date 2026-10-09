@@ -1,13 +1,12 @@
-# BlogCTL v0.1.108
+# BlogCTL v0.1.109
 
-BlogCTL now uses `https://thinkerqaq.com` consistently across the browser extension, website inventory, and search-indexing flows.
+Align the Google Search Console integration with the verified sc-domain:thinkerqaq.com property.
 
 ## Changes
 
-- Switch the Google Search Console browser property and the indexing inventory source to the canonical domain.
-- Show new-domain URLs in publishing preview and refresh repository documentation.
-- Isolate persisted search inventories, IndexNow snapshots, and Google request queues by site origin, so records from the former `github.io` domain cannot be resumed or submitted as removals on the new site.
-- Keep legacy DEV.to canonical matching and Reaction source-origin compatibility for previously published links.
-- Keep CLI, extension, and release versions aligned.
+- Open and reuse the verified Search Console domain property in the browser extension, avoiding the unprivileged URL-prefix property.
+- Use the domain property as the default site for automated Search Console sitemap notification.
+- Keep existing canonical URLs and sitemap contents under https://thinkerqaq.com.
+- Keep CLI, browser extension, and Native Host versions aligned.
 
-The website's Search Console property still requires separate ownership verification and authorization before submission.
+The Search Console service account has successfully submitted the two existing sitemaps under the domain property; indexing and crawling are still determined by Google.
