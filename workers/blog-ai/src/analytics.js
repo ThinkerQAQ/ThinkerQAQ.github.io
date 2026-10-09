@@ -550,6 +550,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
       meta.lastFinalizedHourEnd,
       freshWindows,
     );
+    const today = await loadToday(env, scheduledTime, share);
     const daily = await refreshDaily(kv, share, scheduledTime, env);
     const weekly = await refreshWeekly(kv, share, scheduledTime, env);
 
@@ -564,7 +565,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
     };
     await writeJson(kv, META_KEY, meta);
 
-    return { latest, daily, weekly, meta };
+    return { latest, today, daily, weekly, meta };
   } catch (error) {
     meta = {
       ...meta,
@@ -576,7 +577,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
   }
 }
 
-async function loadToday(env, now) {
+async function loadToday(env, now, resolvedShare = null) {
   const kv = requireKv(env);
   const offsetMinutes = timezoneOffsetMinutes(env);
   const { date, startAt } = localDateParts(now, offsetMinutes);
@@ -591,7 +592,8 @@ async function loadToday(env, now) {
     return stored;
   }
 
-  const share = await resolveShare(env.UMAMI_SHARE_SLUG || "");
+  const share =
+    resolvedShare || (await resolveShare(env.UMAMI_SHARE_SLUG || ""));
   const current = await collectWindow(share, startAt, now);
   const report = {
     generatedAt: new Date(now).toISOString(),
