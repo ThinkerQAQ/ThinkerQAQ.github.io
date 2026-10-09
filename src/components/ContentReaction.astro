@@ -14,7 +14,6 @@ const isChinese = language === "zh";
 const label = isChinese ? "有帮助" : "Helpful";
 const loadingLabel = isChinese ? "正在加载有帮助数量" : "Loading helpful count";
 const errorLabel = isChinese ? "暂时无法连接点赞服务，请重试。" : "Unable to reach the reaction service. Please retry.";
-const retryLabel = isChinese ? "重试" : "Retry";
 ---
 
 {enabled && (
@@ -42,7 +41,6 @@ const retryLabel = isChinese ? "重试" : "Retry";
       <span>{label}</span>
       <span class="content-reaction__count" data-reaction-count hidden></span>
     </button>
-    <button class="content-reaction__retry" type="button" data-reaction-retry hidden>{retryLabel}</button>
     <span class="visually-hidden" role="status" aria-live="polite" data-reaction-status></span>
   </section>
 )}
@@ -131,18 +129,16 @@ const retryLabel = isChinese ? "重试" : "Retry";
       root.dataset.initialized = "true";
 
       const button = root.querySelector("[data-reaction-button]");
-      const retryButton = root.querySelector("[data-reaction-retry]");
       const status = root.querySelector("[data-reaction-status]");
       const errorLabel = root.dataset.errorLabel || "Unable to reach the reaction service.";
       const loadingLabel = root.dataset.loadingLabel || "Loading helpful count";
 
-      // Initial state is unknown until the GET succeeds. Do not permit a write
-      // based on a guessed state, but provide a separate retry on failure.
+      // Do not permit a write based on unknown state. Failed initial GETs
+      // leave the helpful button disabled without adding UI controls.
       button.disabled = true;
       const load = async () => {
         if (root.dataset.loading === "true") return;
         root.dataset.loading = "true";
-        retryButton.hidden = true;
         status.textContent = loadingLabel;
         try {
           const state = await request(root);
@@ -151,14 +147,13 @@ const retryLabel = isChinese ? "重试" : "Retry";
           status.textContent = "";
         } catch {
           root.dataset.loaded = "false";
-          status.textContent = errorLabel;
-          retryButton.hidden = false;
+          // A failed GET should not change the visual layout.
+          status.textContent = "";
         } finally {
           root.dataset.loading = "false";
           button.disabled = root.dataset.loaded !== "true";
         }
       };
-      retryButton.addEventListener("click", load);
 
       button.addEventListener("click", async () => {
         if (button.disabled) return;
@@ -211,18 +206,6 @@ const retryLabel = isChinese ? "重试" : "Retry";
     align-items: center;
     gap: 0.75rem;
     margin: 3.25rem 0 1.25rem;
-  }
-
-  .content-reaction__retry:not([hidden]) {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--muted);
-    cursor: pointer;
-    padding: 0.5rem 0.8rem;
-    font: inherit;
   }
 
   .content-reaction__button {
