@@ -301,3 +301,16 @@ func TestBridgeToolShowsConfigPath(t *testing.T) {
 	}
 	t.Fatal("bridge tool not found")
 }
+
+func TestConfigDirOverride(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Data")
+	t.Setenv("BLOGCTL_DATA_DIR", dir)
+	got, err := ConfigDir()
+	if err != nil || got != dir {
+		t.Fatalf("ConfigDir = %q, %v; want %q", got, err, dir)
+	}
+	t.Setenv("BLOGCTL_DATA_DIR", "relative-path")
+	if _, err := ConfigDir(); err == nil {
+		t.Fatal("expected an error for relative BLOGCTL_DATA_DIR")
+	}
+}

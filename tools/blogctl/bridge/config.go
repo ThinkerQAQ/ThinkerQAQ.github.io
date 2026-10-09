@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	blogpublishing "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publishing"
@@ -101,6 +102,13 @@ func ResolvedSearchRuntimeConfig() SearchRuntimeConfig {
 }
 
 func defaultConfigDir() (string, error) {
+	if runtime.GOOS == "windows" {
+		executable, err := os.Executable()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(filepath.Dir(executable), "Data"), nil
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
@@ -108,8 +116,15 @@ func defaultConfigDir() (string, error) {
 	return filepath.Join(dir, "BlogCTL"), nil
 }
 
-// ConfigDir 返回 BlogCTL 固定的用户配置目录；blogctl.toml 与运行状态文件都保存在这里。
+// ConfigDir returns the single directory used by configuration, logs, and runtime state.
+// A data directory override is supported for isolated tests and custom deployments.
 func ConfigDir() (string, error) {
+	if configured := strings.TrimSpace(os.Getenv("BLOGCTL_DATA_DIR")); configured != "" {
+		if !filepath.IsAbs(configured) {
+			return "", errors.New("BLOGCTL_DATA_DIR must be an absolute path")
+		}
+		return filepath.Clean(configured), nil
+	}
 	return defaultConfigDir()
 }
 

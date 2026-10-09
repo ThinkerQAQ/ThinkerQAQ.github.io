@@ -49,6 +49,7 @@ func isolateNativeHostConfigDir(t *testing.T) string {
 	t.Setenv("HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", root)
 	t.Setenv("APPDATA", root)
+	t.Setenv("BLOGCTL_DATA_DIR", filepath.Join(root, "BlogCTL"))
 	dir, err := bridge.ConfigDir()
 	if err != nil {
 		t.Fatal(err)
