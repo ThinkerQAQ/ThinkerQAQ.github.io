@@ -167,7 +167,7 @@
       text.append(name, detail);
 
       const badge = document.createElement("span");
-      if (!availability.available) BlogCTLPopup.setStatus(badge, "disabled", availability.reason);
+      if (!availability.available) BlogCTLPopup.setStatus(badge, "disabled", "不可更新", availability.reason);
       else BlogCTLPopup.setStatus(badge, "ok", "可更新");
 
       card.append(checkbox, text, badge);

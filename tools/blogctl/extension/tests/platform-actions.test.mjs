@@ -100,3 +100,13 @@ test("Toutiao editor relay is absent; UI marks unverified direct HTTP writes una
   assert.match(drafts,/platform\.id === "toutiao" && platform\.capabilities\?\.draftCreate !== true/u);
   assert.match(drafts,/头条纯接口保存暂不可用/u);
 });
+
+
+test("unavailable platform cards show the explanatory reason once, with a compact badge", async () => {
+  const [drafts, sync] = await Promise.all([readFile(draftsPath, "utf8"), readFile(syncPath, "utf8")]);
+  assert.match(drafts, /setStatus\(badge, "disabled", "不可更新", availability\.reason\)/u);
+  assert.match(sync, /setStatus\(status, "disabled", "不可检测", availability\.reason\)/u);
+  assert.match(sync, /else if \(state\.selectedSlug && availability\.available\)/u);
+  assert.doesNotMatch(drafts, /setStatus\(badge, "disabled", availability\.reason\)/u);
+  assert.doesNotMatch(sync, /setStatus\(status, "disabled", availability\.reason\)/u);
+});

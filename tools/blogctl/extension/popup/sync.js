@@ -196,7 +196,7 @@
     text.append(name, detail);
 
     const status = document.createElement("span");
-    if (!availability.available) BlogCTLPopup.setStatus(status, "disabled", availability.reason);
+    if (!availability.available) BlogCTLPopup.setStatus(status, "disabled", "不可检测", availability.reason);
     else if (apiPlatform) BlogCTLPopup.setStatus(status, "ok", "可用");
     else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", platform.inferred ? "会话可用" : "已登录");
     else if (nativeBrowserPlatform) BlogCTLPopup.setStatus(status, "unknown", "待校验");
@@ -451,14 +451,12 @@
         result.textContent = prefix + match.text;
         appendMatchRows(platform, match, result);
         card.append(result);
-      } else if (state.selectedSlug) {
+      } else if (state.selectedSlug && availability.available) {
         const note = document.createElement("div");
         note.className = "article-match";
-        note.textContent = !availability.available
-          ? availability.reason
-          : selected
-            ? "点击“检测文章关联”读取远端候选与本地绑定状态。"
-            : "未选择检测此平台。";
+        note.textContent = selected
+          ? "点击“检测文章关联”读取远端候选与本地绑定状态。"
+          : "未选择检测此平台。";
         card.append(note);
       }
 
