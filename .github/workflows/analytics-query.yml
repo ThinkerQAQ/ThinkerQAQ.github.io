@@ -34,7 +34,9 @@ jobs:
     timeout-minutes: 5
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
+      CLOUDFLARE_KV_READ_TOKEN: ${{ secrets.CLOUDFLARE_KV_READ_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       START_DATE: ${{ inputs.start_date }}
       END_DATE: ${{ inputs.end_date }}
     steps:
@@ -52,13 +54,22 @@ jobs:
           const HOUR_MS = 60 * 60 * 1000;
           const HEALTH_GRACE_MS = 15 * 60 * 1000;
           const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-          const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+          const tokenCandidates = [
+            ["CLOUDFLARE_KV_READ_TOKEN", process.env.CLOUDFLARE_KV_READ_TOKEN],
+            ["CLOUDFLARE_API_TOKEN", process.env.CLOUDFLARE_API_TOKEN],
+            ["CLOUDFLARE_AI_SEARCH_TOKEN", process.env.CLOUDFLARE_AI_SEARCH_TOKEN],
+          ];
+          const [tokenSource, apiToken] =
+            tokenCandidates.find(([, value]) => Boolean(value)) || [];
           const startDate = (process.env.START_DATE || "").trim();
           const endDate = (process.env.END_DATE || "").trim();
 
           if (!accountId || !apiToken) {
-            throw new Error("Cloudflare account/token is required for query-only KV access.");
+            throw new Error(
+              "Cloudflare account/token is required for query-only KV access. Configure CLOUDFLARE_KV_READ_TOKEN with Account.Workers KV Storage:Read.",
+            );
           }
+          console.log(`Using Cloudflare token source: ${tokenSource}`);
 
           const wrangler = fs.readFileSync("workers/blog-ai/wrangler.jsonc", "utf8");
           const namespaceMatch = wrangler.match(
@@ -80,8 +91,12 @@ jobs:
             if (response.status === 404 && !required) return null;
             if (!response.ok) {
               const detail = await response.text().catch(() => "");
+              const permissionHint =
+                response.status === 401 || response.status === 403
+                  ? " Ensure the selected token is valid for this account and has Workers KV Storage:Read."
+                  : "";
               throw new Error(
-                `KV read failed for ${key}: ${response.status}${detail ? ` ${detail.slice(0, 200)}` : ""}`,
+                `KV read failed for ${key}: ${response.status}${detail ? ` ${detail.slice(0, 200)}` : ""}.${permissionHint}`,
               );
             }
             const text = await response.text();
