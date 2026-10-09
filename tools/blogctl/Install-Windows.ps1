@@ -28,7 +28,8 @@ if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {
 }
 
 $exe = [System.IO.Path]::GetFullPath($exe)
-$nativeDir = Join-Path $env:LOCALAPPDATA 'BlogCTL'
+# Keep browser registration metadata with BlogCTL's portable runtime data.
+$nativeDir = Join-Path (Split-Path -Parent $exe) 'Data'
 $nativeManifest = Join-Path $nativeDir "$hostName.json"
 New-Item -ItemType Directory -Path $nativeDir -Force | Out-Null
 

@@ -99,17 +99,24 @@ to verify the basic local toolchain.
 
 User configuration is stored in `blogctl.toml`.
 
-Default locations follow the operating-system user-config directory. On Windows:
+On Windows, all persistent BlogCTL data lives in the **`Data` directory next to the installed executable**. For example:
 
 ```text
-%APPDATA%\BlogCTL\blogctl.toml
+C:\software\Coding\blogctl\
+  blogctl-windows-amd64.exe
+  Data\
+    blogctl.toml
+    bridge.json
+    bridge.log
+    jobs.json
+    search-index.json
+    publications.json
+    distribution\
 ```
 
-For example:
+The directory survives binary and Extension updates. The Windows Native Messaging manifest is also registered from `Data`. Keep backups of this folder: it includes API credentials and runtime state.
 
-```text
-C:\Users\zsk\AppData\Roaming\BlogCTL\blogctl.toml
-```
+Linux and macOS continue to use the operating-system user-config directory. Set `BLOGCTL_DATA_DIR` to an absolute path to override the data directory for development or custom deployments. There is no automatic migration from the previous `%APPDATA%\BlogCTL` directory; move the files before running the new Windows binary.
 
 The Extension's **Environment & Configuration** page is the normal way to edit workspace paths, proxy settings, publishing policy, Search credentials and R2 configuration.
 

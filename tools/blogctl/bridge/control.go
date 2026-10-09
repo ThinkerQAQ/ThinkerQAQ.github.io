@@ -479,7 +479,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Config: toolConfigView{
 				Scope:           "bridge",
 				Values:          map[string]any{"path": config.DistributionRoot},
-				Schema:          []toolField{{Key: "path", Label: "Distribution Directory", Type: "directory", Description: "默认位于 C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\distribution"}},
+				Schema:          []toolField{{Key: "path", Label: "Distribution Directory", Type: "directory", Description: "默认位于 C:\\software\\Coding\\blogctl\\Data\\distribution"}},
 				DefaultExpanded: true,
 			},
 		},
@@ -490,7 +490,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Config: toolConfigView{
 				Scope:           "bridge",
 				Values:          map[string]any{"path": config.PublicationBindingsPath},
-				Schema:          pathField("path", "Bindings File", "默认位于 BlogCTL 配置目录，例如 C:\\Users\\zsk\\AppData\\Roaming\\BlogCTL\\publications.json"),
+				Schema:          pathField("path", "Bindings File", "默认位于 BlogCTL 配置目录，例如 C:\\software\\Coding\\blogctl\\Data\\publications.json"),
 				DefaultExpanded: true,
 			},
 		},
