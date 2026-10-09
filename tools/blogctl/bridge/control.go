@@ -961,6 +961,7 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 	publisherSession := publisher.Session{
 		Cookies: cookies, UserAgent: session.UserAgent, RequestCookieHeader: session.RequestCookieHeader,
 		RequestCookieHeaders: cloneStringMap(session.RequestCookieHeaders),
+		RequestHeaders:       cloneStringMap(session.RequestHeaders),
 		CookieHostSuffixes:   publisherCookieHostSuffixes(platform),
 	}
 	if platform == "medium" || platform == "51cto" {

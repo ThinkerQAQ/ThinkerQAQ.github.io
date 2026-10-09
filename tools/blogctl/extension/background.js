@@ -20,6 +20,8 @@ let googleSearchConsoleStatus = {
 };
 const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
+// Browser-observed Toutiao editor headers live only in extension memory.
+const toutiaoEditorHeaders = {};
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -55,6 +57,20 @@ chrome.webRequest.onSendHeaders.addListener((details) => {
   const header = cookieHeaderFromRequest(details, extensionOrigin, pending.url);
   if (header !== null) pending.resolve(header);
 }, { urls: platformSessionRequestPatterns }, ["requestHeaders", "extraHeaders"]);
+
+chrome.webRequest.onSendHeaders.addListener((details) => {
+  if (details.method !== "POST" || details.initiator !== "https://mp.toutiao.com") return;
+  const url = new URL(details.url);
+  if (!["/spice/image", "/mp/agw/article/publish"].includes(url.pathname)) return;
+  for (const header of details.requestHeaders ?? []) {
+    const name = String(header.name || "").toLowerCase();
+    if ((name === "x-secsdk-csrf-token" || name === "tt-anti-token") &&
+        typeof header.value === "string" && header.value.length > 0 && header.value.length <= 4096 &&
+        !/[\r\n]/.test(header.value)) {
+      toutiaoEditorHeaders[name] = header.value;
+    }
+  }
+}, { urls: ["https://mp.toutiao.com/spice/image*", "https://mp.toutiao.com/mp/agw/article/publish*"] }, ["requestHeaders", "extraHeaders"]);
 
 function errorMessage(error) {
   return error?.message || String(error);
@@ -531,6 +547,7 @@ async function syncPlatformSession(platform) {
       cookieStores,
       requestCookieHeader,
       requestCookieHeaders,
+      requestHeaders: platform === "toutiao" ? { ...toutiaoEditorHeaders } : undefined,
     }),
   );
 }

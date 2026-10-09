@@ -34,7 +34,18 @@ func NewToutiaoAdapter(base *http.Client, session Session) (Adapter, error) {
 func (t *toutiaoAdapter) ID() string { return "toutiao" }
 
 func (t *toutiaoAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
-	return browserRequest(ctx, method, rawURL, toutiaoOrigin, toutiaoOrigin+"/profile_v4/graphic/publish", t.userAgent, body)
+	req, err := browserRequest(ctx, method, rawURL, toutiaoOrigin, toutiaoOrigin+"/profile_v4/graphic/publish", t.userAgent, body)
+	if err != nil {
+		return nil, err
+	}
+	if method == http.MethodPost && (req.URL.Path == "/spice/image" || req.URL.Path == "/mp/agw/article/publish") {
+		for _, name := range []string{"x-secsdk-csrf-token", "tt-anti-token"} {
+			if value := strings.TrimSpace(t.session.RequestHeaders[name]); value != "" {
+				req.Header.Set(name, value)
+			}
+		}
+	}
+	return req, nil
 }
 
 func (t *toutiaoAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {

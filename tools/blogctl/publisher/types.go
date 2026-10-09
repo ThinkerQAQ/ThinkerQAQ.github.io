@@ -24,6 +24,7 @@ type Session struct {
 	UserAgent            string
 	RequestCookieHeader  string
 	RequestCookieHeaders map[string]string
+	RequestHeaders       map[string]string
 	CookieHostSuffixes   []string
 	APIKey               string
 }
