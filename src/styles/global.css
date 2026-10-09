@@ -1022,6 +1022,7 @@ main {
 }
 
 .site-footer .footer-inner {
+  align-items: flex-start;
   padding-block: 1.25rem;
 }
 
