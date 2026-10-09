@@ -37,6 +37,8 @@ func TestToutiaoDraftCreateAndUpdateUseCapturedSaveMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Authentication normally populates mediaID from creator account info.
+	adapter.(*toutiaoAdapter).mediaID = "1234567890123456"
 	create, err := adapter.CreateDraft(context.Background(), DraftInput{Title: "创建草稿", Markdown: "新正文"})
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +66,22 @@ func TestToutiaoDraftCreateAndUpdateUseCapturedSaveMode(t *testing.T) {
 	}
 	if _, ok := saves[0]["pgc_id"]; ok {
 		t.Fatalf("creating a new draft unexpectedly carries pgc_id")
+	}
+	if saves[0].Get("article_ad_type") != "3" || saves[0].Get("customer_nick_name") != "" {
+		t.Fatal("initial draft form does not match captured creator settings")
+	}
+	if _, exists := saves[0]["customer_nick_name"]; !exists {
+		t.Fatal("initial draft must include an empty customer_nick_name")
+	}
+	if saves[1].Get("article_ad_type") != "2" {
+		t.Fatal("existing draft should retain its edited ad type")
+	}
+	for _, form := range saves {
+		id := form.Get("title_id")
+		parts := strings.Split(id, "_")
+		if len(parts) != 2 || len(parts[0]) != 13 || parts[1] != "1234567890123456" {
+			t.Fatalf("title_id must use timestamp_mediaId: received length=%d", len(id))
+		}
 	}
 	if saves[1].Get("pgc_id") != existingID {
 		t.Fatalf("updating draft must preserve ID, got %s", saves[1].Get("pgc_id"))

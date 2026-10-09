@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -21,6 +22,7 @@ type toutiaoAdapter struct {
 	session   Session
 	userAgent string
 	userID    string
+	mediaID   string
 }
 
 func NewToutiaoAdapter(base *http.Client, session Session) (Adapter, error) {
@@ -70,6 +72,10 @@ func (t *toutiaoAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	}
 	var decoded struct {
 		Data struct {
+			Media struct {
+				ID    any    `json:"id"`
+				IDStr string `json:"id_str"`
+			} `json:"media"`
 			User struct {
 				ID         any    `json:"id"`
 				ScreenName string `json:"screen_name"`
@@ -80,6 +86,10 @@ func (t *toutiaoAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 		return AuthResult{}, platformError(ErrUpstream, t.ID(), "auth", response.StatusCode, "invalid JSON response", false)
 	}
 	t.userID = valueString(decoded.Data.User.ID)
+	t.mediaID = strings.TrimSpace(decoded.Data.Media.IDStr)
+	if t.mediaID == "" {
+		t.mediaID = valueString(decoded.Data.Media.ID)
+	}
 	if t.userID == "" {
 		return AuthResult{Authenticated: false}, nil
 	}
@@ -224,6 +234,17 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		return "", err
 	}
 	values := toutiaoArticleValues(input, html, strings.TrimSpace(refID), covers, publish)
+	if !publish {
+		// HAR shows title_id as millisecond timestamp + creator MEDIA ID
+		// (different from the logged-in user's ID).
+		if t.mediaID != "" {
+			values.Set("title_id", strconv.FormatInt(time.Now().UnixMilli(), 10)+"_"+t.mediaID)
+		}
+		if strings.TrimSpace(refID) == "" || strings.TrimSpace(refID) == "0" {
+			values.Set("article_ad_type", "3")
+			values.Set("customer_nick_name", "")
+		}
+	}
 	if publish {
 		// Captured editor republish form (save=1) for an already-published article.
 		values.Set("article_type", "0")
