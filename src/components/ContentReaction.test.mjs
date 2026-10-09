@@ -24,13 +24,10 @@ function element() {
 
 function harness(fetchStub, { noObserver = false } = {}) {
   const button = element();
-  const retry = element();
-  retry.hidden = true;
   const status = element();
   const count = element();
   const elements = {
     "[data-reaction-button]": button,
-    "[data-reaction-retry]": retry,
     "[data-reaction-status]": status,
     "[data-reaction-count]": count,
   };
@@ -87,7 +84,7 @@ function harness(fetchStub, { noObserver = false } = {}) {
     Uint8Array,
     IntersectionObserver: FakeIntersectionObserver,
   });
-  return { root, button, retry, status, count, calls, timeouts, get observer() { return observer; } };
+  return { root, button, status, count, calls, timeouts, get observer() { return observer; } };
 }
 
 async function settle() {
@@ -115,15 +112,10 @@ test("reaction GET waits for viewport and keeps button disabled while state is u
   assert.equal(h.observer.disconnected, true);
 });
 
-test("timed-out GET shows retry; retry loads server state and restores button", async () => {
-  const h = harness(async (_url, options, number) => {
-    if (number === 1) {
-      return new Promise((_resolve, reject) => {
-        options.signal.addEventListener("abort", () => reject(new Error("aborted")));
-      });
-    }
-    return { ok: true, json: async () => ({ reacted: false, count: 3 }) };
-  });
+test("timed-out GET fails silently without creating retry controls or modifying layout", async () => {
+  const h = harness(async (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener("abort", () => reject(new Error("aborted")));
+  }));
   h.observer.trigger();
   await settle();
   assert.equal(h.calls.length, 1);
@@ -132,15 +124,12 @@ test("timed-out GET shows retry; retry loads server state and restores button", 
   pending.callback();
   await settle();
   assert.equal(h.button.disabled, true);
-  assert.equal(h.retry.hidden, false);
-  assert.match(h.status.textContent, /请重试/);
-
-  await h.retry.click();
-  assert.equal(h.root.dataset.loaded, "true");
-  assert.equal(h.retry.hidden, true);
-  assert.equal(h.button.disabled, false);
-  assert.equal(h.count.textContent, "3");
+  assert.equal(h.root.dataset.loaded, "false");
+  assert.equal(h.status.textContent, "");
+  assert.equal(h.count.textContent, "");
   assert.equal(h.timeouts.size, 0);
+  await h.button.click();
+  assert.equal(h.calls.length, 1);
 });
 
 test("optimistic PUT/DELETE follow loaded state and use bounded timeouts", async () => {
