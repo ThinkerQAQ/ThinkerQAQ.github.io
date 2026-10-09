@@ -153,7 +153,10 @@ func (s *Server) handleToutiaoBindingPut(response http.ResponseWriter, request *
 	binding.Source = "manual"
 	binding.VerifiedAt = time.Now().UTC().Format(time.RFC3339)
 	if body.State == "published" {
-		if binding.PublishedRemoteID != selected.ID || binding.RemoteUpdatedAt != selected.ModifiedAt {
+		if binding.PublishedRemoteID != selected.ID ||
+			(binding.RemoteUpdatedAt != "" && binding.RemoteUpdatedAt != selected.ModifiedAt) {
+			// A previous submission may be pending review. Retain the local
+			// submitted hash when only its revision baseline was invalidated.
 			binding.PublishedHash = ""
 		}
 		binding.PublishedRemoteID = selected.ID
