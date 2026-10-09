@@ -1,12 +1,11 @@
-# BlogCTL v0.1.109
+# BlogCTL v0.1.111
 
-Align the Google Search Console integration with the verified sc-domain:thinkerqaq.com property.
+Repair Today Headline (Toutiao) article detection and draft updates using the captured creator-center request contracts.
 
 ## Changes
 
-- Open and reuse the verified Search Console domain property in the browser extension, avoiding the unprivileged URL-prefix property.
-- Use the domain property as the default site for automated Search Console sitemap notification.
-- Keep existing canonical URLs and sitemap contents under https://thinkerqaq.com.
-- Keep CLI, browser extension, and Native Host versions aligned.
-
-The Search Console service account has successfully submitted the two existing sitemaps under the domain property; indexing and crawling are still determined by Google.
+- Detect matching drafts and published articles from the authenticated creator inventory, with pagination and separate binding states.
+- Fix draft create/update to use the captured save=0 mode, correct creator form fields and preserve the existing remote draft ID.
+- Refuse stale or unknown draft IDs and preserve existing cover metadata when editing a draft.
+- Keep draft saving separate from explicit publication; publishing itself requires a real-account acceptance test.
+- Align the CLI, Native Host, Bridge, and browser extension to v0.1.111.

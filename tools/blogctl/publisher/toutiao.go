@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -162,35 +164,62 @@ func truncateToutiaoTitle(value string) string {
 	return string(runes[:30])
 }
 
-func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftInput, publish bool) (string, error) {
+// toutiaoArticleValues mirrors the creator editor's form for an ordinary
+// graphic article. Both draft operations use save=0, as captured on Oct 9.
+// Publishing is a separate explicit action (save=1); it must never be used
+// as the draft update path.
+func toutiaoArticleValues(input DraftInput, html, refID, covers string, publish bool) url.Values {
+	values := url.Values{}
+	values.Set("source", "29")
+	values.Set("title", truncateToutiaoTitle(input.Title))
+	values.Set("content", html)
+	values.Set("save", "0")
+	if publish {
+		values.Set("save", "1")
+	}
+	if refID != "" && refID != "0" {
+		values.Set("pgc_id", refID)
+	}
+	values.Set("extra", `{"content_source":100000000402,"content_word_cnt":`+strconv.Itoa(utf8.RuneCountInString(input.Markdown))+`,"is_multi_title":0,"sub_titles":[],"gd_ext":{"entrance":"","from_page":"publisher_mp","enter_from":"PC","device_platform":"mp","is_message":0},"tuwen_wtt_transfer_switch":"1"}`)
+	values.Set("search_creation_info", `{"searchTopOne":0,"abstract":"","clue_id":""}`)
+	values.Set("mp_editor_stat", "{}")
+	values.Set("is_refute_rumor", "0")
+	values.Set("entrance", "")
+	values.Set("timer_status", "0")
+	values.Set("timer_time", "")
+	values.Set("educluecard", "")
+	values.Set("draft_form_data", `{"coverType":2}`)
+	if covers == "" {
+		covers = "[]"
+	}
+	values.Set("pgc_feed_covers", covers)
+	values.Set("article_ad_type", "2")
+	values.Set("is_fans_article", "0")
+	values.Set("govern_forward", "0")
+	values.Set("praise", "1")
+	values.Set("disable_praise", "0")
+	values.Set("tree_plan_article", "0")
+	values.Set("star_order_id", "")
+	values.Set("star_order_name", "")
+	values.Set("activity_tag", "0")
+	values.Set("trends_writing_tag", "0")
+	values.Set("claim_exclusive", "0")
+	return values
+}
+
+func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftInput, publish bool, covers string) (string, error) {
 	html, err := t.prepareHTML(ctx, input)
 	if err != nil {
 		return "", err
 	}
-	values := url.Values{}
-	values.Set("title", truncateToutiaoTitle(input.Title))
-	values.Set("content", html)
-	values.Set("article_ad_type", "2")
-	values.Set("article_type", "0")
-	values.Set("from_diagnosis", "0")
-	values.Set("origin_debut_check_pgc_normal", "0")
-	values.Set("tree_plan_article", "0")
-	if publish {
-		values.Set("save", "0")
-	} else {
-		values.Set("save", "1")
-	}
-	if strings.TrimSpace(refID) == "" {
-		refID = "0"
-	}
-	values.Set("pgc_id", refID)
-	values.Set("pgc_feed_covers", "[]")
-
-	req, err := t.request(ctx, http.MethodPost, toutiaoOrigin+"/mp/agw/article/publish?source=mp&type=article", strings.NewReader(values.Encode()))
+	values := toutiaoArticleValues(input, html, strings.TrimSpace(refID), covers, publish)
+	req, err := t.request(ctx, http.MethodPost,
+		toutiaoOrigin+"/mp/agw/article/publish?source=mp&type=article&aid=1231&mp_publish_ab_val=0",
+		strings.NewReader(values.Encode()))
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+	req.Header.Set("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
 	if csrf := cookieValue(t.session, "passport_csrf_token"); csrf != "" {
 		req.Header.Set("x-csrftoken", csrf)
 	}
@@ -209,20 +238,23 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 	if err := doJSON(t.client, req, t.ID(), operation, &decoded); err != nil {
 		return "", err
 	}
-	codeOK := (decoded.Code != nil && *decoded.Code == 0) || (decoded.ErrNo != nil && *decoded.ErrNo == 0)
+	codeOK := decoded.Code != nil && *decoded.Code == 0 && (decoded.ErrNo == nil || *decoded.ErrNo == 0)
 	id := valueString(decoded.Data.PGCID)
 	if !codeOK || id == "" || id == "0" {
 		message := responseMessage(decoded.Message)
-		if !publish && refID != "0" && (strings.Contains(message, "不存在") || strings.Contains(strings.ToLower(message), "not found")) {
-			return "", platformError(ErrRemoteDraftMissing, t.ID(), operation, 0, message, false)
+		if !publish && refID != "" && refID != "0" && (strings.Contains(message, "不存在") || strings.Contains(strings.ToLower(message), "not found")) {
+			return "", platformError(ErrValidation, t.ID(), operation, 0, "the draft no longer exists; refusing to recreate it without explicit confirmation", false)
 		}
 		return "", platformError(ErrUpstream, t.ID(), operation, 0, message, false)
+	}
+	if refID != "" && refID != "0" && id != refID {
+		return "", platformError(ErrUpstream, t.ID(), operation, 0, "Toutiao returned a different article ID; refusing to overwrite the existing binding", false)
 	}
 	return id, nil
 }
 
 func (t *toutiaoAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
-	id, err := t.mutate(ctx, "0", input, false)
+	id, err := t.mutate(ctx, "0", input, false, "")
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -233,7 +265,24 @@ func (t *toutiaoAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dr
 	if strings.TrimSpace(ref.ID) == "" {
 		return DraftResult{}, platformError(ErrValidation, t.ID(), "update-draft", 0, "draft id is required", false)
 	}
-	id, err := t.mutate(ctx, ref.ID, input, false)
+	// Verify the draft is still present in this creator's draft inventory.
+	// A stale ID may belong to an already published article; never rewrite it.
+	drafts, err := t.listDrafts(ctx)
+	if err != nil {
+		return DraftResult{}, err
+	}
+	var selected *ToutiaoPost
+	for index := range drafts {
+		if drafts[index].ID == strings.TrimSpace(ref.ID) {
+			selected = &drafts[index]
+			break
+		}
+	}
+	if selected == nil {
+		return DraftResult{}, platformError(ErrValidation, t.ID(), "update-draft", 0,
+			"draft ID is not in the authenticated creator's draft list; refusing to update or recreate it", false)
+	}
+	id, err := t.mutate(ctx, ref.ID, input, false, selected.FeedCovers)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -244,7 +293,7 @@ func (t *toutiaoAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if strings.TrimSpace(ref.ID) == "" {
 		return PublishResult{}, platformError(ErrValidation, t.ID(), "publish-draft", 0, "draft id is required", false)
 	}
-	id, err := t.mutate(ctx, ref.ID, input, true)
+	id, err := t.mutate(ctx, ref.ID, input, true, "")
 	if err != nil {
 		return PublishResult{}, err
 	}
