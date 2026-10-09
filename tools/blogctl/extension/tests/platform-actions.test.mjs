@@ -56,3 +56,12 @@ test("publishing platforms never drive hidden browser tabs or platform DOM", asy
   assert.equal(executeScriptCalls.length, 1);
   assert.match(background, /files: \["google-indexing-content\.js"\]/u);
 });
+
+test("Toutiao article detection and binding use the creator inventory, not search feed", async () => {
+  const background = await readFile(backgroundPath, "utf8");
+  assert.match(background, /platform === "toutiao"/u);
+  assert.match(background, /\/v1\/toutiao\/articles\/list\?article=/u);
+  assert.match(background, /case "blogctl\.toutiao\.bind":/u);
+  assert.match(background, /case "blogctl\.toutiao\.unbind":/u);
+  assert.doesNotMatch(background, /mp_search\/v1/u);
+});
