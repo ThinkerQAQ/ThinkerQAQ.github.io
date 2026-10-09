@@ -50,6 +50,7 @@ type sessionRequest struct {
 	CookieStores         []cookieStoreDiagnostic `json:"cookieStores,omitempty"`
 	RequestCookieHeader  string                  `json:"requestCookieHeader,omitempty"`
 	RequestCookieHeaders map[string]string       `json:"requestCookieHeaders,omitempty"`
+	RequestHeaders       map[string]string       `json:"requestHeaders,omitempty"`
 }
 
 type cookieQueryDiagnostic struct {
@@ -90,6 +91,7 @@ type platformSession struct {
 	BrowserCookies       []browserCookie
 	RequestCookieHeader  string
 	RequestCookieHeaders map[string]string
+	RequestHeaders       map[string]string
 	UserAgent            string
 	ExpiresAt            time.Time
 }
@@ -111,6 +113,24 @@ func validateRequestCookieHeaders(platform string, headers map[string]string) (m
 		}
 		if strings.TrimSpace(header) != "" {
 			result[host] = header
+		}
+	}
+	return result, nil
+}
+
+// Only replay verified names from an authenticated Toutiao editor request.
+func validateCapturedRequestHeaders(platform string, headers map[string]string) (map[string]string, error) {
+	result := map[string]string{}
+	for rawName, value := range headers {
+		name := strings.ToLower(strings.TrimSpace(rawName))
+		if platform != "toutiao" || (name != "x-secsdk-csrf-token" && name != "tt-anti-token") {
+			return nil, fmt.Errorf("captured browser request header is not allowed: %s", name)
+		}
+		if len(value) > 4096 || strings.ContainsAny(value, "\r\n") {
+			return nil, fmt.Errorf("invalid captured browser request header %s", name)
+		}
+		if value != "" {
+			result[name] = value
 		}
 	}
 	return result, nil
@@ -1071,6 +1091,11 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
+	requestHeaders, err := validateCapturedRequestHeaders(platform, body.RequestHeaders)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
 	body.Cookies = filterVerifiedSessionCookies(platform, body.Cookies)
 	if len(body.Cookies) == 0 && body.RequestCookieHeader == "" {
 		writeAPIError(response, http.StatusBadRequest, "session_required", platform+" browser session cookies not found", map[string]any{"platform": platform})
@@ -1103,6 +1128,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		BrowserCookies:       append([]browserCookie{}, body.Cookies...),
 		RequestCookieHeader:  body.RequestCookieHeader,
 		RequestCookieHeaders: requestCookieHeaders,
+		RequestHeaders:       requestHeaders,
 		UserAgent:            userAgent,
 		ExpiresAt:            s.now().Add(sessionTTL),
 	}

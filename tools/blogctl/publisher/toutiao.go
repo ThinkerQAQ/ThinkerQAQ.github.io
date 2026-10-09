@@ -34,7 +34,18 @@ func NewToutiaoAdapter(base *http.Client, session Session) (Adapter, error) {
 func (t *toutiaoAdapter) ID() string { return "toutiao" }
 
 func (t *toutiaoAdapter) request(ctx context.Context, method, rawURL string, body io.Reader) (*http.Request, error) {
-	return browserRequest(ctx, method, rawURL, toutiaoOrigin, toutiaoOrigin+"/profile_v4/graphic/publish", t.userAgent, body)
+	req, err := browserRequest(ctx, method, rawURL, toutiaoOrigin, toutiaoOrigin+"/profile_v4/graphic/publish", t.userAgent, body)
+	if err != nil {
+		return nil, err
+	}
+	if method == http.MethodPost && (req.URL.Path == "/spice/image" || req.URL.Path == "/mp/agw/article/publish") {
+		for _, name := range []string{"x-secsdk-csrf-token", "tt-anti-token"} {
+			if value := strings.TrimSpace(t.session.RequestHeaders[name]); value != "" {
+				req.Header.Set(name, value)
+			}
+		}
+	}
+	return req, nil
 }
 
 func (t *toutiaoAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
@@ -77,68 +88,68 @@ func (t *toutiaoAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 
 func isToutiaoImage(source string) bool {
 	parsed, err := url.Parse(source)
-	if err != nil {
+	if err != nil || !strings.EqualFold(parsed.Scheme, "https") {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())
-	return strings.Contains(host, "toutiaoimg.com") || strings.Contains(host, "toutiaostatic.com") || strings.Contains(host, "bytescm.com")
+	return host == "image-tt-private.toutiao.com" ||
+		strings.HasSuffix(host, ".toutiaoimg.com") ||
+		strings.HasSuffix(host, ".toutiaostatic.com") ||
+		strings.HasSuffix(host, ".bytescm.com")
 }
 
-func (t *toutiaoAdapter) uploadByURL(ctx context.Context, source string) (string, error) {
-	values := url.Values{}
-	values.Set("upfile", source)
-	values.Set("version", "2")
-	req, err := t.request(ctx, http.MethodPost, toutiaoOrigin+"/tools/catch_picture/", strings.NewReader(values.Encode()))
+type toutiaoImageResponse struct {
+	Code    *int   `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		ImageURL string `json:"image_url"`
+		ImageURI string `json:"image_uri"`
+		CoverURL string `json:"cover_url"`
+	} `json:"data"`
+}
+
+// uploadPicture uses the creator editor's captured /spice/image contract.
+// Binary images and existing remote images are distinct multipart operations.
+func (t *toutiaoAdapter) uploadPicture(ctx context.Context, source string, image *RehostImage) (string, error) {
+	var body io.Reader
+	var bodyType string
+	var err error
+	query := url.Values{"aid": {"1231"}, "device_platform": {"web"}}
+	if image == nil {
+		query.Set("upload_source", "20020003")
+		query.Set("need_cover_url", "1")
+		buffer, multipartType, multipartErr := multipartBody(map[string]string{"imageUrl": source}, "", "", "", nil)
+		body, bodyType, err = buffer, multipartType, multipartErr
+	} else {
+		query.Set("upload_source", "20020002")
+		buffer, multipartType, multipartErr := multipartBody(nil, "image", inferImageFilename(image.Source, image.ContentType), image.ContentType, image.Payload)
+		body, bodyType, err = buffer, multipartType, multipartErr
+	}
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	if csrf := cookieValue(t.session, "passport_csrf_token"); csrf != "" {
-		req.Header.Set("x-csrftoken", csrf)
-	}
-	var decoded struct {
-		Images []struct {
-			URL    string `json:"url"`
-			WebURL string `json:"web_url"`
-		} `json:"images"`
-	}
-	if err := doJSON(t.client, req, t.ID(), "image-catch", &decoded); err != nil {
-		return "", err
-	}
-	if len(decoded.Images) == 0 {
-		return "", platformError(ErrUpload, t.ID(), "image-catch", 0, "image catch returned no images", false)
-	}
-	if decoded.Images[0].URL != "" {
-		return decoded.Images[0].URL, nil
-	}
-	if decoded.Images[0].WebURL != "" {
-		return decoded.Images[0].WebURL, nil
-	}
-	return "", platformError(ErrUpload, t.ID(), "image-catch", 0, "image URL missing", false)
-}
-
-func (t *toutiaoAdapter) uploadBinary(ctx context.Context, image RehostImage) (string, error) {
-	body, bodyType, err := multipartBody(nil, "upfile", inferImageFilename(image.Source, image.ContentType), image.ContentType, image.Payload)
-	if err != nil {
-		return "", err
-	}
-	rawURL := toutiaoOrigin + "/mp/agw/article_material/photo/upload_picture?type=ueditor&pgc_watermark=1&action=uploadimage&encode=utf-8"
+	rawURL := toutiaoOrigin + "/spice/image?" + query.Encode()
 	req, err := t.request(ctx, http.MethodPost, rawURL, body)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("content-type", bodyType)
-	var decoded struct {
-		State string `json:"state"`
-		URL   string `json:"url"`
-	}
+	var decoded toutiaoImageResponse
 	if err := doJSON(t.client, req, t.ID(), "image-upload", &decoded); err != nil {
 		return "", err
 	}
-	if decoded.State != "SUCCESS" || decoded.URL == "" {
-		return "", platformError(ErrUpload, t.ID(), "image-upload", 0, "binary upload failed", false)
+	if decoded.Code == nil || *decoded.Code != 0 || !isRemoteHTTPImage(decoded.Data.ImageURL) {
+		return "", platformError(ErrUpload, t.ID(), "image-upload", 0, "Toutiao did not return a successful image_url", false)
 	}
-	return decoded.URL, nil
+	return decoded.Data.ImageURL, nil
+}
+
+func (t *toutiaoAdapter) uploadByURL(ctx context.Context, source string) (string, error) {
+	return t.uploadPicture(ctx, source, nil)
+}
+
+func (t *toutiaoAdapter) uploadBinary(ctx context.Context, image RehostImage) (string, error) {
+	return t.uploadPicture(ctx, "", &image)
 }
 
 func (t *toutiaoAdapter) prepareHTML(ctx context.Context, input DraftInput) (string, error) {

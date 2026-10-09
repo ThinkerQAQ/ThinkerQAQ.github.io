@@ -65,3 +65,13 @@ test("Toutiao article detection and binding use the creator inventory, not searc
   assert.match(background, /case "blogctl\.toutiao\.unbind":/u);
   assert.doesNotMatch(background, /mp_search\/v1/u);
 });
+
+
+test("Toutiao uses only ephemeral browser-observed creator editor request headers", async () => {
+  const background = await readFile(backgroundPath, "utf8");
+  assert.match(background, /toutiaoEditorHeadersCapturedAt/u);
+  assert.match(background, /x-secsdk-csrf-token/u);
+  assert.match(background, /tt-anti-token/u);
+  assert.match(background, /Date\.now\(\) - toutiaoEditorHeadersCapturedAt < 10 \* 60 \* 1000/u);
+  assert.match(background, /platform === "toutiao".*toutiaoEditorHeadersCapturedAt/su);
+});

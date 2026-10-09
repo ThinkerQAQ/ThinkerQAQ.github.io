@@ -1,11 +1,14 @@
-# BlogCTL v0.1.111
+# BlogCTL v0.1.112
 
-Repair Today Headline (Toutiao) article detection and draft updates using the captured creator-center request contracts.
+Align Toutiao image uploads with authenticated creator-editor traffic captured in the browser HAR.
 
 ## Changes
 
-- Detect matching drafts and published articles from the authenticated creator inventory, with pagination and separate binding states.
-- Fix draft create/update to use the captured save=0 mode, correct creator form fields and preserve the existing remote draft ID.
-- Refuse stale or unknown draft IDs and preserve existing cover metadata when editing a draft.
-- Keep draft saving separate from explicit publication; publishing itself requires a real-account acceptance test.
-- Align the CLI, Native Host, Bridge, and browser extension to v0.1.111.
+- Upload local images to POST /spice/image with multipart field image and upload_source=20020002.
+- Import remote images using multipart imageUrl with upload_source=20020003 and need_cover_url=1.
+- Parse the creator API result using code=0 and data.image_url; reject failed or malformed responses.
+- Recognize Toutiao-hosted images to prevent unnecessary duplicate uploads.
+- Reuse observed Toutiao editor CSRF and anti-token request headers from the browser session. Capture is ephemeral, name-restricted, and expires after 10 minutes; credentials are not persisted.
+- Align CLI, Bridge, Native Host, and browser-extension versions to v0.1.112.
+
+The captured HAR confirms the upload protocol. Live account upload and formal publication remain separate acceptance tests.
