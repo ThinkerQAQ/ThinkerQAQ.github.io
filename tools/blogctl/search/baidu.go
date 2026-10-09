@@ -125,8 +125,12 @@ func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, c
 	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {
 		return BaiduBatchResult{}, errors.New("Baidu submit endpoint is invalid")
 	}
+	siteURL, err := url.Parse(config.Site)
+	if err != nil || siteURL.Hostname() == "" {
+		return BaiduBatchResult{}, errors.New("Baidu site is invalid")
+	}
 	query := endpoint.Query()
-	query.Set("site", config.Site)
+	query.Set("site", siteURL.Hostname())
 	query.Set("token", config.Token)
 	endpoint.RawQuery = query.Encode()
 

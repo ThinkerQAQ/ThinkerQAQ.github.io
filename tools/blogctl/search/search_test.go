@@ -82,7 +82,7 @@ func TestSubmitBaiduUsesTextBodyAndOnlyCompletesFullBatch(t *testing.T) {
 	if result.Complete || result.SuccessCount != 1 || result.URLCount != 2 {
 		t.Fatalf("result = %#v", result)
 	}
-	if gotToken != "secret-token" || gotSite != "https://thinkerqaq.com" {
+	if gotToken != "secret-token" || gotSite != "thinkerqaq.com" {
 		t.Fatalf("query token=%q site=%q", gotToken, gotSite)
 	}
 	if gotContentType != "text/plain" {
