@@ -164,9 +164,14 @@ func NormalizeSyncRequest(request SyncRequest) (SyncRequest, error) {
 		request.Operation = "draft"
 	}
 	switch request.Operation {
-	case "draft", "publish":
+	case "draft", "publish", "update-published":
 	default:
 		return request, fmt.Errorf("unsupported sync operation: %s", request.Operation)
+	}
+	if request.Operation == "update-published" {
+		if len(request.Platforms) != 1 || !blogplatform.For(request.Platforms[0]).PublishedUpdate {
+			return request, errors.New("published update requires one platform supporting publishedUpdate")
+		}
 	}
 	if request.Operation == "publish" {
 		for _, platform := range request.Platforms {
