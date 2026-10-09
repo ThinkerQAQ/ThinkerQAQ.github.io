@@ -49,7 +49,7 @@ func rootsForCommand(args []string) (string, string, error) {
 		return "", "", nil
 	}
 	command := args[0]
-	if command == "sync" {
+	if command == "sync" || command == "toutiao" {
 		return resolveSyncWorkspace()
 	}
 	root, err := findRepositoryRoot()
@@ -87,6 +87,8 @@ func (a app) run(args []string) error {
 		return a.runSync(args)
 	case "doctor":
 		return a.doctor()
+	case "toutiao":
+		return runToutiaoProbe(args, a.out)
 	default:
 		return fmt.Errorf("unknown command %q; run blogctl help", command)
 	}
@@ -126,6 +128,7 @@ Usage:
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
+  blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]
 
 Run sync from the blog-content repository. Engine commands still run from ThinkerQAQ.github.io.
 scripts/ contains repository-level Node build, validation and rendering entrypoints.`)
