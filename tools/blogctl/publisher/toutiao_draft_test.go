@@ -14,9 +14,17 @@ func TestToutiaoDraftCreateAndUpdateUseCapturedSaveMode(t *testing.T) {
 	var saves []url.Values
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
+		case "/spice/image":
+			if req.Method != "HEAD" {
+				t.Fatal("CSRF preflight must use HEAD")
+			}
+			return jsonResponse(req, 200, "", map[string]string{"x-ware-csrf-token": "0,synthetic-fresh-CSRF-token-123,90000,any,extra"}), nil
 		case "/mp/agw/creator_center/draft_list":
 			return jsonResponse(req, 200, `{"code":0,"draft_list":[{"gid":"7694632080231186986","title":"原始草稿"}]}`, nil), nil
 		case "/mp/agw/article/publish":
+			if req.Header.Get("x-secsdk-csrf-token") != "synthetic-fresh-CSRF-token-123" {
+				t.Fatal("publisher did not use freshly issued CSRF token")
+			}
 			if req.URL.Query().Get("aid") != "1231" {
 				t.Fatalf("missing creator aid: %v", req.URL.Query())
 			}

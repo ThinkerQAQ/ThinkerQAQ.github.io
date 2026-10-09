@@ -256,6 +256,18 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 			values.Set(name, "")
 		}
 	}
+	// The authenticated creator response supplies a media ID. Bootstrap a
+	// fresh per-operation CSRF token using direct HTTP, without page JS.
+	// Toutiao writes remain blocked by Service until an authenticated
+	// write is verified against the real upstream contract.
+	csrfToken := ""
+	if t.mediaID != "" {
+		credential, csrfErr := fetchToutiaoCSRF(ctx, t.client, t.userAgent, time.Now())
+		if csrfErr != nil {
+			return "", platformError(ErrUpstream, t.ID(), "csrf-preflight", 0, csrfErr.Error(), false)
+		}
+		csrfToken = credential.Token
+	}
 	req, err := t.request(ctx, http.MethodPost,
 		toutiaoOrigin+"/mp/agw/article/publish?source=mp&type=article&aid=1231&mp_publish_ab_val=0",
 		strings.NewReader(values.Encode()))
@@ -263,6 +275,9 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		return "", err
 	}
 	req.Header.Set("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
+	if csrfToken != "" {
+		req.Header.Set("x-secsdk-csrf-token", csrfToken)
+	}
 	if csrf := cookieValue(t.session, "passport_csrf_token"); csrf != "" {
 		req.Header.Set("x-csrftoken", csrf)
 	}
