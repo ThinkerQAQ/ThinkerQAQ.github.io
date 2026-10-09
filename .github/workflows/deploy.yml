@@ -90,7 +90,7 @@ jobs:
       # operates only during this ephemeral CI build, not on visitor requests.
       - name: Configure Mermaid headless Chromium for CI
         run: |
-          printf '%s\\n' '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > "$RUNNER_TEMP/mermaid-puppeteer.json"
+          echo '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > "$RUNNER_TEMP/mermaid-puppeteer.json"
           echo "MERMAID_PUPPETEER_CONFIG_FILE=$RUNNER_TEMP/mermaid-puppeteer.json" >> "$GITHUB_ENV"
 
       - name: Configure GitHub Pages
