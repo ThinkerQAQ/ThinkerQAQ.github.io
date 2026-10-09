@@ -33,6 +33,11 @@ func TestToutiaoNativeHTTPAuthorizationPreflightAndUnboundDraft(t *testing.T) {
 			if r.PostForm.Get("article_ad_type") != "3" || !r.PostForm.Has("customer_nick_name") {
 				t.Fatal("initial draft form fields do not match HAR")
 			}
+			body := r.PostForm.Get("content")
+			if strings.Count(body, "<li>") != 3 || strings.Contains(body, `href="#`) ||
+				!strings.Contains(body, "　1.1 子章节") {
+				t.Fatalf("native HTTP submission did not normalize the nested TOC: %s", body)
+			}
 			id := r.PostForm.Get("title_id")
 			segments := strings.Split(id, "_")
 			if len(segments) != 2 || len(segments[0]) != 13 || segments[1] != mediaID {
@@ -53,7 +58,7 @@ func TestToutiaoNativeHTTPAuthorizationPreflightAndUnboundDraft(t *testing.T) {
 	if err != nil || !auth.Authenticated {
 		t.Fatalf("auth failed %v", err)
 	}
-	result, err := adapter.CreateDraft(context.Background(), DraftInput{Title: "示例文章", Markdown: "示例正文"})
+	result, err := adapter.CreateDraft(context.Background(), DraftInput{Title: "示例文章", Markdown: "示例正文", HTML: `<h2>目录</h2><ul><li><a href="#1">1. 主章节</a><ul><li><a href="#11">1.1 子章节</a></li></ul></li><li><a href="#2">2. 其他章节</a></li></ul><p>正文</p>`})
 	if err != nil || !result.Created || result.ID != "7777777777777777777" {
 		t.Fatalf("draft response incorrect: created=%v err=%v", result.Created, err)
 	}

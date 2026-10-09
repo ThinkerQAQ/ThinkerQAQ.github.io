@@ -86,3 +86,32 @@ security-sensitive actions.
 - https://github.com/xc-2000/toutiao-auto-publisher
 - https://github.com/ylcangel/douyin_sign
 - https://github.com/HZhertz/ByteDance-a_bogus-parameter
+
+
+## 2026-10-10 — Creator TOC layout (HAR 3)
+
+The editor-captured draft HTML from
+`C:\Users\zsk\Downloads\mp.toutiao.com发布3.har` shows a second,
+independent integration problem: the author's **correctly nested Markdown
+TOC** becomes a single HTML `ul` with **6 `li` entries containing 31
+consecutive `a` links**. Thus multiple subsections run together on one
+line. All 31 captured in-page TOC hyperlinks have `href="#..."`, but the
+creator HTML headings have no `id` attributes; those references do not
+have a working matching target.
+
+For Toutiao only, the publisher now converts TOC entries to a **single-level
+list with one `li` per entry**, using ideographic whitespace to represent
+subsection depth. It strips broken TOC-local hyperlinks while leaving
+ordinary article hyperlinks and non-TOC lists intact. This transformation
+is performed on outgoing native HTTP payloads before image rehosting.
+
+A one-time regression using the **real, isolated 6.4 KB HAR TOC fragment**
+confirmed **6 combined rows / 31 links → 31 separate indented rows / 0
+broken links**. Synthetic tests cover Markdown-style nested input, already
+collapsed creator-editor input, and the end-to-end mock HTTP request.
+
+**Important limitation:** v0.1.116 intentionally disables Toutiao writes.
+The HAR was captured from the user's *manual creator editor*. Changing the
+BlogCTL native HTTP pipeline does not retroactively repair a draft manually
+pasted into Toutiao. This remains an experimental fix awaiting live
+native-HTTP draft validation.
