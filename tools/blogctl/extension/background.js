@@ -5,7 +5,7 @@ import { toError } from "./errors.js";
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
-const GOOGLE_SEARCH_CONSOLE_PROPERTY = "https://thinkerqaq.com/";
+const GOOGLE_SEARCH_CONSOLE_PROPERTY = "sc-domain:thinkerqaq.com";
 const GOOGLE_SEARCH_CONSOLE_URL = `https://search.google.com/search-console?resource_id=${encodeURIComponent(GOOGLE_SEARCH_CONSOLE_PROPERTY)}`;
 let bridgeSession = null;
 let googleSearchConsoleTabId = null;

@@ -204,7 +204,7 @@ jobs:
     continue-on-error: true
     env:
       GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
-      GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'https://thinkerqaq.com/' }}
+      GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'sc-domain:thinkerqaq.com' }}
     steps:
       - name: Checkout public engine
         uses: actions/checkout@v6
