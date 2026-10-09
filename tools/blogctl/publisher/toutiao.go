@@ -229,6 +229,24 @@ func toutiaoArticleValues(input DraftInput, html, refID, covers string, publish 
 }
 
 func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftInput, publish bool, covers string) (string, error) {
+	// Bootstrap before image uploads. Both /spice/image and the final
+	// article write use the same short-lived creator CSRF credential.
+	csrfToken := ""
+	if t.mediaID != "" {
+		credential, csrfErr := fetchToutiaoCSRF(ctx, t.client, t.userAgent, time.Now())
+		if csrfErr != nil {
+			return "", platformError(ErrUpstream, t.ID(), "csrf-preflight", 0, csrfErr.Error(), false)
+		}
+		csrfToken = credential.Token
+		previousHeaders := t.session.RequestHeaders
+		updatedHeaders := make(map[string]string, len(previousHeaders)+1)
+		for key, value := range previousHeaders {
+			updatedHeaders[key] = value
+		}
+		updatedHeaders["x-secsdk-csrf-token"] = csrfToken
+		t.session.RequestHeaders = updatedHeaders
+		defer func() { t.session.RequestHeaders = previousHeaders }()
+	}
 	html, err := t.prepareHTML(ctx, input)
 	if err != nil {
 		return "", err
@@ -255,18 +273,6 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		for _, name := range []string{"ic_uri_list", "appid_list", "stock_ids", "concern_list", "title_id"} {
 			values.Set(name, "")
 		}
-	}
-	// The authenticated creator response supplies a media ID. Bootstrap a
-	// fresh per-operation CSRF token using direct HTTP, without page JS.
-	// Toutiao writes remain blocked by Service until an authenticated
-	// write is verified against the real upstream contract.
-	csrfToken := ""
-	if t.mediaID != "" {
-		credential, csrfErr := fetchToutiaoCSRF(ctx, t.client, t.userAgent, time.Now())
-		if csrfErr != nil {
-			return "", platformError(ErrUpstream, t.ID(), "csrf-preflight", 0, csrfErr.Error(), false)
-		}
-		csrfToken = credential.Token
 	}
 	req, err := t.request(ctx, http.MethodPost,
 		toutiaoOrigin+"/mp/agw/article/publish?source=mp&type=article&aid=1231&mp_publish_ab_val=0",
