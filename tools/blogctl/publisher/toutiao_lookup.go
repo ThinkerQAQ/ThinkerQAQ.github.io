@@ -31,7 +31,7 @@ func (t *toutiaoAdapter) listDrafts(ctx context.Context) ([]ToutiaoPost, error) 
 		return nil, err
 	}
 	var decoded struct {
-		Code    int    `json:"code"`
+		Code    *int   `json:"code"`
 		Message string `json:"message"`
 		Drafts  []struct {
 			GID   any    `json:"gid"`
@@ -41,7 +41,7 @@ func (t *toutiaoAdapter) listDrafts(ctx context.Context) ([]ToutiaoPost, error) 
 	if err := doJSON(t.client, req, t.ID(), "list-drafts", &decoded); err != nil {
 		return nil, err
 	}
-	if decoded.Code != 0 {
+	if decoded.Code == nil || *decoded.Code != 0 {
 		return nil, platformError(ErrUpstream, t.ID(), "list-drafts", 0, responseMessage(decoded.Message), false)
 	}
 	posts := make([]ToutiaoPost, 0, len(decoded.Drafts))
@@ -77,7 +77,7 @@ func (t *toutiaoAdapter) listPublished(ctx context.Context) ([]ToutiaoPost, erro
 			return nil, err
 		}
 		var decoded struct {
-			Code      int    `json:"code"`
+			Code      *int   `json:"code"`
 			Message   string `json:"message"`
 			HasMore   bool   `json:"has_more"`
 			EndCursor int64  `json:"end_cursor"`
@@ -92,7 +92,7 @@ func (t *toutiaoAdapter) listPublished(ctx context.Context) ([]ToutiaoPost, erro
 		if err := doJSON(t.client, req, t.ID(), "list-published", &decoded); err != nil {
 			return nil, err
 		}
-		if decoded.Code != 0 {
+		if decoded.Code == nil || *decoded.Code != 0 {
 			return nil, platformError(ErrUpstream, t.ID(), "list-published", 0, responseMessage(decoded.Message), false)
 		}
 		for _, item := range decoded.Contents {
