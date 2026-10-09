@@ -391,7 +391,7 @@ func (s Service) UpdateToutiaoPublishedInput(ctx context.Context, session Sessio
 		return PublishResult{}, false, platformError(ErrValidation, platform, "update-published", 0, "published article not found in the current creator account", false)
 	}
 	if strings.TrimSpace(binding.RemoteUpdatedAt) == "" || original.ModifiedAt == "" ||
-		binding.RemoteUpdatedAt != original.ModifiedAt {
+		binding.RemoteUpdatedAt == "0" || original.ModifiedAt == "0" || binding.RemoteUpdatedAt != original.ModifiedAt {
 		return PublishResult{}, false, platformError(ErrValidation, platform, "update-published", 0,
 			"remote article changed or no revision baseline is recorded; verify and bind the published article again", false)
 	}

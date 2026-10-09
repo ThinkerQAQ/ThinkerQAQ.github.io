@@ -229,6 +229,8 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		values.Set("article_type", "0")
 		values.Set("entrance", "main")
 		values.Set("praise", "0")
+		values.Set("draft_form_data", `{"coverType":1}`)
+		values.Set("extra", `{"content_source":100000000402,"content_word_cnt":`+strconv.Itoa(utf8.RuneCountInString(input.Markdown))+`,"is_multi_title":0,"sub_titles":[],"gd_ext":{"entrance":"","from_page":"publisher_mp","enter_from":"PC","device_platform":"mp","is_message":0},"tuwen_wtt_trans_flag":"0","info_source":{"source_type":-1}}`)
 		for _, name := range []string{"ic_uri_list", "appid_list", "stock_ids", "concern_list", "title_id"} {
 			values.Set(name, "")
 		}

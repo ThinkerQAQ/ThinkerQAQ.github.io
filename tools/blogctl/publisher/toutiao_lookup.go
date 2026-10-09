@@ -131,8 +131,13 @@ func (t *toutiaoAdapter) listPublished(ctx context.Context) ([]ToutiaoPost, erro
 			seen[id] = struct{}{}
 			posts = append(posts, ToutiaoPost{
 				ID: id, Title: title, Published: true,
-				ModifiedAt: strconv.FormatInt(item.Article.ModifyTime, 10),
-				URL:        toutiaoPublic + "/article/" + url.PathEscape(id) + "/",
+				ModifiedAt: func() string {
+					if item.Article.ModifyTime <= 0 {
+						return ""
+					}
+					return strconv.FormatInt(item.Article.ModifyTime, 10)
+				}(),
+				URL: toutiaoPublic + "/article/" + url.PathEscape(id) + "/",
 			})
 		}
 		if !decoded.HasMore {
