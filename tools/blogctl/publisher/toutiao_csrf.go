@@ -34,10 +34,11 @@ func parseToutiaoWareCSRF(raw string, now time.Time) (toutiaoCSRFCredential, err
 	if err != nil || millis < 1000 {
 		return toutiaoCSRFCredential{}, errors.New("Toutiao CSRF token has no usable expiry")
 	}
-	valid := time.Duration(millis) * time.Millisecond
-	if valid > 24*time.Hour {
-		valid = 24 * time.Hour
+	const maxTTLMillis = int64(24 * 60 * 60 * 1000)
+	if millis > maxTTLMillis {
+		millis = maxTTLMillis
 	}
+	valid := time.Duration(millis) * time.Millisecond
 	return toutiaoCSRFCredential{Token: token, ExpiresAt: now.Add(valid)}, nil
 }
 
