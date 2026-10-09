@@ -1049,8 +1049,16 @@ main {
 }
 
 .footer-registration a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   color: inherit;
   text-underline-offset: 0.2em;
+}
+
+.footer-registration img {
+  display: block;
+  flex: none;
 }
 
 @media (max-width: 760px) {
