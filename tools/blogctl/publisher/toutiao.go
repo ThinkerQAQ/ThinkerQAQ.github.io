@@ -163,7 +163,7 @@ func (t *toutiaoAdapter) uploadBinary(ctx context.Context, image RehostImage) (s
 }
 
 func (t *toutiaoAdapter) prepareHTML(ctx context.Context, input DraftInput) (string, error) {
-	return rehostHTMLImages(ctx, t.client, input, htmlFor(input), ImageRehostOptions{
+	return rehostHTMLImages(ctx, t.client, input, normalizeToutiaoTOC(htmlFor(input)), ImageRehostOptions{
 		Platform:       t.ID(),
 		FailOpenRemote: true,
 		AlreadyHosted:  isToutiaoImage,
