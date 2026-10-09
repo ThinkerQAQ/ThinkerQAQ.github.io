@@ -13,11 +13,9 @@ const contactHref = localizePath(locale, "/contact/");
 
 <footer class="site-footer">
   <div class="shell footer-inner">
-    <div class="footer-meta">
-      <span>© {new Date().getFullYear()} {SITE.author}</span>
-      <div class="footer-registration">
-        <a href={SITE.icpLookupUrl} target="_blank" rel="noopener noreferrer">{SITE.icpRecord}</a>
-      </div>
+    <span class="footer-copyright">© {new Date().getFullYear()} {SITE.author}</span>
+    <div class="footer-registration">
+      <a href={SITE.icpLookupUrl} target="_blank" rel="noopener noreferrer">{SITE.icpRecord}</a>
     </div>
     <span class="footer-links">
       <a href="/rss.xml">RSS</a>
