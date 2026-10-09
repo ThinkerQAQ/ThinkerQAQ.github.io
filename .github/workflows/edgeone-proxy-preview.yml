@@ -1,8 +1,6 @@
 name: Probe EdgeOne preview proxy
 
 on:
-  push:
-    branches: [perf/umami-async-edgeone-proxy-20261009]
   workflow_dispatch:
 
 permissions:
