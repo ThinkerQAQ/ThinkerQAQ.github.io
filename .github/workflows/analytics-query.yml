@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
 
           node <<'NODE'
-          const fs = require("fs");
+          const fs = await import("node:fs");
 
           const HOUR_MS = 60 * 60 * 1000;
           const HEALTH_GRACE_MS = 15 * 60 * 1000;
