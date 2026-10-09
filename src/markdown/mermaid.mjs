@@ -8,7 +8,7 @@ export function isMermaid(node) {
 
 export function mermaidBlock(node, file = "Markdown") {
   const key = diagramKey(node.value);
-  if (!existsSync(path.join(CACHE, key + ".svg"))) {
+  if (!existsSync(path.join(CACHE, key + ".svg")) && process.env.NODE_ENV !== "development") {
     throw new Error(file + ":" + (node.position?.start.line ?? "?") + ": Mermaid cache missing. Run npm run diagrams, then restart the dev server/build.");
   }
   const url = diagramUrl(key);

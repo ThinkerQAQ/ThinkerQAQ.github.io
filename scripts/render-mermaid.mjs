@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, lstat, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -55,8 +55,28 @@ export async function collectDiagrams() {
   return [...diagrams.values()];
 }
 
+// A version-matched host CLI can wrap platform-specific browser libraries.
+// CI and hosts without one use the pinned project-local CLI directly.
+let resolvedCli;
+function cliInvocation() {
+  if (resolvedCli) return resolvedCli;
+  if (process.platform === "linux") {
+    for (const directory of (process.env.PATH || "").split(path.delimiter)) {
+      if (!directory || directory.includes("node_modules/.bin")) continue;
+      const binary = path.join(directory, "mmdc");
+      if (!existsSync(binary)) continue;
+      const result = spawnSync(binary, ["--version"], { encoding: "utf8", timeout: 3000 });
+      if (result.status === 0 && result.stdout.trim() === VERSION) {
+        return (resolvedCli = { command: binary, prefix: [] });
+      }
+    }
+  }
+  return (resolvedCli = { command: process.execPath, prefix: [CLI] });
+}
+
 async function runMermaidCLI(item) {
   if (!existsSync(CLI)) throw new Error("Mermaid CLI not installed. Run npm ci in the public engine first.");
+  const invocation = cliInvocation();
   const temporary = await mkdtemp(path.join(os.tmpdir(), "thinkerqaq-mermaid-"));
   try {
     const source = path.join(temporary, "diagram.mmd");
@@ -64,14 +84,14 @@ async function runMermaidCLI(item) {
     const config = path.join(temporary, "mermaid.json");
     await writeFile(source, item.source, "utf8");
     await writeFile(config, JSON.stringify(CONFIG), "utf8");
-    const args = [CLI, "-i", source, "-o", output, "-b", "white",
+    const args = [...invocation.prefix, "-i", source, "-o", output, "-b", "white",
       "--size", "1200", "--no-font-embed", "-c", config,
       "-I", "m-" + item.key.slice(0, 24)];
     if (process.env.MERMAID_PUPPETEER_CONFIG_FILE) {
       args.push("-p", path.resolve(process.env.MERMAID_PUPPETEER_CONFIG_FILE));
     }
     await new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, args, { cwd: ROOT, windowsHide: true, shell: false });
+      const child = spawn(invocation.command, args, { cwd: ROOT, windowsHide: true, shell: false });
       const stderr = [];
       child.stderr.on("data", (buffer) => stderr.push(buffer));
       child.once("error", reject);
