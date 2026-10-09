@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 

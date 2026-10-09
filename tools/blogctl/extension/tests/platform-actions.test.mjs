@@ -90,3 +90,13 @@ test("Toutiao published edits are explicit, confirmed, and separate from draft s
   assert.match(sync, /function reverifyToutiaoPublished\(item\)/u);
   assert.match(sync, /"重新校验版本"/u);
 });
+
+
+test("Toutiao editor relay is absent; UI marks unverified direct HTTP writes unavailable", async () => {
+  const [background, drafts] = await Promise.all([
+    readFile(backgroundPath,"utf8"), readFile(draftsPath,"utf8"),
+  ]);
+  assert.doesNotMatch(background,/kickToutiaoBrowserPump|processToutiaoBrowserRequest|ensureToutiaoEditorTab/u);
+  assert.match(drafts,/platform\.id === "toutiao" && platform\.capabilities\?\.draftCreate !== true/u);
+  assert.match(drafts,/头条纯接口保存暂不可用/u);
+});
