@@ -86,6 +86,13 @@ jobs:
       - name: Install diagram layout and Chinese fonts
         run: sudo apt-get update && sudo apt-get install -y graphviz fonts-noto-cjk libnspr4 libnss3 libasound2t64
 
+      # Ubuntu runners restrict Chromium's user-namespace sandbox. The renderer
+      # operates only during this ephemeral CI build, not on visitor requests.
+      - name: Configure Mermaid headless Chromium for CI
+        run: |
+          echo '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > "$RUNNER_TEMP/mermaid-puppeteer.json"
+          echo "MERMAID_PUPPETEER_CONFIG_FILE=$RUNNER_TEMP/mermaid-puppeteer.json" >> "$GITHUB_ENV"
+
       - name: Configure GitHub Pages
         if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
         uses: actions/configure-pages@v5
