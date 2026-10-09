@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -166,7 +168,7 @@ func truncateToutiaoTitle(value string) string {
 // graphic article. Both draft operations use save=0, as captured on Oct 9.
 // Publishing is a separate explicit action (save=1); it must never be used
 // as the draft update path.
-func toutiaoArticleValues(input DraftInput, html, refID string, publish bool) url.Values {
+func toutiaoArticleValues(input DraftInput, html, refID, covers string, publish bool) url.Values {
 	values := url.Values{}
 	values.Set("source", "29")
 	values.Set("title", truncateToutiaoTitle(input.Title))
@@ -178,7 +180,7 @@ func toutiaoArticleValues(input DraftInput, html, refID string, publish bool) ur
 	if refID != "" && refID != "0" {
 		values.Set("pgc_id", refID)
 	}
-	values.Set("extra", `{"content_source":100000000402,"content_word_cnt":0,"is_multi_title":0,"sub_titles":[],"gd_ext":{"entrance":"","from_page":"publisher_mp","enter_from":"PC","device_platform":"mp","is_message":0},"tuwen_wtt_transfer_switch":"1"}`)
+	values.Set("extra", `{"content_source":100000000402,"content_word_cnt":`+strconv.Itoa(utf8.RuneCountInString(input.Markdown))+`,"is_multi_title":0,"sub_titles":[],"gd_ext":{"entrance":"","from_page":"publisher_mp","enter_from":"PC","device_platform":"mp","is_message":0},"tuwen_wtt_transfer_switch":"1"}`)
 	values.Set("search_creation_info", `{"searchTopOne":0,"abstract":"","clue_id":""}`)
 	values.Set("mp_editor_stat", "{}")
 	values.Set("is_refute_rumor", "0")
@@ -187,7 +189,10 @@ func toutiaoArticleValues(input DraftInput, html, refID string, publish bool) ur
 	values.Set("timer_time", "")
 	values.Set("educluecard", "")
 	values.Set("draft_form_data", `{"coverType":2}`)
-	values.Set("pgc_feed_covers", "[]")
+	if covers == "" {
+		covers = "[]"
+	}
+	values.Set("pgc_feed_covers", covers)
 	values.Set("article_ad_type", "2")
 	values.Set("is_fans_article", "0")
 	values.Set("govern_forward", "0")
@@ -202,12 +207,12 @@ func toutiaoArticleValues(input DraftInput, html, refID string, publish bool) ur
 	return values
 }
 
-func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftInput, publish bool) (string, error) {
+func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftInput, publish bool, covers string) (string, error) {
 	html, err := t.prepareHTML(ctx, input)
 	if err != nil {
 		return "", err
 	}
-	values := toutiaoArticleValues(input, html, strings.TrimSpace(refID), publish)
+	values := toutiaoArticleValues(input, html, strings.TrimSpace(refID), covers, publish)
 	req, err := t.request(ctx, http.MethodPost,
 		toutiaoOrigin+"/mp/agw/article/publish?source=mp&type=article&aid=1231&mp_publish_ab_val=0",
 		strings.NewReader(values.Encode()))
@@ -249,7 +254,7 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 }
 
 func (t *toutiaoAdapter) CreateDraft(ctx context.Context, input DraftInput) (DraftResult, error) {
-	id, err := t.mutate(ctx, "0", input, false)
+	id, err := t.mutate(ctx, "0", input, false, "")
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -266,18 +271,18 @@ func (t *toutiaoAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dr
 	if err != nil {
 		return DraftResult{}, err
 	}
-	found := false
-	for _, draft := range drafts {
-		if draft.ID == strings.TrimSpace(ref.ID) {
-			found = true
+	var selected *ToutiaoPost
+	for index := range drafts {
+		if drafts[index].ID == strings.TrimSpace(ref.ID) {
+			selected = &drafts[index]
 			break
 		}
 	}
-	if !found {
+	if selected == nil {
 		return DraftResult{}, platformError(ErrValidation, t.ID(), "update-draft", 0,
 			"draft ID is not in the authenticated creator's draft list; refusing to update or recreate it", false)
 	}
-	id, err := t.mutate(ctx, ref.ID, input, false)
+	id, err := t.mutate(ctx, ref.ID, input, false, selected.FeedCovers)
 	if err != nil {
 		return DraftResult{}, err
 	}
@@ -288,7 +293,7 @@ func (t *toutiaoAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if strings.TrimSpace(ref.ID) == "" {
 		return PublishResult{}, platformError(ErrValidation, t.ID(), "publish-draft", 0, "draft id is required", false)
 	}
-	id, err := t.mutate(ctx, ref.ID, input, true)
+	id, err := t.mutate(ctx, ref.ID, input, true, "")
 	if err != nil {
 		return PublishResult{}, err
 	}

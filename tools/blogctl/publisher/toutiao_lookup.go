@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -12,10 +13,11 @@ import (
 // ToutiaoPost is an article owned by the currently authenticated creator.
 // Search feed results are intentionally excluded: they may belong to other authors.
 type ToutiaoPost struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	URL       string `json:"url"`
-	Published bool   `json:"published"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+	Published  bool   `json:"published"`
+	FeedCovers string `json:"-"`
 }
 
 func ToutiaoTitleMatches(local, remote string) bool {
@@ -34,8 +36,9 @@ func (t *toutiaoAdapter) listDrafts(ctx context.Context) ([]ToutiaoPost, error) 
 		Code    *int   `json:"code"`
 		Message string `json:"message"`
 		Drafts  []struct {
-			GID   any    `json:"gid"`
-			Title string `json:"title"`
+			GID          any    `json:"gid"`
+			Title        string `json:"title"`
+			GraphicExtra string `json:"graphic_extra"`
 		} `json:"draft_list"`
 	}
 	if err := doJSON(t.client, req, t.ID(), "list-drafts", &decoded); err != nil {
@@ -51,8 +54,24 @@ func (t *toutiaoAdapter) listDrafts(ctx context.Context) ([]ToutiaoPost, error) 
 		if id == "" || id == "0" || title == "" {
 			continue
 		}
+		covers := "[]"
+		if strings.TrimSpace(draft.GraphicExtra) != "" {
+			var extra struct {
+				FeedCovers string `json:"pgc_feed_covers"`
+			}
+			if err := json.Unmarshal([]byte(draft.GraphicExtra), &extra); err != nil {
+				return nil, platformError(ErrUpstream, t.ID(), "list-drafts", 0, "invalid draft metadata", false)
+			}
+			if extra.FeedCovers != "" {
+				var parsed []json.RawMessage
+				if err := json.Unmarshal([]byte(extra.FeedCovers), &parsed); err != nil {
+					return nil, platformError(ErrUpstream, t.ID(), "list-drafts", 0, "invalid draft cover metadata", false)
+				}
+				covers = extra.FeedCovers
+			}
+		}
 		posts = append(posts, ToutiaoPost{
-			ID: id, Title: title,
+			ID: id, Title: title, FeedCovers: covers,
 			URL: toutiaoOrigin + "/profile_v4/graphic/publish?pgc_id=" + url.QueryEscape(id),
 		})
 	}
