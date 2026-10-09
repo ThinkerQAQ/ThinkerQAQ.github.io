@@ -24,6 +24,8 @@ import {
   type ArticleSeriesNavigation as SeriesNavigation,
 } from "../lib/content";
 import type { ProjectRelation } from "../lib/project-relations";
+import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
+import ContentMediaViewer from "../components/ContentMediaViewer.astro";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -194,4 +196,6 @@ const schema = {
     </article>
     <TableOfContents headings={headings} locale={locale} />
   </div>
+  <ContentAnalyticsRuntime />
+  <ContentMediaViewer locale={locale} />
 </BaseLayout>
