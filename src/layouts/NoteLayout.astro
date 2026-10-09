@@ -20,6 +20,8 @@ import { SITE } from "../config/site";
 import { SITE_WEBSITE_ID, siteAuthorSchema } from "../lib/structured-data";
 import { articleHref, categoryHref, formatDate, getNoteTopicPath, noteHref, noteTagHref, noteTopicHref, type NoteCollectionNavigation } from "../lib/content";
 import { localizeNoteTagLabel } from "../lib/note-taxonomy-i18n";
+import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
+import ContentMediaViewer from "../components/ContentMediaViewer.astro";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -182,4 +184,6 @@ const schema = {
     </article>
     <TableOfContents headings={headings} locale={locale} />
   </div>
+  <ContentAnalyticsRuntime />
+  <ContentMediaViewer locale={locale} />
 </BaseLayout>
