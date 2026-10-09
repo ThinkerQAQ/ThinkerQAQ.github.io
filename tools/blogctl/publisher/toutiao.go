@@ -3,7 +3,6 @@ package publisher
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -216,16 +215,6 @@ func toutiaoArticleValues(input DraftInput, html, refID, covers string, publish 
 	values.Set("activity_tag", "0")
 	values.Set("trends_writing_tag", "0")
 	values.Set("claim_exclusive", "0")
-	if !publish && (refID == "" || refID == "0") {
-		// The captured initial create-draft request uses ad type 3 and
-		// customer_nick_name; subsequent edits may use ad type 2.
-		values.Set("article_ad_type", "3")
-		values.Set("customer_nick_name", "")
-		// Keep initial creation consistent with the editor's smaller form.
-		values.Del("star_order_id")
-		values.Del("star_order_name")
-		values.Del("timer_time")
-	}
 	return values
 }
 
@@ -260,7 +249,6 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		Code    *int   `json:"code"`
 		ErrNo   *int   `json:"err_no"`
 		Message string `json:"message"`
-		Reason  string `json:"reason"`
 		Data    struct {
 			PGCID any `json:"pgc_id"`
 		} `json:"data"`
@@ -276,25 +264,8 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 	id := valueString(decoded.Data.PGCID)
 	if !codeOK || id == "" || id == "0" {
 		message := responseMessage(decoded.Message)
-		if message == "unknown error" && strings.TrimSpace(decoded.Reason) != "" {
-			message = decoded.Reason
-		}
 		if !publish && refID != "" && refID != "0" && (strings.Contains(message, "不存在") || strings.Contains(strings.ToLower(message), "not found")) {
 			return "", platformError(ErrValidation, t.ID(), operation, 0, "the draft no longer exists; refusing to recreate it without explicit confirmation", false)
-		}
-		// Report only numeric upstream codes and fixed editor guidance. Do not
-		// expose request bodies, authentication headers or HAR signatures.
-		code := "absent"
-		if decoded.Code != nil {
-			code = fmt.Sprint(*decoded.Code)
-		}
-		errNo := "absent"
-		if decoded.ErrNo != nil {
-			errNo = fmt.Sprint(*decoded.ErrNo)
-		}
-		message = fmt.Sprintf("%s (code=%s, err_no=%s)", message, code, errNo)
-		if !publish && strings.Contains(message, "保存失败") {
-			message += "; the browser editor uses dynamically signed requests (a_bogus/msToken); a direct Bridge request may be rejected"
 		}
 		return "", platformError(ErrUpstream, t.ID(), operation, 0, message, false)
 	}

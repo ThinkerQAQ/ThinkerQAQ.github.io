@@ -137,12 +137,12 @@ test("uses backend capabilities for published-update actions", () => {
   const status = {
     platforms: [
       { id: "cnblogs", capabilities: { publishedUpdate: true } },
-      { id: "toutiao", capabilities: { publishedUpdate: true } },
+      { id: "toutiao", capabilities: { publishedUpdate: false } },
       { id: "juejin", capabilities: { publishedUpdate: false } },
     ],
   };
   assert.equal(model.canUpdatePublished("example", ["cnblogs"], true, status), true);
-  assert.equal(model.canUpdatePublished("example", ["toutiao"], true, status), true);
+  assert.equal(model.canUpdatePublished("example", ["toutiao"], true, status), false);
   assert.equal(model.canUpdatePublished("", ["cnblogs"], true, status), false);
   assert.equal(model.canUpdatePublished("example", [], true, status), false);
   assert.equal(model.canUpdatePublished("example", ["juejin"], true, status), false);

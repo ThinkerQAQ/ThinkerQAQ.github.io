@@ -1,28 +1,27 @@
-# BlogCTL v0.1.114
+# BlogCTL v0.1.115
 
-Fix Toutiao draft creation by executing signed creator-editor saves in the
-already logged-in Chromium page, instead of making unsigned Bridge HTTP writes.
+Remove the Toutiao browser editor relay introduced in v0.1.114.
+
+The previous implementation opened the Toutiao Creator editor to perform
+signed requests. This does not meet the requirement that BlogCTL perform
+publishing strictly via an HTTP API and caused unnecessary task timeouts.
 
 ## Changes
 
-- Correct initial draft form fields to match the recorded Toutiao creator
-  editor request (save=0, absent pgc_id, initial ad type and nickname).
-- Route the restricted Toutiao publish/save endpoint through a browser-main-world
-  fetch. The Go Bridge still owns compilation, image handling, task state and
-  publication bindings.
-- Reuse the logged-in editor's page runtime for dynamically generated request
-  security parameters; never hard-code HAR signatures or persist browser cookies.
-- Keep the browser request relay strictly limited to the known creator-editor
-  POST endpoint and authorized Bridge token. Expire unfulfilled requests and
-  report meaningful browser-runtime and upstream errors.
-- Keep published edits explicit and protect existing published article IDs.
-- Add tests for zero-binding draft creation, relay authentication, forbidden
-  endpoints, browser execution, cancellation and response handling.
-- Align CLI, Native Host, Bridge and Extension versions at v0.1.114.
+- Fully remove the creator editor browser relay, MAIN-world scripting,
+  additional Bridge endpoints, queued requests and timeout/polling logic.
+- Keep the existing Toutiao account, published/draft inventory lookup,
+  detection and manually verified article binding operations.
+- Mark Toutiao draft creation, draft update, publishing and published
+  article updating unavailable until a reliable direct-HTTP signing
+  implementation is verified.
+- Hide/disable Toutiao writer actions in the extension and refuse write
+  operations in the Bridge and publisher Service before any outbound
+  request or article asset rendering.
+- Preserve all existing Data/ files, configuration and publication bindings.
+- Keep all other platforms' publishing operations unaffected.
 
-## Integration note
+## Verification
 
-Reload the BlogCTL browser extension after upgrading. Keep Toutiao Creator
-Center logged in. The first draft creation may open an inactive creator
-editor tab to perform the signed save request. Real-account verification is
-required; HAR and mocked tests alone cannot guarantee site compatibility.
+Go tests and focused extension tests cover the disabled writes. No Toutiao
+article was created, edited or published during this change.

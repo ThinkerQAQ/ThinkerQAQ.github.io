@@ -964,14 +964,6 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		RequestHeaders:       cloneStringMap(session.RequestHeaders),
 		CookieHostSuffixes:   publisherCookieHostSuffixes(platform),
 	}
-	if platform == "toutiao" {
-		if httpClient.Transport == nil {
-			return publisherSession, toutiaoBrowserClient(httpClient, p.server.browserRequests()), nil
-		}
-		if _, production := httpClient.Transport.(*http.Transport); production {
-			return publisherSession, toutiaoBrowserClient(httpClient, p.server.browserRequests()), nil
-		}
-	}
 	if platform == "medium" || platform == "51cto" {
 		// Tests inject a purpose-built transport. Production uses the normal
 		// *http.Transport and needs a browser TLS/HTTP2 fingerprint for Cloudflare.

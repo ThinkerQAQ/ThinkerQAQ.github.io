@@ -44,7 +44,7 @@ test("each platform exposes an isolated detection or update action", async () =>
   assert.match(drafts, /startSavePlatforms\(\[platform\.id\]\)/u);
 });
 
-test("publishing platforms never automate DOM; Toutiao uses scoped editor MAIN-world fetch", async () => {
+test("publishing platforms never drive hidden browser tabs or platform DOM", async () => {
   const background = await readFile(backgroundPath, "utf8");
 
   assert.doesNotMatch(background, /cto51PublishInBrowser|waitForPublishedURL/u);
@@ -53,8 +53,7 @@ test("publishing platforms never automate DOM; Toutiao uses scoped editor MAIN-w
   assert.doesNotMatch(background, /\/v1\/browser-ops/u);
 
   const executeScriptCalls = background.match(/chrome\.scripting\.executeScript/g) || [];
-  assert.equal(executeScriptCalls.length, 2);
-  assert.match(background, /world: "MAIN"/u);
+  assert.equal(executeScriptCalls.length, 1);
   assert.match(background, /files: \["google-indexing-content\.js"\]/u);
 });
 
@@ -90,4 +89,14 @@ test("Toutiao published edits are explicit, confirmed, and separate from draft s
   assert.match(sync, /from=edit&pgc_id=/u);
   assert.match(sync, /function reverifyToutiaoPublished\(item\)/u);
   assert.match(sync, /"重新校验版本"/u);
+});
+
+
+test("Toutiao editor relay is absent; UI marks unverified direct HTTP writes unavailable", async () => {
+  const [background, drafts] = await Promise.all([
+    readFile(backgroundPath,"utf8"), readFile(draftsPath,"utf8"),
+  ]);
+  assert.doesNotMatch(background,/kickToutiaoBrowserPump|processToutiaoBrowserRequest|ensureToutiaoEditorTab/u);
+  assert.match(drafts,/platform\.id === "toutiao" && platform\.capabilities\?\.draftCreate !== true/u);
+  assert.match(drafts,/头条纯接口保存暂不可用/u);
 });

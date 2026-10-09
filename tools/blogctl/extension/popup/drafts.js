@@ -38,6 +38,9 @@
   }
 
   function platformAvailability(article, platform) {
+    if (platform.id === "toutiao" && platform.capabilities?.draftCreate !== true) {
+      return { available: false, reason: "仅支持文章查询与关联；头条纯接口保存暂不可用" };
+    }
     const sourceAvailability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
     if (!sourceAvailability.available) return sourceAvailability;
     const toolAvailability = BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
@@ -118,7 +121,7 @@
   function platformLifecycleText(platformId) {
     const record = publicationRecord(platformId);
     if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 本次更新";
-    if (record?.publishedUrl) return "已有已发布记录 · 可单独更新已发布内容";
+    if (record?.publishedUrl) return "已有已发布记录";
     return "没有草稿关系 · 本次创建";
   }
 

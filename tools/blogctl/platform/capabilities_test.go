@@ -14,6 +14,12 @@ func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 		t.Fatalf("IDs = %#v", got)
 	}
 	for _, id := range want {
+		if id == "toutiao" {
+			if !Supported(id) || !For(id).RemoteList || For(id).DraftCreate {
+				t.Fatalf("%s must remain discoverable but not writable: %#v", id, For(id))
+			}
+			continue
+		}
 		if !Supported(id) || !For(id).DraftCreate {
 			t.Fatalf("%s capabilities = %#v", id, For(id))
 		}
