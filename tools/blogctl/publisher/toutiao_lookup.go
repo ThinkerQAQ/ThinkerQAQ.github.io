@@ -19,7 +19,7 @@ type ToutiaoPost struct {
 }
 
 func ToutiaoTitleMatches(local, remote string) bool {
-	return CSDNTitleMatches(local, remote)
+	return CSDNTitleMatches(local, remote) || CSDNTitleMatches(truncateToutiaoTitle(local), remote)
 }
 
 func (t *toutiaoAdapter) listDrafts(ctx context.Context) ([]ToutiaoPost, error) {

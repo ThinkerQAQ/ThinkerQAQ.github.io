@@ -9,6 +9,12 @@ import (
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
+type toutiaoBindingView struct {
+	PostID string `json:"postId"`
+	State  string `json:"state"`
+	URL    string `json:"url,omitempty"`
+}
+
 type toutiaoCandidateView struct {
 	ID           string `json:"id"`
 	Title        string `json:"title"`
@@ -18,13 +24,13 @@ type toutiaoCandidateView struct {
 	BindingState string `json:"bindingState,omitempty"`
 }
 
-func toutiaoBindingViews(binding publisher.PublicationBinding) []osChinaBindingView {
-	views := []osChinaBindingView{}
+func toutiaoBindingViews(binding publisher.PublicationBinding) []toutiaoBindingView {
+	views := []toutiaoBindingView{}
 	if binding.RemoteDraftID != "" {
-		views = append(views, osChinaBindingView{PostID: binding.RemoteDraftID, State: "draft", URL: binding.DraftURL})
+		views = append(views, toutiaoBindingView{PostID: binding.RemoteDraftID, State: "draft", URL: binding.DraftURL})
 	}
 	if binding.PublishedRemoteID != "" {
-		views = append(views, osChinaBindingView{PostID: binding.PublishedRemoteID, State: "published", URL: binding.PublishedURL})
+		views = append(views, toutiaoBindingView{PostID: binding.PublishedRemoteID, State: "published", URL: binding.PublishedURL})
 	}
 	return views
 }
