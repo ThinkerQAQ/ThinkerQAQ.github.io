@@ -3,7 +3,6 @@ package publisher
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -115,5 +114,4 @@ func TestToutiaoUpdatePublishedCannotBecomeDraftSave(t *testing.T) {
 	if v := toutiaoArticleValues(DraftInput{Title: "hello"}, "<p>body</p>", "777", "", true); v.Get("save") != "1" {
 		t.Fatal("explicit publish must keep save=1")
 	}
-	_, _ = url.Parse("https://mp.toutiao.com/profile_v4/graphic/publish?from=edit&pgc_id=777")
 }

@@ -22,7 +22,7 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 				!value.CoverImage && !value.NativeCanonical && !value.Tags
 		}},
 		{"toutiao", func(value PlatformCapabilities) bool {
-			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish && value.BodyImages && value.BodyImageRehost
+			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish && value.PublishedUpdate && value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
 		{"csdn", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
@@ -57,6 +57,9 @@ func TestMissingDraftRecreationPolicyFailsClosedForPublishedArticles(t *testing.
 	}
 	if mayRecreateMissingDraft("juejin", published) {
 		t.Fatal("Juejin must not recreate a missing draft when published-update safety is not verified")
+	}
+	if mayRecreateMissingDraft("toutiao", published) {
+		t.Fatal("Toutiao published articles may only change via explicit update-published operation")
 	}
 	if !mayRecreateMissingDraft("cnblogs", published) {
 		t.Fatal("CNBlogs has a verified published-update workflow and may create a replacement draft")

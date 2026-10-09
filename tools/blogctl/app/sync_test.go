@@ -279,3 +279,15 @@ func writeTestFile(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
+
+func TestNormalizeSyncRequestAllowsExplicitToutiaoPublishedUpdate(t *testing.T) {
+	request, err := NormalizeSyncRequest(SyncRequest{Articles: []string{"concurrency-03"}, Platforms: []string{"toutiao"}, Operation: "update-published"})
+	if err != nil || request.Operation != "update-published" {
+		t.Fatalf("normalized=%+v err=%v", request, err)
+	}
+	for _, platforms := range [][]string{{"juejin"}, {"toutiao", "cnblogs"}} {
+		if _, err := NormalizeSyncRequest(SyncRequest{Articles: []string{"concurrency-03"}, Platforms: platforms, Operation: "update-published"}); err == nil {
+			t.Fatalf("invalid published update scope allowed: %v", platforms)
+		}
+	}
+}
