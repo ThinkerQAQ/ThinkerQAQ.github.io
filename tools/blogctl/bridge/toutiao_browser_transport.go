@@ -181,6 +181,10 @@ func toutiaoBrowserClient(client *http.Client, queue *toutiaoBrowserRequests) *h
 		base = http.DefaultTransport
 	}
 	clone.Transport = toutiaoEditorTransport{base: base, requests: queue}
+	// Allow the 75s browser relay timeout to report its own actionable error.
+	if clone.Timeout > 0 && clone.Timeout < 90*time.Second {
+		clone.Timeout = 90 * time.Second
+	}
 	// The request is authenticated by the already logged-in editor page. Never
 	// forward the Bridge's cookie jar or security headers to the extension.
 	return &clone
