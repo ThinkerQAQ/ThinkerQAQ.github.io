@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import script from "./u.js";
+import script from "./u.js.js";
 import send from "./api/send.js";
 import reactions from "./v1/reactions.js";
 
