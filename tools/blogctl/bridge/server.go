@@ -307,6 +307,18 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleZhihuBindingDelete(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/toutiao/articles/list" && request.Method == http.MethodPost {
+		s.handleToutiaoArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/toutiao/binding" && request.Method == http.MethodPost {
+		s.handleToutiaoBindingPut(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/toutiao/binding" && request.Method == http.MethodDelete {
+		s.handleToutiaoBindingDelete(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/oschina/articles/list" && request.Method == http.MethodPost {
 		s.handleOSChinaArticleList(response, request, request.URL.Query().Get("article"))
 		return
