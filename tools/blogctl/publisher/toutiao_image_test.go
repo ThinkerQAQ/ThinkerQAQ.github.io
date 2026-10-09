@@ -3,7 +3,6 @@ package publisher
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -95,15 +94,37 @@ func TestToutiaoImageUploadRejectsBusinessFailuresAndMissingURL(t *testing.T) {
 	}
 }
 
+func TestToutiaoCapturedEditorHeadersAreForwardedOnlyToWrites(t *testing.T) {
+	session := toutiaoTestSession()
+	session.RequestHeaders = map[string]string{"x-secsdk-csrf-token": "csrf-test", "tt-anti-token": "anti-test"}
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Header.Get("x-secsdk-csrf-token") != "csrf-test" || req.Header.Get("tt-anti-token") != "anti-test" {
+			t.Fatal("missing captured security header on image upload")
+		}
+		return jsonResponse(req, 200, `{"code":0,"data":{"image_url":"https://image-tt-private.toutiao.com/upload.jpg"}}`, nil), nil
+	})}
+	adapterValue, err := NewToutiaoAdapter(client, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = adapterValue.(*toutiaoAdapter).uploadByURL(context.Background(), "https://example.invalid/pic.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	get, err := adapterValue.(*toutiaoAdapter).request(context.Background(), http.MethodGet, "https://mp.toutiao.com/mp/agw/media/get_media_info", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if get.Header.Get("tt-anti-token") != "" || get.Header.Get("x-secsdk-csrf-token") != "" {
+		t.Fatal("captured editor headers must not be sent to unrelated endpoints")
+	}
+}
+
 func TestToutiaoUploadedImageIsRecognized(t *testing.T) {
 	if !isToutiaoImage("https://image-tt-private.toutiao.com/image.jpg") {
 		t.Fatal("creator images must not be uploaded again")
 	}
 	if isToutiaoImage("https://attack.toutiaoimg.com.evil.test/image.jpg") {
 		t.Fatal("non-Toutiao host accepted")
-	}
-	_, err := json.Marshal(toutiaoImageResponse{})
-	if err != nil {
-		t.Fatal(err)
 	}
 }

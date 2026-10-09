@@ -22,6 +22,7 @@ const pendingCNBlogsCookieCaptures = new Map();
 const pendingPlatformCookieCaptures = new Map();
 // Browser-observed Toutiao editor headers live only in extension memory.
 const toutiaoEditorHeaders = {};
+let toutiaoEditorHeadersCapturedAt = 0;
 const extensionOrigin = chrome.runtime.getURL("").replace(/\/$/, "");
 const openControlTab = () => chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
 
@@ -68,6 +69,7 @@ chrome.webRequest.onSendHeaders.addListener((details) => {
         typeof header.value === "string" && header.value.length > 0 && header.value.length <= 4096 &&
         !/[\r\n]/.test(header.value)) {
       toutiaoEditorHeaders[name] = header.value;
+      toutiaoEditorHeadersCapturedAt = Date.now();
     }
   }
 }, { urls: ["https://mp.toutiao.com/spice/image*", "https://mp.toutiao.com/mp/agw/article/publish*"] }, ["requestHeaders", "extraHeaders"]);
@@ -547,7 +549,8 @@ async function syncPlatformSession(platform) {
       cookieStores,
       requestCookieHeader,
       requestCookieHeaders,
-      requestHeaders: platform === "toutiao" ? { ...toutiaoEditorHeaders } : undefined,
+      requestHeaders: platform === "toutiao" && Date.now() - toutiaoEditorHeadersCapturedAt < 10 * 60 * 1000
+        ? { ...toutiaoEditorHeaders } : undefined,
     }),
   );
 }
