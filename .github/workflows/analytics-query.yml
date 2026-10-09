@@ -1,6 +1,13 @@
 name: Query blog analytics
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/analytics-query.yml"
+      - "workers/blog-ai/src/analytics.js"
+      - "workers/blog-ai/src/bot-observation.js"
+      - "workers/blog-ai/src/worker.js"
   workflow_dispatch:
     inputs:
       start_date:
@@ -40,7 +47,7 @@ jobs:
           set -euo pipefail
 
           node <<'NODE'
-          const fs = require("fs");
+          const fs = await import("node:fs");
 
           const HOUR_MS = 60 * 60 * 1000;
           const HEALTH_GRACE_MS = 15 * 60 * 1000;
@@ -160,10 +167,15 @@ jobs:
             return { startDate, endDate, days };
           }
 
-          const [meta, hourly, daily, weekly, botObservation, dateRange] =
+          const shanghaiDate = new Date(Date.now() + 8 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10);
+
+          const [meta, hourly, today, daily, weekly, botObservation, dateRange] =
             await Promise.all([
               kvGet("analytics:meta"),
               kvGet("analytics:latest"),
+              kvGet(`analytics:today:${shanghaiDate}`, { required: false }),
               kvGet("analytics:daily:latest", { required: false }),
               kvGet("analytics:weekly:latest"),
               kvGet("analytics:bot:latest", { required: false }),
@@ -216,6 +228,14 @@ jobs:
               previous: trimWindow(hourly.previous),
               delta: trimDelta(hourly.delta),
             },
+            today: today
+              ? {
+                  generatedAt: today.generatedAt,
+                  date: today.date,
+                  timezoneOffsetMinutes: today.timezoneOffsetMinutes,
+                  current: trimWindow(today.current),
+                }
+              : null,
             daily: daily
               ? {
                   generatedAt: daily.generatedAt,
