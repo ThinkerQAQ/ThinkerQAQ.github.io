@@ -50,6 +50,9 @@ func publicationHasPublishedState(state PublicationState) bool {
 }
 
 func mayRecreateMissingDraft(platform string, state PublicationState) bool {
+	if platform == "toutiao" && publicationHasPublishedState(state) {
+		return false
+	}
 	return !publicationHasPublishedState(state) || PlatformCapabilitiesFor(platform).PublishedUpdate
 }
 
@@ -77,7 +80,7 @@ func (s Service) CreateOrUpdateDraftInput(
 		slog.Info("reopening published article draft", "operation", "published-draft-edit", "platform", platform, "slug", slug, "remoteId", input.RemoteDraftID)
 	}
 	if input.RemoteDraftID == "" && (state.PublishedRemoteID != "" || state.PublishedURL != "") &&
-		!capabilities.PublishedUpdate && !capabilities.PublishedDraftEdit {
+		((platform == "toutiao") || (!capabilities.PublishedUpdate && !capabilities.PublishedDraftEdit)) {
 		return DraftResult{}, platformError(
 			ErrValidation, platform, "save-draft", 0,
 			"the article is already published; safe published-article updates are not supported for this platform yet",

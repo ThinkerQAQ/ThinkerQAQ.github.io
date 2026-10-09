@@ -18,6 +18,7 @@ type ToutiaoPost struct {
 	URL        string `json:"url"`
 	Published  bool   `json:"published"`
 	FeedCovers string `json:"-"`
+	ModifiedAt string `json:"-"`
 }
 
 func ToutiaoTitleMatches(local, remote string) bool {
@@ -102,9 +103,10 @@ func (t *toutiaoAdapter) listPublished(ctx context.Context) ([]ToutiaoPost, erro
 			EndCursor int64  `json:"end_cursor"`
 			Contents  []struct {
 				Article struct {
-					GID    any    `json:"gid"`
-					Title  string `json:"title"`
-					Status int    `json:"status"`
+					GID        any    `json:"gid"`
+					Title      string `json:"title"`
+					Status     int    `json:"status"`
+					ModifyTime int64  `json:"modify_time"`
 				} `json:"article_attr"`
 			} `json:"contents"`
 		}
@@ -129,7 +131,8 @@ func (t *toutiaoAdapter) listPublished(ctx context.Context) ([]ToutiaoPost, erro
 			seen[id] = struct{}{}
 			posts = append(posts, ToutiaoPost{
 				ID: id, Title: title, Published: true,
-				URL: toutiaoPublic + "/article/" + url.PathEscape(id) + "/",
+				ModifiedAt: strconv.FormatInt(item.Article.ModifyTime, 10),
+				URL:        toutiaoPublic + "/article/" + url.PathEscape(id) + "/",
 			})
 		}
 		if !decoded.HasMore {

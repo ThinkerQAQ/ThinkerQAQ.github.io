@@ -155,6 +155,7 @@ func (s *Server) handleToutiaoBindingPut(response http.ResponseWriter, request *
 	if body.State == "published" {
 		binding.PublishedRemoteID = selected.ID
 		binding.PublishedURL = selected.URL
+		binding.RemoteUpdatedAt = selected.ModifiedAt
 	} else {
 		binding.RemoteDraftID = selected.ID
 		binding.DraftURL = selected.URL
