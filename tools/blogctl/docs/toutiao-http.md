@@ -54,6 +54,32 @@ If HEAD+POST still fails with 保存失败, inspect the creator-specific
 a_bogus and msToken generation rather than adopting unrelated public-feed
 signatures.
 
+
+## Local opt-in verification (without deploying the experimental adapter)
+
+The experimental binary can be compiled in the WSL worktree:
+
+    go build -o ~/.cache/blogctl/experiments/toutiao-probe ./tools/blogctl/cmd
+
+Read-only command (validates session and native HEAD CSRF, creates nothing):
+
+    ~/.cache/blogctl/experiments/toutiao-probe toutiao probe --har /mnt/c/Users/zsk/Downloads/mp.toutiao.com草稿.har
+
+**Only with explicit account-owner authorization**: append
+`--confirm-create-draft` to create exactly one private synthetic draft.
+This command always sets save=0, does not update existing article IDs, and
+verifies its returned ID using the creator's own draft list. No public post
+occurs. Successful tests leave a private draft in Toutiao; delete it from the
+platform manually if no longer needed. Output contains only booleans and
+the synthetic draft ID; credentials and CSRF tokens remain in process memory.
+
+The remote assistant command gateway has blocked authenticated write-test
+execution, so do not invoke this via automated remote tooling. The account
+owner can execute the command locally; do not include Cookie headers,
+authentication fields, HAR contents, or full HTTP traces in shared results.
+The read-only command and the write command must be treated as different
+security-sensitive actions.
+
 ## References
 
 - https://github.com/Aerisun/MulPubCLI/blob/main/mulpubcli/platforms/toutiao/client.py
