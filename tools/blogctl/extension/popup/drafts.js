@@ -7,7 +7,7 @@
     articles: [],
     selectedSlug: "",
     preparedSlug: "",
-    selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)),
+    selectedPlatformIDs: new Set(BlogCTLSyncModel.visiblePlatformIDs(BlogCTLSyncState.loadPlatforms(localStorage))),
     status: null,
     publishing: [],
     tools: [],
@@ -29,7 +29,7 @@
 
   function selectedPlatforms() {
     return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
-      .filter((input) => !input.disabled)
+      .filter((input) => !input.disabled && BlogCTLSyncModel.isVisiblePlatform(input.dataset.platform))
       .map((input) => input.dataset.platform);
   }
 
@@ -138,7 +138,7 @@
     const running = ["queued", "running"].includes(state.currentJob?.state);
     platformsContainer.replaceChildren();
 
-    for (const platform of state.status?.platforms ?? []) {
+    for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
       const availability = platformAvailability(article, platform);
       const wrapper = document.createElement("div");
       wrapper.className = "platform-choice-card";
@@ -242,7 +242,8 @@
   }
 
   function completedPlatforms(job) {
-    return (job?.platforms ?? []).filter((platform) => job.results?.[platform]?.state === "completed");
+    return (job?.platforms ?? []).filter((platform) =>
+      BlogCTLSyncModel.isVisiblePlatform(platform) && job.results?.[platform]?.state === "completed");
   }
 
   function updateAction() {
@@ -339,7 +340,8 @@
   async function startPublishedUpdate(platformID) {
     const article = state.selectedSlug;
     const record = publicationRecord(platformID);
-    if (platformID !== "toutiao" || !article || !record?.publishedRemoteId ||
+    if (!BlogCTLSyncModel.isVisiblePlatform(platformID) ||
+        platformID !== "toutiao" || !article || !record?.publishedRemoteId ||
         !record?.publishedUrl || !state.status?.bridge?.running ||
         ["queued", "running"].includes(state.currentJob?.state)) return;
     if (!window.confirm("将本地文章内容提交到今日头条已发布文章（ID " +
@@ -365,7 +367,8 @@
   async function startSavePlatforms(platforms) {
     const article = state.selectedSlug;
     const running = ["queued", "running"].includes(state.currentJob?.state);
-    if (!article || !platforms.length || running || !state.status?.bridge?.running) return;
+    if (!article || !platforms.length || running || !state.status?.bridge?.running ||
+        platforms.some((id) => !BlogCTLSyncModel.isVisiblePlatform(id))) return;
 
     if (["completed", "failed"].includes(state.currentJob?.state)) resetWorkflow();
 
