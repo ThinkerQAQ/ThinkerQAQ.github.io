@@ -15,8 +15,9 @@ func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 	}
 	for _, id := range want {
 		if id == "toutiao" {
-			if !Supported(id) || !For(id).RemoteList || For(id).DraftCreate {
-				t.Fatalf("%s must remain discoverable but not writable: %#v", id, For(id))
+			if !Supported(id) || !For(id).RemoteList || !For(id).DraftCreate || !For(id).DraftUpdate ||
+				!For(id).PublishedUpdate || For(id).ExplicitPublish {
+				t.Fatalf("%s should support drafts and guarded published updates, not public publish: %#v", id, For(id))
 			}
 			continue
 		}
@@ -32,7 +33,7 @@ func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	devto := For("devto")
 	if !devto.BrowserSession || !devto.APIKey || !devto.DraftUpdate || !devto.ExplicitPublish ||
-		devto.PublishedUpdate || !devto.RemoteList || !devto.BodyImages || !devto.BodyImageRehost ||
+		!devto.PublishedUpdate || !devto.RemoteList || !devto.BodyImages || !devto.BodyImageRehost ||
 		!devto.CoverImage || !devto.NativeCanonical || !devto.Tags {
 		t.Fatalf("DEV.to capabilities = %#v", devto)
 	}
@@ -44,6 +45,11 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 		t.Fatalf("Medium capabilities = %#v", medium)
 	}
 
+	oschina := For("oschina")
+	if oschina.ExplicitPublish {
+		t.Fatal("OSChina must not claim draft publishing: current adapter adds a new article")
+	}
+
 	csdn := For("csdn")
 	if !csdn.BrowserSession || !csdn.DraftCreate || !csdn.DraftUpdate || !csdn.ExplicitPublish ||
 		!csdn.RemoteList || !csdn.BodyImages || !csdn.BodyImageRehost || csdn.PublishedUpdate {
@@ -51,7 +57,7 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	}
 
 	juejin := For("juejin")
-	if !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || juejin.PublishedUpdate || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
+	if !juejin.RemoteList || !juejin.BodyImages || !juejin.BodyImageRehost || !juejin.ExplicitPublish || juejin.PublishedUpdate || juejin.CoverImage || juejin.NativeCanonical || juejin.Tags {
 		t.Fatalf("Juejin capabilities = %#v", juejin)
 	}
 }

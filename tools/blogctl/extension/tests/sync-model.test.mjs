@@ -185,3 +185,104 @@ test("uses explicit-publish capability for task confirmation", () => {
   assert.equal(model.canConfirmPublish({ ...completed, platforms: ["medium"], results: { medium: { state: "completed" } } }, status), false);
   assert.equal(model.canConfirmPublish({ ...completed, results: { cnblogs: { state: "failed" }, juejin: { state: "completed" } } }, status), false);
 });
+
+test("all ten remote-association draft platforms resolve to an editor instead of a public preview", () => {
+  const cases = [
+    ["cnblogs", "23247130", "https://www.cnblogs.com/ThinkerQAQ/p/23247130",
+      "https://i.cnblogs.com/posts/edit;postId=23247130"],
+    ["juejin", "7694502718519017508", "https://juejin.cn/post/7694502718519017508",
+      "https://juejin.cn/editor/drafts/7694502718519017508"],
+    ["csdn", "167467490", "https://blog.csdn.net/ThinkerQAQ/article/details/167467490",
+      "https://editor.csdn.net/md?articleId=167467490"],
+    ["segmentfault", "123456", "https://segmentfault.com/a/123456",
+      "https://segmentfault.com/write?draftId=123456"],
+    ["zhihu", "2092192670206768438", "https://zhuanlan.zhihu.com/p/2092192670206768438",
+      "https://zhuanlan.zhihu.com/p/2092192670206768438/edit"],
+    ["51cto", "3223421", "https://blog.51cto.com/ThinkerQAQ/3223421",
+      "https://blog.51cto.com/blogger/draft/3223421"],
+    ["oschina", "3328466", "https://my.oschina.net/u/2360403/blog/3328466",
+      "https://my.oschina.net/u/2360403/blog/ai-write/draft/3328466"],
+    ["toutiao", "72599220101", "https://www.toutiao.com/article/72599220101/",
+      "https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=72599220101"],
+    ["devto", "4826123", "https://dev.to/thinkerqaq/temp-slug-7479138",
+      "https://dev.to/dashboard/edit/4826123"],
+    ["medium", "6e2fff4d49cd", "https://medium.com/@thinkerqaq/temp-6e2fff4d49cd",
+      "https://medium.com/p/6e2fff4d49cd/edit"],
+  ];
+  for (const [platform, id, preview, editor] of cases) {
+    assert.deepEqual(
+      model.articleMatchLink(platform, { id, url: preview, published: false }),
+      { label: "编辑草稿", url: editor },
+      `draft of ${platform} should link to its editor`,
+    );
+  }
+});
+
+test("published articles keep their original public links across all supported platforms", () => {
+  const published = [
+    ["cnblogs", "https://www.cnblogs.com/ThinkerQAQ/p/23247130"],
+    ["juejin", "https://juejin.cn/post/7694502718519017508"],
+    ["csdn", "https://blog.csdn.net/ThinkerQAQ/article/details/167467490"],
+    ["segmentfault", "https://segmentfault.com/a/123456"],
+    ["zhihu", "https://zhuanlan.zhihu.com/p/2092192670206768438"],
+    ["51cto", "https://blog.51cto.com/ThinkerQAQ/3223421"],
+    ["oschina", "https://my.oschina.net/u/2360403/blog/19763618"],
+    ["toutiao", "https://www.toutiao.com/article/72599220101/"],
+    ["devto", "https://dev.to/thinkerqaq/published"],
+    ["medium", "https://medium.com/@thinkerqaq/published-example"],
+  ];
+  for (const [platform, url] of published) {
+    assert.deepEqual(model.articleMatchLink(platform, { published: true, url, id: "123" }),
+      { label: "查看文章", url },
+      `published post on ${platform} must keep its public URL`);
+  }
+});
+
+test("draft link resolution is fail-closed for bad IDs or untrusted domains", () => {
+  assert.equal(model.articleMatchLink("oschina", {
+    id: "3328466", published: false,
+    url: "https://my.oschina.net/shengkunz/blog/write/draft/3328466",
+  }), null, "OSChina cannot derive numeric creator ID from a username");
+  assert.equal(model.articleMatchLink("devto", { id: "../../secret", published: false }), null);
+  assert.equal(model.articleMatchLink("cnblogs", { id: "abc", published: false }), null);
+  assert.equal(model.articleMatchLink("devto", { id: "123", url: "javascript:alert(1)", published: true }), null);
+  assert.equal(model.articleMatchLink("medium", { id: "abc", url: "https://medium.com.evil.example/p/abc", published: true }), null);
+  assert.equal(model.articleMatchLink("juejin", { id: "123", url: "http://juejin.cn/post/123", published: true }), null);
+});
+
+test("51CTO draft keeps an authenticated creator-provided editor route", () => {
+  assert.deepEqual(model.articleMatchLink("51cto", {
+    id: "3223421", url: "https://blog.51cto.com/blogger/edit/3223421", published: false,
+  }), { label: "编辑草稿", url: "https://blog.51cto.com/blogger/edit/3223421" });
+});
+
+test("temporarily disabled delivery platforms stay hidden without losing capabilities", () => {
+  const list = [
+    { id: "cnblogs", capabilities: { draftCreate: true } },
+    { id: "medium", capabilities: { draftCreate: true, remoteList: true } },
+    { id: "juejin", capabilities: { draftCreate: true } },
+    { id: "toutiao", capabilities: { draftCreate: true, remoteList: true } },
+    { id: "devto", capabilities: { draftCreate: true } },
+  ];
+  assert.deepEqual(model.visiblePlatforms(list).map((p) => p.id), ["cnblogs", "juejin", "devto"]);
+  assert.equal(list[1].capabilities.draftCreate, true, "Medium capabilities are retained");
+  assert.equal(list[3].capabilities.draftCreate, true, "Toutiao capabilities are retained");
+  assert.deepEqual(model.visiblePlatformIDs(["medium", "juejin", "toutiao", "cnblogs", "medium"]),
+    ["juejin", "cnblogs"], "remove hidden platforms from persisted selections");
+  assert.equal(model.isVisiblePlatform("medium"), false);
+  assert.equal(model.isVisiblePlatform("toutiao"), false);
+  assert.equal(model.isVisiblePlatform("oschina"), true);
+});
+
+test("published history and bindings are not mutated when delivery records are hidden", () => {
+  const records = [
+    { article: "article", platform: "medium", remoteId: "abc" },
+    { article: "article", platform: "toutiao", remoteId: "123" },
+    { article: "article", platform: "cnblogs", remoteId: "456" },
+  ];
+  const active = model.visiblePublicationRecords(records);
+  assert.deepEqual(active.map((x) => x.platform), ["cnblogs"]);
+  assert.equal(records.length, 3, "local data and historical records are preserved");
+  assert.equal(records[0].remoteId, "abc");
+  assert.equal(records[1].remoteId, "123");
+});

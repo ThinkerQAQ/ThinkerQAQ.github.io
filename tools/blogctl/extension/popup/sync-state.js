@@ -12,6 +12,11 @@
     } catch { return []; }
   }
 
+  function hasPlatformPreference(storage) {
+    try { return storage.getItem(PLATFORMS_KEY) !== null; }
+    catch { return false; }
+  }
+
   function savePlatforms(storage, ids) {
     try { storage.setItem(PLATFORMS_KEY, JSON.stringify([...new Set(ids)])); }
     catch { /* Publishing remains usable when browser storage is full. */ }
@@ -46,5 +51,5 @@
     catch { /* Ignore unavailable storage. */ }
   }
 
-  root.BlogCTLSyncState = { loadPlatforms, savePlatforms, loadMatches, saveMatches, clearMatches };
+  root.BlogCTLSyncState = { loadPlatforms, hasPlatformPreference, savePlatforms, loadMatches, saveMatches, clearMatches };
 })(globalThis);

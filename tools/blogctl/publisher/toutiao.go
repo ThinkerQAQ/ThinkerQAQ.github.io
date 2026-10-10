@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -21,6 +22,7 @@ type toutiaoAdapter struct {
 	session   Session
 	userAgent string
 	userID    string
+	mediaID   string
 }
 
 func NewToutiaoAdapter(base *http.Client, session Session) (Adapter, error) {
@@ -70,6 +72,10 @@ func (t *toutiaoAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	}
 	var decoded struct {
 		Data struct {
+			Media struct {
+				ID    any    `json:"id"`
+				IDStr string `json:"id_str"`
+			} `json:"media"`
 			User struct {
 				ID         any    `json:"id"`
 				ScreenName string `json:"screen_name"`
@@ -80,6 +86,10 @@ func (t *toutiaoAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 		return AuthResult{}, platformError(ErrUpstream, t.ID(), "auth", response.StatusCode, "invalid JSON response", false)
 	}
 	t.userID = valueString(decoded.Data.User.ID)
+	t.mediaID = strings.TrimSpace(decoded.Data.Media.IDStr)
+	if t.mediaID == "" {
+		t.mediaID = valueString(decoded.Data.Media.ID)
+	}
 	if t.userID == "" {
 		return AuthResult{Authenticated: false}, nil
 	}
@@ -153,7 +163,7 @@ func (t *toutiaoAdapter) uploadBinary(ctx context.Context, image RehostImage) (s
 }
 
 func (t *toutiaoAdapter) prepareHTML(ctx context.Context, input DraftInput) (string, error) {
-	return rehostHTMLImages(ctx, t.client, input, htmlFor(input), ImageRehostOptions{
+	return rehostHTMLImages(ctx, t.client, input, normalizeToutiaoTOC(htmlFor(input)), ImageRehostOptions{
 		Platform:       t.ID(),
 		FailOpenRemote: true,
 		AlreadyHosted:  isToutiaoImage,
@@ -219,11 +229,44 @@ func toutiaoArticleValues(input DraftInput, html, refID, covers string, publish 
 }
 
 func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftInput, publish bool, covers string) (string, error) {
+	// Bootstrap before image uploads. Both /spice/image and the final
+	// article write use the same short-lived creator CSRF credential.
+	csrfToken := ""
+	if t.mediaID != "" {
+		credential, csrfErr := fetchToutiaoCSRF(ctx, t.client, t.userAgent, time.Now())
+		if csrfErr != nil {
+			return "", platformError(ErrUpstream, t.ID(), "csrf-preflight", 0, csrfErr.Error(), false)
+		}
+		csrfToken = credential.Token
+		previousHeaders := t.session.RequestHeaders
+		updatedHeaders := make(map[string]string, len(previousHeaders)+1)
+		for key, value := range previousHeaders {
+			updatedHeaders[key] = value
+		}
+		updatedHeaders["x-secsdk-csrf-token"] = csrfToken
+		t.session.RequestHeaders = updatedHeaders
+		defer func() { t.session.RequestHeaders = previousHeaders }()
+	}
 	html, err := t.prepareHTML(ctx, input)
 	if err != nil {
 		return "", err
 	}
 	values := toutiaoArticleValues(input, html, strings.TrimSpace(refID), covers, publish)
+	if !publish {
+		values.Set("article_ad_type", "3")
+		if strings.TrimSpace(refID) == "" || strings.TrimSpace(refID) == "0" {
+			// First editor save: title_id ties creation to the media identity.
+			if t.mediaID != "" {
+				values.Set("title_id", strconv.FormatInt(time.Now().UnixMilli(), 10)+"_"+t.mediaID)
+			}
+			values.Set("customer_nick_name", "")
+		} else {
+			// Reopening an existing draft (published3.har): title_id is empty
+			// and article_type=0, while article_ad_type stays 3.
+			values.Set("title_id", "")
+			values.Set("article_type", "0")
+		}
+	}
 	if publish {
 		// Captured editor republish form (save=1) for an already-published article.
 		values.Set("article_type", "0")
@@ -242,6 +285,9 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		return "", err
 	}
 	req.Header.Set("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
+	if csrfToken != "" {
+		req.Header.Set("x-secsdk-csrf-token", csrfToken)
+	}
 	if csrf := cookieValue(t.session, "passport_csrf_token"); csrf != "" {
 		req.Header.Set("x-csrftoken", csrf)
 	}
@@ -264,6 +310,17 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 	id := valueString(decoded.Data.PGCID)
 	if !codeOK || id == "" || id == "0" {
 		message := responseMessage(decoded.Message)
+		// Preserve upstream business status without exposing session headers,
+		// tokens, request bodies or any other account credentials.
+		if decoded.Code != nil {
+			message += " (code=" + strconv.Itoa(*decoded.Code)
+			if decoded.ErrNo != nil {
+				message += ", err_no=" + strconv.Itoa(*decoded.ErrNo)
+			}
+			message += ")"
+		} else if decoded.ErrNo != nil {
+			message += " (err_no=" + strconv.Itoa(*decoded.ErrNo) + ")"
+		}
 		if !publish && refID != "" && refID != "0" && (strings.Contains(message, "不存在") || strings.Contains(strings.ToLower(message), "not found")) {
 			return "", platformError(ErrValidation, t.ID(), operation, 0, "the draft no longer exists; refusing to recreate it without explicit confirmation", false)
 		}

@@ -1,9 +1,9 @@
 "use strict";
 
 const modules = {
-  binding: BlogCTLSync,
+  binding: BlogCTLInventory,
   drafts: BlogCTLDrafts,
-  publications: BlogCTLPublications,
+  creation: BlogCTLDrafts,
   tasks: BlogCTLTasks,
   logs: BlogCTLLogs,
   indexing: BlogCTLIndexing,
@@ -28,9 +28,16 @@ function activateTab(name) {
   });
 
   modules[activeTab]?.deactivate();
+  if (activeTab === "drafts") BlogCTLSync.deactivate();
+  if (name === "drafts" || name === "creation") {
+    const workspace = document.getElementById("sharedDraftWorkspace");
+    document.querySelector(`[data-panel="${name}"]`).append(workspace);
+    BlogCTLDrafts.setMode(name === "creation" ? "create" : "update");
+  }
   activeTab = name;
   localStorage.setItem(ACTIVE_TAB_KEY, name);
   modules[name].activate();
+  if (name === "drafts") BlogCTLSync.activate();
 }
 
 async function refreshActiveTab() {
@@ -46,24 +53,22 @@ async function refreshActiveTab() {
 
 document.addEventListener("DOMContentLoaded", () => {
   Object.values(modules).forEach((module) => module.init());
+  BlogCTLSettingsNavigation.init();
+  BlogCTLSync.init();
 
   document.querySelectorAll("[data-tab]").forEach((tab) => {
     tab.addEventListener("click", () => activateTab(tab.dataset.tab));
   });
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
-  document.addEventListener("blogctl:navigate-drafts", (event) => {
-    const article = String(event.detail?.article || "").trim();
-    if (!article) return;
-    BlogCTLDrafts.prepare(article);
-    activateTab("drafts");
-  });
-  document.addEventListener("blogctl:navigate-publication", (event) => {
-    const article = String(event.detail?.article || "").trim();
-    const platform = String(event.detail?.platform || "").trim();
-    if (!article || !platform) return;
-    BlogCTLPublications.focusRecord(article, platform);
-    activateTab("publications");
+  if (BlogCTLTransport.host === "web") {
+    document.getElementById("openWorkspace").hidden = true;
+  }
+  document.getElementById("openWorkspace").addEventListener("click", () => {
+    const url = "http://127.0.0.1:32145/console/";
+    if (BlogCTLTransport.host === "web") return;
+    if (globalThis.chrome?.tabs?.create) chrome.tabs.create({ url });
+    else window.open(url, "_blank", "noopener");
   });
   document.addEventListener("blogctl:navigate-task", (event) => {
     const jobId = String(event.detail?.jobId || "").trim();
@@ -71,23 +76,17 @@ document.addEventListener("DOMContentLoaded", () => {
     BlogCTLTasks.focusJob(jobId);
     activateTab("tasks");
   });
-  document.addEventListener("blogctl:draft-completed", (event) => {
-    const article = String(event.detail?.article || "").trim();
-    const platforms = Array.isArray(event.detail?.platforms) ? event.detail.platforms : [];
-    if (!article || !platforms.length) return;
-    BlogCTLPublications.prepare(article, platforms);
-    activateTab("publications");
-  });
   BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
   const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
   const normalizedTab = savedTab === "sync"
     ? "binding"
     : savedTab === "publishing"
       ? "environment"
-      : savedTab;
+      : savedTab === "publications" ? "drafts" : savedTab;
   activateTab(modules[normalizedTab] ? normalizedTab : "binding");
 });
 
 window.addEventListener("unload", () => {
   Object.values(modules).forEach((module) => module.deactivate());
+  BlogCTLSync.deactivate();
 });

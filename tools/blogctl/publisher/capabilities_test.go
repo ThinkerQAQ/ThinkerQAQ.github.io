@@ -13,7 +13,7 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 		}},
 		{"devto", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.APIKey && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
-				!value.PublishedUpdate && value.RemoteList && value.BodyImages && value.BodyImageRehost &&
+				value.PublishedUpdate && value.RemoteList && value.BodyImages && value.BodyImageRehost &&
 				value.CoverImage && value.NativeCanonical && value.Tags
 		}},
 		{"medium", func(value PlatformCapabilities) bool {
@@ -23,8 +23,8 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 		}},
 		{"toutiao", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.RemoteList &&
-				!value.DraftCreate && !value.DraftUpdate && !value.ExplicitPublish &&
-				!value.PublishedUpdate && !value.BodyImages && !value.BodyImageRehost
+				value.DraftCreate && value.DraftUpdate && !value.ExplicitPublish &&
+				value.PublishedUpdate && value.BodyImages && value.BodyImageRehost
 		}},
 		{"csdn", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
@@ -36,7 +36,7 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 				value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
 		{"oschina", func(value PlatformCapabilities) bool {
-			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
+			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && !value.ExplicitPublish &&
 				value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
 	}

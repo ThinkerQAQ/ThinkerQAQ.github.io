@@ -968,36 +968,37 @@ async function handleMessage(message) {
       }));
       return { ok: true, pendingFields: result?.pendingFields ?? [] };
     }
+    case "blogctl.remote.inventory": {
+      const platform = String(message.platform || "").trim();
+      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto"].includes(platform)) {
+        throw new Error("不支持的平台");
+      }
+      if (platform !== "devto") await syncPlatformSession(platform);
+      const query = new URLSearchParams({ platform });
+      const result = await fetchJSON(`/v1/remote/inventory?${query.toString()}`, { method: "POST" });
+      // Runtime message replies must carry ok=true. The Bridge response is
+      // an inventory payload, not the popup's message-envelope contract.
+      return { ok: true, ...result };
+    }
     case "blogctl.article.match": {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");
       if (!article || !platform) throw new Error("article and platform are required");
       if (platform === "cnblogs") {
-        const current = await fetchJSON(`/v1/cnblogs/binding?article=${article}`);
         await syncPlatformSession("cnblogs");
         const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
-        const bindings = current.bindings ?? [];
-        const items = candidates.map((post) => ({
-          title: String(post.title || "").replace(/<\/?strong>/gi, ""),
-          id: post.id, published: post.published, url: post.url || (post.published ? "" : `https://i.cnblogs.com/articles/edit;postId=${post.id}`),
-          bound: bindings.some((binding) => binding.postId === post.id),
-          bindingState: bindings.find((binding) => binding.postId === post.id)?.state || "",
-        }));
-        const warnings = [];
-        for (const binding of bindings) {
-          try {
-            const verified = await fetchJSON(`/v1/cnblogs/binding/verify?article=${article}&state=${binding.state}`, { method: "POST" });
-            const post = verified.post;
-            const existing = items.find((item) => item.id === post.id);
-            if (existing) { existing.bound = true; existing.published = post.published; existing.bindingState = binding.state; }
-            else items.unshift({ title: post.title, id: post.id, published: post.published, url: post.url || (post.published ? "" : `https://i.cnblogs.com/articles/edit;postId=${post.id}`), bound: true, bindingState: binding.state });
-          } catch (error) {
-            warnings.push(`${binding.state === "published" ? "已发布" : "草稿"} ID ${binding.postId} 核验失败：${errorMessage(error)}`);
-            if (!items.some((item) => item.id === binding.postId)) items.unshift({ title: `已绑定 ID ${binding.postId}（核验失败）`, id: binding.postId, published: binding.state === "published", bound: true, bindingState: binding.state, unverified: true });
-          }
-        }
-        return { ok: true, match: { text: `远端找到 ${candidates.length} 篇候选。${warnings.join("；")}`, items, bindings } };
+        return { ok: true, match: {
+          text: `远端找到 ${candidates.length} 篇候选文章，请明确勾选更新目标。`,
+          items: candidates.map((post) => ({
+            title: String(post.title || "").replace(/<\/?strong>/gi, ""),
+            id: post.id,
+            published: post.published,
+            url: post.published ? (post.url || "") :
+              `https://i.cnblogs.com/posts/edit;postId=${encodeURIComponent(post.id)}`,
+            updatedAt: String(post.updatedAt || ""),
+          })),
+        } };
       }
       if (platform === "segmentfault") {
         await syncPlatformSession("segmentfault");
@@ -1081,8 +1082,8 @@ async function handleMessage(message) {
         const candidates = result.candidates ?? [];
         return { ok: true, match: {
           text: candidates.length
-            ? `从掘金已发布文章列表匹配到 ${candidates.length} 条候选，并核验本地草稿 ID。`
-            : "已读取掘金已发布文章列表并核验本地草稿 ID，本地未匹配到同名文章。",
+            ? `从掘金草稿与已发布文章列表匹配到 ${candidates.length} 条候选。`
+            : "已读取掘金草稿与已发布文章列表，未匹配到同名文章。",
           items: candidates.map((post) => ({
             title: post.title,
             id: post.id,
@@ -1184,7 +1185,7 @@ async function handleMessage(message) {
     case "blogctl.cnblogs.bind": {
       const article = encodeURIComponent(String(message.article || ""));
       await syncPlatformSession("cnblogs");
-      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("POST", { reference: message.reference ?? "", replace: message.replace === true }))) };
+      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("POST", { reference: message.reference ?? "", state: message.state ?? "", replace: message.replace === true }))) };
     }
     case "blogctl.cnblogs.unbind": {
       const article = encodeURIComponent(String(message.article || ""));

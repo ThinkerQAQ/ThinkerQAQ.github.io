@@ -14,9 +14,17 @@ func TestToutiaoDraftCreateAndUpdateUseCapturedSaveMode(t *testing.T) {
 	var saves []url.Values
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
+		case "/spice/image":
+			if req.Method != "HEAD" {
+				t.Fatal("CSRF preflight must use HEAD")
+			}
+			return jsonResponse(req, 200, "", map[string]string{"x-ware-csrf-token": "0,synthetic-fresh-CSRF-token-123,90000,any,extra"}), nil
 		case "/mp/agw/creator_center/draft_list":
 			return jsonResponse(req, 200, `{"code":0,"draft_list":[{"gid":"7694632080231186986","title":"原始草稿"}]}`, nil), nil
 		case "/mp/agw/article/publish":
+			if req.Header.Get("x-secsdk-csrf-token") != "synthetic-fresh-CSRF-token-123" {
+				t.Fatal("publisher did not use freshly issued CSRF token")
+			}
 			if req.URL.Query().Get("aid") != "1231" {
 				t.Fatalf("missing creator aid: %v", req.URL.Query())
 			}
@@ -37,6 +45,8 @@ func TestToutiaoDraftCreateAndUpdateUseCapturedSaveMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Authentication normally populates mediaID from creator account info.
+	adapter.(*toutiaoAdapter).mediaID = "1234567890123456"
 	create, err := adapter.CreateDraft(context.Background(), DraftInput{Title: "创建草稿", Markdown: "新正文"})
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +74,23 @@ func TestToutiaoDraftCreateAndUpdateUseCapturedSaveMode(t *testing.T) {
 	}
 	if _, ok := saves[0]["pgc_id"]; ok {
 		t.Fatalf("creating a new draft unexpectedly carries pgc_id")
+	}
+	if saves[0].Get("article_ad_type") != "3" || saves[0].Get("customer_nick_name") != "" {
+		t.Fatal("initial draft form does not match captured creator settings")
+	}
+	if _, exists := saves[0]["customer_nick_name"]; !exists {
+		t.Fatal("initial draft must include an empty customer_nick_name")
+	}
+	if saves[1].Get("article_ad_type") != "3" || saves[1].Get("article_type") != "0" {
+		t.Fatal("existing draft must use the editor's captured reopened-draft form")
+	}
+	id := saves[0].Get("title_id")
+	parts := strings.Split(id, "_")
+	if len(parts) != 2 || len(parts[0]) != 13 || parts[1] != "1234567890123456" {
+		t.Fatalf("initial draft title_id must use timestamp_mediaId: received length=%d", len(id))
+	}
+	if titleID, ok := saves[1]["title_id"]; !ok || len(titleID) != 1 || titleID[0] != "" {
+		t.Fatal("reopened editor sends an explicitly empty title_id")
 	}
 	if saves[1].Get("pgc_id") != existingID {
 		t.Fatalf("updating draft must preserve ID, got %s", saves[1].Get("pgc_id"))

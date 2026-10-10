@@ -283,7 +283,39 @@ func selectCTO51Category(tags []string, categories []cto51Category) (string, str
 			}
 		}
 	}
-	return "", "", "", fmt.Errorf("none of the article tags match a 51CTO secondary category")
+	// 51CTO's live taxonomy uses 后端开发 as a *primary* category. Its
+	// secondary categories include 架构, Java, Go语言 and Python; there is
+	// no secondary category literally named 后端. Resolve a real child ID
+	// from the catalog instead of guessing any numeric IDs.
+	for _, parent := range categories {
+		switch normalizeCTO51CategoryName(parent.Name) {
+		case "后端", "后端开发", "backend":
+		default:
+			continue
+		}
+		for _, fallback := range []string{"架构", "java", "go语言", "python"} {
+			for _, child := range parent.Item {
+				if normalizeCTO51CategoryName(child.Name) == fallback &&
+					strings.TrimSpace(parent.ID) != "" && strings.TrimSpace(child.ID) != "" {
+					return parent.ID, child.ID, child.Name, nil
+				}
+			}
+		}
+	}
+	return "", "", "", fmt.Errorf("51CTO category catalog has no usable 后端开发 secondary category (架构/Java/Go语言/Python)")
+}
+
+// When no existing article tag matches the selected 51CTO secondary category,
+// keep the user's requested generic 后端 tag. A secondary *category* ID is
+// supplied independently in cate_id and must come from the live catalog.
+func cto51ResolvedTags(tags []string, secondaryCategory string) []string {
+	normalized := normalizeCTO51Tags(tags)
+	for _, tag := range normalized {
+		if cto51CategoryMatches(tag, secondaryCategory) {
+			return normalized
+		}
+	}
+	return []string{"后端"}
 }
 
 func selectCTO51UserCategory(title string, tags []string, categories []cto51UserCategory) (string, string) {
@@ -305,11 +337,11 @@ func selectCTO51UserCategory(title string, tags []string, categories []cto51User
 	return "", ""
 }
 
-func (c *cto51Adapter) publishingClassification(ctx context.Context, input DraftInput) (string, string, string, error) {
+func (c *cto51Adapter) publishingClassification(ctx context.Context, input DraftInput) (string, string, string, string, error) {
 	started := time.Now()
 	categoryReq, err := c.request(ctx, http.MethodGet, cto51Origin+"/category/get-child", nil)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	categoryReq.Header.Set("accept", "application/json, text/plain, */*")
 	categoryReq.Header.Set("x-requested-with", "XMLHttpRequest")
@@ -319,22 +351,22 @@ func (c *cto51Adapter) publishingClassification(ctx context.Context, input Draft
 		Data   []cto51Category `json:"data"`
 	}
 	if err := doJSON(c.client, categoryReq, c.ID(), "category-list", &categoryResponse); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	if categoryResponse.Status != 1 {
-		return "", "", "", platformError(ErrUpstream, c.ID(), "category-list", 0, responseMessage(categoryResponse.Msg), false)
+		return "", "", "", "", platformError(ErrUpstream, c.ID(), "category-list", 0, responseMessage(categoryResponse.Msg), false)
 	}
 	parentID, categoryID, categoryName, err := selectCTO51Category(input.Tags, categoryResponse.Data)
 	if err != nil {
 		slog.WarnContext(ctx, "51CTO category resolution found no match",
 			"node", "51cto-adapter", "operation", "resolve-classification", "result", "no-category-match",
 			"tagCount", len(input.Tags), "durationMs", time.Since(started).Milliseconds())
-		return "", "", "", platformError(ErrValidation, c.ID(), "resolve-classification", 0, err.Error(), false)
+		return "", "", "", "", platformError(ErrValidation, c.ID(), "resolve-classification", 0, err.Error(), false)
 	}
 
 	userCategoryReq, err := c.request(ctx, http.MethodGet, cto51Origin+"/blogger-ajax/get-user-cate", nil)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	userCategoryReq.Header.Set("accept", "application/json, text/plain, */*")
 	userCategoryReq.Header.Set("x-requested-with", "XMLHttpRequest")
@@ -346,24 +378,24 @@ func (c *cto51Adapter) publishingClassification(ctx context.Context, input Draft
 		} `json:"data"`
 	}
 	if err := doJSON(c.client, userCategoryReq, c.ID(), "user-category-list", &userCategoryResponse); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	if userCategoryResponse.Status != 1 {
-		return "", "", "", platformError(ErrUpstream, c.ID(), "user-category-list", 0, responseMessage(userCategoryResponse.Msg), false)
+		return "", "", "", "", platformError(ErrUpstream, c.ID(), "user-category-list", 0, responseMessage(userCategoryResponse.Msg), false)
 	}
 	customID, customName := selectCTO51UserCategory(input.Title, input.Tags, userCategoryResponse.Data.Custom)
 	slog.InfoContext(ctx, "51CTO publishing classification resolved",
 		"node", "51cto-adapter", "operation", "resolve-classification", "result", "success",
 		"parentCategoryId", parentID, "secondaryCategoryId", categoryID, "secondaryCategory", categoryName,
 		"customCategoryId", customID, "customCategory", customName, "durationMs", time.Since(started).Milliseconds())
-	return parentID, categoryID, customID, nil
+	return parentID, categoryID, customID, categoryName, nil
 }
 
 func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input DraftInput) (url.Values, error) {
 	if err := c.ensureAuth(ctx); err != nil {
 		return nil, err
 	}
-	parentID, categoryID, customID, err := c.publishingClassification(ctx, input)
+	parentID, categoryID, customID, selectedCategory, err := c.publishingClassification(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +409,7 @@ func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input Draf
 	values.Set("pid", parentID)
 	values.Set("cate_id", categoryID)
 	values.Set("custom_id", customID)
-	tags := normalizeCTO51Tags(input.Tags)
+	tags := cto51ResolvedTags(input.Tags, selectedCategory)
 	values.Set("tag", strings.Join(tags, ","))
 	operation := "create-draft"
 	if refID != "" {
@@ -469,7 +501,7 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if err := c.ensureAuth(ctx); err != nil {
 		return PublishResult{}, err
 	}
-	parentID, categoryID, customID, err := c.publishingClassification(ctx, input)
+	parentID, categoryID, customID, selectedCategory, err := c.publishingClassification(ctx, input)
 	if err != nil {
 		return PublishResult{}, err
 	}
@@ -483,10 +515,7 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values.Set("pid", parentID)
 	values.Set("cate_id", categoryID)
 	values.Set("custom_id", customID)
-	tags := normalizeCTO51Tags(input.Tags)
-	if len(tags) == 0 {
-		return PublishResult{}, platformError(ErrValidation, c.ID(), "publish-draft", 0, "51CTO requires at least one article tag", false)
-	}
+	tags := cto51ResolvedTags(input.Tags, selectedCategory)
 	values.Set("tag", strings.Join(tags, ","))
 	slog.InfoContext(ctx, "51CTO publish tags prepared",
 		"node", "51cto-adapter", "operation", "publish-draft", "result", "success",

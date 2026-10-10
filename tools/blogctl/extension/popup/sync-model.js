@@ -1,6 +1,27 @@
 "use strict";
 
 (function (root) {
+  // Temporarily hide unstable delivery integrations. This is a presentation
+  // policy only: adapters, platform capabilities, bindings and prior tasks
+  // remain intact, so both integrations can be restored without migration.
+  const HIDDEN_PLATFORMS = new Set(["medium", "toutiao"]);
+
+  function isVisiblePlatform(id) {
+    return !HIDDEN_PLATFORMS.has(id);
+  }
+
+  function visiblePlatforms(platforms = []) {
+    return platforms.filter((platform) => isVisiblePlatform(platform.id));
+  }
+
+  function visiblePlatformIDs(ids = []) {
+    return ids.filter(isVisiblePlatform);
+  }
+
+  function visiblePublicationRecords(records = []) {
+    return records.filter((record) => isVisiblePlatform(record.platform));
+  }
+
   function platformCapabilities(platform) {
     return platform?.capabilities ?? {};
   }
@@ -99,8 +120,124 @@
     });
   }
 
+  // Remote-association cards distinguish creator drafts from public posts.
+  // A platform inventory may return a public/preview URL for a draft (notably
+  // DEV.to and older CNBlogs records), so a draft must resolve to its editor.
+  function articleMatchLink(platformID, item) {
+    const source = String(item?.url || "").trim();
+    let parsed;
+    try {
+      parsed = new URL(source);
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port) parsed = null;
+    } catch {
+      parsed = null;
+    }
+    const hosts = {
+      cnblogs: ["i.cnblogs.com", "www.cnblogs.com"],
+      juejin: ["juejin.cn"],
+      csdn: ["editor.csdn.net", "blog.csdn.net"],
+      segmentfault: ["segmentfault.com"],
+      zhihu: ["zhuanlan.zhihu.com"],
+      "51cto": ["blog.51cto.com"],
+      oschina: ["my.oschina.net"],
+      toutiao: ["mp.toutiao.com", "www.toutiao.com"],
+      devto: ["dev.to"],
+      medium: ["medium.com"],
+    };
+    if (parsed && !hosts[platformID]?.includes(parsed.hostname)) parsed = null;
+    if (item?.published === true) {
+      return parsed ? { label: "查看文章", url: parsed.href } : null;
+    }
+
+    const id = String(item?.id ?? "").trim();
+    const numeric = /^[0-9]+$/.test(id);
+    const safeID = /^[A-Za-z0-9_-]+$/.test(id);
+    let editor = "";
+    switch (platformID) {
+      case "cnblogs":
+        if (numeric) editor = `https://i.cnblogs.com/posts/edit;postId=${id}`;
+        break;
+      case "juejin":
+        if (numeric) editor = `https://juejin.cn/editor/drafts/${id}`;
+        break;
+      case "csdn":
+        if (numeric) editor = `https://editor.csdn.net/md?articleId=${id}`;
+        break;
+      case "segmentfault":
+        if (numeric) editor = `https://segmentfault.com/write?draftId=${id}`;
+        break;
+      case "zhihu":
+        if (numeric) editor = `https://zhuanlan.zhihu.com/p/${id}/edit`;
+        break;
+      case "51cto":
+        // The creator list can supply a more specific editor URL.
+        if (parsed?.pathname.startsWith("/blogger/")) editor = parsed.href;
+        else if (numeric) editor = `https://blog.51cto.com/blogger/draft/${id}`;
+        break;
+      case "oschina": {
+        // OSChina uses a numeric creator ID, which is available in its
+        // inventory editor link but cannot be inferred from a username.
+        const creatorID = parsed?.pathname.match(/^\/u\/([0-9]+)\/blog\//)?.[1];
+        if (creatorID && numeric) {
+          editor = `https://my.oschina.net/u/${creatorID}/blog/ai-write/draft/${id}`;
+        }
+        break;
+      }
+      case "toutiao":
+        if (numeric) editor = `https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=${id}`;
+        break;
+      case "devto":
+        if (numeric) editor = `https://dev.to/dashboard/edit/${id}`;
+        break;
+      case "medium":
+        if (safeID) editor = `https://medium.com/p/${encodeURIComponent(id)}/edit`;
+        break;
+    }
+    return editor ? { label: "编辑草稿", url: editor } : null;
+  }
+
+  // Task events retain every remote write, unlike a per-platform summary
+  // (which has only one URL and can be cleared by a terminal state event).
+  // Reuse the same verified editor/public URL policy as Detection/Update.
+  function taskArtifactLinks(job, platformID) {
+    const completedKinds = new Set([
+      "draft-created", "draft-updated", "published", "published-updated",
+    ]);
+    const byRemote = new Map();
+    for (const event of job?.events ?? []) {
+      if (event?.platform !== platformID || !completedKinds.has(event.result)) continue;
+      const isPublished = event.result === "published" || event.result === "published-updated";
+      const target = { id: String(event.targetId || ""), url: event.url || "", published: isPublished };
+      const link = articleMatchLink(platformID, target);
+      if (!link) continue;
+      const identity = target.id || link.url;
+      byRemote.set(identity, {
+        ...link, id: target.id, state: isPublished ? "published" : "draft",
+      });
+    }
+    // Earlier tasks might only have a per-platform URL.
+    if (!byRemote.size) {
+      const result = job?.results?.[platformID];
+      if (result?.url && result.state === "completed") {
+        const published = ["published", "published-updated"].includes(result.result) ||
+          job.operation === "publish";
+        const link = articleMatchLink(platformID, {
+          id: String(result.targetId || ""), url: result.url, published,
+        });
+        if (link) byRemote.set(link.url, { ...link, id: "", state: published ? "published" : "draft" });
+      }
+    }
+    return [...byRemote.values()];
+  }
+
   root.BlogCTLSyncModel = {
     deliveryToolAvailability,
+    isVisiblePlatform,
+    visiblePlatforms,
+    visiblePlatformIDs,
+    visiblePublicationRecords,
+    articleMatchLink,
+    taskArtifactLinks,
     platformRows,
     statePresentation,
     platformAvailability,

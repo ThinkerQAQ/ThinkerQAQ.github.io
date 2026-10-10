@@ -35,7 +35,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "juejin", Label: "掘金", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "csdn", Label: "CSDN", DefaultLanguage: "zh-CN",
@@ -51,23 +51,29 @@ var definitions = []Definition{
 	},
 	{
 		ID: "51cto", Label: "51CTO", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true, BodyImageRehost: true, Tags: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true, Tags: true},
 	},
 	{
 		ID: "oschina", Label: "开源中国", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
+		// Current PublishDraft uses the ADD-article endpoint rather than
+		// transitioning a draft ID. Until a draft-specific publish contract
+		// is verified, never expose direct/create/update publish actions.
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "toutiao", Label: "今日头条", DefaultLanguage: "zh-CN",
-		// Discovery and binding are supported. Writing requires an unverified
-		// dynamic creator signature; never advertise it as operational.
-		Capabilities: Capabilities{BrowserSession: true, RemoteList: true},
+		// Native HTTP draft and verified published-update operations are opt-in.
+		// Explicit publishing a NEW article remains disabled.
+		Capabilities: Capabilities{
+			BrowserSession: true, DraftCreate: true, DraftUpdate: true,
+			PublishedUpdate: true, RemoteList: true, BodyImages: true, BodyImageRehost: true,
+		},
 	},
 	{
 		ID: "devto", Label: "DEV.to", DefaultLanguage: "en",
 		Capabilities: Capabilities{
 			BrowserSession: true, APIKey: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true,
-			RemoteList: true, BodyImages: true, BodyImageRehost: true,
+			PublishedUpdate: true, RemoteList: true, BodyImages: true, BodyImageRehost: true,
 			CoverImage: true, NativeCanonical: true, Tags: true,
 		},
 	},

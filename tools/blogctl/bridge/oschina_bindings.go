@@ -24,11 +24,12 @@ type osChinaCandidateView struct {
 	BindingState string `json:"bindingState,omitempty"`
 }
 
-func osChinaBindingViews(binding publisher.PublicationBinding) []osChinaBindingView {
+func osChinaBindingViews(binding publisher.PublicationBinding, account string) []osChinaBindingView {
 	result := []osChinaBindingView{}
 	if binding.RemoteDraftID != "" {
 		result = append(result, osChinaBindingView{
-			PostID: binding.RemoteDraftID, State: "draft", URL: binding.DraftURL,
+			PostID: binding.RemoteDraftID, State: "draft",
+			URL: publisher.OSChinaDraftURL(account, binding.RemoteDraftID, binding.DraftURL),
 		})
 	}
 	if binding.PublishedRemoteID != "" {
@@ -98,7 +99,7 @@ func (s *Server) handleOSChinaArticleList(response http.ResponseWriter, request 
 		})
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
-		"account": account, "candidates": candidates, "bindings": osChinaBindingViews(binding),
+		"account": account, "candidates": candidates, "bindings": osChinaBindingViews(binding, account),
 	})
 }
 
@@ -187,7 +188,7 @@ func (s *Server) handleOSChinaBindingPut(response http.ResponseWriter, request *
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"binding": osChinaBindingViews(binding)})
+	writeJSON(response, http.StatusOK, map[string]any{"binding": osChinaBindingViews(binding, account)})
 }
 
 func (s *Server) handleOSChinaBindingDelete(response http.ResponseWriter, request *http.Request, slug string) {

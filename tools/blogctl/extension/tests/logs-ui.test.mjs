@@ -17,8 +17,11 @@ test("logs UI exposes search, selection, and copy controls", async () => {
   assert.match(logs, /queryInput\.addEventListener\("input", \(\) => render\(\)\)/u);
   assert.match(logs, /selectAllButton\.addEventListener\("click", selectAllLogs\)/u);
   assert.match(logs, /copyButton\.addEventListener\("click", copyLogs\)/u);
-  assert.match(logs, /range\.selectNodeContents\(output\)/u);
+  assert.match(logs, /logViewer\.selectAll\(\)/u);
+  assert.match(logs, /BlogCTLLogEditor\.create\(output\)/u);
+  assert.match(html, /src="log-editor-vendor\.js"/u);
+  assert.match(html, /id="findInLogs"/u);
   assert.match(logs, /render\(\{ preserveSelection: quiet \}\)/u);
   assert.match(logs, /selectionLocksViewer\(\)/u);
-  assert.match(logs, /log-line-\$\{level\.toLowerCase\(\)\}/u);
+  assert.match(logs, /logViewer\.setText\(text, autoRefresh\.checked\)/u);
 });

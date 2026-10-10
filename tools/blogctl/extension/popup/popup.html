@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BlogCTL</title>
+  <link rel="icon" type="image/png" href="../icons/icon48.png">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -19,101 +20,90 @@
           <p>博客同步发布控制面</p>
         </div>
       </div>
-      <button id="refresh" class="secondary compact" type="button">刷新</button>
+      <div class="header-actions">
+        <button id="openWorkspace" class="header-icon-action" type="button"
+          title="在浏览器标签页打开工作台" aria-label="在浏览器标签页打开工作台" data-tooltip="打开工作台">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="15" rx="2"/>
+            <path d="M8 3h8M8 11h8m-4-4 4 4-4 4"/>
+          </svg>
+        </button>
+        <button id="refresh" class="header-icon-action" type="button"
+          title="刷新当前页面" aria-label="刷新当前页面" data-tooltip="刷新当前页面">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 11a8 8 0 0 0-14.7-4.3L3 9"/>
+            <path d="M3 4v5h5"/>
+            <path d="M4 13a8 8 0 0 0 14.7 4.3L21 15"/>
+            <path d="M21 20v-5h-5"/>
+          </svg>
+        </button>
+      </div>
     </header>
 
-    <nav class="tabs" role="tablist" aria-label="BlogCTL">
-      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">检测</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs">日志</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing">索引</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">环境与配置</button>
-    </nav>
-
+    <div class="workspace-shell">
+      <nav class="tabs" role="tablist" aria-label="BlogCTL 功能导航">
+        <span class="navigation-label">工作台</span>
+        <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding" title="检测" aria-label="检测"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><span class="nav-text">检测</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="creation" title="创建" aria-label="创建"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-text">创建</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts" title="更新" aria-label="更新"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.7-4.3L3 9M3 4v5h5M4 13a8 8 0 0 0 14.7 4.3L21 15M21 20v-5h-5"/></svg></span><span class="nav-text">更新</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing" title="索引" aria-label="索引"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h1M3 12h1M3 18h1"/></svg></span><span class="nav-text">索引</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks" title="任务" aria-label="任务"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h9M8 12h9M8 16h6"/></svg></span><span class="nav-text">任务</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs" title="日志" aria-label="日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h12"/></svg></span><span class="nav-text">日志</span></button>
+        <button class="tab tab-settings" type="button" role="tab" aria-selected="false" data-tab="environment" title="设置" aria-label="设置"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M12 19v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M3 12h2M19 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><circle cx="12" cy="12" r="4"/></svg></span><span class="nav-text">设置</span></button>
+      </nav>
+      <div class="workspace-main">
     <section class="panel active" role="tabpanel" data-panel="binding">
       <section class="status-card">
-        <div class="section-title">绑定</div>
-        <p class="card-hint">默认列出全部本地文章；按标题或 slug 搜索并选择后，再检测对应平台。</p>
-        <label class="field"><span>搜索</span><input id="articlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="articleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="articleOptions" class="article-options" role="listbox" hidden></div>
-        <p id="articleMeta" class="card-hint"></p>
-      </section>
-
-      <section class="status-card">
-        <div class="section-title">远端关联</div>
+        <div class="section-title">远端文章清单</div>
+        <p class="card-hint">查看各平台的草稿与已发布文章。需要修改内容时，请前往「更新」。</p>
+        <div class="publication-filters">
+          <label class="field"><span>平台</span><select id="inventoryPlatform"><option value="">全部平台</option></select></label>
+          <label class="field"><span>状态</span><select id="inventoryStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="published">已发布</option></select></label>
+        </div>
         <div class="binding-detect-toolbar">
-          <button id="selectAllSyncPlatforms" class="secondary compact" type="button">全选</button>
-          <button id="invertSyncPlatforms" class="secondary compact" type="button">反选</button>
-          <button id="refreshArticleMatches" class="primary inline-primary" type="button" disabled>检测文章关联</button>
+          <span id="inventorySummary" class="card-hint">正在读取远端文章…</span>
+          <button id="refreshInventory" class="secondary compact" type="button">刷新</button>
         </div>
-        <p class="card-hint">勾选需要检测的平台，可多选；检测只读取所选平台。检测完成后勾选远端文章，在页面底部批量绑定或解绑。</p>
-        <div id="syncPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
+        <div id="inventoryPlatforms" class="platform-choices"></div>
       </section>
-
-      <div id="bindingBulkActions" class="binding-bulk-actions" hidden>
-        <strong id="bindingSelectionSummary" class="binding-bulk-summary">已选择 0 篇文章</strong>
-        <div class="binding-bulk-buttons">
-          <button id="bindSelectedMatches" class="primary inline-primary" type="button">批量绑定</button>
-          <button id="unbindSelectedMatches" class="secondary" type="button">批量解绑</button>
-        </div>
-      </div>
-      <div class="sync-actions">
-        <button id="bindingEnterDrafts" class="primary" type="button" disabled>下一步：进入更新</button>
-      </div>
-      <p id="syncMessage" class="message" role="status"></p>
+      <p id="inventoryMessage" class="message" role="status"></p>
     </section>
 
+    <section class="panel" role="tabpanel" data-panel="creation"></section>
+
     <section class="panel" role="tabpanel" data-panel="drafts">
+      <div id="sharedDraftWorkspace">
       <section class="status-card">
-        <div class="section-title">更新</div>
-        <p class="card-hint">默认列出全部本地文章；按标题或 slug 搜索并选择后，可批量更新或单独更新某个平台。</p>
-        <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
+        <div id="draftModeTitle" class="section-title">更新</div>
+        <p id="draftModeHint" class="card-hint">选择文章和远端目标后更新；未选目标不会创建新文章。</p>
+        <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" list="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
+        <datalist id="draftArticleOptions"></datalist>
         <p id="draftArticleMeta" class="card-hint"></p>
       </section>
 
       <section class="status-card">
-        <div class="section-title">平台</div>
+        <div class="section-title">平台与文章关联</div>
         <div class="binding-detect-toolbar">
           <button id="selectAllDraftPlatforms" class="secondary compact" type="button">全选</button>
           <button id="invertDraftPlatforms" class="secondary compact" type="button">反选</button>
+          <button id="refreshArticleMatches" class="secondary compact" type="button" disabled title="重新检测已选平台的远端文章">重新检测</button>
         </div>
+        <p id="draftPlatformHint" class="card-hint">自动检测已选平台的远端文章，勾选目标后更新。</p>
         <div id="draftPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
+        <p id="syncMessage" class="message" role="status"></p>
       </section>
 
       <div class="sync-actions">
-        <button id="saveDrafts" class="primary" type="button" disabled>更新</button>
+        <button id="saveDrafts" class="primary" type="button" disabled>更新所选</button>
+        <button id="publishAfterSave" class="secondary full-width" type="button" disabled>更新并发布</button>
         <div id="draftNextActions" class="workflow-next-actions" hidden>
           <button id="draftViewTask" class="secondary" type="button">查看任务</button>
-          <button id="draftEnterPublish" class="primary inline-primary" type="button">进入发布</button>
         </div>
       </div>
       <p id="draftsMessage" class="message" role="status"></p>
-    </section>
-
-    <section class="panel" role="tabpanel" data-panel="publications">
-      <section class="status-card">
-        <div class="section-title">发布</div>
-        <p class="card-hint">默认列出全部本地文章；选中某个文章后，只显示该文章的发布记录。</p>
-        <label class="field"><span>文章</span><input id="publicationArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="publicationArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="publicationArticleOptions" class="article-options" role="listbox" hidden></div>
-        <p id="publicationArticleMeta" class="card-hint"></p>
-        <div class="publication-filters">
-          <label class="field"><span>平台</span><select id="publicationPlatform"><option value="">全部平台</option></select></label>
-          <label class="field"><span>状态</span><select id="publicationStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="published">已发布</option><option value="pending">待手动处理</option></select></label>
-        </div>
-        <p id="publicationSummary" class="card-hint"></p>
-        <div class="binding-detect-toolbar">
-          <button id="selectAllPublications" class="secondary compact" type="button">全选</button>
-          <button id="invertPublications" class="secondary compact" type="button">反选</button>
-        </div>
-        <div id="publicationList" class="publication-list"><div class="platform-loading">正在读取发布记录…</div></div>
-        <div class="sync-actions"><button id="publishSelected" class="primary" type="button" disabled>发布所选</button></div>
-        <div id="publicationRunStatus" class="workflow-status" hidden></div>
-      </section>
-      <p id="publicationsMessage" class="message" role="status"></p>
+      </div>
     </section>
 
     <section class="panel" role="tabpanel" data-panel="tasks">
@@ -147,19 +137,35 @@
           <label class="field log-filter"><span>显示级别</span><select id="logLevelFilter"><option value="">全部</option><option value="DEBUG">DEBUG</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option></select></label>
           <label class="checkbox-row log-follow"><span>自动刷新</span><input id="logAutoRefresh" type="checkbox" checked></label>
           <button id="selectAllLogs" class="secondary compact" type="button">全选日志</button>
+          <button id="findInLogs" class="secondary compact" type="button" title="使用 CodeMirror 搜索日志">查找</button>
           <button id="copyLogs" class="secondary compact" type="button">复制</button>
           <button id="refreshLogs" class="secondary compact" type="button">刷新</button>
           <button id="clearLogs" class="secondary compact danger-action" type="button">清空</button>
         </div>
         <code id="logPath" class="path-value">-</code>
-        <pre id="logOutput" class="log-viewer">暂无日志</pre>
+        <div id="logOutput" class="log-viewer" aria-label="运行日志查看器"></div>
       </section>
       <p id="logsMessage" class="message" role="status"></p>
     </section>
 
 
     <section class="panel" role="tabpanel" data-panel="indexing">
-      <section class="status-card">
+      <section class="status-card index-engine-selector">
+        <div class="section-title">搜索引擎</div>
+        <p class="card-hint">选择引擎后查看对应的索引状态、统计和操作。</p>
+        <label class="field"><span>平台</span>
+          <select id="indexEngineFilter">
+            <option value="indexnow">IndexNow</option>
+            <option value="baidu">百度</option>
+            <option value="google">Google Search Console</option>
+            <option value="all">全部引擎</option>
+          </select>
+        </label>
+      </section>
+
+      <details class="status-card index-source-details">
+        <summary>URL 来源与总量</summary>
+        <div class="index-source-body">
         <div class="status-row">
           <div>
             <div class="section-title">URL 来源</div>
@@ -172,9 +178,10 @@
           <div><span>内容指纹</span><strong id="indexInventoryFingerprintCoverage">-</strong></div>
           <div><span>最后刷新</span><strong id="indexInventoryFetchedAt">-</strong></div>
         </div>
-      </section>
+        </div>
+      </details>
 
-      <section class="status-card">
+      <section class="status-card" data-index-engine="indexnow">
         <div class="status-row">
           <div>
             <div class="section-title">IndexNow</div>
@@ -198,7 +205,7 @@
         </div>
       </section>
 
-      <section class="status-card">
+      <section class="status-card" data-index-engine="baidu">
         <div class="status-row">
           <div>
             <div class="section-title">Baidu Search Resource</div>
@@ -222,7 +229,7 @@
         </div>
       </section>
 
-      <section class="status-card">
+      <section class="status-card" data-index-engine="google">
         <div class="status-row">
           <div>
             <div class="section-title">Google Search Console</div>
@@ -416,21 +423,26 @@
       </section>
       <p id="environmentMessage" class="message" role="status"></p>
     </section>
+        </div>
+    </div>
   </main>
 
+  <script src="transport.js"></script>
   <script src="core.js"></script>
   <script src="sync-model.js"></script>
   <script src="sync-state.js"></script>
   <script src="sync.js"></script>
+  <script src="inventory.js"></script>
   <script src="drafts.js"></script>
-  <script src="publications.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
+  <script src="log-editor-vendor.js"></script>
   <script src="logs.js"></script>
   <script src="indexing.js"></script>
   <script src="assets.js"></script>
   <script src="publishing.js"></script>
   <script src="environment.js"></script>
+  <script src="settings-navigation.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

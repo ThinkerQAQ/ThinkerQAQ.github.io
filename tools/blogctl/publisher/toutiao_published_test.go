@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestToutiaoUpdatePublishedFailsClosedBeforeRemoteRequests(t *testing.T) {
+func TestToutiaoUpdatePublishedRequiresVerifiedBindingBeforeRemoteRequests(t *testing.T) {
 	calls := 0
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		calls++
@@ -72,5 +72,59 @@ func TestToutiaoUpdatePublishedCannotBecomeDraftSave(t *testing.T) {
 	}
 	if v := toutiaoArticleValues(DraftInput{Title: "hello"}, "<p>body</p>", "777", "", true); v.Get("save") != "1" {
 		t.Fatal("explicit publish must keep save=1")
+	}
+}
+
+// A mock success deliberately exercises the explicit save=1 existing-ID path.
+// Never use a real published article in integration verification.
+func TestToutiaoPublishedUpdatePreservesIDAndInvalidatesBaseline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "publications.json")
+	if err := SavePublicationBinding(path, PublicationBinding{
+		Slug: "article", Platform: "toutiao", PublishedRemoteID: "777",
+		PublishedURL: "https://www.toutiao.com/article/777/",
+		Account:      "creator-1", RemoteUpdatedAt: "1791545110",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writes := 0
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/mp/agw/media/get_media_info":
+			return jsonResponse(r, 200, `{"code":0,"data":{"media":{"id_str":"1234567890123456"},"user":{"id":"creator-1"}}}`, nil), nil
+		case "/mp/agw/creator_center/list/v2":
+			return jsonResponse(r, 200, `{"code":0,"contents":[{"article_attr":{"gid":"777","title":"original","status":2,"modify_time":1791545110}}]}`, nil), nil
+		case "/spice/image":
+			if r.Method != http.MethodHead {
+				t.Fatal("expected HEAD CSRF preflight")
+			}
+			return jsonResponse(r, 200, "", map[string]string{"x-ware-csrf-token": "0,synthetic-csrf-credential,90000,extra"}), nil
+		case "/mp/agw/article/publish":
+			writes++
+			if err := r.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+			if r.PostForm.Get("save") != "1" || r.PostForm.Get("pgc_id") != "777" {
+				t.Fatalf("explicit update must use existing public ID: %v", r.PostForm)
+			}
+			if r.Header.Get("x-secsdk-csrf-token") != "synthetic-csrf-credential" {
+				t.Fatal("expected fresh HTTP CSRF token")
+			}
+			return jsonResponse(r, 200, `{"code":0,"err_no":0,"data":{"pgc_id":"777"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected HTTP request: %s", r.URL)
+			return nil, nil
+		}
+	})}
+	service := Service{HTTPClient: client, PublicationPath: path}
+	result, skipped, err := service.UpdateToutiaoPublishedInput(context.Background(), toutiaoTestSession(), "", DraftInput{
+		Slug: "article", Title: "updated", Markdown: "updated body", ContentHash: "new-hash",
+	})
+	if err != nil || skipped || writes != 1 || result.ID != "777" {
+		t.Fatalf("result=%+v skipped=%t err=%v writes=%d", result, skipped, err, writes)
+	}
+	binding, exists, err := LoadPublicationBinding(path, "article", "toutiao")
+	if err != nil || !exists || binding.RemoteUpdatedAt != "" || binding.VerifiedAt != "" ||
+		binding.PublishedRemoteID != "777" || binding.PublishedHash != "new-hash" {
+		t.Fatalf("baseline must be invalidated pending re-verification: %+v err=%v", binding, err)
 	}
 }

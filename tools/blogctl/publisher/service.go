@@ -50,7 +50,7 @@ func publicationHasPublishedState(state PublicationState) bool {
 }
 
 func mayRecreateMissingDraft(platform string, state PublicationState) bool {
-	if platform == "toutiao" && publicationHasPublishedState(state) {
+	if (platform == "toutiao" || platform == "devto") && publicationHasPublishedState(state) {
 		return false
 	}
 	return !publicationHasPublishedState(state) || PlatformCapabilitiesFor(platform).PublishedUpdate
@@ -64,10 +64,6 @@ func (s Service) CreateOrUpdateDraftInput(
 	input DraftInput,
 	changedOnly bool,
 ) (DraftResult, error) {
-	if platform == "toutiao" {
-		return DraftResult{}, platformError(ErrValidation, platform, "save-draft", 0,
-			"pure HTTP draft saving is currently unavailable: Toutiao creator request signing has not been verified", false)
-	}
 	slug := input.Slug
 	input.ChangedOnly = changedOnly
 	state, _, err := LoadPublicationState(s.publicationPath(), slug, platform)
@@ -84,7 +80,7 @@ func (s Service) CreateOrUpdateDraftInput(
 		slog.Info("reopening published article draft", "operation", "published-draft-edit", "platform", platform, "slug", slug, "remoteId", input.RemoteDraftID)
 	}
 	if input.RemoteDraftID == "" && (state.PublishedRemoteID != "" || state.PublishedURL != "") &&
-		((platform == "toutiao") || (!capabilities.PublishedUpdate && !capabilities.PublishedDraftEdit)) {
+		((platform == "toutiao" || platform == "devto") || (!capabilities.PublishedUpdate && !capabilities.PublishedDraftEdit)) {
 		return DraftResult{}, platformError(
 			ErrValidation, platform, "save-draft", 0,
 			"the article is already published; safe published-article updates are not supported for this platform yet",
@@ -132,6 +128,13 @@ func (s Service) CreateOrUpdateDraftInput(
 		csdn := adapter.(*csdnAdapter)
 		if state.Account != "" && !strings.EqualFold(state.Account, csdn.userID) {
 			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CSDN account", false)
+		}
+	}
+	if platform == "toutiao" {
+		toutiao := adapter.(*toutiaoAdapter)
+		if state.Account != "" && state.Account != toutiao.userID {
+			return DraftResult{}, platformError(ErrValidation, platform, "binding", 0,
+				"publication belongs to a different Toutiao account", false)
 		}
 	}
 	if platform == "juejin" && input.RemoteDraftID == "" && state.PublishedRemoteID != "" && capabilities.PublishedDraftEdit {
@@ -369,6 +372,59 @@ func (s Service) UpdateCNBlogsPublishedInput(ctx context.Context, session Sessio
 // Unlike saving a draft, this operation may change the public article.
 func (s Service) UpdateToutiaoPublishedInput(ctx context.Context, session Session, contentRoot string, input DraftInput) (PublishResult, bool, error) {
 	const platform = "toutiao"
-	return PublishResult{}, false, platformError(ErrValidation, platform, "update-published", 0,
-		"pure HTTP published updates are currently unavailable: Toutiao creator request signing has not been verified", false)
+	binding, found, err := LoadPublicationBinding(s.publicationPath(), input.Slug, platform)
+	if err != nil {
+		return PublishResult{}, false, err
+	}
+	if !found || binding.PublishedRemoteID == "" || binding.PublishedURL == "" {
+		return PublishResult{}, false, platformError(ErrValidation, platform, "update-published", 0, "verify and bind an existing published Toutiao article first", false)
+	}
+	adapterValue, err := s.authenticatedAdapter(ctx, platform, session)
+	if err != nil {
+		return PublishResult{}, false, err
+	}
+	adapter := adapterValue.(*toutiaoAdapter)
+	if binding.Account != "" && binding.Account != adapter.userID {
+		return PublishResult{}, false, platformError(ErrValidation, platform, "update-published", 0, "bound article belongs to a different Toutiao account", false)
+	}
+	posts, err := adapter.listPublished(ctx)
+	if err != nil {
+		return PublishResult{}, false, err
+	}
+	var original *ToutiaoPost
+	for index := range posts {
+		if posts[index].ID == binding.PublishedRemoteID {
+			original = &posts[index]
+			break
+		}
+	}
+	if original == nil {
+		return PublishResult{}, false, platformError(ErrValidation, platform, "update-published", 0, "published article not found in the current creator account", false)
+	}
+	if strings.TrimSpace(binding.RemoteUpdatedAt) == "" || original.ModifiedAt == "" ||
+		binding.RemoteUpdatedAt == "0" || original.ModifiedAt == "0" || binding.RemoteUpdatedAt != original.ModifiedAt {
+		return PublishResult{}, false, platformError(ErrValidation, platform, "update-published", 0,
+			"remote article changed or no revision baseline is recorded; verify and bind the published article again", false)
+	}
+	if binding.PublishedHash != "" && binding.PublishedHash == input.ContentHash {
+		return PublishResult{ID: original.ID, URL: original.URL}, true, nil
+	}
+	id, err := adapter.mutate(ctx, original.ID, input, true, "")
+	if err != nil {
+		return PublishResult{}, false, err
+	}
+	if id != original.ID {
+		return PublishResult{}, false, platformError(ErrUpstream, platform, "update-published", 0, "Toutiao returned a different published article ID", false)
+	}
+	// Submission may enter review; a successful response does not guarantee the
+	// public page already reflects the new content. Invalidate the old revision
+	// baseline until the user explicitly re-verifies the remote article.
+	binding.RemoteUpdatedAt = ""
+	binding.PublishedHash = input.ContentHash
+	binding.PublishedSyncedAt = verifiedAt(s.now())
+	binding.VerifiedAt = ""
+	if err := SavePublicationBinding(s.publicationPath(), binding); err != nil {
+		return PublishResult{}, false, err
+	}
+	return PublishResult{ID: original.ID, URL: original.URL}, false, nil
 }

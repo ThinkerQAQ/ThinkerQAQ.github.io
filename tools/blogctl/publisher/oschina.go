@@ -172,7 +172,7 @@ func (o *osChinaAdapter) saveDraft(ctx context.Context, refID string, input Draf
 	}
 	return DraftResult{
 		ID:      id,
-		URL:     fmt.Sprintf("%s/u/%s/blog/ai-write/draft/%s", osChinaOrigin, url.PathEscape(o.userID), url.PathEscape(id)),
+		URL:     OSChinaDraftEditorURL(o.userID, id),
 		Created: refID == "",
 		Updated: refID != "",
 	}, nil

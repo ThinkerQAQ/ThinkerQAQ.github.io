@@ -31,6 +31,40 @@
     return BlogCTLSyncModel.platformRows(job, state.status);
   }
 
+  async function publishExistingDraft(job, platform, artifact, button) {
+    if (!job.article || !artifact.id || artifact.state !== "draft") return;
+    if (!root.confirm(
+      `确定发布「${job.article}」在 ${platform.label || platform.id} 的草稿（ID ${artifact.id}）？\n\n将直接调用该平台的发布接口，不再创建草稿，也不进入更新页。`
+    )) return;
+    button.disabled = true;
+    BlogCTLPopup.setMessage(message, "正在启动草稿发布任务…");
+    try {
+      const response = await BlogCTLPopup.send("blogctl.job.start", {
+        request: {
+          article: job.article,
+          platforms: [platform.id],
+          operation: "publish-draft",
+          targets: [{
+            platform: platform.id,
+            id: artifact.id,
+            url: artifact.url,
+            state: "draft",
+          }],
+          dryRun: false,
+        },
+      });
+      if (!response.job?.id) throw new Error("发布任务没有返回任务 ID");
+      state.ui.setJobExpanded(response.job.id, true);
+      BlogCTLPopup.setMessage(message, "已创建发布任务；请在任务页查看发布结果。", "ok");
+      await refresh();
+      focusJob(response.job.id);
+    } catch (error) {
+      BlogCTLPopup.setMessage(message,
+        "发布任务启动失败：" + BlogCTLPopup.errorMessage(error), "error");
+      button.disabled = false;
+    }
+  }
+
   function renderPlatformResults(job, card) {
     const rows = platformRows(job);
     if (!rows.length) return;
@@ -58,27 +92,35 @@
         item.append(detail);
       }
 
-      if (row.state === "completed") {
-        if (job.operation === "publish" && row.url) {
-          const article = document.createElement("a");
-          article.className = "task-publication-link";
-          article.href = row.url;
-          article.target = "_blank";
-          article.rel = "noreferrer noopener";
-          article.textContent = "查看文章";
-          item.append(article);
-        } else if (job.operation !== "publish") {
-          const publication = document.createElement("button");
-          publication.type = "button";
-          publication.className = "task-publication-link";
-          publication.textContent = "进入发布";
-          publication.addEventListener("click", () => {
-            document.dispatchEvent(new CustomEvent("blogctl:navigate-publication", {
-              detail: { article: job.article, platform: row.id },
-            }));
-          });
-          item.append(publication);
+      const artifacts = BlogCTLSyncModel.taskArtifactLinks(job, row.id);
+      for (const artifact of artifacts) {
+        const actions = document.createElement("div");
+        actions.className = "task-artifact-actions";
+        const link = document.createElement("a");
+        link.className = "task-publication-link";
+        link.href = artifact.url;
+        link.target = "_blank";
+        link.rel = "noreferrer noopener";
+        link.textContent = artifact.label;
+        if (artifact.id) link.title = "远端 ID " + artifact.id;
+        actions.append(link);
+        // Publish an already-created remote draft directly; editing is a
+        // separate link. This shares the same backend PublishDraft capability
+        // used by Create-and-Publish and Update-and-Publish.
+        if (artifact.state === "draft" && artifact.id && job.article &&
+            job.kind !== "search" && !job.dryRun &&
+            BlogCTLSyncModel.isVisiblePlatform(row.id) &&
+            row.capabilities?.explicitPublish === true) {
+          const publish = document.createElement("button");
+          publish.type = "button";
+          publish.className = "task-publication-link";
+          publish.textContent = "发布草稿";
+          publish.title = "直接发布这个远端草稿，不需要先更新";
+          publish.addEventListener("click", () =>
+            publishExistingDraft(job, row, artifact, publish));
+          actions.append(publish);
         }
+        item.append(actions);
       }
 
       container.append(item);
@@ -199,7 +241,7 @@
       if (actions.childElementCount) card.append(actions);
       return;
     }
-    if (job.state !== "failed" || job.operation === "publish") return;
+    if (job.state !== "failed" || !job.canRetry) return;
     const actions = document.createElement("div");
     actions.className = "task-actions";
     let retry;
@@ -269,7 +311,11 @@
         finished ? `结束 ${finished}` : "",
         job.kind === "search"
           ? (job.type || "索引")
-          : job.operation === "publish" ? "发布" : job.operation === "update-published" ? "更新" : job.operation ? "保存" : "",
+          : job.operation === "publish" ? "发布"
+            : job.operation === "create" ? "创建"
+            : job.operation === "publish-draft" ? "发布草稿"
+            : ["update", "update-published"].includes(job.operation) ? "更新"
+            : job.operation ? "保存" : "",
         job.id ? `ID ${job.id}` : "",
       ].filter(Boolean).join(" · ");
       card.append(meta);

@@ -188,7 +188,11 @@ func normalizeRecoveredDurableTaskJobs(jobs map[string]*durableTaskJob, now time
 				job.Detail["recovered"] = "Bridge restarted; resuming from persisted inspection cursor"
 			} else {
 				job.State = "failed"
-				job.CanRetry = job.Kind != "publishing" || job.Operation != "publish"
+				var request syncRequest
+				if job.Kind == "publishing" {
+					_ = json.Unmarshal(job.Payload, &request)
+				}
+				job.CanRetry = job.Kind != "publishing" || canRetrySyncJobOperation(job.Operation, request)
 				job.Error = "Bridge restarted before the task completed"
 				if job.Kind == "publishing" {
 					for platform, result := range job.Results {
@@ -260,6 +264,16 @@ func durableTaskView(job *durableTaskJob) taskJobView {
 	}
 }
 
+func canRetrySyncJobOperation(operation string, request syncRequest) bool {
+	if operation == "create" || operation == "publish" || operation == "publish-draft" {
+		return false
+	}
+	if operation == "update" && (request.PublishAfter || len(request.Targets) != 1) {
+		return false
+	}
+	return true
+}
+
 func syncTaskView(job syncJob) taskJobView {
 	title := job.Article
 	if title == "" {
@@ -268,7 +282,7 @@ func syncTaskView(job syncJob) taskJobView {
 	return taskJobView{
 		ID: job.ID, Kind: "publishing", Type: job.Operation, Title: title, State: job.State,
 		StartedAt: job.StartedAt, UpdatedAt: job.FinishedAt, FinishedAt: job.FinishedAt,
-		Error: job.Error, CanRetry: job.State == "failed" && job.Operation != "publish",
+		Error: job.Error, CanRetry: job.State == "failed" && canRetrySyncJobOperation(job.Operation, job.Request),
 		Progress: taskProgress{Current: completedSyncPlatforms(job), Total: len(job.Platforms), Unit: "platform"},
 		Article:  job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
 		Results: job.Results, Events: job.Events, Output: job.Output, DryRun: job.DryRun,
@@ -292,7 +306,7 @@ func publishingDurableTask(job *syncJob, existing *durableTaskJob, now time.Time
 		ID: job.ID, Kind: "publishing", Type: job.Operation, Title: title, State: job.State,
 		CreatedAt: createdAt, StartedAt: job.StartedAt, UpdatedAt: now.UTC().Format(time.RFC3339),
 		FinishedAt: job.FinishedAt, Error: job.Error,
-		CanRetry: job.State == "failed" && job.Operation != "publish",
+		CanRetry: job.State == "failed" && canRetrySyncJobOperation(job.Operation, job.Request),
 		Progress: taskProgress{Current: completedSyncPlatforms(*job), Total: len(job.Platforms), Unit: "platform"},
 		Payload:  payload,
 		Article:  job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,

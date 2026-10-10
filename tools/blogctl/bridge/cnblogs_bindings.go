@@ -27,7 +27,7 @@ func cnBlogsBindingViews(binding publisher.PublicationBinding) []cnBlogsBindingV
 	result := make([]cnBlogsBindingView, 0, 2)
 	if binding.RemoteDraftID != "" {
 		result = append(result, cnBlogsBindingView{
-			PostID: binding.RemoteDraftID, State: "draft", EditURL: binding.DraftURL,
+			PostID: binding.RemoteDraftID, State: "draft", EditURL: publisher.CNBlogsDraftEditorURL(binding.RemoteDraftID),
 			Account: binding.Account, Source: binding.Source, VerifiedAt: binding.VerifiedAt,
 		})
 	}
@@ -203,6 +203,7 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 	}
 	var body struct {
 		Reference string `json:"reference"`
+		State     string `json:"state"`
 		Replace   bool   `json:"replace"`
 	}
 	if err := readJSON(request, 4096, &body); err != nil {
@@ -246,6 +247,13 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 		state = "published"
 		existingID = binding.PublishedRemoteID
 	}
+	// Match the selected draft/published state against the authenticated
+	// creator result; never silently bind into the other state.
+	requestedState := strings.TrimSpace(body.State)
+	if requestedState != "" && requestedState != state {
+		writeAPIError(response, http.StatusConflict, "candidate_state_changed", "CNBlogs article publication state does not match the selected state", nil)
+		return
+	}
 	if existingID != "" && existingID != post.ID && !body.Replace {
 		writeAPIError(response, http.StatusConflict, "binding_exists", "remove or replace the existing publication reference explicitly before linking another post", nil)
 		return
@@ -260,7 +268,7 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 		binding.RemoteUpdatedAt = post.UpdatedAt
 	} else {
 		binding.RemoteDraftID = post.ID
-		binding.DraftURL = "https://i.cnblogs.com/articles/edit;postId=" + post.ID
+		binding.DraftURL = publisher.CNBlogsDraftEditorURL(post.ID)
 	}
 	if err := publisher.SavePublicationBinding(s.publicationBindingsPath(), binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)

@@ -20,6 +20,18 @@ type CNBlogsPost struct {
 
 var cnBlogsNumericID = regexp.MustCompile(`^[0-9]+$`)
 
+// CNBlogsDraftEditorURL is the creator editor route, not the article preview.
+func CNBlogsDraftEditorURL(id string) string {
+	return cnBlogsOrigin + "/posts/edit;postId=" + url.QueryEscape(strings.TrimSpace(id))
+}
+
+func cnBlogsDraftURL(id, stored string) string {
+	if cnBlogsNumericID.MatchString(strings.TrimSpace(id)) {
+		return CNBlogsDraftEditorURL(id)
+	}
+	return stored
+}
+
 func ParseCNBlogsPostReference(reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
 	if cnBlogsNumericID.MatchString(reference) {
@@ -37,8 +49,11 @@ func ParseCNBlogsPostReference(reference string) (string, error) {
 			id = strings.TrimSuffix(segments[2], ".html")
 		}
 	case "i.cnblogs.com":
-		if strings.HasPrefix(parsed.Path, "/articles/edit;postId=") {
-			id = strings.TrimPrefix(parsed.Path, "/articles/edit;postId=")
+		for _, prefix := range []string{"/posts/edit;postId=", "/articles/edit;postId="} {
+			if strings.HasPrefix(parsed.Path, prefix) {
+				id = strings.TrimPrefix(parsed.Path, prefix)
+				break
+			}
 		}
 	}
 	if !cnBlogsNumericID.MatchString(id) {
@@ -53,6 +68,9 @@ func cnBlogsPostFromMap(value map[string]any) CNBlogsPost {
 		URL: valueString(value["url"]), UpdatedAt: valueString(value["dateUpdated"]),
 	}
 	post.Published, _ = value["isPublished"].(bool)
+	if !post.Published {
+		post.URL = cnBlogsDraftURL(post.ID, post.URL)
+	}
 	return post
 }
 
