@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
 )
@@ -294,5 +295,70 @@ func TestNormalizeSyncRequestEnablesToutiaoDraftAndGuardedPublishedUpdate(t *tes
 		Operation: "publish",
 	}); err == nil {
 		t.Fatal("publishing a new Toutiao article must remain disabled")
+	}
+}
+
+// Platform compilation and publication are independent: one broken platform
+// must not postpone an unrelated successful platform.
+func TestSyncServicePlatformsOverlapAndKeepFailuresIndependent(t *testing.T) {
+	engineRoot, contentRoot, node, npm := syncTestWorkspace(t)
+	entered := make(chan string, 2)
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	var mu sync.Mutex
+	events := make(map[string]string)
+	service := SyncService{
+		Runner: &noOpRunner{},
+		Compiler: func(_ context.Context, options blogcompiler.CompileOptions) ([]blogcompiler.CompiledArticle, error) {
+			entered <- options.Platform
+			<-release
+			if options.Platform == "juejin" {
+				return nil, errors.New("broken juejin compiler")
+			}
+			return compiledFixture(options), nil
+		},
+		OnEvent: func(event SyncEvent) {
+			if event.State == "completed" || event.State == "failed" {
+				mu.Lock()
+				events[event.Platform] = event.State
+				mu.Unlock()
+			}
+		},
+	}
+	go func() {
+		_, err := service.Run(context.Background(), SyncConfig{
+			EngineRoot: engineRoot, ContentRoot: contentRoot, DistributionRoot: t.TempDir(),
+			ToolPaths: map[string]string{"node": node, "npm": npm},
+		}, SyncRequest{
+			Articles: []string{"example"}, Platforms: []string{"juejin", "devto"}, DryRun: true,
+		})
+		done <- err
+	}()
+	seen := map[string]bool{}
+	for range 2 {
+		select {
+		case p := <-entered:
+			seen[p] = true
+		case <-time.After(3 * time.Second):
+			close(release)
+			t.Fatal("platform compilers did not start concurrently")
+		}
+	}
+	close(release)
+	if !seen["juejin"] || !seen["devto"] {
+		t.Fatalf("platforms not both entered: %v", seen)
+	}
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "broken juejin compiler") {
+			t.Fatalf("failed platform not reported: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("task failed to complete after both platforms released")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if events["juejin"] != "failed" || events["devto"] != "completed" {
+		t.Fatalf("one platform failure affected another: %v", events)
 	}
 }
