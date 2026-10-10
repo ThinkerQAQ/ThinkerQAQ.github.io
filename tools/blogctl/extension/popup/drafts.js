@@ -219,8 +219,12 @@
   }
 
   function renderPlatforms() {
+    // Keep checked platforms when binding operations temporarily disable
+    // controls. selectedPlatforms() intentionally omits disabled inputs and
+    // would otherwise clear the selection while unbinding.
     const previous = platformsContainer.querySelector('input[data-platform]')
-      ? new Set(selectedPlatforms())
+      ? new Set([...platformsContainer.querySelectorAll('input[data-platform]:checked')]
+        .map((input) => input.dataset.platform))
       : state.selectedPlatformIDs;
     const article = selectedArticle();
     const running = ["queued", "running"].includes(state.currentJob?.state);
