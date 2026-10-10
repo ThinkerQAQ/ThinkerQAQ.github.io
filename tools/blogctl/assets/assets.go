@@ -167,8 +167,12 @@ func prepareOne(ctx context.Context, config Config, asset blogcompiler.Asset, ou
 	}
 	if asset.Kind == "mermaid" {
 		width, scale := config.MermaidWidth, config.MermaidScale
-		if width <= 0 { width = 1200 }
-		if scale <= 0 { scale = 2 }
+		if width <= 0 {
+			width = 1200
+		}
+		if scale <= 0 {
+			scale = 2
+		}
 		args = append(args, "--width", fmt.Sprintf("%d", width), "--scale", fmt.Sprintf("%g", scale))
 	}
 	select {
@@ -179,7 +183,11 @@ func prepareOne(ctx context.Context, config Config, asset blogcompiler.Asset, ou
 	}
 	command := exec.CommandContext(ctx, node, args...)
 	command.Dir = config.EngineRoot
-	if len(config.Env) > 0 { command.Env = config.Env } else { command.Env = os.Environ() }
+	if len(config.Env) > 0 {
+		command.Env = config.Env
+	} else {
+		command.Env = os.Environ()
+	}
 	combined, err := command.CombinedOutput()
 	if err != nil {
 		return false, fmt.Errorf("render publishing asset: %w: %s", err, strings.TrimSpace(string(combined)))
@@ -192,10 +200,12 @@ func prepareOne(ctx context.Context, config Config, asset blogcompiler.Asset, ou
 		if err := os.Remove(output); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return false, err
 		}
-		if err := os.Rename(tempPath, output); err != nil { return false, err }
+		if err := os.Rename(tempPath, output); err != nil {
+			return false, err
+		}
 	}
 	return false, nil
-
+}
 
 func validate(asset blogcompiler.Asset) error {
 	switch asset.Kind {
