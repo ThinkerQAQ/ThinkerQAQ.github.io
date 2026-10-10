@@ -48,6 +48,7 @@ async function refreshActiveTab() {
 
 document.addEventListener("DOMContentLoaded", () => {
   Object.values(modules).forEach((module) => module.init());
+  BlogCTLSettingsNavigation.init();
   BlogCTLSync.init();
 
   document.querySelectorAll("[data-tab]").forEach((tab) => {
