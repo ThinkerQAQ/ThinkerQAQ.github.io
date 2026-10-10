@@ -1,3 +1,20 @@
+# BlogCTL v0.1.125 (local experimental build)
+
+- Temporarily hide Medium and Toutiao from interactive BlogCTL detection,
+  draft updates, published-update actions, publication records, platform
+  selectors, and all/bulk operations.
+- Maintain native publisher adapters, capability declarations, configuration,
+  local article bindings, and stored jobs and logs. Restore later by changing
+  only the shared extension visibility policy.
+- Ignore stale browser selections for temporarily hidden platforms.
+- Keep historical completed tasks visible in the Tasks/Logs tabs.
+- Review via DevTool CodeGraph and Serena LSP; add UI and saved-state tests.
+
+Local branch build on PR #177; not a public release.
+Native Toutiao HTTP writes remain unverified and have not been changed.
+
+---
+
 # BlogCTL v0.1.124 (local experimental build)
 
 - Normalize article-association actions for every supported platform:
