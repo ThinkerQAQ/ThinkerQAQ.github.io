@@ -88,8 +88,31 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 		}
 		ref := DraftRef{ID: target.ID, URL: target.URL}
 		if target.State == "draft" {
-			// Published articles must NOT be passed through draft update: some platforms
-			// would unpublish or replace them with an unrelated draft.
+			// Published articles must NOT be passed through draft update: some
+			// platforms would unpublish or replace them with a new draft.
+			switch platform {
+			case "cnblogs":
+				a := adapter.(*cnBlogsAdapter)
+				post, lookupErr := a.fetchPost(ctx, target.ID)
+				if lookupErr != nil {
+					return ExplicitResult{}, lookupErr
+				}
+				if !strings.EqualFold(valueString(post["author"]), a.username) {
+					return ExplicitResult{}, fmt.Errorf("CNBlogs draft belongs to another account")
+				}
+				if isPublished, ok := post["isPublished"].(bool); !ok || isPublished {
+					return ExplicitResult{}, fmt.Errorf("CNBlogs remote article is not a draft; re-detect before updating")
+				}
+			case "csdn":
+				a := adapter.(*csdnAdapter)
+				post, lookupErr := a.fetchPost(ctx, target.ID)
+				if lookupErr != nil {
+					return ExplicitResult{}, lookupErr
+				}
+				if post.ID != target.ID || post.Published {
+					return ExplicitResult{}, fmt.Errorf("CSDN remote article is not the selected draft; re-detect before updating")
+				}
+			}
 			draft, err := adapter.UpdateDraft(ctx, ref, input)
 			if err != nil {
 				return ExplicitResult{}, err

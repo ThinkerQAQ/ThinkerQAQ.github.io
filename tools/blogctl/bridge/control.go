@@ -1635,9 +1635,10 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
-	if job.Operation == "publish" || job.Operation == "create" {
+	if job.Operation == "publish" || job.Operation == "create" ||
+		(job.Operation == "update" && (job.Request.PublishAfter || len(job.Request.Targets) > 1)) {
 		s.mu.Unlock()
-		return nil, errors.New("create/publish jobs cannot be retried safely; verify the remote article before taking another action")
+		return nil, errors.New("create/publish or multi-target update cannot be retried safely; inspect the remote outcomes and explicitly select failed targets")
 	}
 	request := job.Request
 	replacement := newSyncJob(id, request, startedAt)
