@@ -8,6 +8,7 @@
     selectedPlatformIDs:new Set(BlogCTLSyncModel.visiblePlatformIDs(BlogCTLSyncState.loadPlatforms(localStorage))),
     status:null, publishing:[], tools:[], currentJob:null, pollTimer:null,
     createMatches:new Map(), createScanSerial:0, createScanning:new Set(),
+    platformSelectionInitialized:BlogCTLSyncState.hasPlatformPreference(localStorage),
   };
   let articlePicker, articleOptions, articleMeta, platformList, actionButton,
       publishButton, nextActions, viewTaskButton, message, allButton, invertButton;
@@ -151,6 +152,14 @@
     void scanCreateMatches(candidates);
   }
 
+  function ensureUpdateScan() {
+    if(state.mode!=="update" || !state.active || !state.selectedSlug || !state.status)return;
+    const candidates=BlogCTLSyncModel.visiblePlatforms(state.status.platforms)
+      .filter((platform)=>state.selectedPlatformIDs.has(platform.id) && availability(platform).available)
+      .map((platform)=>platform.id);
+    void root.BlogCTLSync?.ensureMatches?.(candidates);
+  }
+
   function renderExistingCreateArticles(platform,card,items) {
     const body=document.createElement("div");
     body.className="created-remote-items";
@@ -246,6 +255,7 @@
     }));
     renderPlatforms();
     ensureCreateScan();
+    ensureUpdateScan();
   }
 
   function renderPlatforms() {
@@ -270,6 +280,7 @@
         root.BlogCTLSync?.refresh?.();
         renderPlatforms();
         document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
+        ensureUpdateScan();
       });
       const description=document.createElement("span");
       description.className="platform-choice-text";
@@ -368,6 +379,7 @@
     BlogCTLSyncState.savePlatforms(localStorage,state.selectedPlatformIDs);
     renderPlatforms();
     document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
+    ensureUpdateScan();
   }
 
   function validateTargets(targets) {
@@ -448,6 +460,15 @@
       state.articles=articles.articles||[];
       populateArticleOptions();
       state.status=status.status;
+      if(!state.platformSelectionInitialized) {
+        // All available platforms on the first visit, but preserve subsequent
+        // user choices (including explicitly selecting none).
+        state.selectedPlatformIDs=new Set(
+          BlogCTLSyncModel.visiblePlatforms(state.status?.platforms || []).map((p)=>p.id)
+        );
+        state.platformSelectionInitialized=true;
+        BlogCTLSyncState.savePlatforms(localStorage,state.selectedPlatformIDs);
+      }
       state.publishing=publishing.platforms||[];
       state.tools=tools.tools||[];
       const previous=state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
@@ -466,6 +487,7 @@
       }));
       renderPlatforms();
       ensureCreateScan();
+      ensureUpdateScan();
       if(running()&&state.currentJob?.id)pollJob(state.currentJob.id);
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(()=>{});
     } catch(error) {
@@ -483,11 +505,12 @@
       "选择本地文章，检测并勾选远端目标，然后直接更新。";
     document.getElementById("draftPlatformHint").textContent=mode==="create"?
       "已有远端文章显示在平台下方，点击右侧链接编辑；只有未创建文章的平台才显示「创建草稿」。":
-      "勾选平台检测远端候选，选中明确目标后更新，无需绑定。";
+      "自动检测已选平台的远端文章；勾选目标后直接更新。可手动重新检测。";
     for(const id of ["refreshArticleMatches"])document.getElementById(id).hidden=mode==="create";
     root.BlogCTLSync?.clearMatches?.();
     if(state.initialized)renderPlatforms();
     ensureCreateScan();
+    ensureUpdateScan();
   }
 
   function init() {

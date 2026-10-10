@@ -88,9 +88,9 @@
         <div class="binding-detect-toolbar">
           <button id="selectAllDraftPlatforms" class="secondary compact" type="button">全选</button>
           <button id="invertDraftPlatforms" class="secondary compact" type="button">反选</button>
-          <button id="refreshArticleMatches" class="primary inline-primary" type="button" disabled>检测文章关联</button>
+          <button id="refreshArticleMatches" class="secondary compact" type="button" disabled title="重新检测已选平台的远端文章">重新检测</button>
         </div>
-        <p id="draftPlatformHint" class="card-hint">勾选平台检测远端候选，选中明确目标后直接更新，无需绑定。</p>
+        <p id="draftPlatformHint" class="card-hint">自动检测已选平台的远端文章，勾选目标后更新。</p>
         <div id="draftPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
         <p id="syncMessage" class="message" role="status"></p>
       </section>
