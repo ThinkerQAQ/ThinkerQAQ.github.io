@@ -1,27 +1,60 @@
-# Configuration Reference
+# BlogCTL Configuration Reference
 
-BlogCTL 仅使用 `blogctl.toml` 作为用户配置文件。其他持久化状态文件（例如 `jobs.json`、`publications.json`）与它同处 `Data` 文件夹，但不属于手动编辑配置。
+**Authority:** [`bridge/config.go`](../../bridge/config.go) (`bridgeConfig`, defaults, paths) and [`publishing/config.go`](../../publishing/config.go) (`Config` and platform defaults). These Go structs and `toml` tags are the source of truth; the table below is a human lookup, not a separate schema.
 
-## Windows 默认路径
+## Storage contract
 
-```text
-C:\software\Coding\blogctl\Data\blogctl.toml
+| Platform | Default user-data directory |
+| --- | --- |
+| Windows | `Data/` next to the installed executable |
+| Linux / macOS | `os.UserConfigDir()/BlogCTL` |
+| All | Absolute `BLOGCTL_DATA_DIR` environment override |
+
+Only `blogctl.toml` is user configuration. `jobs.json`, `publications.json`, `distribution/`, logs and similar files are runtime data, not hand-edited config. Changing the Windows executable location may change the default Data path. Back up Data before relocation; migration is not automatic.
+
+## Top-level TOML fields
+
+| Key | Meaning |
+| --- | --- |
+| `content_root`, `engine_root` | Canonical content and public engine checkouts |
+| `distribution_root`, `publication_bindings_path` | Optional persistent state path overrides |
+| `log_directory`, `log_level` | Logging |
+| `proxy_enabled`, `proxy_host`, `proxy_port` | HTTP proxy behavior |
+| `tool_paths` | Executable path overrides (map) |
+| `devto_api_key` | DEV.to credentials |
+| `indexnow_endpoint`, `indexnow_key`, `indexnow_key_location` | IndexNow |
+| `baidu_site`, `baidu_token` | Baidu submission |
+| `google_search_console_service_json` | Google Search Console credentials |
+
+## Publishing fields
+
+| TOML section | Contract |
+| --- | --- |
+| `[publishing.compiler.mermaid]` | `format` (default `png`), `width` (1200), `scale` (2) |
+| `[publishing.assets]` | `store` (default `r2`) |
+| `[publishing.assets.r2]` | `bucket`, `public_base_url`, `access_key_id`, `secret_access_key`, `account_id`, `endpoint` |
+| `[publishing.platforms.PLATFORM]` | `language`, `changed_only` |
+| `[publishing.platforms.PLATFORM.footer]` | `enabled`, `template` |
+| `[publishing.platforms.PLATFORM.canonical]` | `mode` |
+| `[publishing.platforms.PLATFORM.tracking]` | `enabled`, `source`, `medium`, `campaign` |
+
+Defaults are created by `DefaultConfig()` and `DefaultPlatformConfig()`; DEV.to and Medium default to English and native canonical links, while other platforms use their registered default languages. Exact supported IDs come from [`platform/capabilities.go`](../../platform/capabilities.go).
+
+## Minimal example (paths are examples)
+
+```toml
+engine_root = "/home/user/blog/ThinkerQAQ.github.io"
+content_root = "/home/user/blog/blog-content"
+log_level = "info"
+
+[publishing.compiler.mermaid]
+format = "png"
+width = 1200
+scale = 2
+
+[publishing.platforms.devto]
+language = "en"
+changed_only = false
 ```
 
-其他平台可通过 `BLOGCTL_DATA_DIR` 指定绝对路径覆盖默认数据目录。有关完整 TOML 字段和例子，请参阅[README Configuration](../../README.md#configuration)，此处不重复维护另一份可能过时的字段全集。
-
-## 配置职责
-
-| 类别 | 来源和作用 |
-|---|---|
-| 内容/路径 | Content Root、Engine Root；BlogCTL 的唯一内容来源 |
-| 分发平台 | 语言、changed-only、Footer、Canonical、Tracking |
-| 素材 | Mermaid 渲染与 R2 兜底 |
-| 搜索引擎 | IndexNow、Baidu、Google Search Console |
-| 运行环境 | Bridge、Native Messaging、外部依赖及代理 |
-
-敏感值仍由现有 Go Bridge 配置 API 接受，UI 只显示是否配置；不得把密钥注入 HTML、URL、日志或 Web Console 静态 JS。
-
-## 版本与宿主
-
-Extension、Native Host、Bridge 保持同版。开发中的 Web Console 共用同一套 Feature/Settings Catalog，但使用独立的 Web 请求来源授权方式；不能复用扩展持有的随机令牌。
+Use the Extension **设置** UI to modify credentials. Do not commit a real `blogctl.toml`, private key, cookie or service account JSON.
