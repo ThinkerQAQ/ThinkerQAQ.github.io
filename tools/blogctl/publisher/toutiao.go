@@ -253,14 +253,18 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 	}
 	values := toutiaoArticleValues(input, html, strings.TrimSpace(refID), covers, publish)
 	if !publish {
-		// HAR shows title_id as millisecond timestamp + creator MEDIA ID
-		// (different from the logged-in user's ID).
-		if t.mediaID != "" {
-			values.Set("title_id", strconv.FormatInt(time.Now().UnixMilli(), 10)+"_"+t.mediaID)
-		}
+		values.Set("article_ad_type", "3")
 		if strings.TrimSpace(refID) == "" || strings.TrimSpace(refID) == "0" {
-			values.Set("article_ad_type", "3")
+			// First editor save: title_id ties creation to the media identity.
+			if t.mediaID != "" {
+				values.Set("title_id", strconv.FormatInt(time.Now().UnixMilli(), 10)+"_"+t.mediaID)
+			}
 			values.Set("customer_nick_name", "")
+		} else {
+			// Reopening an existing draft (published3.har): title_id is empty
+			// and article_type=0, while article_ad_type stays 3.
+			values.Set("title_id", "")
+			values.Set("article_type", "0")
 		}
 	}
 	if publish {

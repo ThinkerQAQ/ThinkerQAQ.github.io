@@ -81,15 +81,16 @@ func TestToutiaoDraftCreateAndUpdateUseCapturedSaveMode(t *testing.T) {
 	if _, exists := saves[0]["customer_nick_name"]; !exists {
 		t.Fatal("initial draft must include an empty customer_nick_name")
 	}
-	if saves[1].Get("article_ad_type") != "2" {
-		t.Fatal("existing draft should retain its edited ad type")
+	if saves[1].Get("article_ad_type") != "3" || saves[1].Get("article_type") != "0" {
+		t.Fatal("existing draft must use the editor's captured reopened-draft form")
 	}
-	for _, form := range saves {
-		id := form.Get("title_id")
-		parts := strings.Split(id, "_")
-		if len(parts) != 2 || len(parts[0]) != 13 || parts[1] != "1234567890123456" {
-			t.Fatalf("title_id must use timestamp_mediaId: received length=%d", len(id))
-		}
+	id := saves[0].Get("title_id")
+	parts := strings.Split(id, "_")
+	if len(parts) != 2 || len(parts[0]) != 13 || parts[1] != "1234567890123456" {
+		t.Fatalf("initial draft title_id must use timestamp_mediaId: received length=%d", len(id))
+	}
+	if titleID, ok := saves[1]["title_id"]; !ok || len(titleID) != 1 || titleID[0] != "" {
+		t.Fatal("reopened editor sends an explicitly empty title_id")
 	}
 	if saves[1].Get("pgc_id") != existingID {
 		t.Fatalf("updating draft must preserve ID, got %s", saves[1].Get("pgc_id"))
