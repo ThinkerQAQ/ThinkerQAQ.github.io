@@ -84,7 +84,8 @@
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
     refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating ||
-      state.matchingPlatforms.size > 0 || selectedPlatformIDs().length === 0;
+      state.matchingPlatforms.size > 0 || selectedPlatformIDs().length === 0 ||
+      (root.BlogCTLDrafts?.isJobRunning?.() ?? false);
     updateBulkActions();
   }
 
@@ -178,7 +179,8 @@
     bind.textContent = "验证并绑定";
     bind.addEventListener("click", async () => {
       const reference = input.value.trim();
-      if (!reference) return;
+      if (!reference || state.bindingMutating ||
+          (root.BlogCTLDrafts?.isJobRunning?.() ?? false)) return;
       const article = state.selectedSlug;
       const bindings = platform.id === "cnblogs" ? state.cnblogsBindings : (match.bindings ?? []);
       bind.disabled = true;
@@ -254,7 +256,9 @@
       checkbox.dataset.postId = String(item.id);
       const key = matchSelectionKey(platform.id, item);
       checkbox.checked = state.selectedMatchKeys.has(key);
-      checkbox.disabled = state.bindingLoading || state.bindingMutating || (!canBindItem(item) && !canUnbindItem(item));
+      checkbox.disabled = state.bindingLoading || state.bindingMutating ||
+        (root.BlogCTLDrafts?.isJobRunning?.() ?? false) ||
+        (!canBindItem(item) && !canUnbindItem(item));
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) state.selectedMatchKeys.add(key);
         else state.selectedMatchKeys.delete(key);
@@ -311,7 +315,8 @@
         bind.type = "button";
         bind.className = "secondary compact";
         bind.textContent = "绑定";
-        bind.disabled = state.bindingMutating || state.bindingLoading;
+        bind.disabled = state.bindingMutating || state.bindingLoading ||
+          (root.BlogCTLDrafts?.isJobRunning?.() ?? false);
         bind.addEventListener("click", () => runBulkBinding("bind", { platform, item, key }));
         rowActions.append(bind);
       }
@@ -320,7 +325,8 @@
         unbind.type = "button";
         unbind.className = "secondary compact";
         unbind.textContent = "解绑";
-        unbind.disabled = state.bindingMutating || state.bindingLoading;
+        unbind.disabled = state.bindingMutating || state.bindingLoading ||
+          (root.BlogCTLDrafts?.isJobRunning?.() ?? false);
         unbind.addEventListener("click", () => runBulkBinding("unbind", { platform, item, key }));
         rowActions.append(unbind);
       }
@@ -434,7 +440,8 @@
   async function runBulkBinding(action, singleEntry = null) {
     const article = state.selectedSlug;
     const entries = singleEntry ? [singleEntry] : batchEntries(action);
-    if (!article || !entries.length || state.bindingMutating) return;
+    if (!article || !entries.length || state.bindingMutating ||
+        (root.BlogCTLDrafts?.isJobRunning?.() ?? false)) return;
 
     if (action === "bind") {
       const targets = new Set();

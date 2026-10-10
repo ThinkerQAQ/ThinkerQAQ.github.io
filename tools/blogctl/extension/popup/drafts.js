@@ -325,7 +325,8 @@
         detect.className = "secondary compact";
         detect.textContent = "检测关联";
         detect.disabled = !state.selectedSlug || running || state.bindingMutating ||
-          !state.status?.bridge?.running;
+          !state.status?.bridge?.running ||
+          (root.BlogCTLSync?.isBindingBusy?.() ?? false);
         detect.addEventListener("click", () => {
           document.dispatchEvent(new CustomEvent("blogctl:detect-association", {
             detail: { article: state.selectedSlug, platform: platform.id },
@@ -679,5 +680,6 @@
   root.BlogCTLDrafts = {
     init, activate, deactivate, refresh, prepare,
     selectedPlatformIDs: platformSelection, refreshBindings,
+    isJobRunning: () => ["queued", "running"].includes(state.currentJob?.state),
   };
 })(globalThis);
