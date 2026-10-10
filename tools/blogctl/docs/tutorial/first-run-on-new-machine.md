@@ -80,7 +80,7 @@ On Linux/macOS use `curl http://127.0.0.1:32145/v1/health`. A response containin
 
 ## 5. Set your interface language
 
-Use the header selector: **Auto / 中文 / EN**. Auto follows the browser language. A manual choice persists as `ui_locale` in `blogctl.toml` once the Bridge accepts it. It never changes the language of the article you publish.
+Open **Settings → Interface & language** and choose **Follow browser language / Simplified Chinese / English**. Auto follows the browser language. A manual choice persists as `ui_locale` in `blogctl.toml` once the Bridge accepts it. It never changes the language of the article you publish.
 
 ![BlogCTL Detect page — real English UI in a clean workspace](../assets/01-detect-en.webp)
 

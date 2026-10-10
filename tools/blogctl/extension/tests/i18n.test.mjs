@@ -88,3 +88,18 @@ test("Bridge and browser Console load the same translation assets", () => {
   const embedded = fs.readFileSync(path.join(extension, "assets.go"), "utf8");
   assert.match(embedded, /popup\/\*\.js/u);
 });
+
+
+test("interface language is a Settings category, not a header control", () => {
+  const html = load("popup.html");
+  const settings = load("settings-navigation.js");
+  const ui = load("i18n.js");
+  assert.match(html, /data-panel="environment"[\s\S]*id="environmentInterfaceSettings"[\s\S]*id="blogctlUiLocale"/u);
+  assert.equal([...html.matchAll(/id="blogctlUiLocale"/gu)].length, 1);
+  for (const locale of ["auto", "zh-CN", "en"]) {
+    assert.match(html, new RegExp(`<option value="${locale}">`));
+  }
+  assert.match(settings, /id: "interface"[\s\S]*selectors: \["#environmentInterfaceSettings"\]/u);
+  assert.match(ui, /document\.getElementById\("blogctlUiLocale"\)/u);
+  assert.doesNotMatch(ui, /querySelector\("\.header-actions"\)/u);
+});

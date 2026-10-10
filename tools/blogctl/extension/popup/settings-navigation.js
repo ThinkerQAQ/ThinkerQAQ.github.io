@@ -5,6 +5,7 @@
 // cloned: the same DOM and handlers work in every UI host.
 (function (root) {
   const CATEGORY_META = [
+    { id: "interface", title: "界面与语言", summary: "语言偏好与界面显示", selectors: ["#environmentInterfaceSettings"] },
     { id: "content", title: "内容与路径", summary: "TOML 配置文件和内容目录", selectors: [".environment-config-file"] },
     { id: "runtime", title: "运行环境", summary: "Bridge、Extension 与本地依赖", selectors: ["#environmentRuntimeTools", "#environmentDependencyTools"] },
     { id: "platforms", title: "分发平台", summary: "平台策略、Footer、Canonical 和 Tracking", selectors: ["#platformConfigEnvironmentCard"] },
@@ -19,7 +20,7 @@
   const nodes = new Map();
 
   function nodeMetaText(meta) {
-    const aliases = { content: "config file toml data 路径", runtime: "node go npm chrome bridge",
+    const aliases = { interface: "ui locale language english 中文 english auto 语言 切换", content: "config file toml data 路径", runtime: "node go npm chrome bridge",
       platforms: "平台 publish footer canonical tracking", assets: "mermaid png r2 图片",
       index: "baidu bing google sitemap indexnow 索引" };
     return [meta.title, meta.summary, aliases[meta.id] || ""].join(" ").toLowerCase();

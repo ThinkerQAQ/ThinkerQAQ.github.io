@@ -2,7 +2,7 @@
 
 The browser Extension and Web Console share the same interface and translation resources.
 
-Use the **Auto / 中文 / EN** selector in the header. Auto follows the browser's language; Chinese is the fallback when it cannot be resolved. A successful choice is saved to `ui_locale` in BlogCTL's `blogctl.toml`, so the next launch and the other UI host use the same preference. The Bridge must be connected for the change to persist.
+Open **Settings → Interface & language** and select **Follow browser language / Simplified Chinese / English**. Auto follows the browser's language; Chinese is the fallback when it cannot be resolved. A successful choice is saved to `ui_locale` in BlogCTL's `blogctl.toml`, so the next launch and the other UI host use the same preference. The Bridge must be connected for the change to persist.
 
 | Preference | Result |
 | --- | --- |

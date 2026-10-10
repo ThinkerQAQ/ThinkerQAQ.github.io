@@ -72,7 +72,7 @@ Linux/macOS 可执行 `curl http://127.0.0.1:32145/v1/health`。返回 `"ok": tr
 
 ## 5. 切换中英文界面
 
-右上角选择 **Auto / 中文 / EN**。Auto 跟随浏览器语言；手动选择后，Bridge 会将 `ui_locale` 保存至 `blogctl.toml`。这是界面语言，不会改变文章内容语言。
+进入 **Settings（设置）→ 界面与语言**，选择 **跟随浏览器 / 简体中文 / English**。Auto 跟随浏览器语言；手动选择后，Bridge 会将 `ui_locale` 保存至 `blogctl.toml`。这是界面语言，不会改变文章内容语言。
 
 ![真实运行的 BlogCTL 英文检测界面](../../assets/01-detect-en.webp)
 

@@ -160,26 +160,25 @@
   }
   function initialize() {
     if (observer) return;
-    const label = document.createElement("label");
-    label.className = "ui-language-selector";
-    label.setAttribute("aria-label", "Interface language");
-    const select = document.createElement("select");
-    select.id = "blogctlUiLocale";
-    select.setAttribute("aria-label", "Interface language");
-    for (const [value, caption] of [["auto", "Auto"], ["zh-CN", "中文"], ["en", "EN"]]) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = caption;
-      select.append(option);
-    }
+    const select = document.getElementById("blogctlUiLocale");
+    const message = document.getElementById("uiLocaleMessage");
+    if (!select || !message) throw new Error("BlogCTL interface language setting is missing");
     select.addEventListener("change", async () => {
       select.disabled = true;
-      try { await saveLocale(select.value); }
-      catch (error) { console.warn("[BlogCTL i18n] language preference was not saved:", error); }
-      finally { select.disabled = false; }
+      message.textContent = "";
+      message.className = "message";
+      try {
+        await saveLocale(select.value);
+        message.textContent = "界面语言已保存。";
+        message.className = "message ok";
+      } catch (error) {
+        message.textContent = "保存失败，请检查 Bridge 连接。";
+        message.className = "message error";
+        console.warn("[BlogCTL i18n] language preference was not saved:", error);
+      } finally {
+        select.disabled = false;
+      }
     });
-    label.append(select);
-    document.querySelector(".header-actions")?.prepend(label);
     applyLocale();
     observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {

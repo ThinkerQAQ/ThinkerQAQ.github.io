@@ -754,16 +754,10 @@ input, select { min-height: 42px; font-size: 13px; }
 }
 
 
-/* Shared Extension / Web Console language control. */
-.ui-language-selector select {
-  max-width: 80px;
-  min-height: 28px;
-  padding: 3px 5px;
-  color: var(--ui-text, #111827);
-  background: var(--ui-surface, #fff);
-  border: 1px solid var(--ui-border, #d1d5db);
-  border-radius: 6px;
-  font: inherit;
-  font-size: 12px;
+/* Interface language belongs to Settings, not the global page header. */
+.environment-interface-settings .ui-locale-field {
+  max-width: 380px;
 }
-.ui-language-selector select:focus-visible { outline: 2px solid var(--ui-focus, #2563eb); }
+.environment-interface-settings .message {
+  margin: 0;
+}
