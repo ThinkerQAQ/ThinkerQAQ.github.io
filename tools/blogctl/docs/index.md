@@ -7,6 +7,7 @@ BlogCTL handles site assembly, browser-assisted publishing and search indexing. 
 | What you're doing | Read |
 | --- | --- |
 | Installing the CLI and Extension | [Quick Start](quick-start.md) |
+| Start from zero with actual English screenshots | [New-machine tutorial](tutorial/first-run-on-new-machine.md) |
 | Publishing your first article | [Tutorial](tutorial/first-publish.md) |
 | Understanding the Bridge and publishing model | [Concepts](concepts/index.md) |
 | Configuring or troubleshooting a feature | [How-to](how-to/index.md) |

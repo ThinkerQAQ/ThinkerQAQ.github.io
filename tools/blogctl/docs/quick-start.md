@@ -2,6 +2,8 @@
 
 **Outcome:** validate a working BlogCTL local executable and open the Extension/Console. Site building can be explored without a publishing account.
 
+For an end-to-end walkthrough with fresh-environment verification and real English UI screenshots, see the [new-machine tutorial](tutorial/first-run-on-new-machine.md).
+
 ## 1. Obtain the application
 
 Download the current artifacts from [GitHub Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest). Match your OS/architecture and keep the executable, Extension archive contents, and installer together. On Windows, preserve the `Data/` directory across upgrades.

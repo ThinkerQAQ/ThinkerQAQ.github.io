@@ -2,6 +2,8 @@
 
 这份指南用于安装 BlogCTL、连接浏览器扩展，并打开本地工作台。
 
+第一次安装建议阅读[从零上手教程](tutorial/first-run-on-new-machine.md)，可以对照真实英文界面截图操作。
+
 ## 1. 获取程序
 
 从 [GitHub Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest) 下载匹配操作系统与架构的安装包。
