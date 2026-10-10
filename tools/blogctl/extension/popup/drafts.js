@@ -41,8 +41,15 @@
   }
 
   function selectedPlatforms() {
+    // This is specifically the WRITABLE subset for batch updates. The
+    // platformSelection() helper above includes detection-only platforms.
+    const article = selectedArticle();
     return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
       .filter((input) => !input.disabled && BlogCTLSyncModel.isVisiblePlatform(input.dataset.platform))
+      .filter((input) => {
+        const platform = state.status?.platforms?.find((item) => item.id === input.dataset.platform);
+        return platform && platformAvailability(article, platform).available;
+      })
       .map((input) => input.dataset.platform);
   }
 
@@ -257,12 +264,16 @@
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.dataset.platform = platform.id;
-      checkbox.checked = previous.has(platform.id) && availability.available;
-      checkbox.disabled = !availability.available || running || state.bindingMutating ||
-        (root.BlogCTLSync?.isBindingBusy?.() ?? false);
+      // A platform can be checked for association detection even when its
+      // publishing capability is unavailable. Update only sends to platforms
+      // whose draft-write capability is currently allowed.
+      const detectable = platform.capabilities?.remoteList === true;
+      checkbox.checked = previous.has(platform.id) && (availability.available || detectable);
+      checkbox.disabled = !(availability.available || detectable) || !state.selectedSlug ||
+        running || state.bindingMutating || (root.BlogCTLSync?.isBindingBusy?.() ?? false);
       checkbox.addEventListener("change", () => {
         resetWorkflow();
-        state.selectedPlatformIDs = new Set(selectedPlatforms());
+        state.selectedPlatformIDs = new Set(platformSelection());
         BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
         renderPlatforms();
         document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
@@ -365,7 +376,7 @@
     if (mode === "all") checkboxes.forEach((box) => { box.checked = true; });
     else checkboxes.forEach((box) => { box.checked = !box.checked; });
     resetWorkflow();
-    state.selectedPlatformIDs = new Set(selectedPlatforms());
+    state.selectedPlatformIDs = new Set(platformSelection());
     BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
     renderPlatforms();
     document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
