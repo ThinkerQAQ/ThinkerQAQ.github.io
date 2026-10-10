@@ -1,3 +1,19 @@
+# BlogCTL v0.1.135 (local candidate)
+
+- Extend direct target safety: authenticated CNBlogs/CSDN draft edits
+  fetch and verify the remote post is still a draft before writing.
+- Avoid blind retries of multiple targets or update-and-publish tasks;
+  retry single-target draft updates or select failed remote targets again.
+- The browser Side Panel and Go Web Console continue to share the same
+  navigable UI, Settings category tree and explicit Create/Update contract.
+- All prior Bridge/Extension integrations and Data are preserved.
+- Medium/Toutiao remain unavailable in the UI.
+
+Local candidate in PR #177. No third-party production article is altered
+during browser smoke tests.
+
+---
+
 # BlogCTL v0.1.134 (local candidate)
 
 - Complete Extension and Go Web Console shared navigation and Settings
