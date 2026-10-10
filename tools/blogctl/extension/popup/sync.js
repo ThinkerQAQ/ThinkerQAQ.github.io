@@ -15,7 +15,7 @@
     matchKey: "",
     cachedMatchTime: 0,
     refreshSerial: 0,
-    selectedPlatformIDs: new Set(BlogCTLSyncState.loadPlatforms(localStorage)),
+    selectedPlatformIDs: new Set(BlogCTLSyncModel.visiblePlatformIDs(BlogCTLSyncState.loadPlatforms(localStorage))),
     platformSelectionInitialized: false,
     selectedMatchKeys: new Set(),
     bindingMutating: false,
@@ -30,7 +30,7 @@
   }
 
   function selectedPlatformIDs() {
-    return [...state.selectedPlatformIDs];
+    return BlogCTLSyncModel.visiblePlatformIDs([...state.selectedPlatformIDs]);
   }
 
   function pruneSelectedMatchesToPlatforms() {
@@ -42,7 +42,7 @@
 
   function setSyncPlatforms(mode) {
     if (!state.selectedSlug) return;
-    const selectable = (state.status?.platforms ?? [])
+    const selectable = BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)
       .filter((platform) => platformAvailability(selectedArticle(), platform).available);
     state.selectedPlatformIDs = new Set(
       selectable
@@ -69,7 +69,7 @@
   function selectedMatchEntries() {
     if (!state.selectedSlug || state.matchKey !== state.selectedSlug) return [];
     const selected = [];
-    for (const platform of state.status?.platforms ?? []) {
+    for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
       if (!state.selectedPlatformIDs.has(platform.id)) continue;
       const match = state.matches[platform.id];
       for (const item of match?.items ?? []) {
@@ -422,7 +422,7 @@
     const currentKey = state.selectedSlug;
     platformsContainer.replaceChildren();
 
-    for (const platform of state.status?.platforms ?? []) {
+    for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
       const card = document.createElement("div");
       card.className = "platform-choice-card";
       card.append(renderPlatformHeader(platform, article));
@@ -483,7 +483,7 @@
 
   async function refreshArticleMatches(platformIDs = selectedPlatformIDs(), allowBridgeRestart = true) {
     const article = state.selectedSlug;
-    const platforms = [...new Set(platformIDs)].filter(Boolean);
+    const platforms = BlogCTLSyncModel.visiblePlatformIDs([...new Set(platformIDs)]).filter(Boolean);
     if (!article) return;
     if (!platforms.length) {
       BlogCTLPopup.setMessage(message, "请先选择至少一个需要检测的平台。", "error");
@@ -666,7 +666,7 @@
       state.status = statusResponse.status;
       state.tools = toolsResponse.tools ?? [];
 
-      const selectable = (state.status?.platforms ?? [])
+      const selectable = BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)
         .filter((platform) => platformAvailability(selectedArticle(), platform).available)
         .map((platform) => platform.id);
       if (!state.platformSelectionInitialized) {
