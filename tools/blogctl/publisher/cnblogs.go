@@ -390,7 +390,7 @@ func (c *cnBlogsAdapter) CreateDraft(ctx context.Context, input DraftInput) (Dra
 		return DraftResult{}, err
 	}
 	id := valueString(decoded["id"])
-	return DraftResult{ID: id, URL: cnBlogsOrigin + "/articles/edit;postId=" + url.QueryEscape(id), Created: true}, nil
+	return DraftResult{ID: id, URL: CNBlogsDraftEditorURL(id), Created: true}, nil
 }
 
 func (c *cnBlogsAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input DraftInput) (DraftResult, error) {
@@ -408,7 +408,7 @@ func (c *cnBlogsAdapter) UpdateDraft(ctx context.Context, ref DraftRef, input Dr
 	if id == "" {
 		id = ref.ID
 	}
-	return DraftResult{ID: id, URL: cnBlogsOrigin + "/articles/edit;postId=" + url.QueryEscape(id), Updated: true}, nil
+	return DraftResult{ID: id, URL: CNBlogsDraftEditorURL(id), Updated: true}, nil
 }
 
 func (c *cnBlogsAdapter) PublishDraft(ctx context.Context, ref DraftRef, input DraftInput) (PublishResult, error) {

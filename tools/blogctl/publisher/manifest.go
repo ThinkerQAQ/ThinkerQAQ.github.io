@@ -62,6 +62,9 @@ func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord 
 		PublishedSyncedAt: binding.PublishedSyncedAt,
 		PendingFields:     append([]string{}, binding.PendingFields...),
 	}
+	if binding.Platform == "cnblogs" {
+		record.DraftURL = cnBlogsDraftURL(record.RemoteID, record.DraftURL)
+	}
 	for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
 		if candidate > record.UpdatedAt {
 			record.UpdatedAt = candidate
@@ -114,6 +117,9 @@ func LoadArticleLinks(storePath, slug string) (map[string]ArticleLink, error) {
 		if link.RemoteID == "" {
 			link.RemoteID = draftIDFromURL(binding.Platform, link.DraftURL)
 		}
+		if binding.Platform == "cnblogs" {
+			link.DraftURL = cnBlogsDraftURL(link.RemoteID, link.DraftURL)
+		}
 		if link.RemoteID != "" || link.PublishedRemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
 			result[binding.Platform] = link
 		}
@@ -158,7 +164,7 @@ func draftIDFromURL(platform, rawURL string) string {
 	case "toutiao":
 		return queryID("pgc_id")
 	case "cnblogs":
-		// Draft URLs use a matrix-style parameter: /articles/edit;postId=<id>.
+		// Draft editor URLs use a matrix-style parameter: /posts/edit;postId=<id>.
 		const marker = "postId="
 		if index := strings.Index(text, marker); index >= 0 {
 			rest := text[index+len(marker):]

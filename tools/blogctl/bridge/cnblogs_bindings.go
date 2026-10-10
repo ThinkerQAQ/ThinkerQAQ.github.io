@@ -27,7 +27,7 @@ func cnBlogsBindingViews(binding publisher.PublicationBinding) []cnBlogsBindingV
 	result := make([]cnBlogsBindingView, 0, 2)
 	if binding.RemoteDraftID != "" {
 		result = append(result, cnBlogsBindingView{
-			PostID: binding.RemoteDraftID, State: "draft", EditURL: binding.DraftURL,
+			PostID: binding.RemoteDraftID, State: "draft", EditURL: publisher.CNBlogsDraftEditorURL(binding.RemoteDraftID),
 			Account: binding.Account, Source: binding.Source, VerifiedAt: binding.VerifiedAt,
 		})
 	}
@@ -260,7 +260,7 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 		binding.RemoteUpdatedAt = post.UpdatedAt
 	} else {
 		binding.RemoteDraftID = post.ID
-		binding.DraftURL = "https://i.cnblogs.com/articles/edit;postId=" + post.ID
+		binding.DraftURL = publisher.CNBlogsDraftEditorURL(post.ID)
 	}
 	if err := publisher.SavePublicationBinding(s.publicationBindingsPath(), binding); err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "binding_save_failed", err.Error(), nil)
