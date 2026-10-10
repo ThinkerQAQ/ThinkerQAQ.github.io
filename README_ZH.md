@@ -1,6 +1,6 @@
 # ThinkerQAQ Blog
 
-[English](README.md) · [博客](https://thinkerqaq.com/)
+[English](README.md) · [博客](https://thinkerqaq.com/) · [项目介绍](https://thinkerqaq.com/projects/personal-blog-system/)
 
 基于 Astro 的双语技术博客。文章和笔记保存在独立的内容仓库；BlogCTL 负责内容装配、分发及搜索引擎提交。
 

@@ -18,7 +18,9 @@ export interface ProjectKnowledge {
   articles: ArticleEntry[];
   github: ProjectExternalLink[];
   tutorials: ArticleEntry[];
+  tutorialLinks: ProjectExternalLink[];
   documentation: ArticleEntry[];
+  documentationLinks: ProjectExternalLink[];
   series: SeriesEntry[];
 }
 
@@ -83,6 +85,21 @@ function localizedArticleForRoot(
       && candidate.data.language === locale
       && articleIsIncluded(candidate),
   ) ?? root;
+}
+
+function resolveProjectExternalLinks(
+  references: ProjectEntry["data"]["tutorials"],
+  locale: Locale,
+): ProjectExternalLink[] {
+  return references.flatMap((entry) => {
+    if (typeof entry === "string") return [];
+    const translation = entry.translations[locale];
+    return [{
+      title: translation?.title ?? entry.title,
+      description: translation?.description ?? entry.description,
+      url: translation?.url ?? entry.url,
+    }];
+  });
 }
 
 function resolveProjectArticleReferences(
@@ -173,7 +190,7 @@ export function buildProjectKnowledge(
 
   const tutorials = resolveProjectArticleReferences(
     project,
-    project.data.tutorials,
+    project.data.tutorials.filter((entry): entry is string => typeof entry === "string"),
     "tutorials",
     locale,
     articles,
@@ -181,7 +198,7 @@ export function buildProjectKnowledge(
   );
   const documentation = resolveProjectArticleReferences(
     project,
-    project.data.documentation,
+    project.data.documentation.filter((entry): entry is string => typeof entry === "string"),
     "documentation",
     locale,
     articles,
@@ -192,7 +209,9 @@ export function buildProjectKnowledge(
     articles: projectArticles,
     github: project.data.github,
     tutorials,
+    tutorialLinks: resolveProjectExternalLinks(project.data.tutorials, locale),
     documentation,
+    documentationLinks: resolveProjectExternalLinks(project.data.documentation, locale),
     series: projectSeries,
   };
 }
