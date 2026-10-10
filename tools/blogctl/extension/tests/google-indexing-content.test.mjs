@@ -195,7 +195,8 @@ test("GSC still recognizes an error inside a visible alert surface", async () =>
   });
 
   const result = await harness.send({ type: "blogctl.google.index.probe" });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
+  assert.equal(result.ready, false);
   assert.equal(result.inspectionState, "failed");
 });
 

@@ -539,7 +539,9 @@
       !["quota_blocked", "rate_limited", "failed"].includes(String(value?.inspectionState || "")) &&
       Boolean(input || value?.hasRequestButton || (inspectionPath && value?.inspectionState));
     let ready = inspectionReady(diagnostic);
-    if (!ready) {
+    // A visible terminal error is already an inspection result. Waiting for
+    // a new textbox obscures the actual error and can time out the caller.
+    if (!ready && !["quota_blocked", "rate_limited", "failed"].includes(diagnostic.inspectionState)) {
       input = await ensureInspectionInput(15000);
       diagnostic = pageDiagnostic();
       ready = inspectionReady(diagnostic);
