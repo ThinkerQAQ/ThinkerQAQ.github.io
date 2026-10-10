@@ -1,3 +1,15 @@
+# BlogCTL v0.1.119 (local diagnostic build)
+
+- Preserve non-secret Toutiao upstream business response codes when a draft
+  update fails, so a generic save failure can be investigated more precisely.
+- Keep session cookies, CSRF tokens and article content out of error messages.
+- No new signing algorithm; real creator draft writes remain unverified.
+- Initial and reopened editor draft forms are unchanged from v0.1.118.
+
+Experimental diagnostic build on PR #177; not a public release.
+
+---
+
 # BlogCTL v0.1.118 (local experimental build)
 
 - Match the actual Toutiao reopened-draft form in the latest editor HAR:
