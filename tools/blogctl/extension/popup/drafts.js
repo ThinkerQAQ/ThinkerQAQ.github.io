@@ -281,8 +281,9 @@
         : "选中检测到的远端文章作为更新目标";
       description.append(name,hint);
       const status=document.createElement("strong");
+      const alreadyExists=state.mode==="create" && existingCreateArticles(platform.id).length>0;
       BlogCTLPopup.setStatus(status,permission.available?"ok":"disabled",
-        permission.available?"可操作":permission.reason);
+        permission.available?(alreadyExists?"已有文章":"可操作"):permission.reason);
       const actions=document.createElement("div");
       actions.className="platform-card-actions";
       const existing=state.mode==="create" ? existingCreateArticles(platform.id) : [];
@@ -479,7 +480,7 @@
       "选择本地文章和平台，明确创建一篇新草稿，不读取历史绑定。":
       "选择本地文章，检测并勾选远端目标，然后直接更新。";
     document.getElementById("draftPlatformHint").textContent=mode==="create"?
-      "勾选平台，创建草稿或直接创建并发布。":
+      "已有远端文章显示在平台下方，点击右侧链接编辑；只有未创建文章的平台才显示「创建草稿」。":
       "勾选平台检测远端候选，选中明确目标后更新，无需绑定。";
     for(const id of ["refreshArticleMatches"])document.getElementById(id).hidden=mode==="create";
     root.BlogCTLSync?.clearMatches?.();
