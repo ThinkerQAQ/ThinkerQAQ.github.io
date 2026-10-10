@@ -1,6 +1,27 @@
 "use strict";
 
 (function (root) {
+  // Temporarily hide unstable delivery integrations. This is a presentation
+  // policy only: adapters, platform capabilities, bindings and prior tasks
+  // remain intact, so both integrations can be restored without migration.
+  const HIDDEN_PLATFORMS = new Set(["medium", "toutiao"]);
+
+  function isVisiblePlatform(id) {
+    return !HIDDEN_PLATFORMS.has(id);
+  }
+
+  function visiblePlatforms(platforms = []) {
+    return platforms.filter((platform) => isVisiblePlatform(platform.id));
+  }
+
+  function visiblePlatformIDs(ids = []) {
+    return ids.filter(isVisiblePlatform);
+  }
+
+  function visiblePublicationRecords(records = []) {
+    return records.filter((record) => isVisiblePlatform(record.platform));
+  }
+
   function platformCapabilities(platform) {
     return platform?.capabilities ?? {};
   }
@@ -177,6 +198,10 @@
 
   root.BlogCTLSyncModel = {
     deliveryToolAvailability,
+    isVisiblePlatform,
+    visiblePlatforms,
+    visiblePlatformIDs,
+    visiblePublicationRecords,
     articleMatchLink,
     platformRows,
     statePresentation,
