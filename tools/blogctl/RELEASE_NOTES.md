@@ -1,3 +1,21 @@
+# BlogCTL v0.1.141 (local candidate)
+
+- Publish already-created drafts directly from Tasks after explicit user
+  confirmation. Task keeps an Edit Draft link and starts a new publish-draft
+  job containing the selected platform and immutable remote draft ID.
+- Create-and-Publish, Update-and-Publish and task-level Publish Draft now
+  share one native PublishDraft helper. Task publishing never runs CreateDraft
+  or UpdateDraft first and does not navigate to the Update tab.
+- Preserve published article links and per-target task events. Publishing
+  jobs are not safe for automatic retry; verify the remote state first.
+- Fail closed OSChina draft publishing: its existing adapter posts to the
+  add-new-article endpoint, not a verified draft-to-published transition.
+  OSChina draft creation and update remain available.
+- DevTool/Go/Extension regression checks passed. Existing Data untouched.
+- Medium/Toutiao remain UI-hidden. Branch PR #177 is not a stable release.
+
+---
+
 # BlogCTL v0.1.140 (local Juejin draft discovery candidate)
 
 - Add authenticated Juejin draft discovery via POST
