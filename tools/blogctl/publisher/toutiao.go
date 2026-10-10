@@ -310,6 +310,17 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 	id := valueString(decoded.Data.PGCID)
 	if !codeOK || id == "" || id == "0" {
 		message := responseMessage(decoded.Message)
+		// Preserve upstream business status without exposing session headers,
+		// tokens, request bodies or any other account credentials.
+		if decoded.Code != nil {
+			message += " (code=" + strconv.Itoa(*decoded.Code)
+			if decoded.ErrNo != nil {
+				message += ", err_no=" + strconv.Itoa(*decoded.ErrNo)
+			}
+			message += ")"
+		} else if decoded.ErrNo != nil {
+			message += " (err_no=" + strconv.Itoa(*decoded.ErrNo) + ")"
+		}
 		if !publish && refID != "" && refID != "0" && (strings.Contains(message, "不存在") || strings.Contains(strings.ToLower(message), "not found")) {
 			return "", platformError(ErrValidation, t.ID(), operation, 0, "the draft no longer exists; refusing to recreate it without explicit confirmation", false)
 		}
