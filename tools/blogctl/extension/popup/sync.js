@@ -229,7 +229,27 @@
   function manualBindingID(platformID, reference) {
     const raw = String(reference || "").trim();
     if (!raw) return "";
-    if (platformID === "cnblogs" || platformID === "csdn") return raw;
+    if (platformID === "cnblogs" || platformID === "csdn") {
+      // Normalize known creator/public URLs for same-ID binding comparisons.
+      // The Bridge still receives the original CNBlogs reference and performs
+      // the authoritative owner/state verification before writing a binding.
+      if (/^[0-9]+$/.test(raw)) return raw;
+      try {
+        const parsed = new URL(raw);
+        if (parsed.protocol === "https:" &&
+            (platformID === "cnblogs"
+              ? ["i.cnblogs.com", "www.cnblogs.com"].includes(parsed.hostname)
+              : ["editor.csdn.net", "blog.csdn.net"].includes(parsed.hostname))) {
+          const id = platformID === "cnblogs"
+            ? parsed.searchParams.get("postId") ||
+              parsed.pathname.match(/(?:\/posts\/edit;postId=|\/articles\/edit;postId=|\/p\/)([0-9]+)/)?.[1]
+            : parsed.searchParams.get("articleId") ||
+              parsed.pathname.match(/\/article\/details\/([0-9]+)/)?.[1];
+          if (/^[0-9]+$/.test(id || "")) return id;
+        }
+      } catch { /* Backend validates malformed or unsupported references. */ }
+      return raw;
+    }
     if (/^[A-Za-z0-9_-]+$/.test(raw) && !raw.includes(".")) return raw;
 
     let parsed;
