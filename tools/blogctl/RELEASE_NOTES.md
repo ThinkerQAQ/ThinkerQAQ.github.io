@@ -1,3 +1,17 @@
+# BlogCTL v0.1.118 (local experimental build)
+
+- Match the actual Toutiao reopened-draft form in the latest editor HAR:
+  article_type=0, blank title_id, and article_ad_type=3.
+- Preserve new-draft vs existing-draft request distinctions and published
+  update account/revision/ID guards.
+- Continue testing native creator HTTP only; no browser editor relay.
+- Real v0.1.117 draft update returned "保存失败"; the dynamic msToken
+  and a_bogus parameters may still require implementation.
+
+Experimental branch build, not a verified production Toutiao publisher.
+
+---
+
 # BlogCTL v0.1.117 (local experimental build)
 
 - Restore Toutiao draft creation and update through native Go HTTP.
