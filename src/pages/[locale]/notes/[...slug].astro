@@ -29,12 +29,10 @@ export async function getStaticPaths() {
 
   return nonDefaultLocales().flatMap((locale) => {
     const localizedNotes = localizeNotes(notes, translations, locale);
-    return notes.map((note, index) => {
+    return notes.flatMap((note, index) => {
       const localizedNote = localizedNotes[index]!;
       const translation = noteTranslationFor(note, translations, locale);
-      if (!translation) {
-        throw new Error(`Note ${note.id}: missing ${locale} translation`);
-      }
+      if (!translation) return [];
       const translatedLocales = translations
         .filter((candidate) => candidate.data.translationOf === note.id)
         .map((candidate) => candidate.data.language);
@@ -52,7 +50,7 @@ export async function getStaticPaths() {
           }
         : rawNavigation;
 
-      return {
+      return [{
         params: { locale: LOCALES[locale].path, slug: note.id },
         props: {
           locale,
@@ -63,7 +61,7 @@ export async function getStaticPaths() {
           languageAlternatives,
           languageSwitcherAlternatives,
         },
-      };
+      }];
     });
   });
 }

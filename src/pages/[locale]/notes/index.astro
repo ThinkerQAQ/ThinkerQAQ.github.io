@@ -5,7 +5,7 @@ import NoteCategoryPreview from "../../../components/NoteCategoryPreview.astro";
 import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { groupByCategory } from "../../../lib/content";
-import { localizeNotes } from "../../../lib/note-i18n";
+import { localizeNotes, noteTranslationFor } from "../../../lib/note-i18n";
 import { orderNoteCategoriesAtEnd } from "../../../lib/note-category-order";
 
 export async function getStaticPaths() {
@@ -15,7 +15,10 @@ export async function getStaticPaths() {
   ]);
   return nonDefaultLocales().map((locale) => ({
     params: { locale: LOCALES[locale].path },
-    props: { locale, notes: localizeNotes(notes, translations, locale) },
+    props: { locale, notes: localizeNotes(
+      notes.filter((note) => Boolean(noteTranslationFor(note, translations, locale))),
+      translations, locale,
+    ) },
   }));
 }
 
