@@ -66,3 +66,8 @@
 日志查看器已替换为 CodeMirror 6（@codemirror/state、@codemirror/view、@codemirror/search），支持只读虚拟化、行号、内置查找、级别行着色，保留旧的级别过滤、自动刷新、复制和清空。Xterm.js 主要适用于 PTY 与终端仿真，当前结构化日志无需终端模拟。CodeMirror 也是 IDFlow 已采用的成熟技术栈。
 
 构建入口 tools/blogctl/ui/log-viewer/。固定 package-lock 依赖，执行 npm ci、npm run build 即可复现本地编译；编译后的 popup/log-editor-vendor.js 随 Extension 静态文件和 Go embed 同步发布，满足 Manifest V3 不从远端执行代码的要求。不新增常驻 Node 服务。
+
+CSP compatibility: Go /console emits a new cryptographic style nonce for each
+HTML request, matching CodeMirror 6 EditorView.cspNonce. The browser policy
+remains style-src self + nonce, never unsafe-inline. Extension/Web Console
+still share the same bundled JavaScript and CSS.

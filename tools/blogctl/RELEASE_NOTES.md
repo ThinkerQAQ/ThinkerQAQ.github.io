@@ -1,3 +1,17 @@
+# BlogCTL v0.1.138 (local experimental build)
+
+- Preserve strict Content-Security-Policy while allowing CodeMirror 6 to
+  mount dynamic theme CSS in the Go-served Web Console. Go Bridge generates
+  a random style nonce per HTML request; both CSP and CodeMirror use it.
+- No unsafe-inline and no externally fetched scripts, with a strict
+  Extension/Web shared UI.
+- Navigation, indexing selector and CodeMirror log viewer from v0.1.137.
+- DevTool, Go and Extension regressions pass.
+
+PR #177 experimental branch build; not a public stable release.
+
+---
+
 # BlogCTL v0.1.137 (local experimental build)
 
 - Replace top tabs with IDFlow/Desktop Commander-inspired left navigation, common to Extension and Web Console.
