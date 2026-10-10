@@ -28,6 +28,18 @@
     return state.publishing.find((item) => item.id === platformId) ?? {};
   }
 
+  function platformSelection() {
+    return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
+      .map((input) => input.dataset.platform)
+      .filter((id) => BlogCTLSyncModel.isVisiblePlatform(id));
+  }
+
+  async function refreshBindings() {
+    const response = await BlogCTLPopup.send("blogctl.publications");
+    state.records = response.records ?? [];
+    if (state.active) renderPlatforms();
+  }
+
   function selectedPlatforms() {
     return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
       .filter((input) => !input.disabled && BlogCTLSyncModel.isVisiblePlatform(input.dataset.platform))
@@ -237,6 +249,7 @@
       const availability = platformAvailability(article, platform);
       const wrapper = document.createElement("div");
       wrapper.className = "platform-choice-card";
+      wrapper.dataset.platformCard = platform.id;
 
       const card = document.createElement("label");
       card.className = "platform-choice";
@@ -245,12 +258,14 @@
       checkbox.type = "checkbox";
       checkbox.dataset.platform = platform.id;
       checkbox.checked = previous.has(platform.id) && availability.available;
-      checkbox.disabled = !availability.available || running || state.bindingMutating;
+      checkbox.disabled = !availability.available || running || state.bindingMutating ||
+        (root.BlogCTLSync?.isBindingBusy?.() ?? false);
       checkbox.addEventListener("change", () => {
         resetWorkflow();
         state.selectedPlatformIDs = new Set(selectedPlatforms());
         BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
         renderPlatforms();
+        document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
       });
 
       const text = document.createElement("span");
@@ -277,7 +292,8 @@
         ? "更新中…"
         : "更新此平台";
       updatePlatformButton.disabled = !state.selectedSlug || !availability.available ||
-        !state.status?.bridge?.running || running || state.bindingMutating;
+        !state.status?.bridge?.running || running || state.bindingMutating ||
+        (root.BlogCTLSync?.isBindingBusy?.() ?? false);
       updatePlatformButton.addEventListener("click", () => startSavePlatforms([platform.id]));
       actions.append(updatePlatformButton);
       const record = publicationRecord(platform.id);
@@ -308,6 +324,7 @@
       }
       wrapper.append(actions);
       appendBindingRows(wrapper, platform.id, record, running);
+      root.BlogCTLSync?.appendPlatformMatches?.(platform, wrapper);
 
       const taskResult = platformTaskResult(platform.id);
       if (taskResult) {
@@ -351,6 +368,7 @@
     state.selectedPlatformIDs = new Set(selectedPlatforms());
     BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
     renderPlatforms();
+    document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
   }
 
   function completedPlatforms(job) {
@@ -364,7 +382,8 @@
     const running = ["queued", "running"].includes(job?.state);
     const terminal = ["completed", "failed"].includes(job?.state);
     const ready = Boolean(state.selectedSlug) && count > 0 &&
-      Boolean(state.status?.bridge?.running) && !state.bindingMutating;
+      Boolean(state.status?.bridge?.running) && !state.bindingMutating &&
+      !(root.BlogCTLSync?.isBindingBusy?.() ?? false);
 
     actionButton.hidden = terminal;
     nextActions.hidden = !terminal;
@@ -480,7 +499,8 @@
   async function startSavePlatforms(platforms) {
     const article = state.selectedSlug;
     const running = ["queued", "running"].includes(state.currentJob?.state);
-    if (!article || !platforms.length || running || state.bindingMutating || !state.status?.bridge?.running ||
+    if (!article || !platforms.length || running || state.bindingMutating ||
+        (root.BlogCTLSync?.isBindingBusy?.() ?? false) || !state.status?.bridge?.running ||
         platforms.some((id) => !BlogCTLSyncModel.isVisiblePlatform(id))) return;
 
     if (["completed", "failed"].includes(state.currentJob?.state)) resetWorkflow();
@@ -624,6 +644,9 @@
       }
     });
 
+    document.addEventListener("blogctl:association-results-changed", () => {
+      if (state.active) renderPlatforms();
+    });
     actionButton.addEventListener("click", startSave);
     viewTaskButton.addEventListener("click", navigateTask);
     enterPublishButton.addEventListener("click", enterPublish);
@@ -642,5 +665,8 @@
     stopPolling();
   }
 
-  root.BlogCTLDrafts = { init, activate, deactivate, refresh, prepare };
+  root.BlogCTLDrafts = {
+    init, activate, deactivate, refresh, prepare,
+    selectedPlatformIDs: platformSelection, refreshBindings,
+  };
 })(globalThis);
