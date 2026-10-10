@@ -22,7 +22,7 @@
     matchingPlatforms: new Set(),
   };
 
-  let articlePicker, articleOptions, articleMeta, platformsContainer, message, refreshMatchesButton;
+  let platformsContainer, message, refreshMatchesButton;
   let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton, enterDraftsButton;
 
   function selectedArticle() {
@@ -110,47 +110,6 @@
       enterDraftsButton.disabled = !state.selectedSlug || state.bindingMutating;
     }
     updateBulkActions();
-  }
-
-  function renderArticleMeta() {
-    const article = selectedArticle();
-    articleMeta.textContent = article ? `${article.title} · ${article.slug} · ${article.status || "published"}` : "";
-  }
-
-  function setArticleOptionsOpen(open) {
-    articleOptions.hidden = !open;
-    articlePicker.setAttribute("aria-expanded", open ? "true" : "false");
-  }
-
-  function renderArticles() {
-    const query = articlePicker.value.trim().toLowerCase();
-    const filtered = state.articles.filter((article) => !query || `${article.title} · ${article.slug}`.toLowerCase().includes(query));
-    articleOptions.replaceChildren();
-    for (const article of filtered) {
-      const option = document.createElement("button");
-      option.type = "button";
-      option.className = "article-option";
-      if (article.slug === state.selectedSlug) option.classList.add("active");
-      option.setAttribute("role", "option");
-      option.textContent = `${article.title} · ${article.slug}`;
-      option.addEventListener("click", () => selectArticle(article));
-      articleOptions.append(option);
-    }
-    if (!filtered.length) articleOptions.textContent = "没有匹配文章";
-    setArticleOptionsOpen(true);
-    renderArticleMeta();
-    updateControls();
-  }
-
-  function selectArticle(article) {
-    state.selectedSlug = article.slug;
-    articlePicker.value = `${article.title} · ${article.slug}`;
-    setArticleOptionsOpen(false);
-    localStorage.setItem("blogctl.selectedArticle", article.slug);
-    clearMatches();
-    renderArticleMeta();
-    renderPlatforms();
-    loadSyncBinding();
   }
 
   function platformAvailability(_article, platform) {
@@ -691,8 +650,7 @@
       const previous = state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
       if (state.articles.some((item) => item.slug === previous)) {
         state.selectedSlug = previous;
-        const selected = selectedArticle();
-        articlePicker.value = `${selected.title} · ${selected.slug}`;
+
       } else {
         state.selectedSlug = "";
       }
@@ -706,8 +664,6 @@
         }
       }
 
-      renderArticles();
-      if (state.selectedSlug) setArticleOptionsOpen(false);
       renderPlatforms();
       if (state.selectedSlug) loadSyncBinding();
     } catch (error) {
@@ -719,9 +675,6 @@
   function init() {
     if (state.initialized) return;
 
-    articlePicker = document.getElementById("articlePicker");
-    articleOptions = document.getElementById("articleOptions");
-    articleMeta = document.getElementById("articleMeta");
     platformsContainer = document.getElementById("syncPlatforms");
     message = document.getElementById("syncMessage");
     refreshMatchesButton = document.getElementById("refreshArticleMatches");
@@ -732,24 +685,6 @@
     bindSelectedButton = document.getElementById("bindSelectedMatches");
     unbindSelectedButton = document.getElementById("unbindSelectedMatches");
     enterDraftsButton = document.getElementById("bindingEnterDrafts");
-
-    articlePicker.addEventListener("focus", renderArticles);
-    articlePicker.addEventListener("input", () => {
-      state.selectedSlug = "";
-      clearMatches();
-      renderPlatforms();
-      renderArticles();
-    });
-    articlePicker.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        setArticleOptionsOpen(false);
-        return;
-      }
-      if (event.key === "Enter" && articleOptions.querySelector("button")) {
-        event.preventDefault();
-        articleOptions.querySelector("button").click();
-      }
-    });
 
     // A state-specific unbind from the Update tab invalidates cached
     // detection results. Recheck manually rather than displaying stale
@@ -775,9 +710,6 @@
       state.selectedMatchKeys.clear();
       clearMatches();
       if (state.active) {
-        const selected = selectedArticle();
-        articlePicker.value = selected ? `${selected.title} · ${selected.slug}` : "";
-        renderArticleMeta();
         renderPlatforms();
         loadSyncBinding();
       }
