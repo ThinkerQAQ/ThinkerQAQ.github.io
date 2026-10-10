@@ -66,6 +66,9 @@ export function create(parent) {
     doc: "暂无日志",
     extensions: [
       lineNumbers(),
+      // Web Console keeps strict CSP; nonce is fresh for every Go-served
+      // document. Extension pages do not need the nonce facet.
+      EditorView.cspNonce.of(document.querySelector('meta[name="blogctl-style-nonce"]')?.content || ""),
       drawSelection(),
       EditorState.readOnly.of(true),
       EditorView.editable.of(false),

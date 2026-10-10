@@ -1,6 +1,9 @@
 package bridge
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
@@ -44,6 +47,27 @@ func (s *Server) serveConsole(w http.ResponseWriter, r *http.Request) {
 			"connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	if r.URL.Path == "/console" || r.URL.Path == "/console/" {
 		http.Redirect(w, r, "/console/popup/popup.html", http.StatusFound)
+		return
+	}
+	if r.URL.Path == "/console/popup/popup.html" {
+		data, err := blogextension.Assets.ReadFile("popup/popup.html")
+		if err != nil {
+			http.Error(w, "console unavailable", http.StatusInternalServerError)
+			return
+		}
+		random := make([]byte, 24)
+		if _, err := rand.Read(random); err != nil {
+			http.Error(w, "console nonce unavailable", http.StatusInternalServerError)
+			return
+		}
+		nonce := base64.RawStdEncoding.EncodeToString(random)
+		s := fmt.Sprintf("<meta name=\"blogctl-style-nonce\" content=\"%s\">", nonce)
+		html := strings.Replace(string(data), "</head>", s+"\n</head>", 1)
+		w.Header().Set("Content-Security-Policy",
+			fmt.Sprintf("default-src 'none'; script-src 'self'; style-src 'self' 'nonce-%s'; img-src 'self'; "+
+				"connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'", nonce))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(html))
 		return
 	}
 	subtree, err := fs.Sub(blogextension.Assets, ".")

@@ -21,8 +21,27 @@ func TestConsoleServesEmbeddedSharedFeatureWithoutExposingBridgeToken(t *testing
 	if strings.Contains(response.Body.String(), "x-thinkerqaq-token") {
 		t.Fatal("Bridge token exposed")
 	}
-	if response.Header().Get("Content-Security-Policy") == "" {
+	csp := response.Header().Get("Content-Security-Policy")
+	if csp == "" {
 		t.Fatal("CSP missing")
+	}
+	if strings.Contains(csp, "unsafe-inline") {
+		t.Fatal("unsafe-inline must stay forbidden")
+	}
+	marker := "name=\"blogctl-style-nonce\" content=\""
+	html := response.Body.String()
+	start := strings.Index(html, marker)
+	if start < 0 {
+		t.Fatal("CodeMirror nonce meta missing")
+	}
+	remain := html[start+len(marker):]
+	finish := strings.Index(remain, "\"")
+	if finish < 0 || finish < 20 {
+		t.Fatal("invalid randomized nonce")
+	}
+	nonce := remain[:finish]
+	if !strings.Contains(csp, "'nonce-"+nonce+"'") {
+		t.Fatal("CSP nonce mismatch")
 	}
 }
 func TestConsoleBlocksForgedHostsCrossSiteResourceRequestsAndWrites(t *testing.T) {
