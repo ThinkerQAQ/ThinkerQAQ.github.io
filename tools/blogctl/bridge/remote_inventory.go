@@ -99,11 +99,14 @@ func (s *Server) handleRemoteInventory(response http.ResponseWriter, request *ht
 			}
 		case "juejin":
 			var items []publisher.JuejinPost
-			account, items, err = publisher.JuejinListPosts(ctx, client, session)
+			var truncated bool
+			account, items, truncated, err = publisher.JuejinListAllPosts(ctx, client, session)
 			for _, item := range items {
 				appendPost(item.ID, item.Title, item.URL, item.Published)
 			}
-			partial = "掘金目前可枚举已发布文章；草稿仍需在「更新」页按 ID 检测"
+			if truncated {
+				partial = "掘金草稿最多读取最近 500 篇；可在「更新」页按 ID 定位更早草稿"
+			}
 		case "csdn":
 			var items []publisher.CSDNPost
 			account, items, err = publisher.CSDNListPosts(ctx, client, session)

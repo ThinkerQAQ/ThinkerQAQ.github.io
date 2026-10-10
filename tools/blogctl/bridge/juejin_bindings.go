@@ -83,7 +83,7 @@ func (s *Server) juejinCandidates(ctx context.Context, slug string) (
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
-	account, published, err := publisher.JuejinListPosts(ctx, client, session)
+	account, published, _, err := publisher.JuejinListAllPosts(ctx, client, session)
 	if err != nil {
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
@@ -92,10 +92,8 @@ func (s *Server) juejinCandidates(ctx context.Context, slug string) (
 		return articleSummary{}, "", "", nil, publisher.PublicationBinding{}, err
 	}
 
-	// Read the signed-in account's published article list, then additionally
-	// verify the locally recorded draft by ID. The published list carries both
-	// article_id and draft_id, so a previously stored draft can be reconciled
-	// after publication.
+	// Discover the account's draft and published lists, then optionally verify
+	// a legacy locally recorded draft by ID. Discovery no longer needs any binding.
 	posts := make([]publisher.JuejinPost, 0, len(published)+1)
 	posts = append(posts, published...)
 	if localDraftID := juejinDraftID(binding); localDraftID != "" {

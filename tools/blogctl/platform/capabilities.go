@@ -35,7 +35,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "juejin", Label: "掘金", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, BodyImages: true, BodyImageRehost: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "csdn", Label: "CSDN", DefaultLanguage: "zh-CN",
