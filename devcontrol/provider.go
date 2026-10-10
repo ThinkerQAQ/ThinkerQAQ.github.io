@@ -87,6 +87,7 @@ func (p *Provider) Execute(ctx project.Context, command string, args map[string]
 		}{
 			{name: "Install Node dependencies", exe: "npm", args: []string{"ci"}},
 			{name: "Documentation links", exe: "npm", args: []string{"run", "test:docs"}},
+			{name: "BlogCTL internationalization", exe: "npm", args: []string{"run", "test:blogctl-i18n"}},
 			{name: "Go tests", exe: "go", args: []string{"test", "./tools/blogctl/..."}},
 			{name: "Extension syntax", exe: "node", args: []string{"--check", "tools/blogctl/extension/background.js"}},
 			{name: "Renderer syntax", exe: "node", args: []string{"--check", "tools/blogctl/renderers/node/markdown-html.mjs"}},

@@ -43,8 +43,8 @@ func TestBlogCTLVersionMatchesExtension(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if manifest.Name != "BlogCTL Extension" {
-		t.Fatalf("extension name = %q, want %q", manifest.Name, "BlogCTL Extension")
+	if manifest.Name != "__MSG_extensionName__" {
+		t.Fatalf("extension name = %q, want %q", manifest.Name, "__MSG_extensionName__")
 	}
 	if manifest.Version != version {
 		t.Fatalf("extension version = %q, blogctl version = %q", manifest.Version, version)
