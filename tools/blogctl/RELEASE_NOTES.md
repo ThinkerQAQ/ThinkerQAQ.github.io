@@ -1,3 +1,15 @@
+# BlogCTL v0.1.146 (local branch build)
+
+- Automatically detect Update targets for all selected and available platforms when entering Update, selecting a different local article, and checking a platform. This matches Create's automatic remote association discovery.
+- Run up to three platform checks in parallel. Invalidate stale results on article changes and keep independent platform refreshes from cancelling one another.
+- First-time platform selection includes all visible providers; subsequently respect explicit selection preferences including none selected.
+- Make Select All / Invert / Recheck matching secondary actions and reserve the blue primary style for content-creating or content-updating tasks.
+- Preserve existing Create/Update candidate highlighting and per-platform 51CTO discovery. No platform writes are performed by these UI changes.
+
+Experimental PR #177 branch build; not a stable public release.
+
+---
+
 # BlogCTL v0.1.145 (local candidate)
 
 - Correct the Create/Update branching after a remote article exists:
