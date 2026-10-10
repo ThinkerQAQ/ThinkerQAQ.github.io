@@ -44,25 +44,39 @@
         note.textContent = result.partial;
         card.append(note);
       }
-      for (const item of result?.items ?? []) {
-        const content = `${item.title} ${item.id} ${item.published ? "已发布" : "草稿"}`.toLowerCase();
-        if (filter && !content.includes(filter)) continue;
-        const row = document.createElement("div");
-        row.className = "article-match-row";
-        const name = document.createElement("div");
-        name.className = "article-match-choice-text";
-        name.textContent = `${item.title || "(无标题)"} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}`;
-        row.append(name);
-        const link = BlogCTLSyncModel.articleMatchLink(platform.id, item);
-        if (link) {
-          const action = document.createElement("a");
-          action.textContent = link.label;
-          action.href = link.url;
-          action.target = "_blank";
-          action.rel = "noopener noreferrer";
-          row.append(action);
+      for (const published of [false, true]) {
+        const entries = (result?.items ?? []).filter((item) => {
+          if (Boolean(item.published) !== published) return false;
+          const content = `${item.title} ${item.id} ${published ? "已发布" : "草稿"}`.toLowerCase();
+          return !filter || content.includes(filter);
+        });
+        if (!entries.length) continue;
+        const section = document.createElement("details");
+        section.className = "remote-inventory-group";
+        // Keep large account inventories compact, but expose matches during search.
+        section.open = Boolean(filter);
+        const summary = document.createElement("summary");
+        summary.textContent = `${published ? "已发布文章" : "草稿"} · ${entries.length} 篇`;
+        section.append(summary);
+        for (const item of entries) {
+          const row = document.createElement("div");
+          row.className = "article-match-row";
+          const name = document.createElement("div");
+          name.className = "article-match-choice-text";
+          name.textContent = `${item.title || "(无标题)"} · ID ${item.id}`;
+          row.append(name);
+          const link = BlogCTLSyncModel.articleMatchLink(platform.id, item);
+          if (link) {
+            const action = document.createElement("a");
+            action.textContent = link.label;
+            action.href = link.url;
+            action.target = "_blank";
+            action.rel = "noopener noreferrer";
+            row.append(action);
+          }
+          section.append(row);
         }
-        card.append(row);
+        card.append(section);
       }
       if (result && !result.items.length) {
         const empty = document.createElement("p");

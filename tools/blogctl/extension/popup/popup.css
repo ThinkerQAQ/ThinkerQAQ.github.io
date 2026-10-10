@@ -199,3 +199,12 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .log-line-error .log-body { color: #fecaca; }
 @media (max-width: 720px) { .log-toolbar { grid-template-columns: 1fr 1fr 1fr; } }
 @media (max-width: 520px) { .log-toolbar { grid-template-columns: 1fr 1fr; } .log-search { grid-column: 1 / -1; } .log-viewer { min-height: 260px; } }
+
+
+/* Account-scoped remote inventory, separate from article binding. */
+.remote-inventory-card { display: grid; gap: 7px; }
+.remote-inventory-card .job-platform-main { gap: 8px; align-items: center; }
+.remote-inventory-card .job-platform-main small { margin-left: auto; }
+.remote-inventory-group { border-top: 1px solid #e5e7eb; padding: 6px 9px; }
+.remote-inventory-group > summary { cursor: pointer; font-size: 12px; }
+.remote-inventory-group .article-match-row { padding: 7px 0; }
