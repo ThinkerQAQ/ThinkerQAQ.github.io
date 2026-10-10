@@ -1,3 +1,24 @@
+# BlogCTL v0.1.136 (local UI review candidate)
+
+- Keep all seven navigation tabs on a single row; narrow Side Panels use
+  native horizontal scrolling rather than moving Settings to a second row.
+- Increase visual breathing room in the shared Extension / Web Console.
+  Remote article rows now separate title, publication-state badge, subdued
+  remote ID and a right-aligned action link.
+- Replace the custom local article search listbox with the browser's native
+  <datalist>; remove obsolete Publish and binding UI CSS.
+- Complete a source-level component-reuse audit against IDFlow and evaluate
+  Lit, Web Awesome, CodeMirror and the existing TypeScript/esbuild toolchain,
+  without adding runtime dependencies that do not earn their cost.
+- Fix GSC failure recognition to return a visible alert immediately instead
+  of waiting for an input and timing out.
+- All existing browser-extension tests and Go regression pass. Data untouched.
+
+Review: docs/architecture/component-reuse-review-20261010.md
+This branch is not a stable public release.
+
+---
+
 # BlogCTL v0.1.135 (local candidate)
 
 - Extend direct target safety: authenticated CNBlogs/CSDN draft edits
