@@ -32,7 +32,7 @@ External article platforms                      │
 | Assembly, publishing, browser Bridge | BlogCTL | `tools/blogctl/` |
 | Static diagram generation | Engine build scripts | `scripts/`, `src/markdown/` |
 | Static deploy | GitHub Actions | `.github/workflows/deploy.yml` |
-| Browser analytics/reactions/AI Search | Configured Workers or site integration | `workers/`, `edge-functions/` and site code |
+| Browser analytics/reactions/AI Search | Configured Workers or site integration | `workers/` and site code |
 
 Site search uses Pagefind in the static site. AI Search is an independent optional Worker pipeline and should not be confused with Pagefind.
 
@@ -40,7 +40,7 @@ For search, comments, analytics and Workers, see [Search and integrations](searc
 
 ## Implementation boundaries
 
-A normal engine build does not write canonical articles back to `blog-content`. A BlogCTL remote publish is a separate, explicitly authorized workflow. GitHub Pages gets the static artifact; the EdgeOne job augments its own artifact with `edge-functions/`. Generated diagrams belong to build output rather than the content repository.
+A normal engine build does not write canonical articles back to `blog-content`. A BlogCTL remote publish is a separate, explicitly authorized workflow. GitHub Pages gets the static artifact; the EdgeOne job deploys a static-only artifact. Generated diagrams belong to build output rather than the content repository.
 
 ## Example and design decision
 

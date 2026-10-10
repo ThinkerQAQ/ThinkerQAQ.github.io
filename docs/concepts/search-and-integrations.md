@@ -26,6 +26,6 @@ Content collections ──► Astro build ──► static pages
 
 ## Implementation boundary
 
-`workers/` implements independent service backends; `edge-functions/` contains EdgeOne-specific routing. [EdgeOne proxy research](../edgeone-workers-proxy.md) is a dated cutover investigation and cannot be taken as proof that all browsers currently use those paths. No runtime credential belongs in static build artifacts.
+`workers/` runs the independent services. EdgeOne Makers serves the built static site; browser integrations use their configured Worker origin. No runtime credential belongs in static build assets.
 
 For source paths and configuration keys use [Integrations Reference](../reference/integrations.md). For deployment details use [Deployment Reference](../reference/deployment.md).

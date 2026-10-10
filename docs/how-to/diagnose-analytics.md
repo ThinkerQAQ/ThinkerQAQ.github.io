@@ -12,7 +12,7 @@ A built/deployed site, browser DevTools and read-only access to its analytics da
 2. Open a normal article, not the [disable-analytics page](../../src/pages/disable-analytics.astro). Check the script GET request and analytics POST request independently.
 3. In the browser Network tab, distinguish a blocked/failed script load from an ingestion failure (status, CORS, proxy, or endpoint). A successful HTTP response proves transport reached an endpoint, not that Umami recorded the correct website/session.
 4. Compare the site ID, dashboard time range and filters with the deployed build configuration in [Deployment Reference](../reference/deployment.md).
-5. If an EdgeOne route was recently configured, consult [proxy cutover constraints](../edgeone-workers-proxy.md), especially forwarded geolocation and client-IP rate limiting. Do not change analytics writes solely because a proxy health check succeeds.
+5. Verify that the configured Umami Worker endpoint accepts ingestion, using the browser Network panel. Successful transport alone does not establish recorded visits.
 
 ## Verify
 
