@@ -124,3 +124,23 @@ test("remote-association rows use a shared state-aware article link resolver", a
   assert.match(sync, /link\.href = articleLink\.url/u);
   assert.doesNotMatch(sync, /cnblogsDraftEditorURL/u);
 });
+
+test("detect, update and publish only expose visible platforms, but keep native integrations intact", async () => {
+  const [model, sync, drafts, publications, background] = await Promise.all([
+    readFile(new URL("../popup/sync-model.js", import.meta.url), "utf8"),
+    readFile(syncPath, "utf8"),
+    readFile(draftsPath, "utf8"),
+    readFile(publicationsPath, "utf8"),
+    readFile(backgroundPath, "utf8"),
+  ]);
+  assert.match(model, /new Set\(\["medium", "toutiao"\]\)/u);
+  assert.match(sync, /visiblePlatforms\(state\.status\?\.platforms\)/u);
+  assert.match(sync, /visiblePlatformIDs\(\[\.\.\.new Set\(platformIDs\)\]\)/u);
+  assert.match(drafts, /visiblePlatforms\(state\.status\?\.platforms\)/u);
+  assert.match(drafts, /platforms\.some\(\(id\) => !BlogCTLSyncModel\.isVisiblePlatform\(id\)\)/u);
+  assert.match(publications, /visiblePublicationRecords\(publications\.records/u);
+  assert.match(publications, /visiblePlatforms\(publishing\.platforms\)/u);
+  assert.match(publications, /records\.some\(\(record\) => !BlogCTLSyncModel\.isVisiblePlatform\(record\.platform\)\)/u);
+  assert.match(background, /platform === "toutiao"/u);
+  assert.match(background, /platform === "medium"/u);
+});
