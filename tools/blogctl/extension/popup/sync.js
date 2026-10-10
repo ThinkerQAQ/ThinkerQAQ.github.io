@@ -204,7 +204,8 @@
           });
         }
         if (article !== state.selectedSlug) return;
-        await refreshArticleMatches();
+        await refreshArticleMatches([platform.id]);
+        await root.BlogCTLDrafts?.refreshBindings?.();
         BlogCTLPopup.setMessage(message, (platform.label || platform.id) + " 绑定已保存。", "ok");
       } catch (error) {
         BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
@@ -303,6 +304,27 @@
         row.append(links);
       }
 
+      const rowActions = document.createElement("div");
+      rowActions.className = "article-match-links";
+      if (canBindItem(item)) {
+        const bind = document.createElement("button");
+        bind.type = "button";
+        bind.className = "secondary compact";
+        bind.textContent = "绑定";
+        bind.disabled = state.bindingMutating || state.bindingLoading;
+        bind.addEventListener("click", () => runBulkBinding("bind", { platform, item, key }));
+        rowActions.append(bind);
+      }
+      if (canUnbindItem(item)) {
+        const unbind = document.createElement("button");
+        unbind.type = "button";
+        unbind.className = "secondary compact";
+        unbind.textContent = "解绑";
+        unbind.disabled = state.bindingMutating || state.bindingLoading;
+        unbind.addEventListener("click", () => runBulkBinding("unbind", { platform, item, key }));
+        rowActions.append(unbind);
+      }
+      if (rowActions.childElementCount) row.append(rowActions);
       result.append(row);
     }
 
@@ -566,6 +588,9 @@
     // A state-specific unbind from the Update tab invalidates cached
     // detection results. Recheck manually rather than displaying stale
     // "已绑定" rows from the previous scan.
+    document.addEventListener("blogctl:update-platform-selection", () => {
+      updateControls();
+    });
     document.addEventListener("blogctl:binding-changed", (event) => {
       if (event.detail?.article !== state.selectedSlug) return;
       clearMatches();
