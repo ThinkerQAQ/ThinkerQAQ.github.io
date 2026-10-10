@@ -81,30 +81,10 @@
         <button id="publishAfterSave" class="secondary full-width" type="button" disabled>更新并发布</button>
         <div id="draftNextActions" class="workflow-next-actions" hidden>
           <button id="draftViewTask" class="secondary" type="button">查看任务</button>
-          <button id="draftEnterPublish" class="primary inline-primary" type="button" hidden>发布</button>
         </div>
       </div>
       <p id="draftsMessage" class="message" role="status"></p>
       </div>
-    </section>
-
-    <section class="panel" role="tabpanel" data-panel="publications" hidden>
-      <section class="status-card">
-        <div class="section-title">发布</div>
-        <p class="card-hint">默认列出全部本地文章；选中某个文章后，只显示该文章的发布记录。</p>
-        <label class="field"><span>文章</span><input id="publicationArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="publicationArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="publicationArticleOptions" class="article-options" role="listbox" hidden></div>
-        <p id="publicationArticleMeta" class="card-hint"></p>
-        <p id="publicationSummary" class="card-hint"></p>
-        <div class="binding-detect-toolbar">
-          <button id="selectAllPublications" class="secondary compact" type="button">全选</button>
-          <button id="invertPublications" class="secondary compact" type="button">反选</button>
-        </div>
-        <div id="publicationList" class="publication-list"><div class="platform-loading">正在读取发布记录…</div></div>
-        <div class="sync-actions"><button id="publishSelected" class="primary" type="button" disabled>发布所选</button></div>
-        <div id="publicationRunStatus" class="workflow-status" hidden></div>
-      </section>
-      <p id="publicationsMessage" class="message" role="status"></p>
     </section>
 
     <section class="panel" role="tabpanel" data-panel="tasks">
@@ -416,7 +396,6 @@
   <script src="sync.js"></script>
   <script src="inventory.js"></script>
   <script src="drafts.js"></script>
-  <script src="publications.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
   <script src="logs.js"></script>

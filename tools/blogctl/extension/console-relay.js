@@ -14,7 +14,7 @@ if (location.origin === CONSOLE_ORIGIN &&
         typeof request.id !== "string" || request.id.length > 96 ||
         typeof request.type !== "string" || !/^blogctl\.[a-z0-9._-]+$/.test(request.type) ||
         !request.payload || typeof request.payload !== "object" || Array.isArray(request.payload)) return;
-    chrome.runtime.sendMessage({ type: request.type, ...request.payload }, (response) => {
+    chrome.runtime.sendMessage({ ...request.payload, type: request.type }, (response) => {
       const runtimeError = chrome.runtime.lastError;
       window.postMessage({
         channel: "blogctl:console:response:v1",

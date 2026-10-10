@@ -174,6 +174,25 @@
       root.BlogCTLDrafts?.selectionChanged?.();
     });
     manual.append(head, idInput, select, add);
+    const additional = [...state.selected.values()].filter((item) =>
+      item.platform === platform.id && !(match.items || []).some((row) => String(row.id) === item.id));
+    for (const target of additional) {
+      const row = document.createElement("div");
+      row.className = "article-match-row";
+      const caption = document.createElement("span");
+      caption.textContent = `已选择：${target.state === "draft" ? "草稿" : "已发布"} · ID ${target.id}`;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary compact";
+      remove.textContent = "移除目标";
+      remove.addEventListener("click", () => {
+        state.selected.delete(target.platform + ":" + target.id);
+        render();
+        root.BlogCTLDrafts?.selectionChanged?.();
+      });
+      row.append(caption, remove);
+      manual.append(row);
+    }
     section.append(manual);
     container.append(section);
   }

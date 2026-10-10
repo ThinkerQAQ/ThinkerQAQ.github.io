@@ -168,7 +168,7 @@
           root.BlogCTLSync?.refreshArticleMatches?.([platform.id]));
         actions.append(detect);
       }
-      header.append(actions);
+      card.append(actions);
       if(state.mode==="update")root.BlogCTLSync?.appendPlatformMatches?.(platform,card);
       const result=state.currentJob?.results?.[platform.id];
       if(result){
