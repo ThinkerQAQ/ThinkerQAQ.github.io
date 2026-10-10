@@ -1,3 +1,21 @@
+# BlogCTL v0.1.124 (local experimental build)
+
+- Normalize article-association actions for every supported platform:
+  drafts show **编辑草稿** and open the creator editor;
+  published posts show **查看文章** and keep public links.
+- Fix DEV.to draft preview URLs by using its dashboard editor and extend
+  canonical editor links to CNBlogs, Juejin, CSDN, SegmentFault, Zhihu,
+  51CTO, OSChina, Toutiao and Medium.
+- Suppress unverified edit links when a safe editor URL cannot be derived,
+  such as OSChina drafts without a numeric creator ID.
+- Add data-driven regression checks for all 10 draft/public link pairs
+  and unsafe/malformed input.
+- DevTool CodeGraph and Serena code verification: pass.
+
+Local build on PR #177. Toutiao native HTTP writing is still experimental.
+
+---
+
 # BlogCTL v0.1.123 (local experimental build)
 
 - Fix the **检测 → 远端关联** CNBlogs draft row: “编辑草稿” now opens
