@@ -1341,6 +1341,18 @@ async function handleMessage(message) {
       const result = await fetchJSON("/v1/tools");
       return { ok: true, tools: await environmentTools(result?.tools ?? []) };
     }
+    case "blogctl.locale.get": {
+      const result = await fetchJSON("/v1/ui-locale");
+      return { ok: true, uiLocale: result.uiLocale };
+    }
+    case "blogctl.locale.set": {
+      const uiLocale = String(message.uiLocale || "");
+      if (!["auto", "zh-CN", "en"].includes(uiLocale)) {
+        throw new Error("invalid UI locale");
+      }
+      const result = await fetchJSON("/v1/ui-locale", jsonOptions("PUT", { uiLocale }));
+      return { ok: true, uiLocale: result.uiLocale };
+    }
     case "blogctl.config.edit": {
       const result = await fetchJSON("/v1/config/edit", { method: "POST" });
       return { ok: true, path: result?.path || "" };
