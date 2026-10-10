@@ -1,3 +1,29 @@
+# BlogCTL v0.1.132 (local candidate)
+
+- Same HTML/JS/CSS Feature UI in Edge Extension and the Go Bridge
+  Web Console at http://127.0.0.1:32145/console/. The Web Console
+  authenticates business operations through a trusted local Extension
+  content-script relay and never receives the native Bridge token.
+- Aligned navigation: Detection / Creation / Update / Tasks / Logs /
+  Index / Settings; removed standalone Publish feature, with Create &
+  Publish and Update & Publish actions in the appropriate workflow.
+- Explicit-target task contract: no persistent publication association
+  lookup, no implicit update -> create, multi-target operations with
+  isolated platform failures and durable target snapshots.
+- Safe published edits currently limited to CNBlogs (remote revision
+  verification) and DEV.to; unsupported targets fail closed.
+- IDFlow-style categorized searchable settings and unified responsive
+  design tokens, shared between Extension and Web.
+- DevTool documentation structure: Quick Start, Guide, Architecture,
+  Reference, with exact security and workflow contracts.
+- Medium/Toutiao remain hidden in the UI but native implementations
+  and legacy Data remain intact.
+
+This branch candidate is not a public stable release. Validate real
+logged-in accounts before using any new write flow on valuable posts.
+
+---
+
 # BlogCTL v0.1.131 (local experimental build)
 
 - Merge the duplicated Update platform lists into one platform card per
