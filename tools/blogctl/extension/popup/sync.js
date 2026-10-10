@@ -381,19 +381,13 @@
       choice.append(checkbox, text);
       row.append(choice);
 
-      const safeArticleURL = item.url && /^https:\/\/(?:www\.cnblogs\.com|i\.cnblogs\.com|blog\.csdn\.net|editor\.csdn\.net|dev\.to|segmentfault\.com|zhuanlan\.zhihu\.com|my\.oschina\.net|medium\.com|juejin\.cn|blog\.51cto\.com|www\.toutiao\.com)\//.test(item.url);
-      // CNBlogs drafts have no public permalink until published; the
-      // detection result's preview URL can be a 404 before publication.
-      const cnblogsDraftEditorURL = platform.id === "cnblogs" && !item.published
-        && /^[0-9]+$/.test(String(item.id))
-        ? `https://i.cnblogs.com/posts/edit;postId=${encodeURIComponent(item.id)}`
-        : "";
-      if (cnblogsDraftEditorURL || safeArticleURL) {
+      const articleLink = BlogCTLSyncModel.articleMatchLink(platform.id, item);
+      if (articleLink) {
         const links = document.createElement("div");
         links.className = "article-match-links";
         const link = document.createElement("a");
-        link.textContent = cnblogsDraftEditorURL ? "编辑草稿" : "查看文章";
-        link.href = cnblogsDraftEditorURL || item.url;
+        link.textContent = articleLink.label;
+        link.href = articleLink.url;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         links.append(link);
