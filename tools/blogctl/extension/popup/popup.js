@@ -1,7 +1,7 @@
 "use strict";
 
 const modules = {
-  binding: BlogCTLSync,
+  binding: BlogCTLInventory,
   drafts: BlogCTLDrafts,
   publications: BlogCTLPublications,
   tasks: BlogCTLTasks,
@@ -28,9 +28,11 @@ function activateTab(name) {
   });
 
   modules[activeTab]?.deactivate();
+  if (activeTab === "drafts") BlogCTLSync.deactivate();
   activeTab = name;
   localStorage.setItem(ACTIVE_TAB_KEY, name);
   modules[name].activate();
+  if (name === "drafts") BlogCTLSync.activate();
 }
 
 async function refreshActiveTab() {
@@ -46,6 +48,7 @@ async function refreshActiveTab() {
 
 document.addEventListener("DOMContentLoaded", () => {
   Object.values(modules).forEach((module) => module.init());
+  BlogCTLSync.init();
 
   document.querySelectorAll("[data-tab]").forEach((tab) => {
     tab.addEventListener("click", () => activateTab(tab.dataset.tab));
@@ -90,4 +93,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.addEventListener("unload", () => {
   Object.values(modules).forEach((module) => module.deactivate());
+  BlogCTLSync.deactivate();
 });

@@ -768,17 +768,26 @@
     invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
     bindSelectedButton.addEventListener("click", () => runBulkBinding("bind"));
     unbindSelectedButton.addEventListener("click", () => runBulkBinding("unbind"));
-    enterDraftsButton.addEventListener("click", () => {
-      if (!state.selectedSlug) return;
-      document.dispatchEvent(new CustomEvent("blogctl:navigate-drafts", {
-        detail: { article: state.selectedSlug },
-      }));
+    document.addEventListener("blogctl:article-selected", (event) => {
+      const article = String(event.detail?.article || "").trim();
+      if (article === state.selectedSlug) return;
+      state.selectedSlug = article;
+      state.selectedMatchKeys.clear();
+      clearMatches();
+      if (state.active) {
+        const selected = selectedArticle();
+        articlePicker.value = selected ? `${selected.title} · ${selected.slug}` : "";
+        renderArticleMeta();
+        renderPlatforms();
+        loadSyncBinding();
+      }
     });
     state.initialized = true;
   }
 
   function activate() {
     state.active = true;
+    state.selectedSlug = localStorage.getItem("blogctl.selectedArticle") || "";
     refresh();
   }
 

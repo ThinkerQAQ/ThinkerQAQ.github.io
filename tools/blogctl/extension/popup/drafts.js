@@ -115,6 +115,9 @@
     articlePicker.value = `${article.title} · ${article.slug}`;
     setArticleOptionsOpen(false);
     localStorage.setItem("blogctl.selectedArticle", article.slug);
+    document.dispatchEvent(new CustomEvent("blogctl:article-selected", {
+      detail: { article: article.slug },
+    }));
     renderArticleMeta();
     renderPlatforms();
   }
@@ -556,6 +559,9 @@
 
       renderArticles();
       if (state.selectedSlug) setArticleOptionsOpen(false);
+      document.dispatchEvent(new CustomEvent("blogctl:article-selected", {
+        detail: { article: state.selectedSlug },
+      }));
       renderPlatforms();
       if (state.currentJob?.id && ["queued", "running"].includes(state.currentJob.state)) {
         pollJob(state.currentJob.id);
