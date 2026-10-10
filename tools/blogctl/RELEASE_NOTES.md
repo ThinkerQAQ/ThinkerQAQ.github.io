@@ -1,3 +1,21 @@
+# BlogCTL v0.1.144 (local candidate)
+
+- Fix Create page status after explicit batch draft creation: use durable
+  successful task events (remote IDs/URLs) to show article-level editor/view
+  links, not a new Create Draft button on a platform that has an article.
+- Reconcile existing draft/published candidates through read-only remote
+  detection when an article is selected or creation completes.
+- Only platforms without a detected remote article expose the existing
+  Create Draft action. Batch creation excludes existing/unknown targets.
+  Failed remote discovery disables create and offers a retry, avoiding
+  duplicate drafts when a browser session fails.
+- Create/Update article-level controls share the Detection page's quiet
+  link styling. Completed task summaries no longer duplicate article rows.
+- No persistent publication bindings, no Data changes, no third-party
+  write operations performed as part of acceptance tests.
+
+---
+
 # BlogCTL v0.1.143 (local experimental build)
 
 - Enable 51CTO remote article association detection: its authenticated
