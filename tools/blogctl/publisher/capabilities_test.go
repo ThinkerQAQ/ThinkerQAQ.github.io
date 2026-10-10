@@ -36,7 +36,7 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 				value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
 		{"oschina", func(value PlatformCapabilities) bool {
-			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
+			return value.BrowserSession && value.DraftCreate && value.DraftUpdate && !value.ExplicitPublish &&
 				value.RemoteList && value.BodyImages && value.BodyImageRehost
 		}},
 	}

@@ -45,6 +45,11 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 		t.Fatalf("Medium capabilities = %#v", medium)
 	}
 
+	oschina := For("oschina")
+	if oschina.ExplicitPublish {
+		t.Fatal("OSChina must not claim draft publishing: current adapter adds a new article")
+	}
+
 	csdn := For("csdn")
 	if !csdn.BrowserSession || !csdn.DraftCreate || !csdn.DraftUpdate || !csdn.ExplicitPublish ||
 		!csdn.RemoteList || !csdn.BodyImages || !csdn.BodyImageRehost || csdn.PublishedUpdate {

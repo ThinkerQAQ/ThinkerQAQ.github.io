@@ -55,7 +55,10 @@ var definitions = []Definition{
 	},
 	{
 		ID: "oschina", Label: "开源中国", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
+		// Current PublishDraft uses the ADD-article endpoint rather than
+		// transitioning a draft ID. Until a draft-specific publish contract
+		// is verified, never expose direct/create/update publish actions.
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, PublishedDraftEdit: true, RemoteList: true, BodyImages: true, BodyImageRehost: true},
 	},
 	{
 		ID: "toutiao", Label: "今日头条", DefaultLanguage: "zh-CN",

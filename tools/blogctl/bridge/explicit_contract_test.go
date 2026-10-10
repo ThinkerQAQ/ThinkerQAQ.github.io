@@ -39,3 +39,41 @@ func TestExplicitTaskRejectsDuplicateCrossOriginAndPublishedRepublish(t *testing
 		t.Fatal("published target may not be republished")
 	}
 }
+
+func TestPublishExistingDraftContract(t *testing.T) {
+	req := syncRequest{
+		Article: "concurrency-series-00", Platforms: []string{"cnblogs"},
+		Operation: "publish-draft",
+		Targets: []explicitTaskTarget{{Platform: "cnblogs", ID: "23247130", State: "draft",
+			URL: "https://i.cnblogs.com/posts/edit;postId=23247130"}},
+	}
+	normalized, err := normalizeSyncRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.Operation != "publish-draft" || normalized.Targets[0].ID != "23247130" {
+		t.Fatalf("draft target was not preserved: %+v", normalized)
+	}
+	if canRetrySyncJobOperation(req.Operation, normalized) {
+		t.Fatal("publish must not be blindly retried")
+	}
+	req.Targets[0].State = "published"
+	if _, err := normalizeSyncRequest(req); err == nil {
+		t.Fatal("published article must not be submitted as draft")
+	}
+	req.Targets = nil
+	if _, err := normalizeSyncRequest(req); err == nil {
+		t.Fatal("missing draft id must be rejected")
+	}
+	req.Targets = []explicitTaskTarget{{Platform: "cnblogs", ID: "23247130", State: "draft"}}
+	req.PublishAfter = true
+	if _, err := normalizeSyncRequest(req); err == nil {
+		t.Fatal("double publish flag accepted")
+	}
+	req.PublishAfter = false
+	req.Platforms = []string{"oschina"}
+	req.Targets[0].Platform = "oschina"
+	if _, err := normalizeSyncRequest(req); err == nil {
+		t.Fatal("unsafe OSChina create-as-publish allowed")
+	}
+}
