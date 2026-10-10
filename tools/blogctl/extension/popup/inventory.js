@@ -1,124 +1,150 @@
 "use strict";
 
 (function (root) {
-  const state = { active: false, initialized: false, platforms: [], records: {}, loading: new Set(), expanded: new Set() };
-  let container, message, query, refreshButton;
-  const visiblePlatforms = () => BlogCTLSyncModel.visiblePlatforms(state.platforms);
+  // Account-scoped, read-only remote inventory. Binding belongs to Update.
+  const state = {
+    active: false,
+    initialized: false,
+    platforms: [],
+    records: {},
+    loading: new Set(),
+  };
+  let container, message, platformSelect, statusSelect, summary, refreshButton;
 
-  function makeButton(label, callback, disabled = false) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "secondary compact";
-    button.textContent = label;
-    button.disabled = disabled;
-    button.addEventListener("click", callback);
-    return button;
-  }
+  const platforms = () => BlogCTLSyncModel.visiblePlatforms(state.platforms);
+  const selectedPlatforms = () => platforms().filter((platform) =>
+    !platformSelect.value || platform.id === platformSelect.value);
+  const matchesStatus = (item) =>
+    !statusSelect.value ||
+    (statusSelect.value === "published" ? Boolean(item.published) : !item.published);
 
   function render() {
     container.replaceChildren();
-    const filter = query.value.trim().toLowerCase();
-    for (const platform of visiblePlatforms()) {
+    let visibleCount = 0;
+    let totalCount = 0;
+    let errors = 0;
+    const visible = selectedPlatforms();
+
+    for (const platform of visible) {
+      const record = state.records[platform.id];
+      const busy = state.loading.has(platform.id);
+      const items = record?.items ?? [];
+      const filtered = items.filter(matchesStatus);
+      visibleCount += filtered.length;
+      totalCount += items.length;
+      if (record?.error) errors++;
+
       const card = document.createElement("section");
       card.className = "platform-choice-card remote-inventory-card";
+
       const heading = document.createElement("div");
       heading.className = "job-platform-main";
       const label = document.createElement("strong");
       label.textContent = platform.label || platform.id;
-      const result = state.records[platform.id];
-      const busy = state.loading.has(platform.id);
       const count = document.createElement("small");
-      count.textContent = busy ? "读取中…" : result?.error ? "读取失败"
-        : result ? `草稿 ${result.items.filter((item) => !item.published).length} · 已发布 ${result.items.filter((item) => item.published).length}` : "尚未读取";
-      heading.append(label, count, makeButton("刷新", () => loadPlatform(platform.id), busy));
+      count.textContent = busy ? "读取中…"
+        : record?.error ? "读取失败"
+        : record ? `草稿 ${items.filter((item) => !item.published).length} · 已发布 ${items.filter((item) => item.published).length}`
+          : "尚未读取";
+      const reload = document.createElement("button");
+      reload.type = "button";
+      reload.className = "secondary compact";
+      reload.textContent = "刷新";
+      reload.disabled = busy;
+      reload.addEventListener("click", () => loadPlatform(platform.id));
+      heading.append(label, count, reload);
       card.append(heading);
-      if (result?.error) {
-        const error = document.createElement("small");
+
+      if (record?.error) {
+        const error = document.createElement("p");
         error.className = "error-text";
-        error.textContent = result.error;
+        error.textContent = record.error;
         card.append(error);
       }
-      if (result?.partial) {
-        const note = document.createElement("small");
-        note.className = "card-hint";
-        note.textContent = result.partial;
-        card.append(note);
+      if (record?.partial) {
+        const hint = document.createElement("p");
+        hint.className = "card-hint";
+        hint.textContent = record.partial;
+        card.append(hint);
       }
-      for (const published of [false, true]) {
-        const entries = (result?.items ?? []).filter((item) => {
-          if (Boolean(item.published) !== published) return false;
-          const content = `${item.title} ${item.id} ${published ? "已发布" : "草稿"}`.toLowerCase();
-          return !filter || content.includes(filter);
-        });
-        if (!entries.length) continue;
-        const section = document.createElement("details");
-        section.className = "remote-inventory-group";
-        // Keep large account inventories compact, but expose matches during search.
-        const groupKey = platform.id + ":" + (published ? "published" : "draft");
-        section.open = Boolean(filter) || state.expanded.has(groupKey);
-        section.addEventListener("toggle", () => {
-          if (section.open) state.expanded.add(groupKey);
-          else if (!filter) state.expanded.delete(groupKey);
-        });
-        const summary = document.createElement("summary");
-        summary.textContent = `${published ? "已发布文章" : "草稿"} · ${entries.length} 篇`;
-        section.append(summary);
-        for (const item of entries) {
-          const row = document.createElement("div");
-          row.className = "article-match-row";
-          const name = document.createElement("div");
-          name.className = "article-match-choice-text";
-          name.textContent = `${item.title || "(无标题)"} · ID ${item.id}`;
-          row.append(name);
-          const link = BlogCTLSyncModel.articleMatchLink(platform.id, item);
-          if (link) {
-            const action = document.createElement("a");
-            action.textContent = link.label;
-            action.href = link.url;
-            action.target = "_blank";
-            action.rel = "noopener noreferrer";
-            row.append(action);
-          }
-          section.append(row);
+
+      // Direct rows rather than a nested draft/published accordion. The
+      // state selector above determines which items are shown.
+      for (const item of filtered) {
+        const row = document.createElement("div");
+        row.className = "article-match-row";
+        const identity = document.createElement("div");
+        identity.className = "article-match-choice-text";
+        identity.textContent = `${item.title || "(无标题)"} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}`;
+        row.append(identity);
+
+        const target = BlogCTLSyncModel.articleMatchLink(platform.id, item);
+        if (target) {
+          const link = document.createElement("a");
+          link.textContent = target.label;
+          link.href = target.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          row.append(link);
         }
-        card.append(section);
+        card.append(row);
       }
-      if (result && !result.items.length) {
+
+      if (record && !record.error && !busy && !filtered.length) {
         const empty = document.createElement("p");
         empty.className = "card-hint";
-        empty.textContent = "当前读取范围内没有远端文章。";
+        empty.textContent = items.length ? "当前状态没有文章。" : "当前读取范围内没有远端文章。";
         card.append(empty);
       }
       container.append(card);
     }
+
+    const waiting = visible.filter((platform) =>
+      state.loading.has(platform.id) || !state.records[platform.id]).length;
+    summary.textContent = `共 ${totalCount} 篇远端文章 · 当前显示 ${visibleCount} 篇`
+      + (waiting ? ` · 读取中 ${waiting} 个平台` : "")
+      + (errors ? ` · 失败 ${errors} 个平台` : "");
+    refreshButton.disabled = state.loading.size > 0;
   }
 
-  async function loadPlatform(platform) {
-    if (!state.active || state.loading.has(platform)) return;
-    state.loading.add(platform);
+  async function loadPlatform(platformID) {
+    if (!state.active || state.loading.has(platformID)) return;
+    state.loading.add(platformID);
     render();
     try {
-      const response = await BlogCTLPopup.send("blogctl.remote.inventory", { platform });
-      state.records[platform] = {
-        items: response.items ?? [],
-        partial: response.partial || "",
-      };
+      const result = await BlogCTLPopup.send("blogctl.remote.inventory", { platform: platformID });
+      state.records[platformID] = { items: result.items ?? [], partial: result.partial || "" };
     } catch (error) {
-      state.records[platform] = { items: [], error: BlogCTLPopup.errorMessage(error) };
+      state.records[platformID] = { items: [], error: BlogCTLPopup.errorMessage(error) };
     } finally {
-      state.loading.delete(platform);
+      state.loading.delete(platformID);
       if (state.active) render();
     }
   }
 
   async function refresh() {
     if (!state.active) return;
+    BlogCTLPopup.setMessage(message);
     try {
       const response = await BlogCTLPopup.send("blogctl.status");
+      if (!state.active) return;
       state.platforms = response.status?.platforms ?? [];
+      const previous = platformSelect.value;
+      platformSelect.replaceChildren();
+      const all = document.createElement("option");
+      all.value = "";
+      all.textContent = "全部平台";
+      platformSelect.append(all);
+      for (const platform of platforms()) {
+        const option = document.createElement("option");
+        option.value = platform.id;
+        option.textContent = platform.label || platform.id;
+        platformSelect.append(option);
+      }
+      platformSelect.value = platforms().some((platform) => platform.id === previous) ? previous : "";
       render();
-      // Each remote listing has independent failure and completion semantics.
-      await Promise.all(visiblePlatforms().map((platform) => loadPlatform(platform.id)));
+      // Independent requests: one platform's failure does not block others.
+      await Promise.all(selectedPlatforms().map((platform) => loadPlatform(platform.id)));
     } catch (error) {
       BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
     }
@@ -127,14 +153,24 @@
   function init() {
     if (state.initialized) return;
     container = document.getElementById("inventoryPlatforms");
-    query = document.getElementById("inventorySearch");
+    platformSelect = document.getElementById("inventoryPlatform");
+    statusSelect = document.getElementById("inventoryStatus");
+    summary = document.getElementById("inventorySummary");
     refreshButton = document.getElementById("refreshInventory");
     message = document.getElementById("inventoryMessage");
-    query.addEventListener("input", render);
+    platformSelect.addEventListener("change", () => {
+      render();
+      for (const platform of selectedPlatforms()) {
+        if (!state.records[platform.id]) loadPlatform(platform.id);
+      }
+    });
+    statusSelect.addEventListener("change", render);
     refreshButton.addEventListener("click", refresh);
     state.initialized = true;
   }
+
   function activate() { state.active = true; refresh(); }
   function deactivate() { state.active = false; }
+
   root.BlogCTLInventory = { init, activate, deactivate, refresh };
 })(globalThis);
