@@ -1,7 +1,7 @@
 "use strict";
 
 (function (root) {
-  const state = { active: false, initialized: false, platforms: [], records: {}, loading: new Set() };
+  const state = { active: false, initialized: false, platforms: [], records: {}, loading: new Set(), expanded: new Set() };
   let container, message, query, refreshButton;
   const visiblePlatforms = () => BlogCTLSyncModel.visiblePlatforms(state.platforms);
 
@@ -54,7 +54,12 @@
         const section = document.createElement("details");
         section.className = "remote-inventory-group";
         // Keep large account inventories compact, but expose matches during search.
-        section.open = Boolean(filter);
+        const groupKey = platform.id + ":" + (published ? "published" : "draft");
+        section.open = Boolean(filter) || state.expanded.has(groupKey);
+        section.addEventListener("toggle", () => {
+          if (section.open) state.expanded.add(groupKey);
+          else if (!filter) state.expanded.delete(groupKey);
+        });
         const summary = document.createElement("summary");
         summary.textContent = `${published ? "已发布文章" : "草稿"} · ${entries.length} 篇`;
         section.append(summary);
