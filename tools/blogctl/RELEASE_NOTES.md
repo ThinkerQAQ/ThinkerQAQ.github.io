@@ -1,3 +1,21 @@
+# BlogCTL v0.1.126 (local experimental build)
+
+- Unify **检测 → 远端关联 → 手动绑定** for CNBlogs and CSDN with
+  other platforms: both accept article/draft ID or URL, offer a clear
+  draft/published selector, and verify before writing a state-specific binding.
+- CNBlogs Bridge rejects a requested state that differs from the verified
+  remote post. CSDN already performed that check.
+- Check the existing binding in the selected state only and require explicit
+  replacement confirmation when the remote ID is different.
+- Normalize recognized CNBlogs/CSDN editor/public links for the same-ID
+  comparison to avoid spurious replacement dialogs.
+- Keep automatic candidate detection and all other platform behavior unchanged.
+- No tests added by user request; existing regression and DevTool review pass.
+
+Local experimental branch build from PR #177, not a public release.
+
+---
+
 # BlogCTL v0.1.125 (local experimental build)
 
 - Temporarily hide Medium and Toutiao from interactive BlogCTL detection,
