@@ -1,3 +1,24 @@
+# BlogCTL v0.1.143 (local experimental build)
+
+- Enable 51CTO remote article association detection: its authenticated
+  draft + published listing is already implemented by the Go Bridge, but
+  the remoteList capability flag was missing and disabled Update controls.
+- Place each platform's compact Detect button in the platform header
+  next to the platform title/status instead of wasting an entire row.
+- Indent candidate articles under their owning platform. Candidate title,
+  draft/published metadata, action links and per-article update are aligned
+  into one concise row.
+- Restore safe highlighted matches to the selected local article title using
+  DOM <mark> nodes (no untrusted remote HTML). Selected candidates also use
+  a clear blue background and left accent border.
+- Reuse the same responsive Extension/Web Console markup and styles.
+- DevTool CodeGraph/Serena, Go full regression and Extension tests passed.
+  No persistent Data changes, Medium/Toutiao remain UI hidden.
+
+Local branch version under PR #177, not a public release.
+
+---
+
 # BlogCTL v0.1.142 (local experimental build)
 
 - Fix 51CTO draft/publish classification when an article has no tags
