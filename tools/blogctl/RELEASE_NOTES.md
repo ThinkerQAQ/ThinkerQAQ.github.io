@@ -1,3 +1,19 @@
+# BlogCTL v0.1.147 (local candidate)
+
+- Create and Update now both show the same `重新检测` toolbar
+  action. Create uses its existing read-only association discovery contract
+  to re-check only selected platforms, without creating or binding anything.
+- Create platform cards expose a compact `检测关联` control matching Update.
+  Existing remote articles and their editor links remain visible; only
+  platforms with a successful, empty discovery result allow creating drafts.
+- Automatic detection on article selection remains. Manual refresh disables
+  itself during a scan, and selection/mode change does not restore stale IDs.
+- Go/Extension/DevTool regressions pass; no data migration.
+
+Branch candidate under PR #177; not a stable public release.
+
+---
+
 # BlogCTL v0.1.146 (local branch build)
 
 - Automatically detect Update targets for all selected and available platforms when entering Update, selecting a different local article, and checking a platform. This matches Create's automatic remote association discovery.
