@@ -211,16 +211,11 @@
     "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "medium",
   ]);
 
-  function manualBindingStates(platformID) {
-    if (platformID === "cnblogs" || platformID === "csdn") return [];
-    return ["draft", "published"];
-  }
-
   function manualBindingPlaceholder(platformID) {
     const labels = {
-      cnblogs: "博客园文章 ID 或链接",
+      cnblogs: "博客园文章／草稿 ID 或链接",
       juejin: "掘金文章／草稿 ID 或链接",
-      csdn: "CSDN 文章 ID、公开链接或编辑链接",
+      csdn: "CSDN 文章／草稿 ID 或链接",
       segmentfault: "思否文章／草稿 ID 或链接",
       zhihu: "知乎文章 ID 或链接",
       "51cto": "51CTO 文章／草稿 ID 或链接",
@@ -258,22 +253,18 @@
     if (!manualBindingPlatforms.has(platform.id)) return;
     const manual = document.createElement("details");
     const summary = document.createElement("summary");
-    summary.textContent = "候选中没有？输入文章 ID／链接";
+    summary.textContent = "候选中没有？输入文章／草稿 ID 或链接";
     const input = document.createElement("input");
     input.type = "text";
     input.placeholder = manualBindingPlaceholder(platform.id);
     input.autocomplete = "off";
 
-    const states = manualBindingStates(platform.id);
-    let stateSelect = null;
-    if (states.length) {
-      stateSelect = document.createElement("select");
-      for (const stateName of states) {
-        const option = document.createElement("option");
-        option.value = stateName;
-        option.textContent = stateName === "published" ? "已发布" : "草稿";
-        stateSelect.append(option);
-      }
+    const stateSelect = document.createElement("select");
+    for (const stateName of ["draft", "published"]) {
+      const option = document.createElement("option");
+      option.value = stateName;
+      option.textContent = stateName === "published" ? "已发布" : "草稿";
+      stateSelect.append(option);
     }
 
     const bind = document.createElement("button");
@@ -286,29 +277,25 @@
       const article = state.selectedSlug;
       const bindings = platform.id === "cnblogs" ? state.cnblogsBindings : (match.bindings ?? []);
       bind.disabled = true;
-      if (stateSelect) stateSelect.disabled = true;
+      stateSelect.disabled = true;
       try {
+        const postId = manualBindingID(platform.id, reference);
+        if (!postId) throw new Error("无法从输入内容识别远端文章 ID");
+        const stateName = stateSelect.value;
+        const existing = bindings.find((binding) => binding.state === stateName);
+        const replaces = Boolean(existing && String(existing.postId) !== String(postId));
+        if (replaces && !confirm("将替换当前" + (stateName === "published" ? "已发布文章" : "草稿") + "绑定。继续吗？")) return;
+
         if (platform.id === "cnblogs") {
-          const existing = bindings.length > 0;
-          if (existing && !confirm("将验证该远端文章；若对应状态已有绑定，会替换原绑定。继续吗？")) return;
-          await BlogCTLPopup.send("blogctl.cnblogs.bind", { article, reference, replace: existing });
-          await loadSyncBinding();
-        } else if (platform.id === "csdn") {
-          if (bindings.length && !confirm("将验证该 CSDN 文章；如果对应状态已有绑定，会替换原绑定。继续吗？")) return;
-          await BlogCTLPopup.send("blogctl.csdn.bind", {
-            article, postId: reference, state: "", replace: bindings.length > 0, manual: true,
+          // CNBlogs accepts an article ID or creator/public URL and verifies
+          // the requested state against the authenticated remote post.
+          await BlogCTLPopup.send("blogctl.cnblogs.bind", {
+            article, reference, state: stateName, replace: replaces,
           });
+          await loadSyncBinding();
         } else {
-          const postId = manualBindingID(platform.id, reference);
-          if (!postId) throw new Error("无法从输入内容识别远端文章 ID");
-          const stateName = stateSelect?.value || "draft";
-          const existing = bindings.find((binding) => binding.state === stateName);
-          if (existing && String(existing.postId) !== String(postId) &&
-              !confirm("将替换当前" + (stateName === "published" ? "已发布文章" : "草稿") + "绑定。继续吗？")) return;
           await BlogCTLPopup.send("blogctl." + platform.id + ".bind", {
-            article, postId, state: stateName,
-            replace: Boolean(existing && String(existing.postId) !== String(postId)),
-            manual: true,
+            article, postId, state: stateName, replace: replaces, manual: true,
           });
         }
         if (article !== state.selectedSlug) return;
@@ -318,12 +305,12 @@
         BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
       } finally {
         bind.disabled = false;
-        if (stateSelect) stateSelect.disabled = false;
+        stateSelect.disabled = false;
       }
     });
 
     manual.append(summary, input);
-    if (stateSelect) manual.append(stateSelect);
+    manual.append(stateSelect);
     manual.append(bind);
     result.append(manual);
   }
