@@ -12,22 +12,29 @@ import {
 
 export async function getStaticPaths() {
   const projects = await getCollection("projects");
+  const translations = await getCollection("projectTranslations");
   return nonDefaultLocales().flatMap((locale) => projects.map((project) => ({
     params: { locale: LOCALES[locale].path, slug: project.id },
-    props: { locale, project },
+    props: {
+      locale,
+      project,
+      translation: translations.find(
+        (entry) => entry.data.translationOf === project.id && entry.data.language === locale,
+      ),
+    },
   })));
 }
 
 interface Props {
   locale: Locale;
   project: CollectionEntry<"projects">;
+  translation?: CollectionEntry<"projectTranslations">;
 }
 
-const { locale, project } = Astro.props;
+const { locale, project, translation } = Astro.props;
 const { data } = project;
-const { Content } = await render(project);
+const { Content } = await render(translation ?? project);
 const summary = localizedProjectSummary(project, locale);
-const hasTranslation = Boolean(data.translations?.[locale]);
 const articles = await getCollection("articles");
 const seriesEntries = await getCollection("series");
 ---
@@ -37,7 +44,7 @@ const seriesEntries = await getCollection("series");
   description={summary.description}
   canonicalPath={projectHref(project, locale)}
   locale={locale}
-  noindex={!hasTranslation}
+  noindex={!translation}
 >
   <div class="shell page detail-page">
     <article>
@@ -49,8 +56,8 @@ const seriesEntries = await getCollection("series");
           <span>{LOCALES[locale].ui.updatedAt} {formatDate(data.updatedAt, locale)}</span>
         </div>
       </header>
-      {!hasTranslation && <p class="source-note">The project body is currently maintained in Chinese.</p>}
-      <div class="prose" lang={!hasTranslation ? "zh-CN" : LOCALES[locale].htmlLang}><Content /></div>
+      {!translation && <p class="source-note">The project body is currently maintained in Chinese.</p>}
+      <div class="prose" lang={translation ? LOCALES[locale].htmlLang : "zh-CN"}><Content /></div>
       <ProjectKnowledgeIndex
         project={project}
         articles={articles}

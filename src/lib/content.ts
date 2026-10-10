@@ -71,6 +71,12 @@ export function localizedProjectSummary(project: ProjectEntry, locale: Locale) {
     : project.data.translations?.[locale] ?? { title: project.data.title, description: project.data.description };
 }
 
+export function localizedProjectTags(project: ProjectEntry, locale: Locale): string[] {
+  return locale === DEFAULT_LOCALE
+    ? project.data.tags
+    : project.data.translations?.[locale]?.tags ?? project.data.tags;
+}
+
 export function localizedSeriesSummary(series: SeriesEntry, locale: Locale) {
   return locale === DEFAULT_LOCALE
     ? { title: series.data.title, description: series.data.description }

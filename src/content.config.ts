@@ -95,6 +95,19 @@ const articles = defineCollection({
   }),
 });
 
+const projectTranslations = defineCollection({
+  loader: glob({
+    pattern: "**/*.md",
+    base: "./src/content/project-translations",
+    generateId: ({ entry }) => entry.replace(/\.md$/i, "").replaceAll("\\", "/"),
+  }),
+  schema: z.object({
+    translationOf: z.string(),
+    language: z.enum(SUPPORTED_LOCALES),
+    updatedAt: z.coerce.date(),
+  }),
+});
+
 const projectResourceLink = z.object({
   title: z.string(),
   description: z.string().optional(),
@@ -107,6 +120,10 @@ const projectResourceLink = z.object({
 });
 
 const projectResource = z.union([z.string(), projectResourceLink]);
+
+const projectLocalizedSummary = localizedSummary.extend({
+  tags: z.array(z.string()).optional(),
+});
 
 const projects = defineCollection({
   loader: glob({
@@ -129,7 +146,7 @@ const projects = defineCollection({
     })).default([]),
     tutorials: z.array(projectResource).default([]),
     documentation: z.array(projectResource).default([]),
-    translations: z.record(z.string(), localizedSummary).default({}),
+    translations: z.record(z.string(), projectLocalizedSummary).default({}),
   }),
 });
 
@@ -160,4 +177,4 @@ const series = defineCollection({
   }),
 });
 
-export const collections = { notes, noteTranslations, articles, projects, series };
+export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series };
