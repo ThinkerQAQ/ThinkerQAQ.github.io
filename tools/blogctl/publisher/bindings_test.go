@@ -18,6 +18,7 @@ func TestParseCNBlogsPostReference(t *testing.T) {
 		"42": "42",
 		"https://www.cnblogs.com/ThinkerQAQ/p/42.html":  "42",
 		"https://i.cnblogs.com/articles/edit;postId=42": "42",
+		"https://i.cnblogs.com/posts/edit;postId=42":    "42",
 	} {
 		got, err := ParseCNBlogsPostReference(reference)
 		if err != nil || got != want {
