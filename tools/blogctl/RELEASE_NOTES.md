@@ -1,3 +1,17 @@
+# BlogCTL v0.1.145 (local candidate)
+
+- Correct the Create/Update branching after a remote article exists:
+  a Create card with matching remote articles displays article-level
+  editor/view links only, with no misleading Create Draft or
+  Update-specific Detect Association button.
+- Retain the existing Create Draft button for platforms with no remote
+  match and keep direct target selection on Update.
+- Includes v0.1.144 remote detection + durable task event reconciliation.
+- Shared Extension / Go Web Console, unchanged user data, no side-effectful
+  third-party write tests.
+
+---
+
 # BlogCTL v0.1.144 (local candidate)
 
 - Fix Create page status after explicit batch draft creation: use durable
