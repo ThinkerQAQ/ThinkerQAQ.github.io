@@ -8,11 +8,12 @@
 - [统一 UI 与 Web Console 设计及迁移](architecture/unified-ui-and-console-20261010.md) — 四项改造的目标、边界、阶段与验收。
 - [头条 HTTP 实验](toutiao-http.md) — 已暂停平台的技术研究，不代表生产可用。
 
-## 后续文档结构
+## 文档导航
 
-- `quick-start.md` — Windows Bridge/Extension 安装与首次使用。
-- `guide/workflows.md` — 检测、创建、更新、任务、索引及设置使用路径。
-- `how-to/` — 定位具体平台失败、恢复扩展连接、数据备份。
-- `reference/` — TOML、CLI、Bridge API、环境变量及版本契约。
+- [Quick Start](quick-start.md) — Windows Bridge/Extension 安装与首次使用。
+- [Guide：工作流](guide/workflows.md) — 检测、创建、更新、任务、索引及设置。
+- [Architecture：四项改造](architecture/unified-ui-and-console-20261010.md) — 双入口同构、设置与安全边界。
+- [Reference：配置](reference/configuration.md) — TOML、Data 与版本契约。
+- `how-to/` — 后续按具体故障补齐。
 
-文档随各阶段实现补齐，尚未落地的功能在设计稿标为计划，不作为已发布特性宣传。
+尚未交付的能力在文档中明确标为计划，绝不当作当前可用功能。

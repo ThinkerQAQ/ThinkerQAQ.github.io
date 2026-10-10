@@ -2,6 +2,14 @@
 
 BlogCTL is the local control plane for the ThinkerQAQ blog. It provides one command surface for site builds, article syndication, publishing assets, search-engine discovery, AI Search maintenance, and the browser Extension/Bridge workflow.
 
+## Documentation
+
+- [Documentation Index](docs/index.md)
+- [Quick Start](docs/quick-start.md)
+- [Unified Extension / Web Console architecture & migration plan](docs/architecture/unified-ui-and-console-20261010.md)
+- [Usage workflows](docs/guide/workflows.md)
+- [Configuration reference](docs/reference/configuration.md)
+
 ## Architecture
 
 ```text
