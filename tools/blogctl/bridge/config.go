@@ -56,6 +56,12 @@ func defaultPlatformPublishingConfig(platform string) publishingPlatformConfig {
 	return blogpublishing.DefaultPlatformConfig(platform)
 }
 
+// UILocalePreference is shared by the CLI, Extension and Web Console.
+// It controls presentation only, never the language of syndicated content.
+func UILocalePreference() string {
+	return loadBridgeConfig().UILocale
+}
+
 func defaultPublishingConfig() publishingConfig {
 	return blogpublishing.DefaultConfig()
 }
