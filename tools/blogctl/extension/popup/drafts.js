@@ -289,15 +289,17 @@
       const existing=state.mode==="create" ? existingCreateArticles(platform.id) : [];
       const scanning=state.mode==="create" && (state.createScanning.has(platform.id) ||
         (!state.createMatches.has(platform.id) && permission.available));
-      if(state.mode==="create" && !existing.length){
-        const create=document.createElement("button");
+      if(state.mode==="create"){
+        if(!existing.length){
+          const create=document.createElement("button");
         create.type="button";
         create.className="secondary compact";
         create.textContent="创建草稿";
         create.disabled=!permission.available || !state.selectedSlug || running() ||
           !createReady(platform.id);
         create.addEventListener("click",()=>startExplicit([platform.id],[],false));
-        actions.append(create);
+          actions.append(create);
+        }
       } else {
         const detect=document.createElement("button");
         detect.type="button";
