@@ -15,3 +15,5 @@ This is an index into **actual implementation ownership**, not a second hand-mai
 | External article publishing | [BlogCTL product documentation](../../tools/blogctl/docs/index.md) | Local Bridge, configured per-platform adapters |
 
 Check the actual site build/environment before describing an integration as active. The environment names supplied by CI are documented in [Deployment Reference](deployment.md); secrets must never be committed.
+
+RSS feeds are locale-specific: Chinese `/rss.xml` and English `/en/rss.xml`. Each contains only published articles in that language.

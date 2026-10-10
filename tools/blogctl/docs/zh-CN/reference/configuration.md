@@ -2,6 +2,8 @@
 
 以 [bridge/config.go](../../../bridge/config.go) 和 [publishing/config.go](../../../publishing/config.go) 定义为准。
 
+**界面语言：** `ui_locale` 默认为 `auto`，也可设置 `zh-CN` 或 `en`，与发布文章语言独立。见[切换界面语言](../how-to/switch-interface-language.md)。
+
 Windows 默认使用可执行文件旁的 `Data/`，Linux/macOS 使用用户配置目录。绝对路径环境变量 `BLOGCTL_DATA_DIR` 可覆盖默认目录。
 
 `blogctl.toml` 包含 `engine_root`、`content_root`、`log_level`、网络代理及搜索引擎配置；`jobs.json`、`publications.json` 等属于运行时数据。
