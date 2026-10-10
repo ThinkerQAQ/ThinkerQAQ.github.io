@@ -90,18 +90,35 @@ func Prepare(ctx context.Context, articles []blogcompiler.CompiledArticle, confi
 		}
 	}
 
+	// Independent diagram files can render concurrently; the global renderer
+	// slots bound headless Chromium fan-out, while per-file locks deduplicate
+	// the same diagram requested by different platform plans.
+	type itemResult struct {
+		cached bool
+		err    error
+	}
+	results := make([]itemResult, len(order))
+	var tasks sync.WaitGroup
+	for index, key := range order {
+		index, asset := index, unique[key]
+		tasks.Add(1)
+		go func() {
+			defer tasks.Done()
+			if err := validate(asset); err != nil {
+				results[index].err = err
+				return
+			}
+			output := filepath.Join(distributionRoot, "assets", asset.Kind, asset.ID+".png")
+			results[index].cached, results[index].err = prepareOne(ctx, config, asset, output)
+		}()
+	}
+	tasks.Wait()
 	stats := Stats{Assets: len(order)}
-	for _, key := range order {
-		asset := unique[key]
-		if err := validate(asset); err != nil {
-			return stats, err
+	for index, item := range results {
+		if item.err != nil {
+			return stats, fmt.Errorf("publishing asset %s: %w", order[index], item.err)
 		}
-		output := filepath.Join(distributionRoot, "assets", asset.Kind, asset.ID+".png")
-		cached, err := prepareOne(ctx, config, asset, output)
-		if err != nil {
-			return stats, fmt.Errorf("publishing asset %s: %w", key, err)
-		}
-		if cached {
+		if item.cached {
 			stats.Cached++
 		} else {
 			stats.Rendered++
