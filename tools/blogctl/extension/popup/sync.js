@@ -181,7 +181,7 @@
       if (availableForUpdate(platform, item)) {
         const action = document.createElement("button");
         action.type = "button";
-        action.className = "secondary compact";
+        action.className = "article-match-quick-update";
         action.textContent = "更新此文章";
         action.disabled = root.BlogCTLDrafts?.isJobRunning?.();
         action.addEventListener("click", () =>

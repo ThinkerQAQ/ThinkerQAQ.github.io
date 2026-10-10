@@ -276,8 +276,9 @@
       const name=document.createElement("strong");
       name.textContent=platform.label || platform.id;
       const hint=document.createElement("small");
-      hint.textContent=state.mode==="create"?"创建新的远端草稿":
-        "选中检测到的远端文章作为更新目标";
+      hint.textContent=state.mode==="create"
+        ? (existingCreateArticles(platform.id).length ? "已找到对应远端文章" : "创建新的远端草稿")
+        : "选中检测到的远端文章作为更新目标";
       description.append(name,hint);
       const status=document.createElement("strong");
       BlogCTLPopup.setStatus(status,permission.available?"ok":"disabled",
@@ -335,7 +336,11 @@
       }
       if(state.mode==="update")root.BlogCTLSync?.appendPlatformMatches?.(platform,card);
       const result=state.currentJob?.results?.[platform.id];
-      if(result){
+      // Successful target-level task events are represented by the article
+      // row above. Do not also show the old machine-readable "explicit-create"
+      // result footer (or a second Create button).
+      const hasCreatedArticle=state.mode==="create" && existing.length>0;
+      if(result && (result.state==="failed" || running() || !hasCreatedArticle)){
         const footer=document.createElement("div");
         footer.className="platform-task-status";
         const statusName=document.createElement("strong");

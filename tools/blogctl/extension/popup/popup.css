@@ -693,3 +693,62 @@ input, select { min-height: 42px; font-size: 13px; }
 .task-artifact-actions .task-publication-link:hover {
   text-decoration: underline;
 }
+
+
+/* Existing article actions are inline editorial links, not Create buttons.
+   Reuse the inventory title/status/link hierarchy across Create and Update. */
+.created-remote-items {
+  margin: 0 12px 12px 44px;
+  border-left: 2px solid var(--ui-accent-border);
+  border-radius: 0 8px 8px 0;
+  background: #f8fafc;
+  overflow: hidden;
+}
+.created-remote-items > .created-remote-row {
+  border-left: 0;
+  border-top: 1px solid var(--ui-border);
+  padding: 11px 12px;
+}
+.created-remote-items > .created-remote-row:first-child { border-top: 0; }
+.created-remote-row .inventory-article-content { min-width: 0; }
+.created-remote-row .inventory-article-action {
+  color: var(--ui-primary-hover);
+  align-self: center;
+  font-weight: 500;
+  padding: 4px 0;
+}
+.create-detection-hint {
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 12px 12px 44px;
+}
+.create-detection-retry { margin: 0 12px 12px 44px; }
+.article-match-quick-update {
+  appearance: none;
+  width: auto;
+  padding: 2px 0;
+  min-height: 24px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--ui-primary-hover);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.article-match-quick-update:hover:not(:disabled) {
+  text-decoration: underline;
+  background: none;
+}
+.article-match-quick-update:disabled { color: #94a3b8; cursor: not-allowed; }
+.article-match-quick-update:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 3px;
+}
+@media (max-width: 700px) {
+  .created-remote-items { margin: 0 8px 10px 30px; }
+  .created-remote-items > .created-remote-row { padding: 9px 10px; }
+  .create-detection-hint, .create-detection-retry { margin-left: 30px; }
+}
