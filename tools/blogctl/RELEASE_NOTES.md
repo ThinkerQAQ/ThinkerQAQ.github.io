@@ -1,3 +1,25 @@
+# BlogCTL v0.1.140 (local Juejin draft discovery candidate)
+
+- Add authenticated Juejin draft discovery via POST
+  /content_api/v1/article_draft/list_by_user, using the browser session,
+  existing CSRF handling, and HAR-grounded page_no/page_size parameters.
+- Show Juejin drafts and published articles in Detection with draft/published
+  filters and genuine draft editor links. Update now discovers Juejin draft
+  targets alongside matching published posts without requiring a binding.
+- Use the draft's 'id' rather than article_id as the remote update target,
+  even when article_id appears on an unpublished draft.
+- Paginate up to 500 draft rows, report truncation, require matching account
+  scope, deduplicate results, and fail closed on upstream/API errors.
+- Add isolated synthetic fixture tests based on the HAR response shape;
+  never check HAR files, session cookies, CSRF tokens or personal content
+  into the repo. Existing article adapters and Data stay untouched.
+- Go full regression, Extension regression and DevTool code verify passed.
+- Requires logged-in Edge Extension reload for live account verification.
+
+Local experimental branch under PR #177, not a public stable release.
+
+---
+
 # BlogCTL v0.1.139 (local UI candidate)
 
 - Use a cohesive slate/blue palette for navigation selection, primary
