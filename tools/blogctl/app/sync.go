@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	blogassets "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/assets"
 	blogcompiler "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/compiler"
@@ -238,12 +240,17 @@ func (s SyncService) runSyncPlan(
 	if compile == nil {
 		compile = blogcompiler.CompilePlatform
 	}
+	compileStarted := time.Now()
 	compiledArticles, compileErr := compile(ctx, blogcompiler.CompileOptions{
 		EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
 		Publishing: config.Publishing, Node: node, Env: env,
 		Platform: entry.Platforms[0], Articles: append([]string{}, request.Articles...),
 		All: request.All, DryRun: request.DryRun,
 	})
+	slog.Info("publishing platform compilation completed",
+		"operation", "sync-compile", "platform", entry.Platforms[0],
+		"durationMs", time.Since(compileStarted).Milliseconds(), "articleCount", len(compiledArticles),
+		"success", compileErr == nil)
 	if compileErr != nil {
 		message := entry.Group + ": " + compileErr.Error()
 		for _, platform := range entry.Platforms {
@@ -293,6 +300,7 @@ func (s SyncService) runSyncPlan(
 		}
 
 		if !request.DryRun && request.Operation == "draft" {
+			assetStarted := time.Now()
 			stats, assetErr := blogassets.Prepare(ctx, compiledArticles, blogassets.Config{
 				EngineRoot:       config.EngineRoot,
 				DistributionRoot: config.DistributionRoot,
@@ -301,6 +309,11 @@ func (s SyncService) runSyncPlan(
 				MermaidWidth:     config.Publishing.Compiler.Mermaid.Width,
 				MermaidScale:     config.Publishing.Compiler.Mermaid.Scale,
 			})
+			slog.Info("publishing platform assets completed",
+				"operation", "sync-assets", "platform", entry.Platforms[0],
+				"durationMs", time.Since(assetStarted).Milliseconds(),
+				"assetCount", stats.Assets, "rendered", stats.Rendered,
+				"cached", stats.Cached, "success", assetErr == nil)
 			if assetErr != nil {
 				message := "publishing assets: " + assetErr.Error()
 				for _, platform := range entry.Platforms {
@@ -334,6 +347,7 @@ func (s SyncService) runSyncPlan(
 				return result
 			}
 			for _, compiled := range compiledArticles {
+				publishStarted := time.Now()
 				article := compiled.Slug
 				platform := compiled.Platform
 				if request.Operation == "publish" {
