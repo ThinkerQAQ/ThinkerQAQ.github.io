@@ -95,6 +95,19 @@ const articles = defineCollection({
   }),
 });
 
+const projectResourceLink = z.object({
+  title: z.string(),
+  description: z.string().optional(),
+  url: z.url(),
+  translations: z.record(z.string(), z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    url: z.url().optional(),
+  })).default({}),
+});
+
+const projectResource = z.union([z.string(), projectResourceLink]);
+
 const projects = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -114,8 +127,8 @@ const projects = defineCollection({
       description: z.string().optional(),
       url: z.url(),
     })).default([]),
-    tutorials: z.array(z.string()).default([]),
-    documentation: z.array(z.string()).default([]),
+    tutorials: z.array(projectResource).default([]),
+    documentation: z.array(projectResource).default([]),
     translations: z.record(z.string(), localizedSummary).default({}),
   }),
 });

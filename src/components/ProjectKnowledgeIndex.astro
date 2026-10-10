@@ -29,6 +29,7 @@ const ui = locale === "en"
       documentation: "Documentation",
       series: "Related Series",
       untranslatedArticle: "Chinese",
+      externalLink: "External link",
     }
   : {
       articles: "文章",
@@ -37,6 +38,7 @@ const ui = locale === "en"
       documentation: "文档",
       series: "相关系列",
       untranslatedArticle: undefined,
+      externalLink: "外部链接",
     };
 ---
 
@@ -58,25 +60,35 @@ const ui = locale === "en"
   </section>
 )}
 
-{knowledge.tutorials.length > 0 && (
+{(knowledge.tutorials.length > 0 || knowledge.tutorialLinks.length > 0) && (
   <section class="related-content" aria-labelledby="project-tutorial-heading">
     <h2 id="project-tutorial-heading">{ui.tutorial}</h2>
-    <ArticleList
-      entries={knowledge.tutorials}
-      locale={locale}
-      languageFallbackLabel={ui.untranslatedArticle}
-    />
+    {knowledge.tutorials.length > 0 && (
+      <ArticleList
+        entries={knowledge.tutorials}
+        locale={locale}
+        languageFallbackLabel={ui.untranslatedArticle}
+      />
+    )}
+    {knowledge.tutorialLinks.length > 0 && (
+      <ProjectLinkList entries={knowledge.tutorialLinks} label={ui.externalLink} />
+    )}
   </section>
 )}
 
-{knowledge.documentation.length > 0 && (
+{(knowledge.documentation.length > 0 || knowledge.documentationLinks.length > 0) && (
   <section class="related-content" aria-labelledby="project-documentation-heading">
     <h2 id="project-documentation-heading">{ui.documentation}</h2>
-    <ArticleList
-      entries={knowledge.documentation}
-      locale={locale}
-      languageFallbackLabel={ui.untranslatedArticle}
-    />
+    {knowledge.documentation.length > 0 && (
+      <ArticleList
+        entries={knowledge.documentation}
+        locale={locale}
+        languageFallbackLabel={ui.untranslatedArticle}
+      />
+    )}
+    {knowledge.documentationLinks.length > 0 && (
+      <ProjectLinkList entries={knowledge.documentationLinks} label={ui.externalLink} />
+    )}
   </section>
 )}
 

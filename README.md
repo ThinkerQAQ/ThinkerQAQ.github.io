@@ -1,6 +1,6 @@
 # ThinkerQAQ Blog
 
-[简体中文](README_ZH.md) · [Website](https://thinkerqaq.com/)
+[简体中文](README_ZH.md) · [Website](https://thinkerqaq.com/) · [Project overview](https://thinkerqaq.com/en/projects/personal-blog-system/)
 
 A bilingual technical blog built with Astro. Articles and notes live in a separate content repository; BlogCTL handles site assembly, publishing and search-engine submission.
 

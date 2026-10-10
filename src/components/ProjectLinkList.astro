@@ -3,9 +3,10 @@ import type { ProjectExternalLink } from "../lib/project-relations";
 
 interface Props {
   entries: ProjectExternalLink[];
+  label?: string;
 }
 
-const { entries } = Astro.props;
+const { entries, label = "GitHub" } = Astro.props;
 ---
 
 <ol class="content-list">
@@ -16,7 +17,7 @@ const { entries } = Astro.props;
         {entry.description && <p>{entry.description}</p>}
       </div>
       <div class="content-meta">
-        <span>GitHub</span>
+        <span>{label}</span>
       </div>
     </li>
   ))}
