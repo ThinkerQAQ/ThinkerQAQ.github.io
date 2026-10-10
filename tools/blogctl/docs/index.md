@@ -13,6 +13,7 @@
 - [Quick Start](quick-start.md) — Windows Bridge/Extension 安装与首次使用。
 - [Guide：工作流](guide/workflows.md) — 检测、创建、更新、任务、索引及设置。
 - [Architecture：四项改造](architecture/unified-ui-and-console-20261010.md) — 双入口同构、设置与安全边界。
+- [Architecture：组件复用与减负审查](architecture/component-reuse-review-20261010.md) — 重复造轮子的证据、成熟替代方案与取舍。
 - [Reference：配置](reference/configuration.md) — TOML、Data 与版本契约。
 - `how-to/` — 后续按具体故障补齐。
 
