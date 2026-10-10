@@ -1,651 +1,217 @@
 "use strict";
 
+// Update-target discovery. No PublicationBinding mutations: selected remote IDs
+// are forwarded directly to an explicit, durable task snapshot.
 (function (root) {
   const state = {
-    initialized: false,
-    active: false,
-    articles: [],
-    selectedSlug: "",
-    status: null,
-    tools: [],
-    cnblogsBindings: [],
-    bindingLoading: false,
-    bindingError: false,
-    matches: {},
-    matchKey: "",
-    cachedMatchTime: 0,
-    refreshSerial: 0,
-    selectedMatchKeys: new Set(),
-    bindingMutating: false,
-    matchingPlatforms: new Set(),
+    initialized: false, active: false, article: "", matches: {},
+    selected: new Map(), pending: new Set(), serial: 0,
   };
+  let detectButton, message;
 
-  let message, refreshMatchesButton;
-  let bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
-
-  function selectedArticle() {
-    return state.articles.find((item) => item.slug === state.selectedSlug);
+  function selectedTargets() {
+    return [...state.selected.values()].map((item) => ({ ...item }));
   }
 
-  // The Update platform cards own the ONLY platform selection. Candidate
-  // checkboxes are a separate selection for bind/unbind operations.
-  function selectedPlatformIDs() {
-    return root.BlogCTLDrafts?.selectedPlatformIDs?.() ?? [];
+  function refreshToolbar() {
+    if (!detectButton) return;
+    detectButton.disabled = !state.article || state.pending.size > 0 ||
+      root.BlogCTLDrafts?.isJobRunning?.() ||
+      !(root.BlogCTLDrafts?.selectedPlatformIDs?.().length);
   }
 
-  function matchSelectionKey(platformID, item) {
-    return [platformID, item.published ? "published" : "draft", String(item.id)].join(":");
-  }
-
-  function remoteStateName(item) {
-    return item.published ? "published" : "draft";
-  }
-
-  function bindingStateChanged(item) {
-    return Boolean(item.bound && item.bindingState && item.bindingState !== remoteStateName(item));
-  }
-
-  function selectedMatchEntries() {
-    if (!state.selectedSlug || state.matchKey !== state.selectedSlug) return [];
-    const selected = [];
-    for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
-      if (!selectedPlatformIDs().includes(platform.id)) continue;
-      const match = state.matches[platform.id];
-      for (const item of match?.items ?? []) {
-        const key = matchSelectionKey(platform.id, item);
-        if (state.selectedMatchKeys.has(key)) selected.push({ platform, item, key });
-      }
-    }
-    return selected;
-  }
-
-  function canBindItem(item) {
-    const changed = bindingStateChanged(item);
-    return (!item.bound || changed) && !(item.unverified && changed);
-  }
-
-  function canUnbindItem(item) {
-    return Boolean(item.bound && item.bindingState);
-  }
-
-  function updateBulkActions() {
-    if (!bulkActions) return;
-    const entries = selectedMatchEntries();
-    bulkActions.hidden = entries.length === 0;
-    selectionSummary.textContent = "已选择 " + entries.length + " 篇文章";
-    const bindable = entries.filter(({ item }) => canBindItem(item)).length;
-    const unbindable = entries.filter(({ item }) => canUnbindItem(item)).length;
-    bindSelectedButton.disabled = state.bindingMutating || bindable === 0;
-    unbindSelectedButton.disabled = state.bindingMutating || unbindable === 0;
-    bindSelectedButton.textContent = bindable > 0 ? "批量绑定 (" + bindable + ")" : "批量绑定";
-    unbindSelectedButton.textContent = unbindable > 0 ? "批量解绑 (" + unbindable + ")" : "批量解绑";
-  }
-
-  function updateControls() {
-    const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
-    refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating ||
-      state.matchingPlatforms.size > 0 || selectedPlatformIDs().length === 0 ||
-      (root.BlogCTLDrafts?.isJobRunning?.() ?? false);
-    updateBulkActions();
-  }
-
-  function platformAvailability(_article, platform) {
-    return BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
-  }
-
-  const manualBindingPlatforms = new Set([
-    "cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "medium",
-  ]);
-
-  function manualBindingPlaceholder(platformID) {
-    const labels = {
-      cnblogs: "博客园文章／草稿 ID 或链接",
-      juejin: "掘金文章／草稿 ID 或链接",
-      csdn: "CSDN 文章／草稿 ID 或链接",
-      segmentfault: "思否文章／草稿 ID 或链接",
-      zhihu: "知乎文章 ID 或链接",
-      "51cto": "51CTO 文章／草稿 ID 或链接",
-      oschina: "开源中国文章／草稿 ID 或链接",
-      devto: "DEV.to 文章 ID（或带 ID 的后台链接）",
-      medium: "Medium 文章 ID 或链接",
-    };
-    return labels[platformID] || "文章 ID 或链接";
-  }
-
-  function manualBindingID(platformID, reference) {
-    const raw = String(reference || "").trim();
-    if (!raw) return "";
-    if (platformID === "cnblogs" || platformID === "csdn") {
-      // Normalize known creator/public URLs for same-ID binding comparisons.
-      // The Bridge still receives the original CNBlogs reference and performs
-      // the authoritative owner/state verification before writing a binding.
-      if (/^[0-9]+$/.test(raw)) return raw;
-      try {
-        const parsed = new URL(raw);
-        if (parsed.protocol === "https:" &&
-            (platformID === "cnblogs"
-              ? ["i.cnblogs.com", "www.cnblogs.com"].includes(parsed.hostname)
-              : ["editor.csdn.net", "blog.csdn.net"].includes(parsed.hostname))) {
-          const id = platformID === "cnblogs"
-            ? parsed.searchParams.get("postId") ||
-              parsed.pathname.match(/(?:\/posts\/edit;postId=|\/articles\/edit;postId=|\/p\/)([0-9]+)/)?.[1]
-            : parsed.searchParams.get("articleId") ||
-              parsed.pathname.match(/\/article\/details\/([0-9]+)/)?.[1];
-          if (/^[0-9]+$/.test(id || "")) return id;
-        }
-      } catch { /* Backend validates malformed or unsupported references. */ }
-      return raw;
-    }
-    if (/^[A-Za-z0-9_-]+$/.test(raw) && !raw.includes(".")) return raw;
-
-    let parsed;
-    try {
-      parsed = new URL(raw);
-    } catch {
-      return "";
-    }
-    const path = parsed.pathname;
-    if (platformID === "segmentfault") return parsed.searchParams.get("draftId") || path.match(/\/a\/([0-9]+)/)?.[1] || "";
-    if (platformID === "zhihu") return path.match(/\/p\/([A-Za-z0-9_-]+)/)?.[1] || "";
-    if (platformID === "juejin") return path.match(/\/post\/([0-9]+)/)?.[1] || path.match(/\/editor\/drafts\/([0-9]+)/)?.[1] || "";
-    if (platformID === "oschina") return path.match(/\/blog\/ai-write\/draft\/([0-9]+)/)?.[1] || path.match(/\/blog\/([0-9]+)/)?.[1] || "";
-    if (platformID === "51cto") return path.match(/\/([0-9]+)\/?$/)?.[1] || "";
-    if (platformID === "devto") return path.match(/\/([0-9]+)(?:\/edit)?\/?$/)?.[1] || "";
-    if (platformID === "medium") return path.match(/\/p\/([0-9a-f]{8,})(?:\/edit)?\/?$/i)?.[1] || path.match(/-([0-9a-f]{8,})\/?$/i)?.[1] || "";
-    return "";
-  }
-
-  function appendManualBinding(platform, match, result) {
-    if (!manualBindingPlatforms.has(platform.id)) return;
-    const manual = document.createElement("details");
-    const summary = document.createElement("summary");
-    summary.textContent = "候选中没有？输入文章／草稿 ID 或链接";
-    const input = document.createElement("input");
-    input.type = "text";
-    input.placeholder = manualBindingPlaceholder(platform.id);
-    input.autocomplete = "off";
-
-    const stateSelect = document.createElement("select");
-    for (const stateName of ["draft", "published"]) {
-      const option = document.createElement("option");
-      option.value = stateName;
-      option.textContent = stateName === "published" ? "已发布" : "草稿";
-      stateSelect.append(option);
-    }
-
-    const bind = document.createElement("button");
-    bind.type = "button";
-    bind.className = "secondary";
-    bind.textContent = "验证并绑定";
-    bind.addEventListener("click", async () => {
-      const reference = input.value.trim();
-      if (!reference || state.bindingMutating ||
-          (root.BlogCTLDrafts?.isJobRunning?.() ?? false)) return;
-      const article = state.selectedSlug;
-      const bindings = platform.id === "cnblogs" ? state.cnblogsBindings : (match.bindings ?? []);
-      bind.disabled = true;
-      stateSelect.disabled = true;
-      try {
-        const postId = manualBindingID(platform.id, reference);
-        if (!postId) throw new Error("无法从输入内容识别远端文章 ID");
-        const stateName = stateSelect.value;
-        const existing = bindings.find((binding) => binding.state === stateName);
-        const replaces = Boolean(existing && String(existing.postId) !== String(postId));
-        if (replaces && !confirm("将替换当前" + (stateName === "published" ? "已发布文章" : "草稿") + "绑定。继续吗？")) return;
-
-        if (platform.id === "cnblogs") {
-          // CNBlogs accepts an article ID or creator/public URL and verifies
-          // the requested state against the authenticated remote post.
-          await BlogCTLPopup.send("blogctl.cnblogs.bind", {
-            article, reference, state: stateName, replace: replaces,
-          });
-          await loadSyncBinding();
-        } else {
-          await BlogCTLPopup.send("blogctl." + platform.id + ".bind", {
-            article, postId, state: stateName, replace: replaces, manual: true,
-          });
-        }
-        if (article !== state.selectedSlug) return;
-        await refreshArticleMatches([platform.id]);
-        await root.BlogCTLDrafts?.refreshBindings?.();
-        BlogCTLPopup.setMessage(message, (platform.label || platform.id) + " 绑定已保存。", "ok");
-      } catch (error) {
-        BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-      } finally {
-        bind.disabled = false;
-        stateSelect.disabled = false;
-      }
-    });
-
-    manual.append(summary, input);
-    manual.append(stateSelect);
-    manual.append(bind);
-    result.append(manual);
-  }
-
-  async function reverifyToutiaoPublished(item) {
-    const article = state.selectedSlug;
-    if (!article || state.bindingMutating || !item?.bound || !item?.published) return;
-    state.bindingMutating = true;
-    updateControls();
-    BlogCTLPopup.setMessage(message, "正在重新验证头条原文章及远端版本…");
-    try {
-      await BlogCTLPopup.send("blogctl.toutiao.bind", {
-        article, state: "published", postId: item.id, replace: false,
-      });
-      await refreshArticleMatches(["toutiao"]);
-      BlogCTLPopup.setMessage(message, "已重新验证头条文章；可继续使用「更新已发布」。", "ok");
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-    } finally {
-      state.bindingMutating = false;
-      updateControls();
-    }
-  }
-
-  function appendMatchRows(platform, match, result) {
-    for (const item of match.items ?? []) {
-      const row = document.createElement("div");
-      row.className = "article-match-row";
-
-      const choice = document.createElement("label");
-      choice.className = "article-match-choice";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.dataset.platform = platform.id;
-      checkbox.dataset.postId = String(item.id);
-      const key = matchSelectionKey(platform.id, item);
-      checkbox.checked = state.selectedMatchKeys.has(key);
-      checkbox.disabled = state.bindingLoading || state.bindingMutating ||
-        (root.BlogCTLDrafts?.isJobRunning?.() ?? false) ||
-        (!canBindItem(item) && !canUnbindItem(item));
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) state.selectedMatchKeys.add(key);
-        else state.selectedMatchKeys.delete(key);
-        updateBulkActions();
-      });
-
-      const text = document.createElement("span");
-      text.className = "article-match-choice-text";
-      const parts = [
-        item.localOnly ? "本地记录" : item.bound ? "已绑定" : "候选",
-        item.title,
-        item.published ? "已发布" : "草稿",
-        "ID " + item.id,
-      ];
-      if (bindingStateChanged(item)) parts.push("远端状态已变化");
-      text.textContent = parts.join(" · ");
-      choice.append(checkbox, text);
-      row.append(choice);
-
-      const articleLink = BlogCTLSyncModel.articleMatchLink(platform.id, item);
-      if (articleLink) {
-        const links = document.createElement("div");
-        links.className = "article-match-links";
-        const link = document.createElement("a");
-        link.textContent = articleLink.label;
-        link.href = articleLink.url;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        links.append(link);
-        if (platform.id === "toutiao" && item.published && /^[0-9]{8,20}$/.test(String(item.id))) {
-          const edit = document.createElement("a");
-          edit.textContent = "编辑原文";
-          edit.href = "https://mp.toutiao.com/profile_v4/graphic/publish?from=edit&pgc_id=" + encodeURIComponent(item.id);
-          edit.target = "_blank";
-          edit.rel = "noopener noreferrer";
-          links.append(edit);
-          if (item.bound && item.bindingState === "published") {
-            const reverify = document.createElement("button");
-            reverify.type = "button";
-            reverify.className = "secondary compact";
-            reverify.textContent = "重新校验版本";
-            reverify.disabled = state.bindingMutating;
-            reverify.addEventListener("click", () => reverifyToutiaoPublished(item));
-            links.append(reverify);
-          }
-        }
-        row.append(links);
-      }
-
-      const rowActions = document.createElement("div");
-      rowActions.className = "article-match-links";
-      if (canBindItem(item)) {
-        const bind = document.createElement("button");
-        bind.type = "button";
-        bind.className = "secondary compact";
-        bind.textContent = "绑定";
-        bind.disabled = state.bindingMutating || state.bindingLoading ||
-          (root.BlogCTLDrafts?.isJobRunning?.() ?? false);
-        bind.addEventListener("click", () => runBulkBinding("bind", { platform, item, key }));
-        rowActions.append(bind);
-      }
-      if (canUnbindItem(item)) {
-        const unbind = document.createElement("button");
-        unbind.type = "button";
-        unbind.className = "secondary compact";
-        unbind.textContent = "解绑";
-        unbind.disabled = state.bindingMutating || state.bindingLoading ||
-          (root.BlogCTLDrafts?.isJobRunning?.() ?? false);
-        unbind.addEventListener("click", () => runBulkBinding("unbind", { platform, item, key }));
-        rowActions.append(unbind);
-      }
-      if (rowActions.childElementCount) row.append(rowActions);
-      result.append(row);
-    }
-
-    appendManualBinding(platform, match, result);
-  }
-
-  function renderPlatforms() {
-    // Results are rendered INSIDE the Update platform cards, not in a second
-    // nested list. The event requests a redraw without replacing its checkboxes.
-    updateControls();
+  function render() {
+    refreshToolbar();
     document.dispatchEvent(new CustomEvent("blogctl:association-results-changed"));
-  }
-
-  function appendPlatformMatches(platform, container) {
-    if (!state.selectedSlug || state.matchKey !== state.selectedSlug) return;
-    const match = state.matches[platform.id];
-    if (!match) return;
-    const result = document.createElement("div");
-    result.className = "article-match";
-    result.textContent = (state.cachedMatchTime
-      ? "上次检测 " + new Date(state.cachedMatchTime).toLocaleString() + " · "
-      : "") + match.text;
-    appendMatchRows(platform, match, result);
-    container.append(result);
   }
 
   function clearMatches() {
     state.matches = {};
-    state.matchKey = "";
-    state.cachedMatchTime = 0;
-    state.selectedMatchKeys.clear();
-    state.matchingPlatforms.clear();
-    BlogCTLSyncState.clearMatches(localStorage);
-    state.refreshSerial++;
-    updateBulkActions();
+    state.selected.clear();
+    ++state.serial;
+    state.pending.clear();
+    render();
   }
 
-  async function refreshArticleMatches(platformIDs = selectedPlatformIDs(), allowBridgeRestart = true) {
-    const article = state.selectedSlug;
+  async function refreshArticleMatches(platformIDs = root.BlogCTLDrafts?.selectedPlatformIDs?.() ?? []) {
+    const article = state.article;
     const platforms = BlogCTLSyncModel.visiblePlatformIDs([...new Set(platformIDs)]).filter(Boolean);
-    if (!article) return;
-    if (!platforms.length) {
-      BlogCTLPopup.setMessage(message, "请先选择至少一个需要检测的平台。", "error");
+    if (!article || !platforms.length) {
+      BlogCTLPopup.setMessage(message, "先选择本地文章和至少一个平台。", "error");
       return;
     }
-
-    state.selectedMatchKeys.clear();
-    updateBulkActions();
-    const serial = ++state.refreshSerial;
-    state.matchKey = article;
-    state.cachedMatchTime = 0;
+    // Explicit selections expire on detection/identity changes. A new scan
+    // cannot silently reuse an earlier target ID.
     for (const platform of platforms) {
-      state.matchingPlatforms.add(platform);
-      state.matches[platform] = { text: "正在检测文章关联…" };
+      state.matches[platform] = { text: "正在检测文章关联…", items: [] };
+      for (const key of state.selected.keys()) if (key.startsWith(platform + ":")) state.selected.delete(key);
+      state.pending.add(platform);
     }
-    renderPlatforms();
-
+    const serial = ++state.serial;
+    render();
     const results = await Promise.all(platforms.map(async (platform) => {
       try {
-        const response = await BlogCTLPopup.send("blogctl.article.match", { article, platform });
-        return [platform, response.match];
+        const data = await BlogCTLPopup.send("blogctl.article.match", { article, platform });
+        return [platform, data.match || { text: "无候选文章", items: [] }];
       } catch (error) {
-        return [platform, { text: `检测失败：${BlogCTLPopup.errorMessage(error)}`, items: [] }];
+        return [platform, { text: "检测失败：" + BlogCTLPopup.errorMessage(error), items: [], failed: true }];
       }
     }));
-
-    if (serial !== state.refreshSerial || article !== state.selectedSlug) {
-      for (const platform of platforms) state.matchingPlatforms.delete(platform);
-      renderPlatforms();
-      return;
+    if (serial !== state.serial || article !== state.article) return;
+    for (const [platform, match] of results) {
+      state.matches[platform] = match;
+      state.pending.delete(platform);
     }
+    render();
+  }
 
-    const staleBridge = results.some(([, match]) => String(match?.text || "").includes("invalid bridge token"));
-    if (staleBridge && allowBridgeRestart) {
-      BlogCTLPopup.setMessage(message, "检测到 Bridge 仍在运行旧接口，正在重启后重新检测…");
-      try {
-        await BlogCTLPopup.send("blogctl.tool.action", { name: "bridge", action: "restart" });
-        if (article !== state.selectedSlug) return;
-        await refreshArticleMatches(platforms, false);
-        return;
-      } catch (error) {
-        BlogCTLPopup.setMessage(message, `Bridge 重启失败：${BlogCTLPopup.errorMessage(error)}`, "error");
-      }
+  function availableForUpdate(platform, item) {
+    if (!item || !String(item.id || "").trim() || item.localOnly) return false;
+    if (item.published) {
+      // A published article may only use the platform's explicit safe update
+      // contract; it is NEVER routed through draft update.
+      return platform.capabilities?.publishedUpdate === true &&
+        ["cnblogs", "devto"].includes(platform.id);
     }
-
-    for (const [platform, match] of results) state.matches[platform] = match;
-    state.cachedMatchTime = Date.now();
-    BlogCTLSyncState.saveMatches(localStorage, article, state.matches);
-    for (const platform of platforms) state.matchingPlatforms.delete(platform);
-    renderPlatforms();
+    return platform.capabilities?.draftCreate === true;
   }
 
-  function platformBindings(platformID) {
-    return platformID === "cnblogs"
-      ? state.cnblogsBindings
-      : (state.matches[platformID]?.bindings ?? []);
-  }
+  function appendPlatformMatches(platform, container) {
+    if (!state.article || !state.matches[platform.id]) return;
+    const match = state.matches[platform.id];
+    const section = document.createElement("div");
+    section.className = "article-match";
+    const summary = document.createElement("p");
+    summary.className = "card-hint";
+    summary.textContent = match.text || "检测完成";
+    section.append(summary);
 
-  function existingBinding(platformID, stateName) {
-    return platformBindings(platformID).find((binding) => binding.state === stateName);
-  }
-
-  function batchEntries(action) {
-    return selectedMatchEntries().filter(({ item }) => action === "bind" ? canBindItem(item) : canUnbindItem(item));
-  }
-
-  async function runBulkBinding(action, singleEntry = null) {
-    const article = state.selectedSlug;
-    const entries = singleEntry ? [singleEntry] : batchEntries(action);
-    if (!article || !entries.length || state.bindingMutating ||
-        (root.BlogCTLDrafts?.isJobRunning?.() ?? false)) return;
-
-    if (action === "bind") {
-      const targets = new Set();
-      for (const { platform, item } of entries) {
-        const target = platform.id + ":" + remoteStateName(item);
-        if (targets.has(target)) {
-          BlogCTLPopup.setMessage(message, "同一平台的同一状态一次只能绑定一篇文章，请减少勾选后重试。", "error");
-          return;
-        }
-        targets.add(target);
-      }
-
-      const replacements = entries.filter(({ platform, item }) => {
-        const bound = existingBinding(platform.id, remoteStateName(item));
-        return bound && String(bound.postId) !== String(item.id);
+    for (const item of match.items || []) {
+      if (!item?.id) continue;
+      const row = document.createElement("div");
+      row.className = "article-match-row";
+      const target = {
+        platform: platform.id, id: String(item.id),
+        state: item.published ? "published" : "draft",
+        url: String(item.url || ""),
+        updatedAt: String(item.updatedAt || item.remoteUpdatedAt || ""),
+      };
+      const key = platform.id + ":" + target.id;
+      const check = document.createElement("label");
+      check.className = "article-match-choice";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.dataset.platform = platform.id;
+      box.dataset.postId = target.id;
+      box.checked = state.selected.has(key);
+      box.disabled = !availableForUpdate(platform, item) ||
+        root.BlogCTLDrafts?.isJobRunning?.();
+      box.addEventListener("change", () => {
+        if (box.checked) state.selected.set(key, target);
+        else state.selected.delete(key);
+        root.BlogCTLDrafts?.selectionChanged?.();
       });
-      if (replacements.length && !confirm("所选文章中有 " + replacements.length + " 条会替换当前绑定。继续吗？")) return;
-    } else if (!confirm("将解除所选 " + entries.length + " 条本地绑定，远端文章不会删除。继续吗？")) {
-      return;
-    }
-
-    state.bindingMutating = true;
-    renderPlatforms();
-    BlogCTLPopup.setMessage(message, action === "bind" ? "正在验证并绑定…" : "正在解除本地绑定…");
-
-    let success = 0;
-    const failures = [];
-    let touchedCnblogs = false;
-    for (const { platform, item } of entries) {
-      try {
-        const stateName = action === "bind" ? remoteStateName(item) : (item.bindingState || remoteStateName(item));
-        const bound = existingBinding(platform.id, stateName);
-        const payload = {
-          article,
-          state: stateName,
-          postId: item.id,
-          replace: action === "bind" && Boolean(bound && String(bound.postId) !== String(item.id)),
-          candidate: {
-            id: item.id,
-            title: item.title,
-            url: item.url || "",
-            published: Boolean(item.published),
-          },
-        };
-        if (platform.id === "cnblogs") {
-          payload.reference = item.id;
-          touchedCnblogs = true;
-        }
-        await BlogCTLPopup.send("blogctl." + platform.id + "." + (action === "bind" ? "bind" : "unbind"), payload);
-        success++;
-      } catch (error) {
-        failures.push((platform.label || platform.id) + " / " + item.title + "：" + BlogCTLPopup.errorMessage(error));
+      const title = document.createElement("span");
+      title.className = "article-match-choice-text";
+      title.textContent = [
+        item.title || "(无标题)",
+        item.published ? "已发布" : "草稿",
+        "ID " + item.id,
+      ].join(" · ");
+      check.append(box, title);
+      row.append(check);
+      const link = BlogCTLSyncModel.articleMatchLink(platform.id, item);
+      if (link) {
+        const anchor = document.createElement("a");
+        anchor.href = link.url;
+        anchor.textContent = link.label;
+        anchor.rel = "noopener noreferrer";
+        anchor.target = "_blank";
+        row.append(anchor);
       }
-    }
-
-    state.selectedMatchKeys.clear();
-    try {
-      if (touchedCnblogs) await loadSyncBinding();
-      await refreshArticleMatches();
-      await root.BlogCTLDrafts?.refreshBindings?.();
-    } finally {
-      state.bindingMutating = false;
-      renderPlatforms();
-    }
-
-    if (failures.length) {
-      BlogCTLPopup.setMessage(
-        message,
-        "批量操作完成：成功 " + success + "，失败 " + failures.length + "。 " + failures.slice(0, 2).join("；"),
-        "error",
-      );
-    } else {
-      BlogCTLPopup.setMessage(message, action === "bind" ? "批量绑定已完成。" : "批量解绑已完成。", "ok");
-    }
-  }
-
-  async function loadSyncBinding() {
-    const article = state.selectedSlug;
-    state.cnblogsBindings = [];
-    state.bindingError = false;
-    state.bindingLoading = Boolean(article);
-    updateControls();
-    if (!article) return;
-
-    try {
-      const response = await BlogCTLPopup.send("blogctl.cnblogs.binding", { article });
-      if (article !== state.selectedSlug) return;
-      state.cnblogsBindings = response.bindings ?? (response.found ? [response.binding] : []);
-    } catch (error) {
-      state.bindingError = true;
-      BlogCTLPopup.setMessage(message, `读取博客园绑定失败：${BlogCTLPopup.errorMessage(error)}`, "error");
-    } finally {
-      if (article === state.selectedSlug) {
-        state.bindingLoading = false;
-        renderPlatforms();
+      if (availableForUpdate(platform, item)) {
+        const action = document.createElement("button");
+        action.type = "button";
+        action.className = "secondary compact";
+        action.textContent = "更新此文章";
+        action.disabled = root.BlogCTLDrafts?.isJobRunning?.();
+        action.addEventListener("click", () =>
+          root.BlogCTLDrafts?.updateTargets?.([target], false));
+        row.append(action);
       }
+      section.append(row);
     }
-  }
 
-  async function refresh() {
-    if (!state.active) return;
-    BlogCTLPopup.setMessage(message);
-    try {
-      const [articlesResponse, statusResponse, toolsResponse] = await Promise.all([
-        BlogCTLPopup.send("blogctl.articles"),
-        BlogCTLPopup.send("blogctl.status"),
-        BlogCTLPopup.send("blogctl.tools"),
-      ]);
-
-      state.articles = articlesResponse.articles ?? [];
-      state.status = statusResponse.status;
-      state.tools = toolsResponse.tools ?? [];
-
-      BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
-
-      const previous = state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
-      if (state.articles.some((item) => item.slug === previous)) {
-        state.selectedSlug = previous;
-
-      } else {
-        state.selectedSlug = "";
-      }
-
-      if (state.selectedSlug && state.matchKey !== state.selectedSlug) {
-        const cached = BlogCTLSyncState.loadMatches(localStorage, state.selectedSlug);
-        if (cached) {
-          state.matches = cached.matches;
-          state.matchKey = state.selectedSlug;
-          state.cachedMatchTime = cached.savedAt;
-        }
-      }
-
-      renderPlatforms();
-      if (state.selectedSlug) loadSyncBinding();
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-      updateControls();
+    // Useful for providers whose drafts cannot be enumerated, e.g. Juejin.
+    // The ID is still verified by the server-side adapter when updating.
+    const manual = document.createElement("details");
+    const head = document.createElement("summary");
+    head.textContent = "候选中没有？按远端 ID 指定目标";
+    const idInput = document.createElement("input");
+    idInput.placeholder = "远端文章或草稿 ID";
+    const select = document.createElement("select");
+    for (const value of ["draft", "published"]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value === "draft" ? "草稿" : "已发布";
+      select.append(option);
     }
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "secondary compact";
+    add.textContent = "添加目标";
+    add.addEventListener("click", () => {
+      const id = idInput.value.trim();
+      if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) {
+        BlogCTLPopup.setMessage(message, "远端 ID 格式不正确", "error"); return;
+      }
+      const target = { platform: platform.id, id, state: select.value, url: "" };
+      if (!availableForUpdate(platform, { id, published: select.value === "published" })) {
+        BlogCTLPopup.setMessage(message, "此平台不支持所选状态的安全更新", "error"); return;
+      }
+      state.selected.set(platform.id + ":" + id, target);
+      render();
+      root.BlogCTLDrafts?.selectionChanged?.();
+    });
+    manual.append(head, idInput, select, add);
+    section.append(manual);
+    container.append(section);
   }
 
   function init() {
     if (state.initialized) return;
-
+    detectButton = document.getElementById("refreshArticleMatches");
     message = document.getElementById("syncMessage");
-    refreshMatchesButton = document.getElementById("refreshArticleMatches");
-    bulkActions = document.getElementById("bindingBulkActions");
-    selectionSummary = document.getElementById("bindingSelectionSummary");
-    bindSelectedButton = document.getElementById("bindSelectedMatches");
-    unbindSelectedButton = document.getElementById("unbindSelectedMatches");
-
-    // A state-specific unbind from the Update tab invalidates cached
-    // detection results. Recheck manually rather than displaying stale
-    // "已绑定" rows from the previous scan.
-    document.addEventListener("blogctl:update-platform-selection", () => {
-      updateControls();
-    });
-    document.addEventListener("blogctl:binding-changed", (event) => {
-      if (event.detail?.article !== state.selectedSlug) return;
-      clearMatches();
-      if (state.active) {
-        renderPlatforms();
-        loadSyncBinding();
-      }
-    });
-
-    refreshMatchesButton.addEventListener("click", () => refreshArticleMatches());
-    bindSelectedButton.addEventListener("click", () => runBulkBinding("bind"));
-    unbindSelectedButton.addEventListener("click", () => runBulkBinding("unbind"));
-    document.addEventListener("blogctl:detect-association", async (event) => {
-      const platformID = String(event.detail?.platform || "");
-      const article = String(event.detail?.article || "");
-      if (!state.active || state.selectedSlug !== article ||
-          !BlogCTLSyncModel.isVisiblePlatform(platformID)) return;
-      await refreshArticleMatches([platformID]);
-      document.querySelector(`#draftPlatforms [data-platform-card="${platformID}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    detectButton.addEventListener("click", () => refreshArticleMatches());
+    document.addEventListener("blogctl:update-platform-selection", refreshToolbar);
+    document.addEventListener("blogctl:detect-association", (event) => {
+      if (!state.active || state.article !== event.detail?.article) return;
+      refreshArticleMatches([event.detail?.platform]);
     });
     document.addEventListener("blogctl:article-selected", (event) => {
-      const article = String(event.detail?.article || "").trim();
-      if (article === state.selectedSlug) return;
-      state.selectedSlug = article;
-      state.selectedMatchKeys.clear();
+      const next = String(event.detail?.article || "");
+      if (next === state.article) return;
+      state.article = next;
       clearMatches();
-      if (state.active) {
-        renderPlatforms();
-        loadSyncBinding();
-      }
     });
     state.initialized = true;
   }
 
   function activate() {
     state.active = true;
-    state.selectedSlug = localStorage.getItem("blogctl.selectedArticle") || "";
-    refresh();
+    const article = localStorage.getItem("blogctl.selectedArticle") || "";
+    if (article !== state.article) {
+      state.article = article;
+      clearMatches();
+    }
+    refreshToolbar();
   }
 
-  function deactivate() {
-    state.active = false;
-  }
-
+  function deactivate() { state.active = false; }
+  function refresh() { refreshToolbar(); }
   root.BlogCTLSync = {
     init, activate, deactivate, refresh, refreshArticleMatches,
-    appendPlatformMatches, runBulkBinding,
-    isBindingBusy: () => state.bindingMutating || state.bindingLoading || state.matchingPlatforms.size > 0,
+    appendPlatformMatches, selectedTargets, clearMatches,
+    isBindingBusy: () => state.pending.size > 0,
   };
 })(globalThis);
