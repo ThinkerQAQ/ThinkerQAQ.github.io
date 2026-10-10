@@ -51,7 +51,7 @@ var definitions = []Definition{
 	},
 	{
 		ID: "51cto", Label: "51CTO", DefaultLanguage: "zh-CN",
-		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, BodyImages: true, BodyImageRehost: true, Tags: true},
+		Capabilities: Capabilities{BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true, RemoteList: true, BodyImages: true, BodyImageRehost: true, Tags: true},
 	},
 	{
 		ID: "oschina", Label: "开源中国", DefaultLanguage: "zh-CN",
