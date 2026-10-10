@@ -466,7 +466,11 @@
     elements.googleRequestStart.addEventListener("click", startGoogleRequestQueue);
     elements.googleRequestPause.addEventListener("click", pauseGoogleRequestQueue);
     elements.googleRequestResume.addEventListener("click", resumeGoogleRequestQueue);
-    chrome.runtime.onMessage.addListener(onRuntimeMessage);
+    // Extension listens for push events; Web Console has the same Feature
+    // refresh() polling and must not require privileged chrome APIs in page.
+    if (globalThis.chrome?.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(onRuntimeMessage);
+    }
     state.initialized = true;
     render();
   }

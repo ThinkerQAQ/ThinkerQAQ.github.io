@@ -64,7 +64,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("openWorkspace").addEventListener("click", () => {
     const url = "http://127.0.0.1:32145/console/";
     if (BlogCTLTransport.host === "web") return;
-    chrome.tabs.create({ url });
+    if (globalThis.chrome?.tabs?.create) chrome.tabs.create({ url });
+    else window.open(url, "_blank", "noopener");
   });
   document.addEventListener("blogctl:navigate-task", (event) => {
     const jobId = String(event.detail?.jobId || "").trim();
