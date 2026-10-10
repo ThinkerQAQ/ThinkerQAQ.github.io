@@ -21,7 +21,7 @@ BlogCTL 是面向本地文章的多平台发布控制台；**Extension 侧边栏
 
 ### 特别注意的现有行为
 
-- 当前远端列表：博客园、CSDN、思否、知乎、51CTO、开源中国、DEV.to 可列举草稿/已发布；掘金当前能枚举已发布，草稿需已知 ID。
+- 当前远端列表：博客园、掘金、CSDN、思否、知乎、51CTO、开源中国、DEV.to 均可读取草稿/已发布；掘金草稿基于 `article_draft/list_by_user` 并沿用 Browser Session + CSRF，最多自动读取 500 篇。
 - Medium 与今日头条**仅 UI 暂时隐藏**，保留所有适配器及本地历史。
 - `PublicationBinding` 是旧的持久关联模型；新版 `create/update` 任务直接携带显式远端目标快照，不读取旧绑定选择目标。
 - `jobs.json` / `publications.json` / `blogctl.toml` 均留在 Windows `C:\software\Coding\blogctl\Data\`，保持路径和语义。
