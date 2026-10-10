@@ -122,6 +122,9 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 		}
 		switch platform {
 		case "cnblogs":
+			if target.UpdatedAt == "" {
+				return ExplicitResult{}, fmt.Errorf("CNBlogs published article requires a verified remote version; detect it again before updating")
+			}
 			a := adapter.(*cnBlogsAdapter)
 			base, err := a.fetchPost(ctx, target.ID)
 			if err != nil {

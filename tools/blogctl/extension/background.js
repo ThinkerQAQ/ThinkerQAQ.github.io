@@ -985,36 +985,20 @@ async function handleMessage(message) {
       const platform = String(message.platform || "");
       if (!article || !platform) throw new Error("article and platform are required");
       if (platform === "cnblogs") {
-        const current = await fetchJSON(`/v1/cnblogs/binding?article=${article}`);
         await syncPlatformSession("cnblogs");
         const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });
         const candidates = result.candidates ?? [];
-        const bindings = current.bindings ?? [];
-        const items = candidates.map((post) => ({
-          title: String(post.title || "").replace(/<\/?strong>/gi, ""),
-          id: post.id, published: post.published, url: post.published ? (post.url || "") : `https://i.cnblogs.com/posts/edit;postId=${encodeURIComponent(post.id)}`,
-          bound: bindings.some((binding) => binding.postId === post.id),
-          bindingState: bindings.find((binding) => binding.postId === post.id)?.state || "",
-        }));
-        const warnings = [];
-        for (const binding of bindings) {
-          try {
-            const verified = await fetchJSON(`/v1/cnblogs/binding/verify?article=${article}&state=${binding.state}`, { method: "POST" });
-            const post = verified.post;
-            const existing = items.find((item) => item.id === post.id);
-            if (existing) {
-              existing.bound = true;
-              existing.published = post.published;
-              existing.url = post.published ? (post.url || "") : `https://i.cnblogs.com/posts/edit;postId=${encodeURIComponent(post.id)}`;
-              existing.bindingState = binding.state;
-            }
-            else items.unshift({ title: post.title, id: post.id, published: post.published, url: post.published ? (post.url || "") : `https://i.cnblogs.com/posts/edit;postId=${encodeURIComponent(post.id)}`, bound: true, bindingState: binding.state });
-          } catch (error) {
-            warnings.push(`${binding.state === "published" ? "已发布" : "草稿"} ID ${binding.postId} 核验失败：${errorMessage(error)}`);
-            if (!items.some((item) => item.id === binding.postId)) items.unshift({ title: `已绑定 ID ${binding.postId}（核验失败）`, id: binding.postId, published: binding.state === "published", bound: true, bindingState: binding.state, unverified: true });
-          }
-        }
-        return { ok: true, match: { text: `远端找到 ${candidates.length} 篇候选。${warnings.join("；")}`, items, bindings } };
+        return { ok: true, match: {
+          text: `远端找到 ${candidates.length} 篇候选文章，请明确勾选更新目标。`,
+          items: candidates.map((post) => ({
+            title: String(post.title || "").replace(/<\/?strong>/gi, ""),
+            id: post.id,
+            published: post.published,
+            url: post.published ? (post.url || "") :
+              `https://i.cnblogs.com/posts/edit;postId=${encodeURIComponent(post.id)}`,
+            updatedAt: String(post.updatedAt || ""),
+          })),
+        } };
       }
       if (platform === "segmentfault") {
         await syncPlatformSession("segmentfault");
