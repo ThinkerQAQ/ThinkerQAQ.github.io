@@ -32,7 +32,10 @@
     list.className = "settings-category-list";
     const active = !query ? selected : "";
     for (const meta of CATEGORY_META) {
-      if (query && !query.split(/\s+/).every((word) => nodeMetaText(meta).includes(word))) continue;
+      // Index both the category metadata and the already-mounted live
+      // controls. This makes field names searchable, not only category names.
+      const domainText = (nodeMetaText(meta) + " " + (nodes.get(meta.id)?.textContent || "")).toLowerCase();
+      if (query && !query.split(/\s+/).every((word) => domainText.includes(word))) continue;
       if (active && meta.id !== active) continue;
       const row = document.createElement("button");
       row.type = "button";
@@ -54,6 +57,12 @@
         render();
       });
       list.append(row);
+    }
+    if (query && list.childElementCount) {
+      const count = document.createElement("p");
+      count.className = "card-hint";
+      count.textContent = `匹配 ${list.childElementCount} 个设置分类；打开分类后可直接编辑原有配置。`;
+      list.prepend(count);
     }
     if (!list.childElementCount) {
       const empty = document.createElement("p");
