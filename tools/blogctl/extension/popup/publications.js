@@ -41,7 +41,8 @@
   }
 
   function canPublish(record) {
-    return hasDraft(record) && platformProfile(record.platform).capabilities?.explicitPublish === true;
+    return BlogCTLSyncModel.isVisiblePlatform(record.platform) &&
+      hasDraft(record) && platformProfile(record.platform).capabilities?.explicitPublish === true;
   }
 
   function matchesStatus(record, status) {
@@ -253,7 +254,7 @@
 
       const actions = document.createElement("div");
       actions.className = "workflow-status-actions";
-      for (const platform of job.platforms ?? []) {
+      for (const platform of BlogCTLSyncModel.visiblePlatformIDs(job.platforms)) {
         const url = publishedURLFor(platform, job);
         appendActionLink(actions, `查看${labelForPlatform(platform)}文章`, url, true);
       }
@@ -285,7 +286,7 @@
 
       if (state.currentJob.state === "completed") {
         const publications = await BlogCTLPopup.send("blogctl.publications");
-        state.records = publications.records ?? state.records;
+        state.records = BlogCTLSyncModel.visiblePublicationRecords(publications.records ?? state.records);
         state.selectedKeys.clear();
         renderPlatformOptions();
         render();
@@ -305,7 +306,8 @@
   }
 
   async function startPublishRecords(records) {
-    if (!records.length || ["queued", "running"].includes(state.currentJob?.state)) return;
+    if (!records.length || ["queued", "running"].includes(state.currentJob?.state) ||
+        records.some((record) => !BlogCTLSyncModel.isVisiblePlatform(record.platform))) return;
 
     const article = records[0].article;
     if (records.some((record) => record.article !== article)) {
@@ -522,7 +524,8 @@
 
   function prepare(article, platforms) {
     const cleanArticle = String(article || "").trim();
-    const cleanPlatforms = [...new Set((platforms ?? []).map((item) => String(item || "").trim()).filter(Boolean))];
+    const cleanPlatforms = BlogCTLSyncModel.visiblePlatformIDs(
+      [...new Set((platforms ?? []).map((item) => String(item || "").trim()).filter(Boolean))]);
     if (!cleanArticle || !cleanPlatforms.length) return;
 
     state.prepared = { article: cleanArticle, platforms: cleanPlatforms };
@@ -549,9 +552,9 @@
         BlogCTLPopup.send("blogctl.publishing"),
       ]);
 
-      state.records = publications.records ?? [];
+      state.records = BlogCTLSyncModel.visiblePublicationRecords(publications.records ?? []);
       state.articles = articles.articles ?? [];
-      state.platforms = publishing.platforms ?? [];
+      state.platforms = BlogCTLSyncModel.visiblePlatforms(publishing.platforms);
       state.resolvingPending.clear();
 
       const previous = state.prepared?.article || state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
