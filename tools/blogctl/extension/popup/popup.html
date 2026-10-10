@@ -60,8 +60,8 @@
       <section class="status-card">
         <div id="draftModeTitle" class="section-title">更新</div>
         <p id="draftModeHint" class="card-hint">选择文章和远端目标后更新；未选目标不会创建新文章。</p>
-        <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
-        <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
+        <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" list="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
+        <datalist id="draftArticleOptions"></datalist>
         <p id="draftArticleMeta" class="card-hint"></p>
       </section>
 

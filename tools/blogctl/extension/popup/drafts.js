@@ -71,28 +71,16 @@
     // Re-running CREATE still requires a fresh explicit confirmation.
   }
 
-  function articlePickerOpen(open) {
-    articleOptions.hidden=!open;
-    articlePicker.setAttribute("aria-expanded",String(open));
-  }
-
-  function renderArticles() {
-    const query=articlePicker.value.trim().toLowerCase();
-    const list=state.articles.filter((item)=>
-      !query || (item.title+" "+item.slug).toLowerCase().includes(query));
+  // Native <datalist> supplies keyboard selection, popup positioning and
+  // accessibility instead of the former custom, partially ARIA-compliant listbox.
+  function populateArticleOptions() {
     articleOptions.replaceChildren();
-    for(const item of list) {
-      const button=document.createElement("button");
-      button.type="button";
-      button.className="article-option";
-      button.setAttribute("role","option");
-      button.textContent=`${item.title} · ${item.slug}`;
-      if(item.slug===state.selectedSlug) button.classList.add("active");
-      button.addEventListener("click",()=>selectArticle(item));
-      articleOptions.append(button);
+    for (const item of state.articles) {
+      const option = document.createElement("option");
+      option.value = `${item.title} · ${item.slug}`;
+      option.label = item.slug;
+      articleOptions.append(option);
     }
-    if(!list.length)articleOptions.textContent="没有匹配文章";
-    articlePickerOpen(true);
   }
 
   function selectArticle(item) {
@@ -100,7 +88,6 @@
     clearTask();
     state.selectedSlug=item.slug;
     articlePicker.value=`${item.title} · ${item.slug}`;
-    articlePickerOpen(false);
     localStorage.setItem("blogctl.selectedArticle",item.slug);
     articleMeta.textContent=`${item.title} · ${item.slug}`;
     document.dispatchEvent(new CustomEvent("blogctl:article-selected",{
@@ -267,6 +254,7 @@
         BlogCTLPopup.send("blogctl.tools"),
       ]);
       state.articles=articles.articles||[];
+      populateArticleOptions();
       state.status=status.status;
       state.publishing=publishing.platforms||[];
       state.tools=tools.tools||[];
@@ -276,7 +264,6 @@
         state.selectedSlug=found.slug;
         articlePicker.value=`${found.title} · ${found.slug}`;
         articleMeta.textContent=`${found.title} · ${found.slug}`;
-        articlePickerOpen(false);
       } else {
         state.selectedSlug="";
         articleMeta.textContent="";
@@ -321,19 +308,22 @@
     message=document.getElementById("draftsMessage");
     allButton=document.getElementById("selectAllDraftPlatforms");
     invertButton=document.getElementById("invertDraftPlatforms");
-    articlePicker.addEventListener("focus",renderArticles);
-    articlePicker.addEventListener("input",()=>{
-      if(running())return;
-      state.selectedSlug="";
-      document.dispatchEvent(new CustomEvent("blogctl:article-selected",{detail:{article:""}}));
-      renderArticles();
-      renderPlatforms();
-    });
-    articlePicker.addEventListener("keydown",(event)=>{
-      if(event.key==="Escape")articlePickerOpen(false);
-      if(event.key==="Enter"&&articleOptions.querySelector("button")){
-        event.preventDefault();articleOptions.querySelector("button").click();
+    articlePicker.addEventListener("input", () => {
+      if (running()) return;
+      const value = articlePicker.value.trim();
+      const chosen = state.articles.find((item) =>
+        value === `${item.title} · ${item.slug}` || value === item.slug);
+      if (chosen) {
+        selectArticle(chosen);
+        return;
       }
+      clearTask();
+      state.selectedSlug = "";
+      articleMeta.textContent = "";
+      document.dispatchEvent(new CustomEvent("blogctl:article-selected", {
+        detail: { article: "" },
+      }));
+      renderPlatforms();
     });
     allButton.addEventListener("click",()=>selectAll(false));
     invertButton.addEventListener("click",()=>selectAll(true));
