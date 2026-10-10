@@ -57,9 +57,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
   document.getElementById("openWorkspace").addEventListener("click", () => {
-    // An intermediate full-page host of the exact same Extension UI.
-    // Standalone Go /console is a separate phase with Web authorization.
-    chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
+    const url = "http://127.0.0.1:32145/console/";
+    if (BlogCTLTransport.host === "web") return;
+    chrome.tabs.create({ url });
   });
   document.addEventListener("blogctl:navigate-publication", (event) => {
     const article = String(event.detail?.article || "").trim();

@@ -249,6 +249,10 @@ func Shutdown(ctx context.Context, server *http.Server) error {
 }
 
 func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) {
+	if request.URL.Path == "/console" || strings.HasPrefix(request.URL.Path, "/console/") {
+		s.serveConsole(response, request)
+		return
+	}
 	response.Header().Set("content-type", "application/json; charset=utf-8")
 
 	if request.Method == http.MethodOptions {
