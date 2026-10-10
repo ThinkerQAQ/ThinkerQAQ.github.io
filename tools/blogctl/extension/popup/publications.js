@@ -16,7 +16,7 @@
     pollTimer: null,
   };
 
-  let articlePicker, articleOptions, articleMeta, platformSelect, statusSelect, summary, list, publishButton, runStatus, message, selectAllButton, invertButton;
+  let articlePicker, articleOptions, articleMeta, summary, list, publishButton, runStatus, message, selectAllButton, invertButton;
 
   const labelForPlatform = (id) => state.platforms.find((item) => item.id === id)?.label || id;
   const titleForArticle = (slug) => state.articles.find((item) => item.slug === slug)?.title || slug;
@@ -43,14 +43,6 @@
   function canPublish(record) {
     return BlogCTLSyncModel.isVisiblePlatform(record.platform) &&
       hasDraft(record) && platformProfile(record.platform).capabilities?.explicitPublish === true;
-  }
-
-  function matchesStatus(record, status) {
-    if (!status) return true;
-    if (status === "pending") return (record.pendingFields ?? []).length > 0;
-    if (status === "draft") return hasDraft(record);
-    if (status === "published") return hasPublished(record);
-    return true;
   }
 
   function pickedArticle() {
@@ -97,16 +89,7 @@
   }
 
   function filteredRecords() {
-    const article = state.selectedSlug;
-    const platform = platformSelect.value;
-    const status = statusSelect.value;
-
-    return state.records.filter((record) => {
-      if (article && record.article !== article) return false;
-      if (platform && record.platform !== platform) return false;
-      if (!matchesStatus(record, status)) return false;
-      return true;
-    });
+    return state.records.filter((record) => !state.selectedSlug || record.article === state.selectedSlug);
   }
 
   function selectedRecords() {
@@ -288,7 +271,6 @@
         const publications = await BlogCTLPopup.send("blogctl.publications");
         state.records = BlogCTLSyncModel.visiblePublicationRecords(publications.records ?? state.records);
         state.selectedKeys.clear();
-        renderPlatformOptions();
         render();
         renderRunStatus();
         updatePublishButton();
@@ -478,26 +460,6 @@
     }
   }
 
-  function renderPlatformOptions() {
-    const previous = platformSelect.value;
-    platformSelect.replaceChildren();
-
-    const all = document.createElement("option");
-    all.value = "";
-    all.textContent = "全部平台";
-    platformSelect.append(all);
-
-    const ids = [...new Set(state.records.map((record) => record.platform))].sort();
-    for (const id of ids) {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = labelForPlatform(id);
-      platformSelect.append(option);
-    }
-
-    if (ids.includes(previous)) platformSelect.value = previous;
-  }
-
   function applyPrepared() {
     if (!state.prepared) return;
 
@@ -508,12 +470,6 @@
       : state.prepared.article;
     setArticleOptionsOpen(false);
     renderArticleMeta();
-    statusSelect.value = "draft";
-    platformSelect.value = state.prepared.platforms.length === 1 &&
-      [...platformSelect.options].some((option) => option.value === state.prepared.platforms[0])
-      ? state.prepared.platforms[0]
-      : "";
-
     state.selectedKeys.clear();
     for (const platform of state.prepared.platforms) {
       const record = state.records.find((item) =>
@@ -568,7 +524,6 @@
 
       renderArticles();
       if (state.selectedSlug) setArticleOptionsOpen(false);
-      renderPlatformOptions();
       applyPrepared();
       render();
       renderRunStatus();
@@ -588,8 +543,6 @@
     articlePicker = document.getElementById("publicationArticlePicker");
     articleOptions = document.getElementById("publicationArticleOptions");
     articleMeta = document.getElementById("publicationArticleMeta");
-    platformSelect = document.getElementById("publicationPlatform");
-    statusSelect = document.getElementById("publicationStatus");
     summary = document.getElementById("publicationSummary");
     list = document.getElementById("publicationList");
     publishButton = document.getElementById("publishSelected");
@@ -614,8 +567,6 @@
         articleOptions.querySelector("button").click();
       }
     });
-    platformSelect.addEventListener("change", render);
-    statusSelect.addEventListener("change", render);
     publishButton.addEventListener("click", startPublish);
     selectAllButton.addEventListener("click", () => setPublications("all"));
     invertButton.addEventListener("click", () => setPublications("invert"));
