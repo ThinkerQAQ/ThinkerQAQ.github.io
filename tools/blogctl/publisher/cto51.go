@@ -283,17 +283,39 @@ func selectCTO51Category(tags []string, categories []cto51Category) (string, str
 			}
 		}
 	}
-	// The default backend classification must come from the current 51CTO
-	// category catalog; never guess a hard-coded category ID.
+	// 51CTO's live taxonomy uses 后端开发 as a *primary* category. Its
+	// secondary categories include 架构, Java, Go语言 and Python; there is
+	// no secondary category literally named 后端. Resolve a real child ID
+	// from the catalog instead of guessing any numeric IDs.
 	for _, parent := range categories {
-		for _, child := range parent.Item {
-			switch normalizeCTO51CategoryName(child.Name) {
-			case "后端", "后端开发", "backend":
-				return parent.ID, child.ID, child.Name, nil
+		switch normalizeCTO51CategoryName(parent.Name) {
+		case "后端", "后端开发", "backend":
+		default:
+			continue
+		}
+		for _, fallback := range []string{"架构", "java", "go语言", "python"} {
+			for _, child := range parent.Item {
+				if normalizeCTO51CategoryName(child.Name) == fallback &&
+					strings.TrimSpace(parent.ID) != "" && strings.TrimSpace(child.ID) != "" {
+					return parent.ID, child.ID, child.Name, nil
+				}
 			}
 		}
 	}
-	return "", "", "", fmt.Errorf("none of the article tags match a 51CTO secondary category and backend fallback is unavailable")
+	return "", "", "", fmt.Errorf("51CTO category catalog has no usable 后端开发 secondary category (架构/Java/Go语言/Python)")
+}
+
+// When no existing article tag matches the selected 51CTO secondary category,
+// keep the user's requested generic 后端 tag. A secondary *category* ID is
+// supplied independently in cate_id and must come from the live catalog.
+func cto51ResolvedTags(tags []string, secondaryCategory string) []string {
+	normalized := normalizeCTO51Tags(tags)
+	for _, tag := range normalized {
+		if cto51CategoryMatches(tag, secondaryCategory) {
+			return normalized
+		}
+	}
+	return []string{"后端"}
 }
 
 func selectCTO51UserCategory(title string, tags []string, categories []cto51UserCategory) (string, string) {
@@ -387,23 +409,7 @@ func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input Draf
 	values.Set("pid", parentID)
 	values.Set("cate_id", categoryID)
 	values.Set("custom_id", customID)
-	tags := normalizeCTO51Tags(input.Tags)
-	backendCategory := normalizeCTO51CategoryName(selectedCategory)
-	if backendCategory == "后端" || backendCategory == "后端开发" || backendCategory == "backend" {
-		matched := false
-		for _, tag := range tags {
-			if cto51CategoryMatches(tag, selectedCategory) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			tags = []string{"后端"}
-		}
-	}
-	if len(tags) == 0 {
-		tags = []string{"后端"}
-	}
+	tags := cto51ResolvedTags(input.Tags, selectedCategory)
 	values.Set("tag", strings.Join(tags, ","))
 	operation := "create-draft"
 	if refID != "" {
@@ -509,23 +515,7 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values.Set("pid", parentID)
 	values.Set("cate_id", categoryID)
 	values.Set("custom_id", customID)
-	tags := normalizeCTO51Tags(input.Tags)
-	backendCategory := normalizeCTO51CategoryName(selectedCategory)
-	if backendCategory == "后端" || backendCategory == "后端开发" || backendCategory == "backend" {
-		matched := false
-		for _, tag := range tags {
-			if cto51CategoryMatches(tag, selectedCategory) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			tags = []string{"后端"}
-		}
-	}
-	if len(tags) == 0 {
-		tags = []string{"后端"}
-	}
+	tags := cto51ResolvedTags(input.Tags, selectedCategory)
 	values.Set("tag", strings.Join(tags, ","))
 	slog.InfoContext(ctx, "51CTO publish tags prepared",
 		"node", "51cto-adapter", "operation", "publish-draft", "result", "success",
