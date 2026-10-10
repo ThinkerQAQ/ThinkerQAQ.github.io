@@ -5,7 +5,7 @@
 (function (root) {
   const state = {
     initialized: false, active: false, article: "", matches: {},
-    selected: new Map(), pending: new Set(), serial: 0,
+    selected: new Map(), pending: new Set(), generation: 0,
   };
   let detectButton, message;
 
@@ -28,41 +28,61 @@
   function clearMatches() {
     state.matches = {};
     state.selected.clear();
-    ++state.serial;
+    ++state.generation;
     state.pending.clear();
     render();
   }
 
-  async function refreshArticleMatches(platformIDs = root.BlogCTLDrafts?.selectedPlatformIDs?.() ?? []) {
+  // The same bounded discovery cadence as Create (3 workers).
+  // A generation belongs to the selected local article, not the individual
+  // platform. A per-platform refresh never cancels another platform's result.
+  async function refreshArticleMatches(
+    platformIDs = root.BlogCTLDrafts?.selectedPlatformIDs?.() ?? [],
+    { force = true } = {}
+  ) {
+    if (!state.active || !state.article) return;
     const article = state.article;
-    const platforms = BlogCTLSyncModel.visiblePlatformIDs([...new Set(platformIDs)]).filter(Boolean);
-    if (!article || !platforms.length) {
-      BlogCTLPopup.setMessage(message, "先选择本地文章和至少一个平台。", "error");
-      return;
-    }
-    // Explicit selections expire on detection/identity changes. A new scan
-    // cannot silently reuse an earlier target ID.
+    const generation = state.generation;
+    const platforms = BlogCTLSyncModel.visiblePlatformIDs([...new Set(platformIDs)])
+      .filter((id) => !state.pending.has(id) && (force || !state.matches[id]));
+    if (!platforms.length) return;
     for (const platform of platforms) {
-      state.matches[platform] = { text: "正在检测文章关联…", items: [] };
-      for (const key of state.selected.keys()) if (key.startsWith(platform + ":")) state.selected.delete(key);
+      state.matches[platform] = { text: "正在检测远端关联…", items: [] };
+      if (force) {
+        for (const key of state.selected.keys()) {
+          if (key.startsWith(platform + ":")) state.selected.delete(key);
+        }
+      }
       state.pending.add(platform);
     }
-    const serial = ++state.serial;
     render();
-    const results = await Promise.all(platforms.map(async (platform) => {
-      try {
-        const data = await BlogCTLPopup.send("blogctl.article.match", { article, platform });
-        return [platform, data.match || { text: "无候选文章", items: [] }];
-      } catch (error) {
-        return [platform, { text: "检测失败：" + BlogCTLPopup.errorMessage(error), items: [], failed: true }];
+    const workerCount = Math.min(3, platforms.length);
+    await Promise.all(Array.from({ length: workerCount }, async (_, worker) => {
+      for (let index = worker; index < platforms.length; index += workerCount) {
+        const platform = platforms[index];
+        let match;
+        try {
+          const data = await BlogCTLPopup.send("blogctl.article.match", { article, platform });
+          match = data.match || { text: "未找到相关远端文章", items: [] };
+        } catch (error) {
+          match = {
+            text: "检测失败：" + BlogCTLPopup.errorMessage(error),
+            items: [], failed: true,
+          };
+        }
+        // A change of article/mode invalidates every old response. Never
+        // resurrect stale post IDs into a newly selected article's UI.
+        if (!state.active || generation !== state.generation || article !== state.article) return;
+        state.matches[platform] = match;
+        state.pending.delete(platform);
+        render();
       }
     }));
-    if (serial !== state.serial || article !== state.article) return;
-    for (const [platform, match] of results) {
-      state.matches[platform] = match;
-      state.pending.delete(platform);
-    }
-    render();
+  }
+
+  function ensureMatches(platformIDs = root.BlogCTLDrafts?.selectedPlatformIDs?.() ?? []) {
+    if (!state.active || !state.article) return;
+    return refreshArticleMatches(platformIDs, { force: false });
   }
 
   function availableForUpdate(platform, item) {
@@ -276,10 +296,15 @@
     refreshToolbar();
   }
 
-  function deactivate() { state.active = false; }
+  function deactivate() {
+    state.active = false;
+    // A pending response from a hidden Update panel is obsolete.
+    ++state.generation;
+    state.pending.clear();
+  }
   function refresh() { refreshToolbar(); }
   root.BlogCTLSync = {
-    init, activate, deactivate, refresh, refreshArticleMatches,
+    init, activate, deactivate, refresh, refreshArticleMatches, ensureMatches,
     appendPlatformMatches, selectedTargets, clearMatches,
     isBindingBusy: () => state.pending.size > 0,
   };
