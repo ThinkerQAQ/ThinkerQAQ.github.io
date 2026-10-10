@@ -58,27 +58,37 @@
         item.append(detail);
       }
 
-      if (row.state === "completed") {
-        if (job.operation === "publish" && row.url) {
-          const article = document.createElement("a");
-          article.className = "task-publication-link";
-          article.href = row.url;
-          article.target = "_blank";
-          article.rel = "noreferrer noopener";
-          article.textContent = "查看文章";
-          item.append(article);
-        } else if (job.operation !== "publish") {
-          const publication = document.createElement("button");
-          publication.type = "button";
-          publication.className = "task-publication-link";
-          publication.textContent = "进入发布";
-          publication.addEventListener("click", () => {
-            document.dispatchEvent(new CustomEvent("blogctl:navigate-publication", {
-              detail: { article: job.article, platform: row.id },
+      const artifacts = BlogCTLSyncModel.taskArtifactLinks(job, row.id);
+      for (const artifact of artifacts) {
+        const actions = document.createElement("div");
+        actions.className = "task-artifact-actions";
+        const link = document.createElement("a");
+        link.className = "task-publication-link";
+        link.href = artifact.url;
+        link.target = "_blank";
+        link.rel = "noreferrer noopener";
+        link.textContent = artifact.label;
+        if (artifact.id) link.title = "远端 ID " + artifact.id;
+        actions.append(link);
+        // Publication is now part of Update rather than a standalone tab.
+        // The button only pre-selects this specific draft; user confirms the
+        // actual update/publish operation from the Update workspace.
+        if (artifact.state === "draft" && artifact.id && job.article &&
+            job.kind !== "search" && BlogCTLSyncModel.isVisiblePlatform(row.id)) {
+          const publish = document.createElement("button");
+          publish.type = "button";
+          publish.className = "task-publication-link";
+          publish.textContent = "前往更新并发布";
+          publish.title = "在更新页选中此草稿，确认后再执行发布";
+          publish.addEventListener("click", () => {
+            document.dispatchEvent(new CustomEvent("blogctl:navigate-update-target", {
+              detail: { article: job.article, platform: row.id,
+                id: artifact.id, url: artifact.url, state: "draft" },
             }));
           });
-          item.append(publication);
+          actions.append(publish);
         }
+        item.append(actions);
       }
 
       container.append(item);
@@ -199,7 +209,7 @@
       if (actions.childElementCount) card.append(actions);
       return;
     }
-    if (job.state !== "failed" || job.operation === "publish") return;
+    if (job.state !== "failed" || !job.canRetry) return;
     const actions = document.createElement("div");
     actions.className = "task-actions";
     let retry;
@@ -269,7 +279,10 @@
         finished ? `结束 ${finished}` : "",
         job.kind === "search"
           ? (job.type || "索引")
-          : job.operation === "publish" ? "发布" : job.operation === "update-published" ? "更新" : job.operation ? "保存" : "",
+          : job.operation === "publish" ? "发布"
+            : job.operation === "create" ? "创建"
+            : ["update", "update-published"].includes(job.operation) ? "更新"
+            : job.operation ? "保存" : "",
         job.id ? `ID ${job.id}` : "",
       ].filter(Boolean).join(" · ");
       card.append(meta);

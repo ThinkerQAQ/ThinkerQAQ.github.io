@@ -196,6 +196,40 @@
     return editor ? { label: "编辑草稿", url: editor } : null;
   }
 
+  // Task events retain every remote write, unlike a per-platform summary
+  // (which has only one URL and can be cleared by a terminal state event).
+  // Reuse the same verified editor/public URL policy as Detection/Update.
+  function taskArtifactLinks(job, platformID) {
+    const completedKinds = new Set([
+      "draft-created", "draft-updated", "published", "published-updated",
+    ]);
+    const byRemote = new Map();
+    for (const event of job?.events ?? []) {
+      if (event?.platform !== platformID || !completedKinds.has(event.result)) continue;
+      const isPublished = event.result === "published" || event.result === "published-updated";
+      const target = { id: String(event.targetId || ""), url: event.url || "", published: isPublished };
+      const link = articleMatchLink(platformID, target);
+      if (!link) continue;
+      const identity = target.id || link.url;
+      byRemote.set(identity, {
+        ...link, id: target.id, state: isPublished ? "published" : "draft",
+      });
+    }
+    // Earlier tasks might only have a per-platform URL.
+    if (!byRemote.size) {
+      const result = job?.results?.[platformID];
+      if (result?.url && result.state === "completed") {
+        const published = ["published", "published-updated"].includes(result.result) ||
+          job.operation === "publish";
+        const link = articleMatchLink(platformID, {
+          id: String(result.targetId || ""), url: result.url, published,
+        });
+        if (link) byRemote.set(link.url, { ...link, id: "", state: published ? "published" : "draft" });
+      }
+    }
+    return [...byRemote.values()];
+  }
+
   root.BlogCTLSyncModel = {
     deliveryToolAvailability,
     isVisiblePlatform,
@@ -203,6 +237,7 @@
     visiblePlatformIDs,
     visiblePublicationRecords,
     articleMatchLink,
+    taskArtifactLinks,
     platformRows,
     statePresentation,
     platformAvailability,

@@ -536,3 +536,21 @@ input, select { min-height: 42px; font-size: 13px; }
   box-shadow: 0 6px 18px rgba(15, 23, 42, .16);
   pointer-events: none;
 }
+
+.task-artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 3px;
+}
+.task-artifact-actions .task-publication-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  font-size: 12px;
+  text-decoration: none;
+}
+.task-artifact-actions .task-publication-link:hover {
+  text-decoration: underline;
+}
