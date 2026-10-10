@@ -1,3 +1,16 @@
+# BlogCTL v0.1.137 (local experimental build)
+
+- Replace top tabs with IDFlow/Desktop Commander-inspired left navigation, common to Extension and Web Console.
+- Navigation order: Detection, Creation, Update, Index, Tasks, Logs, Settings. At very small widths use icon-only navigation.
+- Index has a platform selector for IndexNow, Baidu and Google; each shows its own actions and status. Shared URL source is collapsible.
+- Replace custom log lines with pinned CodeMirror 6 read-only virtualized viewer, line numbers, search and severity styling. Keep log filtering and controls.
+- Review: docs/architecture/component-reuse-review-20261010.md.
+- DevTool CodeGraph/Serena, Go and existing Extension tests passed; Data unchanged. Medium/Toutiao remain UI-hidden.
+
+Local branch build under PR #177; not a public stable release.
+
+---
+
 # BlogCTL v0.1.136 (local UI review candidate)
 
 - Keep all seven navigation tabs on a single row; narrow Side Panels use
