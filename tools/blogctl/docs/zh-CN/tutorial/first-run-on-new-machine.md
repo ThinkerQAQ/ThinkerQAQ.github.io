@@ -28,7 +28,7 @@ go run ./tools/blogctl/cmd doctor
 
 `doctor` 会检查 Node、npm、Git 及当前操作系统。出现缺失项时先补齐依赖。
 
-**版本要求：** 界面语言切换需要 BlogCTL v0.1.148 或更新版本。使用旧版本时不会显示语言选择器；升级后还需重新加载浏览器扩展。
+**版本要求：** 界面语言切换需要 BlogCTL v0.1.149 或更新版本。使用旧版本时不会显示语言选择器；升级后还需重新加载浏览器扩展。
 
 ## 3. 先把博客运行起来
 
@@ -72,7 +72,7 @@ Linux/macOS 可执行 `curl http://127.0.0.1:32145/v1/health`。返回 `"ok": tr
 
 ## 5. 切换中英文界面
 
-右上角选择 **Auto / 中文 / EN**。Auto 跟随浏览器语言；手动选择后，Bridge 会将 `ui_locale` 保存至 `blogctl.toml`。这是界面语言，不会改变文章内容语言。
+进入 **Settings（设置）→ 界面与语言**，选择 **跟随浏览器 / 简体中文 / English**。Auto 跟随浏览器语言；手动选择后，Bridge 会将 `ui_locale` 保存至 `blogctl.toml`。这是界面语言，不会改变文章内容语言。
 
 ![真实运行的 BlogCTL 英文检测界面](../../assets/01-detect-en.webp)
 

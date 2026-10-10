@@ -2,6 +2,14 @@
 // Catalog uses existing Chinese UI labels as stable source keys. i18next is
 // bundled locally for MV3 CSP and reused by Extension + Go-hosted Web Console.
 globalThis.BlogCTLEnMessages = Object.freeze({
+  "界面与语言": "Interface & language",
+  "语言偏好与界面显示": "Language preference and display",
+  "界面语言": "Interface language",
+  "跟随浏览器": "Follow browser language",
+  "简体中文": "Simplified Chinese",
+  "修改后自动保存到 blogctl.toml，仅影响界面，不改变文章语言。": "Changes are saved automatically to blogctl.toml. Article language is unchanged.",
+  "界面语言已保存。": "Interface language saved.",
+  "保存失败，请检查 Bridge 连接。": "Could not save. Check the Bridge connection.",
   "创建": "Create",
   "中文": "Chinese", "任务": "Tasks", "保存": "Save", "候选": "Candidates",
   "全部": "All", "全选": "Select all", "删除": "Delete", "刷新": "Refresh",
