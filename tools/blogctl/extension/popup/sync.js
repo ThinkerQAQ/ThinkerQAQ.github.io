@@ -391,6 +391,7 @@
     for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
       const card = document.createElement("div");
       card.className = "platform-choice-card";
+      card.dataset.associationPlatform = platform.id;
       card.append(renderPlatformHeader(platform, article));
 
       const availability = platformAvailability(article, platform);
@@ -703,6 +704,18 @@
     invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
     bindSelectedButton.addEventListener("click", () => runBulkBinding("bind"));
     unbindSelectedButton.addEventListener("click", () => runBulkBinding("unbind"));
+    document.addEventListener("blogctl:detect-association", async (event) => {
+      const platformID = String(event.detail?.platform || "");
+      const article = String(event.detail?.article || "");
+      if (!state.active || state.selectedSlug !== article ||
+          !BlogCTLSyncModel.isVisiblePlatform(platformID)) return;
+      state.selectedPlatformIDs.add(platformID);
+      renderPlatforms();
+      await refreshArticleMatches([platformID]);
+      const area = document.getElementById("syncPlatforms");
+      area?.querySelector(`[data-association-platform="${platformID}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
     document.addEventListener("blogctl:article-selected", (event) => {
       const article = String(event.detail?.article || "").trim();
       if (article === state.selectedSlug) return;

@@ -291,6 +291,21 @@
         republish.addEventListener("click", () => startPublishedUpdate(platform.id));
         actions.append(republish);
       }
+      if (!record?.remoteId && !record?.publishedRemoteId &&
+          platform.capabilities?.remoteList === true) {
+        const detect = document.createElement("button");
+        detect.type = "button";
+        detect.className = "secondary compact";
+        detect.textContent = "检测关联";
+        detect.disabled = !state.selectedSlug || running || state.bindingMutating ||
+          !state.status?.bridge?.running;
+        detect.addEventListener("click", () => {
+          document.dispatchEvent(new CustomEvent("blogctl:detect-association", {
+            detail: { article: state.selectedSlug, platform: platform.id },
+          }));
+        });
+        actions.append(detect);
+      }
       wrapper.append(actions);
       appendBindingRows(wrapper, platform.id, record, running);
 
@@ -592,6 +607,9 @@
     articlePicker.addEventListener("input", () => {
       resetWorkflow();
       state.selectedSlug = "";
+      document.dispatchEvent(new CustomEvent("blogctl:article-selected", {
+        detail: { article: "" },
+      }));
       renderArticles();
       renderPlatforms();
     });
