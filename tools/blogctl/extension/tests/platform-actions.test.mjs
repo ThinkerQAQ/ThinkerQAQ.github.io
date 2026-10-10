@@ -30,7 +30,7 @@ test("publish keeps a searchable article list and filters records by the selecte
 
   assert.match(html, /id="publicationArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
   assert.match(publications, /setArticleOptionsOpen\(true\)/u);
-  assert.match(publications, /record\.article !== state\.selectedSlug/u);
+  assert.match(publications, /record\.article === state\.selectedSlug/u);
 });
 
 test("each platform exposes an isolated detection or update action", async () => {
