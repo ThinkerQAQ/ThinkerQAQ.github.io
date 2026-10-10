@@ -283,7 +283,17 @@ func selectCTO51Category(tags []string, categories []cto51Category) (string, str
 			}
 		}
 	}
-	return "", "", "", fmt.Errorf("none of the article tags match a 51CTO secondary category")
+	// The default backend classification must come from the current 51CTO
+	// category catalog; never guess a hard-coded category ID.
+	for _, parent := range categories {
+		for _, child := range parent.Item {
+			switch normalizeCTO51CategoryName(child.Name) {
+			case "后端", "后端开发", "backend":
+				return parent.ID, child.ID, child.Name, nil
+			}
+		}
+	}
+	return "", "", "", fmt.Errorf("none of the article tags match a 51CTO secondary category and backend fallback is unavailable")
 }
 
 func selectCTO51UserCategory(title string, tags []string, categories []cto51UserCategory) (string, string) {
@@ -378,6 +388,9 @@ func (c *cto51Adapter) draftFields(ctx context.Context, refID string, input Draf
 	values.Set("cate_id", categoryID)
 	values.Set("custom_id", customID)
 	tags := normalizeCTO51Tags(input.Tags)
+	if len(tags) == 0 {
+		tags = []string{"后端"}
+	}
 	values.Set("tag", strings.Join(tags, ","))
 	operation := "create-draft"
 	if refID != "" {

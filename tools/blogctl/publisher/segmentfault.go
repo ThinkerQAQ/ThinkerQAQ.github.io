@@ -289,8 +289,20 @@ func (s *segmentFaultAdapter) resolveTagIDs(ctx context.Context, token string, n
 		resolved = append(resolved, id)
 	}
 	if len(resolved) == 0 {
-		return nil, platformError(ErrValidation, s.ID(), "resolve-tags", response.StatusCode,
-			"none of the article tags are supported by SegmentFault: "+strings.Join(unresolved, ", "), false)
+		// SegmentFault requires catalog tag IDs. Prefer a real backend tag
+		// returned by its own taxonomy, not a fabricated numeric ID.
+		for _, fallback := range []string{"后端", "backend", "后端开发"} {
+			if id, ok := available[fallback]; ok {
+				resolved = append(resolved, id)
+				slog.InfoContext(ctx, "SegmentFault using backend tag fallback",
+					"operation", "resolve-tags", "fallback", fallback, "requestedCount", len(requested))
+				break
+			}
+		}
+		if len(resolved) == 0 {
+			return nil, platformError(ErrValidation, s.ID(), "resolve-tags", response.StatusCode,
+				"none of the article tags are supported and backend fallback is unavailable: "+strings.Join(unresolved, ", "), false)
+		}
 	}
 	result := "success"
 	if len(unresolved) > 0 {
