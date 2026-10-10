@@ -443,3 +443,24 @@ input, select { min-height: 42px; font-size: 13px; }
   .tabs { display: flex; overflow-x: hidden; overflow-y: auto; scroll-snap-type: none; }
   .tabs .tab { scroll-snap-align: none; }
 }
+
+
+/* IndexNow / Baidu / GSC share the same top-level selector and card geometry. */
+.index-engine-selector { gap: 10px; }
+.index-engine-selector .field { max-width: 420px; }
+[data-index-engine][hidden] { display: none !important; }
+.index-source-details { display: block; }
+.index-source-details > summary {
+  cursor: pointer;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 0;
+}
+.index-source-details .index-source-body {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+[data-index-engine] .index-action-row,
+[data-index-engine] .index-subcard { margin-top: 4px; }

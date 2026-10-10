@@ -133,7 +133,22 @@
 
 
     <section class="panel" role="tabpanel" data-panel="indexing">
-      <section class="status-card">
+      <section class="status-card index-engine-selector">
+        <div class="section-title">搜索引擎</div>
+        <p class="card-hint">选择引擎后查看对应的索引状态、统计和操作。</p>
+        <label class="field"><span>平台</span>
+          <select id="indexEngineFilter">
+            <option value="indexnow">IndexNow</option>
+            <option value="baidu">百度</option>
+            <option value="google">Google Search Console</option>
+            <option value="all">全部引擎</option>
+          </select>
+        </label>
+      </section>
+
+      <details class="status-card index-source-details">
+        <summary>URL 来源与总量</summary>
+        <div class="index-source-body">
         <div class="status-row">
           <div>
             <div class="section-title">URL 来源</div>
@@ -146,9 +161,10 @@
           <div><span>内容指纹</span><strong id="indexInventoryFingerprintCoverage">-</strong></div>
           <div><span>最后刷新</span><strong id="indexInventoryFetchedAt">-</strong></div>
         </div>
-      </section>
+        </div>
+      </details>
 
-      <section class="status-card">
+      <section class="status-card" data-index-engine="indexnow">
         <div class="status-row">
           <div>
             <div class="section-title">IndexNow</div>
@@ -172,7 +188,7 @@
         </div>
       </section>
 
-      <section class="status-card">
+      <section class="status-card" data-index-engine="baidu">
         <div class="status-row">
           <div>
             <div class="section-title">Baidu Search Resource</div>
@@ -196,7 +212,7 @@
         </div>
       </section>
 
-      <section class="status-card">
+      <section class="status-card" data-index-engine="google">
         <div class="status-row">
           <div>
             <div class="section-title">Google Search Console</div>

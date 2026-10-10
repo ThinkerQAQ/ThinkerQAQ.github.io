@@ -455,6 +455,25 @@
       message: el("indexingMessage"),
     };
 
+    // The three search engines share one selector and one presentation
+    // contract. Filtering is purely visual; background jobs keep running.
+    const engineFilter = el("indexEngineFilter");
+    const engineCards = [...document.querySelectorAll(
+      '[data-panel="indexing"] [data-index-engine]'
+    )];
+    const knownEngines = new Set(["indexnow", "baidu", "google", "all"]);
+    const stored = localStorage.getItem("blogctl.indexEngine");
+    engineFilter.value = knownEngines.has(stored) ? stored : "indexnow";
+    const applyEngineFilter = () => {
+      const active = engineFilter.value;
+      for (const card of engineCards) {
+        card.hidden = active !== "all" && card.dataset.indexEngine !== active;
+      }
+      localStorage.setItem("blogctl.indexEngine", active);
+    };
+    engineFilter.addEventListener("change", applyEngineFilter);
+    applyEngineFilter();
+
     elements.refreshInventory.addEventListener("click", refreshInventory);
     elements.indexNowSubmitIncremental.addEventListener("click", () => submitIndexNow("incremental"));
     elements.indexNowSubmitFull.addEventListener("click", () => submitIndexNow("full"));
