@@ -968,6 +968,15 @@ async function handleMessage(message) {
       }));
       return { ok: true, pendingFields: result?.pendingFields ?? [] };
     }
+    case "blogctl.remote.inventory": {
+      const platform = String(message.platform || "").trim();
+      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto"].includes(platform)) {
+        throw new Error("不支持的平台");
+      }
+      if (platform !== "devto") await syncPlatformSession(platform);
+      const query = new URLSearchParams({ platform });
+      return await fetchJSON(`/v1/remote/inventory?${query.toString()}`, { method: "POST" });
+    }
     case "blogctl.article.match": {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");

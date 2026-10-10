@@ -263,6 +263,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
+	if path == "v1/remote/inventory" && request.Method == http.MethodPost {
+		s.handleRemoteInventory(response, request)
+		return
+	}
 	if path == "v1/cnblogs/binding" && request.Method == http.MethodGet {
 		s.handleCNBlogsBindingGet(response, request, request.URL.Query().Get("article"))
 		return
