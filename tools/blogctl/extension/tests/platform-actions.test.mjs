@@ -4,10 +4,10 @@ import test from "node:test";
 
 const source = async (path) => readFile(new URL("../" + path, import.meta.url), "utf8");
 
-test("only Detection, Creation, Update, Tasks, Logs, Index and Settings are navigable", async () => {
+test("navigation follows Detection, Creation, Update, Index, Tasks, Logs, Settings", async () => {
   const html = await source("popup/popup.html");
   const tabs = [...html.matchAll(/data-tab="([^"]+)"/gu)].map((item) => item[1]);
-  assert.deepEqual(tabs, ["binding","creation","drafts","tasks","logs","indexing","environment"]);
+  assert.deepEqual(tabs, ["binding","creation","drafts","indexing","tasks","logs","environment"]);
   assert.doesNotMatch(html, /data-panel="publications"/u);
   assert.doesNotMatch(html, /id="publishSelected"/u);
   assert.match(html, /id="publishAfterSave"/u);
