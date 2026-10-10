@@ -1,3 +1,28 @@
+# BlogCTL v0.1.128 (local experimental build)
+
+- Rework the Detection tab into an **account-scoped remote inventory**,
+  separating expandable remote drafts and published articles per platform.
+  No local article must be selected to inspect a platform's inventory.
+- Keep the existing article-association candidate matching, manual binding,
+  and state-specific unbinding in the **Update** workflow. Unbound platform
+  cards now expose a direct “检测关联” action, opening the association section.
+- Remove redundant published-record platform/status selectors; Publish remains
+  scoped to the selected local article and selectable platform cards.
+- Add a bounded read-only Bridge inventory endpoint using established
+  platform list APIs. Juejin currently enumerates published articles; drafts
+  require known IDs and display this limitation instead of false results.
+- For SegmentFault and 51CTO, fall back to the platform's own backend tag
+  or secondary category ID when no input tag matches. Never invent platform
+  tag/category IDs; unavailable fallback still reports a validation error.
+- Preserve all existing bindings and data. Medium and Toutiao remain hidden
+  at the UI layer, with their underlying adapters retained.
+- DevTool CodeGraph/Serena and existing Go + 29 Extension tests pass.
+  No new tests by user preference.
+
+Local experimental branch build from PR #177; not a stable public release.
+
+---
+
 # BlogCTL v0.1.127 (local experimental build)
 
 - In the Update panel, display the existing binding state and remote ID for
