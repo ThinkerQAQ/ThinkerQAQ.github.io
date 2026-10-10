@@ -1046,9 +1046,14 @@ main {
   align-items: center;
   gap: 0.125rem;
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   line-height: 1.2;
-  opacity: 0.82;
+  opacity: 0.65;
+}
+
+.footer-registration:hover,
+.footer-registration:focus-within {
+  opacity: 1;
 }
 
 .footer-registration a {
@@ -1056,19 +1061,20 @@ main {
   align-items: center;
   gap: 0.28rem;
   color: inherit;
-  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-decoration: none;
   text-underline-offset: 0.14em;
 }
 
 .footer-registration a:hover,
 .footer-registration a:focus-visible {
+  text-decoration: underline;
   text-decoration-color: currentColor;
 }
 
 .footer-registration img {
   display: block;
   flex: none;
-  width: 14px;
+  width: 12px;
   height: auto;
 }
 
