@@ -8,16 +8,16 @@
 
 ## Quick Start
 
-需要 Node.js 22+、npm、Go 1.27.1。
+快速预览需要 Node.js 22+、npm、Go 1.27.1。完整图表渲染还需要 Java、Graphviz 和 Chromium，见 [Quick Start](docs/quick-start.md)。
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
 cd ThinkerQAQ.github.io
 npm ci
-npm run dev
+npm run dev:quick
 ```
 
-访问 [http://localhost:4321](http://localhost:4321)。使用仓库自带的 fixtures，不需要生产内容仓库。详细步骤见 [Quick Start](docs/quick-start.md)。
+访问 [http://localhost:4321](http://localhost:4321)。使用仓库自带的 fixtures，无需图表预渲染和生产内容仓库。完整图表渲染使用 `npm run dev`。详细步骤见 [Quick Start](docs/quick-start.md)。
 
 ## For AI Agents
 

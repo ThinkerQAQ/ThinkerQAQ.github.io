@@ -8,16 +8,16 @@ An Astro-based bilingual technical blog engine with a separate canonical content
 
 ## Quick Start
 
-Requirements: Node.js 22+, npm, and Go 1.27.1 (see [requirements and validation](docs/quick-start.md)).
+Requirements for fast preview: Node.js 22+, npm, and Go 1.27.1. Full diagram builds also require Java, Graphviz and a headless Chromium runtime; see [Quick Start](docs/quick-start.md).
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
 cd ThinkerQAQ.github.io
 npm ci
-npm run dev
+npm run dev:quick
 ```
 
-Open [http://localhost:4321](http://localhost:4321). This runs with the checked-in fixtures; production content is **not** required. Continue with the [complete Quick Start](docs/quick-start.md).
+Open [http://localhost:4321](http://localhost:4321). This runs with checked-in fixtures without the diagram pre-rendering step; production content is **not** required. For full rendering use `npm run dev` after installing diagram tool dependencies. Continue with the [complete Quick Start](docs/quick-start.md).
 
 ## For AI Agents
 

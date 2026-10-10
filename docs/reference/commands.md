@@ -5,7 +5,8 @@
 | Command | Actual operation |
 | --- | --- |
 | `npm ci` | Install exact Node dependencies from lockfile |
-| `npm run dev` | Assemble fixture content, then diagrams and Astro dev server |
+| `npm run dev:quick` | Assemble fixtures and launch Astro without diagram pre-rendering (minimal new-user path) |
+| `npm run dev` | Assemble fixture content, then diagrams and Astro dev server (requires Java/Graphviz/Chromium) |
 | `npm run dev:site` | Render diagrams and start Astro at port 4321, without reassembling content |
 | `npm run assemble:fixtures` | Go BlogCTL `site assemble --content-root fixtures` |
 | `npm run check` | `astro check` |

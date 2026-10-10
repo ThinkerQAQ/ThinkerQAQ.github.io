@@ -20,7 +20,7 @@ cd ThinkerQAQ.github.io
 npm ci
 ```
 
-Ensure Node.js 22+, Go 1.27.1 and Git are installed.
+Ensure Node.js 22+, Go 1.27.1 and Git are installed. The full diagram renderer also requires Java 17+, Graphviz and headless Chromium; the minimal Astro preview below does not render diagrams.
 
 ## 3. Assemble canonical content
 
@@ -33,10 +33,10 @@ BlogCTL reads the sibling source and assembles the engine's `src/content/` tree.
 ## 4. Run and inspect
 
 ```bash
-npm run dev:site
+npx --no-install astro dev --port 4321
 ```
 
-Open [http://localhost:4321](http://localhost:4321) and check the article, note and project routes. `dev:site` does not overwrite the previously assembled content.
+Open [http://localhost:4321](http://localhost:4321) and check the article, note and project routes. For a full diagram-enabled preview use `npm run dev:site` once its Java/Graphviz/Chromium dependencies are installed. Do **not** use `dev:quick` here, because it deliberately reassembles the fixtures.
 
 ## 5. Edit and verify
 
@@ -47,7 +47,7 @@ npm run check
 npm run build
 ```
 
-The `build` script calls the Go CLI site-build path; check `dist/` for the static output.
+The `build` script calls the Go CLI site-build path and requires the full diagram build dependencies. Check `dist/` for the static output.
 
 ## 6. Continue
 

@@ -30,7 +30,8 @@
     "test": "npm run test:engine && npm run assemble:fixtures && npm run check && npm run build",
     "covers:social": "node scripts/render-cover-social.mjs",
     "build:astro": "node scripts/clean-dist.mjs && npm run diagrams && npm run covers:social && astro build",
-    "test:docs": "node scripts/check-doc-links.mjs"
+    "test:docs": "node scripts/check-doc-links.mjs",
+    "dev:quick": "npm run assemble:fixtures && astro dev --port 4321"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",

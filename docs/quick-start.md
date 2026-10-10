@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-Node.js 22+ with npm, Go 1.27.1, and Git. Those versions correspond to `.github/workflows/deploy.yml` and `go.work`.
+Fast preview requires Node.js 22+ with npm, Go 1.27.1 and Git. Full diagram rendering additionally requires Java 17+, Graphviz (`dot`) and a working headless Chromium/Mermaid CLI setup, as seen in `.github/workflows/deploy.yml`.
 
 ## Bootstrap and run
 
@@ -12,10 +12,10 @@ Node.js 22+ with npm, Go 1.27.1, and Git. Those versions correspond to `.github/
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
 cd ThinkerQAQ.github.io
 npm ci
-npm run dev
+npm run dev:quick
 ```
 
-`npm run dev` first calls `assemble:fixtures` (the Go BlogCTL site-assembly command), then runs `dev:site` (diagrams and Astro dev server). Open [http://localhost:4321](http://localhost:4321) and open the sample article.
+`npm run dev:quick` assembles the fixture content and launches the real Astro server **without static diagram pre-rendering**. Open [http://localhost:4321](http://localhost:4321) and inspect the sample article. Diagram previews may be absent in this minimal mode. For complete diagrams, install Java 17+, Graphviz and the Mermaid/Chromium runtime, then run `npm run dev`.
 
 ## Validate
 
@@ -31,7 +31,7 @@ This runs `astro check`. To run all public-engine tests and a production-style f
 npm run test
 ```
 
-That path may require the extra diagram/browser tooling configured in CI; it is not required to see the first page.
+That path requires the extra diagram/browser tooling configured in CI; it is not required to see the first page. Check `java -version` and `dot -V` if full rendering fails.
 
 ## Success
 

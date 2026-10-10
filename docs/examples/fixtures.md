@@ -8,7 +8,7 @@
 
 ```bash
 npm ci
-npm run dev
+npm run dev:quick
 ```
 
 Open [http://localhost:4321](http://localhost:4321). For validation:
@@ -17,6 +17,6 @@ Open [http://localhost:4321](http://localhost:4321). For validation:
 npm run build:fixtures
 ```
 
-**Capabilities:** BlogCTL Go assembly, Astro collections, static diagram processing, Pagefind as part of the build.
+**Capabilities:** fast preview uses BlogCTL Go assembly and Astro collections. The optional full build also runs static diagram processing and Pagefind and requires Java/Graphviz and headless Chromium.
 
 **Why this arrangement:** fixtures belong to the engine test boundary. Real canonical content is stored separately; tests must not require production secrets. Source code is in [fixtures](../../fixtures/) and [package.json](../../package.json).
