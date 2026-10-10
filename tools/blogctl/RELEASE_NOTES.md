@@ -1,3 +1,16 @@
+# BlogCTL v0.1.121 (local experimental build)
+
+- Fix CNBlogs draft links to open the **creator editor** at
+  `https://i.cnblogs.com/posts/edit;postId=<id>`, not an article preview.
+- Apply to new/updated drafts, binding candidates, and locally recorded draft
+  links at read time (without rewriting existing Data).
+- Keep published CNBlogs article URLs unchanged.
+- No other platform behavior changes.
+
+Local branch build for PR #177; not a public release.
+
+---
+
 # BlogCTL v0.1.120 (local experimental build)
 
 - Keep platform publishing concurrent and independently fail-safe.
