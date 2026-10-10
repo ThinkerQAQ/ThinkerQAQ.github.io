@@ -1,3 +1,15 @@
+# BlogCTL v0.1.130 (local experimental build)
+
+- Remove redundant per-platform draft/published counts and per-platform
+  Refresh buttons from Detection remote inventory cards.
+- Keep the platform heading and article rows; the common top-level summary,
+  Platform/Status selectors and Refresh action remain unchanged.
+- Preserve remote inventory requests and all Data.
+
+Local build from PR #177; not a public release.
+
+---
+
 # BlogCTL v0.1.129 (local experimental build)
 
 - Align the Detection page with the Publish page's two-selector layout:
