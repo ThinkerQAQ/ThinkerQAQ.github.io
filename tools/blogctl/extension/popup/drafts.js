@@ -130,8 +130,6 @@
       const status=document.createElement("strong");
       BlogCTLPopup.setStatus(status,permission.available?"ok":"disabled",
         permission.available?"可操作":permission.reason);
-      header.append(check,description,status);
-      card.append(header);
       const actions=document.createElement("div");
       actions.className="platform-card-actions";
       if(state.mode==="create"){
@@ -157,7 +155,8 @@
         });
         actions.append(detect);
       }
-      card.append(actions);
+      header.append(check, description, actions, status);
+      card.append(header);
       if(state.mode==="update")root.BlogCTLSync?.appendPlatformMatches?.(platform,card);
       const result=state.currentJob?.results?.[platform.id];
       if(result){
@@ -361,6 +360,7 @@
     init,activate,deactivate,refresh,setMode,
     selectedPlatformIDs,
     isJobRunning:running,
+    selectedArticleTitle:()=>article()?.title || "",
     selectionChanged:updateAction,
     updateTargets:(targets,publishAfter=false)=>{
       for (const target of targets) state.selectedPlatformIDs.add(target.platform);

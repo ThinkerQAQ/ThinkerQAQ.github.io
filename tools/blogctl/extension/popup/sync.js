@@ -76,13 +76,50 @@
     return platform.capabilities?.draftCreate === true;
   }
 
+  // Emphasize title fragments shared with the selected local article.
+  // Use DOM text nodes and <mark>, never HTML received from a platform.
+  function appendHighlightedTitle(container, remoteTitle) {
+    const text = String(remoteTitle || "(无标题)");
+    const localTitle = String(root.BlogCTLDrafts?.selectedArticleTitle?.() || "");
+    const tokens = [...new Set(
+      localTitle.split(/[^\p{L}\p{N}]+/u).filter((part) => [...part].length >= 2)
+    )].sort((a, b) => b.length - a.length);
+    if (!tokens.length) {
+      container.textContent = text;
+      return;
+    }
+    const folded = text.toLocaleLowerCase();
+    let cursor = 0;
+    while (cursor < text.length) {
+      let matchEnd = -1;
+      for (const token of tokens) {
+        const from = folded.indexOf(token.toLocaleLowerCase(), cursor);
+        if (from === cursor && (matchEnd < cursor || token.length > matchEnd - cursor)) {
+          matchEnd = cursor + token.length;
+        }
+      }
+      if (matchEnd > cursor) {
+        const mark = document.createElement("mark");
+        mark.textContent = text.slice(cursor, matchEnd);
+        container.append(mark);
+        cursor = matchEnd;
+      } else {
+        const next = tokens.map((token) => folded.indexOf(token.toLocaleLowerCase(), cursor + 1))
+          .filter((position) => position >= 0);
+        const end = next.length ? Math.min(...next) : text.length;
+        container.append(document.createTextNode(text.slice(cursor, end)));
+        cursor = end;
+      }
+    }
+  }
+
   function appendPlatformMatches(platform, container) {
     if (!state.article || !state.matches[platform.id]) return;
     const match = state.matches[platform.id];
     const section = document.createElement("div");
     section.className = "article-match";
     const summary = document.createElement("p");
-    summary.className = "card-hint";
+    summary.className = "article-match-summary";
     summary.textContent = match.text || "检测完成";
     section.append(summary);
 
@@ -104,22 +141,34 @@
       box.dataset.platform = platform.id;
       box.dataset.postId = target.id;
       box.checked = state.selected.has(key);
+      row.classList.toggle("is-selected", box.checked);
       box.disabled = !availableForUpdate(platform, item) ||
         root.BlogCTLDrafts?.isJobRunning?.();
+      box.title = box.disabled ? "此状态暂不支持安全更新" : "选择此文章作为更新目标";
       box.addEventListener("change", () => {
         if (box.checked) state.selected.set(key, target);
         else state.selected.delete(key);
+        row.classList.toggle("is-selected", box.checked);
         root.BlogCTLDrafts?.selectionChanged?.();
       });
+      const identity = document.createElement("span");
+      identity.className = "article-match-identity";
       const title = document.createElement("span");
       title.className = "article-match-choice-text";
-      title.textContent = [
-        item.title || "(无标题)",
-        item.published ? "已发布" : "草稿",
-        "ID " + item.id,
-      ].join(" · ");
-      check.append(box, title);
+      appendHighlightedTitle(title, item.title);
+      const metadata = document.createElement("span");
+      metadata.className = "article-match-meta";
+      const stateLabel = document.createElement("span");
+      stateLabel.className = item.published ? "article-match-state is-published" : "article-match-state is-draft";
+      stateLabel.textContent = item.published ? "已发布" : "草稿";
+      const idLabel = document.createElement("span");
+      idLabel.textContent = "ID " + item.id;
+      metadata.append(stateLabel, idLabel);
+      identity.append(title, metadata);
+      check.append(box, identity);
       row.append(check);
+      const actions = document.createElement("div");
+      actions.className = "article-match-actions";
       const link = BlogCTLSyncModel.articleMatchLink(platform.id, item);
       if (link) {
         const anchor = document.createElement("a");
@@ -127,7 +176,7 @@
         anchor.textContent = link.label;
         anchor.rel = "noopener noreferrer";
         anchor.target = "_blank";
-        row.append(anchor);
+        actions.append(anchor);
       }
       if (availableForUpdate(platform, item)) {
         const action = document.createElement("button");
@@ -137,12 +186,13 @@
         action.disabled = root.BlogCTLDrafts?.isJobRunning?.();
         action.addEventListener("click", () =>
           root.BlogCTLDrafts?.updateTargets?.([target], false));
-        row.append(action);
+        actions.append(action);
       }
+      row.append(actions);
       section.append(row);
     }
 
-    // Useful for providers whose drafts cannot be enumerated, e.g. Juejin.
+    // Optional manual lookup remains for older remote records outside the list limit.
     // The ID is still verified by the server-side adapter when updating.
     const manual = document.createElement("details");
     const head = document.createElement("summary");
