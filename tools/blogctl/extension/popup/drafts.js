@@ -357,34 +357,8 @@
     state.pollTimer=null;
   }
 
-  async function focusRemoteTarget(articleSlug, target) {
-    if (running()) {
-      BlogCTLPopup.setMessage(message, "有任务正在运行，暂时不能切换更新目标。", "error");
-      return false;
-    }
-    if (!state.articles.length) await refresh();
-    const selected = state.articles.find((item) => item.slug === articleSlug);
-    if (!selected) {
-      BlogCTLPopup.setMessage(message, "任务关联的本地文章已不存在，无法直接跳转更新。", "error");
-      return false;
-    }
-    selectArticle(selected);
-    state.selectedPlatformIDs = new Set([target.platform]);
-    BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
-    if (!root.BlogCTLSync?.selectTarget?.(target)) {
-      BlogCTLPopup.setMessage(message, "任务里的远端草稿 ID 无效，无法直接更新。", "error");
-      return false;
-    }
-    renderPlatforms();
-    BlogCTLPopup.setMessage(message,
-      "已选择任务对应的远端草稿。可点击「更新并发布」；提交前会再次确认。", "ok");
-    platformList.querySelector('[data-platform-card="' + target.platform + '"]')
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    return true;
-  }
-
   root.BlogCTLDrafts={
-    init,activate,deactivate,refresh,setMode,focusRemoteTarget,
+    init,activate,deactivate,refresh,setMode,
     selectedPlatformIDs,
     isJobRunning:running,
     selectionChanged:updateAction,

@@ -70,15 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (globalThis.chrome?.tabs?.create) chrome.tabs.create({ url });
     else window.open(url, "_blank", "noopener");
   });
-  document.addEventListener("blogctl:navigate-update-target", async (event) => {
-    const { article, platform, id, url, state } = event.detail || {};
-    if (!article || !platform || !id || state !== "draft") return;
-    activateTab("drafts");
-    await BlogCTLDrafts.focusRemoteTarget(String(article), {
-      platform: String(platform), id: String(id),
-      url: String(url || ""), state: "draft",
-    });
-  });
   document.addEventListener("blogctl:navigate-task", (event) => {
     const jobId = String(event.detail?.jobId || "").trim();
     if (!jobId) return;

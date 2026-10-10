@@ -33,20 +33,6 @@
     render();
   }
 
-  function selectTarget(target) {
-    if (!target?.platform || !/^[A-Za-z0-9_-]{1,100}$/.test(target.id || "") ||
-        target.state !== "draft") return false;
-    state.pending.clear();
-    state.matches[target.platform] ||= { text: "已从任务记录中选择远端草稿。", items: [] };
-    state.selected.set(target.platform + ":" + target.id, {
-      platform: target.platform, id: target.id, state: "draft",
-      url: String(target.url || ""),
-    });
-    render();
-    root.BlogCTLDrafts?.selectionChanged?.();
-    return true;
-  }
-
   async function refreshArticleMatches(platformIDs = root.BlogCTLDrafts?.selectedPlatformIDs?.() ?? []) {
     const article = state.article;
     const platforms = BlogCTLSyncModel.visiblePlatformIDs([...new Set(platformIDs)]).filter(Boolean);
@@ -244,7 +230,7 @@
   function refresh() { refreshToolbar(); }
   root.BlogCTLSync = {
     init, activate, deactivate, refresh, refreshArticleMatches,
-    appendPlatformMatches, selectedTargets, clearMatches, selectTarget,
+    appendPlatformMatches, selectedTargets, clearMatches,
     isBindingBusy: () => state.pending.size > 0,
   };
 })(globalThis);

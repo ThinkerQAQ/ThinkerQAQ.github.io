@@ -1313,7 +1313,7 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		Publishing:       config.Publishing,
 		ToolPaths:        config.ToolPaths,
 	}
-	if request.Operation == "create" || request.Operation == "update" {
+	if request.Operation == "create" || request.Operation == "update" || request.Operation == "publish-draft" {
 		return s.runExplicitSync(ctx, config, request, onEvent)
 	}
 	if request.Operation == "update-published" {

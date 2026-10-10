@@ -31,6 +31,40 @@
     return BlogCTLSyncModel.platformRows(job, state.status);
   }
 
+  async function publishExistingDraft(job, platform, artifact, button) {
+    if (!job.article || !artifact.id || artifact.state !== "draft") return;
+    if (!root.confirm(
+      `确定发布「${job.article}」在 ${platform.label || platform.id} 的草稿（ID ${artifact.id}）？\n\n将直接调用该平台的发布接口，不再创建草稿，也不进入更新页。`
+    )) return;
+    button.disabled = true;
+    BlogCTLPopup.setMessage(message, "正在启动草稿发布任务…");
+    try {
+      const response = await BlogCTLPopup.send("blogctl.job.start", {
+        request: {
+          article: job.article,
+          platforms: [platform.id],
+          operation: "publish-draft",
+          targets: [{
+            platform: platform.id,
+            id: artifact.id,
+            url: artifact.url,
+            state: "draft",
+          }],
+          dryRun: false,
+        },
+      });
+      if (!response.job?.id) throw new Error("发布任务没有返回任务 ID");
+      state.ui.setJobExpanded(response.job.id, true);
+      BlogCTLPopup.setMessage(message, "已创建发布任务；请在任务页查看发布结果。", "ok");
+      await refresh();
+      focusJob(response.job.id);
+    } catch (error) {
+      BlogCTLPopup.setMessage(message,
+        "发布任务启动失败：" + BlogCTLPopup.errorMessage(error), "error");
+      button.disabled = false;
+    }
+  }
+
   function renderPlatformResults(job, card) {
     const rows = platformRows(job);
     if (!rows.length) return;
@@ -70,22 +104,20 @@
         link.textContent = artifact.label;
         if (artifact.id) link.title = "远端 ID " + artifact.id;
         actions.append(link);
-        // Publication is now part of Update rather than a standalone tab.
-        // The button only pre-selects this specific draft; user confirms the
-        // actual update/publish operation from the Update workspace.
+        // Publish an already-created remote draft directly; editing is a
+        // separate link. This shares the same backend PublishDraft capability
+        // used by Create-and-Publish and Update-and-Publish.
         if (artifact.state === "draft" && artifact.id && job.article &&
-            job.kind !== "search" && BlogCTLSyncModel.isVisiblePlatform(row.id)) {
+            job.kind !== "search" && !job.dryRun &&
+            BlogCTLSyncModel.isVisiblePlatform(row.id) &&
+            row.capabilities?.explicitPublish === true) {
           const publish = document.createElement("button");
           publish.type = "button";
           publish.className = "task-publication-link";
-          publish.textContent = "前往更新并发布";
-          publish.title = "在更新页选中此草稿，确认后再执行发布";
-          publish.addEventListener("click", () => {
-            document.dispatchEvent(new CustomEvent("blogctl:navigate-update-target", {
-              detail: { article: job.article, platform: row.id,
-                id: artifact.id, url: artifact.url, state: "draft" },
-            }));
-          });
+          publish.textContent = "发布草稿";
+          publish.title = "直接发布这个远端草稿，不需要先更新";
+          publish.addEventListener("click", () =>
+            publishExistingDraft(job, row, artifact, publish));
           actions.append(publish);
         }
         item.append(actions);
@@ -281,6 +313,7 @@
           ? (job.type || "索引")
           : job.operation === "publish" ? "发布"
             : job.operation === "create" ? "创建"
+            : job.operation === "publish-draft" ? "发布草稿"
             : ["update", "update-published"].includes(job.operation) ? "更新"
             : job.operation ? "保存" : "",
         job.id ? `ID ${job.id}` : "",
