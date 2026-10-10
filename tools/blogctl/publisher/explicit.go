@@ -29,6 +29,9 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 	if platform == "medium" || platform == "toutiao" {
 		return ExplicitResult{}, fmt.Errorf("%s is temporarily disabled", platform)
 	}
+	// A local source publication flag must never implicitly publish a new
+	// remote draft. Only the explicit publishAfter action can do that.
+	input.Published = false
 	adapter, err := s.authenticatedAdapter(ctx, platform, session)
 	if err != nil {
 		return ExplicitResult{}, err
