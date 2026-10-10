@@ -1,3 +1,22 @@
+# BlogCTL v0.1.139 (local UI candidate)
+
+- Use a cohesive slate/blue palette for navigation selection, primary
+  actions, secondary controls, hover states, and focus outlines; reserve
+  green/red status indicators for operational meaning.
+- Keep Settings directly below Logs in the left navigation by removing the
+  forced sidebar min-height and auto-pushed bottom margin.
+- Replace text-only Open Workspace / Refresh header controls with matching
+  inline outline SVG icon buttons, accessible names, hover/focus tooltips,
+  and native title fallback.
+- Harmonize the seven navigation icons with consistent stroke-based symbols.
+- Extension and Go Web Console use the exact same markup/styles, without
+  introducing a new UI dependency or changing business actions.
+- DevTool code verify, Go full regression and Extension tests pass.
+
+Local experimental branch under PR #177; not a public stable release.
+
+---
+
 # BlogCTL v0.1.138 (local experimental build)
 
 - Preserve strict Content-Security-Policy while allowing CodeMirror 6 to
