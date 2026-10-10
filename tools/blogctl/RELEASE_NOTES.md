@@ -1,3 +1,24 @@
+# BlogCTL v0.1.131 (local experimental build)
+
+- Merge the duplicated Update platform lists into one platform card per
+  platform, with shared selection for association detection and updating.
+- Toolbar: select all, invert, detect selected platforms. Candidate articles
+  appear inline inside their platform cards, with direct verified bind/unbind
+  actions and separate checkboxes for batch bind/unbind.
+- Preserve single-platform update and bottom batch update. Distinguish a
+  platform selected for detection from its ability to save drafts; a read-only
+  platform remains detectable but is excluded from write operations.
+- Keep platform-level failure independence. Block overlapping binding
+  mutations and draft-update jobs on the same selected article.
+- Preserve existing account-wide Detection inventory tab and Publish page,
+  underlying adapters and all Data. Medium and Toutiao remain UI-hidden.
+- DevTool code intelligence, Go and existing Extension regressions pass;
+  no new test files were introduced.
+
+Local branch build from PR #177, not a stable public release.
+
+---
+
 # BlogCTL v0.1.130 (local experimental build)
 
 - Remove redundant per-platform draft/published counts and per-platform
