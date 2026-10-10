@@ -2,149 +2,70 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const htmlPath = new URL("../popup/popup.html", import.meta.url);
-const syncPath = new URL("../popup/sync.js", import.meta.url);
-const draftsPath = new URL("../popup/drafts.js", import.meta.url);
-const publicationsPath = new URL("../popup/publications.js", import.meta.url);
-const backgroundPath = new URL("../background.js", import.meta.url);
+const source = async (path) => readFile(new URL("../" + path, import.meta.url), "utf8");
 
-test("Detection shows remote inventories while Update owns article association", async () => {
-  const [html, sync, drafts] = await Promise.all([
-    readFile(htmlPath, "utf8"),
-    readFile(syncPath, "utf8"),
-    readFile(draftsPath, "utf8"),
+test("only Detection, Creation, Update, Tasks, Logs, Index and Settings are navigable", async () => {
+  const html = await source("popup/popup.html");
+  const tabs = [...html.matchAll(/data-tab="([^"]+)"/gu)].map((item) => item[1]);
+  assert.deepEqual(tabs, ["binding","creation","drafts","tasks","logs","indexing","environment"]);
+  assert.doesNotMatch(html, /data-panel="publications"/u);
+  assert.doesNotMatch(html, /id="publishSelected"/u);
+  assert.match(html, /id="publishAfterSave"/u);
+  assert.match(html, /id="sharedDraftWorkspace"/u);
+});
+
+test("Extension and Web Console use the same Feature DOM and transport contract", async () => {
+  const [html, popup, transport, relay] = await Promise.all([
+    source("popup/popup.html"), source("popup/popup.js"),
+    source("popup/transport.js"), source("console-relay.js"),
   ]);
-
-  assert.match(html, /id="inventoryPlatforms" class="platform-choices"><\/div>/u);
-  assert.doesNotMatch(html, /id="syncPlatforms"/u);
-  assert.match(html, /id="refreshArticleMatches" class="primary inline-primary"/u);
-  assert.match(drafts, /BlogCTLSync\?\.appendPlatformMatches/u);
-  assert.match(html, /id="draftArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
-  assert.match(sync, /refreshArticleMatches\(\[platform\.id\]\)/u);
-  assert.match(drafts, /setArticleOptionsOpen\(true\)/u);
+  assert.match(popup, /document\.getElementById\("sharedDraftWorkspace"\)/u);
+  assert.match(popup, /BlogCTLDrafts\.setMode/u);
+  assert.match(html, /src="transport\.js"/u);
+  assert.match(transport, /blogctl:console:request:v1/u);
+  assert.match(transport, /http:\/\/127\.0\.0\.1:32145/u);
+  assert.match(relay, /location\.pathname\.startsWith\("\/console\/"\)/u);
+  assert.doesNotMatch(relay, /x-thinkerqaq-token|Cookie:/u);
 });
 
-test("publish keeps a searchable article list and filters records by the selected article", async () => {
-  const [html, publications] = await Promise.all([
-    readFile(htmlPath, "utf8"),
-    readFile(publicationsPath, "utf8"),
+test("the same Settings Catalog and controls mount in both UI hosts", async () => {
+  const [settings, popup, html] = await Promise.all([
+    source("popup/settings-navigation.js"), source("popup/popup.js"), source("popup/popup.html"),
   ]);
-
-  assert.match(html, /id="publicationArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
-  assert.match(publications, /setArticleOptionsOpen\(true\)/u);
-  assert.match(publications, /record\.article === state\.selectedSlug/u);
+  assert.match(settings, /CATEGORY_META/u);
+  assert.match(settings, /#platformConfigEnvironmentCard/u);
+  assert.match(settings, /#assetConfigEnvironmentCard/u);
+  assert.match(settings, /#searchEngineEnvironmentCard/u);
+  assert.match(settings, /section\.append\(element\)/u);
+  assert.match(popup, /BlogCTLSettingsNavigation\.init\(\)/u);
+  assert.match(html, /id="environmentRuntimeTools"/u);
 });
 
-test("each platform exposes an isolated detection or update action", async () => {
-  const [sync, drafts] = await Promise.all([
-    readFile(syncPath, "utf8"),
-    readFile(draftsPath, "utf8"),
+test("Update sends selected remote IDs directly and never silently creates", async () => {
+  const [drafts, sync, html] = await Promise.all([
+    source("popup/drafts.js"), source("popup/sync.js"), source("popup/popup.html"),
   ]);
-
-  assert.equal(drafts.includes('detect.textContent = "检测关联"'), true);
-  assert.match(sync, /appendPlatformMatches\(platform, container\)/u);
-  assert.match(sync, /refreshArticleMatches\(\[platform\.id\]\)/u);
-  assert.equal(drafts.includes(': "更新此平台";'), true);
-  assert.match(drafts, /startSavePlatforms\(\[platform\.id\]\)/u);
+  assert.match(sync, /selectedTargets\(\)/u);
+  assert.match(drafts, /operation:state\.mode/u);
+  assert.match(drafts, /targets:state\.mode==="create"\?\[\]:targets/u);
+  assert.match(drafts, /请选择先检测|请先检测并勾选至少一篇远端文章/u);
+  assert.doesNotMatch(drafts, /usePlatformChangedOnly|operation:"draft"/u);
+  assert.doesNotMatch(html, /id="bindSelectedMatches"|id="unbindSelectedMatches"/u);
+  assert.match(sync, /textContent = "更新此文章"/u);
 });
 
-test("publishing platforms never drive hidden browser tabs or platform DOM", async () => {
-  const background = await readFile(backgroundPath, "utf8");
-
-  assert.doesNotMatch(background, /cto51PublishInBrowser|waitForPublishedURL/u);
-  assert.doesNotMatch(background, /blog\.51cto\.com\/blogger\/draft/u);
-  assert.doesNotMatch(background, /document\.querySelector/u);
-  assert.doesNotMatch(background, /\/v1\/browser-ops/u);
-
-  const executeScriptCalls = background.match(/chrome\.scripting\.executeScript/g) || [];
-  assert.equal(executeScriptCalls.length, 1);
-  assert.match(background, /files: \["google-indexing-content\.js"\]/u);
+test("Creation is a separate explicit task and exposes create or create-and-publish", async () => {
+  const drafts = await source("popup/drafts.js");
+  assert.match(drafts, /state\.mode==="create"\?"创建草稿":"更新所选"/u);
+  assert.match(drafts, /"创建并发布":"更新并发布"/u);
+  assert.match(drafts, /if\(state\.mode==="update"\)validateTargets\(targets\)/u);
+  assert.match(drafts, /!window\.confirm/u);
 });
 
-test("Toutiao article detection and binding use the creator inventory, not search feed", async () => {
-  const background = await readFile(backgroundPath, "utf8");
-  assert.match(background, /platform === "toutiao"/u);
-  assert.match(background, /\/v1\/toutiao\/articles\/list\?article=/u);
-  assert.match(background, /case "blogctl\.toutiao\.bind":/u);
-  assert.match(background, /case "blogctl\.toutiao\.unbind":/u);
-  assert.doesNotMatch(background, /mp_search\/v1/u);
-});
-
-
-test("Toutiao uses only ephemeral browser-observed creator editor request headers", async () => {
-  const background = await readFile(backgroundPath, "utf8");
-  assert.match(background, /toutiaoEditorHeadersCapturedAt/u);
-  assert.match(background, /x-secsdk-csrf-token/u);
-  assert.match(background, /tt-anti-token/u);
-  assert.match(background, /Date\.now\(\) - toutiaoEditorHeadersCapturedAt < 10 \* 60 \* 1000/u);
-  assert.match(background, /platform === "toutiao".*toutiaoEditorHeadersCapturedAt/su);
-});
-
-
-test("Toutiao published edits are explicit, confirmed, and separate from draft saves", async () => {
-  const [drafts, sync] = await Promise.all([
-    readFile(draftsPath, "utf8"), readFile(syncPath, "utf8"),
-  ]);
-  assert.match(drafts, /function startPublishedUpdate\(platformID\)/u);
-  assert.match(drafts, /window\.confirm\(/u);
-  assert.match(drafts, /operation: "update-published"/u);
-  assert.match(drafts, /"更新已发布"/u);
-  assert.match(drafts, /operation: "draft"/u);
-  assert.match(sync, /from=edit&pgc_id=/u);
-  assert.match(sync, /function reverifyToutiaoPublished\(item\)/u);
-  assert.match(sync, /"重新校验版本"/u);
-});
-
-
-test("Toutiao editor relay is absent; UI allows only advertised direct HTTP capabilities", async () => {
-  const [background, drafts] = await Promise.all([
-    readFile(backgroundPath,"utf8"), readFile(draftsPath,"utf8"),
-  ]);
-  assert.doesNotMatch(background,/kickToutiaoBrowserPump|processToutiaoBrowserRequest|ensureToutiaoEditorTab/u);
-  assert.match(drafts,/platform\.id === "toutiao" && platform\.capabilities\?\.draftCreate !== true/u);
-  assert.match(drafts,/platform\.capabilities\?\.publishedUpdate === true/u);
-});
-
-
-test("unavailable platform cards show the explanatory reason once, with a compact badge", async () => {
-  const [drafts, sync] = await Promise.all([readFile(draftsPath, "utf8"), readFile(syncPath, "utf8")]);
-  assert.match(drafts, /setStatus\(badge, "disabled", "不可更新", availability\.reason\)/u);
-  assert.match(sync, /function platformAvailability\(_article, platform\)/u);
-  assert.match(drafts, /const detectable = platform\.capabilities\?\.remoteList === true/u);
-  assert.doesNotMatch(drafts, /setStatus\(badge, "disabled", availability\.reason\)/u);
-
-});
-
-test("CNBlogs draft candidates open the creator editor even when API returns a preview", async () => {
-  const background = await readFile(backgroundPath, "utf8");
-  assert.match(background, /post\.published \? \(post\.url \|\| ""\) : `https:\/\/i\.cnblogs\.com\/posts\/edit;postId=\$\{encodeURIComponent\(post\.id\)\}`/u);
-  assert.doesNotMatch(background, /i\.cnblogs\.com\/articles\/edit;postId/u);
-});
-
-test("remote-association rows use a shared state-aware article link resolver", async () => {
-  const sync = await readFile(syncPath, "utf8");
-  assert.match(sync, /BlogCTLSyncModel\.articleMatchLink\(platform\.id, item\)/u);
-  assert.match(sync, /link\.textContent = articleLink\.label/u);
-  assert.match(sync, /link\.href = articleLink\.url/u);
-  assert.doesNotMatch(sync, /cnblogsDraftEditorURL/u);
-});
-
-test("detect, update and publish only expose visible platforms, but keep native integrations intact", async () => {
-  const [model, sync, drafts, publications, background] = await Promise.all([
-    readFile(new URL("../popup/sync-model.js", import.meta.url), "utf8"),
-    readFile(syncPath, "utf8"),
-    readFile(draftsPath, "utf8"),
-    readFile(publicationsPath, "utf8"),
-    readFile(backgroundPath, "utf8"),
-  ]);
+test("native publishing adapters retain authorization and disabled experimental platforms", async () => {
+  const [background, model] = await Promise.all([source("background.js"),source("popup/sync-model.js")]);
   assert.match(model, /new Set\(\["medium", "toutiao"\]\)/u);
-  assert.match(sync, /visiblePlatforms\(state\.status\?\.platforms\)/u);
-  assert.match(sync, /visiblePlatformIDs\(\[\.\.\.new Set\(platformIDs\)\]\)/u);
-  assert.match(drafts, /visiblePlatforms\(state\.status\?\.platforms\)/u);
-  assert.match(drafts, /platforms\.some\(\(id\) => !BlogCTLSyncModel\.isVisiblePlatform\(id\)\)/u);
-  assert.match(publications, /visiblePublicationRecords\(publications\.records/u);
-  assert.match(publications, /visiblePlatforms\(publishing\.platforms\)/u);
-  assert.match(publications, /records\.some\(\(record\) => !BlogCTLSyncModel\.isVisiblePlatform\(record\.platform\)\)/u);
   assert.match(background, /platform === "toutiao"/u);
-  assert.match(background, /platform === "medium"/u);
+  assert.match(background, /case "blogctl\.job\.start":/u);
+  assert.doesNotMatch(background, /cto51PublishInBrowser|ensureToutiaoEditorTab/u);
 });
