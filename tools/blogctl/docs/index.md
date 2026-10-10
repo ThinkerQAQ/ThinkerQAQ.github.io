@@ -1,6 +1,6 @@
 # BlogCTL Documentation
 
-BlogCTL is a product within the [ThinkerQAQ blog engine](../../../../README.md). This directory covers **BlogCTL behavior**; site rendering, content schema, deployment and website configuration belong to the [engine docs](../../../../docs/index.md).
+BlogCTL is a product within the [ThinkerQAQ blog engine](../../../README.md). This directory covers **BlogCTL behavior**; site rendering, content schema, deployment and website configuration belong to the [engine docs](../../../docs/index.md).
 
 | Goal | Start here |
 | --- | --- |

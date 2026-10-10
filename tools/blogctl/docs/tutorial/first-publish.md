@@ -4,7 +4,7 @@
 
 ## 1. Prepare content
 
-Follow the engine [first-site tutorial](../../../../../docs/tutorial/first-site.md) to obtain a `ThinkerQAQ.github.io/` engine checkout beside `blog-content/`. Start with a **sample article** in the content repository.
+Follow the engine [first-site tutorial](../../../../docs/tutorial/first-site.md) to obtain a `ThinkerQAQ.github.io/` engine checkout beside `blog-content/`. Start with a **sample article** in the content repository.
 
 ## 2. Connect the control plane
 

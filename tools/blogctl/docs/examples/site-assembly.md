@@ -2,7 +2,7 @@
 
 **Goal:** build a working blog site from the public content template.
 
-**Inputs:** sibling `ThinkerQAQ.github.io/` and `blog-content/`, cloned as in [engine tutorial](../../../../../docs/tutorial/first-site.md).
+**Inputs:** sibling `ThinkerQAQ.github.io/` and `blog-content/`, cloned as in [engine tutorial](../../../../docs/tutorial/first-site.md).
 
 From the **engine** directory:
 

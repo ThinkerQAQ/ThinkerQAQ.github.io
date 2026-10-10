@@ -12,6 +12,7 @@
 | `npm run build` | Go BlogCTL `build` |
 | `npm run build:fixtures` | Assemble fixtures then build |
 | `npm run test` | Engine tests + fixture assembly + check + build |
+| `npm run test:docs` | Validate internal Markdown links via the existing remark parser |
 | `npm run test:engine` | Public boundary/content, diagrams, extension, Worker and UI checks |
 | `npm run diagrams` | Execute `scripts/render-diagrams.mjs` |
 | `npm run preview` | `astro preview --port 4321` (requires a build) |
