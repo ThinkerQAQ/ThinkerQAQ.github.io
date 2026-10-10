@@ -54,8 +54,11 @@ textarea { min-height: 100px; resize: vertical; } input:disabled, select:disable
 .status.ok { color: #166534; } .status.ok::before { background: #22c55e; } .status.error { color: #991b1b; } .status.error::before { background: #ef4444; }
 .status.unknown { color: #92400e; } .status.unknown::before { background: #f59e0b; } .status.disabled, .status.checking { color: #6b7280; } .status.disabled::before, .status.checking::before { background: #9ca3af; }
 button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button:disabled { cursor: not-allowed; opacity: 0.5; }
-.primary { width: 100%; padding: 10px 12px; background: #111827; color: #fff; font-weight: 700; } .inline-primary { width: auto; min-width: 96px; }
-.secondary { padding: 7px 10px; background: #e5e7eb; color: #374151; font-size: 12px; } .compact { flex: 0 0 auto; } .full-width { width: 100%; }
+.primary { width: 100%; padding: 10px 12px; background: var(--ui-primary); color: #fff; font-weight: 700; }
+.primary:hover:not(:disabled) { background: var(--ui-primary-hover); }
+.inline-primary { width: auto; min-width: 96px; }
+.secondary { padding: 7px 10px; background: #f1f5f9; color: #475569; font-size: 12px; }
+.secondary:hover:not(:disabled) { background: #e2e8f0; } .compact { flex: 0 0 auto; } .full-width { width: 100%; }
 .button-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .message { min-height: 18px; margin: 4px 0 10px; font-size: 12px; line-height: 1.45; } .message.ok { color: #166534; } .message.error { color: #991b1b; }
 .platform-access-config { display: grid; gap: 8px; }
@@ -175,12 +178,15 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 /* Shared BlogCTL design system. Both the extension host and Web Console
    import this file, so their controls and interactions remain identical. */
 :root {
-  --ui-background: #f6f7f9;
+  --ui-background: #f8fafc;
   --ui-surface: #fff;
-  --ui-primary: #111827;
-  --ui-text: #111827;
+  --ui-primary: #2563eb;
+  --ui-primary-hover: #1d4ed8;
+  --ui-accent-subtle: #eff6ff;
+  --ui-accent-border: #bfdbfe;
+  --ui-text: #1e293b;
   --ui-muted: #64748b;
-  --ui-border: #e1e5ed;
+  --ui-border: #e2e8f0;
   --ui-radius: 10px;
   --ui-spacing: 4px;
   --ui-focus: #2563eb;
@@ -190,7 +196,7 @@ body { color: var(--ui-text); background: var(--ui-background); }
 /* Navigation and tab geometry are defined only once in the spacing section. */
 .tab { border-radius: 8px; line-height: 1.35; background: transparent;
   color: #6b7280; font-size: 12px; font-weight: 700; }
-.tab.active { background: #111827; color: #fff; }
+.tab.active { background: var(--ui-accent-subtle); color: var(--ui-primary-hover); }
 .status-card, .platform-choice-card, .tool-card, .publication-item {
   border-color: var(--ui-border);
   border-radius: var(--ui-radius);
@@ -370,20 +376,20 @@ input, select { min-height: 42px; font-size: 13px; }
   gap: 4px;
   align-self: start;
   min-width: 0;
-  min-height: min(470px, calc(100vh - 154px));
+  min-height: 0;
   max-height: calc(100vh - 28px);
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: visible;
   margin: 0;
-  padding: 12px 8px;
-  border: 1px solid var(--ui-border);
-  border-radius: 12px;
-  background: var(--ui-surface);
+  padding: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
   scrollbar-width: thin;
 }
 .navigation-label {
-  margin: 2px 8px 8px;
-  color: #8893a6;
+  margin: 4px 11px 10px;
+  color: #94a3b8;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .06em;
@@ -399,18 +405,17 @@ input, select { min-height: 42px; font-size: 13px; }
   gap: 12px;
   text-align: left;
   border-radius: 8px;
-  color: #586579;
+  color: #64748b;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   background: transparent;
+  transition: background-color .13s ease, color .13s ease;
 }
-.tabs .tab:hover:not(.active) { background: #f1f4f8; color: #263345; }
-.tabs .tab.active { background: #111827; color: white; }
-.tabs .tab-settings {
-  margin-top: auto;
-  border-top: 1px solid transparent;
-}
+.tabs .tab:hover:not(.active) { background: #eaf0f8; color: #334155; }
+.tabs .tab.active { background: var(--ui-accent-subtle); color: var(--ui-primary-hover); }
+.tabs .tab-settings { margin-top: 0; }
+.tabs .tab:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
 .nav-icon {
   display: inline-flex;
   flex: 0 0 20px;
@@ -419,7 +424,9 @@ input, select { min-height: 42px; font-size: 13px; }
   font-size: 19px;
   font-weight: 500;
   line-height: 1;
+  color: currentColor;
 }
+.nav-icon svg { display: block; width: 19px; height: 19px; }
 .nav-text { min-width: 0; }
 @media (max-width: 900px) {
   .workspace-shell { grid-template-columns: 136px minmax(0, 1fr); gap: 12px; }
@@ -483,4 +490,49 @@ input, select { min-height: 42px; font-size: 13px; }
 @media (max-width: 520px) {
   .log-viewer { min-height: 260px; }
   .log-viewer .cm-editor { height: 360px; }
+}
+
+/* Compact, icon-only header actions with instant hover and keyboard tooltip.
+   Native title remains a fallback for browsers without hover. */
+.header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.header-icon-action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  background: var(--ui-surface);
+  color: #64748b;
+  cursor: pointer;
+  transition: border-color .13s ease, color .13s ease, background-color .13s ease;
+}
+.header-icon-action svg { display: block; pointer-events: none; }
+.header-icon-action:hover:not(:disabled) {
+  color: var(--ui-primary-hover);
+  border-color: var(--ui-accent-border);
+  background: var(--ui-accent-subtle);
+}
+.header-icon-action:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.header-icon-action[hidden] { display: none !important; }
+.header-icon-action[data-tooltip]:is(:hover, :focus-visible)::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #334155;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 500;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .16);
+  pointer-events: none;
 }
