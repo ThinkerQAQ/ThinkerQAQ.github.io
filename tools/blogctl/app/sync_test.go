@@ -280,13 +280,19 @@ func writeTestFile(t *testing.T, path string) {
 	}
 }
 
-func TestNormalizeSyncRequestRejectsToutiaoWritesWithoutVerifiedSignature(t *testing.T) {
-	for _, operation := range []string{"draft", "publish", "update-published"} {
+func TestNormalizeSyncRequestEnablesToutiaoDraftAndGuardedPublishedUpdate(t *testing.T) {
+	for _, operation := range []string{"draft", "update-published"} {
 		if _, err := NormalizeSyncRequest(SyncRequest{
 			Articles: []string{"concurrency-06"}, Platforms: []string{"toutiao"},
 			Operation: operation,
-		}); err == nil {
-			t.Fatalf("unverified Toutiao %q operation must not start", operation)
+		}); err != nil {
+			t.Fatalf("Toutiao %q should be available: %v", operation, err)
 		}
+	}
+	if _, err := NormalizeSyncRequest(SyncRequest{
+		Articles: []string{"concurrency-06"}, Platforms: []string{"toutiao"},
+		Operation: "publish",
+	}); err == nil {
+		t.Fatal("publishing a new Toutiao article must remain disabled")
 	}
 }

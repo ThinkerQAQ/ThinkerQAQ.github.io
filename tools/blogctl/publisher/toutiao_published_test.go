@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestToutiaoUpdatePublishedFailsClosedBeforeRemoteRequests(t *testing.T) {
+func TestToutiaoUpdatePublishedRequiresVerifiedBindingBeforeRemoteRequests(t *testing.T) {
 	calls := 0
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		calls++
