@@ -117,14 +117,10 @@ test("CNBlogs draft candidates open the creator editor even when API returns a p
   assert.doesNotMatch(background, /i\.cnblogs\.com\/articles\/edit;postId/u);
 });
 
-test("CNBlogs bound draft in detection remote-association opens the editor, not the 404 public preview", async () => {
+test("remote-association rows use a shared state-aware article link resolver", async () => {
   const sync = await readFile(syncPath, "utf8");
-  // This is the link rendered by appendMatchRows() in the '检测 → 远端关联' card,
-  // distinct from the separate '发布 → 打开草稿' link.
-  assert.match(sync, /const cnblogsDraftEditorURL = platform\.id === "cnblogs" && !item\.published/u);
-  assert.match(sync, /https:\/\/i\.cnblogs\.com\/posts\/edit;postId=\$\{encodeURIComponent\(item\.id\)\}/u);
-  assert.match(sync, /link\.textContent = cnblogsDraftEditorURL \? "编辑草稿" : "查看文章"/u);
-  assert.match(sync, /link\.href = cnblogsDraftEditorURL \|\| item\.url/u);
-  // Published links retain the standard '查看文章' public URL.
-  assert.doesNotMatch(sync, /platform\.id === "cnblogs" && item\.published[^\n]*cnblogsDraftEditorURL/u);
+  assert.match(sync, /BlogCTLSyncModel\.articleMatchLink\(platform\.id, item\)/u);
+  assert.match(sync, /link\.textContent = articleLink\.label/u);
+  assert.match(sync, /link\.href = articleLink\.url/u);
+  assert.doesNotMatch(sync, /cnblogsDraftEditorURL/u);
 });
