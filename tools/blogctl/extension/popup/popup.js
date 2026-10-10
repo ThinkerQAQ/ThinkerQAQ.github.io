@@ -3,7 +3,7 @@
 const modules = {
   binding: BlogCTLInventory,
   drafts: BlogCTLDrafts,
-  publications: BlogCTLPublications,
+  creation: BlogCTLDrafts,
   tasks: BlogCTLTasks,
   logs: BlogCTLLogs,
   indexing: BlogCTLIndexing,
@@ -29,6 +29,11 @@ function activateTab(name) {
 
   modules[activeTab]?.deactivate();
   if (activeTab === "drafts") BlogCTLSync.deactivate();
+  if (name === "drafts" || name === "creation") {
+    const workspace = document.getElementById("sharedDraftWorkspace");
+    document.querySelector(`[data-panel="${name}"]`).append(workspace);
+    BlogCTLDrafts.setMode(name === "creation" ? "create" : "update");
+  }
   activeTab = name;
   localStorage.setItem(ACTIVE_TAB_KEY, name);
   modules[name].activate();
@@ -61,25 +66,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (BlogCTLTransport.host === "web") return;
     chrome.tabs.create({ url });
   });
-  document.addEventListener("blogctl:navigate-publication", (event) => {
-    const article = String(event.detail?.article || "").trim();
-    const platform = String(event.detail?.platform || "").trim();
-    if (!article || !platform) return;
-    BlogCTLPublications.focusRecord(article, platform);
-    activateTab("publications");
-  });
   document.addEventListener("blogctl:navigate-task", (event) => {
     const jobId = String(event.detail?.jobId || "").trim();
     if (!jobId) return;
     BlogCTLTasks.focusJob(jobId);
     activateTab("tasks");
-  });
-  document.addEventListener("blogctl:draft-completed", (event) => {
-    const article = String(event.detail?.article || "").trim();
-    const platforms = Array.isArray(event.detail?.platforms) ? event.detail.platforms : [];
-    if (!article || !platforms.length) return;
-    BlogCTLPublications.prepare(article, platforms);
-    activateTab("publications");
   });
   BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
   const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
@@ -87,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ? "binding"
     : savedTab === "publishing"
       ? "environment"
-      : savedTab;
+      : savedTab === "publications" ? "drafts" : savedTab;
   activateTab(modules[normalizedTab] ? normalizedTab : "binding");
 });
 

@@ -27,12 +27,12 @@
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
       <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">检测</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="creation">创建</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="publications">发布</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs">日志</button>
       <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing">索引</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">环境与配置</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">设置</button>
     </nav>
 
     <section class="panel active" role="tabpanel" data-panel="binding">
@@ -52,10 +52,13 @@
       <p id="inventoryMessage" class="message" role="status"></p>
     </section>
 
+    <section class="panel" role="tabpanel" data-panel="creation"></section>
+
     <section class="panel" role="tabpanel" data-panel="drafts">
+      <div id="sharedDraftWorkspace">
       <section class="status-card">
-        <div class="section-title">更新</div>
-        <p class="card-hint">默认列出全部本地文章；按标题或 slug 搜索并选择后，可批量更新或单独更新某个平台。</p>
+        <div id="draftModeTitle" class="section-title">更新</div>
+        <p id="draftModeHint" class="card-hint">选择文章和远端目标后更新；未选目标不会创建新文章。</p>
         <label class="field"><span>搜索</span><input id="draftArticlePicker" type="search" role="combobox" aria-expanded="false" aria-controls="draftArticleOptions" placeholder="文章标题或 slug" autocomplete="off"></label>
         <div id="draftArticleOptions" class="article-options" role="listbox" hidden></div>
         <p id="draftArticleMeta" class="card-hint"></p>
@@ -68,29 +71,24 @@
           <button id="invertDraftPlatforms" class="secondary compact" type="button">反选</button>
           <button id="refreshArticleMatches" class="primary inline-primary" type="button" disabled>检测文章关联</button>
         </div>
-        <p class="card-hint">勾选平台后检测当前文章的远端关联；点击候选文章可绑定或解绑。底部可以批量更新选中的平台。</p>
-        <div id="bindingBulkActions" class="binding-bulk-actions" hidden>
-          <strong id="bindingSelectionSummary" class="binding-bulk-summary">已选择 0 篇文章</strong>
-          <div class="binding-bulk-buttons">
-            <button id="bindSelectedMatches" class="primary inline-primary" type="button">批量绑定</button>
-            <button id="unbindSelectedMatches" class="secondary" type="button">批量解绑</button>
-          </div>
-        </div>
+        <p id="draftPlatformHint" class="card-hint">勾选平台检测远端候选，选中明确目标后直接更新，无需绑定。</p>
         <div id="draftPlatforms" class="platform-choices"><div class="platform-loading">正在读取平台状态…</div></div>
         <p id="syncMessage" class="message" role="status"></p>
       </section>
 
       <div class="sync-actions">
-        <button id="saveDrafts" class="primary" type="button" disabled>更新</button>
+        <button id="saveDrafts" class="primary" type="button" disabled>更新所选</button>
+        <button id="publishAfterSave" class="secondary full-width" type="button" disabled>更新并发布</button>
         <div id="draftNextActions" class="workflow-next-actions" hidden>
           <button id="draftViewTask" class="secondary" type="button">查看任务</button>
-          <button id="draftEnterPublish" class="primary inline-primary" type="button">进入发布</button>
+          <button id="draftEnterPublish" class="primary inline-primary" type="button" hidden>发布</button>
         </div>
       </div>
       <p id="draftsMessage" class="message" role="status"></p>
+      </div>
     </section>
 
-    <section class="panel" role="tabpanel" data-panel="publications">
+    <section class="panel" role="tabpanel" data-panel="publications" hidden>
       <section class="status-card">
         <div class="section-title">发布</div>
         <p class="card-hint">默认列出全部本地文章；选中某个文章后，只显示该文章的发布记录。</p>
