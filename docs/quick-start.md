@@ -1,12 +1,12 @@
-# Quick Start — local public engine
+# Quick Start
 
-**Outcome:** the repository's real Astro application is available at `http://localhost:4321` using built-in content fixtures. No secrets or private content repository are required.
+Run the blog locally using the sample content bundled with the engine.
 
-## Prerequisites
+## Requirements
 
-Fast preview requires Node.js 22+ with npm, Go 1.27.1 and Git. Full diagram rendering additionally requires Java 17+, Graphviz (`dot`) and a working headless Chromium/Mermaid CLI setup, as seen in `.github/workflows/deploy.yml`.
+Install Node.js 22+, Go 1.27.1, npm and Git. This first run does not require the private `blog-content` repository or any cloud credentials.
 
-## Bootstrap and run
+## Start the site
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
@@ -15,24 +15,23 @@ npm ci
 npm run dev:quick
 ```
 
-`npm run dev:quick` assembles the fixture content and launches the real Astro server **without static diagram pre-rendering**. Open [http://localhost:4321](http://localhost:4321) and inspect the sample article. Diagram previews may be absent in this minimal mode. For complete diagrams, install Java 17+, Graphviz and the Mermaid/Chromium runtime, then run `npm run dev`.
+Open [localhost:4321](http://localhost:4321). `dev:quick` assembles `fixtures/` and starts Astro without rendering diagrams. You can browse the sample articles, notes and projects.
 
-## Validate
+## Check the project
 
-In a second terminal, in the same repository:
+In another terminal:
 
 ```bash
 npm run check
 ```
 
-This runs `astro check`. To run all public-engine tests and a production-style fixture build:
+For a production-style build, install Java 17+, Graphviz (`dot`) and the headless Chromium/Mermaid dependencies, then run:
 
 ```bash
+npm run dev
 npm run test
 ```
 
-That path requires the extra diagram/browser tooling configured in CI; it is not required to see the first page. Check `java -version` and `dot -V` if full rendering fails.
+The full build renders Mermaid and PlantUML diagrams; `java -version` and `dot -V` help diagnose missing prerequisites.
 
-## Success
-
-The home page loads and links to fixture content, with no production credentials. Next: [first real content tutorial](tutorial/first-site.md) or [command reference](reference/commands.md). To run DevTool, use [the Agent Contract](../AGENTS.md).
+To build from a separate content repository, follow the [tutorial](tutorial/first-site.md). Command details are in the [reference](reference/commands.md).
