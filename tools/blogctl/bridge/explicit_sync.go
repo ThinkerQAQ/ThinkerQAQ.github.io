@@ -51,7 +51,7 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 			articles, err := blogcompiler.CompilePlatform(ctx, blogcompiler.CompileOptions{
 				EngineRoot: config.EngineRoot, ContentRoot: config.ContentRoot,
 				Publishing: config.Publishing, Node: config.ToolPaths["node"],
-				Platform: platform, Articles: []string{req.Article}, DryRun: true,
+				Platform: platform, Articles: []string{req.Article}, DryRun: req.DryRun,
 			})
 			if err != nil || len(articles) != 1 {
 				if err == nil {
