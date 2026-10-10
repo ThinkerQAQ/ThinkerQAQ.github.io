@@ -1,3 +1,16 @@
+# BlogCTL v0.1.133 (candidate)
+
+- Fix shared Go Web Console initialization when browser-only chrome.runtime
+  push events are unavailable; Index UI retains its existing status polling.
+- Both Extension and Go Web Console reuse the same Feature and Settings tree.
+- Explicit Create/Update use selected remote targets; no persistent binding
+  is required and no update silently creates a new draft.
+- Medium/Toutiao remain hidden and prior Data intact.
+
+Local candidate under PR #177, pending account-level acceptance.
+
+---
+
 # BlogCTL v0.1.132 (local candidate)
 
 - Same HTML/JS/CSS Feature UI in Edge Extension and the Go Bridge
