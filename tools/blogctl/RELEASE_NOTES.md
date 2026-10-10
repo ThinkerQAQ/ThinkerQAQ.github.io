@@ -1,3 +1,22 @@
+# BlogCTL v0.1.127 (local experimental build)
+
+- In the Update panel, display the existing binding state and remote ID for
+  each platform's draft and already-published article, with safe editor/public
+  links consistent with the Detection panel.
+- Restore **individual unbind** controls for each bound draft or published
+  record. Unbinding deletes only the selected local association after an
+  explicit confirmation; no remote article/draft is deleted.
+- Refresh publication records and invalidate the Detection panel's cached
+  binding status after a successful unbind.
+- Preserve selected update platforms while mutation controls are temporarily
+  disabled, and guard against concurrent writes or changed binding IDs.
+- No new tests, per user request. Existing regression and DevTool code
+  intelligence checks pass.
+
+Local branch build from PR #177; not a published stable release.
+
+---
+
 # BlogCTL v0.1.126 (local experimental build)
 
 - Unify **检测 → 远端关联 → 手动绑定** for CNBlogs and CSDN with
