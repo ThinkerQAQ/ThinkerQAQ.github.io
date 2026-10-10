@@ -30,7 +30,7 @@ go run ./tools/blogctl/cmd doctor
 
 `doctor` reports the local Node, npm, Git and platform information. Fix missing tools before moving on.
 
-**Preview version:** the language selector is part of the changes being reviewed in PR #185. Until that feature is merged and released, the published `blogctl-v0.1.147` binary does not include it. Reviewers can check out the feature branch to try it before release.
+**Version:** use BlogCTL v0.1.148 or later for the bilingual selector. Earlier binaries do not include it. After upgrading, reload the browser Extension.
 
 ## 3. Run the example blog without any account
 
