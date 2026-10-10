@@ -804,10 +804,10 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 }
 
 func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
-	// Explicit create/update use the same article/platform validation but a
+	// Explicit create/update/publish-draft use the same article/platform validation but a
 	// distinct task contract; they NEVER read PublicationBinding for targets.
 	operation := strings.ToLower(strings.TrimSpace(request.Operation))
-	if operation == "create" || operation == "update" {
+	if operation == "create" || operation == "update" || operation == "publish-draft" {
 		base := blogapp.SyncRequest{Articles: []string{request.Article}, Platforms: request.Platforms,
 			DryRun: request.DryRun, Operation: "draft"}
 		normalized, err := blogapp.NormalizeSyncRequest(base)
@@ -823,7 +823,7 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 				return request, fmt.Errorf("%s is temporarily disabled", platform)
 			}
 			allowed[platform] = struct{}{}
-			if request.PublishAfter && !publisher.PlatformCapabilitiesFor(platform).ExplicitPublish {
+			if (request.PublishAfter || operation == "publish-draft") && !publisher.PlatformCapabilitiesFor(platform).ExplicitPublish {
 				return request, fmt.Errorf("%s does not support publishing the selected draft", platform)
 			}
 		}
@@ -834,7 +834,10 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 			return request, nil
 		}
 		if len(request.Targets) == 0 {
-			return request, errors.New("update requires selected remote article IDs")
+			return request, errors.New("update or publish-draft requires selected remote article IDs")
+		}
+		if operation == "publish-draft" && request.PublishAfter {
+			return request, errors.New("publish-draft cannot set publishAfter")
 		}
 		seen := map[string]struct{}{}
 		for i, target := range request.Targets {
@@ -846,6 +849,9 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 			}
 			if target.State != "draft" && target.State != "published" {
 				return request, fmt.Errorf("target %d has an invalid publication state", i)
+			}
+			if operation == "publish-draft" && target.State != "draft" {
+				return request, fmt.Errorf("target %d must be a draft to publish", i)
 			}
 			if target.State == "published" && request.PublishAfter {
 				return request, errors.New("published targets cannot be published again")
@@ -1641,7 +1647,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
-	if job.Operation == "publish" || job.Operation == "create" ||
+	if job.Operation == "publish" || job.Operation == "publish-draft" || job.Operation == "create" ||
 		(job.Operation == "update" && (job.Request.PublishAfter || len(job.Request.Targets) > 1)) {
 		s.mu.Unlock()
 		return nil, errors.New("create/publish or multi-target update cannot be retried safely; inspect the remote outcomes and explicitly select failed targets")

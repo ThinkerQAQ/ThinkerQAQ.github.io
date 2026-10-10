@@ -84,7 +84,7 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 			input := draftInputFromCompiled(articles[0], config.ContentRoot, config.DistributionRoot, config)
 			service := publisher.Service{HTTPClient: client}
 			targets := []explicitTaskTarget{{Platform: platform, State: "draft"}}
-			if req.Operation == "update" {
+			if req.Operation == "update" || req.Operation == "publish-draft" {
 				targets = nil
 				for _, item := range req.Targets {
 					if item.Platform == platform {

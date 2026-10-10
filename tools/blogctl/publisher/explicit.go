@@ -37,6 +37,19 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 		return ExplicitResult{}, err
 	}
 	switch operation {
+	case "publish-draft":
+		if !PlatformCapabilitiesFor(platform).ExplicitPublish {
+			return ExplicitResult{}, fmt.Errorf("%s does not support publishing a draft", platform)
+		}
+		if strings.TrimSpace(target.ID) == "" || target.State != "draft" {
+			return ExplicitResult{}, fmt.Errorf("publishing requires a selected remote draft ID")
+		}
+		// No CreateDraft or UpdateDraft call: publish the selected draft directly.
+		// Reuse the adapter PublishDraft path used by Create-and-Publish and
+		// Update-and-Publish. Some providers require the compiled input fields
+		// in their publish request, so preserve the shared DraftInput contract.
+		return publishSelectedDraft(ctx, adapter, platform,
+			DraftRef{ID: target.ID, URL: target.URL}, input)
 	case "create":
 		if target.ID != "" {
 			return ExplicitResult{}, fmt.Errorf("create must not specify a remote target")
@@ -74,14 +87,12 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 		if !PlatformCapabilitiesFor(platform).ExplicitPublish {
 			return created, fmt.Errorf("%s draft created as %s but publishing is not supported", platform, draft.ID)
 		}
-		result, err := adapter.PublishDraft(ctx, DraftRef{ID: draft.ID, URL: draft.URL}, input)
+		published, err := publishSelectedDraft(ctx, adapter, platform,
+			DraftRef{ID: draft.ID, URL: draft.URL}, input)
 		if err != nil {
 			return created, fmt.Errorf("%s draft %s was created, but publish failed: %w", platform, draft.ID, err)
 		}
-		if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.URL) == "" {
-			return created, fmt.Errorf("%s draft %s was created; publish response incomplete", platform, draft.ID)
-		}
-		return ExplicitResult{ID: result.ID, URL: result.URL, Kind: "published"}, nil
+		return published, nil
 	case "update":
 		if strings.TrimSpace(target.ID) == "" {
 			return ExplicitResult{}, fmt.Errorf("update requires a selected remote article ID")
@@ -125,12 +136,13 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 					return ExplicitResult{ID: draft.ID, URL: draft.URL, Kind: "draft-updated"},
 						fmt.Errorf("%s draft updated but publishing is unavailable", platform)
 				}
-				published, err := adapter.PublishDraft(ctx, DraftRef{ID: draft.ID, URL: draft.URL}, input)
+				published, err := publishSelectedDraft(ctx, adapter, platform,
+					DraftRef{ID: draft.ID, URL: draft.URL}, input)
 				if err != nil {
 					return ExplicitResult{ID: draft.ID, URL: draft.URL, Kind: "draft-updated"},
 						fmt.Errorf("%s draft updated but publish failed: %w", target.ID, err)
 				}
-				return ExplicitResult{ID: published.ID, URL: published.URL, Kind: "published"}, nil
+				return published, nil
 			}
 			return ExplicitResult{ID: draft.ID, URL: draft.URL, Kind: "draft-updated"}, nil
 		}
@@ -194,4 +206,22 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 	default:
 		return ExplicitResult{}, fmt.Errorf("unsupported explicit operation %q", operation)
 	}
+}
+
+// publishSelectedDraft is the one native publication path for existing
+// drafts, Create-and-Publish and Update-and-Publish. It never creates a
+// draft and validates the upstream public article reference.
+func publishSelectedDraft(ctx context.Context, adapter Adapter, platform string,
+	ref DraftRef, input DraftInput) (ExplicitResult, error) {
+	if strings.TrimSpace(ref.ID) == "" {
+		return ExplicitResult{}, fmt.Errorf("%s publishing requires a remote draft ID", platform)
+	}
+	result, err := adapter.PublishDraft(ctx, ref, input)
+	if err != nil {
+		return ExplicitResult{}, err
+	}
+	if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.URL) == "" {
+		return ExplicitResult{}, fmt.Errorf("%s publish response has no public article reference", platform)
+	}
+	return ExplicitResult{ID: result.ID, URL: result.URL, Kind: "published"}, nil
 }

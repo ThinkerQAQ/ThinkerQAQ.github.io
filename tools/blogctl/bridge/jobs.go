@@ -265,7 +265,7 @@ func durableTaskView(job *durableTaskJob) taskJobView {
 }
 
 func canRetrySyncJobOperation(operation string, request syncRequest) bool {
-	if operation == "create" || operation == "publish" {
+	if operation == "create" || operation == "publish" || operation == "publish-draft" {
 		return false
 	}
 	if operation == "update" && (request.PublishAfter || len(request.Targets) != 1) {
