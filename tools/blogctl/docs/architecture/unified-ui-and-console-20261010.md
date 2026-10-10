@@ -1,6 +1,6 @@
 # BlogCTL 统一界面与 Web Console：设计及迁移方案
 
-> 2026-10-10 · 状态：阶段实施中，未经真实浏览器验收前不得宣布完工
+> 2026-10-10 · 状态：代码落地，待 Windows 真实浏览器验收与发布
 > 实际代码审查：DevTool `code verify`（CodeGraph Indexed + Serena Realtime）通过
 > 借鉴：`/home/zsk/code/IDFlow/docs/popup-web-console-architecture.md`、`extension/src/settings/{model,renderer,feature,catalog}.ts`，DevTool `docs/index.md` 与 `docs/architecture/principles.md`
 
@@ -23,7 +23,7 @@ BlogCTL 是面向本地文章的多平台发布控制台；**Extension 侧边栏
 
 - 当前远端列表：博客园、CSDN、思否、知乎、51CTO、开源中国、DEV.to 可列举草稿/已发布；掘金当前能枚举已发布，草稿需已知 ID。
 - Medium 与今日头条**仅 UI 暂时隐藏**，保留所有适配器及本地历史。
-- `PublicationBinding` 是旧的持久关联模型；后续「更新选择的远端文章 ID」须先在 Application Contract 中实现，不能仅删除按钮。
+- `PublicationBinding` 是旧的持久关联模型；新版 `create/update` 任务直接携带显式远端目标快照，不读取旧绑定选择目标。
 - `jobs.json` / `publications.json` / `blogctl.toml` 均留在 Windows `C:\software\Coding\blogctl\Data\`，保持路径和语义。
 - Go Bridge 现有 `allowExtensionWrite` 明确排斥普通 Web 来源；不可通过开放 CORS 或把 Bridge token 拼进静态脚本规避。
 
@@ -39,7 +39,7 @@ BlogCTL 是面向本地文章的多平台发布控制台；**Extension 侧边栏
 | 索引 | 搜索引擎状态、增量/全量任务 | 同上 | IndexFeature |
 | 设置 | 分类树、搜索、逐项编辑、必选/可选/健康状态 | 同上 | SettingsFeature |
 
-- **原「发布」一级 Tab 移除**。创建页按钮「创建草稿 / 创建并发布」，更新页按钮「更新选中 / 更新并发布」；已发布文章的更新不得再触发一次发布。
+- **原「发布」一级 Tab 已移除**。创建页按钮「创建草稿 / 创建并发布」，更新页按钮「更新选中 / 更新并发布」；已发布文章的更新不得再触发一次发布。
 - 检测仅为账号级远端文章清单；创建不查询旧绑定决定目标。
 - 更新只使用当前任务用户选择的远端文章 ID；没有选择时提示「请先选择目标」，**不会隐式新建**。新建使用「创建」页。
 - 目标文章多选彼此独立；仅对平台明确支持的操作执行写入；某平台失败不取消其他平台。
@@ -64,11 +64,11 @@ flowchart TB
 ### Web Console 安全契约
 
 1. Go Bridge 只绑定 loopback，校验 `Host` 为本地地址（含端口），拒绝远程访问与 Host 伪装。
-2. `GET /console` 与其静态资源由单二进制内嵌。仅允许跨站顶层 Document Navigation 打开页面；禁止跨站 Fetch/API。
-3. Web Console 的写请求必须同源 `Origin`，受独立的同源 session/CSRF 机制保护；无授权会话时只能查看明确允许的无敏数据状态。不得把扩展 token、Cookie 或账号授权信息注入静态 HTML 或 localStorage。
-4. 扩展平台 Cookie 只能经既有受限扩展会话同步。独立 Web Console 无扩展时可以操作非浏览器依赖能力；登录/抓包相关能力如实提示需要扩展。
+2. `GET /console` 与其静态资源已由单二进制内嵌。仅允许跨站顶层 Document Navigation 打开页面；禁止跨站 Fetch/API。
+3. 当前 Web Console 不暴露同源写 API：页面通过仅注入固定 `/console/*` 来源的 Content Script 把请求转给扩展 background，再复用 Extension Auth 和 Bridge 校验。Web 页面本身永远不持有 Bridge Token/Cookie/平台凭据。
+4. 扩展平台 Cookie 只能经既有受限扩展会话同步。本版 Web Console 需要启用 Extension，未启用时不得提供任何写能力。
 5. 普通外部网站不能利用本地 Bridge 进行 CSRF；严禁 CORS `*`、禁用来源验证或默认开放全部 `/v1/*`。
-6. JS/CSS 单源，Feature 通过 `Transport.send(type, payload)` 调用统一应用契约；测试两种 Transport 的行为一致性。
+6. JS/CSS 同一份 `go:embed` 资源；Feature 统一调用 `BlogCTLTransport.send(type, payload)`。Extension 宿主使用 `chrome.runtime.sendMessage`，Web 宿主经过来源受限的 `window.postMessage` + content script bridge；无第二份 UI。
 
 ### Settings Feature（对齐 IDFlow）
 
@@ -96,7 +96,7 @@ flowchart TB
 | P4 任务目标重构 | 显式 ID 任务契约，多目标并行，创建/更新/发布状态机，历史绑定退出目标选择 | 真实草稿创建、目标更新、失败/重试/部分成功，杜绝重复创建 |
 | P5 文档与迁移 | Quick Start、Guide、How-to、Reference、版本与 Windows 安装 | 路径/命令与产品一致；无遗留入口；Windows Build 与 Extension 一致 |
 
-**发布闸门**：上述阶段可逐步 commit/push，不必每次微变动独立单测；最终须 DevTool Review、全量 Go/JS 回归、实际 Windows Edge 两入口验收，再升版本安装。未完成 P3/P4 前不把 Web UI 或“无绑定更新”宣传为已支持。
+**发布闸门**：上述阶段可逐步 commit/push，不必每次微变动独立单测；最终须 DevTool Review、全量 Go/JS 回归、实际 Windows Edge 两入口验收，再升版本安装。P1—P5 代码已逐步实现；最终的真实浏览器验收与发版仍作为发布闸门。Web Console 的业务访问依赖 Extension relay，不宣称独立于扩展运行。
 
 ## 6. 非目标
 
