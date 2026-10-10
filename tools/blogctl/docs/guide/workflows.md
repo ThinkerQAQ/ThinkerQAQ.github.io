@@ -2,6 +2,8 @@
 
 BlogCTL 为同一份本地 Markdown 内容提供「检测、创建、更新」三个核心动作。Extension Side Panel 与 Bridge Web Console 使用相同的 HTML、Feature JS 和样式；唯一不同的是扩展内部消息或 Web Console 的受限 Extension relay Transport。
 
+导航统一在左侧：检测、创建、更新、索引、任务、日志、设置。索引页筛选 IndexNow、百度或 Google；日志页内置 CodeMirror 只读查看、行号与全文查找。
+
 ## 检测：查询当前平台账号内容
 
 检测 → 选择平台 → 选择状态（全部、草稿、已发布）→ 查看远端标题、ID 与编辑/查看链接。

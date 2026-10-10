@@ -56,3 +56,13 @@
 当前「同一套 Feature HTML/JS/CSS 通过 Extension 与 Go Web Console 提供」方案继续保留，不复制组件或状态模型。替换局部 DOM 时应避免增加依赖或破坏 CSP；第三方组件统一由构建步骤本地打包至 Extension 并嵌入 Go Bridge 二进制。使用 `devtool code verify`、Go/Node 回归、Windows Edge 双入口截图检验。
 
 本轮改动只涉及界面及其本地文章选择器，不涉及真实第三方平台创建/更新/发布 API，也不修改 `Data` 结构。
+
+## 5. 本轮落地：左侧导航、索引筛选与 CodeMirror 6
+
+导航采用 IDFlow / Desktop Commander 式单层左侧菜单：检测、创建、更新、索引、任务、日志、设置。Extension 与 Web Console 共享原有 HTML、JS 和 CSS；窄窗口把导航缩成图标轨道，业务交互保持一致。
+
+索引页通过原生 select 选择 IndexNow、百度或 Google。三者共享平台卡、状态、统计和操作的同级结构，Google 的 Sitemap / URL Inspection / Request Indexing 继续保留平台内二级能力。URL 总量由原生 details 折叠，不影响后台任务。
+
+日志查看器已替换为 CodeMirror 6（@codemirror/state、@codemirror/view、@codemirror/search），支持只读虚拟化、行号、内置查找、级别行着色，保留旧的级别过滤、自动刷新、复制和清空。Xterm.js 主要适用于 PTY 与终端仿真，当前结构化日志无需终端模拟。CodeMirror 也是 IDFlow 已采用的成熟技术栈。
+
+构建入口 tools/blogctl/ui/log-viewer/。固定 package-lock 依赖，执行 npm ci、npm run build 即可复现本地编译；编译后的 popup/log-editor-vendor.js 随 Extension 静态文件和 Go embed 同步发布，满足 Manifest V3 不从远端执行代码的要求。不新增常驻 Node 服务。
