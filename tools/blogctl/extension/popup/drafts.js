@@ -1,685 +1,375 @@
 "use strict";
 
+// One Feature, two intents. Creation is never inferred from missing bindings;
+// Update always carries the exact checked remote ID snapshot.
 (function (root) {
   const state = {
-    initialized: false,
-    active: false,
-    articles: [],
-    selectedSlug: "",
-    preparedSlug: "",
-    selectedPlatformIDs: new Set(BlogCTLSyncModel.visiblePlatformIDs(BlogCTLSyncState.loadPlatforms(localStorage))),
-    status: null,
-    publishing: [],
-    tools: [],
-    records: [],
-    currentJob: null,
-    pollTimer: null,
-    bindingMutating: false,
+    initialized:false, active:false, mode:"update", articles:[], selectedSlug:"",
+    selectedPlatformIDs:new Set(BlogCTLSyncModel.visiblePlatformIDs(BlogCTLSyncState.loadPlatforms(localStorage))),
+    status:null, publishing:[], tools:[], currentJob:null, pollTimer:null,
   };
+  let articlePicker, articleOptions, articleMeta, platformList, actionButton,
+      publishButton, nextActions, viewTaskButton, message, allButton, invertButton;
 
-  let articlePicker, articleOptions, articleMeta, platformsContainer;
-  let actionButton, nextActions, viewTaskButton, enterPublishButton, message, selectAllButton, invertButton;
+  const article = () => state.articles.find((item) => item.slug === state.selectedSlug);
+  const profile = (id) => state.publishing.find((item) => item.id === id) || {};
+  const running = () => ["queued","running"].includes(state.currentJob?.state);
+  const selectedPlatformIDs = () => [...state.selectedPlatformIDs].filter((id) =>
+    BlogCTLSyncModel.isVisiblePlatform(id));
 
-  function selectedArticle() {
-    return state.articles.find((item) => item.slug === state.selectedSlug);
-  }
-
-  function publishingProfile(platformId) {
-    return state.publishing.find((item) => item.id === platformId) ?? {};
-  }
-
-  function platformSelection() {
-    return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
-      .map((input) => input.dataset.platform)
-      .filter((id) => BlogCTLSyncModel.isVisiblePlatform(id));
-  }
-
-  async function refreshBindings() {
-    const response = await BlogCTLPopup.send("blogctl.publications");
-    state.records = response.records ?? [];
-    if (state.active) renderPlatforms();
-  }
-
-  function selectedPlatforms() {
-    // This is specifically the WRITABLE subset for batch updates. The
-    // platformSelection() helper above includes detection-only platforms.
-    const article = selectedArticle();
-    return [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]:checked')]
-      .filter((input) => !input.disabled && BlogCTLSyncModel.isVisiblePlatform(input.dataset.platform))
-      .filter((input) => {
-        const platform = state.status?.platforms?.find((item) => item.id === input.dataset.platform);
-        return platform && platformAvailability(article, platform).available;
-      })
-      .map((input) => input.dataset.platform);
-  }
-
-  function publicationRecord(platform) {
-    return state.records.find((record) => record.article === state.selectedSlug && record.platform === platform);
-  }
-
-  function platformAvailability(article, platform) {
-    if (platform.id === "toutiao" && platform.capabilities?.draftCreate !== true) {
-      return { available: false, reason: "仅支持文章查询与关联；头条纯接口保存暂不可用" };
+  function availability(platform) {
+    const source = BlogCTLSyncModel.platformAvailability(article(),platform,profile(platform.id));
+    if (!source.available) return source;
+    const dependency = BlogCTLSyncModel.deliveryToolAvailability(platform,state.tools);
+    if (!dependency.available) return dependency;
+    if (state.mode==="create" && !platform.capabilities?.draftCreate) {
+      return {available:false,reason:"不支持创建草稿"};
     }
-    const sourceAvailability = BlogCTLSyncModel.platformAvailability(article, platform, publishingProfile(platform.id));
-    if (!sourceAvailability.available) return sourceAvailability;
-    const toolAvailability = BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
-    if (!toolAvailability.available) return toolAvailability;
-
-    const record = publicationRecord(platform.id);
-    const hasDraft = Boolean(record?.remoteId || record?.draftUrl);
-    const hasPublished = Boolean(record?.publishedRemoteId || record?.publishedUrl);
-    // An already-published Toutiao article is edited only via the separate
-    // explicit republish action, never through the ordinary draft save path.
-    if (platform.id === "toutiao" && !hasDraft && hasPublished) {
-      return { available: false, reason: "已发布文章请使用「更新已发布」" };
+    if (state.mode==="update" && !platform.capabilities?.remoteList) {
+      return {available:false,reason:"目前没有远端关联检测能力"};
     }
-    if (!hasDraft && hasPublished && platform.capabilities?.publishedUpdate !== true &&
-      platform.capabilities?.publishedDraftEdit !== true) {
-      return { available: false, reason: "已有已发布文章；该平台暂不支持原文更新" };
-    }
-    return { available: true, reason: "" };
+    return {available:true,reason:""};
   }
 
-  function stopPolling() {
-    if (state.pollTimer) {
-      clearTimeout(state.pollTimer);
-      state.pollTimer = null;
-    }
-  }
-
-  function resetWorkflow() {
-    if (["queued", "running"].includes(state.currentJob?.state)) return;
-    state.currentJob = null;
-    stopPolling();
+  function clearTask() {
+    if (running()) return;
+    if (state.pollTimer) clearTimeout(state.pollTimer);
+    state.pollTimer=null;
+    state.currentJob=null;
     BlogCTLPopup.setMessage(message);
   }
 
-  function renderArticleMeta() {
-    const article = selectedArticle();
-    articleMeta.textContent = article ? `${article.title} · ${article.slug}` : "";
+  function candidateTargets() {
+    return (root.BlogCTLSync?.selectedTargets?.() || [])
+      .filter((target) => state.selectedPlatformIDs.has(target.platform));
   }
 
-  function setArticleOptionsOpen(open) {
-    articleOptions.hidden = !open;
-    articlePicker.setAttribute("aria-expanded", open ? "true" : "false");
+  function canPublishAfter() {
+    const platforms = state.mode === "create" ? selectedPlatformIDs() :
+      [...new Set(candidateTargets().map((target) => target.platform))];
+    if (!platforms.length || platforms.some((id) =>
+      !state.status?.platforms?.find((p) => p.id===id)?.capabilities?.explicitPublish)) return false;
+    return state.mode==="create" || candidateTargets().every((target) => target.state==="draft");
+  }
+
+  function updateAction() {
+    const platforms = selectedPlatformIDs().filter((id) => {
+      const platform=state.status?.platforms?.find((p)=>p.id===id);
+      return platform && availability(platform).available;
+    });
+    const targets = candidateTargets();
+    const canSubmit = Boolean(state.selectedSlug && state.status?.bridge?.running) &&
+      !running() && !(root.BlogCTLSync?.isBindingBusy?.() ?? false) &&
+      (state.mode==="create" ? platforms.length>0 : targets.length>0);
+    actionButton.disabled=!canSubmit;
+    publishButton.disabled=!canSubmit || !canPublishAfter();
+    actionButton.textContent=state.mode==="create"?"创建草稿":"更新所选";
+    publishButton.textContent=state.mode==="create"?"创建并发布":"更新并发布";
+    const terminal=["completed","failed"].includes(state.currentJob?.state);
+    nextActions.hidden=!terminal;
+    if (terminal) {
+      actionButton.disabled=true;
+      publishButton.disabled=true;
+    }
+  }
+
+  function articlePickerOpen(open) {
+    articleOptions.hidden=!open;
+    articlePicker.setAttribute("aria-expanded",String(open));
   }
 
   function renderArticles() {
-    const query = articlePicker.value.trim().toLowerCase();
-    const filtered = state.articles.filter((article) => !query || `${article.title} · ${article.slug}`.toLowerCase().includes(query));
+    const query=articlePicker.value.trim().toLowerCase();
+    const list=state.articles.filter((item)=>
+      !query || (item.title+" "+item.slug).toLowerCase().includes(query));
     articleOptions.replaceChildren();
-
-    for (const article of filtered) {
-      const option = document.createElement("button");
-      option.type = "button";
-      option.className = "article-option";
-      if (article.slug === state.selectedSlug) option.classList.add("active");
-      option.setAttribute("role", "option");
-      option.textContent = `${article.title} · ${article.slug}`;
-      option.addEventListener("click", () => selectArticle(article));
-      articleOptions.append(option);
+    for(const item of list) {
+      const button=document.createElement("button");
+      button.type="button";
+      button.className="article-option";
+      button.setAttribute("role","option");
+      button.textContent=`${item.title} · ${item.slug}`;
+      if(item.slug===state.selectedSlug) button.classList.add("active");
+      button.addEventListener("click",()=>selectArticle(item));
+      articleOptions.append(button);
     }
-
-    if (!filtered.length) articleOptions.textContent = "没有匹配文章";
-    setArticleOptionsOpen(true);
-    renderArticleMeta();
-    updateAction();
+    if(!list.length)articleOptions.textContent="没有匹配文章";
+    articlePickerOpen(true);
   }
 
-  function selectArticle(article) {
-    resetWorkflow();
-    state.selectedSlug = article.slug;
-    state.preparedSlug = "";
-    articlePicker.value = `${article.title} · ${article.slug}`;
-    setArticleOptionsOpen(false);
-    localStorage.setItem("blogctl.selectedArticle", article.slug);
-    document.dispatchEvent(new CustomEvent("blogctl:article-selected", {
-      detail: { article: article.slug },
+  function selectArticle(item) {
+    if(running())return;
+    clearTask();
+    state.selectedSlug=item.slug;
+    articlePicker.value=`${item.title} · ${item.slug}`;
+    articlePickerOpen(false);
+    localStorage.setItem("blogctl.selectedArticle",item.slug);
+    articleMeta.textContent=`${item.title} · ${item.slug}`;
+    document.dispatchEvent(new CustomEvent("blogctl:article-selected",{
+      detail:{article:item.slug},
     }));
-    renderArticleMeta();
     renderPlatforms();
-  }
-
-  function platformLifecycleText(platformId) {
-    const record = publicationRecord(platformId);
-    if (record?.remoteId || record?.draftUrl) return "已有草稿关系 · 本次更新";
-    if (record?.publishedUrl) return "已有已发布记录";
-    return "没有草稿关系 · 本次创建";
-  }
-
-  // The Bridge already supports state-specific local unbinding for all
-  // visible delivery platforms. Never delete the remote post itself.
-  async function unbindPlatformRecord(platformID, stateName, postID) {
-    const article = state.selectedSlug;
-    const record = publicationRecord(platformID);
-    const recordID = stateName === "draft" ? record?.remoteId : record?.publishedRemoteId;
-    if (!article || !BlogCTLSyncModel.isVisiblePlatform(platformID) ||
-        state.bindingMutating || !state.status?.bridge?.running ||
-        ["queued", "running"].includes(state.currentJob?.state) ||
-        !postID || String(recordID) !== String(postID)) return;
-
-    const label = stateName === "draft" ? "草稿" : "已发布文章";
-    if (!window.confirm(`仅解除 BlogCTL 对此平台${label}（ID ${postID}）的关联，不会删除远端内容。确定继续？`)) return;
-
-    state.bindingMutating = true;
-    renderPlatforms();
-    try {
-      await BlogCTLPopup.send("blogctl." + platformID + ".unbind", {
-        article, state: stateName, postId: postID,
-      });
-      const response = await BlogCTLPopup.send("blogctl.publications");
-      state.records = response.records ?? [];
-      // Detection caches bound/unbound flags for 24h. Invalidate those
-      // entries so switching tabs does not show an obsolete association.
-      BlogCTLSyncState.clearMatches(localStorage);
-      document.dispatchEvent(new CustomEvent("blogctl:binding-changed", {
-        detail: { article, platform: platformID },
-      }));
-      BlogCTLPopup.setMessage(message, `${publishingProfile(platformID).label || platformID} ${label}关联已解除；远端内容未修改。`, "ok");
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-    } finally {
-      state.bindingMutating = false;
-      renderPlatforms();
-    }
-  }
-
-  function appendBindingRows(wrapper, platformID, record, running) {
-    if (!record) return;
-    const entries = [
-      { state: "draft", id: String(record.remoteId || ""), url: record.draftUrl || "", label: "草稿" },
-      { state: "published", id: String(record.publishedRemoteId || ""), url: record.publishedUrl || "", label: "已发布" },
-    ];
-    const hasAny = entries.some((entry) => entry.id || entry.url);
-    if (!hasAny) return;
-
-    const container = document.createElement("div");
-    container.className = "draft-binding-list";
-    for (const entry of entries) {
-      if (!entry.id && !entry.url) continue;
-      const row = document.createElement("div");
-      row.className = "draft-binding-row";
-      const identity = document.createElement("span");
-      identity.className = "draft-binding-identity";
-      identity.textContent = entry.label + (entry.id ? ` · ID ${entry.id}` : "");
-      row.append(identity);
-
-      const link = BlogCTLSyncModel.articleMatchLink(platformID, {
-        id: entry.id, url: entry.url, published: entry.state === "published",
-      });
-      if (link) {
-        const anchor = document.createElement("a");
-        anchor.textContent = link.label;
-        anchor.href = link.url;
-        anchor.target = "_blank";
-        anchor.rel = "noopener noreferrer";
-        row.append(anchor);
-      }
-
-      // State-specific delete with a matching remote ID prevents accidentally
-      // removing a different association after a concurrent edit.
-      if (entry.id) {
-        const unbind = document.createElement("button");
-        unbind.type = "button";
-        unbind.className = "secondary compact";
-        unbind.textContent = "解除绑定";
-        unbind.disabled = running || state.bindingMutating || !state.status?.bridge?.running;
-        unbind.title = "仅解除本地" + entry.label + "关联，不删除远端内容";
-        unbind.addEventListener("click", () =>
-          unbindPlatformRecord(platformID, entry.state, entry.id));
-        row.append(unbind);
-      }
-      container.append(row);
-    }
-    wrapper.append(container);
-  }
-
-  function platformTaskResult(platformId) {
-    if (!state.currentJob || !(state.currentJob.platforms ?? []).includes(platformId)) return null;
-    return state.currentJob.results?.[platformId] ?? { state: state.currentJob.state || "queued" };
   }
 
   function renderPlatforms() {
-    // Keep checked platforms when binding operations temporarily disable
-    // controls. selectedPlatforms() intentionally omits disabled inputs and
-    // would otherwise clear the selection while unbinding.
-    const previous = platformsContainer.querySelector('input[data-platform]')
-      ? new Set([...platformsContainer.querySelectorAll('input[data-platform]:checked')]
-        .map((input) => input.dataset.platform))
-      : state.selectedPlatformIDs;
-    const article = selectedArticle();
-    const running = ["queued", "running"].includes(state.currentJob?.state);
-    platformsContainer.replaceChildren();
-
-    for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
-      const availability = platformAvailability(article, platform);
-      const wrapper = document.createElement("div");
-      wrapper.className = "platform-choice-card";
-      wrapper.dataset.platformCard = platform.id;
-
-      const card = document.createElement("label");
-      card.className = "platform-choice";
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.dataset.platform = platform.id;
-      // A platform can be checked for association detection even when its
-      // publishing capability is unavailable. Update only sends to platforms
-      // whose draft-write capability is currently allowed.
-      const detectable = platform.capabilities?.remoteList === true;
-      checkbox.checked = previous.has(platform.id) && (availability.available || detectable);
-      checkbox.disabled = !(availability.available || detectable) || !state.selectedSlug ||
-        running || state.bindingMutating || (root.BlogCTLSync?.isBindingBusy?.() ?? false);
-      checkbox.addEventListener("change", () => {
-        resetWorkflow();
-        state.selectedPlatformIDs = new Set(platformSelection());
-        BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
+    platformList.replaceChildren();
+    for(const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms || [])) {
+      const card=document.createElement("div");
+      card.className="platform-choice-card";
+      card.dataset.platformCard=platform.id;
+      const header=document.createElement("div");
+      header.className="platform-choice";
+      const check=document.createElement("input");
+      check.type="checkbox";
+      check.dataset.platform=platform.id;
+      check.checked=state.selectedPlatformIDs.has(platform.id);
+      const permission=availability(platform);
+      check.disabled=!state.selectedSlug || running() || !permission.available ||
+        (root.BlogCTLSync?.isBindingBusy?.() ?? false);
+      check.addEventListener("change",()=>{
+        if(check.checked)state.selectedPlatformIDs.add(platform.id);
+        else state.selectedPlatformIDs.delete(platform.id);
+        BlogCTLSyncState.savePlatforms(localStorage,state.selectedPlatformIDs);
+        root.BlogCTLSync?.refresh?.();
         renderPlatforms();
         document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
       });
-
-      const text = document.createElement("span");
-      text.className = "platform-choice-text";
-      const name = document.createElement("strong");
-      name.textContent = platform.label || platform.id;
-      const detail = document.createElement("small");
-      detail.textContent = !availability.available ? availability.reason : platformLifecycleText(platform.id);
-      text.append(name, detail);
-
-      const badge = document.createElement("span");
-      if (!availability.available) BlogCTLPopup.setStatus(badge, "disabled", "不可更新", availability.reason);
-      else BlogCTLPopup.setStatus(badge, "ok", "可更新");
-
-      card.append(checkbox, text, badge);
-      wrapper.append(card);
-
-      const actions = document.createElement("div");
-      actions.className = "platform-card-actions";
-      const updatePlatformButton = document.createElement("button");
-      updatePlatformButton.type = "button";
-      updatePlatformButton.className = "secondary compact";
-      updatePlatformButton.textContent = running && (state.currentJob?.platforms ?? []).includes(platform.id)
-        ? "更新中…"
-        : "更新此平台";
-      updatePlatformButton.disabled = !state.selectedSlug || !availability.available ||
-        !state.status?.bridge?.running || running || state.bindingMutating ||
-        (root.BlogCTLSync?.isBindingBusy?.() ?? false);
-      updatePlatformButton.addEventListener("click", () => startSavePlatforms([platform.id]));
-      actions.append(updatePlatformButton);
-      const record = publicationRecord(platform.id);
-      if (platform.id === "toutiao" && platform.capabilities?.publishedUpdate === true &&
-          (record?.publishedRemoteId && record?.publishedUrl)) {
-        const republish = document.createElement("button");
-        republish.type = "button";
-        republish.className = "secondary compact";
-        republish.textContent = running ? "提交中…" : "更新已发布";
-        republish.disabled = !state.selectedSlug || !state.status?.bridge?.running || running;
-        republish.addEventListener("click", () => startPublishedUpdate(platform.id));
-        actions.append(republish);
-      }
-      if (!record?.remoteId && !record?.publishedRemoteId &&
-          platform.capabilities?.remoteList === true) {
-        const detect = document.createElement("button");
-        detect.type = "button";
-        detect.className = "secondary compact";
-        detect.textContent = "检测关联";
-        detect.disabled = !state.selectedSlug || running || state.bindingMutating ||
-          !state.status?.bridge?.running ||
+      const description=document.createElement("span");
+      description.className="platform-choice-text";
+      const name=document.createElement("strong");
+      name.textContent=platform.label || platform.id;
+      const hint=document.createElement("small");
+      hint.textContent=state.mode==="create"?"创建新的远端草稿":
+        "选中检测到的远端文章作为更新目标";
+      description.append(name,hint);
+      const status=document.createElement("strong");
+      BlogCTLPopup.setStatus(status,permission.available?"ok":"disabled",
+        permission.available?"可操作":permission.reason);
+      header.append(check,description,status);
+      card.append(header);
+      const actions=document.createElement("div");
+      actions.className="platform-card-actions";
+      if(state.mode==="create"){
+        const create=document.createElement("button");
+        create.type="button";
+        create.className="secondary compact";
+        create.textContent="创建草稿";
+        create.disabled=!permission.available || !state.selectedSlug || running();
+        create.addEventListener("click",()=>startExplicit([platform.id],[],false));
+        actions.append(create);
+      } else {
+        const detect=document.createElement("button");
+        detect.type="button";
+        detect.className="secondary compact";
+        detect.textContent="检测关联";
+        detect.disabled=!permission.available || !state.selectedSlug || running() ||
           (root.BlogCTLSync?.isBindingBusy?.() ?? false);
-        detect.addEventListener("click", () => {
-          document.dispatchEvent(new CustomEvent("blogctl:detect-association", {
-            detail: { article: state.selectedSlug, platform: platform.id },
-          }));
-        });
+        detect.addEventListener("click",()=>
+          root.BlogCTLSync?.refreshArticleMatches?.([platform.id]));
         actions.append(detect);
       }
-      wrapper.append(actions);
-      appendBindingRows(wrapper, platform.id, record, running);
-      root.BlogCTLSync?.appendPlatformMatches?.(platform, wrapper);
-
-      const taskResult = platformTaskResult(platform.id);
-      if (taskResult) {
-        const statusRow = document.createElement("div");
-        statusRow.className = "platform-task-status";
-
-        const statusLabel = document.createElement("span");
-        statusLabel.textContent = "更新状态";
-        const status = document.createElement("strong");
-        const presentation = BlogCTLSyncModel.statePresentation(taskResult.state, taskResult.result || "");
-        BlogCTLPopup.setStatus(status, presentation.kind, presentation.label);
-        statusRow.append(statusLabel, status);
-
-        const detailText = taskResult.error || taskResult.message;
-        if (detailText) {
-          const taskDetail = document.createElement("small");
-          taskDetail.className = taskResult.error ? "job-platform-message error-text" : "job-platform-message";
-          taskDetail.textContent = detailText;
-          statusRow.append(taskDetail);
-        }
-        wrapper.append(statusRow);
+      header.append(actions);
+      if(state.mode==="update")root.BlogCTLSync?.appendPlatformMatches?.(platform,card);
+      const result=state.currentJob?.results?.[platform.id];
+      if(result){
+        const footer=document.createElement("div");
+        footer.className="platform-task-status";
+        const statusName=document.createElement("strong");
+        statusName.textContent=result.result || result.state;
+        const details=document.createElement("small");
+        details.textContent=result.error || result.message || "";
+        footer.append(statusName,details);
+        card.append(footer);
       }
-
-      platformsContainer.append(wrapper);
-    }
-
-    if (!platformsContainer.childElementCount) {
-      platformsContainer.innerHTML = '<div class="platform-loading">没有可用平台</div>';
+      platformList.append(card);
     }
     updateAction();
   }
 
-  function setDraftPlatforms(mode) {
-    if (!state.selectedSlug) return;
-    if (state.bindingMutating) return;
-    const checkboxes = [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]')]
-      .filter((input) => !input.disabled);
-    if (mode === "all") checkboxes.forEach((box) => { box.checked = true; });
-    else checkboxes.forEach((box) => { box.checked = !box.checked; });
-    resetWorkflow();
-    state.selectedPlatformIDs = new Set(platformSelection());
-    BlogCTLSyncState.savePlatforms(localStorage, state.selectedPlatformIDs);
+  function selectAll(invert) {
+    if(!state.selectedSlug || running())return;
+    for(const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms || [])) {
+      if(!availability(platform).available)continue;
+      if(invert && state.selectedPlatformIDs.has(platform.id))state.selectedPlatformIDs.delete(platform.id);
+      else state.selectedPlatformIDs.add(platform.id);
+    }
+    BlogCTLSyncState.savePlatforms(localStorage,state.selectedPlatformIDs);
     renderPlatforms();
     document.dispatchEvent(new CustomEvent("blogctl:update-platform-selection"));
   }
 
-  function completedPlatforms(job) {
-    return (job?.platforms ?? []).filter((platform) =>
-      BlogCTLSyncModel.isVisiblePlatform(platform) && job.results?.[platform]?.state === "completed");
+  function validateTargets(targets) {
+    if(!targets.length)throw new Error("请先检测并勾选至少一篇远端文章。更新不会自动创建草稿。");
+    if(targets.some((t)=>t.state==="published"&&
+      !["cnblogs","devto"].includes(t.platform)))
+      throw new Error("所选平台的已发布文章暂不支持安全更新。");
+    if(targets.some((t)=>!state.selectedPlatformIDs.has(t.platform)))
+      throw new Error("目标所属平台未勾选。");
   }
 
-  function updateAction() {
-    const count = selectedPlatforms().length;
-    const job = state.currentJob;
-    const running = ["queued", "running"].includes(job?.state);
-    const terminal = ["completed", "failed"].includes(job?.state);
-    const ready = Boolean(state.selectedSlug) && count > 0 &&
-      Boolean(state.status?.bridge?.running) && !state.bindingMutating &&
-      !(root.BlogCTLSync?.isBindingBusy?.() ?? false);
-
-    actionButton.hidden = terminal;
-    nextActions.hidden = !terminal;
-
-    if (!terminal) {
-      actionButton.disabled = !ready || running;
-      actionButton.textContent = running
-        ? "更新中…"
-        : count > 0 ? `更新 ${count} 个平台` : "更新";
-    }
-
-    if (terminal) {
-      const successful = completedPlatforms(job);
-      viewTaskButton.disabled = false;
-      enterPublishButton.disabled = job.operation === "update-published" || successful.length === 0;
-      enterPublishButton.hidden = job.operation === "update-published";
-      enterPublishButton.textContent = successful.length > 0 && successful.length < (job.platforms ?? []).length
-        ? `发布成功的 ${successful.length} 个平台`
-        : "进入发布";
-    }
-  }
-
-  function navigateTask() {
-    if (!state.currentJob?.id) return;
-    document.dispatchEvent(new CustomEvent("blogctl:navigate-task", {
-      detail: { jobId: state.currentJob.id },
-    }));
-  }
-
-  function enterPublish() {
-    const job = state.currentJob;
-    if (!job) return;
-    const platforms = completedPlatforms(job);
-    if (!platforms.length) return;
-
-    document.dispatchEvent(new CustomEvent("blogctl:draft-completed", {
-      detail: {
-        article: job.article,
-        platforms,
-        jobId: job.id,
-      },
-    }));
-  }
-
-  async function pollJob(jobID) {
-    stopPolling();
-    if (!jobID || state.currentJob?.id !== jobID) return;
-
+  async function startExplicit(platforms,targets,publishAfter=false) {
+    if(!state.selectedSlug||running()||!platforms.length)return;
     try {
-      const response = await BlogCTLPopup.send("blogctl.job.get", { id: jobID });
-      if (state.currentJob?.id !== jobID) return;
-      state.currentJob = response.job ?? state.currentJob;
+      if(state.mode==="update")validateTargets(targets);
+      if(publishAfter && (state.mode==="update"&&targets.some((t)=>t.state==="published")))
+        throw new Error("已发布文章无需再次发布，请使用「更新所选」。");
+      if(publishAfter && !canPublishAfter())throw new Error("有平台不支持直接发布草稿。");
+      if(!window.confirm(state.mode==="create"
+        ? `将在 ${platforms.length} 个平台创建新草稿${publishAfter?"并发布":""}，确认？`
+        : `将覆盖 ${targets.length} 篇所选远端文章${publishAfter?"并发布草稿":""}，确认？`))return;
+      const request={
+        article:state.selectedSlug,platforms,operation:state.mode,
+        targets:state.mode==="create"?[]:targets.map((item)=>({...item})),
+        publishAfter,dryRun:false,
+      };
+      actionButton.disabled=true;
+      publishButton.disabled=true;
+      BlogCTLPopup.setMessage(message,"正在启动任务…");
+      const response=await BlogCTLPopup.send("blogctl.job.start",{request});
+      state.currentJob=response.job;
       renderPlatforms();
+      BlogCTLPopup.setMessage(message,"已启动任务，具体结果请查看任务页。","ok");
+      if(state.currentJob?.id)pollJob(state.currentJob.id);
+    } catch(error) {
+      BlogCTLPopup.setMessage(message,BlogCTLPopup.errorMessage(error),"error");
       updateAction();
+    }
+  }
 
-      if (state.currentJob.state === "completed") {
-        const publications = await BlogCTLPopup.send("blogctl.publications");
-        state.records = publications.records ?? state.records;
-        renderPlatforms();
-        BlogCTLPopup.setMessage(message, state.currentJob.operation === "update-published"
-          ? "已提交头条文章更新，请在头条后台确认审核及线上生效情况。"
-          : "更新完成。可查看任务，或进入发布。", "ok");
+  async function pollJob(id) {
+    if(state.pollTimer)clearTimeout(state.pollTimer);
+    if(!state.active)return;
+    try {
+      const response=await BlogCTLPopup.send("blogctl.job.get",{id});
+      state.currentJob=response.job;
+      renderPlatforms();
+      if(["completed","failed"].includes(state.currentJob?.state)){
+        BlogCTLPopup.setMessage(message,state.currentJob.state==="completed"?
+          "任务完成，结果已记录。":"部分或全部平台失败，请在任务页查看具体远端 ID 和错误。",
+          state.currentJob.state==="completed"?"ok":"error");
         return;
       }
-      if (state.currentJob.state === "failed") {
-        const publications = await BlogCTLPopup.send("blogctl.publications");
-        state.records = publications.records ?? state.records;
-        renderPlatforms();
-        const successful = completedPlatforms(state.currentJob).length;
-        BlogCTLPopup.setMessage(
-          message,
-          successful > 0
-            ? `部分平台更新失败；${successful} 个平台可继续发布。`
-            : "更新失败，请查看任务详情。",
-          "error",
-        );
-        return;
-      }
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, `任务状态读取失败：${BlogCTLPopup.errorMessage(error)}`, "error");
+    }catch(error){
+      BlogCTLPopup.setMessage(message,BlogCTLPopup.errorMessage(error),"error");
     }
-
-    state.pollTimer = setTimeout(() => pollJob(jobID), 1200);
-  }
-
-  async function startPublishedUpdate(platformID) {
-    const article = state.selectedSlug;
-    const record = publicationRecord(platformID);
-    if (!BlogCTLSyncModel.isVisiblePlatform(platformID) ||
-        platformID !== "toutiao" || !article || !record?.publishedRemoteId ||
-        !record?.publishedUrl || !state.status?.bridge?.running ||
-        ["queued", "running"].includes(state.currentJob?.state)) return;
-    if (!window.confirm("将本地文章内容提交到今日头条已发布文章（ID " +
-        record.publishedRemoteId + "），可能直接影响公开页面。确认更新？")) return;
-    resetWorkflow();
-    BlogCTLPopup.setMessage(message, "正在提交已发布文章更新任务…");
-    try {
-      const response = await BlogCTLPopup.send("blogctl.job.start", {
-        request: {
-          article, platforms: [platformID], dryRun: false,
-          draft: false, operation: "update-published",
-        },
-      });
-      state.currentJob = response.job ?? null;
-      renderPlatforms();
-      BlogCTLPopup.setMessage(message, "已发布文章更新任务已启动。", "ok");
-      if (state.currentJob?.id) pollJob(state.currentJob.id);
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-    }
-  }
-
-  async function startSavePlatforms(platforms) {
-    const article = state.selectedSlug;
-    const running = ["queued", "running"].includes(state.currentJob?.state);
-    if (!article || !platforms.length || running || state.bindingMutating ||
-        (root.BlogCTLSync?.isBindingBusy?.() ?? false) || !state.status?.bridge?.running ||
-        platforms.some((id) => !BlogCTLSyncModel.isVisiblePlatform(id))) return;
-
-    if (["completed", "failed"].includes(state.currentJob?.state)) resetWorkflow();
-
-    actionButton.disabled = true;
-    renderPlatforms();
-    BlogCTLPopup.setMessage(
-      message,
-      platforms.length === 1 ? "正在创建单平台更新任务…" : "正在创建更新任务…",
-    );
-    try {
-      const response = await BlogCTLPopup.send("blogctl.job.start", {
-        request: {
-          article,
-          platforms,
-          dryRun: false,
-          usePlatformChangedOnly: true,
-          draft: true,
-          operation: "draft",
-        },
-      });
-      state.currentJob = response.job ?? null;
-      renderPlatforms();
-      updateAction();
-      BlogCTLPopup.setMessage(
-        message,
-        platforms.length === 1
-          ? `${publishingProfile(platforms[0]).label || platforms[0]} 更新任务已启动，正在轮询状态。`
-          : "更新任务已启动，正在轮询状态。",
-        "ok",
-      );
-      if (state.currentJob?.id) pollJob(state.currentJob.id);
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-    } finally {
-      updateAction();
-    }
-  }
-
-  async function startSave() {
-    const platforms = selectedPlatforms();
-    if (!platforms.length || actionButton.disabled) return;
-    await startSavePlatforms(platforms);
-  }
-
-  function prepare(article) {
-    const slug = String(article || "").trim();
-    if (!slug) return;
-    resetWorkflow();
-    state.preparedSlug = slug;
-    state.selectedSlug = slug;
-    localStorage.setItem("blogctl.selectedArticle", slug);
-
-    if (state.active && state.articles.length) {
-      const selected = selectedArticle();
-      articlePicker.value = selected ? `${selected.title} · ${selected.slug}` : slug;
-      renderArticles();
-      setArticleOptionsOpen(false);
-      renderPlatforms();
-    }
+    state.pollTimer=setTimeout(()=>pollJob(id),1400);
   }
 
   async function refresh() {
-    if (!state.active) return;
-    BlogCTLPopup.setMessage(message);
-
+    if(!state.active)return;
     try {
-      const [articlesResponse, statusResponse, publishingResponse, toolsResponse, publicationsResponse] = await Promise.all([
+      const [articles,status,publishing,tools]=await Promise.all([
         BlogCTLPopup.send("blogctl.articles"),
         BlogCTLPopup.send("blogctl.status"),
         BlogCTLPopup.send("blogctl.publishing"),
         BlogCTLPopup.send("blogctl.tools"),
-        BlogCTLPopup.send("blogctl.publications"),
       ]);
-
-      state.articles = articlesResponse.articles ?? [];
-      state.status = statusResponse.status;
-      state.publishing = publishingResponse.platforms ?? [];
-      state.tools = toolsResponse.tools ?? [];
-      state.records = publicationsResponse.records ?? [];
-
-      const previous = state.preparedSlug || state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
-      if (state.articles.some((item) => item.slug === previous)) {
-        state.selectedSlug = previous;
-        state.preparedSlug = "";
-        const selected = selectedArticle();
-        articlePicker.value = `${selected.title} · ${selected.slug}`;
+      state.articles=articles.articles||[];
+      state.status=status.status;
+      state.publishing=publishing.platforms||[];
+      state.tools=tools.tools||[];
+      const previous=state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
+      const found=state.articles.find((item)=>item.slug===previous);
+      if(found){
+        state.selectedSlug=found.slug;
+        articlePicker.value=`${found.title} · ${found.slug}`;
+        articleMeta.textContent=`${found.title} · ${found.slug}`;
+        articlePickerOpen(false);
       } else {
-        state.selectedSlug = "";
+        state.selectedSlug="";
+        articleMeta.textContent="";
       }
-
-      renderArticles();
-      if (state.selectedSlug) setArticleOptionsOpen(false);
-      document.dispatchEvent(new CustomEvent("blogctl:article-selected", {
-        detail: { article: state.selectedSlug },
+      document.dispatchEvent(new CustomEvent("blogctl:article-selected",{
+        detail:{article:state.selectedSlug},
       }));
       renderPlatforms();
-      if (state.currentJob?.id && ["queued", "running"].includes(state.currentJob.state)) {
-        pollJob(state.currentJob.id);
-      }
-      BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
-    } catch (error) {
-      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
-      updateAction();
+      if(running()&&state.currentJob?.id)pollJob(state.currentJob.id);
+      BlogCTLPopup.refreshBridgeIndicator(state.status).catch(()=>{});
+    } catch(error) {
+      BlogCTLPopup.setMessage(message,BlogCTLPopup.errorMessage(error),"error");
     }
   }
 
+  function setMode(mode) {
+    if(mode!=="create"&&mode!=="update")return;
+    state.mode=mode;
+    document.getElementById("draftModeTitle").textContent=mode==="create"?"创建":"更新";
+    document.getElementById("draftModeHint").textContent=mode==="create"?
+      "选择本地文章和平台，明确创建一篇新草稿，不读取历史绑定。":
+      "选择本地文章，检测并勾选远端目标，然后直接更新。";
+    document.getElementById("draftPlatformHint").textContent=mode==="create"?
+      "勾选平台，创建草稿或直接创建并发布。":
+      "勾选平台检测远端候选，选中明确目标后更新，无需绑定。";
+    for(const id of ["refreshArticleMatches"])document.getElementById(id).hidden=mode==="create";
+    root.BlogCTLSync?.clearMatches?.();
+    if(state.initialized)renderPlatforms();
+  }
+
   function init() {
-    if (state.initialized) return;
-
-    articlePicker = document.getElementById("draftArticlePicker");
-    articleOptions = document.getElementById("draftArticleOptions");
-    articleMeta = document.getElementById("draftArticleMeta");
-    platformsContainer = document.getElementById("draftPlatforms");
-    actionButton = document.getElementById("saveDrafts");
-    nextActions = document.getElementById("draftNextActions");
-    viewTaskButton = document.getElementById("draftViewTask");
-    enterPublishButton = document.getElementById("draftEnterPublish");
-    message = document.getElementById("draftsMessage");
-    selectAllButton = document.getElementById("selectAllDraftPlatforms");
-    invertButton = document.getElementById("invertDraftPlatforms");
-
-    articlePicker.addEventListener("focus", renderArticles);
-    articlePicker.addEventListener("input", () => {
-      resetWorkflow();
-      state.selectedSlug = "";
-      document.dispatchEvent(new CustomEvent("blogctl:article-selected", {
-        detail: { article: "" },
-      }));
+    if(state.initialized)return;
+    articlePicker=document.getElementById("draftArticlePicker");
+    articleOptions=document.getElementById("draftArticleOptions");
+    articleMeta=document.getElementById("draftArticleMeta");
+    platformList=document.getElementById("draftPlatforms");
+    actionButton=document.getElementById("saveDrafts");
+    publishButton=document.getElementById("publishAfterSave");
+    nextActions=document.getElementById("draftNextActions");
+    viewTaskButton=document.getElementById("draftViewTask");
+    message=document.getElementById("draftsMessage");
+    allButton=document.getElementById("selectAllDraftPlatforms");
+    invertButton=document.getElementById("invertDraftPlatforms");
+    articlePicker.addEventListener("focus",renderArticles);
+    articlePicker.addEventListener("input",()=>{
+      if(running())return;
+      state.selectedSlug="";
+      document.dispatchEvent(new CustomEvent("blogctl:article-selected",{detail:{article:""}}));
       renderArticles();
       renderPlatforms();
     });
-    articlePicker.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        setArticleOptionsOpen(false);
-        return;
-      }
-      if (event.key === "Enter" && articleOptions.querySelector("button")) {
-        event.preventDefault();
-        articleOptions.querySelector("button").click();
+    articlePicker.addEventListener("keydown",(event)=>{
+      if(event.key==="Escape")articlePickerOpen(false);
+      if(event.key==="Enter"&&articleOptions.querySelector("button")){
+        event.preventDefault();articleOptions.querySelector("button").click();
       }
     });
-
-    document.addEventListener("blogctl:association-results-changed", () => {
-      if (state.active) renderPlatforms();
+    allButton.addEventListener("click",()=>selectAll(false));
+    invertButton.addEventListener("click",()=>selectAll(true));
+    actionButton.addEventListener("click",()=>{
+      const targets=candidateTargets();
+      const platforms=state.mode==="create"?selectedPlatformIDs().filter((id)=>{
+        const platform=state.status?.platforms?.find((p)=>p.id===id);
+        return platform&&availability(platform).available;
+      }):[...new Set(targets.map((t)=>t.platform))];
+      startExplicit(platforms,targets,false);
     });
-    actionButton.addEventListener("click", startSave);
-    viewTaskButton.addEventListener("click", navigateTask);
-    enterPublishButton.addEventListener("click", enterPublish);
-    selectAllButton.addEventListener("click", () => setDraftPlatforms("all"));
-    invertButton.addEventListener("click", () => setDraftPlatforms("invert"));
-    state.initialized = true;
+    publishButton.addEventListener("click",()=>{
+      const targets=candidateTargets();
+      const platforms=state.mode==="create"?selectedPlatformIDs():[...new Set(targets.map((t)=>t.platform))];
+      startExplicit(platforms,targets,true);
+    });
+    viewTaskButton.addEventListener("click",()=>{
+      if(state.currentJob?.id)document.dispatchEvent(new CustomEvent("blogctl:navigate-task",{
+        detail:{jobId:state.currentJob.id},
+      }));
+    });
+    document.addEventListener("blogctl:association-results-changed",()=>{
+      if(state.active&&state.mode==="update")renderPlatforms();
+    });
+    state.initialized=true;
+  }
+  function activate(){state.active=true;refresh();}
+  function deactivate(){
+    state.active=false;
+    if(state.pollTimer)clearTimeout(state.pollTimer);
+    state.pollTimer=null;
   }
 
-  function activate() {
-    state.active = true;
-    refresh();
-  }
-
-  function deactivate() {
-    state.active = false;
-    stopPolling();
-  }
-
-  root.BlogCTLDrafts = {
-    init, activate, deactivate, refresh, prepare,
-    selectedPlatformIDs: platformSelection, refreshBindings,
-    isJobRunning: () => ["queued", "running"].includes(state.currentJob?.state),
+  root.BlogCTLDrafts={
+    init,activate,deactivate,refresh,setMode,
+    selectedPlatformIDs,
+    isJobRunning:running,
+    selectionChanged:updateAction,
+    updateTargets:(targets,publishAfter=false)=>
+      startExplicit([...new Set(targets.map((item)=>item.platform))],targets,publishAfter),
   };
 })(globalThis);
