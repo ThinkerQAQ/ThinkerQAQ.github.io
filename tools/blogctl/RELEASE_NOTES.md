@@ -1,3 +1,19 @@
+# BlogCTL v0.1.134 (local candidate)
+
+- Complete Extension and Go Web Console shared navigation and Settings
+  parity; both use the same Feature markup, styling and request contract.
+- Permit successive explicit Create and Update tasks without stale terminal
+  buttons, while retaining each task in the durable history.
+- Hide the workspace-opening button when already inside Web Console and
+  serve a real favicon to prevent an unrelated 401 from favicon discovery.
+- Keep previous v0.1.133 direct-target publishing safeguards and Go security
+  checks. Medium/Toutiao remain hidden and legacy Data preserved.
+
+Local candidate under PR #177. Real authenticated third-party writes remain
+subject to manual confirmation and account-level acceptance.
+
+---
+
 # BlogCTL v0.1.133 (candidate)
 
 - Fix shared Go Web Console initialization when browser-only chrome.runtime
