@@ -36,6 +36,8 @@ External article platforms                      │
 
 Site search uses Pagefind in the static site. AI Search is an independent optional Worker pipeline and should not be confused with Pagefind.
 
+For search, comments, analytics and Workers, see [Search and integrations](search-and-integrations.md).
+
 ## Implementation boundaries
 
 A normal engine build does not write canonical articles back to `blog-content`. A BlogCTL remote publish is a separate, explicitly authorized workflow. GitHub Pages gets the static artifact; the EdgeOne job augments its own artifact with `edge-functions/`. Generated diagrams belong to build output rather than the content repository.

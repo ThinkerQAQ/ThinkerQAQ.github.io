@@ -13,4 +13,6 @@ Documentation is organized by **reader intent**, not source-code directories. Th
 | Understand decisions and alternatives | [Architecture / historical design](architecture/index.md) |
 | Start as an agent | [Agent Contract](../AGENTS.md) |
 
+- [Search, analytics and integrations](concepts/search-and-integrations.md) — site-service boundaries
+
 **Authority rule:** commands belong in [Command Reference](reference/commands.md), deployment values in [Deployment Reference](reference/deployment.md), content fields in [Content Schema](reference/content-schema.md), and BlogCTL configuration in [its Configuration Reference](../tools/blogctl/docs/reference/configuration.md). Other pages link rather than redefine these contracts.
