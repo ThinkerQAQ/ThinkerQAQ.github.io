@@ -84,6 +84,7 @@ type NativeDraftPublisher interface {
 }
 
 type SyncEvent struct {
+	TargetID string `json:"targetId,omitempty"`
 	Platform string `json:"platform,omitempty"`
 	State    string `json:"state"`
 	Result   string `json:"result,omitempty"`

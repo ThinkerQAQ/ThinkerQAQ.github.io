@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,14 +36,24 @@ type articleSummary struct {
 	SourcePath    string `json:"sourcePath"`
 }
 
+type explicitTaskTarget struct {
+	Platform  string `json:"platform"`
+	ID        string `json:"id"`
+	URL       string `json:"url,omitempty"`
+	State     string `json:"state"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
+}
+
 type syncRequest struct {
-	Article                string   `json:"article"`
-	Platforms              []string `json:"platforms"`
-	DryRun                 bool     `json:"dryRun"`
-	Changed                bool     `json:"changed"`
-	UsePlatformChangedOnly bool     `json:"usePlatformChangedOnly,omitempty"`
-	Draft                  bool     `json:"draft"`
-	Operation              string   `json:"operation,omitempty"`
+	Targets                []explicitTaskTarget `json:"targets,omitempty"`
+	PublishAfter           bool                 `json:"publishAfter,omitempty"`
+	Article                string               `json:"article"`
+	Platforms              []string             `json:"platforms"`
+	DryRun                 bool                 `json:"dryRun"`
+	Changed                bool                 `json:"changed"`
+	UsePlatformChangedOnly bool                 `json:"usePlatformChangedOnly,omitempty"`
+	Draft                  bool                 `json:"draft"`
+	Operation              string               `json:"operation,omitempty"`
 }
 
 type syncPlatformResult struct {
@@ -54,6 +65,7 @@ type syncPlatformResult struct {
 }
 
 type syncJobEvent struct {
+	TargetID string `json:"targetId,omitempty"`
 	At       string `json:"at"`
 	Platform string `json:"platform"`
 	State    string `json:"state"`
@@ -792,13 +804,88 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 }
 
 func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
+	// Explicit create/update use the same article/platform validation but a
+	// distinct task contract; they NEVER read PublicationBinding for targets.
+	operation := strings.ToLower(strings.TrimSpace(request.Operation))
+	if operation == "create" || operation == "update" {
+		base := blogapp.SyncRequest{Articles: []string{request.Article}, Platforms: request.Platforms,
+			DryRun: request.DryRun, Operation: "draft"}
+		normalized, err := blogapp.NormalizeSyncRequest(base)
+		if err != nil {
+			return request, err
+		}
+		request.Article = normalized.Articles[0]
+		request.Platforms = normalized.Platforms
+		request.Operation = operation
+		allowed := make(map[string]struct{}, len(request.Platforms))
+		for _, platform := range request.Platforms {
+			if platform == "medium" || platform == "toutiao" {
+				return request, fmt.Errorf("%s is temporarily disabled", platform)
+			}
+			allowed[platform] = struct{}{}
+			if request.PublishAfter && !publisher.PlatformCapabilitiesFor(platform).ExplicitPublish {
+				return request, fmt.Errorf("%s does not support publishing the selected draft", platform)
+			}
+		}
+		if operation == "create" {
+			if len(request.Targets) != 0 {
+				return request, errors.New("creation must not specify remote targets")
+			}
+			return request, nil
+		}
+		if len(request.Targets) == 0 {
+			return request, errors.New("update requires selected remote article IDs")
+		}
+		seen := map[string]struct{}{}
+		for i, target := range request.Targets {
+			if _, ok := allowed[target.Platform]; !ok {
+				return request, fmt.Errorf("target %d is not in selected platforms", i)
+			}
+			if len(target.ID) == 0 || len(target.ID) > 100 || !validExplicitRemoteID(target.ID) {
+				return request, fmt.Errorf("target %d has an invalid remote article ID", i)
+			}
+			if target.State != "draft" && target.State != "published" {
+				return request, fmt.Errorf("target %d has an invalid publication state", i)
+			}
+			if target.State == "published" && request.PublishAfter {
+				return request, errors.New("published targets cannot be published again")
+			}
+			key := target.Platform + "/" + target.ID
+			if _, ok := seen[key]; ok {
+				return request, fmt.Errorf("duplicate remote target %s", key)
+			}
+			seen[key] = struct{}{}
+			if target.URL != "" {
+				parsed, err := url.Parse(target.URL)
+				if err != nil || parsed.Scheme != "https" || parsed.User != nil || parsed.Hostname() == "" {
+					return request, fmt.Errorf("target %d has an invalid remote URL", i)
+				}
+				host := parsed.Hostname()
+				suffixes := publisherCookieHostSuffixes(target.Platform)
+				if target.Platform == "cnblogs" {
+					suffixes = []string{"cnblogs.com"}
+				}
+				if target.Platform == "devto" {
+					suffixes = []string{"dev.to"}
+				}
+				valid := false
+				for _, suffix := range suffixes {
+					if host == suffix || strings.HasSuffix(host, "."+suffix) {
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					return request, fmt.Errorf("target %d URL does not belong to %s", i, target.Platform)
+				}
+			}
+		}
+		return request, nil
+	}
 	normalized, err := blogapp.NormalizeSyncRequest(blogapp.SyncRequest{
 		Articles:  []string{request.Article},
-		Platforms: request.Platforms,
-		DryRun:    request.DryRun,
-		Changed:   request.Changed,
-		Draft:     request.Draft,
-		Operation: request.Operation,
+		Platforms: request.Platforms, DryRun: request.DryRun,
+		Changed: request.Changed, Draft: request.Draft, Operation: request.Operation,
 	})
 	if err != nil {
 		return request, err
@@ -1220,6 +1307,9 @@ func (s *Server) runSyncApplication(ctx context.Context, config bridgeConfig, re
 		Publishing:       config.Publishing,
 		ToolPaths:        config.ToolPaths,
 	}
+	if request.Operation == "create" || request.Operation == "update" {
+		return s.runExplicitSync(ctx, config, request, onEvent)
+	}
 	if request.Operation == "update-published" {
 		if request.DryRun || len(request.Platforms) != 1 {
 			return "", errors.New("published update requires one real platform operation")
@@ -1324,7 +1414,7 @@ func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
 	}
 	job.Results[event.Platform] = result
 	job.Events = append(job.Events, syncJobEvent{
-		At: at.UTC().Format(time.RFC3339), Platform: event.Platform, State: event.State,
+		At: at.UTC().Format(time.RFC3339), Platform: event.Platform, TargetID: event.TargetID, State: event.State,
 		Result: event.Result, URL: event.URL, Message: event.Message,
 	})
 }
@@ -1545,9 +1635,9 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
-	if job.Operation == "publish" {
+	if job.Operation == "publish" || job.Operation == "create" {
 		s.mu.Unlock()
-		return nil, errors.New("publish jobs cannot be retried safely; verify the remote publication before taking another action")
+		return nil, errors.New("create/publish jobs cannot be retried safely; verify the remote article before taking another action")
 	}
 	request := job.Request
 	replacement := newSyncJob(id, request, startedAt)
