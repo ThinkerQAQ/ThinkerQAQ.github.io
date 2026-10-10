@@ -23,7 +23,7 @@
   };
 
   let platformsContainer, message, refreshMatchesButton;
-  let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton, enterDraftsButton;
+  let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
@@ -106,9 +106,6 @@
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
     refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating ||
       state.matchingPlatforms.size > 0 || state.selectedPlatformIDs.size === 0;
-    if (enterDraftsButton) {
-      enterDraftsButton.disabled = !state.selectedSlug || state.bindingMutating;
-    }
     updateBulkActions();
   }
 
@@ -685,7 +682,6 @@
     selectionSummary = document.getElementById("bindingSelectionSummary");
     bindSelectedButton = document.getElementById("bindSelectedMatches");
     unbindSelectedButton = document.getElementById("unbindSelectedMatches");
-    enterDraftsButton = document.getElementById("bindingEnterDrafts");
 
     // A state-specific unbind from the Update tab invalidates cached
     // detection results. Recheck manually rather than displaying stale
@@ -710,6 +706,7 @@
       if (!state.active || state.selectedSlug !== article ||
           !BlogCTLSyncModel.isVisiblePlatform(platformID)) return;
       state.selectedPlatformIDs.add(platformID);
+      document.getElementById("updateAssociationDetails").open = true;
       renderPlatforms();
       await refreshArticleMatches([platformID]);
       const area = document.getElementById("syncPlatforms");
