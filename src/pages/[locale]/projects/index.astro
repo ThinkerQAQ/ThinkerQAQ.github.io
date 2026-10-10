@@ -4,7 +4,7 @@ import CollectionHeader from "../../../components/CollectionHeader.astro";
 import ShowcaseList from "../../../components/ShowcaseList.astro";
 import { LOCALES, localizePath, nonDefaultLocales, type Locale } from "../../../config/i18n";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
-import { localizedProjectSummary, projectHref, projectStatusLabel, sortProjects } from "../../../lib/content";
+import { localizedProjectSummary, localizedProjectTags, projectHref, projectStatusLabel, sortProjects } from "../../../lib/content";
 
 export async function getStaticPaths() {
   const entries = sortProjects(await getCollection("projects"));
@@ -37,7 +37,7 @@ const localeInfo = LOCALES[locale];
           href: projectHref(entry, locale),
           title: summary.title,
           description: summary.description,
-          label: entry.data.tags.join(" · "),
+          label: localizedProjectTags(entry, locale).join(" · "),
           status: projectStatusLabel(entry.data.status, locale),
         };
       })} />

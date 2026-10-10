@@ -6,6 +6,7 @@ import {
   categoryHref,
   groupByCategory,
   localizedProjectSummary,
+  localizedProjectTags,
   localizedSeriesSummary,
   projectHref,
   projectStatusLabel,
@@ -169,7 +170,7 @@ const projectItems = projects.map((project) => {
     href: projectHref(project, locale),
     title: summary.title,
     description: summary.description,
-    label: project.data.tags.join(" · "),
+    label: localizedProjectTags(project, locale).join(" · "),
     status: projectStatusLabel(project.data.status, locale),
   };
 });
