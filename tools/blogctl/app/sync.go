@@ -347,7 +347,6 @@ func (s SyncService) runSyncPlan(
 				return result
 			}
 			for _, compiled := range compiledArticles {
-				publishStarted := time.Now()
 				article := compiled.Slug
 				platform := compiled.Platform
 				if request.Operation == "publish" {
