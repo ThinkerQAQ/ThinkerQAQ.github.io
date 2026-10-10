@@ -124,3 +124,51 @@ confirmed published-article edits are enabled in the native HTTP client.
 Published updates require existing ID, matching account and remote revision.
 Normal publishing of a NEW article remains disabled. This is not proof of
 upstream acceptance; real UI and native HTTP verification remain mandatory.
+
+## 2026-10-10 — Confirmed live failure (7050) after form adjustments
+
+The account owner ran a real Windows v0.1.119 BlogCTL update of a bound
+creator draft. The server answered HTTP success but rejected the application
+write with `code=7050`, `err_no=7050`, `message=保存失败`.
+Versions v0.1.117 and v0.1.118 failed the same way with the less informative
+error message. Do not classify this as an asset renderer failure: the logged
+assets were fully cached (`prepared=6, rendered=0, cached=6`).
+
+Offline comparison of a **successful creator-initiated editor save** from
+`mp.toutiao.com发布3.har` against `toutiao.go` shows:
+
+- Successful URL query contains `msToken` and `a_bogus`. The native Go
+  request constructs neither parameter.
+- Successful request has `x-secsdk-csrf-token` and `tt-anti-token`. Go
+  creates a CSRF token via HEAD preflight; `tt-anti-token` is populated
+  only if the extension saw an editor-initiated POST within 10 minutes.
+  A recently captured header does **not** reproduce a dynamically signed URL.
+- The editor's reopened-draft form includes `article_type=0`,
+  `article_ad_type=3`, and empty `title_id`; these were implemented in
+  v0.1.118 without changing the 7050 outcome. The captured coverType
+  varies across the previous HAR sessions; coverType alone does not explain
+  the repeated error, and must not be changed without matching cover state.
+- Pure-HTTP CSRF HEAD success proves that the CSRF endpoint is reachable,
+  not that the creator save endpoint accepts an unsigned POST.
+- Public automation reports document similar creator responses with
+  `code=7050` when dynamic security parameters cannot be reproduced.
+  However, no official public contract establishes that 7050 *only*
+  means an anti-automation check failure.
+
+**Conclusion:** signature/session-bound security validation is the leading
+candidate, not a confirmed exclusive definition of error 7050.
+A successful production implementation requires a fresh **creator-specific**
+signature over the exact request as applicable, with a real creator draft
+write and a readback verification. Do not treat older `_signature` or Douyin/
+public-feed `a_bogus` algorithms as interchangeable.
+
+Do not repeat write attempts in a loop or automate changes to published
+articles while this verification gate remains unsatisfied. A browser editor
+relay is not an acceptable substitution for the requested pure API solution.
+
+Separate errors in historical batch logs (Mermaid Puppeteer startup timeout,
+Medium 504, R2 upload 400) are independent of this creator save response.
+
+References:
+- https://github.com/kevinzjpeng/toutiao-hot-monitor
+- https://developer.cloud.tencent.com/article/2721522
