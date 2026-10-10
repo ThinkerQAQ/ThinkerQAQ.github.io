@@ -65,6 +65,9 @@ func publicationRecordFromBinding(binding PublicationBinding) PublicationRecord 
 	if binding.Platform == "cnblogs" {
 		record.DraftURL = cnBlogsDraftURL(record.RemoteID, record.DraftURL)
 	}
+	if binding.Platform == "oschina" {
+		record.DraftURL = OSChinaDraftURL(binding.Account, record.RemoteID, record.DraftURL)
+	}
 	for _, candidate := range []string{record.DraftSyncedAt, record.PublishedAt, record.PublishedSyncedAt} {
 		if candidate > record.UpdatedAt {
 			record.UpdatedAt = candidate
@@ -119,6 +122,9 @@ func LoadArticleLinks(storePath, slug string) (map[string]ArticleLink, error) {
 		}
 		if binding.Platform == "cnblogs" {
 			link.DraftURL = cnBlogsDraftURL(link.RemoteID, link.DraftURL)
+		}
+		if binding.Platform == "oschina" {
+			link.DraftURL = OSChinaDraftURL(binding.Account, link.RemoteID, link.DraftURL)
 		}
 		if link.RemoteID != "" || link.PublishedRemoteID != "" || link.DraftURL != "" || link.PublishedURL != "" {
 			result[binding.Platform] = link

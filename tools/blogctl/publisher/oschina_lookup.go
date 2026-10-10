@@ -16,6 +16,36 @@ type OSChinaPost struct {
 	Published bool   `json:"published"`
 }
 
+// OSChinaDraftEditorURL resolves a draft to the numeric account's editing UI.
+// An account username is not interchangeable with the creator's numeric ID.
+func OSChinaDraftEditorURL(userID, draftID string) string {
+	if !cnBlogsNumericID.MatchString(strings.TrimSpace(userID)) ||
+		!cnBlogsNumericID.MatchString(strings.TrimSpace(draftID)) {
+		return ""
+	}
+	return osChinaOrigin + "/u/" + url.PathEscape(strings.TrimSpace(userID)) +
+		"/blog/ai-write/draft/" + url.PathEscape(strings.TrimSpace(draftID))
+}
+
+// OSChinaDraftURL corrects persisted legacy preview URLs when the numeric
+// creator ID is known. Otherwise retain the existing link rather than
+// hardcoding an account or emitting a malformed editor URL.
+func OSChinaDraftURL(userID, draftID, stored string) string {
+	if normalized := OSChinaDraftEditorURL(userID, draftID); normalized != "" {
+		return normalized
+	}
+	parsed, err := url.Parse(strings.TrimSpace(stored))
+	if err == nil && parsed.Scheme == "https" && parsed.Hostname() == "my.oschina.net" {
+		segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+		if len(segments) >= 2 && segments[0] == "u" {
+			if normalized := OSChinaDraftEditorURL(segments[1], draftID); normalized != "" {
+				return normalized
+			}
+		}
+	}
+	return stored
+}
+
 func OSChinaTitleMatches(local, remote string) bool {
 	local = strings.Join(strings.Fields(strings.TrimSpace(local)), " ")
 	remote = strings.Join(strings.Fields(strings.TrimSpace(remote)), " ")
@@ -67,7 +97,7 @@ func (o *osChinaAdapter) listDrafts(ctx context.Context) ([]OSChinaPost, error) 
 			}
 			result = append(result, OSChinaPost{
 				ID: id, Title: title,
-				URL: osChinaOrigin + "/u/" + url.PathEscape(o.userID) + "/blog/ai-write/draft/" + url.PathEscape(id),
+				URL: OSChinaDraftEditorURL(o.userID, id),
 			})
 		}
 		if len(decoded.Result.Records) == 0 || decoded.Result.Pages <= page {
