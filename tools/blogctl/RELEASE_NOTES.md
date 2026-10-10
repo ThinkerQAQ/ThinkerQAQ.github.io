@@ -1,3 +1,23 @@
+# BlogCTL v0.1.142 (local experimental build)
+
+- Fix 51CTO draft/publish classification when an article has no tags
+  matching the provider's secondary-category taxonomy. Live public
+  categories show 后端开发 as the primary category with valid children
+  架构, Java, Go语言 and Python, not a secondary category named 后端.
+- Resolve the default to the actual current catalog's 后端开发 → 架构
+  child ID. Fall back to valid Java/Go/Python only when 架构 is absent,
+  without hard-coding provider IDs or adding Java runtime dependencies.
+- Preserve the requested display tag 后端 when no article tag matches
+  the chosen secondary category. Apply this consistently to both draft
+  creation/update and publish, retaining original tags on exact matches.
+- DevTool code verify; all BlogCTL Go tests and 69 Extension tests passed.
+- Other platforms and existing Windows Data are unchanged.
+
+Local experimental build on PR #177; not a public stable release.
+Real authenticated 51CTO draft saving is not claimed validated by tests.
+
+---
+
 # BlogCTL v0.1.141 (local candidate)
 
 - Publish already-created drafts directly from Tasks after explicit user
