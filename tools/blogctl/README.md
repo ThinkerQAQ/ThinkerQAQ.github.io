@@ -4,6 +4,8 @@
 
 BlogCTL is the Go application that assembles the blog, prepares articles for other publishing platforms, and runs a local Bridge for the browser Extension and Web Console.
 
+For a step-by-step first run with actual English UI screenshots, follow the [new-machine tutorial](docs/tutorial/first-run-on-new-machine.md).
+
 ## Quick Start
 
 To inspect the CLI from a checkout of the [blog engine](../../README.md):
