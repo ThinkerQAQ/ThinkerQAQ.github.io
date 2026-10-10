@@ -164,8 +164,12 @@
         detect.textContent="检测关联";
         detect.disabled=!permission.available || !state.selectedSlug || running() ||
           (root.BlogCTLSync?.isBindingBusy?.() ?? false);
-        detect.addEventListener("click",()=>
-          root.BlogCTLSync?.refreshArticleMatches?.([platform.id]));
+        detect.addEventListener("click", () => {
+          state.selectedPlatformIDs.add(platform.id);
+          BlogCTLSyncState.savePlatforms(localStorage,state.selectedPlatformIDs);
+          renderPlatforms();
+          root.BlogCTLSync?.refreshArticleMatches?.([platform.id]);
+        });
         actions.append(detect);
       }
       card.append(actions);
@@ -369,7 +373,10 @@
     selectedPlatformIDs,
     isJobRunning:running,
     selectionChanged:updateAction,
-    updateTargets:(targets,publishAfter=false)=>
-      startExplicit([...new Set(targets.map((item)=>item.platform))],targets,publishAfter),
+    updateTargets:(targets,publishAfter=false)=>{
+      for (const target of targets) state.selectedPlatformIDs.add(target.platform);
+      BlogCTLSyncState.savePlatforms(localStorage,state.selectedPlatformIDs);
+      return startExplicit([...new Set(targets.map((item)=>item.platform))],targets,publishAfter);
+    },
   };
 })(globalThis);
