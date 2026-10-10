@@ -65,13 +65,28 @@
         const row = document.createElement("div");
         row.className = "article-match-row";
         const identity = document.createElement("div");
-        identity.className = "article-match-choice-text";
-        identity.textContent = `${item.title || "(无标题)"} · ${item.published ? "已发布" : "草稿"} · ID ${item.id}`;
+        identity.className = "inventory-article-content";
+        const title = document.createElement("strong");
+        title.className = "inventory-article-title";
+        title.textContent = item.title || "(无标题)";
+        const metadata = document.createElement("div");
+        metadata.className = "inventory-article-meta";
+        const status = document.createElement("span");
+        status.className = item.published
+          ? "inventory-article-state is-published"
+          : "inventory-article-state is-draft";
+        status.textContent = item.published ? "已发布" : "草稿";
+        const remoteID = document.createElement("span");
+        remoteID.className = "inventory-article-id";
+        remoteID.textContent = `ID ${item.id}`;
+        metadata.append(status, remoteID);
+        identity.append(title, metadata);
         row.append(identity);
 
         const target = BlogCTLSyncModel.articleMatchLink(platform.id, item);
         if (target) {
           const link = document.createElement("a");
+          link.className = "inventory-article-action";
           link.textContent = target.label;
           link.href = target.url;
           link.target = "_blank";
