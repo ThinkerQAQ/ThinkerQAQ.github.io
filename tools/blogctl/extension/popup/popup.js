@@ -56,6 +56,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
+  document.getElementById("openWorkspace").addEventListener("click", () => {
+    // An intermediate full-page host of the exact same Extension UI.
+    // Standalone Go /console is a separate phase with Web authorization.
+    chrome.tabs.create({ url: chrome.runtime.getURL("popup/popup.html") });
+  });
   document.addEventListener("blogctl:navigate-publication", (event) => {
     const article = String(event.detail?.article || "").trim();
     const platform = String(event.detail?.platform || "").trim();

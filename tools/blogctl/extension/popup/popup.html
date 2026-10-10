@@ -19,7 +19,10 @@
           <p>博客同步发布控制面</p>
         </div>
       </div>
-      <button id="refresh" class="secondary compact" type="button">刷新</button>
+      <div class="header-actions">
+        <button id="openWorkspace" class="secondary compact" type="button" title="在浏览器标签页中打开同一套工作台">打开工作台</button>
+        <button id="refresh" class="secondary compact" type="button">刷新</button>
+      </div>
     </header>
 
     <nav class="tabs" role="tablist" aria-label="BlogCTL">
@@ -408,6 +411,7 @@
     </section>
   </main>
 
+  <script src="transport.js"></script>
   <script src="core.js"></script>
   <script src="sync-model.js"></script>
   <script src="sync-state.js"></script>

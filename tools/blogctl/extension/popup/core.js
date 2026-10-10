@@ -5,27 +5,8 @@
     return error?.message || String(error);
   }
 
-  function send(type, payload = {}) {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type, ...payload }, (response) => {
-        const runtimeError = chrome.runtime.lastError;
-        if (runtimeError) {
-          reject(new Error(runtimeError.message));
-          return;
-        }
-        if (!response?.ok) {
-          const error = new Error(response?.error || "BlogCTL Extension request failed");
-          error.code = response?.code || "";
-          error.details = response?.details || null;
-          error.status = response?.status || 0;
-          error.response = response;
-          reject(error);
-          return;
-        }
-        resolve(response);
-      });
-    });
-  }
+  // Feature modules use a stable request surface independent of the host.
+  const send = (type, payload = {}) => root.BlogCTLTransport.send(type, payload);
 
   function setStatus(element, kind, text, detail = "") {
     if (!element) return;
