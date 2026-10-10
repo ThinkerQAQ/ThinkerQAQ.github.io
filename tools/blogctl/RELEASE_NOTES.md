@@ -1,3 +1,17 @@
+# BlogCTL v0.1.117 (local experimental build)
+
+- Restore Toutiao draft creation and update through native Go HTTP.
+- Restore explicit verified published-article update with original article ID,
+  bound creator account, remote revision check, and UI confirmation.
+- NEW public publishing remains disabled.
+- Repair the Toutiao flattened table-of-contents layout.
+- Regression tests for draft and published update paths.
+
+WARNING: Local experimental build from PR #177. Real direct Go HTTP
+write acceptance is not yet verified; mock test success is not live success.
+
+---
+
 # BlogCTL v0.1.116 (local experimental build)
 
 Align the Windows Bridge, Native Host, and Edge/Chrome extension at v0.1.116.

@@ -115,3 +115,12 @@ The HAR was captured from the user's *manual creator editor*. Changing the
 BlogCTL native HTTP pipeline does not retroactively repair a draft manually
 pasted into Toutiao. This remains an experimental fix awaiting live
 native-HTTP draft validation.
+
+
+## 2026-10-10 — Explicit local test release v0.1.117
+
+Following account-owner approval, draft creation/update and explicitly
+confirmed published-article edits are enabled in the native HTTP client.
+Published updates require existing ID, matching account and remote revision.
+Normal publishing of a NEW article remains disabled. This is not proof of
+upstream acceptance; real UI and native HTTP verification remain mandatory.
