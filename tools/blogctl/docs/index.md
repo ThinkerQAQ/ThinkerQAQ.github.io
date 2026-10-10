@@ -1,16 +1,17 @@
-# BlogCTL Documentation
+# BlogCTL documentation
 
-BlogCTL is a product within the [ThinkerQAQ blog engine](../../../README.md). This directory covers **BlogCTL behavior**; site rendering, content schema, deployment and website configuration belong to the [engine docs](../../../docs/index.md).
+[简体中文](zh-CN/index.md) · [Blog engine](../../../docs/index.md)
 
-| Goal | Start here |
+BlogCTL handles site assembly, browser-assisted publishing and search indexing. Use the engine documentation for Astro routes, content collection schemas and website deployment.
+
+| What you're doing | Read |
 | --- | --- |
-| First launch | [Quick Start](quick-start.md) |
-| Complete first workflow | [Tutorial: first publishing workflow](tutorial/first-publish.md) |
-| Understand product models | [Concepts](concepts/index.md) |
-| Resolve a specific task | [How-to](how-to/index.md) |
-| Look up commands and fields | [Reference](reference/index.md) |
-| Reuse a working workflow | [Examples](examples/index.md) |
-| Understand design history | [Deep Design](architecture/index.md) |
-| Work as an Agent | [BlogCTL Agent Scope](../AGENTS.md) |
+| Installing the CLI and Extension | [Quick Start](quick-start.md) |
+| Publishing your first article | [Tutorial](tutorial/first-publish.md) |
+| Understanding the Bridge and publishing model | [Concepts](concepts/index.md) |
+| Configuring or troubleshooting a feature | [How-to](how-to/index.md) |
+| Checking flags, TOML or interfaces | [Reference](reference/index.md) |
+| Working from an example | [Examples](examples/index.md) |
+| Reviewing architectural boundaries | [Architecture](architecture/index.md) |
 
-Authoritative code: `cmd/main.go` for CLI, `bridge/config.go` and `publishing/config.go` for TOML, `publisher/` and `platform/` for platform capabilities. The other pages link to these facts instead of cloning field inventories.
+Agents should start with the [root contract](../../../AGENTS.md) and the [BlogCTL contract](../AGENTS.md).

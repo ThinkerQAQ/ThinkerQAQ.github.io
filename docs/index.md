@@ -1,18 +1,19 @@
-# Documentation — ThinkerQAQ Blog Engine
+# Blog engine documentation
 
-Documentation is organized by **reader intent**, not source-code directories. The blog engine and [BlogCTL](../tools/blogctl/docs/index.md) have distinct documentation scopes.
+[简体中文](zh-CN/index.md)
 
-| Need | Start here |
+The engine builds an Astro site from Markdown kept in a separate repository. BlogCTL is also used to distribute articles to external platforms.
+
+| What you're doing | Read |
 | --- | --- |
-| Run something in minutes | [Quick Start](quick-start.md) |
-| Learn the full workflow | [First-site tutorial](tutorial/first-site.md) |
-| Understand the design | [System concepts](concepts/system.md) |
-| Solve a specific task | [How-to](how-to/index.md) |
-| Look up exact behavior | [Reference](reference/index.md) |
-| Copy a working scenario | [Examples](examples/index.md) |
-| Understand decisions and alternatives | [Architecture / historical design](architecture/index.md) |
-| Start as an agent | [Agent Contract](../AGENTS.md) |
+| Running the engine locally | [Quick Start](quick-start.md) |
+| Setting up a content checkout | [Tutorial](tutorial/first-site.md) |
+| Understanding content assembly and deployment | [System architecture](concepts/system.md) |
+| Working with search, analytics or Workers | [Integrations](concepts/search-and-integrations.md) |
+| Solving an operational issue | [How-to](how-to/index.md) |
+| Checking exact commands and settings | [Reference](reference/index.md) |
+| Reviewing runnable fixtures | [Examples](examples/index.md) |
+| Extending the system | [Architecture principles](architecture/principles.md) |
+| Using the publishing application | [BlogCTL documentation](../tools/blogctl/docs/index.md) |
 
-- [Search, analytics and integrations](concepts/search-and-integrations.md) — site-service boundaries
-
-**Authority rule:** commands belong in [Command Reference](reference/commands.md), deployment values in [Deployment Reference](reference/deployment.md), content fields in [Content Schema](reference/content-schema.md), and BlogCTL configuration in [its Configuration Reference](../tools/blogctl/docs/reference/configuration.md). Other pages link rather than redefine these contracts.
+Commands are documented under [Reference](reference/commands.md). The Go and TypeScript definitions linked there are the final source for configuration and interfaces.
