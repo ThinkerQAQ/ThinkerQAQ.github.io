@@ -1,3 +1,18 @@
+# BlogCTL v0.1.123 (local experimental build)
+
+- Fix the **检测 → 远端关联** CNBlogs draft row: “编辑草稿” now opens
+  the authenticated creator editor at
+  `https://i.cnblogs.com/posts/edit;postId=<post-id>` instead of the
+  unavailable public permalink.
+- Preserve the existing “查看文章” link for published CNBlogs posts and
+  unchanged links for other platforms.
+- Add a regression test specifically for the remote-association detection
+  card, not the separate publications screen.
+
+Local branch build on PR #177; not a public release.
+
+---
+
 # BlogCTL v0.1.122 (local experimental build)
 
 - Normalize OSChina draft links to `https://my.oschina.net/u/<numeric-user-id>/blog/ai-write/draft/<draft-id>`.
