@@ -14,6 +14,7 @@
     records: [],
     currentJob: null,
     pollTimer: null,
+    bindingMutating: false,
   };
 
   let articlePicker, articleOptions, articleMeta, platformsContainer;
@@ -125,6 +126,93 @@
     return "没有草稿关系 · 本次创建";
   }
 
+  // The Bridge already supports state-specific local unbinding for all
+  // visible delivery platforms. Never delete the remote post itself.
+  async function unbindPlatformRecord(platformID, stateName, postID) {
+    const article = state.selectedSlug;
+    const record = publicationRecord(platformID);
+    const recordID = stateName === "draft" ? record?.remoteId : record?.publishedRemoteId;
+    if (!article || !BlogCTLSyncModel.isVisiblePlatform(platformID) ||
+        state.bindingMutating || !state.status?.bridge?.running ||
+        ["queued", "running"].includes(state.currentJob?.state) ||
+        !postID || String(recordID) !== String(postID)) return;
+
+    const label = stateName === "draft" ? "草稿" : "已发布文章";
+    if (!window.confirm(`仅解除 BlogCTL 对此平台${label}（ID ${postID}）的关联，不会删除远端内容。确定继续？`)) return;
+
+    state.bindingMutating = true;
+    renderPlatforms();
+    try {
+      await BlogCTLPopup.send("blogctl." + platformID + ".unbind", {
+        article, state: stateName, postId: postID,
+      });
+      const response = await BlogCTLPopup.send("blogctl.publications");
+      state.records = response.records ?? [];
+      // Detection caches bound/unbound flags for 24h. Invalidate those
+      // entries so switching tabs does not show an obsolete association.
+      BlogCTLSyncState.clearMatches(localStorage);
+      document.dispatchEvent(new CustomEvent("blogctl:binding-changed", {
+        detail: { article, platform: platformID },
+      }));
+      BlogCTLPopup.setMessage(message, `${publishingProfile(platformID).label || platformID} ${label}关联已解除；远端内容未修改。`, "ok");
+    } catch (error) {
+      BlogCTLPopup.setMessage(message, BlogCTLPopup.errorMessage(error), "error");
+    } finally {
+      state.bindingMutating = false;
+      renderPlatforms();
+    }
+  }
+
+  function appendBindingRows(wrapper, platformID, record, running) {
+    if (!record) return;
+    const entries = [
+      { state: "draft", id: String(record.remoteId || ""), url: record.draftUrl || "", label: "草稿" },
+      { state: "published", id: String(record.publishedRemoteId || ""), url: record.publishedUrl || "", label: "已发布" },
+    ];
+    const hasAny = entries.some((entry) => entry.id || entry.url);
+    if (!hasAny) return;
+
+    const container = document.createElement("div");
+    container.className = "draft-binding-list";
+    for (const entry of entries) {
+      if (!entry.id && !entry.url) continue;
+      const row = document.createElement("div");
+      row.className = "draft-binding-row";
+      const identity = document.createElement("span");
+      identity.className = "draft-binding-identity";
+      identity.textContent = entry.label + (entry.id ? ` · ID ${entry.id}` : "");
+      row.append(identity);
+
+      const link = BlogCTLSyncModel.articleMatchLink(platformID, {
+        id: entry.id, url: entry.url, published: entry.state === "published",
+      });
+      if (link) {
+        const anchor = document.createElement("a");
+        anchor.textContent = link.label;
+        anchor.href = link.url;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        row.append(anchor);
+      }
+
+      // State-specific delete with a matching remote ID prevents accidentally
+      // removing a different association after a concurrent edit.
+      if (entry.id) {
+        const unbind = document.createElement("button");
+        unbind.type = "button";
+        unbind.className = "secondary compact";
+        unbind.textContent = "解除绑定";
+        unbind.disabled = running || state.bindingMutating || !state.status?.bridge?.running;
+        unbind.title = "仅解除本地" + entry.label + "关联，不删除远端内容";
+        unbind.addEventListener("click", () =>
+          unbindPlatformRecord(platformID, entry.state, entry.id));
+        row.append(unbind);
+      }
+      container.append(row);
+    }
+    wrapper.append(container);
+  }
+
   function platformTaskResult(platformId) {
     if (!state.currentJob || !(state.currentJob.platforms ?? []).includes(platformId)) return null;
     return state.currentJob.results?.[platformId] ?? { state: state.currentJob.state || "queued" };
@@ -150,7 +238,7 @@
       checkbox.type = "checkbox";
       checkbox.dataset.platform = platform.id;
       checkbox.checked = previous.has(platform.id) && availability.available;
-      checkbox.disabled = !availability.available || running;
+      checkbox.disabled = !availability.available || running || state.bindingMutating;
       checkbox.addEventListener("change", () => {
         resetWorkflow();
         state.selectedPlatformIDs = new Set(selectedPlatforms());
@@ -182,7 +270,7 @@
         ? "更新中…"
         : "更新此平台";
       updatePlatformButton.disabled = !state.selectedSlug || !availability.available ||
-        !state.status?.bridge?.running || running;
+        !state.status?.bridge?.running || running || state.bindingMutating;
       updatePlatformButton.addEventListener("click", () => startSavePlatforms([platform.id]));
       actions.append(updatePlatformButton);
       const record = publicationRecord(platform.id);
@@ -197,6 +285,7 @@
         actions.append(republish);
       }
       wrapper.append(actions);
+      appendBindingRows(wrapper, platform.id, record, running);
 
       const taskResult = platformTaskResult(platform.id);
       if (taskResult) {
@@ -231,6 +320,7 @@
 
   function setDraftPlatforms(mode) {
     if (!state.selectedSlug) return;
+    if (state.bindingMutating) return;
     const checkboxes = [...platformsContainer.querySelectorAll('input[type="checkbox"][data-platform]')]
       .filter((input) => !input.disabled);
     if (mode === "all") checkboxes.forEach((box) => { box.checked = true; });
@@ -251,7 +341,8 @@
     const job = state.currentJob;
     const running = ["queued", "running"].includes(job?.state);
     const terminal = ["completed", "failed"].includes(job?.state);
-    const ready = Boolean(state.selectedSlug) && count > 0 && Boolean(state.status?.bridge?.running);
+    const ready = Boolean(state.selectedSlug) && count > 0 &&
+      Boolean(state.status?.bridge?.running) && !state.bindingMutating;
 
     actionButton.hidden = terminal;
     nextActions.hidden = !terminal;
@@ -367,7 +458,7 @@
   async function startSavePlatforms(platforms) {
     const article = state.selectedSlug;
     const running = ["queued", "running"].includes(state.currentJob?.state);
-    if (!article || !platforms.length || running || !state.status?.bridge?.running ||
+    if (!article || !platforms.length || running || state.bindingMutating || !state.status?.bridge?.running ||
         platforms.some((id) => !BlogCTLSyncModel.isVisiblePlatform(id))) return;
 
     if (["completed", "failed"].includes(state.currentJob?.state)) resetWorkflow();
