@@ -1,3 +1,23 @@
+# BlogCTL v0.1.129 (local experimental build)
+
+- Align the Detection page with the Publish page's two-selector layout:
+  platform (all or one) and publication state (all, draft, published).
+- Remove the remote-content title/ID search box and nested content
+  accordions. Directly list all posts returned by each selected account
+  inventory with state, ID and safe edit/view link.
+- Fix every platform incorrectly reporting `BlogCTL Extension request failed`
+  because the new Bridge inventory response was missing the required
+  `ok:true` extension message envelope. Authentication and list errors now
+  remain visible per platform rather than being replaced with this generic
+  false-negative.
+- Preserve independent platform refreshes, existing catalog limits,
+  Medium/Toutiao UI hiding, binding flow in Update, and saved Data.
+- DevTool CodeGraph/Serena review and existing Go/Extension tests pass.
+
+Local build from PR #177, not a public stable release.
+
+---
+
 # BlogCTL v0.1.128 (local experimental build)
 
 - Rework the Detection tab into an **account-scoped remote inventory**,
