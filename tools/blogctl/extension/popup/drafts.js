@@ -67,10 +67,8 @@
     publishButton.textContent=state.mode==="create"?"创建并发布":"更新并发布";
     const terminal=["completed","failed"].includes(state.currentJob?.state);
     nextActions.hidden=!terminal;
-    if (terminal) {
-      actionButton.disabled=true;
-      publishButton.disabled=true;
-    }
+    // Completion is recorded in Tasks; allow the next explicit operation.
+    // Re-running CREATE still requires a fresh explicit confirmation.
   }
 
   function articlePickerOpen(open) {
@@ -296,6 +294,7 @@
 
   function setMode(mode) {
     if(mode!=="create"&&mode!=="update")return;
+    if (state.mode!==mode) clearTask();
     state.mode=mode;
     document.getElementById("draftModeTitle").textContent=mode==="create"?"创建":"更新";
     document.getElementById("draftModeHint").textContent=mode==="create"?

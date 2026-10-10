@@ -61,6 +61,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("refresh").addEventListener("click", refreshActiveTab);
+  if (BlogCTLTransport.host === "web") {
+    document.getElementById("openWorkspace").hidden = true;
+  }
   document.getElementById("openWorkspace").addEventListener("click", () => {
     const url = "http://127.0.0.1:32145/console/";
     if (BlogCTLTransport.host === "web") return;
