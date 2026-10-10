@@ -1189,7 +1189,7 @@ async function handleMessage(message) {
     case "blogctl.cnblogs.bind": {
       const article = encodeURIComponent(String(message.article || ""));
       await syncPlatformSession("cnblogs");
-      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("POST", { reference: message.reference ?? "", replace: message.replace === true }))) };
+      return { ok: true, ...(await fetchJSON(`/v1/cnblogs/binding?article=${article}`, jsonOptions("POST", { reference: message.reference ?? "", state: message.state ?? "", replace: message.replace === true }))) };
     }
     case "blogctl.cnblogs.unbind": {
       const article = encodeURIComponent(String(message.article || ""));

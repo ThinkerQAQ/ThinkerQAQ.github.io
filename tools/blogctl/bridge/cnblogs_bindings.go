@@ -203,6 +203,7 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 	}
 	var body struct {
 		Reference string `json:"reference"`
+		State     string `json:"state"`
 		Replace   bool   `json:"replace"`
 	}
 	if err := readJSON(request, 4096, &body); err != nil {
@@ -245,6 +246,13 @@ func (s *Server) handleCNBlogsBindingPut(response http.ResponseWriter, request *
 	if post.Published {
 		state = "published"
 		existingID = binding.PublishedRemoteID
+	}
+	// Match the selected draft/published state against the authenticated
+	// creator result; never silently bind into the other state.
+	requestedState := strings.TrimSpace(body.State)
+	if requestedState != "" && requestedState != state {
+		writeAPIError(response, http.StatusConflict, "candidate_state_changed", "CNBlogs article publication state does not match the selected state", nil)
+		return
 	}
 	if existingID != "" && existingID != post.ID && !body.Replace {
 		writeAPIError(response, http.StatusConflict, "binding_exists", "remove or replace the existing publication reference explicitly before linking another post", nil)
