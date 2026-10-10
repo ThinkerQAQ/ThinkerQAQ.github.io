@@ -314,3 +314,26 @@ func TestConfigDirOverride(t *testing.T) {
 		t.Fatal("expected an error for relative BLOGCTL_DATA_DIR")
 	}
 }
+
+// UI locale is independent of the selected article publishing language.
+func TestBridgeUILocaleContract(t *testing.T) {
+	useIsolatedUserConfigDir(t)
+	for _, locale := range []string{"auto", "zh-CN", "en"} {
+		config, err := normalizeBridgeConfig(bridgeConfig{UILocale: locale})
+		if err != nil {
+			t.Fatalf("%s: %v", locale, err)
+		}
+		if err := saveBridgeConfig(config); err != nil {
+			t.Fatal(err)
+		}
+		if got := loadBridgeConfig().UILocale; got != locale {
+			t.Fatalf("got %s want %s", got, locale)
+		}
+	}
+	if _, err := normalizeBridgeConfig(bridgeConfig{UILocale: "fr"}); err == nil {
+		t.Fatal("accepted unsupported locale")
+	}
+	if config, err := normalizeBridgeConfig(bridgeConfig{}); err != nil || config.UILocale != "auto" {
+		t.Fatalf("default = %q, %v", config.UILocale, err)
+	}
+}

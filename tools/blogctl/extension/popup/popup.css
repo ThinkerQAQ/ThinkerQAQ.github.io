@@ -752,3 +752,18 @@ input, select { min-height: 42px; font-size: 13px; }
   .created-remote-items > .created-remote-row { padding: 9px 10px; }
   .create-detection-hint, .create-detection-retry { margin-left: 30px; }
 }
+
+
+/* Shared Extension / Web Console language control. */
+.ui-language-selector select {
+  max-width: 80px;
+  min-height: 28px;
+  padding: 3px 5px;
+  color: var(--ui-text, #111827);
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border, #d1d5db);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+}
+.ui-language-selector select:focus-visible { outline: 2px solid var(--ui-focus, #2563eb); }

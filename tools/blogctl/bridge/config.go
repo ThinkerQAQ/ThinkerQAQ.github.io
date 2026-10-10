@@ -29,6 +29,7 @@ type bridgeConfig struct {
 
 	LogDirectory string `json:"logDirectory,omitempty" toml:"log_directory"`
 	LogLevel     string `json:"logLevel,omitempty" toml:"log_level"`
+	UILocale     string `json:"uiLocale" toml:"ui_locale"`
 
 	ContentRoot                    string            `json:"contentRoot" toml:"content_root"`
 	EngineRoot                     string            `json:"engineRoot" toml:"engine_root"`
@@ -55,6 +56,12 @@ func defaultPlatformPublishingConfig(platform string) publishingPlatformConfig {
 	return blogpublishing.DefaultPlatformConfig(platform)
 }
 
+// UILocalePreference is shared by the CLI, Extension and Web Console.
+// It controls presentation only, never the language of syndicated content.
+func UILocalePreference() string {
+	return loadBridgeConfig().UILocale
+}
+
 func defaultPublishingConfig() publishingConfig {
 	return blogpublishing.DefaultConfig()
 }
@@ -64,6 +71,7 @@ func defaultBridgeConfig() bridgeConfig {
 	publicationBindingsPath, _ := PublicationBindingsPath()
 	return bridgeConfig{
 		LogLevel:                "info",
+		UILocale:                "auto",
 		ToolPaths:               map[string]string{},
 		DistributionRoot:        distributionRoot,
 		PublicationBindingsPath: publicationBindingsPath,
@@ -167,6 +175,9 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	if config.IndexNowEndpoint == "" {
 		config.IndexNowEndpoint = defaults.IndexNowEndpoint
 	}
+	if strings.TrimSpace(config.UILocale) == "" {
+		config.UILocale = "auto"
+	}
 	if strings.TrimSpace(config.LogLevel) == "" {
 		config.LogLevel = defaults.LogLevel
 	}
@@ -225,6 +236,12 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.BaiduToken = strings.TrimSpace(config.BaiduToken)
 	config.GoogleSearchConsoleServiceJSON = strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
 	config.LogDirectory = normalizeStoredPath(config.LogDirectory)
+	config.UILocale = strings.TrimSpace(config.UILocale)
+	switch config.UILocale {
+	case "auto", "zh-CN", "en":
+	default:
+		return config, errors.New("ui_locale must be auto, zh-CN, or en")
+	}
 	config.LogLevel = strings.ToLower(strings.TrimSpace(config.LogLevel))
 	switch config.LogLevel {
 	case "debug", "info", "warn", "error":

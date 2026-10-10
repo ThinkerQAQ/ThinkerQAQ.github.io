@@ -12,6 +12,8 @@
 
 Only `blogctl.toml` is user configuration. `jobs.json`, `publications.json`, `distribution/`, logs and similar files are runtime data, not hand-edited config. Changing the Windows executable location may change the default Data path. Back up Data before relocation; migration is not automatic.
 
+**Interface language:** `ui_locale = "auto"` by default; alternatives are `zh-CN` and `en`. This is separate from per-platform article language. See [the language How-to](../how-to/switch-interface-language.md).
+
 ## Top-level TOML fields
 
 | Key | Meaning |

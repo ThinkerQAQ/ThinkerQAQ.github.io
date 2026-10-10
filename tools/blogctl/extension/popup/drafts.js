@@ -182,6 +182,7 @@
       identity.className="inventory-article-content";
       const title=document.createElement("strong");
       title.className="inventory-article-title";
+      if (item.title || article()?.title) title.setAttribute("data-i18n-ignore", "");
       title.textContent=item.title || article()?.title || "(无标题)";
       const meta=document.createElement("div");
       meta.className="inventory-article-meta";
@@ -267,6 +268,7 @@
     state.selectedSlug=item.slug;
     articlePicker.value=`${item.title} · ${item.slug}`;
     localStorage.setItem("blogctl.selectedArticle",item.slug);
+    articleMeta.setAttribute("data-i18n-ignore", "");
     articleMeta.textContent=`${item.title} · ${item.slug}`;
     document.dispatchEvent(new CustomEvent("blogctl:article-selected",{
       detail:{article:item.slug},

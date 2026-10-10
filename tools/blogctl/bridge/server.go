@@ -424,6 +424,23 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if path == "v1/ui-locale" {
+		switch request.Method {
+		case http.MethodGet:
+			if !allowReadOnlyBridgeStatus(response, request) {
+				return
+			}
+			s.mu.Lock()
+			locale := s.config.UILocale
+			s.mu.Unlock()
+			writeJSON(response, http.StatusOK, map[string]any{"ok": true, "uiLocale": locale})
+			return
+		case http.MethodPut:
+			s.handleUILocalePut(response, request)
+			return
+		}
+	}
+
 	if path == "v1/config/edit" && request.Method == http.MethodPost {
 		s.handleConfigEdit(response, request)
 		return
@@ -729,6 +746,38 @@ func (s *Server) handleConfigEdit(response http.ResponseWriter, request *http.Re
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "path": path})
+}
+
+// UI language is presentation-only and never changes the content language
+// selected for individual distribution platforms.
+func (s *Server) handleUILocalePut(response http.ResponseWriter, request *http.Request) {
+	if _, ok := allowExtensionWrite(response, request); !ok {
+		return
+	}
+	var body struct {
+		UILocale string `json:"uiLocale"`
+	}
+	if err := readJSON(request, 4096, &body); err != nil {
+		writeError(response, err)
+		return
+	}
+	s.mu.Lock()
+	config := s.config
+	s.mu.Unlock()
+	config.UILocale = body.UILocale
+	normalized, err := normalizeBridgeConfig(config)
+	if err != nil {
+		writeAPIError(response, http.StatusBadRequest, "invalid_ui_locale", err.Error(), nil)
+		return
+	}
+	if err := saveBridgeConfig(normalized); err != nil {
+		writeAPIError(response, http.StatusInternalServerError, "internal_error", "cannot save UI language", nil)
+		return
+	}
+	s.mu.Lock()
+	s.config = normalized
+	s.mu.Unlock()
+	writeJSON(response, http.StatusOK, map[string]any{"ok": true, "uiLocale": normalized.UILocale})
 }
 
 func (s *Server) handleConfigGet(response http.ResponseWriter) {

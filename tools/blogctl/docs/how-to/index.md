@@ -1,5 +1,6 @@
 # BlogCTL How-to
 
+- [Switch the interface language](switch-interface-language.md)
 - [Configure workspace and persistent data](configure-workspace.md)
 - [Check existing remote articles before creating](detect-before-create.md)
 - [Diagnose Bridge/Extension connection](debug-bridge.md)

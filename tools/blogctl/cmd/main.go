@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+
+	blogbridge "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/bridge"
 )
 
 type app struct {
@@ -90,6 +93,9 @@ func (a app) run(args []string) error {
 	case "toutiao":
 		return runToutiaoProbe(args, a.out)
 	default:
+		if cliLocale() == "zh-CN" {
+			return fmt.Errorf("未知命令 %q；请运行 blogctl help", command)
+		}
 		return fmt.Errorf("unknown command %q; run blogctl help", command)
 	}
 }
@@ -103,7 +109,11 @@ func (a app) doctor() error {
 	for _, name := range []string{"node", "npm", "git"} {
 		path, err := lookPath(name)
 		if err != nil {
-			fmt.Fprintf(a.out, "%-8s missing\n", name)
+			if cliLocale() == "zh-CN" {
+				fmt.Fprintf(a.out, "%-8s 未安装\n", name)
+			} else {
+				fmt.Fprintf(a.out, "%-8s missing\n", name)
+			}
 			failed = true
 			continue
 		}
@@ -111,12 +121,57 @@ func (a app) doctor() error {
 	}
 	fmt.Fprintf(a.out, "%-8s %s/%s\n", "platform", runtime.GOOS, runtime.GOARCH)
 	if failed {
+		if cliLocale() == "zh-CN" {
+			return errors.New("缺少一个或多个必需工具")
+		}
 		return errors.New("one or more required tools are missing")
 	}
 	return nil
 }
 
+func cliLocale() string {
+	configured := strings.TrimSpace(os.Getenv("BLOGCTL_LANG"))
+	if configured == "" {
+		configured = blogbridge.UILocalePreference()
+	}
+	switch strings.ToLower(configured) {
+	case "zh", "zh-cn", "zh_cn":
+		return "zh-CN"
+	case "en", "en-us", "en_gb":
+		return "en"
+	}
+	for _, name := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
+		locale := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+		if strings.HasPrefix(locale, "zh") {
+			return "zh-CN"
+		}
+		if strings.HasPrefix(locale, "en") {
+			return "en"
+		}
+	}
+	return "en"
+}
+
 func (a app) printHelp() {
+	if cliLocale() == "zh-CN" {
+		fmt.Fprintln(a.out, `blogctl - ThinkerQAQ 博客开发与分发工具
+
+用法：
+  blogctl help
+  blogctl preview | dev | build | check | test
+  blogctl site build --content-root <path>
+  blogctl ai-search <prepare|sync|verify> [options]
+  blogctl diagrams [plantuml|drawio]
+  blogctl search <build|inventory|submit|audit|notify> [options]
+  blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
+  blogctl doctor
+  blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]
+
+文章分发 sync 请在 blog-content 仓库执行；网站构建命令在 ThinkerQAQ.github.io 引擎仓库执行。
+scripts/ 存放仓库级 Node 构建、验证和渲染脚本。`)
+		return
+	}
+
 	fmt.Fprintln(a.out, `blogctl - ThinkerQAQ blog developer tool
 
 Usage:

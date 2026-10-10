@@ -14,7 +14,7 @@
     "diagrams:drawio": "node scripts/render-drawio.mjs",
     "check:drawio": "node scripts/render-drawio.mjs --check",
     "test:diagrams": "npm run diagrams && node --test scripts/plantuml/plantuml.test.mjs scripts/mermaid/mermaid.test.mjs scripts/drawio/drawio.test.mjs src/markdown/mermaid.test.mjs",
-    "test:blogctl-extension": "node --check tools/blogctl/extension/background.js && node --check tools/blogctl/extension/google-indexing-content.js && node --check tools/blogctl/extension/errors.js && node --check tools/blogctl/extension/session.js && node --check tools/blogctl/extension/popup/core.js && node --check tools/blogctl/extension/popup/sync-model.js && node --check tools/blogctl/extension/popup/sync-state.js && node --check tools/blogctl/extension/popup/sync.js && node --check tools/blogctl/extension/popup/drafts.js && node --check tools/blogctl/extension/popup/publications.js && node --check tools/blogctl/extension/popup/task-ui-state.js && node --check tools/blogctl/extension/popup/tasks.js && node --check tools/blogctl/extension/popup/indexing.js && node --check tools/blogctl/extension/popup/assets.js && node --check tools/blogctl/extension/popup/publishing.js && node --check tools/blogctl/extension/popup/environment.js && node --check tools/blogctl/extension/popup/popup.js && node --test tools/blogctl/extension/tests/article-picker-ui.test.mjs tools/blogctl/extension/tests/session.test.mjs tools/blogctl/extension/tests/sync-model.test.mjs tools/blogctl/extension/tests/google-indexing-content.test.mjs tools/blogctl/extension/tests/indexing-ui.test.mjs tools/blogctl/extension/tests/logs-ui.test.mjs tools/blogctl/extension/tests/platform-actions.test.mjs tools/blogctl/extension/tests/proxy-scope.test.mjs tools/blogctl/extension/tests/shared-assets-ui.test.mjs tools/blogctl/extension/tests/task-ui-state.test.mjs tools/blogctl/extension/tests/sync-state.test.mjs",
+    "test:blogctl-extension": "npm run test:blogctl-i18n && node scripts/check-blogctl-extension.mjs && node --test tools/blogctl/extension/tests/article-picker-ui.test.mjs tools/blogctl/extension/tests/session.test.mjs tools/blogctl/extension/tests/sync-model.test.mjs tools/blogctl/extension/tests/google-indexing-content.test.mjs tools/blogctl/extension/tests/indexing-ui.test.mjs tools/blogctl/extension/tests/logs-ui.test.mjs tools/blogctl/extension/tests/platform-actions.test.mjs tools/blogctl/extension/tests/proxy-scope.test.mjs tools/blogctl/extension/tests/shared-assets-ui.test.mjs tools/blogctl/extension/tests/task-ui-state.test.mjs tools/blogctl/extension/tests/sync-state.test.mjs",
     "test:ai-search": "node --check workers/blog-ai/src/worker.js && node --check workers/blog-ai/src/index.js && node --test workers/blog-ai/src/*.test.js",
     "test:reactions": "node --check workers/blog-reactions/src/index.js && node --test workers/blog-reactions/src/index.test.js",
     "test:reading-experience": "node --test src/markdown/reading-time.test.mjs src/markdown/image-loading.test.mjs src/lib/content-analytics.test.mjs src/lib/floating-actions-runtime.test.mjs src/lib/content-media-viewer.test.mjs src/components/ContentReaction.test.mjs",
@@ -31,7 +31,8 @@
     "build:astro": "node scripts/clean-dist.mjs && npm run diagrams && npm run covers:social && astro build",
     "test:docs": "node scripts/check-doc-links.mjs",
     "dev:quick": "npm run assemble:fixtures && astro dev --port 4321",
-    "test:umami": "node --test src/layouts/BaseLayout.umami.test.mjs"
+    "test:umami": "node --test src/layouts/BaseLayout.umami.test.mjs",
+    "test:blogctl-i18n": "node --test tools/blogctl/extension/tests/i18n.test.mjs"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",

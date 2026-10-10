@@ -13,3 +13,5 @@
 | 多平台分发 | [BlogCTL](../../../tools/blogctl/docs/zh-CN/index.md) | Bridge、发布平台 Adapter |
 
 部署环境变量参见[部署参考](deployment.md)。源码存在某个组件不代表线上功能已启用，需同时核对构建变量与运行时入口。
+
+RSS 分为中文 `/rss.xml` 与英文 `/en/rss.xml`，各自只包含对应语言的已发布文章。

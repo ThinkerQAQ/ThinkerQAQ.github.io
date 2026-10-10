@@ -22,7 +22,7 @@ const contactHref = localizePath(locale, "/contact/");
       </a>
     </div>
     <span class="footer-links">
-      <a href="/rss.xml">RSS</a>
+      <a href={locale === "en" ? "/en/rss.xml" : "/rss.xml"}>RSS</a>
       <a href={SITE.repository}>Source</a>
       <a href={contactHref}>{localeInfo.nav.contact}</a>
     </span>
