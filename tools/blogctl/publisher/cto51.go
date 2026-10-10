@@ -495,7 +495,7 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	if err := c.ensureAuth(ctx); err != nil {
 		return PublishResult{}, err
 	}
-	parentID, categoryID, customID, err := c.publishingClassification(ctx, input)
+	parentID, categoryID, customID, selectedCategory, err := c.publishingClassification(ctx, input)
 	if err != nil {
 		return PublishResult{}, err
 	}
@@ -510,8 +510,21 @@ func (c *cto51Adapter) PublishDraft(ctx context.Context, ref DraftRef, input Dra
 	values.Set("cate_id", categoryID)
 	values.Set("custom_id", customID)
 	tags := normalizeCTO51Tags(input.Tags)
+	backendCategory := normalizeCTO51CategoryName(selectedCategory)
+	if backendCategory == "后端" || backendCategory == "后端开发" || backendCategory == "backend" {
+		matched := false
+		for _, tag := range tags {
+			if cto51CategoryMatches(tag, selectedCategory) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			tags = []string{"后端"}
+		}
+	}
 	if len(tags) == 0 {
-		return PublishResult{}, platformError(ErrValidation, c.ID(), "publish-draft", 0, "51CTO requires at least one article tag", false)
+		tags = []string{"后端"}
 	}
 	values.Set("tag", strings.Join(tags, ","))
 	slog.InfoContext(ctx, "51CTO publish tags prepared",
