@@ -110,3 +110,9 @@ test("unavailable platform cards show the explanatory reason once, with a compac
   assert.doesNotMatch(drafts, /setStatus\(badge, "disabled", availability\.reason\)/u);
   assert.doesNotMatch(sync, /setStatus\(status, "disabled", availability\.reason\)/u);
 });
+
+test("CNBlogs draft candidates open the creator editor even when API returns a preview", async () => {
+  const background = await readFile(backgroundPath, "utf8");
+  assert.match(background, /post\.published \? \(post\.url \|\| ""\) : `https:\/\/i\.cnblogs\.com\/posts\/edit;postId=\$\{encodeURIComponent\(post\.id\)\}`/u);
+  assert.doesNotMatch(background, /i\.cnblogs\.com\/articles\/edit;postId/u);
+});
