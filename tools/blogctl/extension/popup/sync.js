@@ -15,43 +15,22 @@
     matchKey: "",
     cachedMatchTime: 0,
     refreshSerial: 0,
-    selectedPlatformIDs: new Set(BlogCTLSyncModel.visiblePlatformIDs(BlogCTLSyncState.loadPlatforms(localStorage))),
-    platformSelectionInitialized: false,
     selectedMatchKeys: new Set(),
     bindingMutating: false,
     matchingPlatforms: new Set(),
   };
 
-  let platformsContainer, message, refreshMatchesButton;
-  let selectAllButton, invertButton, bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
+  let message, refreshMatchesButton;
+  let bulkActions, selectionSummary, bindSelectedButton, unbindSelectedButton;
 
   function selectedArticle() {
     return state.articles.find((item) => item.slug === state.selectedSlug);
   }
 
+  // The Update platform cards own the ONLY platform selection. Candidate
+  // checkboxes are a separate selection for bind/unbind operations.
   function selectedPlatformIDs() {
-    return BlogCTLSyncModel.visiblePlatformIDs([...state.selectedPlatformIDs]);
-  }
-
-  function pruneSelectedMatchesToPlatforms() {
-    for (const key of [...state.selectedMatchKeys]) {
-      const platformID = key.split(":", 1)[0];
-      if (!state.selectedPlatformIDs.has(platformID)) state.selectedMatchKeys.delete(key);
-    }
-  }
-
-  function setSyncPlatforms(mode) {
-    if (!state.selectedSlug) return;
-    const selectable = BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)
-      .filter((platform) => platformAvailability(selectedArticle(), platform).available);
-    state.selectedPlatformIDs = new Set(
-      selectable
-        .filter((platform) => mode === "all" ? true : !state.selectedPlatformIDs.has(platform.id))
-        .map((platform) => platform.id),
-    );
-    pruneSelectedMatchesToPlatforms();
-    BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
-    renderPlatforms();
+    return root.BlogCTLDrafts?.selectedPlatformIDs?.() ?? [];
   }
 
   function matchSelectionKey(platformID, item) {
@@ -70,7 +49,7 @@
     if (!state.selectedSlug || state.matchKey !== state.selectedSlug) return [];
     const selected = [];
     for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
-      if (!state.selectedPlatformIDs.has(platform.id)) continue;
+      if (!selectedPlatformIDs().includes(platform.id)) continue;
       const match = state.matches[platform.id];
       for (const item of match?.items ?? []) {
         const key = matchSelectionKey(platform.id, item);
@@ -105,62 +84,12 @@
   function updateControls() {
     const ready = Boolean(state.selectedSlug) && Boolean(state.status?.bridge?.running);
     refreshMatchesButton.disabled = !ready || state.bindingLoading || state.bindingMutating ||
-      state.matchingPlatforms.size > 0 || state.selectedPlatformIDs.size === 0;
+      state.matchingPlatforms.size > 0 || selectedPlatformIDs().length === 0;
     updateBulkActions();
   }
 
   function platformAvailability(_article, platform) {
     return BlogCTLSyncModel.deliveryToolAvailability(platform, state.tools);
-  }
-
-  function renderPlatformHeader(platform, article) {
-    const availability = platformAvailability(article, platform);
-    const header = document.createElement("label");
-    header.className = "platform-choice";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.dataset.platform = platform.id;
-    checkbox.checked = availability.available && state.selectedPlatformIDs.has(platform.id);
-    checkbox.disabled = !availability.available || state.bindingLoading || state.bindingMutating;
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) state.selectedPlatformIDs.add(platform.id);
-      else state.selectedPlatformIDs.delete(platform.id);
-      pruneSelectedMatchesToPlatforms();
-      BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
-      renderPlatforms();
-    });
-
-    const text = document.createElement("span");
-    text.className = "platform-choice-text";
-    const name = document.createElement("strong");
-    name.textContent = platform.label || platform.id;
-    const detail = document.createElement("small");
-    const nativeBrowserPlatform = platform.capabilities?.browserSession === true;
-    const apiPlatform = platform.capabilities?.apiKey === true;
-    detail.textContent = !availability.available
-      ? availability.reason
-      : apiPlatform
-        ? "使用平台 API 接入"
-        : platform.loggedIn
-          ? (platform.inferred ? "浏览器会话可用 · 执行时再次校验" : "浏览器登录会话")
-          : nativeBrowserPlatform
-            ? "检测文章关联时同步浏览器登录"
-            : platform.known === false
-              ? "登录状态检测失败" + (platform.error ? " · " + platform.error : "")
-              : "浏览器未登录";
-    text.append(name, detail);
-
-    const status = document.createElement("span");
-    if (!availability.available) BlogCTLPopup.setStatus(status, "disabled", "不可检测", availability.reason);
-    else if (apiPlatform) BlogCTLPopup.setStatus(status, "ok", "可用");
-    else if (platform.loggedIn) BlogCTLPopup.setStatus(status, "ok", platform.inferred ? "会话可用" : "已登录");
-    else if (nativeBrowserPlatform) BlogCTLPopup.setStatus(status, "unknown", "待校验");
-    else if (platform.known === false) BlogCTLPopup.setStatus(status, "unknown", "未知");
-    else BlogCTLPopup.setStatus(status, "error", "未登录");
-
-    header.append(checkbox, text, status);
-    return header;
   }
 
   const manualBindingPlatforms = new Set([
@@ -381,57 +310,23 @@
   }
 
   function renderPlatforms() {
-    const article = selectedArticle();
-    const currentKey = state.selectedSlug;
-    platformsContainer.replaceChildren();
-
-    for (const platform of BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)) {
-      const card = document.createElement("div");
-      card.className = "platform-choice-card";
-      card.dataset.associationPlatform = platform.id;
-      card.append(renderPlatformHeader(platform, article));
-
-      const availability = platformAvailability(article, platform);
-      const actions = document.createElement("div");
-      actions.className = "platform-card-actions";
-      const detectPlatformButton = document.createElement("button");
-      detectPlatformButton.type = "button";
-      detectPlatformButton.className = "secondary compact";
-      detectPlatformButton.textContent = state.matchingPlatforms.has(platform.id) ? "检测中…" : "检测此平台";
-      detectPlatformButton.disabled = !state.selectedSlug || !availability.available ||
-        !state.status?.bridge?.running || state.bindingLoading || state.bindingMutating ||
-        state.matchingPlatforms.size > 0;
-      detectPlatformButton.addEventListener("click", () => refreshArticleMatches([platform.id]));
-      actions.append(detectPlatformButton);
-      card.append(actions);
-
-      const selected = state.selectedPlatformIDs.has(platform.id);
-      const match = state.matches[platform.id];
-      if (match && state.matchKey === currentKey) {
-        const result = document.createElement("div");
-        result.className = "article-match";
-        const prefix = state.cachedMatchTime
-          ? "上次检测 " + new Date(state.cachedMatchTime).toLocaleString() + " · "
-          : "";
-        result.textContent = prefix + match.text;
-        appendMatchRows(platform, match, result);
-        card.append(result);
-      } else if (state.selectedSlug && availability.available) {
-        const note = document.createElement("div");
-        note.className = "article-match";
-        note.textContent = selected
-          ? "点击“检测文章关联”读取远端候选与本地绑定状态。"
-          : "未选择检测此平台。";
-        card.append(note);
-      }
-
-      platformsContainer.append(card);
-    }
-
-    if (!platformsContainer.childElementCount) {
-      platformsContainer.innerHTML = '<div class="platform-loading">没有可用平台</div>';
-    }
+    // Results are rendered INSIDE the Update platform cards, not in a second
+    // nested list. The event requests a redraw without replacing its checkboxes.
     updateControls();
+    document.dispatchEvent(new CustomEvent("blogctl:association-results-changed"));
+  }
+
+  function appendPlatformMatches(platform, container) {
+    if (!state.selectedSlug || state.matchKey !== state.selectedSlug) return;
+    const match = state.matches[platform.id];
+    if (!match) return;
+    const result = document.createElement("div");
+    result.className = "article-match";
+    result.textContent = (state.cachedMatchTime
+      ? "上次检测 " + new Date(state.cachedMatchTime).toLocaleString() + " · "
+      : "") + match.text;
+    appendMatchRows(platform, match, result);
+    container.append(result);
   }
 
   function clearMatches() {
@@ -514,9 +409,9 @@
     return selectedMatchEntries().filter(({ item }) => action === "bind" ? canBindItem(item) : canUnbindItem(item));
   }
 
-  async function runBulkBinding(action) {
+  async function runBulkBinding(action, singleEntry = null) {
     const article = state.selectedSlug;
-    const entries = batchEntries(action);
+    const entries = singleEntry ? [singleEntry] : batchEntries(action);
     if (!article || !entries.length || state.bindingMutating) return;
 
     if (action === "bind") {
@@ -540,8 +435,8 @@
     }
 
     state.bindingMutating = true;
-    updateControls();
-    BlogCTLPopup.setMessage(message, action === "bind" ? "正在批量验证并绑定…" : "正在批量解除本地绑定…");
+    renderPlatforms();
+    BlogCTLPopup.setMessage(message, action === "bind" ? "正在验证并绑定…" : "正在解除本地绑定…");
 
     let success = 0;
     const failures = [];
@@ -577,9 +472,10 @@
     try {
       if (touchedCnblogs) await loadSyncBinding();
       await refreshArticleMatches();
+      await root.BlogCTLDrafts?.refreshBindings?.();
     } finally {
       state.bindingMutating = false;
-      updateControls();
+      renderPlatforms();
     }
 
     if (failures.length) {
@@ -630,19 +526,6 @@
       state.status = statusResponse.status;
       state.tools = toolsResponse.tools ?? [];
 
-      const selectable = BlogCTLSyncModel.visiblePlatforms(state.status?.platforms)
-        .filter((platform) => platformAvailability(selectedArticle(), platform).available)
-        .map((platform) => platform.id);
-      if (!state.platformSelectionInitialized) {
-        const stored = selectedPlatformIDs().filter((id) => selectable.includes(id));
-        state.selectedPlatformIDs = new Set(stored.length ? stored : selectable);
-        state.platformSelectionInitialized = true;
-        BlogCTLSyncState.savePlatforms(localStorage, selectedPlatformIDs());
-      } else {
-        state.selectedPlatformIDs = new Set(selectedPlatformIDs().filter((id) => selectable.includes(id)));
-        pruneSelectedMatchesToPlatforms();
-      }
-
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(() => {});
 
       const previous = state.selectedSlug || localStorage.getItem("blogctl.selectedArticle") || "";
@@ -673,11 +556,8 @@
   function init() {
     if (state.initialized) return;
 
-    platformsContainer = document.getElementById("syncPlatforms");
     message = document.getElementById("syncMessage");
     refreshMatchesButton = document.getElementById("refreshArticleMatches");
-    selectAllButton = document.getElementById("selectAllSyncPlatforms");
-    invertButton = document.getElementById("invertSyncPlatforms");
     bulkActions = document.getElementById("bindingBulkActions");
     selectionSummary = document.getElementById("bindingSelectionSummary");
     bindSelectedButton = document.getElementById("bindSelectedMatches");
@@ -696,8 +576,6 @@
     });
 
     refreshMatchesButton.addEventListener("click", () => refreshArticleMatches());
-    selectAllButton.addEventListener("click", () => setSyncPlatforms("all"));
-    invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
     bindSelectedButton.addEventListener("click", () => runBulkBinding("bind"));
     unbindSelectedButton.addEventListener("click", () => runBulkBinding("unbind"));
     document.addEventListener("blogctl:detect-association", async (event) => {
@@ -705,12 +583,8 @@
       const article = String(event.detail?.article || "");
       if (!state.active || state.selectedSlug !== article ||
           !BlogCTLSyncModel.isVisiblePlatform(platformID)) return;
-      state.selectedPlatformIDs.add(platformID);
-      document.getElementById("updateAssociationDetails").open = true;
-      renderPlatforms();
       await refreshArticleMatches([platformID]);
-      const area = document.getElementById("syncPlatforms");
-      area?.querySelector(`[data-association-platform="${platformID}"]`)
+      document.querySelector(`#draftPlatforms [data-platform-card="${platformID}"]`)
         ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
     document.addEventListener("blogctl:article-selected", (event) => {
@@ -737,5 +611,9 @@
     state.active = false;
   }
 
-  root.BlogCTLSync = { init, activate, deactivate, refresh };
+  root.BlogCTLSync = {
+    init, activate, deactivate, refresh, refreshArticleMatches,
+    appendPlatformMatches, runBulkBinding,
+    isBindingBusy: () => state.bindingMutating || state.bindingLoading || state.matchingPlatforms.size > 0,
+  };
 })(globalThis);
