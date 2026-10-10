@@ -52,11 +52,25 @@ jobs:
             exit 1
           }
 
+          # GitHub Actions artifacts from successful deployments replace the
+          # legacy deployment-state branch. If no artifact remains, reconcile
+          # from scratch once and publish a new marker on success.
           previous_sha=""
-          if git ls-remote --exit-code --heads origin deployment-state >/dev/null 2>&1; then
-            git fetch --quiet origin deployment-state
-            previous_sha="$(git show FETCH_HEAD:deploy-state/content-sha.txt 2>/dev/null | tr -d '\r\n' || true)"
-          fi
+          for run_id in $(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=deployed-content-state&per_page=100" --jq '.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main") | .workflow_run.id'); do
+            # An artifact is available before the parent workflow completes;
+            # trust the marker only after the whole deployment has succeeded.
+            if [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .conclusion)" != "success" ]; then
+              continue
+            fi
+            marker="$RUNNER_TEMP/deployed-content-state"
+            mkdir -p "$marker"
+            if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name deployed-content-state --dir "$marker" >/dev/null 2>&1; then
+              if [ -s "$marker/content-sha.txt" ]; then
+                previous_sha="$(tr -d '\r\n' < "$marker/content-sha.txt")"
+                break
+              fi
+            fi
+          done
 
           echo "latest_sha=$latest_sha" >> "$GITHUB_OUTPUT"
           echo "previous_sha=$previous_sha" >> "$GITHUB_OUTPUT"

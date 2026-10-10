@@ -12,7 +12,7 @@ Local Go Bridge (jobs, config, publishers)
 remote platforms, search tools, local data
 ```
 
-The Web Console and Extension use the same UI implementation; the Console itself must not receive browser cookies or a privileged Bridge token. See [unified UI design](../architecture/unified-ui-and-console-20261010.md).
+The Web Console and Extension use the same UI implementation; the Console itself must not receive browser cookies or a privileged Bridge token. See [current workflow guide](../guide/workflows.md).
 
 ## Runtime data
 

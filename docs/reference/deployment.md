@@ -11,7 +11,9 @@
 | Release blog AI Worker | `worker-release.yml` | Worker tests and deployment |
 | Reactions Worker release | `worker-reactions-release.yml` | Reactions Worker lifecycle |
 
-The deployment build uses **Go 1.27.1** (via `go.work`), **Node.js 22** and **Java 17** plus font/diagram packages. It assembles `CONTENT_REPOSITORY` via BlogCTL and runs Astro, Pagefind and other build steps. GitHub Pages receives static `dist/`; EdgeOne Makers receives its own artifact extended with `edge-functions/`.
+A successful content-triggered site deployment uploads a `deployed-content-state` GitHub Actions artifact containing the deployed content SHA. The content watcher reads the marker from the latest successful deployment; it does not use a state branch. Artifacts expire after 90 days; when the marker is unavailable, the watcher performs an explicit full reconcile once.
+
+The deployment build uses **Go 1.27.1** (via `go.work`), **Node.js 22** and **Java 17** plus font/diagram packages. It assembles `CONTENT_REPOSITORY` via BlogCTL and runs Astro, Pagefind and other build steps. GitHub Pages receives static `dist/`; EdgeOne Makers receives a static site artifact without proxy functions.
 
 | Name | Meaning |
 | --- | --- |

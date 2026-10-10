@@ -137,12 +137,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Checkout Edge Functions
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.sha }}
-          path: engine
-
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
@@ -153,13 +147,6 @@ jobs:
         with:
           name: edgeone-dist
           path: dist
-
-      # Keep the GitHub Pages artifact static. Edge-only code is attached
-      # in the Makers deploy job, never committed as built website assets.
-      - name: Attach Edge Functions to Makers artifact
-        run: |
-          cp -R engine/edge-functions dist/edge-functions
-          find dist/edge-functions -name '*.test.mjs' -delete
 
       - name: Deploy to EdgeOne Makers
         env:
@@ -261,43 +248,20 @@ jobs:
   record-content-state:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && inputs.content_sha != ''
     runs-on: ubuntu-latest
-    needs: deploy-edgeone
+    needs: [deploy-edgeone, deploy]
     permissions:
-      contents: write
+      contents: read
     env:
       CONTENT_SHA: ${{ inputs.content_sha }}
     steps:
-      - name: Checkout public engine
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Record successfully deployed content SHA
-        shell: bash
+      - name: Prepare deployed-content marker
         run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if git ls-remote --exit-code --heads origin deployment-state >/dev/null 2>&1; then
-            git fetch --quiet origin deployment-state
-            git switch --force-create deployment-state origin/deployment-state
-          else
-            git switch --orphan deployment-state
-            git rm -rf --ignore-unmatch .
-          fi
-
-          mkdir -p deploy-state
-          printf '%s\n' "$CONTENT_SHA" > deploy-state/content-sha.txt
-          printf '%s\n' "$GITHUB_RUN_ID" > deploy-state/run-id.txt
-
-          git add deploy-state/content-sha.txt deploy-state/run-id.txt
-
-          if git diff --cached --quiet; then
-            echo "Deployment state already records $CONTENT_SHA"
-            exit 0
-          fi
-
-          git commit -m "chore: record deployed blog content $CONTENT_SHA"
-          git push origin HEAD:deployment-state
+          mkdir -p "$RUNNER_TEMP/deployed-content-state"
+          printf '%s\n' "$CONTENT_SHA" > "$RUNNER_TEMP/deployed-content-state/content-sha.txt"
+      - name: Retain marker with the successful deployment run
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-content-state
+          path: ${{ runner.temp }}/deployed-content-state/content-sha.txt
+          retention-days: 90
+          if-no-files-found: error

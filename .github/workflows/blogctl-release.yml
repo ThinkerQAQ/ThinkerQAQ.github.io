@@ -88,6 +88,7 @@ jobs:
             --notes-file tools/blogctl/RELEASE_NOTES.md
 
       - name: Refresh current release notes
+        if: steps.version.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
