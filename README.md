@@ -1,182 +1,60 @@
 # ThinkerQAQ Blog
 
-[中文](./README_ZH.md)
+[中文](README_ZH.md) · [Live site](https://thinkerqaq.com/)
 
-Live site: <https://thinkerqaq.com/>
+An Astro-based bilingual technical blog engine with a separate canonical content repository and a Go-powered publishing control plane (BlogCTL).
 
-## Introduction
+**Principles:** minimal core, replaceable integrations, configuration-first, self-hosting, and reuse of mature components before writing custom infrastructure.
 
-This is a bilingual personal technical blog and digital garden built with [Astro](https://astro.build/).
+## Quick Start
 
-The blog is split into two parts:
-
-```text
-blog-content
-Articles / Notes / Series / Projects / Media
-        │
-        ▼
-ThinkerQAQ.github.io
-Astro / Search / SEO / BlogCTL / CI
-        │
-        ▼
-GitHub Pages
-```
-
-This repository contains the public site engine. The real content lives in a separate Content Repository and is injected at build time.
-
-Main capabilities:
-
-- Articles / Notes / Series / Projects
-- Chinese site and English site under `/en/`
-- Pagefind full-text search
-- Cloudflare AI Search / Workers
-- utterances comments
-- Umami analytics
-- canonical URLs, Open Graph, JSON-LD, `hreflang`, RSS, sitemap, and IndexNow
-- BlogCTL and multi-platform article distribution
-- GitHub Actions + GitHub Pages deployment
-
-## Tutorial
-
-### 1. Clone
-
-To work on the Public Engine only:
+Requirements for fast preview: Node.js 22+, npm, and Go 1.27.1. Full diagram builds also require Java, Graphviz and a headless Chromium runtime; see [Quick Start](docs/quick-start.md).
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-```
-
-To run it with a complete sample Content Repository:
-
-```bash
-mkdir thinkerqaq-blog
-cd thinkerqaq-blog
-
-git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-git clone https://github.com/ThinkerQAQ/blog-content-template.git blog-content
-```
-
-Keep the repositories as siblings:
-
-```text
-thinkerqaq-blog/
-├── ThinkerQAQ.github.io/
-└── blog-content/
-```
-
-`blog-content-template` is sample content only. It is not part of the production deployment of this site.
-
-### 2. Run locally
-
-Enter the Public Engine:
-
-```bash
 cd ThinkerQAQ.github.io
 npm ci
-go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
-npm run dev:site
+npm run dev:quick
 ```
 
-Open:
+Open [http://localhost:4321](http://localhost:4321). This runs with checked-in fixtures without the diagram pre-rendering step; production content is **not** required. For full rendering use `npm run dev` after installing diagram tool dependencies. Continue with the [complete Quick Start](docs/quick-start.md).
 
-```text
-http://localhost:4321
-```
+## For AI Agents
 
-To validate the Public Engine without a Content Repository:
+Read [AGENTS.md](AGENTS.md) first. The configured DevTool project is the canonical development entry point:
 
 ```bash
-npm run assemble:fixtures
-npm run check
-npm run build
+devtool config validate
+devtool project inspect --json
 ```
 
-### 3. Add content
-
-Content belongs in `blog-content`:
+## Architecture
 
 ```text
-src/content/
-├── articles/
-│   └── en/
-├── notes/
-├── note-translations/
-│   └── en/
-├── projects/
-└── series/
-
-public/media/
+blog-content (canonical Markdown)
+        │  assemble
+        ▼
+BlogCTL (Go) ──► Astro + content collections ──► dist/
+        │                                       ├─► GitHub Pages
+        └─► platform syndication                └─► EdgeOne Makers
+                  Search / SEO / Pagefind / optional Workers
 ```
 
-You can copy and edit the examples from [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template).
-
-See [`src/content.config.ts`](src/content.config.ts) for the complete schema.
-
-### 4. Deploy
-
-The production pipeline for this site is:
-
-```text
-ThinkerQAQ/blog-content
-        │
-        │ push master
-        ▼
-trigger-public-engine.yml
-        │
-        ▼
-ThinkerQAQ.github.io / deploy.yml
-        │
-        ├── checkout the selected content commit
-        ├── validate + assemble
-        ├── test + build
-        └── deploy to GitHub Pages
-```
-
-The Public Engine uses `CONTENT_REPOSITORY` to select the content repository. A private Content Repository is read through `BLOG_CONTENT_DEPLOY_KEY`.
-
-To deploy your own fork, also update the repository guards in `.github/workflows/deploy.yml` that currently target `ThinkerQAQ/ThinkerQAQ.github.io`, then configure your own `CONTENT_REPOSITORY`, GitHub Pages, and required Secrets.
-
-The Content Template intentionally does not include an automatic deployment trigger workflow, so it is not tied to a specific account, token, or repository name.
+See [System Concepts](docs/concepts/system.md) for boundaries and implementation details.
 
 ## Documentation
 
-### Main components
+- [Quick Start](docs/quick-start.md) — run the engine locally
+- [Tutorial](docs/tutorial/first-site.md) — use real sample content end to end
+- [Concepts / Architecture](docs/concepts/system.md) — understand boundaries
+- [How-to](docs/how-to/index.md) — solve specific problems
+- [Reference](docs/reference/index.md) — commands, content schema, deployment
+- [Examples](docs/examples/index.md) — working repository scenarios
+- [Deep Design](docs/architecture/index.md) — decisions and historical investigations
+- [BlogCTL](tools/blogctl/README.md) — publishing and local control plane
 
-| Capability | Implementation |
-| --- | --- |
-| Site | Astro + Markdown + Content Collections |
-| Content | Separate Content Repository |
-| Search | Pagefind |
-| AI Search | Cloudflare Workers + AI Search |
-| Comments | utterances |
-| Analytics | Umami |
-| SEO | canonical / Open Graph / JSON-LD / hreflang / RSS / sitemap / IndexNow |
-| Diagrams | Mermaid / PlantUML / Graphviz / draw.io |
-| Tooling | BlogCTL |
-| CI/CD | GitHub Actions |
-| Deployment | GitHub Pages |
+## Development / Self-hosting
 
-### Static diagrams and media
+Use [the engine command reference](docs/reference/commands.md) and [deployment guide](docs/how-to/deploy.md). Public site implementation and canonical content are intentionally separate repositories.
 
-The site build pre-renders Mermaid and PlantUML as SVGs inside the ignored `public/diagrams/` directory, which becomes part of the deployment-only `dist/` artifact. Astro dev renders cached Mermaid diagrams and re-renders changed diagrams automatically. No generated SVGs are committed to Git or uploaded to R2. Multi-platform BlogCTL publishing continues to render diagrams as PNG and upload them to target platforms or the R2 fallback.
-
-Original article images still live in R2. The optional EdgeOne S3-compatible accelerated image origin is documented in [`docs/edgeone-r2-media.md`](docs/edgeone-r2-media.md); no production image URL migration should occur until that origin has been validated.
-
-### Repository layout
-
-```text
-src/                  Astro pages, components, content schema, and Markdown processing
-scripts/              Repository-level build, validation, Pagefind, and diagram entrypoints
-workers/              Cloudflare Workers
-tools/blogctl/         BlogCTL
-fixtures/              Public Engine test content
-.github/workflows/     CI / CD
-```
-
-### Detailed documentation
-
-- [BlogCTL](tools/blogctl/README.md)
-
-## License
-
-This repository is licensed under the [MIT License](LICENSE).
+Licensed under [MIT](LICENSE).

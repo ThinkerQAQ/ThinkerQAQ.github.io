@@ -1,176 +1,53 @@
 # ThinkerQAQ Blog
 
-[English](./README.md)
+[English](README.md) · [在线博客](https://thinkerqaq.com/)
 
-在线博客：<https://thinkerqaq.com/>
+基于 Astro 的中英双语技术博客引擎。正文存于独立的 Content Repository，BlogCTL（Go）负责构建、分发和本地控制流程。
 
-## 简介
+原则：极简核心、可插拔、配置化、自举，优先复用成熟组件。
 
-这是一个基于 [Astro](https://astro.build/) 的中英双语个人技术博客与数字花园。
+## Quick Start
 
-博客拆成两个部分：
-
-```text
-blog-content
-Articles / Notes / Series / Projects / Media
-        │
-        ▼
-ThinkerQAQ.github.io
-Astro / Search / SEO / BlogCTL / CI
-        │
-        ▼
-GitHub Pages
-```
-
-当前仓库负责网站引擎；真实内容保存在独立的 Content Repository 中，在构建时注入。
-
-主要能力：
-
-- Articles / Notes / Series / Projects
-- 中文站点与 `/en/` 英文站点
-- Pagefind 全文搜索
-- Cloudflare AI Search / Workers
-- utterances 评论
-- Umami 访问统计
-- canonical、Open Graph、JSON-LD、`hreflang`、RSS、sitemap、IndexNow
-- BlogCTL 与多平台文章分发
-- GitHub Actions + GitHub Pages 自动构建与发布
-
-## Tutorial
-
-### 1. Clone
-
-如果只是想看 Public Engine：
+快速预览需要 Node.js 22+、npm、Go 1.27.1。完整图表渲染还需要 Java、Graphviz 和 Chromium，见 [Quick Start](docs/quick-start.md)。
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-```
-
-如果想带一套完整示例内容一起运行：
-
-```bash
-mkdir thinkerqaq-blog
-cd thinkerqaq-blog
-
-git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-git clone https://github.com/ThinkerQAQ/blog-content-template.git blog-content
-```
-
-目录保持为：
-
-```text
-thinkerqaq-blog/
-├── ThinkerQAQ.github.io/
-└── blog-content/
-```
-
-`blog-content-template` 只是一套示例内容，不参与当前博客的生产部署。
-
-### 2. 本地运行
-
-进入 Public Engine：
-
-```bash
 cd ThinkerQAQ.github.io
 npm ci
-go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
-npm run dev:site
+npm run dev:quick
 ```
 
-默认访问：
+访问 [http://localhost:4321](http://localhost:4321)。使用仓库自带的 fixtures，无需图表预渲染和生产内容仓库。完整图表渲染使用 `npm run dev`。详细步骤见 [Quick Start](docs/quick-start.md)。
 
-```text
-http://localhost:4321
-```
+## For AI Agents
 
-如果只验证 Public Engine，不需要 Content Repository：
+先读 [AGENTS.md](AGENTS.md)，再从仓库根目录执行：
 
 ```bash
-npm run assemble:fixtures
-npm run check
-npm run build
+devtool config validate
+devtool project inspect --json
 ```
 
-### 3. 添加内容
-
-内容放在 `blog-content`：
+## Architecture
 
 ```text
-src/content/
-├── articles/
-│   └── en/
-├── notes/
-├── note-translations/
-│   └── en/
-├── projects/
-└── series/
-
-public/media/
+blog-content（内容源）
+        ↓ BlogCTL assemble
+Astro / Content Collections
+        ↓
+静态站点 + Pagefind
+        ├── GitHub Pages
+        └── EdgeOne Makers
 ```
 
-可以直接从 [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template) 中复制示例修改。
-
-完整字段定义以 [`src/content.config.ts`](src/content.config.ts) 为准。
-
-### 4. 部署
-
-当前博客的生产链路是：
-
-```text
-ThinkerQAQ/blog-content
-        │
-        │ push master
-        ▼
-trigger-public-engine.yml
-        │
-        ▼
-ThinkerQAQ.github.io / deploy.yml
-        │
-        ├── checkout 指定 content commit
-        ├── validate + assemble
-        ├── test + build
-        └── deploy GitHub Pages
-```
-
-Public Engine 使用 `CONTENT_REPOSITORY` 指定内容仓库；私有 Content Repository 通过 `BLOG_CONTENT_DEPLOY_KEY` 读取。
-
-如果部署自己的 fork，需要同时修改 `.github/workflows/deploy.yml` 中针对 `ThinkerQAQ/ThinkerQAQ.github.io` 的仓库判断，并配置自己的 `CONTENT_REPOSITORY`、GitHub Pages 和相关 Secrets。
-
-Content Template 默认不带自动触发部署的 Workflow，避免模板绑定具体账号、Token 或仓库名。
+BlogCTL 同时负责多平台分发。详见 [系统概念与边界](docs/concepts/system.md)。
 
 ## Documentation
 
-### 主要组件
+[Quick Start](docs/quick-start.md) · [Tutorial](docs/tutorial/first-site.md) · [Concepts](docs/concepts/system.md) · [How-to](docs/how-to/index.md) · [Reference](docs/reference/index.md) · [Examples](docs/examples/index.md) · [Deep Design](docs/architecture/index.md) · [BlogCTL](tools/blogctl/README.md)
 
-| 能力 | 实现 |
-| --- | --- |
-| Site | Astro + Markdown + Content Collections |
-| Content | 独立 Content Repository |
-| Search | Pagefind |
-| AI Search | Cloudflare Workers + AI Search |
-| Comments | utterances |
-| Analytics | Umami |
-| SEO | canonical / Open Graph / JSON-LD / hreflang / RSS / sitemap / IndexNow |
-| Diagrams | PlantUML / Graphviz / draw.io |
-| Tooling | BlogCTL |
-| CI/CD | GitHub Actions |
-| Deployment | GitHub Pages |
+## Development / Self-hosting
 
-### 仓库结构
+参见 [命令参考](docs/reference/commands.md) 和 [部署指南](docs/how-to/deploy.md)。本仓库负责引擎，正文由独立内容仓库管理。
 
-```text
-src/                  Astro 页面、组件、内容 Schema 与 Markdown 处理
-scripts/              仓库级构建、校验、Pagefind 与图渲染入口
-workers/              Cloudflare Workers
-tools/blogctl/         BlogCTL
-fixtures/              Public Engine 测试内容
-.github/workflows/     CI / CD
-```
-
-### 详细文档
-
-- [BlogCTL](tools/blogctl/README.md)
-
-## License
-
-本仓库代码使用 [MIT License](LICENSE)。
+[MIT License](LICENSE)

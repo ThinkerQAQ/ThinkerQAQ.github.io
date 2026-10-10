@@ -100,3 +100,55 @@ package = "./extensions/environment/local/cmd/provider"
 
 [profile.railway.service.environment]
 provider = "environment.local"
+
+[extension.document-capability]
+loader = "go-module"
+
+[extension.document-capability.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "c82b898bbb8af3df79560cc0db68e3184a0e34c0"
+package = "./extensions/capability/document/cmd/provider"
+
+[extension.document-context]
+loader = "go-module"
+
+[extension.document-context.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "c82b898bbb8af3df79560cc0db68e3184a0e34c0"
+package = "./extensions/context/document/cmd/provider"
+
+[extension.document-realtime]
+loader = "go-module"
+
+[extension.document-realtime.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "c82b898bbb8af3df79560cc0db68e3184a0e34c0"
+package = "./extensions/document/marksman/cmd/provider"
+
+[extension.document-markdown]
+loader = "go-module"
+
+[extension.document-markdown.loader_config]
+module = "github.com/thinkerqaq/devtool"
+version = "c82b898bbb8af3df79560cc0db68e3184a0e34c0"
+package = "./extensions/document/markdown/cmd/provider"
+
+[extension.document-context.settings]
+review_max_lines = 250
+
+[extension.document-realtime.settings]
+binary = "marksman"
+timeout_seconds = 30
+workspace_roots = ["."]
+
+[extension.document-markdown.settings]
+roots = ["."]
+
+[service.document-context]
+provider = "context.document.composite"
+
+[service.document-realtime]
+provider = "document.realtime.marksman"
+
+[service.document-structure]
+provider = "document.markdown.goldmark"
