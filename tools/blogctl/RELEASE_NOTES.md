@@ -1,3 +1,16 @@
+# BlogCTL v0.1.122 (local experimental build)
+
+- Normalize OSChina draft links to `https://my.oschina.net/u/<numeric-user-id>/blog/ai-write/draft/<draft-id>`.
+- Obtain numeric account IDs from OSChina creator authentication / verified
+  local metadata; never substitute the public username for the user ID.
+- Correct old saved draft links on read without migrating Data and keep
+  already-published public article links unchanged.
+- Add regression tests for the requested draft ID 3328466.
+
+Local branch build on PR #177; not a public release.
+
+---
+
 # BlogCTL v0.1.121 (local experimental build)
 
 - Fix CNBlogs draft links to open the **creator editor** at
