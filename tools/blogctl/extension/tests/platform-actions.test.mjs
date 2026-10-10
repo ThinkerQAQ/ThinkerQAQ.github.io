@@ -8,16 +8,17 @@ const draftsPath = new URL("../popup/drafts.js", import.meta.url);
 const publicationsPath = new URL("../popup/publications.js", import.meta.url);
 const backgroundPath = new URL("../background.js", import.meta.url);
 
-test("detection and update keep searchable article inventories collapsible", async () => {
+test("Detection shows remote inventories while Update owns article association", async () => {
   const [html, sync, drafts] = await Promise.all([
     readFile(htmlPath, "utf8"),
     readFile(syncPath, "utf8"),
     readFile(draftsPath, "utf8"),
   ]);
 
-  assert.match(html, /id="articleOptions" class="article-options" role="listbox" hidden><\/div>/u);
+  assert.match(html, /id="inventoryPlatforms" class="platform-choices"><\/div>/u);
+  assert.match(html, /id="syncPlatforms" class="platform-choices">/u);
   assert.match(html, /id="draftArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
-  assert.match(sync, /setArticleOptionsOpen\(true\)/u);
+  assert.match(sync, /refreshArticleMatches\(\[platform\.id\]\)/u);
   assert.match(drafts, /setArticleOptionsOpen\(true\)/u);
 });
 
@@ -29,7 +30,7 @@ test("publish keeps a searchable article list and filters records by the selecte
 
   assert.match(html, /id="publicationArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
   assert.match(publications, /setArticleOptionsOpen\(true\)/u);
-  assert.match(publications, /record\.article !== article/u);
+  assert.match(publications, /record\.article !== state\.selectedSlug/u);
 });
 
 test("each platform exposes an isolated detection or update action", async () => {
