@@ -8,6 +8,8 @@
     "dist",
     "node_modules",
     "public",
-    "src/content"
+    "src/content",
+    "tools/blogctl/extension/popup/i18next-vendor.js",
+    "tools/blogctl/extension/popup/log-editor-vendor.js"
   ]
 }
