@@ -14,7 +14,7 @@
   }
 
   function refreshToolbar() {
-    if (!detectButton) return;
+    if (!detectButton || root.BlogCTLDrafts?.currentMode?.()==="create") return;
     detectButton.disabled = !state.article || state.pending.size > 0 ||
       root.BlogCTLDrafts?.isJobRunning?.() ||
       !(root.BlogCTLDrafts?.selectedPlatformIDs?.().length);
@@ -271,7 +271,13 @@
     if (state.initialized) return;
     detectButton = document.getElementById("refreshArticleMatches");
     message = document.getElementById("syncMessage");
-    detectButton.addEventListener("click", () => refreshArticleMatches());
+    detectButton.addEventListener("click", () => {
+      if(root.BlogCTLDrafts?.currentMode?.()==="create"){
+        root.BlogCTLDrafts.refreshCreateMatches();
+      } else {
+        refreshArticleMatches();
+      }
+    });
     document.addEventListener("blogctl:update-platform-selection", refreshToolbar);
     document.addEventListener("blogctl:detect-association", (event) => {
       if (!state.active || state.article !== event.detail?.article) return;

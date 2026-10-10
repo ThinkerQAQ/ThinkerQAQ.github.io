@@ -141,15 +141,27 @@
     await Promise.all(workers);
   }
 
-  function ensureCreateScan(force=false) {
-    if(state.mode!=="create" || !state.active || !state.selectedSlug || !state.status)return;
-    const candidates=BlogCTLSyncModel.visiblePlatforms(state.status.platforms)
-      .filter((platform)=>availability(platform).available)
+  function createDetectablePlatforms() {
+    return BlogCTLSyncModel.visiblePlatforms(state.status?.platforms || [])
+      .filter((platform)=>state.selectedPlatformIDs.has(platform.id) &&
+        availability(platform).available)
       .map((platform)=>platform.id);
-    if(force){
-      for(const id of candidates) state.createMatches.delete(id);
-    }
+  }
+
+  function refreshCreateMatches(platformIDs = createDetectablePlatforms()) {
+    if(state.mode!=="create" || !state.active || !state.selectedSlug ||
+        !state.status || running()) return;
+    const permitted=new Set(createDetectablePlatforms());
+    const candidates=[...new Set(platformIDs)].filter((id)=>
+      permitted.has(id) && !state.createScanning.has(id));
+    for(const id of candidates) state.createMatches.delete(id);
     void scanCreateMatches(candidates);
+    renderPlatforms();
+  }
+
+  function ensureCreateScan() {
+    if(state.mode!=="create" || !state.active || !state.selectedSlug || !state.status)return;
+    void scanCreateMatches(createDetectablePlatforms());
   }
 
   function ensureUpdateScan() {
@@ -222,6 +234,12 @@
       (state.mode==="create" ? eligibleCreatePlatforms().length>0 : targets.length>0);
     actionButton.disabled=!canSubmit;
     publishButton.disabled=!canSubmit || !canPublishAfter();
+    if(state.mode==="create"){
+      const detect=document.getElementById("refreshArticleMatches");
+      detect.disabled=!state.selectedSlug || !state.status?.bridge?.running ||
+        running() || state.createScanning.size>0 || !createDetectablePlatforms().length;
+      detect.title="重新检测勾选平台是否已有对应文章";
+    }
     actionButton.textContent=state.mode==="create"?"创建草稿":"更新所选";
     publishButton.textContent=state.mode==="create"?"创建并发布":"更新并发布";
     const terminal=["completed","failed"].includes(state.currentJob?.state);
@@ -301,6 +319,19 @@
       const scanning=state.mode==="create" && (state.createScanning.has(platform.id) ||
         (!state.createMatches.has(platform.id) && permission.available));
       if(state.mode==="create"){
+        const detect=document.createElement("button");
+        detect.type="button";
+        detect.className="secondary compact";
+        detect.textContent="检测关联";
+        detect.title="重新检测此平台是否已有对应文章";
+        detect.disabled=!permission.available || !state.selectedSlug || running() ||
+          state.createScanning.has(platform.id);
+        detect.addEventListener("click",()=>{
+          state.selectedPlatformIDs.add(platform.id);
+          BlogCTLSyncState.savePlatforms(localStorage,state.selectedPlatformIDs);
+          refreshCreateMatches([platform.id]);
+        });
+        actions.append(detect);
         if(!existing.length){
           const create=document.createElement("button");
         create.type="button";
@@ -435,7 +466,7 @@
         // Real remote objects are recorded in job events. Show their direct
         // editor links immediately, and refresh the read-only inventory.
         if(state.currentJob.operation==="create"){
-          ensureCreateScan(true);
+          refreshCreateMatches();
         }
         BlogCTLPopup.setMessage(message,state.currentJob.state==="completed"?
           "任务完成，结果已记录。":"部分或全部平台失败，请在任务页查看具体远端 ID 和错误。",
@@ -504,9 +535,11 @@
       "选择本地文章和平台，明确创建一篇新草稿，不读取历史绑定。":
       "选择本地文章，检测并勾选远端目标，然后直接更新。";
     document.getElementById("draftPlatformHint").textContent=mode==="create"?
-      "已有远端文章显示在平台下方，点击右侧链接编辑；只有未创建文章的平台才显示「创建草稿」。":
+      "检测勾选平台的远端文章；已有文章可编辑，仅未创建文章的平台允许新建草稿。":
       "自动检测已选平台的远端文章；勾选目标后直接更新。可手动重新检测。";
-    for(const id of ["refreshArticleMatches"])document.getElementById(id).hidden=mode==="create";
+    const detect=document.getElementById("refreshArticleMatches");
+    detect.hidden=false;
+    detect.textContent="重新检测";
     root.BlogCTLSync?.clearMatches?.();
     if(state.initialized)renderPlatforms();
     ensureCreateScan();
@@ -578,6 +611,8 @@
   root.BlogCTLDrafts={
     init,activate,deactivate,refresh,setMode,
     selectedPlatformIDs,
+    currentMode:()=>state.mode,
+    refreshCreateMatches,
     isJobRunning:running,
     selectedArticleTitle:()=>article()?.title || "",
     selectionChanged:updateAction,
