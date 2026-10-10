@@ -154,21 +154,16 @@ button { border: 0; border-radius: 8px; font: inherit; cursor: pointer; } button
 .log-search, .log-filter { min-width: 0; }
 .log-follow { min-height: 34px; justify-content: flex-start; white-space: nowrap; }
 .log-follow input { width: 18px; height: 18px; flex: 0 0 auto; }
-.log-viewer { min-height: 320px; max-height: 520px; overflow: auto; margin: 0; padding: 10px; border-radius: 8px; background: #111827; color: #f9fafb; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; line-height: 1.5; tab-size: 2; user-select: text; }
+.log-viewer {
+  min-width: 0;
+  min-height: 300px;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: #111827;
+}
 .log-viewer::selection, .log-viewer *::selection { background: #2563eb; color: #fff; }
-.log-line { display: inline; }
-.log-time { color: #94a3b8; }
-.log-level { font-weight: 800; }
-.log-key { color: #c4b5fd; }
-.log-url { color: #93c5fd; text-decoration: underline; text-underline-offset: 2px; }
-.log-line-debug { color: #cbd5e1; }
-.log-line-debug .log-level { color: #94a3b8; }
-.log-line-info .log-level { color: #60a5fa; }
-.log-line-warn { background: rgba(245, 158, 11, 0.08); }
-.log-line-warn .log-level { color: #fbbf24; }
-.log-line-error { background: rgba(239, 68, 68, 0.10); }
-.log-line-error .log-level { color: #f87171; }
-.log-line-error .log-body { color: #fecaca; }
 @media (max-width: 720px) { .log-toolbar { grid-template-columns: 1fr 1fr 1fr; } }
 @media (max-width: 520px) { .log-toolbar { grid-template-columns: 1fr 1fr; } .log-search { grid-column: 1 / -1; } .log-viewer { min-height: 260px; } }
 
@@ -464,3 +459,28 @@ input, select { min-height: 42px; font-size: 13px; }
 }
 [data-index-engine] .index-action-row,
 [data-index-engine] .index-subcard { margin-top: 4px; }
+
+
+/* CodeMirror 6 provides read-only viewport virtualization and native search.
+   Built and pinned locally; the identical bundle runs in Extension/Web. */
+.log-viewer .cm-editor {
+  min-width: 0;
+  max-width: 100%;
+  outline: none;
+}
+.log-viewer .cm-focused { outline: 2px solid #3b82f6; outline-offset: -2px; }
+.log-viewer .cm-search {
+  font-size: 12px;
+}
+.log-viewer .cm-search button,
+.log-viewer .cm-search input {
+  width: auto;
+  min-height: 28px;
+  margin: 2px;
+  color: #111827;
+  background: #e5e7eb;
+}
+@media (max-width: 520px) {
+  .log-viewer { min-height: 260px; }
+  .log-viewer .cm-editor { height: 360px; }
+}

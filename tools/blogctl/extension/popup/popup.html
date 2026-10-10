@@ -121,12 +121,13 @@
           <label class="field log-filter"><span>显示级别</span><select id="logLevelFilter"><option value="">全部</option><option value="DEBUG">DEBUG</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option></select></label>
           <label class="checkbox-row log-follow"><span>自动刷新</span><input id="logAutoRefresh" type="checkbox" checked></label>
           <button id="selectAllLogs" class="secondary compact" type="button">全选日志</button>
+          <button id="findInLogs" class="secondary compact" type="button" title="使用 CodeMirror 搜索日志">查找</button>
           <button id="copyLogs" class="secondary compact" type="button">复制</button>
           <button id="refreshLogs" class="secondary compact" type="button">刷新</button>
           <button id="clearLogs" class="secondary compact danger-action" type="button">清空</button>
         </div>
         <code id="logPath" class="path-value">-</code>
-        <pre id="logOutput" class="log-viewer">暂无日志</pre>
+        <div id="logOutput" class="log-viewer" aria-label="运行日志查看器"></div>
       </section>
       <p id="logsMessage" class="message" role="status"></p>
     </section>
@@ -419,6 +420,7 @@
   <script src="drafts.js"></script>
   <script src="task-ui-state.js"></script>
   <script src="tasks.js"></script>
+  <script src="log-editor-vendor.js"></script>
   <script src="logs.js"></script>
   <script src="indexing.js"></script>
   <script src="assets.js"></script>

@@ -11,7 +11,7 @@ const BlogCTLLogs = (() => {
     pointerSelecting: false,
   };
 
-  let status, pathValue, output, queryInput, levelFilter, autoRefresh, selectAllButton, copyButton, refreshButton, clearButton, message;
+  let status, pathValue, output, logViewer, queryInput, levelFilter, autoRefresh, selectAllButton, copyButton, refreshButton, clearButton, message;
 
   function formatAttribute(value) {
     if (typeof value === "string") return value;
@@ -55,58 +55,8 @@ const BlogCTLLogs = (() => {
     });
   }
 
-  function appendHighlightedBody(container, value) {
-    const text = String(value || "");
-    const pattern = /(https?:\/\/[^\s]+)|(\b[A-Za-z][A-Za-z0-9_.-]*=)/gu;
-    let offset = 0;
-    for (const match of text.matchAll(pattern)) {
-      const index = match.index ?? 0;
-      if (index > offset) container.append(document.createTextNode(text.slice(offset, index)));
-      const token = document.createElement("span");
-      token.className = match[1] ? "log-url" : "log-key";
-      token.textContent = match[0];
-      container.append(token);
-      offset = index + match[0].length;
-    }
-    if (offset < text.length) container.append(document.createTextNode(text.slice(offset)));
-  }
-
-  function renderEntry(entry) {
-    const line = document.createElement("span");
-    const raw = entry?.raw ? rawEntryParts(entry) : null;
-    const level = (raw?.level || entryLevel(entry) || "INFO").toUpperCase();
-    line.className = `log-line log-line-${level.toLowerCase()}`;
-    line.dataset.level = level;
-
-    const time = document.createElement("span");
-    time.className = "log-time";
-    time.textContent = raw?.time || `[${entry?.time ? BlogCTLPopup.formatTime(entry.time) : "--:--:--"}]`;
-
-    const levelToken = document.createElement("span");
-    levelToken.className = "log-level";
-    levelToken.textContent = level.padEnd(5, " ");
-
-    const body = document.createElement("span");
-    body.className = "log-body";
-    if (raw) {
-      appendHighlightedBody(body, raw.body);
-    } else {
-      const text = String(entry?.message || "");
-      const attributes = Object.entries(entry?.attributes || {})
-        .map(([key, value]) => `${key}=${formatAttribute(value)}`)
-        .join(" ");
-      appendHighlightedBody(body, [text, attributes].filter(Boolean).join(" "));
-    }
-
-    line.append(time, document.createTextNode(" "), levelToken, document.createTextNode(" "), body);
-    return line;
-  }
-
   function selectedLogText() {
-    const selection = globalThis.getSelection?.();
-    if (!selection || selection.isCollapsed || !selection.anchorNode || !selection.focusNode) return "";
-    if (!output.contains(selection.anchorNode) || !output.contains(selection.focusNode)) return "";
-    return selection.toString();
+    return logViewer?.selectedText() || "";
   }
 
   function selectionLocksViewer() {
@@ -114,22 +64,8 @@ const BlogCTLLogs = (() => {
   }
 
   function renderOutput(entries) {
-    const wasNearBottom = output.scrollHeight - output.scrollTop - output.clientHeight < 36;
-    const fragment = document.createDocumentFragment();
-
-    if (!entries.length) {
-      fragment.append(document.createTextNode("暂无日志"));
-    } else {
-      entries.forEach((entry, index) => {
-        fragment.append(renderEntry(entry));
-        if (index < entries.length - 1) fragment.append(document.createTextNode("\n"));
-      });
-    }
-
-    output.replaceChildren(fragment);
-    if (wasNearBottom || output.textContent === "暂无日志") {
-      output.scrollTop = output.scrollHeight;
-    }
+    const text = entries.length ? entries.map(formatEntry).join("\n") : "暂无日志";
+    logViewer.setText(text, autoRefresh.checked);
   }
 
   function render({ preserveSelection = false } = {}) {
@@ -180,18 +116,13 @@ const BlogCTLLogs = (() => {
   }
 
   function selectAllLogs() {
-    if (!output || output.textContent === "暂无日志") return;
-    if (autoRefresh?.checked) {
+    if (!logViewer || logViewer.getText() === "暂无日志") return;
+    if (autoRefresh.checked) {
       autoRefresh.checked = false;
       syncPolling();
     }
-    const selection = globalThis.getSelection?.();
-    if (!selection) return;
-    const range = document.createRange();
-    range.selectNodeContents(output);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    BlogCTLPopup.setMessage(message, "已选中当前可见日志；自动刷新已暂停。", "ok");
+    logViewer.selectAll();
+    BlogCTLPopup.setMessage(message, "已选中当前日志；自动刷新已暂停。", "ok");
   }
 
   async function writeClipboard(text) {
@@ -212,7 +143,8 @@ const BlogCTLLogs = (() => {
 
   async function copyLogs() {
     const selected = selectedLogText();
-    const text = selected || (output?.textContent === "暂无日志" ? "" : output?.textContent || "");
+    const current = logViewer?.getText() || "";
+    const text = selected || (current === "暂无日志" ? "" : current);
     if (!text) {
       BlogCTLPopup.setMessage(message, "没有可复制的日志。", "error");
       return;
@@ -247,6 +179,7 @@ const BlogCTLLogs = (() => {
     status = document.getElementById("logsStatus");
     pathValue = document.getElementById("logPath");
     output = document.getElementById("logOutput");
+    logViewer = BlogCTLLogEditor.create(output);
     queryInput = document.getElementById("logQuery");
     levelFilter = document.getElementById("logLevelFilter");
     autoRefresh = document.getElementById("logAutoRefresh");
@@ -259,6 +192,7 @@ const BlogCTLLogs = (() => {
     refreshButton.addEventListener("click", () => refresh());
     clearButton.addEventListener("click", clearLogs);
     selectAllButton.addEventListener("click", selectAllLogs);
+    document.getElementById("findInLogs").addEventListener("click", () => logViewer.find());
     copyButton.addEventListener("mousedown", (event) => event.preventDefault());
     copyButton.addEventListener("click", copyLogs);
     queryInput.addEventListener("input", () => render());
