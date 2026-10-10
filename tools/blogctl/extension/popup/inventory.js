@@ -41,18 +41,9 @@
       heading.className = "job-platform-main";
       const label = document.createElement("strong");
       label.textContent = platform.label || platform.id;
-      const count = document.createElement("small");
-      count.textContent = busy ? "读取中…"
-        : record?.error ? "读取失败"
-        : record ? `草稿 ${items.filter((item) => !item.published).length} · 已发布 ${items.filter((item) => item.published).length}`
-          : "尚未读取";
-      const reload = document.createElement("button");
-      reload.type = "button";
-      reload.className = "secondary compact";
-      reload.textContent = "刷新";
-      reload.disabled = busy;
-      reload.addEventListener("click", () => loadPlatform(platform.id));
-      heading.append(label, count, reload);
+      // Top-level status filtering and the single Refresh control already
+      // provide these actions; keep platform headings free of duplicates.
+      heading.append(label);
       card.append(heading);
 
       if (record?.error) {
