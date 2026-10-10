@@ -751,6 +751,18 @@
       }
     });
 
+    // A state-specific unbind from the Update tab invalidates cached
+    // detection results. Recheck manually rather than displaying stale
+    // "已绑定" rows from the previous scan.
+    document.addEventListener("blogctl:binding-changed", (event) => {
+      if (event.detail?.article !== state.selectedSlug) return;
+      clearMatches();
+      if (state.active) {
+        renderPlatforms();
+        loadSyncBinding();
+      }
+    });
+
     refreshMatchesButton.addEventListener("click", () => refreshArticleMatches());
     selectAllButton.addEventListener("click", () => setSyncPlatforms("all"));
     invertButton.addEventListener("click", () => setSyncPlatforms("invert"));
