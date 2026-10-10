@@ -182,8 +182,8 @@
       identity.className="inventory-article-content";
       const title=document.createElement("strong");
       title.className="inventory-article-title";
-      title.setAttribute("data-i18n-ignore", "");
-      title.textContent=item.title || article()?.title || BlogCTLI18n.t("(无标题)");
+      if (item.title || article()?.title) title.setAttribute("data-i18n-ignore", "");
+      title.textContent=item.title || article()?.title || "(无标题)";
       const meta=document.createElement("div");
       meta.className="inventory-article-meta";
       const stateLabel=document.createElement("span");

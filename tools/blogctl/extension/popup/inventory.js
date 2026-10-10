@@ -68,8 +68,8 @@
         identity.className = "inventory-article-content";
         const title = document.createElement("strong");
         title.className = "inventory-article-title";
-        title.setAttribute("data-i18n-ignore", "");
-        title.textContent = item.title || BlogCTLI18n.t("(无标题)");
+        if (item.title) title.setAttribute("data-i18n-ignore", "");
+        title.textContent = item.title || "(无标题)";
         const metadata = document.createElement("div");
         metadata.className = "inventory-article-meta";
         const status = document.createElement("span");
