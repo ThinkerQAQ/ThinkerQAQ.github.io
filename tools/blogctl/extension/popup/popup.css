@@ -354,3 +354,92 @@ input, select { min-height: 42px; font-size: 13px; }
   .app { padding: 24px; }
   .status-card { padding: 24px; }
 }
+
+
+/* Desktop Commander / IDFlow-inspired left rail. Shared responsive shell:
+   no second navigation system or alternative feature order on Web Console. */
+.workspace-shell {
+  display: grid;
+  grid-template-columns: 156px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
+}
+.workspace-main { min-width: 0; }
+.workspace-main .panel { min-width: 0; }
+.tabs {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: start;
+  min-width: 0;
+  min-height: min(470px, calc(100vh - 154px));
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 12px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  scrollbar-width: thin;
+}
+.navigation-label {
+  margin: 2px 8px 8px;
+  color: #8893a6;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+}
+.tabs .tab {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 11px;
+  gap: 12px;
+  text-align: left;
+  border-radius: 8px;
+  color: #586579;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: transparent;
+}
+.tabs .tab:hover:not(.active) { background: #f1f4f8; color: #263345; }
+.tabs .tab.active { background: #111827; color: white; }
+.tabs .tab-settings {
+  margin-top: auto;
+  border-top: 1px solid transparent;
+}
+.nav-icon {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1;
+}
+.nav-text { min-width: 0; }
+@media (max-width: 900px) {
+  .workspace-shell { grid-template-columns: 136px minmax(0, 1fr); gap: 12px; }
+  .tabs { padding: 10px 6px; }
+  .tabs .tab { padding: 9px 8px; gap: 8px; }
+}
+@media (max-width: 520px) {
+  .workspace-shell { grid-template-columns: 52px minmax(0, 1fr); gap: 8px; }
+  .tabs { padding: 10px 4px; }
+  .navigation-label, .nav-text { display: none; }
+  .tabs .tab { justify-content: center; padding: 9px 4px; }
+  .nav-icon { flex-basis: 22px; font-size: 20px; }
+}
+
+@media (max-width: 700px) {
+  .tabs { display: flex; overflow-x: hidden; overflow-y: auto; scroll-snap-type: none; }
+  .tabs .tab { scroll-snap-align: none; }
+}

@@ -26,16 +26,18 @@
       </div>
     </header>
 
-    <nav class="tabs" role="tablist" aria-label="BlogCTL">
-      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding">检测</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="creation">创建</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts">更新</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs">日志</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing">索引</button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="environment">设置</button>
-    </nav>
-
+    <div class="workspace-shell">
+      <nav class="tabs" role="tablist" aria-label="BlogCTL 功能导航">
+        <span class="navigation-label">工作台</span>
+        <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding" title="检测"><span class="nav-icon" aria-hidden="true">⌕</span><span class="nav-text">检测</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="creation" title="创建"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-text">创建</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts" title="更新"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-text">更新</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing" title="索引"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-text">索引</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks" title="任务"><span class="nav-icon" aria-hidden="true">☷</span><span class="nav-text">任务</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs" title="日志"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-text">日志</span></button>
+        <button class="tab tab-settings" type="button" role="tab" aria-selected="false" data-tab="environment" title="设置"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-text">设置</span></button>
+      </nav>
+      <div class="workspace-main">
     <section class="panel active" role="tabpanel" data-panel="binding">
       <section class="status-card">
         <div class="section-title">远端文章清单</div>
@@ -388,6 +390,8 @@
       </section>
       <p id="environmentMessage" class="message" role="status"></p>
     </section>
+        </div>
+    </div>
   </main>
 
   <script src="transport.js"></script>
