@@ -1,3 +1,21 @@
+# BlogCTL v0.1.120 (local experimental build)
+
+- Keep platform publishing concurrent and independently fail-safe.
+- Deduplicate identical shared publishing-asset renders across simultaneous
+  platform plans. Publish each generated PNG only after successful rendering.
+- Prepare different diagrams concurrently, while limiting renderer /
+  Chromium startup to two processes across the Bridge.
+- Add non-sensitive per-platform Markdown compilation and asset preparation
+  timings to Bridge structured logs.
+- Add concurrent ten-platform shared-cache and independent platform failure
+  regression tests (including race checks).
+
+Toutiao native HTTP writes may still fail with code=7050. This experimental
+build does not claim to solve its dynamic signing requirements and does not
+enable normal first-time public publishing.
+
+---
+
 # BlogCTL v0.1.119 (local diagnostic build)
 
 - Preserve non-secret Toutiao upstream business response codes when a draft
