@@ -1,31 +1,29 @@
 # BlogCTL
 
-[BlogCTL documentation](docs/index.md) · [Blog engine](../../README.md) · [Latest release](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest)
+[简体中文](README_ZH.md) · [Documentation](docs/index.md) · [Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest)
 
-BlogCTL is the Go-based local control plane for the ThinkerQAQ blog: site assembly, article syndication, publishing assets, search-engine indexing, and a browser Extension/Bridge with a shared Web Console.
-
-**Principles:** explicit operations, safe remote writes, minimal Go core, configurable providers, mature components before custom implementations.
+BlogCTL is the Go application that assembles the blog, prepares articles for other publishing platforms, and runs a local Bridge for the browser Extension and Web Console.
 
 ## Quick Start
 
-From an engine checkout, validate the CLI:
+To inspect the CLI from a checkout of the [blog engine](../../README.md):
 
 ```bash
 go run ./tools/blogctl/cmd help
 go run ./tools/blogctl/cmd doctor
 ```
 
-For the installed Windows release, put the executable and unpacked Extension in one folder, keep the persistent `Data/` directory, and register the Native Messaging host:
+For Windows installations, download the current package, keep its `Data/` directory between upgrades and register the Native Messaging host:
 
 ```powershell
 .\Install-Windows.ps1 -Executable C:\software\Coding\blogctl\blogctl-windows-amd64.exe
 ```
 
-Load the unpacked Extension through `edge://extensions` or `chrome://extensions`; use the Extension and its **打开工作台** control to reach the local Console. See the [platform-specific Quick Start](docs/quick-start.md) for install, validation and troubleshooting.
+Load the unpacked Extension in Edge or Chrome. The **打开工作台** action opens the local Console. For installation details on each OS, follow the [Quick Start](docs/quick-start.md).
 
 ## For AI Agents
 
-Read [the root Agent Contract](../../AGENTS.md), then [BlogCTL Agent Scope](AGENTS.md). Discover project commands through DevTool:
+Follow the repository's [AGENTS.md](../../AGENTS.md) and [BlogCTL-specific contract](AGENTS.md). From the engine root:
 
 ```bash
 devtool config validate
@@ -35,31 +33,24 @@ devtool project inspect --json
 ## Architecture
 
 ```text
-blog-content (canonical Markdown)
-          │
-          ▼
-      BlogCTL Go Core ──► Site assembly / asset compiler
-          │
-          ├──► Browser Extension ↔ Native Messaging ↔ Bridge
-          │                                  │
-          │                                  └──► Publish / detect / jobs
-          └──► Search index / distribution integrations
+Markdown source
+  └──► BlogCTL compiler / assets / site assembly
+                ├──► Astro build
+                └──► platform publishers
+                         ▲
+           Extension ↔ Go Bridge ↔ Web Console
 ```
 
-See [Concepts](docs/concepts/index.md) for the data model and operation boundaries; see [historical designs](docs/architecture/index.md) for decisions.
+Session access stays in the browser Extension; Go handles local jobs and publishing adapters. See [Concepts](docs/concepts/index.md).
 
 ## Documentation
 
-- [Quick Start](docs/quick-start.md)
-- [Tutorial](docs/tutorial/first-publish.md)
-- [Concepts](docs/concepts/index.md)
-- [How-to](docs/how-to/index.md)
-- [Reference: CLI](docs/reference/cli.md) / [Configuration](docs/reference/configuration.md) / [Contracts](docs/reference/contracts.md)
-- [Examples](docs/examples/index.md)
-- [Deep Design](docs/architecture/index.md)
+| Topic | English | 简体中文 |
+| --- | --- | --- |
+| First use | [Quick Start](docs/quick-start.md) | [快速开始](docs/zh-CN/quick-start.md) |
+| Publishing workflow | [Tutorial](docs/tutorial/first-publish.md) | [教程](docs/zh-CN/tutorial/first-publish.md) |
+| Models and interfaces | [Concepts and Reference](docs/index.md) | [中文文档目录](docs/zh-CN/index.md) |
 
-## Development / Self-hosting
-
-Use the root [DevTool project](../../.devtool.toml) for build, verification and packages. BlogCTL releases include prebuilt binaries; a released binary does not require Go. Local content, platform credentials and runtime state must remain outside source control.
+Development commands and release packaging are owned by the engine's DevTool configuration.
 
 [MIT License](../../LICENSE)
