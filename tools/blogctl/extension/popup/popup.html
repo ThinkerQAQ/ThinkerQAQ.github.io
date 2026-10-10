@@ -36,8 +36,14 @@
       <section class="status-card">
         <div class="section-title">远端文章清单</div>
         <p class="card-hint">按平台读取当前账号的草稿和已发布文章。此处只查看；当前本地文章的检测与绑定请前往「更新」。</p>
-        <label class="field"><span>筛选远端内容</span><input id="inventorySearch" type="search" placeholder="标题或远端 ID" autocomplete="off"></label>
-        <button id="refreshInventory" class="secondary compact" type="button">刷新全部平台</button>
+        <div class="publication-filters">
+          <label class="field"><span>平台</span><select id="inventoryPlatform"><option value="">全部平台</option></select></label>
+          <label class="field"><span>状态</span><select id="inventoryStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="published">已发布</option></select></label>
+        </div>
+        <div class="binding-detect-toolbar">
+          <span id="inventorySummary" class="card-hint">正在读取远端文章…</span>
+          <button id="refreshInventory" class="secondary compact" type="button">刷新</button>
+        </div>
         <div id="inventoryPlatforms" class="platform-choices"></div>
       </section>
       <p id="inventoryMessage" class="message" role="status"></p>

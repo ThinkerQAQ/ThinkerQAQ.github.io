@@ -975,7 +975,10 @@ async function handleMessage(message) {
       }
       if (platform !== "devto") await syncPlatformSession(platform);
       const query = new URLSearchParams({ platform });
-      return await fetchJSON(`/v1/remote/inventory?${query.toString()}`, { method: "POST" });
+      const result = await fetchJSON(`/v1/remote/inventory?${query.toString()}`, { method: "POST" });
+      // Runtime message replies must carry ok=true. The Bridge response is
+      // an inventory payload, not the popup's message-envelope contract.
+      return { ok: true, ...result };
     }
     case "blogctl.article.match": {
       const article = encodeURIComponent(String(message.article || ""));
