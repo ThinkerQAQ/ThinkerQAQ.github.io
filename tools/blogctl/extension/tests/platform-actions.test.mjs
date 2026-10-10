@@ -16,7 +16,9 @@ test("Detection shows remote inventories while Update owns article association",
   ]);
 
   assert.match(html, /id="inventoryPlatforms" class="platform-choices"><\/div>/u);
-  assert.match(html, /id="syncPlatforms" class="platform-choices">/u);
+  assert.doesNotMatch(html, /id="syncPlatforms"/u);
+  assert.match(html, /id="refreshArticleMatches" class="primary inline-primary"/u);
+  assert.match(drafts, /BlogCTLSync\?\.appendPlatformMatches/u);
   assert.match(html, /id="draftArticleOptions" class="article-options" role="listbox" hidden><\/div>/u);
   assert.match(sync, /refreshArticleMatches\(\[platform\.id\]\)/u);
   assert.match(drafts, /setArticleOptionsOpen\(true\)/u);
@@ -39,7 +41,8 @@ test("each platform exposes an isolated detection or update action", async () =>
     readFile(draftsPath, "utf8"),
   ]);
 
-  assert.equal(sync.includes('detectPlatformButton.textContent = state.matchingPlatforms.has(platform.id) ? "检测中…" : "检测此平台"'), true);
+  assert.equal(drafts.includes('detect.textContent = "检测关联"'), true);
+  assert.match(sync, /appendPlatformMatches\(platform, container\)/u);
   assert.match(sync, /refreshArticleMatches\(\[platform\.id\]\)/u);
   assert.equal(drafts.includes(': "更新此平台";'), true);
   assert.match(drafts, /startSavePlatforms\(\[platform\.id\]\)/u);
@@ -106,10 +109,10 @@ test("Toutiao editor relay is absent; UI allows only advertised direct HTTP capa
 test("unavailable platform cards show the explanatory reason once, with a compact badge", async () => {
   const [drafts, sync] = await Promise.all([readFile(draftsPath, "utf8"), readFile(syncPath, "utf8")]);
   assert.match(drafts, /setStatus\(badge, "disabled", "不可更新", availability\.reason\)/u);
-  assert.match(sync, /setStatus\(status, "disabled", "不可检测", availability\.reason\)/u);
-  assert.match(sync, /else if \(state\.selectedSlug && availability\.available\)/u);
+  assert.match(sync, /function platformAvailability\(_article, platform\)/u);
+  assert.match(drafts, /const detectable = platform\.capabilities\?\.remoteList === true/u);
   assert.doesNotMatch(drafts, /setStatus\(badge, "disabled", availability\.reason\)/u);
-  assert.doesNotMatch(sync, /setStatus\(status, "disabled", availability\.reason\)/u);
+
 });
 
 test("CNBlogs draft candidates open the creator editor even when API returns a preview", async () => {
