@@ -1404,8 +1404,14 @@ func applySyncEventToJob(job *syncJob, event blogapp.SyncEvent, at time.Time) {
 	}
 	result := job.Results[event.Platform]
 	result.State = event.State
-	result.Result = event.Result
-	result.URL = event.URL
+	if event.Result != "" {
+		result.Result = event.Result
+	}
+	// Final platform events may carry only a summary. Keep the last durable
+	// successful remote URL; per-target links are retained in job.Events.
+	if event.URL != "" {
+		result.URL = event.URL
+	}
 	result.Message = event.Message
 	if event.State == "failed" {
 		result.Error = event.Message
