@@ -4,16 +4,14 @@ const DAY_MS = 24 * HOUR_MS;
 const WEEK_MS = 7 * DAY_MS;
 const METRIC_LIMIT = 100;
 const MAX_BACKFILL_HOURS = 4;
-const TODAY_CACHE_MS = 5 * 60 * 1000;
+const RANGE_TTL = 7 * 24 * 60 * 60;
+const SETTLE_MS = 2 * HOUR_MS;
 const HEALTH_GRACE_MS = 15 * 60 * 1000;
-const PUBLIC_CACHE_VERSION = "2";
+const PUBLIC_CACHE_VERSION = "3";
 
 const META_KEY = "analytics:meta";
-const LATEST_KEY = "analytics:latest";
-const TODAY_PREFIX = "analytics:today:";
 const HOUR_PREFIX = "analytics:hour:";
 const WEEK_PREFIX = "analytics:week:";
-const WEEKLY_LATEST_KEY = "analytics:weekly:latest";
 
 const METRIC_TYPES = Object.freeze({
   paths: "path",
@@ -169,109 +167,10 @@ async function collectWindow(share, startAt, endAt) {
   return window;
 }
 
-function keyed(rows) {
-  return new Map(rows.map(row => [`${row.name}\u0000${row.country || ""}`, row]));
-}
-
-function newRows(current, previous) {
-  const previousRows = keyed(previous);
-  return current.filter(
-    row => !previousRows.has(`${row.name}\u0000${row.country || ""}`),
-  );
-}
-
-function changedRows(current, previous) {
-  const previousRows = keyed(previous);
-  return current
-    .map(row => {
-      const old = previousRows.get(`${row.name}\u0000${row.country || ""}`);
-      const previousCount = old?.count || 0;
-      return {
-        ...row,
-        previousCount,
-        delta: row.count - previousCount,
-      };
-    })
-    .filter(row => row.delta !== 0)
-    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-}
-
-function statsDelta(current, previous) {
-  return Object.fromEntries(
-    Object.keys(current).map(key => [
-      key,
-      toNumber(current[key]) - toNumber(previous[key]),
-    ]),
-  );
-}
-
-export function buildDelta(current, previous) {
-  const delta = {
-    stats: statsDelta(current.stats, previous.stats),
-  };
-
-  for (const label of Object.keys(METRIC_TYPES)) {
-    const suffix = `${label[0].toUpperCase()}${label.slice(1)}`;
-    delta[`new${suffix}`] = newRows(current[label] || [], previous[label] || []);
-    delta[`changed${suffix}`] = changedRows(
-      current[label] || [],
-      previous[label] || [],
-    );
-  }
-
-  return delta;
-}
-
 function publicWindow(window) {
   if (!window) return window;
   const { regions: _regions, cities: _cities, ...rest } = window;
   return rest;
-}
-
-function publicDelta(delta) {
-  if (!delta) return delta;
-  const {
-    newRegions: _newRegions,
-    changedRegions: _changedRegions,
-    newCities: _newCities,
-    changedCities: _changedCities,
-    ...rest
-  } = delta;
-  return rest;
-}
-
-function publicHourlyReport(report) {
-  if (!report) return report;
-  const { websiteId: _websiteId, ...rest } = report;
-  return {
-    ...rest,
-    current: publicWindow(report.current),
-    previous: publicWindow(report.previous),
-    delta: publicDelta(report.delta),
-  };
-}
-
-function publicWeeklyReport(report) {
-  if (!report) return report;
-  return {
-    ...report,
-    current: publicWindow(report.current),
-    previous: publicWindow(report.previous),
-    delta: publicDelta(report.delta),
-  };
-}
-
-function publicTodayReport(report) {
-  if (!report) return report;
-  const {
-    websiteId: _websiteId,
-    generatedAtMs: _generatedAtMs,
-    ...rest
-  } = report;
-  return {
-    ...rest,
-    current: publicWindow(report.current),
-  };
 }
 
 function requireKv(env) {
@@ -286,8 +185,8 @@ async function readJson(kv, key) {
   return value ? JSON.parse(value) : null;
 }
 
-function writeJson(kv, key, value) {
-  return kv.put(key, JSON.stringify(value));
+function writeJson(kv, key, value, ttl = 0) {
+  return kv.put(key, JSON.stringify(value), ttl ? { expirationTtl: ttl } : undefined);
 }
 
 function floorHour(timestamp) {
@@ -340,22 +239,6 @@ function weekKey(weekStartDate) {
   return `${WEEK_PREFIX}${weekStartDate}`;
 }
 
-function emptyWindow(startAt, endAt) {
-  return {
-    startAt,
-    endAt,
-    stats: {
-      pageviews: 0,
-      visitors: 0,
-      visits: 0,
-      bounces: 0,
-      totaltime: 0,
-    },
-    warnings: [],
-    ...Object.fromEntries(Object.keys(METRIC_TYPES).map(label => [label, []])),
-  };
-}
-
 function pendingHours(lastFinalizedHourEnd, now, graceMs = 0) {
   if (!Number.isFinite(lastFinalizedHourEnd)) return null;
   const expectedHourEnd = floorHour(now - graceMs);
@@ -383,55 +266,13 @@ async function refreshWeekly(kv, share, scheduledTime, env) {
         weekStartDate: period.weekStartDate,
         timezoneOffsetMinutes: offsetMinutes,
       };
-      await writeJson(kv, key, window);
+      await writeJson(kv, key, window, RANGE_TTL);
     }
 
     windows.push(window);
   }
 
-  const weekly = {
-    generatedAt: new Date(scheduledTime).toISOString(),
-    timezoneOffsetMinutes: offsetMinutes,
-    current: windows[0],
-    previous: windows[1],
-    delta: buildDelta(windows[0], windows[1]),
-  };
-  await writeJson(kv, WEEKLY_LATEST_KEY, weekly);
-  return weekly;
-}
-
-async function refreshLatest(
-  kv,
-  websiteId,
-  generatedAt,
-  lastFinalizedHourEnd,
-  freshWindows = new Map(),
-) {
-  if (!Number.isFinite(lastFinalizedHourEnd)) return null;
-
-  const currentStart = lastFinalizedHourEnd - HOUR_MS;
-  const previousStart = currentStart - HOUR_MS;
-  const current =
-    freshWindows.get(currentStart) ||
-    (await readJson(kv, hourKey(currentStart)));
-  if (!current) return null;
-
-  const previous =
-    freshWindows.get(previousStart) ||
-    (await readJson(kv, hourKey(previousStart))) ||
-    emptyWindow(previousStart, currentStart - 1);
-
-  const latest = {
-    generatedAt,
-    websiteId,
-    windowHours: 1,
-    current,
-    previous,
-    delta: buildDelta(current, previous),
-  };
-
-  await writeJson(kv, LATEST_KEY, latest);
-  return latest;
+  return windows;
 }
 
 export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
@@ -447,11 +288,10 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
     if (Number.isFinite(nextHourEnd)) {
       nextHourEnd += HOUR_MS;
     } else {
-      // Bootstrap two complete buckets so /analytics/hourly has current + previous.
+      // Bootstrap two complete hourly buckets.
       nextHourEnd = finalHourEnd - HOUR_MS;
     }
 
-    const freshWindows = new Map();
     let processedHours = 0;
     while (
       nextHourEnd <= finalHourEnd &&
@@ -459,8 +299,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
     ) {
       const startAt = nextHourEnd - HOUR_MS;
       const window = await collectWindow(share, startAt, nextHourEnd - 1);
-      freshWindows.set(startAt, window);
-      await writeJson(kv, hourKey(startAt), window);
+      await writeJson(kv, hourKey(startAt), window, RANGE_TTL);
 
       meta = {
         ...meta,
@@ -475,14 +314,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
       nextHourEnd += HOUR_MS;
     }
 
-    const latest = await refreshLatest(
-      kv,
-      share.websiteId,
-      scheduledAt,
-      meta.lastFinalizedHourEnd,
-      freshWindows,
-    );
-    const weekly = await refreshWeekly(kv, share, scheduledTime, env);
+    await refreshWeekly(kv, share, scheduledTime, env);
 
     meta = {
       ...meta,
@@ -495,7 +327,7 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
     };
     await writeJson(kv, META_KEY, meta);
 
-    return { latest, weekly, meta };
+    return { meta };
   } catch (error) {
     meta = {
       ...meta,
@@ -507,36 +339,118 @@ export async function runAnalyticsCron(env, scheduledTime = Date.now()) {
   }
 }
 
-async function loadToday(env, now) {
-  const kv = requireKv(env);
-  const offsetMinutes = timezoneOffsetMinutes(env);
-  const { date, startAt } = localDateParts(now, offsetMinutes);
-  const key = `${TODAY_PREFIX}${date}`;
-  const stored = await readJson(kv, key);
 
-  if (
-    stored &&
-    Number.isFinite(stored.generatedAtMs) &&
-    now - stored.generatedAtMs < TODAY_CACHE_MS
-  ) {
-    return stored;
+const RANGE_ROUTES = Object.freeze({
+  "/analytics/hour-range": "hour",
+  "/analytics/day-range": "day",
+  "/analytics/weekly-range": "week",
+});
+
+const RANGE_UNITS = {
+  hour: { duration: HOUR_MS, max: 48 },
+  day: { duration: DAY_MS, max: 31 },
+  week: { duration: WEEK_MS, max: 12 },
+};
+
+function strictDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error("Date must use YYYY-MM-DD.");
+  }
+  const date = new Date(value + "T00:00:00Z");
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error("Invalid calendar date.");
+  }
+  return date.getTime();
+}
+
+function parseBucket(value, type, offsetMinutes) {
+  if (type === "hour") {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:00(?::00(?:\.000)?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+      throw new Error("Hourly boundary must be an ISO-8601 hour with timezone.");
+    }
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp) || timestamp !== floorHour(timestamp)) {
+      throw new Error("Invalid hourly boundary.");
+    }
+    return timestamp;
+  }
+  const utcMidnight = strictDate(value);
+  if (type === "week" && new Date(utcMidnight).getUTCDay() !== 1) {
+    throw new Error("Weekly dates must be Mondays.");
+  }
+  return utcMidnight - offsetMinutes * 60000;
+}
+
+function rangeLabel(timestamp, type, offsetMinutes) {
+  if (type === "hour") return new Date(timestamp).toISOString();
+  return new Date(timestamp + offsetMinutes * 60000).toISOString().slice(0, 10);
+}
+
+function parseRange(params, type, now, offsetMinutes) {
+  const { duration, max } = RANGE_UNITS[type];
+  const from = params.get("start");
+  const to = params.get("end");
+  if ((from === null) !== (to === null)) {
+    throw new Error("Provide both start and end, or neither.");
+  }
+
+  let startAt, lastStart;
+  if (from === null) {
+    startAt = type === "hour"
+      ? floorHour(now) - HOUR_MS
+      : type === "day"
+        ? localDateParts(now, offsetMinutes).startAt
+        : localWeekWindow(now, offsetMinutes, 1).startAt;
+    lastStart = startAt;
+  } else {
+    startAt = parseBucket(from, type, offsetMinutes);
+    lastStart = parseBucket(to, type, offsetMinutes);
+  }
+
+  if (startAt > lastStart || (lastStart - startAt) / duration + 1 > max) {
+    throw new Error("Range must contain 1 to " + max + " " + type + " buckets.");
+  }
+  if (lastStart > now) throw new Error("Range is in the future.");
+
+  const nominalEnd = lastStart + duration - 1;
+  return {
+    type,
+    offsetMinutes,
+    start: rangeLabel(startAt, type, offsetMinutes),
+    end: rangeLabel(lastStart, type, offsetMinutes),
+    startAt,
+    endAt: Math.min(now, nominalEnd),
+    complete: nominalEnd <= now - SETTLE_MS,
+    singleBucket: startAt === lastStart,
+  };
+}
+
+async function collectRange(kv, env, range) {
+  const { type, startAt, endAt, complete, singleBucket } = range;
+  const key = ["analytics", "range", type, startAt, endAt].join(":");
+  let window = complete ? await readJson(kv, key) : null;
+
+  if (!window && complete && singleBucket) {
+    if (type === "hour") window = await readJson(kv, hourKey(startAt));
+    if (type === "week") window = await readJson(kv, weekKey(range.start));
+  }
+  if (window?.stats) {
+    return { source: "kv", window };
   }
 
   const share = await resolveShare(env.UMAMI_SHARE_SLUG || "");
-  const current = await collectWindow(share, startAt, now);
-  const report = {
-    generatedAt: new Date(now).toISOString(),
-    generatedAtMs: now,
-    websiteId: share.websiteId,
-    date,
-    timezoneOffsetMinutes: offsetMinutes,
-    current,
-  };
-  await writeJson(kv, key, report);
-  return report;
+  window = await collectWindow(share, startAt, endAt);
+  if (complete) {
+    try {
+      await writeJson(kv, key, window, RANGE_TTL);
+    } catch (error) {
+      console.warn("Analytics range cache write failed:", String(error));
+    }
+  }
+  return { source: "umami", window };
 }
 
-function jsonResponse(data, { maxAge = 0, source } = {}) {
+function jsonResponse(data, { maxAge = 0, source, status = 200 } = {}) {
   const headers = new Headers({
     "content-type": "application/json; charset=utf-8",
     "x-content-type-options": "nosniff",
@@ -545,7 +459,7 @@ function jsonResponse(data, { maxAge = 0, source } = {}) {
   else headers.set("cache-control", "no-store");
   if (source) headers.set("x-analytics-source", source);
 
-  return new Response(JSON.stringify(data, null, 2), { headers });
+  return new Response(JSON.stringify(data, null, 2), { headers, status });
 }
 
 async function cachedJson(request, ctx, load, maxAge) {
@@ -560,7 +474,7 @@ async function cachedJson(request, ctx, load, maxAge) {
   }
 
   const data = await load();
-  const response = jsonResponse(data, { maxAge, source: "kv" });
+  const response = jsonResponse(data, { maxAge, source: data?.source });
 
   if (cache && ctx?.waitUntil) {
     ctx.waitUntil(cache.put(cacheRequest, response.clone()));
@@ -582,48 +496,38 @@ export async function handleAnalyticsRequest(request, env, ctx) {
 
   const kv = requireKv(env);
 
-  if (url.pathname === "/analytics/hourly") {
+  const type = RANGE_ROUTES[url.pathname];
+  if (type) {
+    let range;
+    try {
+      range = parseRange(url.searchParams, type, Date.now(), timezoneOffsetMinutes(env));
+    } catch (error) {
+      return jsonResponse(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 400 },
+      );
+    }
     return cachedJson(
       request,
       ctx,
       async () => {
-        const latest = await readJson(kv, LATEST_KEY);
-        if (!latest) {
-          return {
-            available: false,
-            message: "Hourly analytics have not been collected yet.",
-          };
-        }
-        return publicHourlyReport(latest);
+        const report = await collectRange(kv, env, range);
+        return {
+          granularity: type,
+          timezoneOffsetMinutes: range.offsetMinutes,
+          range: {
+            start: range.start,
+            end: range.end,
+            startAt: range.startAt,
+            endAt: range.endAt,
+            complete: range.complete,
+          },
+          generatedAt: new Date().toISOString(),
+          source: report.source,
+          window: publicWindow(report.window),
+        };
       },
-      60,
-    );
-  }
-
-  if (url.pathname === "/analytics/weekly") {
-    return cachedJson(
-      request,
-      ctx,
-      async () => {
-        const weekly = await readJson(kv, WEEKLY_LATEST_KEY);
-        if (!weekly) {
-          return {
-            available: false,
-            message: "Weekly analytics have not been collected yet.",
-          };
-        }
-        return publicWeeklyReport(weekly);
-      },
-      300,
-    );
-  }
-
-  if (url.pathname === "/analytics/today") {
-    return cachedJson(
-      request,
-      ctx,
-      async () => publicTodayReport(await loadToday(env, Date.now())),
-      300,
+      range.complete ? 300 : 60,
     );
   }
 
@@ -654,13 +558,5 @@ export async function handleAnalyticsRequest(request, env, ctx) {
   return new Response("Not found", { status: 404 });
 }
 
-export const analyticsInternals = {
-  HOUR_MS,
-  META_KEY,
-  LATEST_KEY,
-  WEEKLY_LATEST_KEY,
-  hourKey,
-  weekKey,
-  localDateParts,
-  localWeekWindow,
+export const analyticsInternals = { HOUR_MS, META_KEY, hourKey, weekKey, localDateParts, localWeekWindow, parseRange, RANGE_TTL
 };
