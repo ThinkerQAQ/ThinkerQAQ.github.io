@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      DEVTOOL_VERSION: 03540c8e134b1d2913b52d74ce079857c19ea12f
+      DEVTOOL_VERSION: f4765787bbb20540b6a5e5d8d7293ef393fd9757
     steps:
       - uses: actions/checkout@v6
 
