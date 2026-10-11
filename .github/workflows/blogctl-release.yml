@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 45
     env:
       DEVTOOL_VERSION: f4765787bbb20540b6a5e5d8d7293ef393fd9757
+      DEVTOOL_PROFILES: local
     steps:
       - name: Checkout
         uses: actions/checkout@v6
