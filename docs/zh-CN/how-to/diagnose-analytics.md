@@ -4,8 +4,8 @@
 
 ## 检查步骤
 
-1. 打开普通文章页，在浏览器 Network 中查找 Umami 的 `u.js`。[`BaseLayout.astro`](../../../src/layouts/BaseLayout.astro) 需要网站 ID 与代理源配置才会加载脚本。
-2. 分别检查脚本 GET 和事件 POST 请求的状态码、跨域与网络错误。
+1. 打开普通文章页，在浏览器 Network 中检查本站静态文件 `/u.js`（期望 HTTP 200）。[`BaseLayout.astro`](../../../src/layouts/BaseLayout.astro) 需要网站 ID 与代理源配置才会加载脚本。
+2. 分别检查本站 `GET /u.js` 和外部采集服务 `POST /api/send` 的状态码、跨域与网络错误。
 3. 检查当前浏览器是否通过站内[统计控制页](../../../src/pages/disable-analytics.astro)关闭了追踪。
 4. 对照部署环境中的 `PUBLIC_UMAMI_WEBSITE_ID`、`PUBLIC_UMAMI_PROXY_ORIGIN` 与 Dashboard 的网站和时间范围。
 5. 如果请求成功但没有统计，查看 Worker 事件处理与报表过滤。HTTP 200 只能说明请求到达某个接口，不代表事件最终入库。

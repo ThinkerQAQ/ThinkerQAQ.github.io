@@ -108,7 +108,6 @@ if (umamiProxyUrl) {
     umamiProxyOrigin = "";
   }
 }
-const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
 ---
 
 <!doctype html>
@@ -147,30 +146,14 @@ const umamiScriptUrl = umamiProxyOrigin ? `${umamiProxyOrigin}/u.js` : "";
     {analytics && umamiWebsiteId && umamiProxyOrigin && (
       <script
         is:inline
-        data-umami-src={umamiScriptUrl}
-        data-umami-website-id={umamiWebsiteId}
-        data-umami-domains={umamiDomain}
-        data-umami-host-url={umamiProxyOrigin}
-      >
-        // Fetching the tracker only after window.load prevents a blocked
-        // workers.dev connection from delaying DOMContentLoaded and load.
-        (() => {
-          const config = document.currentScript;
-          const loadTracker = () => {
-            const script = document.createElement("script");
-            script.async = true;
-            script.src = config.dataset.umamiSrc;
-            script.setAttribute("data-website-id", config.dataset.umamiWebsiteId);
-            script.setAttribute("data-domains", config.dataset.umamiDomains);
-            script.setAttribute("data-host-url", config.dataset.umamiHostUrl);
-            script.setAttribute("data-exclude-hash", "true");
-            script.setAttribute("data-performance", "true");
-            document.head.append(script);
-          };
-          if (document.readyState === "complete") loadTracker();
-          else window.addEventListener("load", loadTracker, { once: true });
-        })();
-      </script>
+        defer
+        src="/u.js"
+        data-website-id={umamiWebsiteId}
+        data-domains={umamiDomain}
+        data-host-url={umamiProxyOrigin}
+        data-exclude-hash="true"
+        data-performance="true"
+      ></script>
     )}
     <slot name="head" />
   </head>
