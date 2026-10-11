@@ -24,6 +24,9 @@ jobs:
           go-version: '1.27.1'
           cache: true
 
+      - name: Test analytics Worker contracts
+        run: node --test workers/blog-ai/src/*.test.js
+
       - name: Install DevTool V2
         run: |
           GOPROXY=direct go install github.com/thinkerqaq/devtool/cmd/devtool@${DEVTOOL_VERSION}
