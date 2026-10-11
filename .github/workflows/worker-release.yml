@@ -36,83 +36,49 @@ jobs:
       - name: Deploy blog AI Worker
         run: npx --yes wrangler@latest deploy --config workers/blog-ai/wrangler.jsonc
 
-      - name: Verify analytics endpoints
+      - name: Verify analytics range endpoints
         shell: bash
         run: |
           set -euo pipefail
           base="https://thinkerqaq-blog-ai.blog-ai.workers.dev"
           health="$(mktemp)"
-          hourly="$(mktemp)"
-          today="$(mktemp)"
-          weekly="$(mktemp)"
+          hour="$(mktemp)"
+          day="$(mktemp)"
+          week="$(mktemp)"
+          trap 'rm -f "$health" "$hour" "$day" "$week"' EXIT
 
           verify() {
-            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/health" > "$health" || return 1
-            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/hourly" > "$hourly" || return 1
-            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/today" > "$today" || return 1
-            curl --fail --silent --show-error --retry 3 --retry-delay 1 --retry-connrefused "$base/analytics/weekly" > "$weekly" || return 1
+            curl --fail --silent --show-error --retry 3 "$base/analytics/health" > "$health" || return 1
+            curl --fail --silent --show-error --retry 3 "$base/analytics/hour-range" > "$hour" || return 1
+            curl --fail --silent --show-error --retry 3 "$base/analytics/day-range" > "$day" || return 1
+            curl --fail --silent --show-error --retry 3 "$base/analytics/weekly-range" > "$week" || return 1
 
-            node - "$health" "$hourly" "$today" "$weekly" <<'NODE'
+            node - "$health" "$hour" "$day" "$week" <<'NODE'
           const fs = require("fs");
-          const [healthPath, hourlyPath, todayPath, weeklyPath] = process.argv.slice(2);
-          const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
-          const hourly = JSON.parse(fs.readFileSync(hourlyPath, "utf8"));
-          const today = JSON.parse(fs.readFileSync(todayPath, "utf8"));
-          const weekly = JSON.parse(fs.readFileSync(weeklyPath, "utf8"));
-
-          if (health.healthy !== true || !health.lastSuccessAt || health.pendingHours !== 0 || health.hasError === true) {
-            throw new Error(`analytics health check failed: ${JSON.stringify(health)}`);
+          const [health, hour, day, week] = process.argv.slice(2)
+            .map(path => JSON.parse(fs.readFileSync(path, "utf8")));
+          if (health.healthy !== true || health.pendingHours !== 0 || health.hasError) {
+            throw new Error("Unhealthy Worker analytics: " + JSON.stringify(health));
           }
-          if (!hourly.generatedAt || !hourly.current?.stats || !hourly.previous?.stats) {
-            throw new Error("analytics/hourly is missing persisted current/previous windows");
+          for (const [label, report] of [["hour", hour], ["day", day], ["week", week]]) {
+            if (report.granularity !== label || !report.range || !report.window?.stats) {
+              throw new Error("Invalid " + label + " range response: " + JSON.stringify(report));
+            }
+            if (report.window.regions !== undefined || report.window.cities !== undefined) {
+              throw new Error(label + " range leaks private geographic dimensions");
+            }
           }
-          if (!today.generatedAt || !today.date || !today.current?.stats) {
-            throw new Error("analytics/today is missing the current-day aggregate");
-          }
-          if (!weekly.generatedAt || !weekly.current?.stats || !weekly.previous?.stats) {
-            throw new Error("analytics/weekly is missing two complete calendar weeks");
-          }
-
-          const forbidden = [
-            ["health.websiteId", health.websiteId],
-            ["health.lastError", health.lastError],
-            ["health.lastFinalizedHourEnd", health.lastFinalizedHourEnd],
-            ["health.lastScheduledAt", health.lastScheduledAt],
-            ["hourly.websiteId", hourly.websiteId],
-            ["hourly.current.regions", hourly.current?.regions],
-            ["hourly.current.cities", hourly.current?.cities],
-            ["hourly.previous.regions", hourly.previous?.regions],
-            ["hourly.previous.cities", hourly.previous?.cities],
-            ["today.websiteId", today.websiteId],
-            ["today.generatedAtMs", today.generatedAtMs],
-            ["today.current.regions", today.current?.regions],
-            ["today.current.cities", today.current?.cities],
-            ["weekly.current.regions", weekly.current?.regions],
-            ["weekly.current.cities", weekly.current?.cities],
-            ["weekly.previous.regions", weekly.previous?.regions],
-            ["weekly.previous.cities", weekly.previous?.cities],
-          ].filter(([, value]) => value !== undefined);
-
-          if (forbidden.length) {
-            throw new Error(`analytics public response exposes forbidden fields: ${forbidden.map(([name]) => name).join(", ")}`);
-          }
-
           console.log(
-            `analytics healthy; hourly=${hourly.current.stats.visitors} visitors/${hourly.current.stats.pageviews} pageviews; today=${today.current.stats.visitors} visitors/${today.current.stats.pageviews} pageviews`,
+            "analytics healthy; hour=" + hour.window.stats.pageviews +
+            " PV; day=" + day.window.stats.pageviews +
+            " PV; week=" + week.window.stats.pageviews + " PV",
           );
           NODE
           }
 
           for attempt in 1 2 3 4 5 6; do
-            echo "Analytics verification attempt $attempt/6"
-            if verify; then
-              exit 0
-            fi
-            if [ "$attempt" -lt 6 ]; then
-              echo "Worker version may still be propagating; retrying in 5 seconds..."
-              sleep 5
-            fi
+            if verify; then exit 0; fi
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
           done
-
-          echo "::error::Analytics endpoint verification did not converge after Worker deployment."
+          echo "::error::Analytics range verification failed after deployment"
           exit 1
