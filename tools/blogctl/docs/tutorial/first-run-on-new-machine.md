@@ -54,14 +54,14 @@ Stop the dev server with **Ctrl+C**. Full diagram rendering needs Java/Graphviz/
 ```powershell
 go build -o blogctl-windows-amd64.exe ./tools/blogctl/cmd
 $exe = (Resolve-Path .\blogctl-windows-amd64.exe).Path
-& .\tools\blogctl\Install-Windows.ps1 -Executable $exe
+& $exe install
 ```
 
 This installer registers BlogCTL's Native Messaging host for Edge and Chrome. Windows runtime files are stored by default in `Data/` **next to the executable**. Preserve them when upgrading.
 
-For a packaged Release, extract its binary, unpacked Extension and installer together and use the bundled `Install-Windows.ps1`. Source installation is used here because it also permits testing the unreleased English UI.
+For a packaged Release, place the binary in its long-term location and run it with `install`. Source installation is used here because it also permits testing the unreleased English UI.
 
-**Linux / macOS — packaged Release:** run `./Install-Linux.sh` or `./Install-macOS.command` in the extracted package folder. The installer requires the matching `blogctl-linux-<architecture>` or `blogctl-darwin-<architecture>` executable alongside it.
+**Linux / macOS — packaged Release:** execute the matching binary with `install` (for example `./blogctl-linux-amd64 install`). To unregister, run `uninstall` on that binary.
 
 **Browser — Edge or Chrome:**
 

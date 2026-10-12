@@ -36,3 +36,7 @@ blogctl help
 | `--draft` | Draft mode in the sync operation |
 
 For real publication, execute `sync` from the canonical **content repository**, with a running authenticated Bridge and supported platform adapter. Read [operation safety](../concepts/operations.md) before a write. For site builds the working directory is the **engine repository**.
+
+## Browser Native Messaging registration
+
+Run `blogctl install` from the installed executable to register the Native Messaging host and `blogctl uninstall` to unregister it. The command uses its executable path and preserves user `Data/` and the browser extension. Re-run install after moving the executable.

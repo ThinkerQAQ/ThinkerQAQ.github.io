@@ -6,7 +6,7 @@ For an end-to-end walkthrough with fresh-environment verification and real Engli
 
 ## 1. Obtain the application
 
-Download the current artifacts from [GitHub Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest). Match your OS/architecture and keep the executable, Extension archive contents, and installer together. On Windows, preserve the `Data/` directory across upgrades.
+Download the current artifacts from [GitHub Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest). Match your OS/architecture and keep the executable and Extension archive contents together. On Windows, preserve the `Data/` directory across upgrades.
 
 Or build from source from the engine root:
 
@@ -20,13 +20,13 @@ The release binary does not require Go, but site builds require Node/npm and oth
 
 ## 2. Register the browser Bridge (Windows)
 
-From the directory containing the packaged installer:
+Run the installed executable directly:
 
 ```powershell
-.\Install-Windows.ps1 -Executable C:\software\Coding\blogctl\blogctl-windows-amd64.exe
+& C:\software\Codinglogctllogctl-windows-amd64.exe install
 ```
 
-Use the corresponding `Install-Linux.sh` or `Install-macOS.command` for other platforms; see the release package.
+For Linux/macOS, execute the matching binary with `install` (e.g., `./blogctl-linux-amd64 install`). Use `uninstall` to unregister the browser host without deleting `Data/`.
 
 ## 3. Load the Extension
 
