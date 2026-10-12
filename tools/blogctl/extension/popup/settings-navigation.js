@@ -10,7 +10,7 @@
     { id: "runtime", title: "运行环境", summary: "Bridge、Extension 与本地依赖", selectors: ["#environmentRuntimeTools", "#environmentDependencyTools"] },
     { id: "platforms", title: "分发平台", summary: "平台策略、Footer、Canonical 和 Tracking", selectors: ["#platformConfigEnvironmentCard"] },
     { id: "assets", title: "素材与渲染", summary: "Mermaid、共享素材和 R2", selectors: ["#assetConfigEnvironmentCard"] },
-    { id: "index", title: "搜索引擎", summary: "IndexNow、Baidu 和 Google Search Console", selectors: ["#searchEngineEnvironmentCard"] },
+    { id: "index", title: "搜索引擎", summary: "站点域名、索引 URL 与搜索引擎", selectors: ["#searchEngineEnvironmentCard"] },
     { id: "about", title: "关于", summary: "Extension 与 Bridge 版本", selectors: ["#environmentAbout"] },
   ];
   let initialized = false;

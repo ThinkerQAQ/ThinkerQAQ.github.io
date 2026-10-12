@@ -88,10 +88,12 @@ type googleIndexRequestQueue struct {
 }
 
 type searchIndexState struct {
-	Inventory       searchInventoryState `json:"inventory"`
-	IndexNow        searchOperationState `json:"indexNow"`
-	Baidu           searchOperationState `json:"baidu"`
-	BaiduConfigured bool                 `json:"baiduConfigured"`
+	Site            blogsearch.SiteConfig `json:"site"`
+	ConsoleLinks    map[string]string     `json:"consoleLinks"`
+	Inventory       searchInventoryState  `json:"inventory"`
+	IndexNow        searchOperationState  `json:"indexNow"`
+	Baidu           searchOperationState  `json:"baidu"`
+	BaiduConfigured bool                  `json:"baiduConfigured"`
 	Google          struct {
 		CredentialsConfigured bool                    `json:"credentialsConfigured"`
 		CredentialsError      string                  `json:"credentialsError,omitempty"`
@@ -142,9 +144,6 @@ func loadSearchProviderSnapshot(filename string) searchInventoryState {
 	}
 	// A previous site's URL list must not be interpreted as removed URLs
 	// and submitted to the new domain's IndexNow endpoint.
-	if snapshot.Origin != "" && strings.TrimRight(snapshot.Origin, "/") != blogsearch.DefaultSiteOrigin {
-		return searchInventoryState{}
-	}
 	return snapshot
 }
 
@@ -200,9 +199,6 @@ func loadSearchIndexState() searchIndexState {
 	}
 	// Search inspection and request queues belong to an origin. A domain
 	// migration starts with a new inventory rather than resuming old URLs.
-	if state.Inventory.Origin != "" && strings.TrimRight(state.Inventory.Origin, "/") != blogsearch.DefaultSiteOrigin {
-		return defaultSearchIndexState()
-	}
 	if state.IndexNow.State == "" {
 		state.IndexNow.State = "idle"
 	}
@@ -349,8 +345,40 @@ func (s *Server) reconcileSearchStateWithDurableTasks(state *searchIndexState) {
 	}
 }
 
-func (s *Server) searchState() searchIndexState {
+func (s *Server) loadSearchState() searchIndexState {
 	state := loadSearchIndexState()
+	site := s.searchSite()
+	if state.Inventory.Origin != "" && strings.TrimRight(state.Inventory.Origin, "/") != site.Origin {
+		state = defaultSearchIndexState()
+	}
+	if state.Site.GoogleProperty != "" && state.Site.GoogleProperty != site.GoogleProperty {
+		state.Google.Inspection = searchInspectionState{State: "idle"}
+		state.Google.RequestQueue = googleIndexRequestQueue{State: "idle"}
+	}
+	state.Site = site
+	state.ConsoleLinks = site.ConsoleLinks()
+	results := state.Google.Inspection.Results[:0]
+	for _, result := range state.Google.Inspection.Results {
+		if _, err := blogsearch.NormalizeURL(result.URL, site.Origin, "Inspection URL"); err == nil {
+			results = append(results, result)
+		}
+	}
+	state.Google.Inspection.Results = results
+	items := state.Google.RequestQueue.Items[:0]
+	for _, item := range state.Google.RequestQueue.Items {
+		if _, err := blogsearch.NormalizeURL(item.URL, site.Origin, "Request Indexing URL"); err == nil {
+			items = append(items, item)
+		}
+	}
+	if len(items) != len(state.Google.RequestQueue.Items) {
+		state.Google.RequestQueue.CurrentIndex = 0
+	}
+	state.Google.RequestQueue.Items = items
+	return state
+}
+
+func (s *Server) searchState() searchIndexState {
+	state := s.loadSearchState()
 	refreshSearchCredentialsFlag(&state, s.config)
 	s.reconcileSearchStateWithDurableTasks(&state)
 	return state
@@ -372,7 +400,7 @@ func (s *Server) handleSearchInventoryRefresh(response http.ResponseWriter, requ
 		writeError(response, err)
 		return
 	}
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	reconcileInspectionInventory(&state.Google.Inspection, inventory)
 	state.Inventory = compactSearchInventory(inventory)
 	refreshSearchCredentialsFlag(&state, s.config)
@@ -477,10 +505,6 @@ func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIn
 		if !googleRequestCandidate(result) {
 			continue
 		}
-		if _, err := blogsearch.NormalizeURL(result.URL, blogsearch.DefaultSiteOrigin, "Google indexing candidate"); err != nil {
-			slog.Warn("Google indexing candidate excluded outside current origin", "operation", "google-request-queue", "origin", blogsearch.DefaultSiteOrigin)
-			continue
-		}
 		item := previousByURL[result.URL]
 		if item.URL == "" {
 			item = googleIndexRequestItem{URL: result.URL, Status: "queued"}
@@ -522,7 +546,7 @@ func (s *Server) handleSearchGoogleRequestQueueCreate(response http.ResponseWrit
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	state.Google.RequestQueue = buildGoogleRequestQueue(
 		state.Google.Inspection.Results,
 		state.Google.RequestQueue,
@@ -554,7 +578,7 @@ func (s *Server) handleSearchGoogleRequestQueueUpdate(response http.ResponseWrit
 		writeAPIError(response, http.StatusBadRequest, "invalid_google_index_result", "url and result are required", nil)
 		return
 	}
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	queue := &state.Google.RequestQueue
 	found := -1
 	for index := range queue.Items {
@@ -650,7 +674,7 @@ func (s *Server) handleSearchGoogleRequestQueueControl(response http.ResponseWri
 	if !s.allowSyncControlWrite(response, request) {
 		return
 	}
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	queue := &state.Google.RequestQueue
 	switch action {
 	case "start", "resume":

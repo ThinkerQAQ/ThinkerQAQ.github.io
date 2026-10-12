@@ -10,7 +10,7 @@ Incremental submission compares against the last successful **Baidu** snapshot, 
 
 ## Google: property mismatch
 
-The canonical property is `sc-domain:thinkerqaq.com`, matching the browser console and CI. Sitemap submission, URL Inspection, credential checks and the CLI default use this same domain property. Sitemap URLs remain ordinary HTTPS URLs under `https://thinkerqaq.com`.
+The default property is `sc-domain:thinkerqaq.com`. The active property and site resources are configured in `[search]` in `blogctl.toml`. Sitemap submission, URL Inspection, credential checks, browser Request Indexing and the CLI default use this same configuration. Sitemap URLs remain ordinary HTTPS URLs under the configured site origin. See [configuration](../reference/configuration.md).
 
 `https://thinkerqaq.com/` is a separate URL-prefix property. A service account with Full user permission on the domain property does not make this separate property available. Verify the exact property through the read-only Sites API. If the domain property still returns 403, grant the configured service account access to that exact property; do not replace valid credentials merely because another property fails.
 

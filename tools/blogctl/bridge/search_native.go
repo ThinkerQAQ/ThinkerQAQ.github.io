@@ -3,6 +3,7 @@ package bridge
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -20,6 +21,12 @@ type searchDiffPayload struct {
 
 type searchHTTPResult struct {
 	HTTPStatus int `json:"httpStatus"`
+}
+
+func (s *Server) searchSite() blogsearch.SiteConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return *s.config.Search
 }
 
 type indexNowSubmissionPayload struct {
@@ -83,7 +90,9 @@ func diffPayload(value blogsearch.Diff) searchDiffPayload {
 }
 
 func (s *Server) fetchSearchInventory(ctx context.Context) (searchInventoryState, error) {
-	inventory, err := blogsearch.FetchRemoteInventory(ctx, s.httpClient, blogsearch.DefaultSiteOrigin)
+	site := s.searchSite()
+	slog.Info("search inventory fetch", "operation", "inventory-fetch", "origin", site.Origin, "source", site.URLListURL)
+	inventory, err := blogsearch.FetchRemoteInventory(ctx, s.httpClient, site.Origin, site)
 	if err != nil {
 		return searchInventoryState{}, err
 	}
@@ -188,6 +197,7 @@ func (s *Server) googleAccessToken(ctx context.Context) (string, error) {
 }
 
 func (s *Server) submitGoogleSitemapsNative(ctx context.Context) (googleSitemapsPayload, error) {
+	site := s.searchSite()
 	inventory, err := s.fetchSearchInventory(ctx)
 	if err != nil {
 		return googleSitemapsPayload{}, err
@@ -199,9 +209,10 @@ func (s *Server) submitGoogleSitemapsNative(ctx context.Context) (googleSitemaps
 	results, err := blogsearch.SubmitGoogleSitemaps(
 		ctx,
 		s.httpClient,
-		blogsearch.DefaultGoogleSiteURL(),
+		site.GoogleProperty,
 		inventory.Origin,
 		accessToken,
+		site.SitemapURL, site.URLListURL,
 	)
 	if err != nil {
 		return googleSitemapsPayload{}, err
@@ -232,7 +243,7 @@ func (s *Server) checkIndexNowNative(ctx context.Context) (map[string]any, error
 		return nil, errors.New("Public Engine path is not configured")
 	}
 	config, err := blogsearch.ResolveIndexNowConfig(
-		blogsearch.DefaultSiteOrigin,
+		s.searchSite().Origin,
 		filepath.Join(engineRoot, "public"),
 		indexNowEndpoint(s.config),
 		indexNowKey(s.config),
@@ -260,7 +271,7 @@ func (s *Server) checkGoogleSearchConsoleNative(ctx context.Context) (map[string
 	return blogsearch.CheckGoogleSearchConsoleSite(
 		ctx,
 		s.httpClient,
-		blogsearch.DefaultGoogleSiteURL(),
+		s.searchSite().GoogleProperty,
 		accessToken,
 	)
 }

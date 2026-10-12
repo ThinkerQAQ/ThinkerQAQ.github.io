@@ -3,6 +3,7 @@ package bridge
 import (
 	"encoding/json"
 	"errors"
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -219,6 +220,15 @@ func (s *Server) latestDurableSearchTask(taskType string) *durableTaskJob {
 	for index := 0; index < len(s.taskJobOrder); index++ {
 		job := s.taskJobs[s.taskJobOrder[index]]
 		if job == nil || job.Kind != "search" || job.Type != taskType {
+			continue
+		}
+		var binding struct {
+			Site *blogsearch.SiteConfig `json:"site"`
+		}
+		if json.Unmarshal(job.Payload, &binding) != nil {
+			continue
+		}
+		if binding.Site != nil && s.config.Search != nil && *binding.Site != *s.config.Search {
 			continue
 		}
 		return cloneDurableTaskJob(job)

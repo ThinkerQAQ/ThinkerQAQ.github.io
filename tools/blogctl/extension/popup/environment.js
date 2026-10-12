@@ -336,7 +336,7 @@
     const tools = state.tools.filter((item) => item.kind !== "publishing");
     const bridgeTool = tools.find((item) => item.name === "bridge");
     configPath.textContent = bridgeTool?.health?.path || "未找到 blogctl.toml";
-    const searchNames = new Set(["indexnow", "bing-webmaster", "baidu-search-resource", "google-search-console-api"]);
+    const searchNames = new Set(["search-site", "indexnow", "bing-webmaster", "baidu-search-resource", "google-search-console-api"]);
     const searchTools = tools.filter((item) => searchNames.has(item.name));
     const dependencyItems = tools.filter((item) => item.kind === "dependency");
     const runtimeItems = tools.filter((item) =>

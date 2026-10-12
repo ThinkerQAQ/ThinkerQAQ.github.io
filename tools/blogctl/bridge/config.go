@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	blogpublishing "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publishing"
+	blogsearch "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/search"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -23,9 +25,10 @@ type publishingAssetsConfig = blogpublishing.AssetsConfig
 type publishingConfig = blogpublishing.Config
 
 type bridgeConfig struct {
-	ProxyEnabled bool   `json:"proxyEnabled" toml:"proxy_enabled"`
-	ProxyHost    string `json:"proxyHost" toml:"proxy_host"`
-	ProxyPort    int    `json:"proxyPort" toml:"proxy_port"`
+	Search       *blogsearch.SiteConfig `json:"search" toml:"search"`
+	ProxyEnabled bool                   `json:"proxyEnabled" toml:"proxy_enabled"`
+	ProxyHost    string                 `json:"proxyHost" toml:"proxy_host"`
+	ProxyPort    int                    `json:"proxyPort" toml:"proxy_port"`
 
 	LogDirectory string `json:"logDirectory,omitempty" toml:"log_directory"`
 	LogLevel     string `json:"logLevel,omitempty" toml:"log_level"`
@@ -40,7 +43,6 @@ type bridgeConfig struct {
 	IndexNowEndpoint               string            `json:"indexNowEndpoint,omitempty" toml:"indexnow_endpoint"`
 	IndexNowKey                    string            `json:"indexNowKey,omitempty" toml:"indexnow_key"`
 	IndexNowKeyLocation            string            `json:"indexNowKeyLocation,omitempty" toml:"indexnow_key_location"`
-	BaiduSite                      string            `json:"baiduSite,omitempty" toml:"baidu_site"`
 	BaiduToken                     string            `json:"baiduToken,omitempty" toml:"baidu_token"`
 	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty" toml:"google_search_console_service_json"`
 	Publishing                     publishingConfig  `json:"publishing" toml:"publishing"`
@@ -67,9 +69,11 @@ func defaultPublishingConfig() publishingConfig {
 }
 
 func defaultBridgeConfig() bridgeConfig {
+	site := blogsearch.DefaultSiteConfig(blogsearch.DefaultSiteOrigin)
 	distributionRoot, _ := DistributionRoot()
 	publicationBindingsPath, _ := PublicationBindingsPath()
 	return bridgeConfig{
+		Search:                  &site,
 		LogLevel:                "info",
 		UILocale:                "auto",
 		ToolPaths:               map[string]string{},
@@ -89,24 +93,27 @@ func ResolvedDistributionRoot() string {
 }
 
 type SearchRuntimeConfig struct {
+	Site                     blogsearch.SiteConfig
 	IndexNowEndpoint         string
 	IndexNowKey              string
 	IndexNowKeyLocation      string
-	BaiduSite                string
 	BaiduToken               string
 	GoogleServiceAccountJSON string
 }
 
-func ResolvedSearchRuntimeConfig() SearchRuntimeConfig {
-	config := loadBridgeConfig()
+func ResolvedSearchRuntimeConfig() (SearchRuntimeConfig, error) {
+	config, err := loadBridgeConfigChecked()
+	if err != nil {
+		return SearchRuntimeConfig{}, err
+	}
 	return SearchRuntimeConfig{
+		Site:                     *config.Search,
 		IndexNowEndpoint:         strings.TrimSpace(config.IndexNowEndpoint),
 		IndexNowKey:              strings.TrimSpace(config.IndexNowKey),
 		IndexNowKeyLocation:      strings.TrimSpace(config.IndexNowKeyLocation),
-		BaiduSite:                strings.TrimSpace(config.BaiduSite),
 		BaiduToken:               strings.TrimSpace(config.BaiduToken),
 		GoogleServiceAccountJSON: strings.TrimSpace(config.GoogleSearchConsoleServiceJSON),
-	}
+	}, nil
 }
 
 func defaultConfigDir() (string, error) {
@@ -172,6 +179,9 @@ func normalizeStoredPath(value string) string {
 
 func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 	defaults := defaultBridgeConfig()
+	if config.Search == nil {
+		config.Search = defaults.Search
+	}
 	if config.IndexNowEndpoint == "" {
 		config.IndexNowEndpoint = defaults.IndexNowEndpoint
 	}
@@ -224,6 +234,11 @@ func mergeConfigDefaults(config bridgeConfig) bridgeConfig {
 
 func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config = mergeConfigDefaults(config)
+	site, err := blogsearch.NormalizeSiteConfig(*config.Search)
+	if err != nil {
+		return config, err
+	}
+	config.Search = &site
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
 	config.DistributionRoot = normalizeStoredPath(config.DistributionRoot)
@@ -232,7 +247,6 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.IndexNowEndpoint = strings.TrimSpace(config.IndexNowEndpoint)
 	config.IndexNowKey = strings.TrimSpace(config.IndexNowKey)
 	config.IndexNowKeyLocation = strings.TrimSpace(config.IndexNowKeyLocation)
-	config.BaiduSite = strings.TrimSpace(config.BaiduSite)
 	config.BaiduToken = strings.TrimSpace(config.BaiduToken)
 	config.GoogleSearchConsoleServiceJSON = strings.TrimSpace(config.GoogleSearchConsoleServiceJSON)
 	config.LogDirectory = normalizeStoredPath(config.LogDirectory)
@@ -283,24 +297,70 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 }
 
 func loadBridgeConfig() bridgeConfig {
-	defaults := defaultBridgeConfig()
+	config, err := loadBridgeConfigChecked()
+	if err != nil {
+		return defaultBridgeConfig()
+	}
+	return config
+}
+
+func loadBridgeConfigChecked() (bridgeConfig, error) {
 	path, err := bridgeConfigPath()
 	if err != nil {
-		return defaults
+		return bridgeConfig{}, err
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return defaults
+		if os.IsNotExist(err) {
+			return defaultBridgeConfig(), nil
+		}
+		return bridgeConfig{}, err
 	}
 	var config bridgeConfig
-	if toml.Unmarshal(data, &config) != nil {
-		return defaults
+	var document map[string]any
+	if err := toml.Unmarshal(data, &document); err != nil {
+		return config, fmt.Errorf("%s: %w", path, err)
+	}
+	if section, ok := document["search"].(map[string]any); ok {
+		allowed := map[string]bool{"site_origin": true, "url_list_url": true, "sitemap_url": true, "fingerprint_url": true, "google_property": true}
+		for key := range section {
+			if !allowed[key] {
+				return config, fmt.Errorf("%s: unknown configuration field search.%s", path, key)
+			}
+		}
+	}
+	if err := toml.Unmarshal(data, &config); err != nil {
+		return config, fmt.Errorf("%s: %w", path, err)
 	}
 	normalized, err := normalizeBridgeConfig(config)
 	if err != nil {
-		return defaults
+		return config, fmt.Errorf("%s: %w", path, err)
 	}
-	return normalized
+	return normalized, nil
+}
+
+func persistSearchConfigMigration(config bridgeConfig) error {
+	path, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return saveBridgeConfig(config)
+	}
+	if err != nil {
+		return err
+	}
+	var document map[string]any
+	if err := toml.Unmarshal(data, &document); err != nil {
+		return err
+	}
+	_, hasSearch := document["search"]
+	_, hasLegacySite := document["baidu_site"]
+	if !hasSearch || hasLegacySite {
+		return saveBridgeConfig(config)
+	}
+	return nil
 }
 
 func saveBridgeConfig(config bridgeConfig) error {

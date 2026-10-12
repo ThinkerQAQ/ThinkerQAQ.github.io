@@ -141,6 +141,13 @@
     if (target) target.textContent = value;
   }
 
+  function setLink(target, value) {
+    if (!target) return;
+    target.textContent = value || "配置不可用";
+    if (value) target.href = value;
+    else target.removeAttribute("href");
+  }
+
   function setStatus(target, kind, text, detail = "") {
     BlogCTLPopup.setStatus(target, kind, text, detail);
   }
@@ -161,8 +168,13 @@
     const requestCandidateCount = requestStats.candidates;
     const requestPendingCount = requestStats.pending + requestStats.failed;
 
-    setText(elements.source, inventory.source || "https://thinkerqaq.com/sitemap-all.txt");
-    if (elements.source) elements.source.href = inventory.source || "https://thinkerqaq.com/sitemap-all.txt";
+    const site = index.site || {};
+    const consoles = index.consoleLinks || {};
+    setLink(elements.source, site.urlListURL);
+    setLink(elements.sitemap, site.sitemapURL);
+    setLink(elements.bingConsole, consoles.indexnow);
+    setLink(elements.baiduConsole, consoles.baidu);
+    setLink(elements.googleConsole, consoles.google);
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
     const fingerprintCoverage = Number(inventory.fingerprintCoverage || 0);
     const inventoryTotal = Number(inventory.total || 0);
@@ -403,6 +415,10 @@
     if (state.initialized) return;
     elements = {
       source: el("indexSource"),
+      sitemap: el("indexSitemap"),
+      bingConsole: el("indexBingConsole"),
+      baiduConsole: el("indexBaiduConsole"),
+      googleConsole: el("indexGoogleConsole"),
       inventoryTotal: el("indexInventoryTotal"),
       inventoryFingerprintCoverage: el("indexInventoryFingerprintCoverage"),
       inventoryFetchedAt: el("indexInventoryFetchedAt"),

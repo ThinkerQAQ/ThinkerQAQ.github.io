@@ -372,7 +372,7 @@ func indexNowKeyLocation(config bridgeConfig) string {
 	if configured := strings.TrimSpace(config.IndexNowKeyLocation); configured != "" {
 		return configured
 	}
-	return blogsearch.DefaultSiteOrigin + "/" + indexNowKey(config) + ".txt"
+	return config.Search.Origin + "/" + indexNowKey(config) + ".txt"
 }
 
 func indexNowHealth(config bridgeConfig) toolHealth {
@@ -394,10 +394,7 @@ func indexNowKeyPlaceholder(config bridgeConfig) string {
 }
 
 func baiduSite(config bridgeConfig) string {
-	if configured := strings.TrimSpace(config.BaiduSite); configured != "" {
-		return configured
-	}
-	return blogsearch.DefaultSiteOrigin
+	return config.Search.Origin
 }
 
 func baiduToken(config bridgeConfig) string {
@@ -409,7 +406,7 @@ func baiduHealth(config bridgeConfig) toolHealth {
 	if token == "" {
 		return toolHealth{Status: "missing", Summary: "推送 Token 未配置"}
 	}
-	resolved, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, baiduSite(config), token)
+	resolved, err := blogsearch.ResolveBaiduConfig(config.Search.Origin, baiduSite(config), token)
 	if err != nil {
 		return toolHealth{Status: "error", Summary: "配置无效", Detail: err.Error()}
 	}
@@ -459,6 +456,22 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 		return []toolField{{Key: key, Label: label, Type: "file", Description: description}}
 	}
 	return []toolDescriptor{
+		{
+			Name: "search-site", DisplayName: "索引站点与 URL", Kind: "runtime", Required: true,
+			Description: "所有搜索引擎共用的站点身份和索引资源；索引页只展示这里保存的配置。",
+			Health:      toolHealth{OK: true, Status: "ok", Summary: "已配置", Detail: config.Search.Origin},
+			Config: toolConfigView{Scope: "bridge", Values: map[string]any{
+				"origin": config.Search.Origin, "urlListURL": config.Search.URLListURL,
+				"sitemapURL": config.Search.SitemapURL, "fingerprintURL": config.Search.FingerprintURL,
+				"googleProperty": config.Search.GoogleProperty,
+			}, Schema: []toolField{
+				{Key: "origin", Label: "站点域名", Type: "text", Description: "HTTPS Origin，例如 https://thinkerqaq.com；不包含页面路径。"},
+				{Key: "urlListURL", Label: "TXT URL 清单", Type: "text", Description: "必须属于站点域名；用于增量和全量提交的 URL 清单。"},
+				{Key: "sitemapURL", Label: "XML Sitemap", Type: "text", Description: "必须属于站点域名；用于 Sitemap 提交和索引页链接。"},
+				{Key: "fingerprintURL", Label: "内容指纹清单", Type: "text", Description: "可选，同站点 JSON 清单；留空不读取指纹，增量将保守视为内容变化。"},
+				{Key: "googleProperty", Label: "Google Property", Type: "text", Description: "必须覆盖站点域名；填写已授权的 sc-domain:域名或 HTTPS URL 前缀属性。"},
+			}},
+		},
 		{
 			Name: "bridge", DisplayName: "BlogCTL Bridge", Kind: "runtime", Required: true,
 			Description: "Extension 与本机 BlogCTL 的持久控制连接。",
@@ -605,16 +618,9 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Description: "百度普通资源推送使用官方 URL 提交 API。只提交新增或内容变化的 URL；删除 URL 仅统计，不通过普通推送接口提交。",
 			Health:      baiduHealth(config),
 			Config: toolConfigView{
-				Scope: "bridge",
-				Values: map[string]any{
-					"site": baiduSite(config),
-				},
+				Scope:  "bridge",
+				Values: map[string]any{},
 				Schema: []toolField{
-					{
-						Key: "site", Label: "Site", Type: "text",
-						Placeholder: blogsearch.DefaultSiteOrigin,
-						Description: "百度站点地址；必须与当前博客 Origin 一致。",
-					},
 					{
 						Key: "token", Label: "Push Token", Type: "secret",
 						Placeholder: baiduTokenPlaceholder(config),
@@ -629,7 +635,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Health:      googleSearchConsoleAPIHealth(config),
 			Actions: []toolAction{{
 				ID: "check", Label: "检测配置",
-				Description: "交换 OAuth token，并验证 Service Account 能访问 sc-domain:thinkerqaq.com Search Console Property。",
+				Description: "交换 OAuth token，并验证 Service Account 能访问配置的 Google Property。",
 			}},
 			Config: toolConfigView{
 				Scope:  "bridge",
@@ -705,6 +711,18 @@ func intConfig(values map[string]any, key string) int {
 
 func updateToolConfig(config bridgeConfig, name string, values map[string]any) (bridgeConfig, error) {
 	switch name {
+	case "search-site":
+		for key := range values {
+			if key != "origin" && key != "urlListURL" && key != "sitemapURL" && key != "fingerprintURL" && key != "googleProperty" {
+				return config, fmt.Errorf("unknown search-site configuration field: %s", key)
+			}
+		}
+		site := blogsearch.SiteConfig{
+			Origin: stringConfig(values, "origin"), URLListURL: stringConfig(values, "urlListURL"),
+			SitemapURL: stringConfig(values, "sitemapURL"), FingerprintURL: stringConfig(values, "fingerprintURL"),
+			GoogleProperty: stringConfig(values, "googleProperty"),
+		}
+		config.Search = &site
 	case "content-workspace":
 		config.ContentRoot = stringConfig(values, "contentRoot")
 	case "engine-workspace":
@@ -735,24 +753,20 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 			config.IndexNowKeyLocation = keyLocation
 		}
 	case "baidu-search-resource":
-		nextSite := config.BaiduSite
+		nextSite := config.Search.Origin
 		nextToken := config.BaiduToken
-		if site := stringConfig(values, "site"); site != "" {
-			nextSite = site
-		}
 		if token := stringConfig(values, "token"); token != "" {
 			nextToken = token
 		}
 		if strings.TrimSpace(nextToken) != "" {
-			if _, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, nextSite, nextToken); err != nil {
+			if _, err := blogsearch.ResolveBaiduConfig(config.Search.Origin, nextSite, nextToken); err != nil {
 				return config, err
 			}
 		} else if strings.TrimSpace(nextSite) != "" {
-			if _, err := blogsearch.ResolveBaiduConfig(blogsearch.DefaultSiteOrigin, nextSite, "validation-token"); err != nil {
+			if _, err := blogsearch.ResolveBaiduConfig(config.Search.Origin, nextSite, "validation-token"); err != nil {
 				return config, err
 			}
 		}
-		config.BaiduSite = nextSite
 		config.BaiduToken = nextToken
 	case "google-search-console-api":
 		if value := stringConfig(values, "serviceAccountJson"); value != "" {

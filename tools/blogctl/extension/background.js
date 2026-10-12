@@ -5,8 +5,9 @@ import { toError } from "./errors.js";
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
 const BRIDGE_CACHE_MS = 30000;
-const GOOGLE_SEARCH_CONSOLE_PROPERTY = "sc-domain:thinkerqaq.com";
-const GOOGLE_SEARCH_CONSOLE_URL = `https://search.google.com/search-console?resource_id=${encodeURIComponent(GOOGLE_SEARCH_CONSOLE_PROPERTY)}`;
+let googleSearchConsoleProperty = "";
+let googleSearchConsoleURL = "";
+let googleIndexOrigin = "";
 let bridgeSession = null;
 let googleSearchConsoleTabId = null;
 let googleIndexPumpPromise = null;
@@ -582,6 +583,15 @@ async function waitForTabLoaded(tabId, timeoutMs = 20000) {
   throw new Error("browser publish page load timed out");
 }
 
+async function refreshGoogleSearchConfiguration() {
+  const response = await fetchJSON("/v1/config");
+  const site = response?.config?.search;
+  if (!site?.origin || !site?.googleProperty) throw new Error("索引站点配置不可用，请检查设置中的索引站点与 URL。");
+  googleSearchConsoleProperty = site.googleProperty;
+  googleIndexOrigin = site.origin;
+  googleSearchConsoleURL = `https://search.google.com/search-console?resource_id=${encodeURIComponent(site.googleProperty)}`;
+}
+
 function googleSearchConsoleTabCandidate(tab) {
   try {
     const parsed = new URL(tab?.url || "");
@@ -591,7 +601,7 @@ function googleSearchConsoleTabCandidate(tab) {
     const resourceID = String(parsed.searchParams.get("resource_id") || "").trim();
     return {
       matches: true,
-      property: !resourceID || resourceID === GOOGLE_SEARCH_CONSOLE_PROPERTY,
+      property: resourceID === googleSearchConsoleProperty,
     };
   } catch {
     return { matches: false, property: false };
@@ -599,6 +609,7 @@ function googleSearchConsoleTabCandidate(tab) {
 }
 
 async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
+  await refreshGoogleSearchConfiguration();
   let tab = null;
   if (googleSearchConsoleTabId !== null) {
     try {
@@ -614,14 +625,14 @@ async function googleSearchConsoleTab({ active = false, reset = false } = {}) {
     tab = tabs.find((candidate) => googleSearchConsoleTabCandidate(candidate).property) || null;
   }
   if (!tab) {
-    tab = await chrome.tabs.create({ url: GOOGLE_SEARCH_CONSOLE_URL, active });
+    tab = await chrome.tabs.create({ url: googleSearchConsoleURL, active });
     googleSearchConsoleTabId = tab.id;
     await waitForTabLoaded(tab.id, 30000);
   } else {
     googleSearchConsoleTabId = tab.id;
     if (active && !tab.active) await chrome.tabs.update(tab.id, { active: true });
     if (reset) {
-      tab = await chrome.tabs.update(tab.id, { url: GOOGLE_SEARCH_CONSOLE_URL, active });
+      tab = await chrome.tabs.update(tab.id, { url: googleSearchConsoleURL, active });
       await waitForTabLoaded(tab.id, 30000);
     } else if (tab.status !== "complete") {
       await waitForTabLoaded(tab.id, 30000);
@@ -732,9 +743,9 @@ async function googleSearchConsoleProbe({ active = false } = {}) {
 
 async function googleRequestIndexingURL(url) {
   try {
+    await refreshGoogleSearchConfiguration();
     const target = new URL(url);
-    const origin = `https://${GOOGLE_SEARCH_CONSOLE_PROPERTY.replace(/^sc-domain:/, "")}`;
-    if (target.origin !== origin || target.username || target.password) throw new Error("URL does not belong to the current Search Console site");
+    if (target.origin !== googleIndexOrigin || target.username || target.password) throw new Error("URL does not belong to the configured Search Console site");
   } catch (error) {
     return { ok: false, action: "failed", stage: "url_validation", url, error: errorMessage(error) };
   }

@@ -354,7 +354,7 @@ func CheckGoogleSearchConsoleSite(ctx context.Context, client *http.Client, site
 	}, nil
 }
 
-func SubmitGoogleSitemaps(ctx context.Context, client *http.Client, siteURL, origin, accessToken string) ([]GoogleSitemapResult, error) {
+func SubmitGoogleSitemaps(ctx context.Context, client *http.Client, siteURL, origin, accessToken string, feeds ...string) ([]GoogleSitemapResult, error) {
 	normalizedSite, err := NormalizeSearchConsoleSiteURL(siteURL)
 	if err != nil {
 		return nil, err
@@ -363,9 +363,18 @@ func SubmitGoogleSitemaps(ctx context.Context, client *http.Client, siteURL, ori
 	if err != nil {
 		return nil, err
 	}
-	results := make([]GoogleSitemapResult, 0, len(GoogleDefaultSitemaps))
-	for _, name := range GoogleDefaultSitemaps {
-		feedPath := strings.TrimRight(origin, "/") + "/" + strings.TrimLeft(name, "/")
+	if len(feeds) == 0 {
+		for _, name := range GoogleDefaultSitemaps {
+			feeds = append(feeds, origin+"/"+name)
+		}
+	}
+	for _, feed := range feeds {
+		if _, err := NormalizeURL(feed, origin, "Sitemap URL"); err != nil {
+			return nil, err
+		}
+	}
+	results := make([]GoogleSitemapResult, 0, len(feeds))
+	for _, feedPath := range feeds {
 		endpoint := GoogleSearchConsoleAPI + "/sites/" + googlePathSegment(normalizedSite) + "/sitemaps/" + googlePathSegment(feedPath)
 		_, status, err := googleAPIRequest(ctx, client, http.MethodPut, endpoint, accessToken, nil)
 		if err != nil {
@@ -376,7 +385,7 @@ func SubmitGoogleSitemaps(ctx context.Context, client *http.Client, siteURL, ori
 	return results, nil
 }
 
-func InspectGoogleURL(ctx context.Context, client *http.Client, siteURL, inspectionURL, accessToken string) (GoogleInspectionResult, error) {
+func InspectGoogleURL(ctx context.Context, client *http.Client, siteURL, inspectionURL, accessToken string, selectedOrigin ...string) (GoogleInspectionResult, error) {
 	normalizedSite, err := NormalizeSearchConsoleSiteURL(siteURL)
 	if err != nil {
 		return GoogleInspectionResult{}, err
@@ -384,6 +393,25 @@ func InspectGoogleURL(ctx context.Context, client *http.Client, siteURL, inspect
 	origin, err := GoogleSiteOrigin(normalizedSite)
 	if err != nil {
 		return GoogleInspectionResult{}, err
+	}
+	if len(selectedOrigin) > 1 {
+		return GoogleInspectionResult{}, errors.New("exactly one Inspection origin is allowed")
+	}
+	if len(selectedOrigin) == 1 {
+		candidate, err := NormalizeOrigin(selectedOrigin[0])
+		if err != nil {
+			return GoogleInspectionResult{}, err
+		}
+		propertyHost := mustURL(origin).Hostname()
+		candidateHost := mustURL(candidate).Hostname()
+		covered := candidate == origin
+		if strings.HasPrefix(normalizedSite, "sc-domain:") {
+			covered = candidateHost == propertyHost || strings.HasSuffix(candidateHost, "."+propertyHost)
+		}
+		if !covered {
+			return GoogleInspectionResult{}, errors.New("Inspection origin is outside the configured Google property")
+		}
+		origin = candidate
 	}
 	inspectionURL, err = NormalizeURL(inspectionURL, origin, "Inspection URL")
 	if err != nil {
@@ -509,7 +537,7 @@ func AuditGoogleURLs(ctx context.Context, client *http.Client, urls []string, si
 			}
 		}
 		started := time.Now()
-		result, err := InspectGoogleURL(ctx, client, siteURL, inspectionURL, accessToken)
+		result, err := InspectGoogleURL(ctx, client, siteURL, inspectionURL, accessToken, origin)
 		if err != nil {
 			return GoogleInspectionReport{}, err
 		}
