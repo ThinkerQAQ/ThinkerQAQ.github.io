@@ -7,8 +7,8 @@ dist/
 .DS_Store
 npm-debug.log*
 
-# DevTool workspace state.
-.devtool/
+# Local engineering build outputs.
+.build/
 go.work.sum
 
 # Private content is injected only at build time.
