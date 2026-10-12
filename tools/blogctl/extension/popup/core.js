@@ -27,11 +27,22 @@
     return date.toLocaleTimeString(root.BlogCTLI18n?.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }
 
+  function versionLabel(value) {
+    return value ? `v${value}` : "版本未知";
+  }
+
   async function refreshBridgeIndicator(status) {
     const indicator = document.getElementById("bridgeIndicator");
+    const extensionVersion = document.getElementById("aboutExtensionVersion");
+    const bridgeVersion = document.getElementById("aboutBridgeVersion");
+    const aboutStatus = document.getElementById("aboutBridgeStatus");
+    const localVersion = root.chrome?.runtime?.getManifest?.()?.version || "";
+    if (extensionVersion && localVersion) extensionVersion.textContent = versionLabel(localVersion);
     try {
       const current = status || (await send("blogctl.status")).status;
       const bridge = current?.bridge ?? {};
+      if (extensionVersion) extensionVersion.textContent = versionLabel(bridge.extensionVersion || localVersion);
+      if (bridgeVersion) bridgeVersion.textContent = bridge.running ? versionLabel(bridge.bridgeVersion) : "未连接";
       if (bridge.running && bridge.compatible === false) {
         const versions = [
           bridge.extensionVersion ? `Extension v${bridge.extensionVersion}` : "",
@@ -44,9 +55,13 @@
       } else {
         setStatus(indicator, "error", "Bridge 未连接", bridge.error || "");
       }
+      setStatus(aboutStatus, bridge.running ? "ok" : "error", bridge.running ? "Bridge 已连接" : "Bridge 未连接", bridge.error || "");
       return current;
     } catch (error) {
       setStatus(indicator, "unknown", "Bridge 检测失败", errorMessage(error));
+      if (extensionVersion) extensionVersion.textContent = versionLabel(localVersion);
+      if (bridgeVersion) bridgeVersion.textContent = "版本未知";
+      setStatus(aboutStatus, "unknown", "Bridge 检测失败", errorMessage(error));
       throw error;
     }
   }
