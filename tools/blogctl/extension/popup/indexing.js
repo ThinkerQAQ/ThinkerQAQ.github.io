@@ -9,6 +9,7 @@
     busy: new Set(),
     pollTimer: null,
     inventoryRepairSignature: "",
+    renderDeferred: false,
   };
 
   let elements = {};
@@ -138,14 +139,15 @@
   }
 
   function setText(target, value) {
-    if (target) target.textContent = value;
+    const text = String(value);
+    if (target && target.textContent !== text) target.textContent = text;
   }
 
   function setLink(target, value) {
     if (!target) return;
-    target.textContent = value || "配置不可用";
-    if (value) target.href = value;
-    else target.removeAttribute("href");
+    setText(target, value || "配置不可用");
+    if (value && target.getAttribute("href") !== value) target.href = value;
+    else if (!value && target.hasAttribute("href")) target.removeAttribute("href");
   }
 
   function setStatus(target, kind, text, detail = "") {
@@ -153,6 +155,15 @@
   }
 
   function render() {
+    // A native select owns a browser popup outside the document. Keep its
+    // anchor and surrounding layout stable until the user leaves the control.
+    // Polling and push events still update state, so blur paints the latest data.
+    if (document.activeElement === el("indexEngineFilter")) {
+      if (!state.renderDeferred) console.debug("[BlogCTL indexing] render deferred while engine selector is focused");
+      state.renderDeferred = true;
+      return;
+    }
+    state.renderDeferred = false;
     const index = state.index || {};
     const inventory = index.inventory || {};
     const indexNow = index.indexNow || {};
@@ -309,7 +320,8 @@
 
   async function refresh() {
     if (!state.active) return;
-    BlogCTLPopup.setMessage(elements.message);
+    const selectorFocused = () => document.activeElement === el("indexEngineFilter");
+    if (!selectorFocused()) BlogCTLPopup.setMessage(elements.message);
     try {
       const response = await BlogCTLPopup.send("blogctl.index.get");
       state.index = response.index || {};
@@ -326,10 +338,14 @@
         if (repaired.index) state.index = repaired.index;
       }
       render();
-      BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
+      if (!selectorFocused()) BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     } catch (error) {
-      BlogCTLPopup.setMessage(elements.message, BlogCTLPopup.errorMessage(error), "error");
-      BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
+      if (!selectorFocused()) {
+        BlogCTLPopup.setMessage(elements.message, BlogCTLPopup.errorMessage(error), "error");
+        BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
+      } else {
+        console.warn("[BlogCTL indexing] refresh failed while engine selector is focused", BlogCTLPopup.errorMessage(error));
+      }
     }
   }
 
@@ -493,6 +509,14 @@
       localStorage.setItem("blogctl.indexEngine", active);
     };
     engineFilter.addEventListener("change", applyEngineFilter);
+    engineFilter.addEventListener("blur", () => {
+      if (!state.active) return;
+      if (state.renderDeferred) {
+        console.debug("[BlogCTL indexing] applying deferred render after engine selector blur");
+        render();
+      }
+      refresh();
+    });
     applyEngineFilter();
 
     elements.refreshInventory.addEventListener("click", refreshInventory);

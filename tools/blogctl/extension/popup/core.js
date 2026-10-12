@@ -10,15 +10,17 @@
 
   function setStatus(element, kind, text, detail = "") {
     if (!element) return;
-    element.className = `status ${kind}`;
-    element.textContent = text;
-    element.title = detail;
+    const className = `status ${kind}`;
+    if (element.className !== className) element.className = className;
+    if (element.textContent !== text) element.textContent = text;
+    if (element.title !== detail) element.title = detail;
   }
 
   function setMessage(element, text = "", type = "") {
     if (!element) return;
-    element.textContent = text;
-    element.className = `message${type ? ` ${type}` : ""}`;
+    const className = `message${type ? ` ${type}` : ""}`;
+    if (element.textContent !== text) element.textContent = text;
+    if (element.className !== className) element.className = className;
   }
 
   function formatTime(value) {
@@ -40,6 +42,7 @@
     if (extensionVersion && localVersion) extensionVersion.textContent = versionLabel(localVersion);
     try {
       const current = status || (await send("blogctl.status")).status;
+      if (document.activeElement?.id === "indexEngineFilter") return current;
       const bridge = current?.bridge ?? {};
       if (extensionVersion) extensionVersion.textContent = versionLabel(bridge.extensionVersion || localVersion);
       if (bridgeVersion) bridgeVersion.textContent = bridge.running ? versionLabel(bridge.bridgeVersion) : "未连接";
