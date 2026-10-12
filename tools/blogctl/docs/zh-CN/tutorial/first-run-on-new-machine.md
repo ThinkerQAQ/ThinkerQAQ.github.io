@@ -48,12 +48,12 @@ npm run dev:quick
 ```powershell
 go build -o blogctl-windows-amd64.exe ./tools/blogctl/cmd
 $exe = (Resolve-Path .\blogctl-windows-amd64.exe).Path
-& .\tools\blogctl\Install-Windows.ps1 -Executable $exe
+& $exe install
 ```
 
-脚本会给 Chrome 和 Edge 注册 Native Messaging Host。Windows 下的运行时数据默认位于**可执行文件旁的 `Data/`**，升级时要保留。使用正式 Release 时，可直接运行解压包内的 `Install-Windows.ps1`。
+BlogCTL 的 `install` 命令会给 Chrome 和 Edge 注册 Native Messaging Host。Windows 下的运行时数据默认位于**可执行文件旁的 `Data/`**，升级时要保留。正式 Release 直接运行对应二进制的 `install` 命令。
 
-**Linux/macOS — Release 安装包：** 在解压目录执行 `./Install-Linux.sh` 或 `./Install-macOS.command`。安装脚本要求对应架构的 `blogctl-linux-<architecture>` / `blogctl-darwin-<architecture>` 与脚本位于同一目录。
+**Linux/macOS — Release：** 运行对应架构二进制的 `install` 命令，例如 `./blogctl-linux-amd64 install`。解除浏览器注册使用 `uninstall`，不会删除用户数据。
 
 **浏览器操作：**
 

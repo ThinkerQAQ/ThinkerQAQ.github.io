@@ -18,7 +18,7 @@ go run ./tools/blogctl/cmd doctor
 Windows 用户可以使用 Release 安装包，保留可执行文件旁的 `Data/` 目录，并通过安装脚本注册 Native Messaging：
 
 ```powershell
-.\Install-Windows.ps1 -Executable C:\software\Coding\blogctl\blogctl-windows-amd64.exe
+& C:\software\Codinglogctllogctl-windows-amd64.exe install
 ```
 
 随后在 Edge 或 Chrome 加载解压后的扩展，点击「打开工作台」。安装及连接排查见[快速开始](docs/zh-CN/quick-start.md)。

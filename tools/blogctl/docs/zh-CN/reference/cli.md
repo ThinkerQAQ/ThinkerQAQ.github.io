@@ -11,3 +11,7 @@
 | `blogctl search submit` | 提交索引 |
 
 `sync` 的 `--all` 与 `--article` 互斥；`--changed` 仅处理变更，`--draft` 使用草稿模式。远端操作必须先确认目标。
+
+## 浏览器 Native Messaging 注册
+
+安装位置确定后运行 `blogctl install` 注册浏览器 Native Messaging Host，运行 `blogctl uninstall` 解除注册。命令使用当前程序的绝对路径，不删除用户 `Data/` 或浏览器扩展；移动程序后需要重新注册。

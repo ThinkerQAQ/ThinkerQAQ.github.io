@@ -15,10 +15,10 @@ go run ./tools/blogctl/cmd help
 go run ./tools/blogctl/cmd doctor
 ```
 
-For Windows installations, download the current package, keep its `Data/` directory between upgrades and register the Native Messaging host:
+For Windows installations, download the current executable, keep its `Data/` directory between upgrades and register the Native Messaging host from the executable itself:
 
 ```powershell
-.\Install-Windows.ps1 -Executable C:\software\Coding\blogctl\blogctl-windows-amd64.exe
+& C:\software\Codinglogctllogctl-windows-amd64.exe install
 ```
 
 Load the unpacked Extension in Edge or Chrome. The **打开工作台** action opens the local Console. For installation details on each OS, follow the [Quick Start](docs/quick-start.md).

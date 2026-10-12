@@ -23,12 +23,12 @@ Release 内的二进制不需要 Go 运行时。网站构建仍需要 Node/npm �
 Windows 安装目录建议将程序、扩展和安装脚本放在一起。执行：
 
 ```powershell
-.\Install-Windows.ps1 -Executable C:\software\Coding\blogctl\blogctl-windows-amd64.exe
+& C:\software\Codinglogctllogctl-windows-amd64.exe install
 ```
 
 安装后的配置、日志和运行时数据默认在可执行文件旁的 `Data/`。升级时保留这个目录。
 
-Linux/macOS 分别使用 Release 内的 `Install-Linux.sh` 和 `Install-macOS.command`。脚本的实际参数以发布包为准。
+Linux/macOS 直接运行对应架构二进制的 `install` 命令；解除注册用 `uninstall`。不会删除配置、数据与浏览器扩展。
 
 ## 3. 加载扩展
 
