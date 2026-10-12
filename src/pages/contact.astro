@@ -6,22 +6,26 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
 <BaseLayout
   title="联系"
-  description="通过 GitHub 联系 ThinkerQAQ：技术讨论、文章反馈或合作相关信息。"
+  description="通过邮箱联系 ThinkerQAQ：技术讨论、文章反馈或合作事宜。"
   canonicalPath="/contact/"
 >
   <div class="shell page narrow collection-page">
     <CollectionHeader
       title="联系"
-      description="技术讨论、文章反馈或合作相关的事情，请直接通过 GitHub 联系我。"
+      description="技术讨论、文章反馈或合作事宜，欢迎通过邮箱联系。"
     />
 
     <div class="prose">
+      <h2>邮箱</h2>
+      <p>
+        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+      </p>
       <h2>GitHub</h2>
       <p>
-        <a href={SITE.contact}>github.com/ThinkerQAQ</a>
+        <a href={SITE.github}>github.com/ThinkerQAQ</a>
       </p>
       <p>
-        如果是具体的代码、项目或文章问题，可以在对应仓库或页面的 GitHub 讨论入口中联系我。
+        具体代码或项目问题，也可以在对应的 GitHub 仓库中讨论。
       </p>
     </div>
   </div>

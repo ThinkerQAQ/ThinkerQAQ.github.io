@@ -14,7 +14,7 @@ export const SITE = {
   github: "https://github.com/ThinkerQAQ",
   profiles: ["https://github.com/ThinkerQAQ", "https://dev.to/thinkerqaq"],
   repository: "https://github.com/ThinkerQAQ/ThinkerQAQ.github.io",
-  contact: "https://github.com/ThinkerQAQ",
+  contactEmail: "contact@mail.thinkerqaq.com",
   locale: "zh-CN",
 } as const;
 
