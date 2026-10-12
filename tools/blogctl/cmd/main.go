@@ -27,6 +27,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && (os.Args[1] == "install" || os.Args[1] == "uninstall") {
+		if err := runNativeHostSetup(os.Args[1], os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "blogctl:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--bridge" {
 		if err := runBridgeProcess(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -165,6 +172,7 @@ func (a app) printHelp() {
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
+  blogctl install | uninstall
   blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]
 
 文章分发 sync 请在 blog-content 仓库执行；网站构建命令在 ThinkerQAQ.github.io 引擎仓库执行。
@@ -183,6 +191,7 @@ Usage:
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
   blogctl doctor
+  blogctl install | uninstall
   blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]
 
 Run sync from the blog-content repository. Engine commands still run from ThinkerQAQ.github.io.

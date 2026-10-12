@@ -25,11 +25,6 @@ var targets = []target{
 	{"linux", "amd64", "blogctl-linux-amd64"},
 	{"linux", "arm64", "blogctl-linux-arm64"},
 }
-var installers = []string{
-	"Install-Windows.ps1", "Uninstall-Windows.ps1",
-	"Install-Linux.sh", "Uninstall-Linux.sh",
-	"Install-macOS.command", "Uninstall-macOS.command",
-}
 
 func main() {
 	if len(os.Args) != 2 {
@@ -114,11 +109,6 @@ func packageRelease() error {
 	if err := zipDirectory("tools/blogctl/extension", filepath.Join(releaseDir, "blogctl-extension.zip")); err != nil {
 		return fmt.Errorf("extension: %w", err)
 	}
-	for _, name := range installers {
-		if err := copyFile(filepath.Join("tools/blogctl", name), filepath.Join(releaseDir, name)); err != nil {
-			return err
-		}
-	}
 	if err := checksums(releaseDir); err != nil {
 		return err
 	}
@@ -167,27 +157,6 @@ func zipDirectory(source, destination string) (result error) {
 		}
 		return closeErr
 	})
-}
-func copyFile(source, destination string) error {
-	from, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer from.Close()
-	info, err := from.Stat()
-	if err != nil {
-		return err
-	}
-	to, err := os.OpenFile(destination, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
-	if err != nil {
-		return err
-	}
-	_, copyErr := io.Copy(to, from)
-	closeErr := to.Close()
-	if copyErr != nil {
-		return copyErr
-	}
-	return closeErr
 }
 func checksums(dir string) error {
 	files, err := os.ReadDir(dir)
