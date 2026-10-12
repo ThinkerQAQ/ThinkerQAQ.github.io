@@ -1,6 +1,6 @@
 # 引擎命令
 
-命令定义以 [`package.json`](../../../package.json)、[`tools/blogctl/cmd/main.go`](../../../tools/blogctl/cmd/main.go) 和 [DevTool Project Extension](../../../devcontrol/provider.go) 为准。
+命令定义以 [`package.json`](../../../package.json)、[`tools/blogctl/cmd/main.go`](../../../tools/blogctl/cmd/main.go) 和 [原生 Go 维护命令](../../../tools/blogctl/cmd/maint/main.go) 为准。
 
 | 命令 | 用途 |
 | --- | --- |
@@ -20,9 +20,8 @@
 | `go run ./tools/blogctl/cmd help` | 查看当前 BlogCTL CLI |
 | `go run ./tools/blogctl/cmd site assemble --content-root ../blog-content` | 从独立仓库装配内容 |
 | `go run ./tools/blogctl/cmd site build --content-root ../blog-content` | 装配并构建静态站点 |
-| `devtool config validate` | 验证 DevTool 配置 |
-| `devtool project inspect --json` | 查询项目扩展及声明的命令 |
-| `devtool code doctor` / `devtool code verify` | 检查代码分析工具，不能代替 Markdown Review |
-| `devtool verify` / `devtool build` / `devtool package` | 经项目扩展运行的验证、构建和打包 |
+| `go run ./tools/blogctl/cmd/maint verify` | Go、Node、文档、扩展与边界检查 |
+| `go run ./tools/blogctl/cmd/maint build` | 构建本地可执行文件，输出到 `.build/out/blogctl` |
+| `go run ./tools/blogctl/cmd/maint package` | 打包六个平台二进制、扩展 ZIP、安装脚本与 SHA256SUMS，输出到 `.build/artifacts/blogctl-release/` |
 
-完整发布与搜索命令见 [BlogCTL CLI](../../../tools/blogctl/docs/zh-CN/reference/cli.md)。Markdown 结构分析通过 DevTool Agent Gateway 的 `document_context` 进行。
+完整发布与搜索命令见 [BlogCTL CLI](../../../tools/blogctl/docs/zh-CN/reference/cli.md)。Markdown 链接与结构导航优先使用 Marksman LSP；完整 Review 仍应逐节阅读。

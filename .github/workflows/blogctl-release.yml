@@ -6,7 +6,7 @@ on:
     types: [closed]
     paths:
       - "tools/blogctl/**"
-      - ".devtool.toml"
+      - ".github/workflows/blogctl-release.yml"
       - ".github/workflows/blogctl-release.yml"
   workflow_dispatch:
 
@@ -22,9 +22,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      DEVTOOL_VERSION: f4765787bbb20540b6a5e5d8d7293ef393fd9757
-      DEVTOOL_PROFILES: local
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,17 +32,7 @@ jobs:
         with:
           go-version: '1.27.1'
           cache: true
-
-      - name: Install DevTool V2
-        run: |
-          GOPROXY=direct go install github.com/thinkerqaq/devtool/cmd/devtool@${DEVTOOL_VERSION}
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Validate DevTool configuration
-        run: devtool config validate
-
-      - name: Inspect BlogCTL project extension
-        run: devtool project inspect --json
+          cache-dependency-path: tools/blogctl/go.sum
 
       - name: Resolve version
         id: version
@@ -70,11 +57,11 @@ jobs:
 
       - name: Verify BlogCTL
         if: steps.version.outputs.exists != 'true'
-        run: devtool verify
+        run: go run ./tools/blogctl/cmd/maint verify
 
       - name: Package BlogCTL
         if: steps.version.outputs.exists != 'true'
-        run: devtool package
+        run: go run ./tools/blogctl/cmd/maint package
 
       - name: Publish GitHub Release
         if: steps.version.outputs.exists != 'true'
@@ -83,7 +70,7 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create "$TAG" .devtool/artifacts/blogctl-release/* \
+          gh release create "$TAG" .build/artifacts/blogctl-release/* \
             --target "$GITHUB_SHA" \
             --title "blogctl v${VERSION}" \
             --notes-file tools/blogctl/RELEASE_NOTES.md
@@ -111,4 +98,3 @@ jobs:
             echo "Deleting superseded release: $old_tag"
             gh release delete "$old_tag" --yes
           done
-

@@ -25,11 +25,11 @@ Windows 用户可以使用 Release 安装包，保留可执行文件旁的 `Data
 
 ## 开发入口
 
-先看仓库的 [AGENTS.md](../../AGENTS.md) 和 [BlogCTL Agent Contract](AGENTS.md)。项目命令统一通过 DevTool 发现：
+先看仓库的 [AGENTS.md](../../AGENTS.md) 和 [BlogCTL Agent Contract](AGENTS.md)。工程命令直接使用原生 Go 工具：
 
 ```bash
-devtool config validate
-devtool project inspect --json
+go run ./tools/blogctl/cmd/maint verify
+go run ./tools/blogctl/cmd/maint build
 ```
 
 ## 架构

@@ -14,9 +14,6 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      DEVTOOL_VERSION: f4765787bbb20540b6a5e5d8d7293ef393fd9757
-      DEVTOOL_PROFILES: local
     steps:
       - uses: actions/checkout@v6
 
@@ -24,31 +21,22 @@ jobs:
         with:
           go-version: '1.27.1'
           cache: true
+          cache-dependency-path: tools/blogctl/go.sum
 
       - name: Test analytics Worker contracts
         run: node --test workers/blog-ai/src/*.test.js
 
-      - name: Install DevTool V2
-        run: |
-          GOPROXY=direct go install github.com/thinkerqaq/devtool/cmd/devtool@${DEVTOOL_VERSION}
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Validate DevTool configuration
-        run: devtool config validate
-
-      - name: Inspect BlogCTL project extension
-        run: devtool project inspect --json
-
       - name: Verify BlogCTL
-        run: devtool verify
+        run: go run ./tools/blogctl/cmd/maint verify
 
       - name: Build BlogCTL
-        run: devtool build
+        run: go run ./tools/blogctl/cmd/maint build
 
       - name: Package BlogCTL
-        run: devtool package
+        run: go run ./tools/blogctl/cmd/maint package
 
-      - name: Verify DevTool artifacts
+      - name: Verify release artifacts
         run: |
-          test -s .devtool/out/blogctl
-          test -s .devtool/artifacts/blogctl-release/SHA256SUMS
+          test -s .build/out/blogctl
+          test -s .build/artifacts/blogctl-release/SHA256SUMS
+          (cd .build/artifacts/blogctl-release && sha256sum -c SHA256SUMS)

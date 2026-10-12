@@ -15,7 +15,7 @@ You have the installed executable, Extension and the same intended version.
 2. Check Edge/Chrome extension status, native host registration and executable location.
 3. After replacing an Extension package, reload it and reopen the side panel / Web Console.
 4. Use **日志** and **任务** to inspect connection errors without dumping cookies or tokens.
-5. For source-level diagnosis, run `devtool config validate` and `devtool project inspect --json` from the engine root.
+5. For source-level diagnosis, run `go run ./tools/blogctl/cmd/maint verify` from the engine root, and inspect relevant Go definitions and diagnostics with `gopls`.
 
 ## Verify
 

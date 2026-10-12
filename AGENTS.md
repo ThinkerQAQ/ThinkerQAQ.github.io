@@ -1,47 +1,53 @@
 # Agent Contract — ThinkerQAQ Blog Engine
 
-This is the public site engine; canonical posts live in the separate `ThinkerQAQ/blog-content` repository.
+This repository builds the public blog and contains BlogCTL. Canonical articles live in the separate `ThinkerQAQ/blog-content` repository.
 
 ## First minute
 
-From the engine root:
+Read [Quick Start](docs/quick-start.md), [commands](docs/reference/commands.md) and this contract. Check `git status` and the active worktree before editing: development may be underway in another worktree.
 
-```bash
-devtool version
-devtool config validate
-devtool project inspect --json
-devtool code doctor
+From the repository root:
+
+```sh
+go run ./tools/blogctl/cmd/maint verify
+go run ./tools/blogctl/cmd/maint build
+go run ./tools/blogctl/cmd/maint package
 ```
 
-Discover project commands from the Project Extension; never invent commands. The project's [documentation index](docs/index.md) is the human entry point.
+These commands are implemented in Go, independently of the product CLI. The existing `npm run` scripts remain authoritative for Astro, frontend, diagrams, and site previews. `package` generates cross-platform BlogCTL binaries, the browser extension ZIP, installer scripts, and SHA-256 checksums in `.build/artifacts/blogctl-release/`. Never publish a release just because packaging succeeded.
 
-## Canonical workflow
+## Native code intelligence
 
-- Use DevTool `project inspect` before `devtool verify`, `devtool build`, or `devtool package`.
-- For code understanding use DevTool's `code_context`; for Markdown use `document_context` through `devtool agent mcp --context agent`. Prefer deterministic outline and section-based review. Goldmark owns structure; Marksman optionally enriches links. Do not claim `devtool code verify` validates Markdown.
-- Verify published CLI usage against [engine command reference](docs/reference/commands.md), [BlogCTL CLI reference](tools/blogctl/docs/reference/cli.md), `package.json`, and `tools/blogctl/cmd/main.go`.
-- Inspect -> minimal change -> review -> commit -> push -> next block -> final verification. Use a new branch/worktree and avoid unrelated edits.
+Prefer existing LSP clients and upstream language servers, with explicit fallbacks:
 
-## Architecture invariants
+| Files | Server | Use |
+| --- | --- | --- |
+| Go, under `tools/blogctl/` | `gopls serve` | Symbols, definitions, references, implementations, call hierarchy, diagnostics |
+| Markdown, under `docs/` and `tools/blogctl/docs/` | `marksman server` | Headings, link definitions/references, diagnostics |
+| TypeScript/JavaScript, Astro, CSS | Editor's installed language servers when available | Definitions, references and diagnostics scoped to the language actually supported |
+| Mermaid diagrams | `merman-lsp` and `merman-cli` when available | Semantic navigation, parsing, linting, rendering |
 
-Minimal core + replaceable extensions + configuration-first + self-hosting. Reuse mature standards, SDKs, open-source libraries and existing infrastructure before inventing a new implementation. Prefer provider/configuration changes before changing core. Keep site rendering, canonical content, browser session and publishing boundaries explicit.
+LSP servers require a client to initialize them and send protocol requests. The executable alone is not an Agent tool. Use direct `gopls symbols`/`gopls references`/`gopls check`, `rg`, scoped file reads, `node --check`, and existing npm scripts when no suitable client is available. Read long documents section by section; an outline cannot substitute for complete review. Do not add an LSP gateway or duplicate code index just to expose these tools.
 
-- `blog-content` owns source Markdown; this engine owns Astro/SEO/search/build/deploy; BlogCTL owns local orchestration; Extension owns browser-controlled authentication.
-- Go owns BlogCTL backend; JS is used for browser and site toolchains.
-- Detection must be read-only; creation, updates, publication and indexing are explicit side-effecting operations. Never blindly retry ambiguous third-party writes.
-- Never put secrets or session cookies in static assets, Git, logs or documentation.
-- Preserve DevTool service contracts and existing provider boundaries; do not build a parallel toolchain.
+## Architecture and security
 
-## Before changing core
+Minimal core, pluggable extensions, configuration-first. Reuse mature packages and platform SDKs before writing new infrastructure.
 
-Can configuration/profile solve it? Can an existing mature SDK/provider implement it? Is it an extension-specific behavior? Touch core only for a shared invariant. Review current code and production workflows before editing deployments.
+- `blog-content` owns canonical Markdown; this engine owns Astro/SEO/search/build/deploy; BlogCTL owns local orchestration; the browser Extension owns browser-controlled authentication.
+- Go owns the BlogCTL backend. JavaScript owns browser UI and the site toolchain.
+- Detection/listing is read-only. Creation, updates, publication, deletion and indexing require explicit side-effect authorization. Never blindly retry ambiguous remote writes.
+- Session credentials and cookies stay in authorized browser flows, never static assets, Git, logs or documentation.
+- Keep installed BlogCTL `Data/` and user configuration intact through deployment. Do not modify production credentials or site deployments without explicit approval.
 
-## Documentation map
+## Change workflow
 
-- [Quick Start](docs/quick-start.md) / [Tutorial](docs/tutorial/first-site.md)
-- [Concepts](docs/concepts/system.md) / [How-to](docs/how-to/index.md)
-- [Reference](docs/reference/index.md) / [Examples](docs/examples/index.md)
-- [Architecture decisions](docs/architecture/index.md)
-- [BlogCTL documentation](tools/blogctl/docs/index.md) / [BlogCTL scope](tools/blogctl/AGENTS.md)
+Inspect relevant code and docs, make the smallest coherent change, commit/push in small increments, and run native verification at milestones. Use isolated worktrees rather than modifying another Agent's active branch. Preserve existing release versioning and CI semantics. Confirm remote GitHub availability and job health before claiming CI passed. Do not merge unrelated work.
 
-This file is the single source for repo-wide agent rules. Any other agent-specific manifest should link here, not duplicate the contract.
+## Documentation
+
+- [Quick Start](docs/quick-start.md), [Tutorial](docs/tutorial/first-site.md)
+- [Commands](docs/reference/commands.md), [How-to](docs/how-to/index.md)
+- [Architecture](docs/architecture/index.md)
+- [BlogCTL](tools/blogctl/docs/index.md), [BlogCTL agent scope](tools/blogctl/AGENTS.md)
+
+This is the repo-wide agent contract; nested contracts describe only subproject-specific rules.

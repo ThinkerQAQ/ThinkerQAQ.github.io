@@ -7,9 +7,7 @@
 在引擎根目录运行：
 
 ```bash
-devtool config validate
-devtool project inspect --json
-devtool code doctor
+go run ./tools/blogctl/cmd/maint verify
 npm run assemble:fixtures
 npm run check
 ```
@@ -28,4 +26,4 @@ npm run diagrams
 
 只需先看到页面，可以执行 `npm run dev:quick`，暂时跳过图表预渲染。
 
-Go/BlogCTL 的项目校验应按 DevTool 已声明的 `verify` 能力执行。如果环境 Provider 不可用，应报告真实失败原因，不以其他检查结果代替。更多命令见[参考手册](../reference/commands.md)。
+Go/BlogCTL 通过原生 Go 维护命令验证代码；可使用 `gopls` 查询符号与诊断。工具缺失时如实报告，不以其他检查结果冒充。更多命令见[参考手册](../reference/commands.md)。

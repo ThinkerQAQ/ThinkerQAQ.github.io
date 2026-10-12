@@ -19,11 +19,12 @@ npm run dev:quick
 
 ## AI Agent
 
-先读 [AGENTS.md](AGENTS.md)，再通过 DevTool 发现项目能力：
+开发前请阅读 [AGENTS.md](AGENTS.md)。BlogCTL 的工程构建、验证与打包直接使用原生 Go 维护命令：
 
 ```bash
-devtool config validate
-devtool project inspect --json
+go run ./tools/blogctl/cmd/maint verify
+go run ./tools/blogctl/cmd/maint build
+go run ./tools/blogctl/cmd/maint package
 ```
 
 ## 架构

@@ -28,8 +28,8 @@ Load the unpacked Extension in Edge or Chrome. The **打开工作台** action op
 Follow the repository's [AGENTS.md](../../AGENTS.md) and [BlogCTL-specific contract](AGENTS.md). From the engine root:
 
 ```bash
-devtool config validate
-devtool project inspect --json
+go run ./tools/blogctl/cmd/maint verify
+go run ./tools/blogctl/cmd/maint build
 ```
 
 ## Architecture
@@ -53,6 +53,6 @@ Session access stays in the browser Extension; Go handles local jobs and publish
 | Publishing workflow | [Tutorial](docs/tutorial/first-publish.md) | [教程](docs/zh-CN/tutorial/first-publish.md) |
 | Models and interfaces | [Concepts and Reference](docs/index.md) | [中文文档目录](docs/zh-CN/index.md) |
 
-Development commands and release packaging are owned by the engine's DevTool configuration.
+Build, verification and release packaging use the engine's native Go maintainer at `tools/blogctl/cmd/maint/`.
 
 [MIT License](../../LICENSE)

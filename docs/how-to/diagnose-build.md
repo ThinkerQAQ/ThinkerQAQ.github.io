@@ -7,14 +7,12 @@ Run commands from the **engine root** with Node.js 22+, Go 1.27.1 and npm. The f
 ## Steps
 
 ```bash
-devtool config validate
-devtool project inspect --json
-devtool code doctor
+go run ./tools/blogctl/cmd/maint verify
 npm run assemble:fixtures
 npm run check
 ```
 
-For an Astro/diagram issue, check `java -version`, `dot -V`, `npm run diagrams` and the renderer scripts in [Command Reference](../reference/commands.md). For a basic site preview without diagram rendering, use `npm run dev:quick`. For a Go/BlogCTL issue, run the declared `devtool verify` when its configured environment is available; otherwise report that provider as unavailable rather than claiming verification.
+For an Astro/diagram issue, check `java -version`, `dot -V`, `npm run diagrams` and the renderer scripts in [Command Reference](../reference/commands.md). For a basic site preview without diagram rendering, use `npm run dev:quick`. For a Go/BlogCTL issue, use the native maintenance verifier and `gopls` for symbol navigation or diagnostics. Report unavailable tools instead of claiming unperformed checks.
 
 For deploy failures, compare the failed Actions job to [the deployment contract](../reference/deployment.md). Check content checkout access before altering the engine, and check EdgeOne and GitHub Pages jobs independently.
 
