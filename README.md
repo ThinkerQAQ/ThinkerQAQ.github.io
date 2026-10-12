@@ -19,11 +19,12 @@ Open [localhost:4321](http://localhost:4321). This uses the bundled sample conte
 
 ## For AI Agents
 
-Read [AGENTS.md](AGENTS.md), then inspect the configured DevTool project before changing code:
+Read [AGENTS.md](AGENTS.md) before changing code. The native Go maintainer handles BlogCTL engineering tasks:
 
 ```bash
-devtool config validate
-devtool project inspect --json
+go run ./tools/blogctl/cmd/maint verify
+go run ./tools/blogctl/cmd/maint build
+go run ./tools/blogctl/cmd/maint package
 ```
 
 ## Architecture

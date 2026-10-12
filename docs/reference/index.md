@@ -2,7 +2,7 @@
 
 Exact operational facts; no sequential reading required.
 
-- [Commands](commands.md) — DevTool, npm scripts, Go CLI and authority in source
+- [Commands](commands.md) — native Go maintenance, npm scripts, Go CLI and authority in source
 - [Content schema](content-schema.md) — Astro collection contracts
 - [Analytics range API](analytics.md) — hourly, daily and weekly date filters, TTL and result semantics
 - [Deployment](deployment.md)

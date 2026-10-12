@@ -25,8 +25,7 @@ Invoke-RestMethod http://127.0.0.1:32145/v1/health
 在博客引擎根目录执行：
 
 ```bash
-devtool config validate
-devtool project inspect --json
+go run ./tools/blogctl/cmd/maint verify
 ```
 
 状态正常后再次打开「检测」读取平台文章；如仍失败，查[Bridge 模型](../concepts/bridge-and-state.md)和[配置参考](../reference/configuration.md)。

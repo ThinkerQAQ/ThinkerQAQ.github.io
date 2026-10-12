@@ -1,6 +1,6 @@
 # Engine Command Reference
 
-**Authoritative sources:** [`package.json`](../../package.json), [`tools/blogctl/cmd/main.go`](../../tools/blogctl/cmd/main.go), and [DevTool project descriptor](../../devcontrol/provider.go). Verify these sources before adding command entries.
+**Authoritative sources:** [`package.json`](../../package.json), [`tools/blogctl/cmd/main.go`](../../tools/blogctl/cmd/main.go), and [native maintainer](../../tools/blogctl/cmd/maint/main.go). Verify these sources before adding command entries.
 
 | Command | Actual operation |
 | --- | --- |
@@ -20,9 +20,8 @@
 | `go run ./tools/blogctl/cmd help` | Print actual BlogCTL CLI help |
 | `go run ./tools/blogctl/cmd site assemble --content-root ../blog-content` | Assemble external content |
 | `go run ./tools/blogctl/cmd site build --content-root ../blog-content` | Assemble and build site |
-| `devtool config validate` | Validate `.devtool.toml` |
-| `devtool project inspect --json` | Discover project command descriptor and services |
-| `devtool code doctor` / `devtool code verify` | Check configured code tooling; **not** Markdown review |
-| `devtool verify` / `devtool build` / `devtool package` | Project Extension actions; check availability with `project inspect` |
+| `go run ./tools/blogctl/cmd/maint verify` | Go, Node, docs, extension, and boundary checks |
+| `go run ./tools/blogctl/cmd/maint build` | Build local BlogCTL binary at `.build/out/blogctl` |
+| `go run ./tools/blogctl/cmd/maint package` | Six cross-platform binaries, extension ZIP, installers, and SHA256SUMS under `.build/artifacts/blogctl-release/` |
 
-For publishing/search commands and flags see [BlogCTL CLI](../../tools/blogctl/docs/reference/cli.md). For document analysis, use the DevTool Agent Gateway `document_context` capability: [Agent Contract](../../AGENTS.md).
+For publishing/search commands and flags see [BlogCTL CLI](../../tools/blogctl/docs/reference/cli.md). For document navigation, use an LSP client with Marksman; for complete review, read every affected section: [Agent Contract](../../AGENTS.md).

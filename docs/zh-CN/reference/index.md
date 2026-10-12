@@ -2,7 +2,7 @@
 
 这里记录确切的命令和实现入口，便于查询：
 
-- [命令](commands.md)：npm、Go CLI 和 DevTool
+- [命令](commands.md)：npm、Go CLI 和原生 Go 维护命令
 - [内容 Schema](content-schema.md)：内容集合与源文件
 - [Analytics 时间范围接口](analytics.md)：小时／天／周查询、缓存 TTL 与统计口径
 - [部署](deployment.md)：CI、环境变量与状态记录

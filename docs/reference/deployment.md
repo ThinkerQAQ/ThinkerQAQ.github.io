@@ -4,7 +4,7 @@
 
 | Workflow | Source | Responsibility |
 | --- | --- | --- |
-| Validate | `validate.yml` | DevTool config, verify, build and package |
+| Validate | `validate.yml` | Native Go verify, build and package |
 | Deploy Astro site to GitHub Pages | `deploy.yml` | Checkout engine/content, build static dist, upload to Pages and EdgeOne Makers |
 | Watch private blog content | `content-watch.yml` | Observe canonical content SHA and dispatch engine build |
 | Release blogctl | `blogctl-release.yml` | Package and publish BlogCTL release from version |

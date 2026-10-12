@@ -4,7 +4,7 @@ CI 以 [`.github/workflows/`](../../../.github/workflows/) 中的定义为准。
 
 | Workflow | 职责 |
 | --- | --- |
-| `validate.yml` | DevTool 验证、构建、打包 |
+| `validate.yml` | 原生 Go 验证、构建、打包 |
 | `deploy.yml` | 读取引擎与内容、生成静态资源、部署到 GitHub Pages/EdgeOne |
 | `content-watch.yml` | 检查内容仓库最新提交，必要时触发部署 |
 | `blogctl-release.yml` | 打包并发布 BlogCTL |
