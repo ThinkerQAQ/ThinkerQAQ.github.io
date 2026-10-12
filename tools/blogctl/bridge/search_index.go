@@ -477,6 +477,10 @@ func buildGoogleRequestQueue(results []searchInspectionResult, previous googleIn
 		if !googleRequestCandidate(result) {
 			continue
 		}
+		if _, err := blogsearch.NormalizeURL(result.URL, blogsearch.DefaultSiteOrigin, "Google indexing candidate"); err != nil {
+			slog.Warn("Google indexing candidate excluded outside current origin", "operation", "google-request-queue", "origin", blogsearch.DefaultSiteOrigin)
+			continue
+		}
 		item := previousByURL[result.URL]
 		if item.URL == "" {
 			item = googleIndexRequestItem{URL: result.URL, Status: "queued"}

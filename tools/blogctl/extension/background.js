@@ -731,6 +731,13 @@ async function googleSearchConsoleProbe({ active = false } = {}) {
 }
 
 async function googleRequestIndexingURL(url) {
+  try {
+    const target = new URL(url);
+    const origin = `https://${GOOGLE_SEARCH_CONSOLE_PROPERTY.replace(/^sc-domain:/, "")}`;
+    if (target.origin !== origin || target.username || target.password) throw new Error("URL does not belong to the current Search Console site");
+  } catch (error) {
+    return { ok: false, action: "failed", stage: "url_validation", url, error: errorMessage(error) };
+  }
   const maxPrepareAttempts = 3;
   for (let attempt = 1; attempt <= maxPrepareAttempts; attempt += 1) {
     let tab;

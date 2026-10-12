@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -31,6 +32,11 @@ const (
 )
 
 var GoogleDefaultSitemaps = []string{"sitemap-index.xml", "sitemap-all.txt"}
+
+// The browser and API must address the same verified domain property.
+func DefaultGoogleSiteURL() string {
+	return "sc-domain:" + mustURL(DefaultSiteOrigin).Hostname()
+}
 
 type GoogleServiceAccount struct {
 	ClientEmail string
@@ -255,7 +261,7 @@ func FetchGoogleAccessToken(ctx context.Context, client *http.Client, credential
 func NormalizeSearchConsoleSiteURL(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		value = DefaultSiteOrigin + "/"
+		value = DefaultGoogleSiteURL()
 	}
 	if strings.HasPrefix(value, "sc-domain:") {
 		host := strings.TrimSpace(strings.TrimPrefix(value, "sc-domain:"))
@@ -294,6 +300,7 @@ func GoogleSiteOrigin(siteURL string) (string, error) {
 }
 
 func googleAPIRequest(ctx context.Context, client *http.Client, method, endpoint, accessToken string, body []byte) ([]byte, int, error) {
+	started := time.Now()
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -307,8 +314,10 @@ func googleAPIRequest(ctx context.Context, client *http.Client, method, endpoint
 	}
 	response, err := client.Do(request)
 	if err != nil {
+		slog.Warn("Google Search Console transport failed", "operation", "google-api", "method", method, "endpoint", endpoint, "durationMs", time.Since(started).Milliseconds())
 		return nil, 0, err
 	}
+	slog.Info("Google Search Console response", "operation", "google-api", "method", method, "endpoint", endpoint, "httpStatus", response.StatusCode, "durationMs", time.Since(started).Milliseconds())
 	payload, readErr := io.ReadAll(io.LimitReader(response.Body, 4<<20))
 	response.Body.Close()
 	if readErr != nil {
@@ -369,6 +378,14 @@ func SubmitGoogleSitemaps(ctx context.Context, client *http.Client, siteURL, ori
 
 func InspectGoogleURL(ctx context.Context, client *http.Client, siteURL, inspectionURL, accessToken string) (GoogleInspectionResult, error) {
 	normalizedSite, err := NormalizeSearchConsoleSiteURL(siteURL)
+	if err != nil {
+		return GoogleInspectionResult{}, err
+	}
+	origin, err := GoogleSiteOrigin(normalizedSite)
+	if err != nil {
+		return GoogleInspectionResult{}, err
+	}
+	inspectionURL, err = NormalizeURL(inspectionURL, origin, "Inspection URL")
 	if err != nil {
 		return GoogleInspectionResult{}, err
 	}

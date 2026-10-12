@@ -2,6 +2,7 @@ package search
 
 import (
 	"errors"
+	"log/slog"
 	"sort"
 	"strings"
 )
@@ -28,13 +29,42 @@ func DiffInventories(previous, current Inventory, mode string, includeDeleted bo
 	if mode != "incremental" && mode != "full" {
 		return Diff{}, errors.New("submission mode must be incremental or full")
 	}
+	origin, err := NormalizeOrigin(current.Origin)
+	if err != nil {
+		return Diff{}, err
+	}
+	// A snapshot from before a domain migration must never turn the old
+	// domain's URLs into deletion notifications to the current provider.
+	if previous.Origin != "" {
+		previousOrigin, err := NormalizeOrigin(previous.Origin)
+		if err != nil {
+			return Diff{}, err
+		}
+		if previousOrigin != origin {
+			slog.Info("search snapshot reset after origin change", "operation", "search-diff", "previousOrigin", previousOrigin, "origin", origin, "mode", mode)
+			previous = Inventory{}
+		}
+	}
 	previousURLs := make(map[string]struct{}, len(previous.URLs))
 	currentURLs := make(map[string]struct{}, len(current.URLs))
+	ignored := 0
 	for _, item := range previous.URLs {
-		previousURLs[item] = struct{}{}
+		normalized, err := NormalizeURL(item, origin, "snapshot URL")
+		if err != nil {
+			ignored++
+			continue
+		}
+		previousURLs[normalized] = struct{}{}
+	}
+	if ignored > 0 {
+		slog.Warn("search snapshot excluded URLs outside current origin", "operation", "search-diff", "origin", origin, "count", ignored)
 	}
 	for _, item := range current.URLs {
-		currentURLs[item] = struct{}{}
+		normalized, err := NormalizeURL(item, origin, "inventory URL")
+		if err != nil {
+			return Diff{}, err
+		}
+		currentURLs[normalized] = struct{}{}
 	}
 
 	result := Diff{Mode: mode}

@@ -199,7 +199,7 @@ func (s *Server) submitGoogleSitemapsNative(ctx context.Context) (googleSitemaps
 	results, err := blogsearch.SubmitGoogleSitemaps(
 		ctx,
 		s.httpClient,
-		blogsearch.DefaultSiteOrigin+"/",
+		blogsearch.DefaultGoogleSiteURL(),
 		inventory.Origin,
 		accessToken,
 	)
@@ -260,7 +260,7 @@ func (s *Server) checkGoogleSearchConsoleNative(ctx context.Context) (map[string
 	return blogsearch.CheckGoogleSearchConsoleSite(
 		ctx,
 		s.httpClient,
-		blogsearch.DefaultSiteOrigin+"/",
+		blogsearch.DefaultGoogleSiteURL(),
 		accessToken,
 	)
 }

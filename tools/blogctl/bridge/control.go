@@ -629,7 +629,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			Health:      googleSearchConsoleAPIHealth(config),
 			Actions: []toolAction{{
 				ID: "check", Label: "检测配置",
-				Description: "交换 OAuth token，并验证 Service Account 能访问 https://thinkerqaq.com/ Search Console Property。",
+				Description: "交换 OAuth token，并验证 Service Account 能访问 sc-domain:thinkerqaq.com Search Console Property。",
 			}},
 			Config: toolConfigView{
 				Scope:  "bridge",

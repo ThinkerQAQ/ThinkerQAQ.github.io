@@ -162,6 +162,7 @@
     const requestPendingCount = requestStats.pending + requestStats.failed;
 
     setText(elements.source, inventory.source || "https://thinkerqaq.com/sitemap-all.txt");
+    if (elements.source) elements.source.href = inventory.source || "https://thinkerqaq.com/sitemap-all.txt";
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
     const fingerprintCoverage = Number(inventory.fingerprintCoverage || 0);
     const inventoryTotal = Number(inventory.total || 0);
@@ -194,6 +195,7 @@
     setText(elements.baiduDeletedCount, Number.isFinite(Number(baidu.deletedCount)) ? Number(baidu.deletedCount) : "-");
     setText(elements.baiduUnchangedCount, Number.isFinite(Number(baidu.unchangedCount)) ? Number(baidu.unchangedCount) : "-");
     setText(elements.baiduHTTP, baidu.httpStatus || (baidu.state === "completed" && Number(baidu.count || 0) === 0 ? "未请求" : "-"));
+    setText(elements.baiduError, baidu.error || "");
 
     setStatus(
       elements.googleCredentials,
@@ -208,6 +210,7 @@
     setStatus(elements.googleSitemapStatus, operationKind(sitemaps.state), operationLabel(sitemaps.state), sitemaps.error || "");
     setText(elements.googleSitemapFinishedAt, formatDate(sitemaps.finishedAt));
     setText(elements.googleSitemapCount, Number(sitemaps.count || 0) || "-");
+    setText(elements.googleSitemapError, sitemaps.error || "");
 
     setStatus(elements.googleInspectionStatus, operationKind(inspection.state), operationLabel(inspection.state), inspection.error || "");
     setText(elements.inspectionInspected, iStats.checked);
@@ -416,6 +419,7 @@
       indexNowSubmitIncremental: el("indexNowSubmitIncremental"),
       indexNowSubmitFull: el("indexNowSubmitFull"),
       baiduStatus: el("indexBaiduStatus"),
+      baiduError: el("indexBaiduError"),
       baiduFinishedAt: el("indexBaiduFinishedAt"),
       baiduMode: el("indexBaiduMode"),
       baiduCount: el("indexBaiduCount"),
@@ -428,6 +432,7 @@
       baiduSubmitFull: el("indexBaiduSubmitFull"),
       googleCredentials: el("indexGoogleCredentials"),
       googleSitemapStatus: el("indexGoogleSitemapStatus"),
+      googleSitemapError: el("indexGoogleSitemapError"),
       googleSitemapFinishedAt: el("indexGoogleSitemapFinishedAt"),
       googleSitemapCount: el("indexGoogleSitemapCount"),
       googleSitemaps: el("indexGoogleSitemaps"),

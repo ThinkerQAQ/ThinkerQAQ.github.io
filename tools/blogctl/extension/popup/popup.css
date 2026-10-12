@@ -590,19 +590,13 @@ input, select { min-height: 42px; font-size: 13px; }
 .index-engine-selector { gap: 10px; }
 .index-engine-selector .field { max-width: 420px; }
 [data-index-engine][hidden] { display: none !important; }
-.index-source-details { display: block; }
-.index-source-details > summary {
-  cursor: pointer;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 2px 0;
-}
-.index-source-details .index-source-body {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
-}
+.index-link-row { display: grid; gap: 4px; font-size: 12px; min-width: 0; }
+.index-link-row > span { color: #475569; font-weight: 600; }
+.index-link-row > a { color: #2563eb; overflow-wrap: anywhere; }
+.panel[data-panel="indexing"] .status-card,
+.panel[data-panel="indexing"] .index-subcard { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.panel[data-panel="indexing"] .status-row { flex-wrap: wrap; }
+.panel[data-panel="indexing"] .card-hint { overflow-wrap: anywhere; }
 [data-index-engine] .index-action-row,
 [data-index-engine] .index-subcard { margin-top: 4px; }
 

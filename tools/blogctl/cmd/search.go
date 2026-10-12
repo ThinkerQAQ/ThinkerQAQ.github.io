@@ -162,7 +162,7 @@ func searchSiteURL(args []string) (string, error) {
 	}
 	value = strings.TrimSpace(value)
 	if value == "" {
-		value = blogsearch.DefaultSiteOrigin + "/"
+		value = blogsearch.DefaultGoogleSiteURL()
 	}
 	return value, nil
 }
