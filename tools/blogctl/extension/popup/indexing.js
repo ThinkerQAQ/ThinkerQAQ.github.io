@@ -9,6 +9,7 @@
     busy: new Set(),
     pollTimer: null,
     inventoryRepairSignature: "",
+    renderDeferred: false,
   };
 
   let elements = {};
@@ -138,7 +139,15 @@
   }
 
   function setText(target, value) {
-    if (target) target.textContent = value;
+    const text = String(value);
+    if (target && target.textContent !== text) target.textContent = text;
+  }
+
+  function setLink(target, value) {
+    if (!target) return;
+    setText(target, value || "配置不可用");
+    if (value && target.getAttribute("href") !== value) target.href = value;
+    else if (!value && target.hasAttribute("href")) target.removeAttribute("href");
   }
 
   function setStatus(target, kind, text, detail = "") {
@@ -146,6 +155,15 @@
   }
 
   function render() {
+    // A native select owns a browser popup outside the document. Keep its
+    // anchor and surrounding layout stable until the user leaves the control.
+    // Polling and push events still update state, so blur paints the latest data.
+    if (document.activeElement === el("indexEngineFilter")) {
+      if (!state.renderDeferred) console.debug("[BlogCTL indexing] render deferred while engine selector is focused");
+      state.renderDeferred = true;
+      return;
+    }
+    state.renderDeferred = false;
     const index = state.index || {};
     const inventory = index.inventory || {};
     const indexNow = index.indexNow || {};
@@ -161,7 +179,13 @@
     const requestCandidateCount = requestStats.candidates;
     const requestPendingCount = requestStats.pending + requestStats.failed;
 
-    setText(elements.source, inventory.source || "https://thinkerqaq.com/sitemap-all.txt");
+    const site = index.site || {};
+    const consoles = index.consoleLinks || {};
+    setLink(elements.source, site.urlListURL);
+    setLink(elements.sitemap, site.sitemapURL);
+    setLink(elements.bingConsole, consoles.indexnow);
+    setLink(elements.baiduConsole, consoles.baidu);
+    setLink(elements.googleConsole, consoles.google);
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
     const fingerprintCoverage = Number(inventory.fingerprintCoverage || 0);
     const inventoryTotal = Number(inventory.total || 0);
@@ -194,6 +218,7 @@
     setText(elements.baiduDeletedCount, Number.isFinite(Number(baidu.deletedCount)) ? Number(baidu.deletedCount) : "-");
     setText(elements.baiduUnchangedCount, Number.isFinite(Number(baidu.unchangedCount)) ? Number(baidu.unchangedCount) : "-");
     setText(elements.baiduHTTP, baidu.httpStatus || (baidu.state === "completed" && Number(baidu.count || 0) === 0 ? "未请求" : "-"));
+    setText(elements.baiduError, baidu.error || "");
 
     setStatus(
       elements.googleCredentials,
@@ -208,6 +233,7 @@
     setStatus(elements.googleSitemapStatus, operationKind(sitemaps.state), operationLabel(sitemaps.state), sitemaps.error || "");
     setText(elements.googleSitemapFinishedAt, formatDate(sitemaps.finishedAt));
     setText(elements.googleSitemapCount, Number(sitemaps.count || 0) || "-");
+    setText(elements.googleSitemapError, sitemaps.error || "");
 
     setStatus(elements.googleInspectionStatus, operationKind(inspection.state), operationLabel(inspection.state), inspection.error || "");
     setText(elements.inspectionInspected, iStats.checked);
@@ -294,7 +320,8 @@
 
   async function refresh() {
     if (!state.active) return;
-    BlogCTLPopup.setMessage(elements.message);
+    const selectorFocused = () => document.activeElement === el("indexEngineFilter");
+    if (!selectorFocused()) BlogCTLPopup.setMessage(elements.message);
     try {
       const response = await BlogCTLPopup.send("blogctl.index.get");
       state.index = response.index || {};
@@ -311,10 +338,14 @@
         if (repaired.index) state.index = repaired.index;
       }
       render();
-      BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
+      if (!selectorFocused()) BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     } catch (error) {
-      BlogCTLPopup.setMessage(elements.message, BlogCTLPopup.errorMessage(error), "error");
-      BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
+      if (!selectorFocused()) {
+        BlogCTLPopup.setMessage(elements.message, BlogCTLPopup.errorMessage(error), "error");
+        BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
+      } else {
+        console.warn("[BlogCTL indexing] refresh failed while engine selector is focused", BlogCTLPopup.errorMessage(error));
+      }
     }
   }
 
@@ -400,6 +431,10 @@
     if (state.initialized) return;
     elements = {
       source: el("indexSource"),
+      sitemap: el("indexSitemap"),
+      bingConsole: el("indexBingConsole"),
+      baiduConsole: el("indexBaiduConsole"),
+      googleConsole: el("indexGoogleConsole"),
       inventoryTotal: el("indexInventoryTotal"),
       inventoryFingerprintCoverage: el("indexInventoryFingerprintCoverage"),
       inventoryFetchedAt: el("indexInventoryFetchedAt"),
@@ -416,6 +451,7 @@
       indexNowSubmitIncremental: el("indexNowSubmitIncremental"),
       indexNowSubmitFull: el("indexNowSubmitFull"),
       baiduStatus: el("indexBaiduStatus"),
+      baiduError: el("indexBaiduError"),
       baiduFinishedAt: el("indexBaiduFinishedAt"),
       baiduMode: el("indexBaiduMode"),
       baiduCount: el("indexBaiduCount"),
@@ -428,6 +464,7 @@
       baiduSubmitFull: el("indexBaiduSubmitFull"),
       googleCredentials: el("indexGoogleCredentials"),
       googleSitemapStatus: el("indexGoogleSitemapStatus"),
+      googleSitemapError: el("indexGoogleSitemapError"),
       googleSitemapFinishedAt: el("indexGoogleSitemapFinishedAt"),
       googleSitemapCount: el("indexGoogleSitemapCount"),
       googleSitemaps: el("indexGoogleSitemaps"),
@@ -472,6 +509,14 @@
       localStorage.setItem("blogctl.indexEngine", active);
     };
     engineFilter.addEventListener("change", applyEngineFilter);
+    engineFilter.addEventListener("blur", () => {
+      if (!state.active) return;
+      if (state.renderDeferred) {
+        console.debug("[BlogCTL indexing] applying deferred render after engine selector blur");
+        render();
+      }
+      refresh();
+    });
     applyEngineFilter();
 
     elements.refreshInventory.addEventListener("click", refreshInventory);

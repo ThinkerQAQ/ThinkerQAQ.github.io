@@ -10,15 +10,17 @@
 
   function setStatus(element, kind, text, detail = "") {
     if (!element) return;
-    element.className = `status ${kind}`;
-    element.textContent = text;
-    element.title = detail;
+    const className = `status ${kind}`;
+    if (element.className !== className) element.className = className;
+    if (element.textContent !== text) element.textContent = text;
+    if (element.title !== detail) element.title = detail;
   }
 
   function setMessage(element, text = "", type = "") {
     if (!element) return;
-    element.textContent = text;
-    element.className = `message${type ? ` ${type}` : ""}`;
+    const className = `message${type ? ` ${type}` : ""}`;
+    if (element.textContent !== text) element.textContent = text;
+    if (element.className !== className) element.className = className;
   }
 
   function formatTime(value) {
@@ -27,11 +29,23 @@
     return date.toLocaleTimeString(root.BlogCTLI18n?.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }
 
+  function versionLabel(value) {
+    return value ? `v${value}` : "版本未知";
+  }
+
   async function refreshBridgeIndicator(status) {
     const indicator = document.getElementById("bridgeIndicator");
+    const extensionVersion = document.getElementById("aboutExtensionVersion");
+    const bridgeVersion = document.getElementById("aboutBridgeVersion");
+    const aboutStatus = document.getElementById("aboutBridgeStatus");
+    const localVersion = root.chrome?.runtime?.getManifest?.()?.version || "";
+    if (extensionVersion && localVersion) extensionVersion.textContent = versionLabel(localVersion);
     try {
       const current = status || (await send("blogctl.status")).status;
+      if (document.activeElement?.id === "indexEngineFilter") return current;
       const bridge = current?.bridge ?? {};
+      if (extensionVersion) extensionVersion.textContent = versionLabel(bridge.extensionVersion || localVersion);
+      if (bridgeVersion) bridgeVersion.textContent = bridge.running ? versionLabel(bridge.bridgeVersion) : "未连接";
       if (bridge.running && bridge.compatible === false) {
         const versions = [
           bridge.extensionVersion ? `Extension v${bridge.extensionVersion}` : "",
@@ -44,9 +58,13 @@
       } else {
         setStatus(indicator, "error", "Bridge 未连接", bridge.error || "");
       }
+      setStatus(aboutStatus, bridge.running ? "ok" : "error", bridge.running ? "Bridge 已连接" : "Bridge 未连接", bridge.error || "");
       return current;
     } catch (error) {
       setStatus(indicator, "unknown", "Bridge 检测失败", errorMessage(error));
+      if (extensionVersion) extensionVersion.textContent = versionLabel(localVersion);
+      if (bridgeVersion) bridgeVersion.textContent = "版本未知";
+      setStatus(aboutStatus, "unknown", "Bridge 检测失败", errorMessage(error));
       throw error;
     }
   }

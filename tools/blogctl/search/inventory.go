@@ -360,7 +360,7 @@ func ReadURLFile(file, origin string) ([]string, error) {
 	return ParseURLList(string(data), origin)
 }
 
-func FetchRemoteInventory(ctx context.Context, client *http.Client, origin string) (Inventory, error) {
+func FetchRemoteInventory(ctx context.Context, client *http.Client, origin string, configured ...SiteConfig) (Inventory, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -368,8 +368,22 @@ func FetchRemoteInventory(ctx context.Context, client *http.Client, origin strin
 	if err != nil {
 		return Inventory{}, err
 	}
-	source := origin + "/" + DefaultTextSitemap
-	fingerprintSource := origin + "/" + DefaultFingerprintManifest
+	site := DefaultSiteConfig(origin)
+	if len(configured) > 1 {
+		return Inventory{}, errors.New("exactly one search site configuration is allowed")
+	}
+	if len(configured) == 1 {
+		site = configured[0]
+	}
+	site, err = NormalizeSiteConfig(site)
+	if err != nil {
+		return Inventory{}, err
+	}
+	if site.Origin != origin {
+		return Inventory{}, errors.New("search site configuration must match inventory origin")
+	}
+	source := site.URLListURL
+	fingerprintSource := site.FingerprintURL
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
 	if err != nil {
@@ -399,7 +413,7 @@ func FetchRemoteInventory(ctx context.Context, client *http.Client, origin strin
 	fingerprints := map[string]string{}
 	resolvedFingerprintSource := ""
 	fingerprintRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, fingerprintSource, nil)
-	if err == nil {
+	if fingerprintSource != "" && err == nil {
 		fingerprintRequest.Header.Set("accept", "application/json,*/*;q=0.8")
 		if fingerprintResponse, requestErr := client.Do(fingerprintRequest); requestErr == nil {
 			payload, payloadErr := io.ReadAll(io.LimitReader(fingerprintResponse.Body, 32<<20))

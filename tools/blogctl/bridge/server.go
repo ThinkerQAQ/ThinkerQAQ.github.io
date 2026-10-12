@@ -198,7 +198,15 @@ func New(token string) (*Server, error) {
 	if token == "" {
 		return nil, errors.New("bridge token is required")
 	}
-	config := loadBridgeConfig()
+	config, err := loadBridgeConfigChecked()
+	if err != nil {
+		return nil, err
+	}
+	if err := persistSearchConfigMigration(config); err != nil {
+		return nil, err
+	}
+	configPath, _ := ConfigPath()
+	slog.Info("search site configuration loaded", "operation", "search-config-load", "source", configPath, "origin", config.Search.Origin, "urlListURL", config.Search.URLListURL, "sitemapURL", config.Search.SitemapURL, "googleProperty", config.Search.GoogleProperty)
 	client, err := httpClientForConfig(config)
 	if err != nil {
 		return nil, err
@@ -947,6 +955,26 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 	if _, ok := allowExtensionWrite(response, request); !ok {
 		return
 	}
+	if name == "search-site" {
+		if !s.searchMu.TryLock() {
+			writeAPIError(response, http.StatusConflict, "search_tasks_active", "请先等待索引任务完成，再修改站点配置", nil)
+			return
+		}
+		defer s.searchMu.Unlock()
+		s.mu.Lock()
+		active := false
+		for _, job := range s.taskJobs {
+			if job.Kind == "search" && (job.State == "running" || job.State == "queued") {
+				active = true
+				break
+			}
+		}
+		s.mu.Unlock()
+		if active {
+			writeAPIError(response, http.StatusConflict, "search_tasks_active", "请先等待索引任务完成，再修改站点配置", nil)
+			return
+		}
+	}
 	var body toolConfigRequest
 	if err := readJSON(request, 128*1024, &body); err != nil {
 		writeError(response, err)
@@ -982,6 +1010,9 @@ func (s *Server) handleToolConfigPut(response http.ResponseWriter, request *http
 	s.config = normalized
 	s.httpClient = client
 	s.mu.Unlock()
+	if name == "search-site" {
+		slog.Info("search site configuration saved", "operation", "search-config-save", "origin", normalized.Search.Origin, "urlListURL", normalized.Search.URLListURL, "sitemapURL", normalized.Search.SitemapURL, "googleProperty", normalized.Search.GoogleProperty)
+	}
 	if name == "logging" {
 		path, _ := resolvedLogFilePath(normalized)
 		slog.Info("logging configuration updated", "operation", "logging-config", "level", normalized.LogLevel, "path", path)
@@ -1035,7 +1066,10 @@ func (s *Server) handlePublishingPut(response http.ResponseWriter, request *http
 }
 
 func (s *Server) refreshSyncConfig() error {
-	config := loadBridgeConfig()
+	config, err := loadBridgeConfigChecked()
+	if err != nil {
+		return err
+	}
 	client, err := httpClientForConfig(config)
 	if err != nil {
 		return err

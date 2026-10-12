@@ -1,24 +1,20 @@
-# BlogCTL v0.1.150
+# BlogCTL v0.1.153
 
-Native browser registration is now built into the BlogCTL executable.
+Search indexing now uses one saved site configuration across the Extension, Bridge and CLI.
 
-- Added `blogctl install` and `blogctl uninstall` on Windows, Linux and macOS.
-- Removed the six standalone Install/Uninstall scripts from the repository and release archives.
-- On Windows, `install` registers the Chrome and Edge Native Messaging host under the current user and writes the host manifest beside the executable in `Data/`.
-- On Linux and macOS, `install` manages Chrome, Chromium and Edge Native Messaging manifests in the user profile.
-- `uninstall` removes the host registration without deleting downloads, user configuration or the browser extension.
-- Refreshed English and Chinese setup guides and added isolated install/uninstall checks.
+- Added Settings → Search engines → Indexing site and URLs for the site origin, TXT URL list, XML Sitemap, optional content fingerprint inventory and Google Search Console property. These values persist in the `[search]` section of `blogctl.toml`.
+- The index page displays shared TXT/XML links above the engine selector and provides direct Bing, Baidu and Google console links derived from the configured site.
+- IndexNow, Baidu and Google operations consume the same configuration. Foreign-domain resources, incompatible Google properties and retries of tasks created with an older site configuration are rejected before submission.
+- Improved Baidu quota error reporting without advancing the successful submission snapshot on failure.
+- Added Settings → About with the actual Extension and running Bridge versions.
+- Deferred index page rendering while the engine selector has focus, preserving the native dropdown during polling; the latest state appears when focus leaves the control.
 
 ## Upgrade
 
-Download the matching BlogCTL v0.1.150 executable and the extension archive. Preserve the existing `Data/` directory and place the binary in its intended installed location. Then run:
+Replace the executable and extension files together, preserve the existing `Data/` directory, then reload the unpacked Extension. Existing installations automatically gain the `[search]` section; other settings and credentials remain intact. Review the configured Google property and grant the service account access to that property if required.
 
-```text
-blogctl install
-```
+Changing the indexing site configuration does not change DNS, deploy the website or migrate its canonical URLs. Baidu submissions remain subject to the provider's available quota.
 
-On Windows, invoke the actual file (for example `blogctl-windows-amd64.exe install`); Linux/macOS use their matching executable names. Reload the unpacked Extension. To unregister later, use the same executable with `uninstall`.
+## Validation
 
-No migration of `blogctl.toml`, sessions or other user data is required.
-
-[English setup guide](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/blob/main/tools/blogctl/docs/tutorial/first-run-on-new-machine.md) · [中文入门教程](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/blob/main/tools/blogctl/docs/zh-CN/tutorial/first-run-on-new-machine.md)
+Native BlogCTL build, extension JavaScript checks and the fixture site build passed. Isolated API integration probes verified configuration persistence across restart, migration, provider request targets, foreign-domain rejection, stale-task rejection and configuration changes blocked during active indexing jobs. Browser preview checks verified dropdown stability across polling and filtering after selection. Real Baidu submissions were not retried as part of verification.

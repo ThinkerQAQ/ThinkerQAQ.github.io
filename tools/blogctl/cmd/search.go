@@ -156,26 +156,33 @@ func (a app) runSearchInventory(args []string) error {
 }
 
 func searchSiteURL(args []string) (string, error) {
+	config, err := blogbridge.ResolvedSearchRuntimeConfig()
+	if err != nil {
+		return "", err
+	}
 	value, err := searchOption(args, "--site-url", "")
 	if err != nil {
 		return "", err
 	}
 	value = strings.TrimSpace(value)
 	if value == "" {
-		value = blogsearch.DefaultSiteOrigin + "/"
+		value = config.Site.GoogleProperty
+	}
+	if value != config.Site.GoogleProperty {
+		return "", errors.New("--site-url must match search.google_property in blogctl.toml")
 	}
 	return value, nil
 }
 
 func searchOrigin(siteURL string) (string, error) {
-	if strings.HasPrefix(siteURL, "sc-domain:") {
-		host := strings.TrimSpace(strings.TrimPrefix(siteURL, "sc-domain:"))
-		if host == "" {
-			return "", errors.New("invalid Search Console domain property")
-		}
-		return blogsearch.NormalizeOrigin("https://" + strings.TrimSuffix(host, "/"))
+	config, err := blogbridge.ResolvedSearchRuntimeConfig()
+	if err != nil {
+		return "", err
 	}
-	return blogsearch.NormalizeOrigin(siteURL)
+	if siteURL != config.Site.GoogleProperty {
+		return "", errors.New("Search Console property must match search.google_property")
+	}
+	return config.Site.Origin, nil
 }
 
 func searchURLs(args []string, origin, distRoot string) ([]string, error) {
@@ -242,7 +249,10 @@ func (a app) runSearchSubmit(args []string) error {
 
 	client := &http.Client{Timeout: 45 * time.Second}
 	ctx := context.Background()
-	localConfig := blogbridge.ResolvedSearchRuntimeConfig()
+	localConfig, err := blogbridge.ResolvedSearchRuntimeConfig()
+	if err != nil {
+		return err
+	}
 
 	if containsString(providers, "indexnow") {
 		config, err := blogsearch.ResolveIndexNowConfig(
@@ -268,7 +278,7 @@ func (a app) runSearchSubmit(args []string) error {
 		if token == "" {
 			return errors.New("Baidu token is required in blogctl.toml for Baidu submission")
 		}
-		site := strings.TrimSpace(localConfig.BaiduSite)
+		site := localConfig.Site.Origin
 		config, err := blogsearch.ResolveBaiduConfig(origin, site, token)
 		if err != nil {
 			return err
@@ -292,7 +302,7 @@ func (a app) runSearchSubmit(args []string) error {
 		if accessToken == "" {
 			fmt.Fprintln(a.out, "[search:google] skipped: Google service account is not configured in blogctl.toml")
 		} else {
-			results, err := blogsearch.SubmitGoogleSitemaps(ctx, client, siteURL, origin, accessToken)
+			results, err := blogsearch.SubmitGoogleSitemaps(ctx, client, siteURL, origin, accessToken, localConfig.Site.SitemapURL, localConfig.Site.URLListURL)
 			if err != nil {
 				return err
 			}
@@ -409,7 +419,10 @@ func (a app) runSearchAudit(args []string) error {
 
 	client := &http.Client{Timeout: 45 * time.Second}
 	ctx := context.Background()
-	localConfig := blogbridge.ResolvedSearchRuntimeConfig()
+	localConfig, err := blogbridge.ResolvedSearchRuntimeConfig()
+	if err != nil {
+		return err
+	}
 	serviceAccount, err := googleServiceAccountForCLI(args, localConfig.GoogleServiceAccountJSON)
 	if err != nil {
 		return err
@@ -468,7 +481,11 @@ func (a app) runSearchNotify(args []string) error {
 	if err != nil {
 		return err
 	}
-	inventory, err := blogsearch.FetchRemoteInventory(context.Background(), &http.Client{Timeout: 45 * time.Second}, origin)
+	config, err := blogbridge.ResolvedSearchRuntimeConfig()
+	if err != nil {
+		return err
+	}
+	inventory, err := blogsearch.FetchRemoteInventory(context.Background(), &http.Client{Timeout: 45 * time.Second}, origin, config.Site)
 	if err != nil {
 		return err
 	}

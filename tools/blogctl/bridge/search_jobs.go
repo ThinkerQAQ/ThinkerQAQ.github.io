@@ -14,13 +14,15 @@ import (
 )
 
 type searchSubmissionTaskPayload struct {
-	Mode string `json:"mode"`
+	Mode string                 `json:"mode"`
+	Site *blogsearch.SiteConfig `json:"site,omitempty"`
 }
 
 type googleInspectionTaskPayload struct {
-	Offset int  `json:"offset"`
-	Limit  int  `json:"limit"`
-	Done   bool `json:"done,omitempty"`
+	Site   *blogsearch.SiteConfig `json:"site,omitempty"`
+	Offset int                    `json:"offset"`
+	Limit  int                    `json:"limit"`
+	Done   bool                   `json:"done,omitempty"`
 }
 
 func reconcileRecoveredGoogleInspectionPayload(payload googleInspectionTaskPayload, inspection searchInspectionState) googleInspectionTaskPayload {
@@ -135,6 +137,24 @@ func (s *Server) launchSearchTaskJob(jobID string) {
 		}
 		s.searchMu.Lock()
 		defer s.searchMu.Unlock()
+		var binding struct {
+			Site *blogsearch.SiteConfig `json:"site"`
+		}
+		if err := json.Unmarshal(job.Payload, &binding); err != nil {
+			s.failDurableTask(jobID, err)
+			return
+		}
+		if binding.Site != nil && *binding.Site != s.searchSite() {
+			s.failDurableTask(jobID, errors.New("索引站点配置已变更；请创建新任务，旧任务不会按新站点重放"))
+			return
+		}
+		if binding.Site == nil {
+			previous := loadSearchIndexState()
+			if previous.Inventory.Origin != "" && previous.Inventory.Origin != s.searchSite().Origin {
+				s.failDurableTask(jobID, errors.New("旧索引任务属于其他站点；请创建新任务"))
+				return
+			}
+		}
 		if _, err := s.markDurableTaskRunning(jobID); err != nil {
 			slog.Error("task start failed", "jobId", jobID, "taskType", job.Type, "error", err.Error())
 			return
@@ -173,7 +193,7 @@ func (s *Server) executeIndexNowTask(ctx context.Context, jobID string, rawPaylo
 		return errors.New("IndexNow submission mode must be incremental or full")
 	}
 
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	started := s.now().UTC()
 	state.IndexNow = searchOperationState{
 		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
@@ -241,7 +261,7 @@ func (s *Server) executeBaiduIndexTask(ctx context.Context, jobID string, rawPay
 		return errors.New("Baidu submission mode must be incremental or full")
 	}
 
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	started := s.now().UTC()
 	state.Baidu = searchOperationState{
 		State: "running", Mode: input.Mode, StartedAt: started.Format(time.RFC3339),
@@ -312,7 +332,7 @@ func (s *Server) executeBaiduIndexTask(ctx context.Context, jobID string, rawPay
 }
 
 func (s *Server) executeGoogleSitemapsTask(ctx context.Context, jobID string) error {
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	started := s.now().UTC()
 	state.Google.Sitemaps = searchOperationState{State: "running", StartedAt: started.Format(time.RFC3339)}
 	_ = saveSearchIndexState(state)
@@ -361,7 +381,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		input.Done = true
 	}
 	if input.Done {
-		state := loadSearchIndexState()
+		state := s.loadSearchState()
 		state.Google.Inspection.State = "completed"
 		state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		state.Google.Inspection.Offset = input.Offset
@@ -392,7 +412,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		)
 	}
 
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	started := s.now().UTC()
 	if state.Google.Inspection.StartedAt == "" {
 		state.Google.Inspection.StartedAt = started.Format(time.RFC3339)
@@ -408,7 +428,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	if err != nil {
 		return err
 	}
-	state = loadSearchIndexState()
+	state = s.loadSearchState()
 	reconcileInspectionInventory(&state.Google.Inspection, inventory)
 	state.Inventory = compactSearchInventory(inventory)
 	state.Google.Inspection.State = "running"
@@ -459,7 +479,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		ctx,
 		s.httpClient,
 		inventory.URLs,
-		blogsearch.DefaultSiteOrigin+"/",
+		s.searchSite().GoogleProperty,
 		inventory.Origin,
 		accessToken,
 		input.Offset,
@@ -498,7 +518,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 				result := coreInspectionResult(*event.Result)
 				result.CheckedAt = s.now().UTC().Format(time.RFC3339)
 
-				currentState := loadSearchIndexState()
+				currentState := s.loadSearchState()
 				currentState.Google.Inspection.Results = mergeInspectionResults(
 					currentState.Google.Inspection.Results,
 					[]searchInspectionResult{result},
@@ -520,6 +540,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 				nextOffset := input.Offset + event.Inspected
 				remainingBatch := max(0, input.Limit-event.Inspected)
 				nextPayload, _ := json.Marshal(googleInspectionTaskPayload{
+					Site:   input.Site,
 					Offset: nextOffset,
 					Limit:  remainingBatch,
 					Done:   remainingBatch == 0,
@@ -562,7 +583,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 		},
 	)
 	if err != nil {
-		state = loadSearchIndexState()
+		state = s.loadSearchState()
 		if googleInspectionQuotaExceeded(err) {
 			message := googleInspectionQuotaMessage()
 			state.Google.Inspection.State = "quota_blocked"
@@ -597,7 +618,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 	if report.Inspected == 0 && input.Offset < report.TotalAvailable {
 		return errors.New("Google URL Inspection returned no progress")
 	}
-	state = loadSearchIndexState()
+	state = s.loadSearchState()
 	state.Google.Inspection.State = "completed"
 	state.Google.Inspection.FinishedAt = s.now().UTC().Format(time.RFC3339)
 	state.Google.Inspection.Total = report.TotalAvailable
@@ -625,6 +646,7 @@ func (s *Server) executeGoogleInspectionTask(ctx context.Context, jobID string, 
 }
 
 func (s *Server) startIndexNowTask(mode string) (*durableTaskJob, error) {
+	site := s.searchSite()
 	mode = strings.TrimSpace(mode)
 	if mode == "" {
 		mode = "incremental"
@@ -637,7 +659,7 @@ func (s *Server) startIndexNowTask(mode string) (*durableTaskJob, error) {
 		title = "IndexNow 全量提交"
 	}
 	job, err := s.createDurableTaskJob(
-		"indexnow-submit", title, searchSubmissionTaskPayload{Mode: mode},
+		"indexnow-submit", title, searchSubmissionTaskPayload{Mode: mode, Site: &site},
 		taskProgress{Unit: "URL", Message: "等待执行"},
 		taskCapabilities(true, false, false),
 	)
@@ -649,6 +671,7 @@ func (s *Server) startIndexNowTask(mode string) (*durableTaskJob, error) {
 }
 
 func (s *Server) startBaiduIndexTask(mode string) (*durableTaskJob, error) {
+	site := s.searchSite()
 	mode = strings.TrimSpace(mode)
 	if mode == "" {
 		mode = "incremental"
@@ -664,7 +687,7 @@ func (s *Server) startBaiduIndexTask(mode string) (*durableTaskJob, error) {
 		title = "Baidu 全量索引"
 	}
 	job, err := s.createDurableTaskJob(
-		"baidu-submit", title, searchSubmissionTaskPayload{Mode: mode},
+		"baidu-submit", title, searchSubmissionTaskPayload{Mode: mode, Site: &site},
 		taskProgress{Unit: "URL", Message: "等待执行"},
 		taskCapabilities(true, false, false),
 	)
@@ -677,7 +700,7 @@ func (s *Server) startBaiduIndexTask(mode string) (*durableTaskJob, error) {
 
 func (s *Server) startGoogleSitemapsTask() (*durableTaskJob, error) {
 	job, err := s.createDurableTaskJob(
-		"google-sitemaps", "Google Sitemap 提交", map[string]any{},
+		"google-sitemaps", "Google Sitemap 提交", map[string]any{"site": s.searchSite()},
 		taskProgress{Total: 2, Unit: "sitemap", Message: "等待执行"},
 		taskCapabilities(true, false, false),
 	)
@@ -689,20 +712,21 @@ func (s *Server) startGoogleSitemapsTask() (*durableTaskJob, error) {
 }
 
 func (s *Server) startGoogleInspectionTask(offset, limit int) (*durableTaskJob, error) {
+	site := s.searchSite()
 	if limit == 0 {
 		limit = 2000
 	}
 	if offset < 0 || limit < 1 || limit > 2000 {
 		return nil, errors.New("Google inspection requires offset >= 0 and 1 <= limit <= 2000")
 	}
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	total := state.Inventory.Total
 	if total <= 0 {
 		total = offset + limit
 	}
 	job, err := s.createDurableTaskJob(
 		"google-inspection", "Google URL Inspection",
-		googleInspectionTaskPayload{Offset: offset, Limit: limit},
+		googleInspectionTaskPayload{Offset: offset, Limit: limit, Site: &site},
 		taskProgress{Current: min(offset, total), Total: total, Unit: "URL", Message: "等待执行"},
 		taskCapabilities(true, false, false),
 	)
@@ -818,7 +842,7 @@ func (s *Server) pauseSearchTaskJob(job *durableTaskJob) (*durableTaskJob, error
 	if job == nil || job.Type != "google-request-indexing" {
 		return nil, errors.New("this task does not support pause")
 	}
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	queue := &state.Google.RequestQueue
 	if queue.JobID != job.ID {
 		return nil, errors.New("request-indexing task is no longer active")
@@ -835,7 +859,7 @@ func (s *Server) resumeSearchTaskJob(job *durableTaskJob) (*durableTaskJob, erro
 	if job == nil || job.Type != "google-request-indexing" {
 		return nil, errors.New("this task does not support resume")
 	}
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	queue := &state.Google.RequestQueue
 	if queue.JobID != job.ID {
 		return nil, errors.New("request-indexing task is no longer active")
@@ -873,7 +897,7 @@ func (s *Server) ensureGoogleRequestTask(queue *googleIndexRequestQueue) (*durab
 		}
 	}
 	job, err := s.createDurableTaskJob(
-		"google-request-indexing", "Google Request Indexing", map[string]any{},
+		"google-request-indexing", "Google Request Indexing", map[string]any{"site": s.searchSite()},
 		taskProgress{Current: queue.CurrentIndex, Total: len(queue.Items), Unit: "URL", Message: "等待浏览器执行"},
 		taskCapabilities(false, true, true),
 	)
@@ -950,7 +974,7 @@ func (s *Server) updateGoogleRequestTaskFromQueue(queue googleIndexRequestQueue)
 }
 
 func recoverSearchTasksAfterRestart(s *Server) {
-	state := loadSearchIndexState()
+	state := s.loadSearchState()
 	queue := &state.Google.RequestQueue
 	queueChanged := false
 	if queue.State == "running" {

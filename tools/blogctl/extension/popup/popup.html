@@ -150,6 +150,23 @@
 
 
     <section class="panel" role="tabpanel" data-panel="indexing">
+      <section class="status-card index-source-details">
+        <div class="status-row">
+          <div>
+            <div class="section-title">索引 URL（所有引擎共用）</div>
+            <p class="card-hint">TXT URL 清单和 XML Sitemap 供所有搜索引擎使用。</p>
+          </div>
+          <button id="indexRefreshInventory" class="secondary compact" type="button">刷新 URL</button>
+        </div>
+        <div class="index-link-row"><span>TXT URL 清单</span><a id="indexSource" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <div class="index-link-row"><span>XML Sitemap</span><a id="indexSitemap" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <p class="card-hint">在「设置 → 搜索引擎 → 索引站点与 URL」中配置。</p>
+        <div class="index-stat-grid">
+          <div><span>URL 总数</span><strong id="indexInventoryTotal">-</strong></div>
+          <div><span>内容指纹</span><strong id="indexInventoryFingerprintCoverage">-</strong></div>
+          <div><span>最后刷新</span><strong id="indexInventoryFetchedAt">-</strong></div>
+        </div>
+      </section>
       <section class="status-card index-engine-selector">
         <div class="section-title">搜索引擎</div>
         <p class="card-hint">选择引擎后查看对应的索引状态、统计和操作。</p>
@@ -163,24 +180,6 @@
         </label>
       </section>
 
-      <details class="status-card index-source-details">
-        <summary>URL 来源与总量</summary>
-        <div class="index-source-body">
-        <div class="status-row">
-          <div>
-            <div class="section-title">URL 来源</div>
-            <p class="card-hint"><code id="indexSource">https://thinkerqaq.com/sitemap-all.txt</code></p>
-          </div>
-          <button id="indexRefreshInventory" class="secondary compact" type="button">刷新 URL</button>
-        </div>
-        <div class="index-stat-grid">
-          <div><span>URL 总数</span><strong id="indexInventoryTotal">-</strong></div>
-          <div><span>内容指纹</span><strong id="indexInventoryFingerprintCoverage">-</strong></div>
-          <div><span>最后刷新</span><strong id="indexInventoryFetchedAt">-</strong></div>
-        </div>
-        </div>
-      </details>
-
       <section class="status-card" data-index-engine="indexnow">
         <div class="status-row">
           <div>
@@ -189,6 +188,7 @@
           </div>
           <strong id="indexNowStatus" class="status disabled">未运行</strong>
         </div>
+        <div class="index-link-row"><span>Bing 控制台</span><a id="indexBingConsole" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
         <div class="index-stat-grid">
           <div><span>上次提交</span><strong id="indexNowFinishedAt">-</strong></div>
           <div><span>模式</span><strong id="indexNowMode">-</strong></div>
@@ -213,6 +213,8 @@
           </div>
           <strong id="indexBaiduStatus" class="status disabled">未运行</strong>
         </div>
+        <div class="index-link-row"><span>百度控制台</span><a id="indexBaiduConsole" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <p id="indexBaiduError" class="card-hint" role="status"></p>
         <div class="index-stat-grid">
           <div><span>上次提交</span><strong id="indexBaiduFinishedAt">-</strong></div>
           <div><span>模式</span><strong id="indexBaiduMode">-</strong></div>
@@ -237,12 +239,13 @@
           </div>
           <strong id="indexGoogleCredentials" class="status disabled">凭据未知</strong>
         </div>
+        <div class="index-link-row"><span>Google 控制台</span><a id="indexGoogleConsole" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
 
         <div class="index-subcard">
           <div class="status-row">
             <div>
               <strong>Sitemap</strong>
-              <p class="card-hint"><code>sitemap-index.xml</code> + <code>sitemap-all.txt</code> 始终同时提交。</p>
+              <p class="card-hint">始终提交配置中的 XML Sitemap 和 TXT URL 清单。</p>
             </div>
             <strong id="indexGoogleSitemapStatus" class="status disabled">未运行</strong>
           </div>
@@ -251,6 +254,7 @@
             <div><span>提交数量</span><strong id="indexGoogleSitemapCount">-</strong></div>
           </div>
           <button id="indexGoogleSitemaps" class="secondary full-width" type="button">重新提交两个 Sitemap</button>
+          <p id="indexGoogleSitemapError" class="card-hint" role="status"></p>
         </div>
 
         <div class="index-subcard">
@@ -433,6 +437,11 @@
         </details>
 
         <div id="environmentDependencyTools" class="tool-list"></div>
+        <div id="environmentAbout" class="tool-card">
+          <div class="status-row"><span>Extension 版本</span><code id="aboutExtensionVersion">正在读取…</code></div>
+          <div class="status-row"><span>Bridge 版本</span><code id="aboutBridgeVersion">正在读取…</code></div>
+          <div class="status-row"><span>连接状态</span><strong id="aboutBridgeStatus" class="status checking">Bridge 检测中</strong></div>
+        </div>
       </section>
       <p id="environmentMessage" class="message" role="status"></p>
     </section>

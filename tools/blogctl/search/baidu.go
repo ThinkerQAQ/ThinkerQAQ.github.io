@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -95,21 +97,25 @@ func SubmitBaidu(ctx context.Context, client *http.Client, urls []string, config
 	}
 	sort.Strings(ordered)
 
-	result := BaiduResult{URLCount: len(ordered), Complete: true}
+	result := BaiduResult{Complete: true}
 	for start := 0; start < len(ordered); start += MaxBaiduURLs {
 		end := minInt(start+MaxBaiduURLs, len(ordered))
 		batch, err := submitBaiduBatch(ctx, client, ordered[start:end], config)
-		if err != nil {
-			return result, err
+		if batch.Submitted > 0 {
+			result.Results = append(result.Results, batch)
 		}
-		result.Results = append(result.Results, batch)
+		result.URLCount += batch.Submitted
+		result.BatchCount = len(result.Results)
 		result.SuccessCount += batch.Success
 		result.Remain = batch.Remain
+		if err != nil {
+			result.Complete = false
+			return result, err
+		}
 		if !batch.Complete {
 			result.Complete = false
 		}
 	}
-	result.BatchCount = len(result.Results)
 	if !result.Complete {
 		return result, fmt.Errorf("Baidu accepted %d of %d submitted URLs; snapshot was not advanced because accepted URLs are ambiguous", result.SuccessCount, result.URLCount)
 	}
@@ -117,6 +123,7 @@ func SubmitBaidu(ctx context.Context, client *http.Client, urls []string, config
 }
 
 func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, config BaiduConfig) (BaiduBatchResult, error) {
+	started := time.Now()
 	endpointValue := strings.TrimSpace(config.Endpoint)
 	if endpointValue == "" {
 		endpointValue = BaiduSubmitEndpoint
@@ -140,17 +147,25 @@ func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, c
 		return BaiduBatchResult{}, err
 	}
 	request.Header.Set("content-type", "text/plain")
+	result := BaiduBatchResult{Submitted: len(urls)}
+	slog.Info("Baidu submission started", "operation", "baidu-submit", "site", siteURL.Hostname(), "count", len(urls))
 	response, err := client.Do(request)
 	if err != nil {
-		return BaiduBatchResult{}, fmt.Errorf("Baidu submit request failed: %s", redactBaiduResponse(err.Error(), config.Token))
+		slog.Warn("Baidu submission transport failed", "operation", "baidu-submit", "site", siteURL.Hostname(), "durationMs", time.Since(started).Milliseconds())
+		return result, fmt.Errorf("Baidu submit request failed: %s", redactBaiduResponse(err.Error(), config.Token))
 	}
+	result.HTTPStatus = response.StatusCode
 	payload, readErr := io.ReadAll(io.LimitReader(response.Body, 2<<20))
 	response.Body.Close()
 	if readErr != nil {
-		return BaiduBatchResult{}, readErr
+		return result, readErr
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return BaiduBatchResult{}, fmt.Errorf("Baidu submit returned HTTP %d: %s", response.StatusCode, redactBaiduResponse(string(payload), config.Token))
+		slog.Warn("Baidu submission rejected", "operation", "baidu-submit", "site", siteURL.Hostname(), "httpStatus", response.StatusCode, "count", len(urls), "durationMs", time.Since(started).Milliseconds())
+		if strings.Contains(strings.ToLower(string(payload)), "over quota") {
+			return result, fmt.Errorf("Baidu submit returned HTTP %d: over quota; the current batch exceeds the available submission quota. Check the quota for %s in Baidu Search Resource; the submission snapshot was not advanced", response.StatusCode, siteURL.Hostname())
+		}
+		return result, fmt.Errorf("Baidu submit returned HTTP %d: %s", response.StatusCode, redactBaiduResponse(string(payload), config.Token))
 	}
 
 	var decoded struct {
@@ -162,20 +177,17 @@ func submitBaiduBatch(ctx context.Context, client *http.Client, urls []string, c
 		Error       int      `json:"error"`
 	}
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return BaiduBatchResult{}, fmt.Errorf("decode Baidu response: %w", err)
+		return result, fmt.Errorf("decode Baidu response: %w", err)
 	}
 	if decoded.Error != 0 {
-		return BaiduBatchResult{}, fmt.Errorf("Baidu submit error %d: %s", decoded.Error, redactBaiduResponse(decoded.Message, config.Token))
+		return result, fmt.Errorf("Baidu submit error %d: %s", decoded.Error, redactBaiduResponse(decoded.Message, config.Token))
 	}
-	result := BaiduBatchResult{
-		HTTPStatus:  response.StatusCode,
-		Submitted:   len(urls),
-		Success:     decoded.Success,
-		Remain:      decoded.Remain,
-		NotSameSite: decoded.NotSameSite,
-		NotValid:    decoded.NotValid,
-	}
+	result.Success = decoded.Success
+	result.Remain = decoded.Remain
+	result.NotSameSite = decoded.NotSameSite
+	result.NotValid = decoded.NotValid
 	result.Complete = decoded.Success == len(urls)
+	slog.Info("Baidu submission completed", "operation", "baidu-submit", "site", siteURL.Hostname(), "httpStatus", result.HTTPStatus, "submitted", result.Submitted, "accepted", result.Success, "remain", result.Remain, "durationMs", time.Since(started).Milliseconds())
 	return result, nil
 }
 
