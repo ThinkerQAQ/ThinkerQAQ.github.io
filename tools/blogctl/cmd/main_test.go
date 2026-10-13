@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -49,18 +50,29 @@ func TestNPMInvocationRunsNPMDirectlyOnUnix(t *testing.T) {
 }
 
 func TestSearchOrigin(t *testing.T) {
-	tests := map[string]string{
-		"https://thinkerqaq.com/":  "https://thinkerqaq.com",
-		"sc-domain:thinkerqaq.com": "https://thinkerqaq.com",
-	}
-	for input, want := range tests {
-		got, err := searchOrigin(input)
-		if err != nil {
-			t.Fatalf("searchOrigin(%q): %v", input, err)
-		}
-		if got != want {
-			t.Fatalf("searchOrigin(%q) = %q, want %q", input, got, want)
-		}
+	for _, property := range []string{"sc-domain:configured.example", "https://configured.example/"} {
+		t.Run(property, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("BLOGCTL_DATA_DIR", dir)
+			config := "[search]\nsite_origin = 'https://configured.example'\nurl_list_url = 'https://configured.example/sitemap-all.txt'\nsitemap_url = 'https://configured.example/sitemap-index.xml'\ngoogle_property = '" + property + "'\n"
+			if err := os.WriteFile(filepath.Join(dir, "blogctl.toml"), []byte(config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			selected, err := searchSiteURL(nil)
+			if err != nil || selected != property {
+				t.Fatalf("configured selection = %q, err=%v", selected, err)
+			}
+			got, err := searchOrigin(selected)
+			if err != nil || got != "https://configured.example" {
+				t.Fatalf("searchOrigin(%q) = %q, err=%v", selected, got, err)
+			}
+			if _, err := searchOrigin("sc-domain:other.example"); err == nil {
+				t.Fatal("expected unconfigured property to be rejected")
+			}
+			if _, err := searchSiteURL([]string{"--site-url", "sc-domain:other.example"}); err == nil {
+				t.Fatal("expected unconfigured CLI selection to be rejected")
+			}
+		})
 	}
 }
 

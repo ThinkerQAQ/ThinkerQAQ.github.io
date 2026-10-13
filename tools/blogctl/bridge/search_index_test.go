@@ -330,8 +330,8 @@ func TestReconcileRecoveredGoogleInspectionPayloadUsesPersistedProgress(t *testi
 func TestLatestDurableSearchTaskReturnsNewest(t *testing.T) {
 	server := &Server{
 		taskJobs: map[string]*durableTaskJob{
-			"new": {ID: "new", Kind: "search", Type: "google-inspection"},
-			"old": {ID: "old", Kind: "search", Type: "google-inspection"},
+			"new": {ID: "new", Kind: "search", Type: "google-inspection", Payload: json.RawMessage(`{"offset":0,"limit":12}`)},
+			"old": {ID: "old", Kind: "search", Type: "google-inspection", Payload: json.RawMessage(`{"offset":12,"limit":12}`)},
 		},
 		taskJobOrder: []string{"new", "old"},
 	}
@@ -366,6 +366,8 @@ func TestNormalizeRecoveredGoogleInspectionQueuesResume(t *testing.T) {
 
 func TestSearchIndexDropsOldSiteStateAfterDomainMigration(t *testing.T) {
 	useIsolatedUserConfigDir(t)
+	site := blogsearch.DefaultSiteConfig("https://configured.example")
+	server := &Server{config: bridgeConfig{Search: &site}}
 	state := defaultSearchIndexState()
 	state.Inventory = searchInventoryState{
 		Origin: "https://thinkerqaq.github.io",
@@ -379,19 +381,19 @@ func TestSearchIndexDropsOldSiteStateAfterDomainMigration(t *testing.T) {
 	if err := saveSearchIndexState(state); err != nil {
 		t.Fatal(err)
 	}
-	loaded := loadSearchIndexState()
+	loaded := server.loadSearchState()
 	if loaded.Inventory.Origin != "" || len(loaded.Google.RequestQueue.Items) != 0 || loaded.Google.RequestQueue.State != "idle" {
 		t.Fatalf("stale search index survived domain migration: %#v", loaded)
 	}
-	state.Inventory.Origin = blogsearch.DefaultSiteOrigin
-	state.Inventory.Source = blogsearch.DefaultSiteOrigin + "/sitemap-all.txt"
-	state.Inventory.URLs = []string{blogsearch.DefaultSiteOrigin + "/articles/example/"}
-	state.Google.RequestQueue.Items = []googleIndexRequestItem{{URL: blogsearch.DefaultSiteOrigin + "/articles/example/", Status: "queued"}}
+	state.Inventory.Origin = site.Origin
+	state.Inventory.Source = site.URLListURL
+	state.Inventory.URLs = []string{site.Origin + "/articles/example/"}
+	state.Google.RequestQueue.Items = []googleIndexRequestItem{{URL: site.Origin + "/articles/example/", Status: "queued"}}
 	if err := saveSearchIndexState(state); err != nil {
 		t.Fatal(err)
 	}
-	loaded = loadSearchIndexState()
-	if loaded.Inventory.Origin != blogsearch.DefaultSiteOrigin || len(loaded.Google.RequestQueue.Items) != 1 {
+	loaded = server.loadSearchState()
+	if loaded.Inventory.Origin != site.Origin || loaded.Site != site || len(loaded.Google.RequestQueue.Items) != 1 {
 		t.Fatalf("current site's state was not preserved: %#v", loaded)
 	}
 }
@@ -405,12 +407,16 @@ func TestIndexNowSnapshotNeverReusesOldDomain(t *testing.T) {
 	if err := saveIndexNowSnapshot(old); err != nil {
 		t.Fatal(err)
 	}
-	if got := loadIndexNowSnapshot(); got.Origin != "" || len(got.URLs) != 0 {
-		t.Fatalf("old domain snapshot should start a fresh baseline: %#v", got)
-	}
 	current := searchInventoryState{
-		Origin: blogsearch.DefaultSiteOrigin,
-		URLs:   []string{blogsearch.DefaultSiteOrigin + "/articles/current/"},
+		Origin: "https://configured.example",
+		URLs:   []string{"https://configured.example/articles/current/"},
+	}
+	diff, err := blogsearch.DiffInventories(searchInventoryToCore(loadIndexNowSnapshot()), searchInventoryToCore(current), "incremental", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff.DeletedCount != 0 || diff.AddedCount != 1 || len(diff.Selected) != 1 || diff.Selected[0] != current.URLs[0] {
+		t.Fatalf("old domain snapshot should not submit old URLs: %#v", diff)
 	}
 	if err := saveIndexNowSnapshot(current); err != nil {
 		t.Fatal(err)
