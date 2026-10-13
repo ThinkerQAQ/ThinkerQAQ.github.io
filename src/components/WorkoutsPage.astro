@@ -54,7 +54,6 @@ const languageAlternatives = [
 
     <WorkoutTrend locale={locale} month={month} summaries={summaries} />
 
-    <p class="fitness-privacy">{zh ? "隐私：这里只发布月度汇总，不包含训练日期、时间、动作或每组重量。" : "Privacy: only monthly aggregates are published. Dates, times, exercises and individual sets are not included."}</p>
     </div>
   </div>
 </BaseLayout>
@@ -72,7 +71,6 @@ const languageAlternatives = [
   .fitness-stats > div > span { font-size:0.82rem; color:var(--muted); }
   .fitness-stats strong { font-size:clamp(1.4rem,4vw,1.85rem); letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
   .fitness-stats small { margin-left:0.3rem; font-size:0.73rem; font-weight:400; letter-spacing:0; color:var(--muted); }
-  .fitness-unit-note,.fitness-empty,.fitness-privacy { margin:0.9rem 0; font-size:0.78rem; color:var(--muted); line-height:1.7; }
-  .fitness-privacy { border-top:1px solid var(--border); margin-top:3rem; padding-top:1rem; }
+  .fitness-unit-note,.fitness-empty { margin:0.9rem 0; font-size:0.78rem; color:var(--muted); line-height:1.7; }
   @media(max-width:540px) { .fitness-page { padding-top:1.5rem; } .fitness-stats { gap:0.4rem; } .fitness-stats > div { padding:0.7rem 0.6rem; } .fitness-stats > div > span { font-size:0.71rem; } }
 </style>
