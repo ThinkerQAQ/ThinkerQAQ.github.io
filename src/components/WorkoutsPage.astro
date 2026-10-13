@@ -1,13 +1,13 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import WorkoutTrend from "./WorkoutTrend.astro";
-import { localizePath, type Locale } from "../config/i18n";
+import LifeSectionHeader from "./LifeSectionHeader.astro";
+import type { Locale } from "../config/i18n";
 import { workoutMonthHref, workoutMonthName, type WorkoutOverview } from "../lib/workouts";
 
 interface Props { locale: Locale; data: WorkoutOverview; }
 const { locale, data } = Astro.props;
 const zh = locale === "zh";
-const home = localizePath(locale, "/life/");
 const { summary, summaries, month } = data;
 const title = zh ? "健身记录" : "Fitness log";
 const description = zh ? "记录长期训练习惯：月度汇总与年度趋势。" : "A public overview of long-term fitness consistency, with monthly totals and annual trends.";
@@ -32,20 +32,7 @@ const languageAlternatives = [
   languageSwitcherAlternatives={languageAlternatives}
 >
   <div class="shell fitness-page">
-    <nav class="fitness-breadcrumb" aria-label={zh ? "位置导航" : "Breadcrumb"}>
-      <a href={home}>{zh ? "生活" : "Life"}</a><span>/</span><span>{zh ? "健身" : "Fitness"}</span>
-    </nav>
-
-    <header class="fitness-hero">
-      <div>
-        <p class="fitness-hero__eyebrow">{zh ? "生活 · 健身" : "Life · Fitness"}</p>
-        <h1>{zh ? "健身记录" : "Training log"}</h1>
-        <p>{zh ? "记录训练习惯与长期变化，而不公开每天的训练明细。" : "Long-term consistency, without publishing daily workout details."}</p>
-      </div>
-      <a class="fitness-back" href={home}>← {zh ? "生活记录" : "Life timeline"}</a>
-    </header>
-
-    {publishedDemo && <p class="fitness-demo">{zh ? "演示数据 · 非真实训记同步" : "Synthetic demo data · Not synced with Xunji"}</p>}
+    <LifeSectionHeader locale={locale} active="fitness" />
 
     <section class="fitness-month" aria-labelledby="fitness-month-title" data-pagefind-body data-pagefind-filter="type:fitness">
       <div class="fitness-month__head">
@@ -61,7 +48,7 @@ const languageAlternatives = [
         <div><span>{zh ? "训练容量" : "Training volume"}</span><strong>{volume === undefined ? "—" : (volume / 1000).toLocaleString(zh ? "zh-CN" : "en-US", {maximumFractionDigits: 1})}{volume !== undefined && <small>t</small>}</strong></div>
       </div>
       {!summary && <p class="fitness-empty">{zh ? "尚无公开的月度汇总。同步后将在这里显示。" : "No published monthly summary yet."}</p>}
-      <p class="fitness-unit-note">{zh ? "训练容量是器械记录的重量与次数汇总，只供观察自身长期变化。" : "Training volume sums recorded weight and repetitions; it is useful for personal trends, not cross-exercise comparisons."}</p>
+      <p class="fitness-unit-note">{zh ? "训练容量是器械记录的重量与次数汇总，只供观察自身长期变化。" : "Training volume sums recorded weight and repetitions; it is useful for personal trends, not cross-exercise comparisons."}{publishedDemo && <> {zh ? "当前为模拟统计，未接入训记。" : "Currently showing sample totals, not connected to Xunji."}</>}</p>
     </section>
 
     <WorkoutTrend locale={locale} month={month} summaries={summaries} />
@@ -70,15 +57,7 @@ const languageAlternatives = [
   </div>
 </BaseLayout>
 <style>
-  .fitness-page { max-width: 56rem; padding-block: 2rem 5rem; min-width:0; }
-  .fitness-breadcrumb { display:flex; gap:0.55rem; color:var(--muted); font-size:0.8rem; }
-  .fitness-breadcrumb a { color:inherit; text-decoration:none; }
-  .fitness-hero { margin:1.6rem 0 2.1rem; display:flex; justify-content:space-between; align-items:end; gap:1rem; flex-wrap:wrap; }
-  .fitness-hero h1 { font-size:clamp(2rem, 5vw, 2.6rem); letter-spacing:-0.04em; margin:0; }
-  .fitness-hero__eyebrow { font-size:0.8rem; margin:0 0 0.5rem; color:var(--muted); }
-  .fitness-hero p:not(.fitness-hero__eyebrow) { font-size:0.88rem; color:var(--muted); margin:0.65rem 0 0; }
-  .fitness-back { font-size:0.85rem; color:var(--muted); text-decoration:none; }
-  .fitness-demo { display:inline-block; border:1px dashed var(--border); border-radius:0.4rem; font-size:0.8rem; color:var(--muted); padding:0.35rem 0.65rem; margin:0 0 1rem; }
+  .fitness-page { max-width: 56rem; padding-block: clamp(2rem, 5vw, 3.5rem) 5rem; min-width:0; }
   .fitness-month__head { display:flex; justify-content:space-between; align-items:end; gap:0.9rem; margin:0.7rem 0 1rem; }
   .fitness-month__head h2 { margin:0.2rem 0 0; font-size:clamp(1.35rem,4vw,1.7rem); letter-spacing:-0.025em; }
   .fitness-eyebrow { font-size:0.79rem; color:var(--muted); }

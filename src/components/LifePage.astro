@@ -7,7 +7,7 @@ import ContentComments from "./ContentComments.astro";
 import { localizePath, type Locale } from "../config/i18n";
 import { lifeHref, lifeTitle, type LifePageData } from "../lib/life";
 import { SITE } from "../config/site";
-import { getWorkoutSummaries, workoutMonthHref, workoutMonthName } from "../lib/workouts";
+import LifeSectionHeader from "./LifeSectionHeader.astro";
 
 interface Props { locale: Locale; data: LifePageData; }
 const { locale, data } = Astro.props;
@@ -15,19 +15,17 @@ const zh = locale === "zh";
 const sectionTitle = zh ? "生活" : "Life";
 const home = localizePath(locale, "/life/");
 const title = data.kind === "record" ? lifeTitle(data.entry)
-  : [sectionTitle, data.tag ?? data.year, data.page > 1 ? (zh ? `第 ${data.page} 页` : `Page ${data.page}`) : undefined].filter(Boolean).join(" · ");
+  : [sectionTitle, data.year, data.page > 1 ? (zh ? `第 ${data.page} 页` : `Page ${data.page}`) : undefined].filter(Boolean).join(" · ");
 const description = data.kind === "record"
   ? data.entry.data.description ?? title
-  : zh ? "旅行、摄影，以及值得留下的日常。" : "Travel, photographs, and everyday moments worth keeping.";
+  : zh ? "摄影与健身，记录生活的两个侧面。" : "Photographs and fitness, two parts of everyday life.";
 const photo = data.kind === "record" ? data.entry.data.images[0] : undefined;
-const languageAlternatives = data.kind === "index" && !data.tag && !data.year && data.page === 1
+const languageAlternatives = data.kind === "index" && !data.year && data.page === 1
   ? [{ locale: "zh" as const, href: "/life/" }, { locale: "en" as const, href: "/en/life/" }]
   : [];
 const pageHref = (page: number) => data.kind === "index" ? (page === 1 ? data.basePath : `${data.basePath}page/${page}/`) : home;
 const previous = data.kind === "index" && data.page > 1 ? pageHref(data.page - 1) : undefined;
 const next = data.kind === "index" && data.page < data.pageCount ? pageHref(data.page + 1) : undefined;
-const latestFitness = data.kind === "index" && !data.tag && !data.year && data.page === 1 ? (await getWorkoutSummaries())[0] : undefined;
-const latestFitnessMonth = latestFitness?.data.month;
 const structuredData = data.kind === "record" ? {
   "@context": "https://schema.org", "@type": "BlogPosting",
   headline: title, description, datePublished: data.entry.data.publishedAt.toISOString(),
@@ -52,39 +50,17 @@ const structuredData = data.kind === "record" ? {
   <div class="shell life-page">
     {data.kind === "index" ? (
       <>
-        <header class="life-page__intro">
-          <h1>{sectionTitle}</h1>
-          <p>{description}</p>
-        </header>
-        <nav class="life-filters" aria-label={zh ? "生活分类" : "Life topics"}>
-          <a href={home} aria-current={!data.tag && !data.year ? "page" : undefined}>{zh ? "全部" : "All"}</a>
-          {data.tags.filter((tag) => tag !== "健身").map((tag) => <a href={localizePath(locale, `/life/tag/${encodeURIComponent(tag)}/`)} aria-current={data.tag === tag ? "page" : undefined}>{tag}</a>)}
-          <a href={workoutMonthHref(locale)}>{zh ? "健身" : "Fitness"}</a>
-        </nav>
-        {data.years.length > 0 && (
+        <LifeSectionHeader locale={locale} active="photography" />
+        {data.years.length > 1 && (
           <nav class="life-years" aria-label={zh ? "按年份归档" : "Browse by year"}>
             <span>{zh ? "年份" : "Year"}</span>
             {data.years.map((year) => <a href={localizePath(locale, `/life/year/${year}/`)} aria-current={data.year === year ? "page" : undefined}>{year}</a>)}
           </nav>
         )}
-        {(data.tag || data.year) && <h2 class="life-page__filter-title">{data.tag ?? data.year}</h2>}
-        {!data.tag && !data.year && data.page === 1 && (
-          <a class="life-fitness-card" href={workoutMonthHref(locale)}>
-            <span class="life-fitness-card__icon" aria-hidden="true">↗</span>
-            <span class="life-fitness-card__text">
-              <small>{zh ? "健身 · 月度汇总" : "Fitness · Monthly summary"}</small>
-              <strong>{latestFitnessMonth ? workoutMonthName(latestFitnessMonth, locale) : (zh ? "我的训练记录" : "Training history")}</strong>
-              <span>{latestFitnessMonth
-                ? (zh ? `${latestFitness.data.trainingDays} 天训练 · 查看长期训练趋势` : `${latestFitness.data.trainingDays} training days · See monthly trends`)
-                : (zh ? "查看月度训练统计与长期趋势" : "Browse monthly training summaries and trends")}</span>
-              {latestFitness?.data.demo && <small>{zh ? "演示数据" : "Sample data"}</small>}
-            </span>
-            <span class="life-fitness-card__arrow" aria-hidden="true">→</span>
-          </a>
-        )}
+        {data.year && <h2 class="life-page__filter-title">{data.year}</h2>}
         <div class="life-timeline" data-pagefind-ignore="all">
           {data.entries.map((entry) => <LifeRecord entry={entry} />)}
-          {data.entries.length === 0 && <p class="life-empty">{zh ? "还没有生活记录。" : "No life entries yet."}</p>}
+          {data.entries.length === 0 && <p class="life-empty">{zh ? "还没有摄影记录。" : "No photography entries yet."}</p>}
         </div>
         <Pagination currentPage={data.page} lastPage={data.pageCount} firstPageUrl={data.basePath}
           pageUrlPrefix={`${data.basePath}page/`} prevUrl={previous} nextUrl={next} locale={locale}
@@ -92,7 +68,7 @@ const structuredData = data.kind === "record" ? {
       </>
     ) : (
       <>
-        <a class="life-back" href={home}>← {zh ? "全部生活记录" : "All life entries"}</a>
+        <a class="life-back" href={home}>← {zh ? "摄影" : "Photography"}</a>
         <div data-pagefind-body data-pagefind-filter="type:life">
           {!data.entry.data.title && <h1 class="life-page__untitled" data-pagefind-meta="title">{title}</h1>}
           <LifeRecord entry={data.entry} detail />
@@ -105,20 +81,8 @@ const structuredData = data.kind === "record" ? {
 </BaseLayout>
 
 <style>
-  .life-page { max-width: 44rem; padding-block: clamp(2rem, 5vw, 3.5rem) 5rem; }
-  .life-fitness-card { display: flex; align-items: center; gap: 1rem; border: 1px solid var(--border); border-radius: 0.65rem; padding: 1rem 1.15rem; margin-top: 2rem; background: var(--surface); text-decoration: none; }
-  .life-fitness-card:hover { border-color: var(--accent); }
-  .life-fitness-card__icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 0.5rem; background: var(--accent-soft); color: var(--accent); font-size: 1.25rem; flex: none; }
-  .life-fitness-card__text { display: grid; gap: 0.35rem; min-width: 0; flex: 1; }
-  .life-fitness-card__text small { color: var(--muted); font-size: 0.75rem; }
-  .life-fitness-card__text strong { font-size: 1.1rem; color: var(--text); }
-  .life-fitness-card__text > span { color: var(--muted); font-size: 0.8rem; }
-  .life-fitness-card__arrow { color: var(--muted); }
-  .life-page__intro h1 { margin: 0; font-size: 2rem; letter-spacing: -0.04em; }
-  .life-page__intro p { margin: 0.5rem 0 1.75rem; color: var(--muted); }
-  .life-filters, .life-years { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
-  .life-filters a { padding: 0.25rem 0.85rem; border: 1px solid var(--border); border-radius: 1.5rem; text-decoration: none; font-size: 0.9rem; }
-  .life-filters a[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .life-page { max-width: 56rem; padding-block: clamp(2rem, 5vw, 3.5rem) 5rem; }
+  .life-timeline, .life-years, .life-page__filter-title { max-width: 44rem; }
   .life-years { margin-top: 1rem; gap: 0.5rem 1rem; font-size: 0.8rem; color: var(--muted); }
   .life-years a { text-decoration: none; }
   .life-years a[aria-current="page"] { color: var(--accent); text-decoration: underline; }

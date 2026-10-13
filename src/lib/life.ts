@@ -24,16 +24,15 @@ export function lifeTitle(entry: LifeEntry): string {
 }
 
 export async function getLifeEntries(locale: Locale): Promise<LifeEntry[]> {
-  return (await getCollection("life", ({ data }) => data.status === "published" && data.language === locale))
+  const photographyTag = locale === "zh" ? "摄影" : "Photography";
+  return (await getCollection("life", ({ data }) => data.status === "published" && data.language === locale && data.tags.includes(photographyTag)))
     .sort((a, b) => b.data.publishedAt.getTime() - a.data.publishedAt.getTime() || a.id.localeCompare(b.id));
 }
 
 export interface LifeIndexData {
   kind: "index";
   entries: LifeEntry[];
-  tags: string[];
   years: string[];
-  tag?: string;
   year?: string;
   page: number;
   pageCount: number;
@@ -43,10 +42,9 @@ export type LifePageData = LifeIndexData | { kind: "record"; entry: LifeEntry };
 
 export async function getLifePaths(locale: Locale) {
   const entries = await getLifeEntries(locale);
-  const tags = [...new Set(entries.flatMap((entry) => entry.data.tags))].sort();
   const years = [...new Set(entries.map(lifeYear))].sort().reverse();
   const paths: { params: { path: string | undefined }; props: { locale: Locale; data: LifePageData } }[] = [];
-  const addIndex = (selected: LifeEntry[], path: string, filter: { tag?: string; year?: string } = {}) => {
+  const addIndex = (selected: LifeEntry[], path: string, filter: { year?: string } = {}) => {
     const pageCount = Math.max(1, Math.ceil(selected.length / LIFE_PAGE_SIZE));
     for (let page = 1; page <= pageCount; page++) {
       const route = [path, page > 1 ? `page/${page}` : ""].filter(Boolean).join("/");
@@ -54,13 +52,12 @@ export async function getLifePaths(locale: Locale) {
         params: { path: route || undefined },
         props: { locale, data: {
           kind: "index", entries: selected.slice((page - 1) * LIFE_PAGE_SIZE, page * LIFE_PAGE_SIZE),
-          tags, years, ...filter, page, pageCount, basePath: localizePath(locale, `/life/${path ? path + "/" : ""}`),
+          years, ...filter, page, pageCount, basePath: localizePath(locale, `/life/${path ? path + "/" : ""}`),
         } },
       });
     }
   };
   addIndex(entries, "");
-  for (const tag of tags) addIndex(entries.filter((entry) => entry.data.tags.includes(tag)), `tag/${tag}`, { tag });
   for (const year of years) addIndex(entries.filter((entry) => lifeYear(entry) === year), `year/${year}`, { year });
   for (const entry of entries) {
     paths.push({ params: { path: `record/${entry.id}` }, props: { locale, data: { kind: "record", entry } } });

@@ -1,12 +1,11 @@
 ---
 import { render } from "astro:content";
-import { localizePath } from "../config/i18n";
 import { lifeDate, lifeHref, type LifeEntry } from "../lib/life";
 import LifeGallery from "./LifeGallery.astro";
 interface Props { entry: LifeEntry; detail?: boolean; }
 const { entry, detail = false } = Astro.props;
 const { Content } = await render(entry);
-const { language: locale, title, publishedAt, updatedAt, location, tags, images } = entry.data;
+const { language: locale, title, publishedAt, updatedAt, location, images } = entry.data;
 const href = lifeHref(entry);
 ---
 
@@ -23,12 +22,7 @@ const href = lifeHref(entry);
   </div>
   {!detail && <button class="life-record__expand" type="button" data-expand-text hidden>{locale === "zh" ? "展开全文" : "Read more"}</button>}
   <LifeGallery images={images} locale={locale} detail={detail} href={href} />
-  {(tags.length > 0 || (detail && updatedAt)) && (
-    <footer class="life-record__footer">
-      <div class="life-record__tags">{tags.map((tag) => <a href={localizePath(locale, `/life/tag/${encodeURIComponent(tag)}/`)}>#{tag}</a>)}</div>
-      {detail && updatedAt && <small>{locale === "zh" ? "更新于" : "Updated"} <time datetime={updatedAt.toISOString()}>{lifeDate(updatedAt, locale)}</time></small>}
-    </footer>
-  )}
+  {detail && updatedAt && <footer class="life-record__footer"><small>{locale === "zh" ? "更新于" : "Updated"} <time datetime={updatedAt.toISOString()}>{lifeDate(updatedAt, locale)}</time></small></footer>}
 </article>
 
 <script>
@@ -73,6 +67,4 @@ const href = lifeHref(entry);
   .life-record__expand { display: block; margin: -0.25rem 0 1rem; border: 0; padding: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
   .life-record__expand[hidden] { display: none; }
   .life-record__footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; color: var(--muted); font-size: 0.8rem; }
-  .life-record__tags { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-  .life-record__tags a { text-decoration: none; }
 </style>
