@@ -1,0 +1,103 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LifeRecord from "./LifeRecord.astro";
+import Pagination from "./Pagination.astro";
+import ContentMediaViewer from "./ContentMediaViewer.astro";
+import ContentComments from "./ContentComments.astro";
+import { localizePath, type Locale } from "../config/i18n";
+import { lifeHref, lifeTitle, type LifePageData } from "../lib/life";
+import { SITE } from "../config/site";
+
+interface Props { locale: Locale; data: LifePageData; }
+const { locale, data } = Astro.props;
+const zh = locale === "zh";
+const sectionTitle = zh ? "生活" : "Life";
+const home = localizePath(locale, "/life/");
+const title = data.kind === "record" ? lifeTitle(data.entry)
+  : [sectionTitle, data.tag ?? data.year, data.page > 1 ? (zh ? `第 ${data.page} 页` : `Page ${data.page}`) : undefined].filter(Boolean).join(" · ");
+const description = data.kind === "record"
+  ? data.entry.data.description ?? title
+  : zh ? "旅行、摄影，以及值得留下的日常。" : "Travel, photographs, and everyday moments worth keeping.";
+const photo = data.kind === "record" ? data.entry.data.images[0] : undefined;
+const languageAlternatives = data.kind === "index" && !data.tag && !data.year && data.page === 1
+  ? [{ locale: "zh" as const, href: "/life/" }, { locale: "en" as const, href: "/en/life/" }]
+  : [];
+const pageHref = (page: number) => data.kind === "index" ? (page === 1 ? data.basePath : `${data.basePath}page/${page}/`) : home;
+const previous = data.kind === "index" && data.page > 1 ? pageHref(data.page - 1) : undefined;
+const next = data.kind === "index" && data.page < data.pageCount ? pageHref(data.page + 1) : undefined;
+const structuredData = data.kind === "record" ? {
+  "@context": "https://schema.org", "@type": "BlogPosting",
+  headline: title, description, datePublished: data.entry.data.publishedAt.toISOString(),
+  dateModified: (data.entry.data.updatedAt ?? data.entry.data.publishedAt).toISOString(),
+  author: { "@type": "Person", name: SITE.author, url: new URL(SITE.authorProfilePath, SITE.url).href },
+  url: new URL(lifeHref(data.entry), SITE.url).href,
+  image: data.entry.data.images.map((image) => new URL(image.src, SITE.url).href),
+} : undefined;
+---
+
+<BaseLayout
+  title={title} description={description} locale={locale}
+  type={data.kind === "record" ? "article" : "website"}
+  image={photo?.src} imageAlt={photo?.alt}
+  noindex={data.kind === "index" && data.entries.length === 0}
+  languageAlternatives={languageAlternatives}
+  languageSwitcherAlternatives={[{ locale: "zh", href: "/life/" }, { locale: "en", href: "/en/life/" }]}
+>
+  {previous && <link slot="head" rel="prev" href={previous} />}
+  {next && <link slot="head" rel="next" href={next} />}
+  {structuredData && <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(structuredData).replaceAll("<", "\\u003c")} />}
+  <div class="shell life-page">
+    {data.kind === "index" ? (
+      <>
+        <header class="life-page__intro">
+          <h1>{sectionTitle}</h1>
+          <p>{description}</p>
+        </header>
+        <nav class="life-filters" aria-label={zh ? "生活分类" : "Life topics"}>
+          <a href={home} aria-current={!data.tag && !data.year ? "page" : undefined}>{zh ? "全部" : "All"}</a>
+          {data.tags.map((tag) => <a href={localizePath(locale, `/life/tag/${encodeURIComponent(tag)}/`)} aria-current={data.tag === tag ? "page" : undefined}>{tag}</a>)}
+        </nav>
+        {data.years.length > 0 && (
+          <nav class="life-years" aria-label={zh ? "按年份归档" : "Browse by year"}>
+            <span>{zh ? "年份" : "Year"}</span>
+            {data.years.map((year) => <a href={localizePath(locale, `/life/year/${year}/`)} aria-current={data.year === year ? "page" : undefined}>{year}</a>)}
+          </nav>
+        )}
+        {(data.tag || data.year) && <h2 class="life-page__filter-title">{data.tag ?? data.year}</h2>}
+        <div class="life-timeline" data-pagefind-ignore="all">
+          {data.entries.map((entry) => <LifeRecord entry={entry} />)}
+          {data.entries.length === 0 && <p class="life-empty">{zh ? "还没有生活记录。" : "No life entries yet."}</p>}
+        </div>
+        <Pagination currentPage={data.page} lastPage={data.pageCount} firstPageUrl={data.basePath}
+          pageUrlPrefix={`${data.basePath}page/`} prevUrl={previous} nextUrl={next} locale={locale}
+          ariaLabel={zh ? "生活记录分页" : "Life pagination"} />
+      </>
+    ) : (
+      <>
+        <a class="life-back" href={home}>← {zh ? "全部生活记录" : "All life entries"}</a>
+        <div data-pagefind-body data-pagefind-filter="type:life">
+          {!data.entry.data.title && <h1 class="life-page__untitled" data-pagefind-meta="title">{title}</h1>}
+          <LifeRecord entry={data.entry} detail />
+        </div>
+        <ContentMediaViewer locale={locale} />
+        <ContentComments language={locale} threadPath={lifeHref(data.entry)} />
+      </>
+    )}
+  </div>
+</BaseLayout>
+
+<style>
+  .life-page { max-width: 44rem; padding-block: clamp(2rem, 5vw, 3.5rem) 5rem; }
+  .life-page__intro h1 { margin: 0; font-size: 2rem; letter-spacing: -0.04em; }
+  .life-page__intro p { margin: 0.5rem 0 1.75rem; color: var(--muted); }
+  .life-filters, .life-years { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+  .life-filters a { padding: 0.25rem 0.85rem; border: 1px solid var(--border); border-radius: 1.5rem; text-decoration: none; font-size: 0.9rem; }
+  .life-filters a[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .life-years { margin-top: 1rem; gap: 0.5rem 1rem; font-size: 0.8rem; color: var(--muted); }
+  .life-years a { text-decoration: none; }
+  .life-years a[aria-current="page"] { color: var(--accent); text-decoration: underline; }
+  .life-page__filter-title { font-size: 1rem; margin: 2rem 0 0; color: var(--muted); }
+  .life-back { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+  .life-page__untitled { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .life-empty { padding-block: 3rem; color: var(--muted); }
+</style>

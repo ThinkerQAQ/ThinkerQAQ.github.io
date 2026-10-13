@@ -177,4 +177,33 @@ const series = defineCollection({
   }),
 });
 
-export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series };
+const life = defineCollection({
+  loader: glob({
+    pattern: "**/*.md",
+    base: "./src/content/life",
+    generateId: ({ entry }) => entry.replace(/\.md$/i, "").replaceAll("\\", "/"),
+  }),
+  schema: z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    publishedAt: timestamp,
+    updatedAt: timestamp.optional(),
+    language: z.enum(SUPPORTED_LOCALES).default("zh"),
+    status: z.enum(["draft", "published"]).default("draft"),
+    location: z.string().optional(),
+    tags: z.array(z.string()).default([]),
+    images: z.array(z.object({
+      src: z.string().regex(/^(https?:\/\/|\/(?!\/))/, "Use an HTTP(S) URL or a site-root image path"),
+      thumbnail: z.string().regex(/^(https?:\/\/|\/(?!\/))/).optional(),
+      alt: z.string().default(""),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+    })).default([]),
+  }).superRefine((entry, ctx) => {
+    if (entry.updatedAt && entry.updatedAt < entry.publishedAt) {
+      ctx.addIssue({ code: "custom", path: ["updatedAt"], message: "updatedAt must not precede publishedAt" });
+    }
+  }),
+});
+
+export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series, life };

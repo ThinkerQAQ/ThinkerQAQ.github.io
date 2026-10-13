@@ -1,0 +1,78 @@
+---
+import { render } from "astro:content";
+import { localizePath } from "../config/i18n";
+import { lifeDate, lifeHref, type LifeEntry } from "../lib/life";
+import LifeGallery from "./LifeGallery.astro";
+interface Props { entry: LifeEntry; detail?: boolean; }
+const { entry, detail = false } = Astro.props;
+const { Content } = await render(entry);
+const { language: locale, title, publishedAt, updatedAt, location, tags, images } = entry.data;
+const href = lifeHref(entry);
+---
+
+<article class:list={["life-record", { "life-record--detail": detail }]} lang={locale === "zh" ? "zh-CN" : "en"}>
+  <header class="life-record__header">
+    <a href={href} aria-label={locale === "zh" ? `查看 ${lifeDate(publishedAt)} 的记录` : `View entry from ${lifeDate(publishedAt, locale)}`}>
+      <time datetime={publishedAt.toISOString()}>{lifeDate(publishedAt, locale)}</time>
+    </a>
+    {location && <span>{location}</span>}
+  </header>
+  {title && (detail ? <h1>{title}</h1> : <h2><a href={href}>{title}</a></h2>)}
+  <div class:list={["prose", "life-record__body", { "life-record__body--preview": !detail }]} data-life-text>
+    <Content />
+  </div>
+  {!detail && <button class="life-record__expand" type="button" data-expand-text hidden>{locale === "zh" ? "展开全文" : "Read more"}</button>}
+  <LifeGallery images={images} locale={locale} detail={detail} href={href} />
+  {(tags.length > 0 || (detail && updatedAt)) && (
+    <footer class="life-record__footer">
+      <div class="life-record__tags">{tags.map((tag) => <a href={localizePath(locale, `/life/tag/${encodeURIComponent(tag)}/`)}>#{tag}</a>)}</div>
+      {detail && updatedAt && <small>{locale === "zh" ? "更新于" : "Updated"} <time datetime={updatedAt.toISOString()}>{lifeDate(updatedAt, locale)}</time></small>}
+    </footer>
+  )}
+</article>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".life-record:not(.life-record--detail)").forEach((record) => {
+    const body = record.querySelector<HTMLElement>("[data-life-text]");
+    const button = record.querySelector<HTMLButtonElement>("[data-expand-text]");
+    if (!body || !button) return;
+    const check = () => {
+      if (body.dataset.expanded) return;
+      body.classList.remove("is-collapsed");
+      const overflowing = body.scrollHeight > 350;
+      body.classList.toggle("is-collapsed", overflowing);
+      button.hidden = !overflowing;
+      button.setAttribute("aria-expanded", "false");
+    };
+    new ResizeObserver(check).observe(body);
+    button.addEventListener("click", () => {
+      body.dataset.expanded = "true";
+      body.classList.remove("is-collapsed");
+      button.hidden = true;
+      body.tabIndex = -1;
+      body.focus({ preventScroll: true });
+    });
+    check();
+  });
+</script>
+
+<style>
+  .life-record { min-width: 0; padding-block: 2rem; border-bottom: 1px solid var(--border); }
+  .life-record--detail { border-bottom: 0; padding-top: 1.25rem; }
+  .life-record__header { display: flex; gap: 0.5rem 1rem; flex-wrap: wrap; align-items: baseline; color: var(--muted); font-size: 0.85rem; }
+  .life-record__header a { text-decoration: none; }
+  .life-record h1, .life-record h2 { margin: 0.75rem 0 0; font-size: 1.4rem; line-height: 1.4; }
+  .life-record h1 { font-size: clamp(1.5rem, 4vw, 2rem); }
+  .life-record h2 a { text-decoration: none; }
+  .life-record__body { margin-block: 0.75rem 1rem; overflow-wrap: anywhere; }
+  .life-record__body :global(p) { white-space: pre-line; }
+  .life-record__body :global(> :first-child) { margin-top: 0; }
+  .life-record__body :global(> :last-child) { margin-bottom: 0; }
+  .life-record__body :global(img) { max-width: 100%; height: auto; }
+  .life-record__body--preview.is-collapsed { max-height: 20rem; overflow: hidden; mask-image: linear-gradient(black 80%, transparent); }
+  .life-record__expand { display: block; margin: -0.25rem 0 1rem; border: 0; padding: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+  .life-record__expand[hidden] { display: none; }
+  .life-record__footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; color: var(--muted); font-size: 0.8rem; }
+  .life-record__tags { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .life-record__tags a { text-decoration: none; }
+</style>

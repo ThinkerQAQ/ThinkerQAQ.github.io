@@ -1,0 +1,71 @@
+---
+import type { LifeEntry } from "../lib/life";
+import type { Locale } from "../config/i18n";
+import "photoswipe/style.css";
+
+interface Props {
+  images: LifeEntry["data"]["images"];
+  locale?: Locale;
+  detail?: boolean;
+  href: string;
+}
+const { images, locale = "zh", detail = false, href } = Astro.props;
+const visible = images.slice(0, 9);
+const remaining = images.slice(9);
+const allLabel = locale === "zh" ? `查看全部 · 共 ${images.length} 张` : `View all ${images.length} photos`;
+const photoLabel = (index: number) => locale === "zh" ? `查看第 ${index + 1} 张照片` : `View photo ${index + 1}`;
+---
+
+{images.length > 0 && (
+  <div class="life-album" data-life-album data-locale={locale} data-detail={detail || undefined}>
+    <div class:list={["life-gallery", { "life-gallery--single": images.length === 1, "life-gallery--two": images.length >= 2 && images.length <= 4 }]}>
+      {visible.map((photo, index) => (
+        <a class="life-photo" href={photo.src} data-photo-index={index} aria-label={photoLabel(index)}>
+          <img src={photo.thumbnail ?? photo.src} alt={photo.alt} width={photo.width} height={photo.height} loading="lazy" decoding="async" />
+          {!detail && images.length > 9 && index === 8 && <span class="life-photo__more">{allLabel}</span>}
+        </a>
+      ))}
+      {detail && remaining.length > 0 && (
+        <template data-photo-batch>
+          {remaining.map((photo, index) => (
+            <a class="life-photo" href={photo.src} data-photo-index={index + 9} aria-label={photoLabel(index + 9)}>
+              <img src={photo.thumbnail ?? photo.src} alt={photo.alt} width={photo.width} height={photo.height} loading="lazy" decoding="async" />
+            </a>
+          ))}
+        </template>
+      )}
+    </div>
+    {remaining.length > 0 && (detail ? (
+      <>
+        <button type="button" class="life-album__more" data-load-photos hidden>{locale === "zh" ? "加载更多照片" : "Load more photos"}</button>
+        <noscript>
+          <details><summary>{allLabel}</summary>
+            <ul>{remaining.map((photo, index) => <li><a href={photo.src}>{photo.alt || photoLabel(index + 9)}</a></li>)}</ul>
+          </details>
+        </noscript>
+      </>
+    ) : <a class="life-album__link" href={href}>{allLabel} →</a>)}
+    <script is:inline type="application/json" data-album-images set:html={JSON.stringify(images).replaceAll("<", "\\u003c")} />
+  </div>
+)}
+
+<script>
+  import { initLifeAlbums } from "../lib/life-gallery";
+  initLifeAlbums();
+</script>
+
+<style>
+  .life-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
+  .life-gallery--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .life-gallery--single { grid-template-columns: 1fr; }
+  .life-photo { position: relative; display: block; overflow: hidden; border-radius: 0.3rem; background: var(--border); aspect-ratio: 1; }
+  .life-photo img { display: block; width: 100%; height: 100%; object-fit: cover; transition: opacity 160ms; }
+  .life-photo:hover img { opacity: 0.9; }
+  .life-photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .life-gallery--single .life-photo { aspect-ratio: auto; background: transparent; }
+  .life-gallery--single img { height: auto; max-height: 44rem; object-fit: contain; }
+  .life-photo__more { position: absolute; inset: 0; display: grid; place-content: center; padding: 0.5rem; background: rgb(0 0 0 / 55%); color: white; text-align: center; font-size: clamp(0.75rem, 2.5vw, 1rem); }
+  .life-album__link, .life-album__more { display: inline-block; margin-top: 0.7rem; color: var(--muted); font-size: 0.85rem; }
+  .life-album__more { font-family: inherit; padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 0.3rem; background: var(--surface); cursor: pointer; }
+  .life-album__more[hidden] { display: none; }
+</style>

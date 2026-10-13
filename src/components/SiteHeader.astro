@@ -20,6 +20,7 @@ const navItems = [
   { href: localizePath(locale, "/projects/"), label: localeInfo.nav.projects },
   { href: localizePath(locale, "/series/"), label: localeInfo.nav.series },
   { href: localizePath(locale, "/notes/"), label: localeInfo.nav.notes },
+  { href: localizePath(locale, "/life/"), label: localeInfo.nav.life },
   { href: localizePath(locale, "/about/"), label: localeInfo.nav.about },
 ] as const;
 const searchHref = localizePath(locale, "/search/");
@@ -74,6 +75,18 @@ const isActive = (href: string) =>
   @media (max-width: 720px) {
     .header-actions {
       gap: 0.7rem;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .header-actions {
+      width: 100%;
+    }
+
+    .main-nav {
+      flex: 1;
+      min-width: 0;
+      width: auto;
     }
   }
 </style>
