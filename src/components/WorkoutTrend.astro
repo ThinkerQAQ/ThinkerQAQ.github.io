@@ -1,16 +1,17 @@
 ---
 import type { Locale } from "../config/i18n";
-import { workoutMonthHref, workoutMonthName, type WorkoutSummary } from "../lib/workouts";
+import { workoutMonthHref, workoutMonthName, workoutYearHref, type WorkoutSummary } from "../lib/workouts";
 
 interface Props {
   locale: Locale;
   month: string;
+  annualYear?: string;
   summaries: WorkoutSummary[];
 }
 
-const { locale, month, summaries } = Astro.props;
+const { locale, month, annualYear, summaries } = Astro.props;
 const zh = locale === "zh";
-const selectedYear = month.slice(0, 4);
+const selectedYear = annualYear ?? month.slice(0, 4);
 const years = [...new Set(summaries.map((entry) => entry.data.month.slice(0, 4)))].sort().reverse();
 const byMonth = new Map(summaries.map((entry) => [entry.data.month, entry]));
 // Use one scale across all years, so the same height means the same training frequency.
@@ -25,16 +26,13 @@ const monthNumber = (value: number) => String(value).padStart(2, "0");
     </div>
     {years.length > 1 && (
       <nav class="workout-trend__years" aria-label={zh ? "选择年份" : "Choose year"}>
-        {years.map((year) => {
-          const latest = summaries.find((entry) => entry.data.month.startsWith(year));
-          return latest && (
-            <a
-              data-workout-year={year}
-              href={workoutMonthHref(locale, latest.data.month)}
-              aria-current={year === selectedYear ? "true" : undefined}
-            >{year}</a>
-          );
-        })}
+        {years.map((year) => (
+          <a
+            data-workout-year={year}
+            href={workoutYearHref(locale, year)}
+            aria-current={year === selectedYear ? "true" : undefined}
+          >{year}</a>
+        ))}
       </nav>
     )}
   </header>
@@ -63,9 +61,9 @@ const monthNumber = (value: number) => String(value).padStart(2, "0");
             return entry ? (
               <a
                 href={workoutMonthHref(locale, itemMonth)}
-                class:list={["workout-trend__item", { "workout-trend__item--active": itemMonth === month }]}
+                class:list={["workout-trend__item", { "workout-trend__item--active": itemMonth === month && !annualYear }]}
                 aria-label={`${workoutMonthName(itemMonth, locale)}: ${entry.data.trainingDays} ${zh ? "天" : "days"}`}
-                aria-current={itemMonth === month ? "page" : undefined}
+                aria-current={itemMonth === month && !annualYear ? "page" : undefined}
                 title={`${workoutMonthName(itemMonth, locale)} · ${entry.data.trainingDays} ${zh ? "天" : "days"}`}
               >{content}</a>
             ) : (
@@ -79,29 +77,10 @@ const monthNumber = (value: number) => String(value).padStart(2, "0");
     </div>
   )) : <p class="workout-trend__empty">{zh ? "暂无训练趋势数据。" : "No trend data yet."}</p>}
   {years.length > 0 && <p class="workout-trend__hint">{zh
-    ? "切换年份查看 12 个月的趋势，点击有数据的月份查看汇总。— 表示暂无记录。"
-    : "Switch years to explore all 12 months. Select a recorded month for its summary; — means no data."}</p>}
+    ? "点击年份查看全年汇总，点击柱状图中的月份查看月度详情。— 表示暂无记录。"
+    : "Select a year for its annual totals, or a month in the chart for monthly details; — means no data."}</p>}
 </section>
 
-<script>
-  document.querySelectorAll<HTMLElement>("[data-fitness-trend]").forEach((root) => {
-    const links = root.querySelectorAll<HTMLAnchorElement>("[data-workout-year]");
-    const panels = root.querySelectorAll<HTMLElement>("[data-workout-chart-year]");
-    links.forEach((link) => {
-      link.addEventListener("click", (event) => {
-        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        const year = link.dataset.workoutYear;
-        if (!year) return;
-        event.preventDefault();
-        links.forEach((option) => {
-          if (option.dataset.workoutYear === year) option.setAttribute("aria-current", "true");
-          else option.removeAttribute("aria-current");
-        });
-        panels.forEach((panel) => { panel.hidden = panel.dataset.workoutChartYear !== year; });
-      });
-    });
-  });
-</script>
 
 <style>
   .workout-trend { margin-block: 2.2rem 2.7rem; }

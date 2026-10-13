@@ -5,28 +5,34 @@ import LifeSectionHeader from "./LifeSectionHeader.astro";
 import ContentReaction from "./ContentReaction.astro";
 import ContentComments from "./ContentComments.astro";
 import type { Locale } from "../config/i18n";
-import { workoutMonthHref, workoutMonthName, type WorkoutOverview } from "../lib/workouts";
+import { workoutMonthHref, workoutMonthName, workoutYearHref, workoutYearTotals, type WorkoutOverview } from "../lib/workouts";
 
 interface Props { locale: Locale; data: WorkoutOverview; }
 const { locale, data } = Astro.props;
 const zh = locale === "zh";
-const { summary, summaries, month } = data;
+const { summary, summaries, month, annualYear } = data;
+const isAnnual = Boolean(annualYear);
+const annual = annualYear ? workoutYearTotals(annualYear, summaries) : undefined;
 const title = zh ? "健身记录" : "Fitness log";
 const description = zh ? "记录长期训练习惯：月度汇总与年度趋势。" : "A public overview of long-term fitness consistency, with monthly totals and annual trends.";
 const index = summaries.findIndex((entry) => entry.data.month === month);
 const prev = summaries[index + 1]?.data.month;
 const next = index > 0 ? summaries[index - 1]?.data.month : undefined;
-const duration = summary?.data.durationMinutes;
-const volume = summary?.data.volumeKg;
+const duration = annual ? annual.durationMinutes : summary?.data.durationMinutes;
+const volume = annual ? annual.volumeKg : summary?.data.volumeKg;
+const trainingDays = annual ? annual.trainingDays : summary?.data.trainingDays;
 const publishedDemo = summaries.some((entry) => entry.data.demo);
-const localizedThisMonth = workoutMonthName(month, locale);
+const localizedPeriod = annualYear ? (zh ? `${annualYear} 年` : annualYear) : workoutMonthName(month, locale);
+const periodHref = (language: Locale) => annualYear
+  ? workoutYearHref(language, annualYear)
+  : summary ? workoutMonthHref(language, month) : workoutMonthHref(language);
 const languageAlternatives = [
-  { locale: "zh" as const, href: summary ? workoutMonthHref("zh", month) : workoutMonthHref("zh") },
-  { locale: "en" as const, href: summary ? workoutMonthHref("en", month) : workoutMonthHref("en") },
+  { locale: "zh" as const, href: periodHref("zh") },
+  { locale: "en" as const, href: periodHref("en") },
 ];
 ---
 <BaseLayout
-  title={summary ? `${localizedThisMonth} · ${title}` : title}
+  title={summary ? `${localizedPeriod} · ${title}` : title}
   description={description}
   locale={locale}
   noindex={!summaries.length}
@@ -39,27 +45,32 @@ const languageAlternatives = [
     <div class="fitness-content">
     <section class="fitness-month" aria-labelledby="fitness-month-title" data-pagefind-body data-pagefind-filter="type:fitness">
       <div class="fitness-month__head">
-        <div><span class="fitness-eyebrow">{zh ? "月度概览" : "Monthly summary"}</span><h2 id="fitness-month-title">{localizedThisMonth}</h2></div>
-        <div class="fitness-month__nav" aria-label={zh ? "切换月份" : "Change month"}>
+        <div><span class="fitness-eyebrow">{isAnnual ? (zh ? "年度概览" : "Annual summary") : (zh ? "月度概览" : "Monthly summary")}</span><h2 id="fitness-month-title">{localizedPeriod}</h2></div>
+        {!isAnnual && <div class="fitness-month__nav" aria-label={zh ? "切换月份" : "Change month"}>
           {prev ? <a href={workoutMonthHref(locale, prev)} aria-label={zh ? "上一有记录月份" : "Previous recorded month"}>←</a> : <span aria-disabled="true">←</span>}
           {next ? <a href={workoutMonthHref(locale, next)} aria-label={zh ? "下一有记录月份" : "Next recorded month"}>→</a> : <span aria-disabled="true">→</span>}
-        </div>
+        </div>}
       </div>
       <div class="fitness-stats">
-        <div><span>{zh ? "训练天数" : "Training days"}</span><strong>{summary ? summary.data.trainingDays : "—"}{summary && <small>{zh ? "天" : "days"}</small>}</strong></div>
-        <div><span>{zh ? "训练时长" : "Training time"}</span><strong>{duration === undefined ? "—" : (duration / 60).toLocaleString(zh ? "zh-CN" : "en-US", {maximumFractionDigits: 1})}{duration !== undefined && <small>h</small>}</strong></div>
-        <div><span>{zh ? "训练容量" : "Training volume"}</span><strong>{volume === undefined ? "—" : (volume / 1000).toLocaleString(zh ? "zh-CN" : "en-US", {maximumFractionDigits: 1})}{volume !== undefined && <small>t</small>}</strong></div>
+        <div><span>{zh ? "训练天数" : "Training days"}</span><strong>{trainingDays ?? "—"}{trainingDays !== undefined && <small>{zh ? "天" : "days"}</small>}</strong></div>
+        <div><span>{zh ? "训练时长" : "Training time"}</span><strong>{annual?.incompleteDuration && duration !== undefined && <span class="fitness-stats__partial">≥</span>}{duration === undefined ? "—" : (duration / 60).toLocaleString(zh ? "zh-CN" : "en-US", {maximumFractionDigits: 1})}{duration !== undefined && <small>h</small>}</strong></div>
+        <div><span>{zh ? "训练容量" : "Training volume"}</span><strong>{annual?.incompleteVolume && volume !== undefined && <span class="fitness-stats__partial">≥</span>}{volume === undefined ? "—" : (volume / 1000).toLocaleString(zh ? "zh-CN" : "en-US", {maximumFractionDigits: 1})}{volume !== undefined && <small>t</small>}</strong></div>
       </div>
-      {!summary && <p class="fitness-empty">{zh ? "尚无公开的月度汇总。同步后将在这里显示。" : "No published monthly summary yet."}</p>}
+      {!summary && !isAnnual && <p class="fitness-empty">{zh ? "尚无公开的月度汇总。同步后将在这里显示。" : "No published monthly summary yet."}</p>}
+      {(annual?.incompleteDuration || annual?.incompleteVolume) && (
+        <p class="fitness-unit-note">{zh
+          ? "部分月份缺少完整的训练时长或容量，≥ 表示已记录部分的合计，不代表全年完整数值。"
+          : "Some months have incomplete duration or volume data; ≥ represents the recorded minimum, not a complete annual total."}</p>
+      )}
       <p class="fitness-unit-note">{zh ? "训练容量是器械记录的重量与次数汇总，只供观察自身长期变化。" : "Training volume sums recorded weight and repetitions; it is useful for personal trends, not cross-exercise comparisons."}{publishedDemo && <> {zh ? "当前为模拟统计，未接入训记。" : "Currently showing sample totals, not connected to Xunji."}</>}</p>
     </section>
 
-    <WorkoutTrend locale={locale} month={month} summaries={summaries} />
+    <WorkoutTrend locale={locale} month={month} annualYear={annualYear} summaries={summaries} />
 
     {summary && (
       <section class="fitness-feedback" aria-label={zh ? "互动" : "Feedback"}>
-        <ContentReaction contentType="fitness" contentId={month} language={locale} />
-        <ContentComments language={locale} threadPath={workoutMonthHref("zh", month)} />
+        <ContentReaction contentType="fitness" contentId={annualYear ? `year-${annualYear}` : month} language={locale} />
+        <ContentComments language={locale} threadPath={annualYear ? workoutYearHref("zh", annualYear) : workoutMonthHref("zh", month)} />
       </section>
     )}
     </div>
@@ -78,6 +89,7 @@ const languageAlternatives = [
   .fitness-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.75rem; }
   .fitness-stats > div { display:flex; flex-direction:column; gap:0.6rem; min-width:0; padding:1rem; border:1px solid var(--border); border-radius:0.6rem; background:var(--surface); }
   .fitness-stats > div > span { font-size:0.82rem; color:var(--muted); }
+  .fitness-stats__partial { font-size:0.7em; margin-right:0.15rem; color:var(--muted); }
   .fitness-stats strong { font-size:clamp(1.4rem,4vw,1.85rem); letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
   .fitness-stats small { margin-left:0.3rem; font-size:0.73rem; font-weight:400; letter-spacing:0; color:var(--muted); }
   .fitness-unit-note,.fitness-empty { margin:0.9rem 0; font-size:0.78rem; color:var(--muted); line-height:1.7; }
