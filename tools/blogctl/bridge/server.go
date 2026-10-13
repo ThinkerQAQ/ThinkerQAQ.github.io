@@ -527,6 +527,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleSearchBaiduJobStart(response, request)
 		return
 	}
+	if (path == "v1/search/index/jobs/so360" || path == "v1/search/index/jobs/sogou") && request.Method == http.MethodPost {
+		s.handleDeferredSearchSubmission(response, request, strings.TrimPrefix(path, "v1/search/index/jobs/"))
+		return
+	}
 	if path == "v1/search/index/jobs/google/sitemaps" && request.Method == http.MethodPost {
 		s.handleSearchGoogleSitemapsJobStart(response, request)
 		return

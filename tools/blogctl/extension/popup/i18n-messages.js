@@ -2,6 +2,13 @@
 // Catalog uses existing Chinese UI labels as stable source keys. i18next is
 // bundled locally for MV3 CSP and reused by Extension + Go-hosted Web Console.
 globalThis.BlogCTLEnMessages = Object.freeze({
+  "360 搜索": "360 Search",
+  "搜狗搜索": "Sogou Search",
+  "360 控制台": "360 webmaster console",
+  "搜狗控制台": "Sogou webmaster console",
+  "未接入": "Not connected",
+  "支持增量和全量提交；远端提交暂未接入。": "Incremental and full submission endpoints are available; remote submission is not connected yet.",
+  "远端提交尚未接入；本次未向搜索引擎发送 URL。": "Remote submission is not connected. No URLs were sent to the search engine.",
   "界面与语言": "Interface & language",
   "语言偏好与界面显示": "Language preference and display",
   "界面语言": "Interface language",

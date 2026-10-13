@@ -2,7 +2,7 @@
 
 BlogCTL 为同一份本地 Markdown 内容提供「检测、创建、更新」三个核心动作。Extension Side Panel 与 Bridge Web Console 使用相同的 HTML、Feature JS 和样式；唯一不同的是扩展内部消息或 Web Console 的受限 Extension relay Transport。
 
-导航统一在左侧：检测、创建、更新、索引、任务、日志、设置。索引页筛选 IndexNow、百度或 Google；日志页内置 CodeMirror 只读查看、行号与全文查找。
+导航统一在左侧：检测、创建、更新、索引、任务、日志、设置。索引页筛选 IndexNow、百度、Google、360 或搜狗；日志页内置 CodeMirror 只读查看、行号与全文查找。
 
 ## 检测：查询当前平台账号内容
 
@@ -44,6 +44,13 @@ BlogCTL 为同一份本地 Markdown 内容提供「检测、创建、更新」�
 任务页展示批次状态、平台结果和带远端 ID 的操作事件。**创建任务不支持自动重试**，单目标、无发布动作的更新任务可按原目标快照重试；多目标或带发布动作的任务拒绝盲目重试，需先检查远端状态，再明确选取失败目标。
 
 索引仍使用独立的 IndexNow / Baidu / Google Search Console 工作流，不依赖发布动作。
+
+360 和搜狗使用与百度相同的状态、统计及增量/全量提交卡片，站点和 Sitemap 共用现有配置。Extension 分别将 `blogctl.index.so360.submit` 和 `blogctl.index.sogou.submit` 转发至 Bridge 的 `POST /v1/search/index/jobs/so360` 和 `POST /v1/search/index/jobs/sogou`，请求体为 `{"mode":"incremental"}` 或 `{"mode":"full"}`。当前远端适配暂缓，合法请求返回 HTTP 200 JSON：`ok:true` 表示本地请求已处理，`result.supported:false`、`result.submitted:false`、`result.code:"submission_not_implemented"` 表示没有向搜索引擎提交；界面显示「未接入」、实际提交 0、远端 HTTP「未请求」，未计算的差异统计保持空值。不会创建虚假成功任务或推进提交快照。非法请求返回 HTTP 400 JSON，认证与其他写接口一致。站点验证文件存在也不等于已验证或已收录。
+
+- **360**：在 [站点管理](https://zhanzhang.so.com/sitetool/site_manage) 中选择站点，通过「Sitemap 提交」添加 XML 地址。[官方公告](https://bbs.360.cn/thread-15979727-1-1.html)说明旧自动收录功能已关闭，建议提交并持续更新 Sitemap；这不等于证明所有 API 都不存在。截至 2026-10-13，尚未找到可验证的公开 Sitemap 提交 API 契约。
+- **搜狗**：在 [网站管理](https://zhanzhang.sogou.com/index.php/dashboard/index) 中检查站点验证、资质和 Sitemap 权限。[官方帮助](https://zhanzhang.sogou.com/index.php/help/sitemap)说明 Sitemap 提交采用邀请制，支持 TXT、XML 和一级 XML 索引，每文件最多 50,000 条且小于 10 MB。已添加的相同地址不要重复添加。资源收录的 URL 提交入口不接受 Sitemap 文件。
+
+后续浏览器提交适配需要真实、已授权的录制证据：进入平台、选择站点、检查权限、查看已有 Sitemap、添加或更新、读取结果，以及验证码或拒绝路径。会话 Cookie 和凭据保持在浏览器中；不要把未公开的网页请求假装成稳定 Open API，也不要在网络中断后盲目重试新增提交。
 
 ## 设置
 

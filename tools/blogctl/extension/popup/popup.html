@@ -175,6 +175,8 @@
             <option value="indexnow">IndexNow</option>
             <option value="baidu">百度</option>
             <option value="google">Google Search Console</option>
+            <option value="so360">360 搜索</option>
+            <option value="sogou">搜狗搜索</option>
             <option value="all">全部引擎</option>
           </select>
         </label>
@@ -305,8 +307,61 @@
           </div>
         </div>
 
-        <p id="indexingMessage" class="message" role="status"></p>
       </section>
+
+      <section class="status-card" data-index-engine="so360">
+        <div class="status-row">
+          <div>
+            <div class="section-title">360 搜索</div>
+            <p class="card-hint">支持增量和全量提交；远端提交暂未接入。</p>
+          </div>
+          <strong id="index360Status" class="status unknown">未接入</strong>
+        </div>
+        <div class="index-link-row"><span>360 控制台</span><a id="index360Console" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <p id="index360Error" class="card-hint" role="status"></p>
+        <div class="index-stat-grid">
+          <div><span>上次提交</span><strong id="index360FinishedAt">-</strong></div>
+          <div><span>模式</span><strong id="index360Mode">-</strong></div>
+          <div><span>实际提交</span><strong id="index360Count">-</strong></div>
+          <div><span>新增</span><strong id="index360NewCount">-</strong></div>
+          <div><span>更新</span><strong id="index360ChangedCount">-</strong></div>
+          <div><span>删除（未提交）</span><strong id="index360DeletedCount">-</strong></div>
+          <div><span>未变化</span><strong id="index360UnchangedCount">-</strong></div>
+          <div><span>HTTP</span><strong id="index360HTTP">-</strong></div>
+        </div>
+        <div class="index-action-row index-action-row-equal">
+          <button id="index360SubmitIncremental" class="primary inline-primary" type="button">提交增量</button>
+          <button id="index360SubmitFull" class="primary inline-primary" type="button">全量重新提交</button>
+        </div>
+      </section>
+
+      <section class="status-card" data-index-engine="sogou">
+        <div class="status-row">
+          <div>
+            <div class="section-title">搜狗搜索</div>
+            <p class="card-hint">支持增量和全量提交；远端提交暂未接入。</p>
+          </div>
+          <strong id="indexSogouStatus" class="status unknown">未接入</strong>
+        </div>
+        <div class="index-link-row"><span>搜狗控制台</span><a id="indexSogouConsole" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <p id="indexSogouError" class="card-hint" role="status"></p>
+        <div class="index-stat-grid">
+          <div><span>上次提交</span><strong id="indexSogouFinishedAt">-</strong></div>
+          <div><span>模式</span><strong id="indexSogouMode">-</strong></div>
+          <div><span>实际提交</span><strong id="indexSogouCount">-</strong></div>
+          <div><span>新增</span><strong id="indexSogouNewCount">-</strong></div>
+          <div><span>更新</span><strong id="indexSogouChangedCount">-</strong></div>
+          <div><span>删除（未提交）</span><strong id="indexSogouDeletedCount">-</strong></div>
+          <div><span>未变化</span><strong id="indexSogouUnchangedCount">-</strong></div>
+          <div><span>HTTP</span><strong id="indexSogouHTTP">-</strong></div>
+        </div>
+        <div class="index-action-row index-action-row-equal">
+          <button id="indexSogouSubmitIncremental" class="primary inline-primary" type="button">提交增量</button>
+          <button id="indexSogouSubmitFull" class="primary inline-primary" type="button">全量重新提交</button>
+        </div>
+      </section>
+
+      <p id="indexingMessage" class="message" role="status"></p>
     </section>
 
     <section class="panel" role="tabpanel" data-panel="environment">

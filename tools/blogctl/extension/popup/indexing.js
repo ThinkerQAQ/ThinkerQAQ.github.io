@@ -13,6 +13,10 @@
   };
 
   let elements = {};
+  const deferredProviders = [
+    { key: "so360", prefix: "index360" },
+    { key: "sogou", prefix: "indexSogou" },
+  ];
 
   function el(id) { return document.getElementById(id); }
 
@@ -30,6 +34,7 @@
       case "failed":
       case "quota_blocked": return "error";
       case "paused": return "unknown";
+      case "unsupported": return "unknown";
       default: return "disabled";
     }
   }
@@ -42,6 +47,7 @@
       case "failed": return "失败";
       case "paused": return "已暂停";
       case "quota_blocked": return "配额已用尽";
+      case "unsupported": return "未接入";
       default: return "未运行";
     }
   }
@@ -186,6 +192,22 @@
     setLink(elements.bingConsole, consoles.indexnow);
     setLink(elements.baiduConsole, consoles.baidu);
     setLink(elements.googleConsole, consoles.google);
+    setLink(elements.so360Console, consoles.so360);
+    setLink(elements.sogouConsole, consoles.sogou);
+    for (const provider of deferredProviders) {
+      const operation = index[provider.key] || { state: "unsupported" };
+      const card = elements[provider.key];
+      setStatus(card.status, operationKind(operation.state), operationLabel(operation.state), operation.error || "");
+      setText(card.error, operation.error || "");
+      setText(card.finishedAt, formatDate(operation.finishedAt));
+      setText(card.mode, operation.mode === "full" ? "全量" : operation.mode === "incremental" ? "增量" : "-");
+      for (const field of ["count", "newCount", "changedCount", "deletedCount", "unchangedCount"]) {
+        setText(card[field], operation.mode && (operation.state !== "unsupported" || field === "count") ? Number(operation[field] || 0) : "-");
+      }
+      setText(card.http, operation.httpStatus || (operation.mode ? "未请求" : "-"));
+      card.incremental.disabled = !(Number(inventory.total || 0) > 0) || state.busy.has(provider.key);
+      card.full.disabled = card.incremental.disabled;
+    }
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
     const fingerprintCoverage = Number(inventory.fingerprintCoverage || 0);
     const inventoryTotal = Number(inventory.total || 0);
@@ -305,7 +327,9 @@
       if (response.index) state.index = response.index;
       if (response.google) state.gsc = response.google;
       render();
-      if (successMessage) {
+      if (response.result?.supported === false) {
+        BlogCTLPopup.setMessage(elements.message, response.result.message, "error");
+      } else if (successMessage) {
         const jobSuffix = response.job?.id ? ` · 已加入任务 ${response.job.id}` : "";
         BlogCTLPopup.setMessage(elements.message, successMessage + jobSuffix, "ok");
       }
@@ -373,6 +397,10 @@
     await run("sitemaps", { type: "blogctl.index.google.sitemaps" }, "Google Sitemap 任务已创建。");
   }
 
+  async function submitDeferredProvider(provider, mode) {
+    await run(provider, { type: `blogctl.index.${provider}.submit`, payload: { mode } });
+  }
+
   async function inspectGoogle() {
     const refreshed = await BlogCTLPopup.send("blogctl.index.inventory.refresh");
     if (refreshed.index) state.index = refreshed.index;
@@ -435,6 +463,8 @@
       bingConsole: el("indexBingConsole"),
       baiduConsole: el("indexBaiduConsole"),
       googleConsole: el("indexGoogleConsole"),
+      so360Console: el("index360Console"),
+      sogouConsole: el("indexSogouConsole"),
       inventoryTotal: el("indexInventoryTotal"),
       inventoryFingerprintCoverage: el("indexInventoryFingerprintCoverage"),
       inventoryFetchedAt: el("indexInventoryFetchedAt"),
@@ -492,13 +522,26 @@
       message: el("indexingMessage"),
     };
 
-    // The three search engines share one selector and one presentation
+    for (const provider of deferredProviders) {
+      const prefix = provider.prefix;
+      const card = elements[provider.key] = {
+        status: el(prefix + "Status"), error: el(prefix + "Error"), finishedAt: el(prefix + "FinishedAt"),
+        mode: el(prefix + "Mode"), count: el(prefix + "Count"), newCount: el(prefix + "NewCount"),
+        changedCount: el(prefix + "ChangedCount"), deletedCount: el(prefix + "DeletedCount"),
+        unchangedCount: el(prefix + "UnchangedCount"), http: el(prefix + "HTTP"),
+        incremental: el(prefix + "SubmitIncremental"), full: el(prefix + "SubmitFull"),
+      };
+      card.incremental.addEventListener("click", () => submitDeferredProvider(provider.key, "incremental"));
+      card.full.addEventListener("click", () => submitDeferredProvider(provider.key, "full"));
+    }
+
+    // Search engines share one selector and one presentation
     // contract. Filtering is purely visual; background jobs keep running.
     const engineFilter = el("indexEngineFilter");
     const engineCards = [...document.querySelectorAll(
       '[data-panel="indexing"] [data-index-engine]'
     )];
-    const knownEngines = new Set(["indexnow", "baidu", "google", "all"]);
+    const knownEngines = new Set(["all", ...engineCards.map((card) => card.dataset.indexEngine)]);
     const stored = localStorage.getItem("blogctl.indexEngine");
     engineFilter.value = knownEngines.has(stored) ? stored : "indexnow";
     const applyEngineFilter = () => {
