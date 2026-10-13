@@ -4,6 +4,7 @@ import LifeRecord from "./LifeRecord.astro";
 import Pagination from "./Pagination.astro";
 import ContentMediaViewer from "./ContentMediaViewer.astro";
 import ContentComments from "./ContentComments.astro";
+import ContentReaction from "./ContentReaction.astro";
 import { localizePath, type Locale } from "../config/i18n";
 import { lifeHref, lifeTitle, type LifePageData } from "../lib/life";
 import { SITE } from "../config/site";
@@ -74,6 +75,7 @@ const structuredData = data.kind === "record" ? {
           <LifeRecord entry={data.entry} detail />
         </div>
         <ContentMediaViewer locale={locale} />
+        <ContentReaction contentType="life" contentId={data.entry.id} language={locale} />
         <ContentComments language={locale} threadPath={lifeHref(data.entry)} />
       </>
     )}
