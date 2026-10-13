@@ -34,6 +34,7 @@ const languageAlternatives = [
   <div class="shell fitness-page">
     <LifeSectionHeader locale={locale} active="fitness" />
 
+    <div class="fitness-content">
     <section class="fitness-month" aria-labelledby="fitness-month-title" data-pagefind-body data-pagefind-filter="type:fitness">
       <div class="fitness-month__head">
         <div><span class="fitness-eyebrow">{zh ? "月度概览" : "Monthly summary"}</span><h2 id="fitness-month-title">{localizedThisMonth}</h2></div>
@@ -54,10 +55,12 @@ const languageAlternatives = [
     <WorkoutTrend locale={locale} month={month} summaries={summaries} />
 
     <p class="fitness-privacy">{zh ? "隐私：这里只发布月度汇总，不包含训练日期、时间、动作或每组重量。" : "Privacy: only monthly aggregates are published. Dates, times, exercises and individual sets are not included."}</p>
+    </div>
   </div>
 </BaseLayout>
 <style>
-  .fitness-page { max-width: 56rem; padding-block: clamp(2rem, 5vw, 3.5rem) 5rem; min-width:0; }
+  .fitness-page { padding-block: 1rem 5rem; min-width:0; }
+  .fitness-content { max-width: 56rem; min-width:0; }
   .fitness-month__head { display:flex; justify-content:space-between; align-items:end; gap:0.9rem; margin:0.7rem 0 1rem; }
   .fitness-month__head h2 { margin:0.2rem 0 0; font-size:clamp(1.35rem,4vw,1.7rem); letter-spacing:-0.025em; }
   .fitness-eyebrow { font-size:0.79rem; color:var(--muted); }
