@@ -10,11 +10,10 @@ const zh = locale === "zh";
 const home = localizePath(locale, "/life/");
 const { summary, summaries, month } = data;
 const title = zh ? "健身记录" : "Fitness log";
-const description = zh ? "记录长期训练习惯：月度汇总、年度归档与训练趋势。" : "A public overview of long-term fitness consistency, with monthly totals and trends.";
+const description = zh ? "记录长期训练习惯：月度汇总与年度趋势。" : "A public overview of long-term fitness consistency, with monthly totals and annual trends.";
 const index = summaries.findIndex((entry) => entry.data.month === month);
 const prev = summaries[index + 1]?.data.month;
 const next = index > 0 ? summaries[index - 1]?.data.month : undefined;
-const years = [...new Set(summaries.map((entry) => entry.data.month.slice(0, 4)))];
 const duration = summary?.data.durationMinutes;
 const volume = summary?.data.volumeKg;
 const publishedDemo = summaries.some((entry) => entry.data.demo);
@@ -67,27 +66,6 @@ const languageAlternatives = [
 
     <WorkoutTrend locale={locale} month={month} summaries={summaries} />
 
-    <section class="fitness-archive" aria-labelledby="fitness-archive-title">
-      <div class="fitness-archive__head">
-        <h2 id="fitness-archive-title">{zh ? "训练归档" : "Monthly archive"}</h2>
-        <span>{summaries.length} {zh ? "个月" : "months"}</span>
-      </div>
-      {years.map((year) => (
-        <div class="fitness-archive__year">
-          <h3>{year}</h3>
-          <div class="fitness-archive__months">
-            {summaries.filter((entry) => entry.data.month.startsWith(year)).map((entry) => (
-              <a href={workoutMonthHref(locale, entry.data.month)}
-                aria-current={entry.data.month === month ? "page" : undefined}>
-                <span>{zh ? `${Number(entry.data.month.slice(5))} 月` : workoutMonthName(entry.data.month, locale).replace(` ${year}`, "")}</span>
-                <small>{entry.data.trainingDays} {zh ? "天" : "days"}</small>
-                <span aria-hidden="true">↗</span>
-              </a>
-            ))}
-          </div>
-        </div>
-      ))}
-    </section>
     <p class="fitness-privacy">{zh ? "隐私：这里只发布月度汇总，不包含训练日期、时间、动作或每组重量。" : "Privacy: only monthly aggregates are published. Dates, times, exercises and individual sets are not included."}</p>
   </div>
 </BaseLayout>
@@ -113,15 +91,6 @@ const languageAlternatives = [
   .fitness-stats strong { font-size:clamp(1.4rem,4vw,1.85rem); letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
   .fitness-stats small { margin-left:0.3rem; font-size:0.73rem; font-weight:400; letter-spacing:0; color:var(--muted); }
   .fitness-unit-note,.fitness-empty,.fitness-privacy { margin:0.9rem 0; font-size:0.78rem; color:var(--muted); line-height:1.7; }
-  .fitness-archive__head { display:flex; align-items:baseline; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border); padding-bottom:0.7rem; }
-  .fitness-archive__head h2 { margin:0; font-size:1.12rem; }
-  .fitness-archive__head span { color:var(--muted); font-size:0.8rem; }
-  .fitness-archive__year h3 { margin:1.4rem 0 0.3rem; font-size:0.86rem; color:var(--muted); }
-  .fitness-archive__months { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 1.5rem; }
-  .fitness-archive__months a { display:flex; align-items:center; gap:0.6rem; padding:0.8rem 0.2rem; text-decoration:none; border-bottom:1px solid var(--border); font-size:0.9rem; }
-  .fitness-archive__months a[aria-current="page"] { color:var(--accent); }
-  .fitness-archive__months a small { color:var(--muted); font-size:0.78rem; margin-left:auto; }
-  .fitness-archive__months a > span:last-child { color:var(--muted); }
   .fitness-privacy { border-top:1px solid var(--border); margin-top:3rem; padding-top:1rem; }
-  @media(max-width:540px) { .fitness-page { padding-top:1.5rem; } .fitness-stats { gap:0.4rem; } .fitness-stats > div { padding:0.7rem 0.6rem; } .fitness-stats > div > span { font-size:0.71rem; } .fitness-archive__months { grid-template-columns:1fr; } }
+  @media(max-width:540px) { .fitness-page { padding-top:1.5rem; } .fitness-stats { gap:0.4rem; } .fitness-stats > div { padding:0.7rem 0.6rem; } .fitness-stats > div > span { font-size:0.71rem; } }
 </style>

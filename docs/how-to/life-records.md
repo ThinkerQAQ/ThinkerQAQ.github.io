@@ -62,7 +62,7 @@ Fitness belongs to the Life navigation but uses a separate, **public monthly agg
 }
 ```
 
-- `/life/fitness/` — latest month, three summary metrics, last 12 recorded months as an accessible bar chart, and year/month archive.
+- `/life/fitness/` — latest month, three summary metrics, and one annual bar chart with selectable years (12 calendar months per year). The redundant year/month archive list is omitted.
 - `/life/fitness/YYYY/MM/` — the same public summary with that month selected.
 - Equivalent paths under `/en/life/fitness/` use the English interface.
 
