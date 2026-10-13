@@ -8,7 +8,7 @@ Run commands from the **engine root** with Node.js 22+, Go 1.27.1 and npm. The f
 
 ```bash
 go run ./tools/blogctl/cmd/maint verify
-npm run assemble:fixtures
+npm run assemble:template
 npm run check
 ```
 

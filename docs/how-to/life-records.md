@@ -2,7 +2,7 @@
 
 Life exposes two shared navigation tabs: **Photography** (the default view at `/life/` or `/en/life/`) and **Fitness** (public monthly aggregates at `/life/fitness/` or `/en/life/fitness/`). There is no combined All tab. Photography reads caption-and-album records from the separate `life` collection; Fitness reads strict `workoutSummaries` JSON.
 
-Put canonical entries in the content repository at `src/content/life/`. The engine's existing assembly command copies this collection together with the rest of the content. Do not commit personal entries to the engine.
+Canonical personal entries belong in the private BlogContent repository at `src/content/life/`. Public fictional examples belong in the separate [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template) repository, **not** in the engine. The engine only defines the schema and rendering; assembly copies a selected content repository into ignored build inputs.
 
 ## Import a Moments post
 
@@ -77,7 +77,7 @@ npm ci
 npm run dev:quick
 ```
 
-Fixtures include one, four, nine and twelve images, an untitled record, a long caption, an English record, and a draft excluded from public output. These are explicitly labelled demo content, not personal history.
+The public content template supplies one, four, nine and twelve-image photo albums, an untitled record, a long caption, an English record, a draft, and synthetic fitness monthly summaries. None of these files are stored in the engine repository.
 
 For real content:
 
@@ -86,4 +86,4 @@ go run ./tools/blogctl/cmd site assemble --content-root ../BlogContent
 npm run dev:site
 ```
 
-Assembling real content replaces fixtures. An empty collection displays an empty-state page; the homepage does not invent sample records.
+Assembling real content replaces the assembled template contents. An empty collection displays an empty-state page; the homepage does not invent sample records.

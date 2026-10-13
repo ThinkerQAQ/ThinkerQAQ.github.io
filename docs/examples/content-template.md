@@ -1,22 +1,22 @@
-# Example — public-engine fixtures
+# Example — public content template
 
-**Problem:** verify that the engine can produce a functioning site without production content, cloud secrets or a distribution account.
+**Goal:** preview the public blog without production content, private repositories or third-party credentials. All demo Markdown, JSON and media belong in [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template), not in the engine.
 
-**Input:** `fixtures/src/content/` includes articles, notes, projects, series and translation examples.
-
-**Run:**
+From the engine checkout:
 
 ```bash
 npm ci
 npm run dev:quick
 ```
 
-Open [http://localhost:4321](http://localhost:4321). For validation:
+The first run reuses a sibling `../blog-content-template` checkout if present; otherwise it clones the public template there. The Go `site assemble` command copies the template's `src/content/` and `public/media/` into the engine's **ignored build inputs**, then Astro serves those assets. It never modifies the user's private BlogContent repository.
+
+For a full build (requires Java/Graphviz and Chromium only if the example content uses those renderers):
 
 ```bash
-npm run build:fixtures
+npm run build:template
 ```
 
-**Capabilities:** fast preview uses BlogCTL Go assembly and Astro collections. The optional full build also runs static diagram processing and Pagefind and requires Java/Graphviz and headless Chromium.
+To use a custom local template checkout, set `BLOG_TEMPLATE_ROOT=/path/to/blog-content-template` before assembly. For a **real** content repository, explicitly run `go run ./tools/blogctl/cmd site assemble --content-root /path/to/BlogContent`; `npm run dev:site` starts Astro without replacing the selected assembled content.
 
-**Why this arrangement:** fixtures belong to the engine test boundary. Real canonical content is stored separately; tests must not require production secrets. Source code is in [fixtures](../../fixtures/) and [package.json](../../package.json).
+The engine retains only programmatic test fixtures tied to component tests (e.g. Draw.io rendering); published sample content lives exclusively in the template repository.

@@ -15,7 +15,7 @@ npm ci
 npm run dev:quick
 ```
 
-Open [localhost:4321](http://localhost:4321). `dev:quick` assembles `fixtures/` and starts Astro without rendering diagrams. You can browse the sample articles, notes and projects.
+Open [localhost:4321](http://localhost:4321). `dev:quick` assembles from the separate public `blog-content-template` checkout (cloning it if absent) and starts Astro without rendering diagrams. You can browse the sample articles, notes and projects.
 
 ## Check the project
 

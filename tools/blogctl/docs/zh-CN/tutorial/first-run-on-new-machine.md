@@ -37,7 +37,7 @@ npm ci
 npm run dev:quick
 ```
 
-打开 [http://localhost:4321](http://localhost:4321)，应看到示例文章。它读取仓库内的 `fixtures/`，无需私有内容仓库、云服务密钥，也不要求先安装 Java/Graphviz。
+打开 [http://localhost:4321](http://localhost:4321)，应看到示例文章。它读取公开的 `blog-content-template` 仓库，无需私有内容仓库、云服务密钥，也不要求先安装 Java/Graphviz。
 
 在第二个终端运行 `npm run check`；检查通过后可按 **Ctrl+C** 停止开发服务器。
 
@@ -115,6 +115,6 @@ blogctl sync --article YOUR_SLUG --platforms devto --dry-run
 
 ## 全新环境复现结果
 
-2026-10-10 使用全新浅克隆验证，环境为 Linux/WSL、Go 1.27.1、Node 24.21.0、npm 11.19.0，并通过独立 `BLOGCTL_DATA_DIR` 隔离原有安装。`help`、`doctor`、Go 构建、`npm ci`、fixtures 装配、Astro 检查（**0 errors、0 warnings**）、Bridge 健康检查与英文界面截图均已通过。未连接真实发布平台账号，也未创建草稿。
+2026-10-10 使用全新浅克隆验证，环境为 Linux/WSL、Go 1.27.1、Node 24.21.0、npm 11.19.0，并通过独立 `BLOGCTL_DATA_DIR` 隔离原有安装。`help`、`doctor`、Go 构建、`npm ci`、公开内容模板装配、Astro 检查（**0 errors、0 warnings**）、Bridge 健康检查与英文界面截图均已通过。未连接真实发布平台账号，也未创建草稿。
 
 这三张图来自**真实 Go Bridge 提供的工作台**，并非概念设计图或填充的假数据。

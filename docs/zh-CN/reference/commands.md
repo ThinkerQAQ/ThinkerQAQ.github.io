@@ -5,13 +5,13 @@
 | 命令 | 用途 |
 | --- | --- |
 | `npm ci` | 根据 lockfile 安装 Node 依赖 |
-| `npm run dev:quick` | 装配 fixtures 并启动 Astro，跳过图表预渲染 |
-| `npm run dev` | 装配 fixtures、渲染图表并启动 Astro |
+| `npm run dev:quick` | 装配独立的公开内容模板并启动 Astro，跳过图表预渲染 |
+| `npm run dev` | 装配公开内容模板、渲染图表并启动 Astro |
 | `npm run dev:site` | 渲染图表并启动 Astro，不重新装配内容 |
-| `npm run assemble:fixtures` | 用 BlogCTL 装配 `fixtures/` |
+| `npm run assemble:template` | 从独立的 `blog-content-template` 装配示例内容 |
 | `npm run check` | Astro 类型与诊断检查 |
 | `npm run build` | 调用 BlogCTL 执行站点构建 |
-| `npm run build:fixtures` | 装配示例内容并执行构建 |
+| `npm run build:template` | 从公开模板装配并构建 |
 | `npm run test` | 引擎测试、示例装配和完整构建 |
 | `npm run test:docs` | 检查 Markdown 相对链接 |
 | `npm run test:engine` | 引擎、扩展、Worker 和组件相关测试 |

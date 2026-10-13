@@ -15,7 +15,7 @@
 - **Core:** canonical content assembly and static site output have stable ownership.
 - **Extensions:** platform publishers, search adapters, diagram renderers and EdgeOne integration can change independently.
 - **Configuration:** BlogCTL `blogctl.toml` and environment/CI settings select providers without hardcoding secrets.
-- **Self-hosting:** Native Go maintenance commands implement build/verify/package; the engine runs with fixtures independently of cloud services.
+- **Self-hosting:** Native Go maintenance commands implement build/verify/package; the engine can assemble independent public demo content without private services.
 
 ## Example
 

@@ -5,13 +5,13 @@
 | Command | Actual operation |
 | --- | --- |
 | `npm ci` | Install exact Node dependencies from lockfile |
-| `npm run dev:quick` | Assemble fixtures and launch Astro without diagram pre-rendering (minimal new-user path) |
+| `npm run dev:quick` | Assemble the public content template and launch Astro without diagram pre-rendering (minimal new-user path) |
 | `npm run dev` | Assemble fixture content, then diagrams and Astro dev server (requires Java/Graphviz/Chromium) |
 | `npm run dev:site` | Render diagrams and start Astro at port 4321, without reassembling content |
-| `npm run assemble:fixtures` | Go BlogCTL `site assemble --content-root fixtures` |
+| `npm run assemble:template` | Clone/reuse `blog-content-template` and run BlogCTL `site assemble` |
 | `npm run check` | `astro check` |
 | `npm run build` | Go BlogCTL `build` |
-| `npm run build:fixtures` | Assemble fixtures then build |
+| `npm run build:template` | Assemble public template content then build |
 | `npm run test` | Engine tests + fixture assembly + check + build |
 | `npm run test:docs` | Validate internal Markdown links via the existing remark parser |
 | `npm run test:engine` | Public boundary/content, diagrams, extension, Worker and UI checks |

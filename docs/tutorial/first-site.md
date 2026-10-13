@@ -36,7 +36,7 @@ BlogCTL reads the sibling source and assembles the engine's `src/content/` tree.
 npx --no-install astro dev --port 4321
 ```
 
-Open [http://localhost:4321](http://localhost:4321) and check the article, note and project routes. For a full diagram-enabled preview use `npm run dev:site` once its Java/Graphviz/Chromium dependencies are installed. Do **not** use `dev:quick` here, because it deliberately reassembles the fixtures.
+Open [http://localhost:4321](http://localhost:4321) and check the article, note and project routes. For a full diagram-enabled preview use `npm run dev:site` once its Java/Graphviz/Chromium dependencies are installed. Do **not** use `dev:quick` here, because it deliberately reassembles the public content template and would overwrite your selected source.
 
 ## 5. Edit and verify
 
