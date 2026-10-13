@@ -93,6 +93,8 @@ type searchIndexState struct {
 	Inventory       searchInventoryState  `json:"inventory"`
 	IndexNow        searchOperationState  `json:"indexNow"`
 	Baidu           searchOperationState  `json:"baidu"`
+	So360           searchOperationState  `json:"so360"`
+	Sogou           searchOperationState  `json:"sogou"`
 	BaiduConfigured bool                  `json:"baiduConfigured"`
 	Google          struct {
 		CredentialsConfigured bool                    `json:"credentialsConfigured"`
@@ -107,6 +109,8 @@ func defaultSearchIndexState() searchIndexState {
 	state := searchIndexState{}
 	state.IndexNow.State = "idle"
 	state.Baidu.State = "idle"
+	state.So360.State = "unsupported"
+	state.Sogou.State = "unsupported"
 	state.Google.Sitemaps.State = "idle"
 	state.Google.Inspection.State = "idle"
 	state.Google.RequestQueue.State = "idle"

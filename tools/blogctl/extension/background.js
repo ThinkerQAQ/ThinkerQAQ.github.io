@@ -1403,6 +1403,12 @@ async function handleMessage(message) {
       );
       return { ok: true, index: result?.index ?? {}, job: result?.job };
     }
+    case "blogctl.index.so360.submit":
+    case "blogctl.index.sogou.submit": {
+      const provider = message.type === "blogctl.index.so360.submit" ? "so360" : "sogou";
+      const result = await fetchJSON(`/v1/search/index/jobs/${provider}`, jsonOptions("POST", { mode: String(message.mode || "incremental") }));
+      return { ok: true, index: result?.index ?? {}, result: result?.result };
+    }
     case "blogctl.index.google.sitemaps": {
       const result = await fetchJSON("/v1/search/index/jobs/google/sitemaps", { method: "POST" });
       return { ok: true, index: result?.index ?? {}, job: result?.job };

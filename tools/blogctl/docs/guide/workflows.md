@@ -45,7 +45,7 @@ BlogCTL 为同一份本地 Markdown 内容提供「检测、创建、更新」�
 
 索引仍使用独立的 IndexNow / Baidu / Google Search Console 工作流，不依赖发布动作。
 
-360 和搜狗提供站长后台入口、当前站点及同一配置中的 XML Sitemap 地址，当前只支持后台提交引导，不创建自动提交任务，也不把站点验证文件存在视为已通过验证或已收录。站长后台需要选择与「当前站点」一致的站点，完成验证后提交 Sitemap URL。博客部署负责更新该 URL 对应的 XML 内容，提交的是公开地址，而不是把 XML 文件上传到搜索引擎。
+360 和搜狗使用与百度相同的状态、统计及增量/全量提交卡片，站点和 Sitemap 共用现有配置。Extension 分别将 `blogctl.index.so360.submit` 和 `blogctl.index.sogou.submit` 转发至 Bridge 的 `POST /v1/search/index/jobs/so360` 和 `POST /v1/search/index/jobs/sogou`，请求体为 `{"mode":"incremental"}` 或 `{"mode":"full"}`。当前远端适配暂缓，合法请求返回 HTTP 200 JSON：`ok:true` 表示本地请求已处理，`result.supported:false`、`result.submitted:false`、`result.code:"submission_not_implemented"` 表示没有向搜索引擎提交；界面显示「未接入」、实际提交 0、远端 HTTP「未请求」，未计算的差异统计保持空值。不会创建虚假成功任务或推进提交快照。非法请求返回 HTTP 400 JSON，认证与其他写接口一致。站点验证文件存在也不等于已验证或已收录。
 
 - **360**：在 [站点管理](https://zhanzhang.so.com/sitetool/site_manage) 中选择站点，通过「Sitemap 提交」添加 XML 地址。[官方公告](https://bbs.360.cn/thread-15979727-1-1.html)说明旧自动收录功能已关闭，建议提交并持续更新 Sitemap；这不等于证明所有 API 都不存在。截至 2026-10-13，尚未找到可验证的公开 Sitemap 提交 API 契约。
 - **搜狗**：在 [网站管理](https://zhanzhang.sogou.com/index.php/dashboard/index) 中检查站点验证、资质和 Sitemap 权限。[官方帮助](https://zhanzhang.sogou.com/index.php/help/sitemap)说明 Sitemap 提交采用邀请制，支持 TXT、XML 和一级 XML 索引，每文件最多 50,000 条且小于 10 MB。已添加的相同地址不要重复添加。资源收录的 URL 提交入口不接受 Sitemap 文件。
