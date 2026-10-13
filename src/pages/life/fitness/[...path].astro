@@ -1,0 +1,8 @@
+---
+import WorkoutsPage from "../../../components/WorkoutsPage.astro";
+import { getWorkoutPaths, type WorkoutPageData } from "../../../lib/workouts";
+export async function getStaticPaths() { return getWorkoutPaths("zh"); }
+interface Props { data: WorkoutPageData; }
+const { data } = Astro.props;
+---
+<WorkoutsPage locale="zh" data={data} />

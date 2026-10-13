@@ -206,4 +206,31 @@ const life = defineCollection({
   }),
 });
 
-export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series, life };
+// Imported training sessions are structured data, not caption/photo posts.
+const workouts = defineCollection({
+  loader: glob({
+    pattern: "**/*.json",
+    base: "./src/content/workouts",
+    generateId: ({ entry }) => entry.replace(/\.json$/i, "").replaceAll("\\", "/"),
+  }),
+  schema: z.object({
+    date: z.iso.date(),
+    title: z.string().min(1),
+    durationMinutes: z.number().nonnegative().optional(),
+    volumeKg: z.number().nonnegative().optional(),
+    caloriesKcal: z.number().nonnegative().optional(),
+    sourceId: z.string().optional(),
+    demo: z.boolean().default(false),
+    exercises: z.array(z.object({
+      name: z.string().min(1),
+      restSeconds: z.number().int().nonnegative().optional(),
+      sets: z.array(z.object({
+        reps: z.number().nonnegative().optional(),
+        weightKg: z.number().nonnegative().optional(),
+        completed: z.boolean().default(true),
+      })),
+    })).default([]),
+  }),
+});
+
+export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series, life, workouts };

@@ -7,6 +7,7 @@ import ContentComments from "./ContentComments.astro";
 import { localizePath, type Locale } from "../config/i18n";
 import { lifeHref, lifeTitle, type LifePageData } from "../lib/life";
 import { SITE } from "../config/site";
+import { getWorkouts, workoutDayCount, workoutMonthHref, workoutMonthName } from "../lib/workouts";
 
 interface Props { locale: Locale; data: LifePageData; }
 const { locale, data } = Astro.props;
@@ -25,6 +26,9 @@ const languageAlternatives = data.kind === "index" && !data.tag && !data.year &&
 const pageHref = (page: number) => data.kind === "index" ? (page === 1 ? data.basePath : `${data.basePath}page/${page}/`) : home;
 const previous = data.kind === "index" && data.page > 1 ? pageHref(data.page - 1) : undefined;
 const next = data.kind === "index" && data.page < data.pageCount ? pageHref(data.page + 1) : undefined;
+const fitnessOverview = data.kind === "index" && !data.tag && !data.year && data.page === 1 ? await getWorkouts() : [];
+const latestFitnessMonth = fitnessOverview[0]?.data.date.slice(0, 7);
+const latestFitness = latestFitnessMonth ? fitnessOverview.filter((item) => item.data.date.startsWith(latestFitnessMonth)) : [];
 const structuredData = data.kind === "record" ? {
   "@context": "https://schema.org", "@type": "BlogPosting",
   headline: title, description, datePublished: data.entry.data.publishedAt.toISOString(),
@@ -55,7 +59,8 @@ const structuredData = data.kind === "record" ? {
         </header>
         <nav class="life-filters" aria-label={zh ? "生活分类" : "Life topics"}>
           <a href={home} aria-current={!data.tag && !data.year ? "page" : undefined}>{zh ? "全部" : "All"}</a>
-          {data.tags.map((tag) => <a href={localizePath(locale, `/life/tag/${encodeURIComponent(tag)}/`)} aria-current={data.tag === tag ? "page" : undefined}>{tag}</a>)}
+          {data.tags.filter((tag) => tag !== "健身").map((tag) => <a href={localizePath(locale, `/life/tag/${encodeURIComponent(tag)}/`)} aria-current={data.tag === tag ? "page" : undefined}>{tag}</a>)}
+          <a href={workoutMonthHref(locale)}>{zh ? "健身" : "Fitness"}</a>
         </nav>
         {data.years.length > 0 && (
           <nav class="life-years" aria-label={zh ? "按年份归档" : "Browse by year"}>
@@ -64,6 +69,20 @@ const structuredData = data.kind === "record" ? {
           </nav>
         )}
         {(data.tag || data.year) && <h2 class="life-page__filter-title">{data.tag ?? data.year}</h2>}
+        {!data.tag && !data.year && data.page === 1 && (
+          <a class="life-fitness-card" href={workoutMonthHref(locale)}>
+            <span class="life-fitness-card__icon" aria-hidden="true">↗</span>
+            <span class="life-fitness-card__text">
+              <small>{zh ? "健身 · 训练日历" : "Fitness · Training calendar"}</small>
+              <strong>{latestFitnessMonth ? workoutMonthName(latestFitnessMonth, locale) : (zh ? "我的训练记录" : "Training history")}</strong>
+              <span>{latestFitnessMonth
+                ? (zh ? `${workoutDayCount(latestFitness)} 天训练 · 查看动作与每组记录` : `${workoutDayCount(latestFitness)} training days · View exercises and sets`)
+                : (zh ? "按月查看训练，点击日期进入详情" : "Browse sessions by month and date")}</span>
+              {latestFitness.some((session) => session.data.demo) && <small>{zh ? "演示数据" : "Sample data"}</small>}
+            </span>
+            <span class="life-fitness-card__arrow" aria-hidden="true">→</span>
+          </a>
+        )}
         <div class="life-timeline" data-pagefind-ignore="all">
           {data.entries.map((entry) => <LifeRecord entry={entry} />)}
           {data.entries.length === 0 && <p class="life-empty">{zh ? "还没有生活记录。" : "No life entries yet."}</p>}
@@ -88,6 +107,14 @@ const structuredData = data.kind === "record" ? {
 
 <style>
   .life-page { max-width: 44rem; padding-block: clamp(2rem, 5vw, 3.5rem) 5rem; }
+  .life-fitness-card { display: flex; align-items: center; gap: 1rem; border: 1px solid var(--border); border-radius: 0.65rem; padding: 1rem 1.15rem; margin-top: 2rem; background: var(--surface); text-decoration: none; }
+  .life-fitness-card:hover { border-color: var(--accent); }
+  .life-fitness-card__icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 0.5rem; background: var(--accent-soft); color: var(--accent); font-size: 1.25rem; flex: none; }
+  .life-fitness-card__text { display: grid; gap: 0.35rem; min-width: 0; flex: 1; }
+  .life-fitness-card__text small { color: var(--muted); font-size: 0.75rem; }
+  .life-fitness-card__text strong { font-size: 1.1rem; color: var(--text); }
+  .life-fitness-card__text > span { color: var(--muted); font-size: 0.8rem; }
+  .life-fitness-card__arrow { color: var(--muted); }
   .life-page__intro h1 { margin: 0; font-size: 2rem; letter-spacing: -0.04em; }
   .life-page__intro p { margin: 0.5rem 0 1.75rem; color: var(--muted); }
   .life-filters, .life-years { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
