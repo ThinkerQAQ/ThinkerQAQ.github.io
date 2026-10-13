@@ -186,6 +186,12 @@
     setLink(elements.bingConsole, consoles.indexnow);
     setLink(elements.baiduConsole, consoles.baidu);
     setLink(elements.googleConsole, consoles.google);
+    setLink(elements.so360Console, consoles.so360);
+    setLink(elements.sogouConsole, consoles.sogou);
+    setLink(elements.so360Site, site.origin);
+    setLink(elements.sogouSite, site.origin);
+    setLink(elements.so360Sitemap, site.sitemapURL);
+    setLink(elements.sogouSitemap, site.sitemapURL);
     setText(elements.inventoryTotal, Number(inventory.total || 0) || "-");
     const fingerprintCoverage = Number(inventory.fingerprintCoverage || 0);
     const inventoryTotal = Number(inventory.total || 0);
@@ -435,6 +441,12 @@
       bingConsole: el("indexBingConsole"),
       baiduConsole: el("indexBaiduConsole"),
       googleConsole: el("indexGoogleConsole"),
+      so360Console: el("index360Console"),
+      sogouConsole: el("indexSogouConsole"),
+      so360Site: el("index360Site"),
+      sogouSite: el("indexSogouSite"),
+      so360Sitemap: el("index360Sitemap"),
+      sogouSitemap: el("indexSogouSitemap"),
       inventoryTotal: el("indexInventoryTotal"),
       inventoryFingerprintCoverage: el("indexInventoryFingerprintCoverage"),
       inventoryFetchedAt: el("indexInventoryFetchedAt"),
@@ -492,13 +504,13 @@
       message: el("indexingMessage"),
     };
 
-    // The three search engines share one selector and one presentation
+    // Search engines share one selector and one presentation
     // contract. Filtering is purely visual; background jobs keep running.
     const engineFilter = el("indexEngineFilter");
     const engineCards = [...document.querySelectorAll(
       '[data-panel="indexing"] [data-index-engine]'
     )];
-    const knownEngines = new Set(["indexnow", "baidu", "google", "all"]);
+    const knownEngines = new Set(["all", ...engineCards.map((card) => card.dataset.indexEngine)]);
     const stored = localStorage.getItem("blogctl.indexEngine");
     engineFilter.value = knownEngines.has(stored) ? stored : "indexnow";
     const applyEngineFilter = () => {

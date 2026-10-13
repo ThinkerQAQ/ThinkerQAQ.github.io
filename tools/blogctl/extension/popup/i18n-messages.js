@@ -2,6 +2,16 @@
 // Catalog uses existing Chinese UI labels as stable source keys. i18next is
 // bundled locally for MV3 CSP and reused by Extension + Go-hosted Web Console.
 globalThis.BlogCTLEnMessages = Object.freeze({
+  "360 搜索": "360 Search",
+  "搜狗搜索": "Sogou Search",
+  "后台提交": "Submit in webmaster console",
+  "360 控制台": "360 webmaster console",
+  "搜狗控制台": "Sogou webmaster console",
+  "当前站点": "Current site",
+  "在 360 控制台选择当前站点，完成所有权验证后，在「Sitemap 提交」中填写上方 XML Sitemap 地址。": "Select the current site in the 360 console, verify ownership, then enter the XML Sitemap URL above under Sitemap submission.",
+  "尚未接入自动提交；提交结果和收录状态请在站长后台查看。": "Automatic submission is not connected. Check submission results and indexing status in the webmaster console.",
+  "搜狗 Sitemap 提交采用邀请制。请先在控制台确认当前站点的验证、资质及 Sitemap 权限，再提交上方 XML Sitemap 地址。": "Sogou Sitemap submission is invitation-only. Confirm site verification, qualifications and Sitemap access in the console before submitting the XML Sitemap URL above.",
+  "Sitemap 地址保持不变，内容随博客部署更新；已添加的相同地址无需重复添加。": "The Sitemap URL stays the same and its contents update with blog deployments. Do not add the same URL again.",
   "界面与语言": "Interface & language",
   "语言偏好与界面显示": "Language preference and display",
   "界面语言": "Interface language",

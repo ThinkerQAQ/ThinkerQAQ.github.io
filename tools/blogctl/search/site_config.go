@@ -79,5 +79,7 @@ func (config SiteConfig) ConsoleLinks() map[string]string {
 		"indexnow": "https://www.bing.com/webmasters/home?siteUrl=" + url.QueryEscape(config.Origin+"/"),
 		"baidu":    "https://ziyuan.baidu.com/linksubmit/index?site=" + url.QueryEscape(config.Origin),
 		"google":   "https://search.google.com/search-console?resource_id=" + url.QueryEscape(config.GoogleProperty),
+		"so360":    "https://zhanzhang.so.com/sitetool/site_manage",
+		"sogou":    "https://zhanzhang.sogou.com/index.php/dashboard/index",
 	}
 }

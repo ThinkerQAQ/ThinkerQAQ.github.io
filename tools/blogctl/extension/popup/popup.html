@@ -175,6 +175,8 @@
             <option value="indexnow">IndexNow</option>
             <option value="baidu">百度</option>
             <option value="google">Google Search Console</option>
+            <option value="so360">360 搜索</option>
+            <option value="sogou">搜狗搜索</option>
             <option value="all">全部引擎</option>
           </select>
         </label>
@@ -305,8 +307,34 @@
           </div>
         </div>
 
-        <p id="indexingMessage" class="message" role="status"></p>
       </section>
+
+      <section class="status-card" data-index-engine="so360">
+        <div class="status-row">
+          <div class="section-title">360 搜索</div>
+          <strong class="status unknown">后台提交</strong>
+        </div>
+        <div class="index-link-row"><span>360 控制台</span><a id="index360Console" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <div class="index-link-row"><span>当前站点</span><a id="index360Site" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <div class="index-link-row"><span>XML Sitemap</span><a id="index360Sitemap" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <p class="card-hint">在 360 控制台选择当前站点，完成所有权验证后，在「Sitemap 提交」中填写上方 XML Sitemap 地址。</p>
+        <p class="card-hint">尚未接入自动提交；提交结果和收录状态请在站长后台查看。</p>
+      </section>
+
+      <section class="status-card" data-index-engine="sogou">
+        <div class="status-row">
+          <div class="section-title">搜狗搜索</div>
+          <strong class="status unknown">后台提交</strong>
+        </div>
+        <div class="index-link-row"><span>搜狗控制台</span><a id="indexSogouConsole" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <div class="index-link-row"><span>当前站点</span><a id="indexSogouSite" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <div class="index-link-row"><span>XML Sitemap</span><a id="indexSogouSitemap" target="_blank" rel="noopener noreferrer">正在读取…</a></div>
+        <p class="card-hint">搜狗 Sitemap 提交采用邀请制。请先在控制台确认当前站点的验证、资质及 Sitemap 权限，再提交上方 XML Sitemap 地址。</p>
+        <p class="card-hint">Sitemap 地址保持不变，内容随博客部署更新；已添加的相同地址无需重复添加。</p>
+        <p class="card-hint">尚未接入自动提交；提交结果和收录状态请在站长后台查看。</p>
+      </section>
+
+      <p id="indexingMessage" class="message" role="status"></p>
     </section>
 
     <section class="panel" role="tabpanel" data-panel="environment">
