@@ -48,38 +48,27 @@ Long text is expandable on the timeline and complete on the record page. Markdow
 
 Tag and year links filter across the entire collection, with ten records per page. A record's permanent URL is `/life/record/<file-id>/`; changing its date does not change its URL. The homepage shows the latest two published records in the current language. Photography learning notes stay under Notes.
 
-## Training calendar demo
+## Public fitness summary
 
-Fitness is a dedicated structured-data view under Life, not a photo caption or a new article category. It uses the `workouts` collection of JSON files under `src/content/workouts/`. Life records still use `src/content/life/` and their own tags. The routes are:
-
-- `/life/fitness/` — latest recorded month, or an empty calendar if none exists.
-- `/life/fitness/YYYY/MM/` — a specific recorded month.
-- `/life/fitness/YYYY/MM/DD/` — exercises and sets on a training day.
-
-The same routes also work under `/en/`. Clicking a recorded day in the calendar opens the corresponding detail page; exercise sets can be expanded. The Life index links to the calendar with a monthly preview card.
-
-A minimal imported JSON record:
+Fitness belongs to the Life navigation but uses a separate, **public monthly aggregate** rather than a photo caption. The public Astro collection `workoutSummaries` reads JSON files from `src/content/workout-summaries/`. Each file contains only fields permitted by the strict schema:
 
 ```json
 {
-  "date": "2026-08-06",
-  "title": "Back day",
-  "durationMinutes": 65,
-  "volumeKg": 4200,
-  "caloriesKcal": 250,
-  "exercises": [
-    {
-      "name": "Lat pulldown",
-      "restSeconds": 90,
-      "sets": [{ "weightKg": 60, "reps": 10, "completed": true }]
-    }
-  ]
+  "month": "2026-08",
+  "trainingDays": 13,
+  "durationMinutes": 916,
+  "volumeKg": 59200,
+  "demo": true
 }
 ```
 
-The JSON schema allows missing duration, volume, calories, and set weight because an upstream export may not provide them. Missing data renders as a dash; the site does not invent it. More than one session per date is supported. Date keys use local calendar dates (no UTC conversion).
+- `/life/fitness/` — latest month, three summary metrics, last 12 recorded months as an accessible bar chart, and year/month archive.
+- `/life/fitness/YYYY/MM/` — the same public summary with that month selected.
+- Equivalent paths under `/en/life/fitness/` use the English interface.
 
-The `fixtures/src/content/workouts/` directory contains **synthetic demo data** with `"demo": true`, which is clearly marked in the UI. The real Xunji import is intentionally not wired into the browser: use the existing authenticated Railway proxy to export sanitized data to JSON in the separate content repository, then assemble/build. Do not commit upstream tokens, unreviewed raw exports, or personal history to this engine.
+These are synthetic fixture values, **not actual historical Xunji data**. Missing duration or volume is shown as `—`, not guessed. The public JSON must not contain per-day dates, exercises, sets, session IDs, training start times, or the source API token. Unexpected fields fail content validation (strict schema).
+
+The old per-day workout pages and synthetic per-day fixtures were removed; only a month-level view is built. Publishing a public summary is a deliberate choice: month totals and trends remain publicly visible and indexable. Search engine `noindex` is not access control. **Do not copy raw private Xunji history into the public engine, the content repository, its build artifacts, or an exposed media path.** A later private import may use the existing authenticated Railway proxy to transform session records to **aggregates only** in a controlled, private job; review resulting JSON before publishing. No live sync is part of this demo.
 
 ## Preview
 

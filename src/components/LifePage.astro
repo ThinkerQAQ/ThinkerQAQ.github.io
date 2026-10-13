@@ -7,7 +7,7 @@ import ContentComments from "./ContentComments.astro";
 import { localizePath, type Locale } from "../config/i18n";
 import { lifeHref, lifeTitle, type LifePageData } from "../lib/life";
 import { SITE } from "../config/site";
-import { getWorkouts, workoutDayCount, workoutMonthHref, workoutMonthName } from "../lib/workouts";
+import { getWorkoutSummaries, workoutMonthHref, workoutMonthName } from "../lib/workouts";
 
 interface Props { locale: Locale; data: LifePageData; }
 const { locale, data } = Astro.props;
@@ -26,9 +26,8 @@ const languageAlternatives = data.kind === "index" && !data.tag && !data.year &&
 const pageHref = (page: number) => data.kind === "index" ? (page === 1 ? data.basePath : `${data.basePath}page/${page}/`) : home;
 const previous = data.kind === "index" && data.page > 1 ? pageHref(data.page - 1) : undefined;
 const next = data.kind === "index" && data.page < data.pageCount ? pageHref(data.page + 1) : undefined;
-const fitnessOverview = data.kind === "index" && !data.tag && !data.year && data.page === 1 ? await getWorkouts() : [];
-const latestFitnessMonth = fitnessOverview[0]?.data.date.slice(0, 7);
-const latestFitness = latestFitnessMonth ? fitnessOverview.filter((item) => item.data.date.startsWith(latestFitnessMonth)) : [];
+const latestFitness = data.kind === "index" && !data.tag && !data.year && data.page === 1 ? (await getWorkoutSummaries())[0] : undefined;
+const latestFitnessMonth = latestFitness?.data.month;
 const structuredData = data.kind === "record" ? {
   "@context": "https://schema.org", "@type": "BlogPosting",
   headline: title, description, datePublished: data.entry.data.publishedAt.toISOString(),
@@ -73,12 +72,12 @@ const structuredData = data.kind === "record" ? {
           <a class="life-fitness-card" href={workoutMonthHref(locale)}>
             <span class="life-fitness-card__icon" aria-hidden="true">↗</span>
             <span class="life-fitness-card__text">
-              <small>{zh ? "健身 · 训练日历" : "Fitness · Training calendar"}</small>
+              <small>{zh ? "健身 · 月度汇总" : "Fitness · Monthly summary"}</small>
               <strong>{latestFitnessMonth ? workoutMonthName(latestFitnessMonth, locale) : (zh ? "我的训练记录" : "Training history")}</strong>
               <span>{latestFitnessMonth
-                ? (zh ? `${workoutDayCount(latestFitness)} 天训练 · 查看动作与每组记录` : `${workoutDayCount(latestFitness)} training days · View exercises and sets`)
-                : (zh ? "按月查看训练，点击日期进入详情" : "Browse sessions by month and date")}</span>
-              {latestFitness.some((session) => session.data.demo) && <small>{zh ? "演示数据" : "Sample data"}</small>}
+                ? (zh ? `${latestFitness.data.trainingDays} 天训练 · 查看长期训练趋势` : `${latestFitness.data.trainingDays} training days · See monthly trends`)
+                : (zh ? "查看月度训练统计与长期趋势" : "Browse monthly training summaries and trends")}</span>
+              {latestFitness?.data.demo && <small>{zh ? "演示数据" : "Sample data"}</small>}
             </span>
             <span class="life-fitness-card__arrow" aria-hidden="true">→</span>
           </a>

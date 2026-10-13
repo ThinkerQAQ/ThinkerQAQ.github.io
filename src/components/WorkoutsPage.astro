@@ -1,151 +1,127 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import WorkoutCalendar from "./WorkoutCalendar.astro";
+import WorkoutTrend from "./WorkoutTrend.astro";
 import { localizePath, type Locale } from "../config/i18n";
-import { workoutMonthHref, workoutMonthName, type WorkoutPageData } from "../lib/workouts";
+import { workoutMonthHref, workoutMonthName, type WorkoutOverview } from "../lib/workouts";
 
-interface Props { locale: Locale; data: WorkoutPageData; }
+interface Props { locale: Locale; data: WorkoutOverview; }
 const { locale, data } = Astro.props;
 const zh = locale === "zh";
 const home = localizePath(locale, "/life/");
-const title = data.kind === "month" ? (zh ? "健身记录" : "Training log") : (zh ? `${data.date} 训练` : `Workout · ${data.date}`);
-const description = zh ? "训练月历、动作和每组训练数据。" : "Monthly training calendar, exercises and sets.";
-const sessions = data.sessions;
-const isDemo = sessions.some((session) => session.data.demo);
-const duration = sessions.reduce((sum, session) => sum + (session.data.durationMinutes ?? 0), 0);
-const volume = sessions.reduce((sum, session) => sum + (session.data.volumeKg ?? 0), 0);
-const calories = sessions.reduce((sum, session) => sum + (session.data.caloriesKcal ?? 0), 0);
-const recorded = (field: "durationMinutes" | "volumeKg" | "caloriesKcal") => sessions.length > 0 && sessions.every((s) => s.data[field] !== undefined);
-const month = data.kind === "day" ? data.date.slice(0, 7) : data.month;
+const { summary, summaries, month } = data;
+const title = zh ? "健身记录" : "Fitness log";
+const description = zh ? "记录长期训练习惯：月度汇总、年度归档与训练趋势。" : "A public overview of long-term fitness consistency, with monthly totals and trends.";
+const index = summaries.findIndex((entry) => entry.data.month === month);
+const prev = summaries[index + 1]?.data.month;
+const next = index > 0 ? summaries[index - 1]?.data.month : undefined;
+const years = [...new Set(summaries.map((entry) => entry.data.month.slice(0, 4)))];
+const duration = summary?.data.durationMinutes;
+const volume = summary?.data.volumeKg;
+const publishedDemo = summaries.some((entry) => entry.data.demo);
+const localizedThisMonth = workoutMonthName(month, locale);
+const languageAlternatives = [
+  { locale: "zh" as const, href: summary ? workoutMonthHref("zh", month) : workoutMonthHref("zh") },
+  { locale: "en" as const, href: summary ? workoutMonthHref("en", month) : workoutMonthHref("en") },
+];
 ---
-
 <BaseLayout
-  title={title}
+  title={summary ? `${localizedThisMonth} · ${title}` : title}
   description={description}
   locale={locale}
-  languageAlternatives={data.kind === "month" && data.months.length === 0
-    ? [{ locale: "zh", href: "/life/fitness/" }, { locale: "en", href: "/en/life/fitness/" }]
-    : []}
-  languageSwitcherAlternatives={[
-    { locale: "zh", href: "/life/fitness/" },
-    { locale: "en", href: "/en/life/fitness/" },
-  ]}
+  noindex={!summaries.length}
+  languageAlternatives={languageAlternatives}
+  languageSwitcherAlternatives={languageAlternatives}
 >
   <div class="shell fitness-page">
     <nav class="fitness-breadcrumb" aria-label={zh ? "位置导航" : "Breadcrumb"}>
-      <a href={home}>{zh ? "生活" : "Life"}</a>
-      <span>/</span>
-      {data.kind === "day" ? <><a href={workoutMonthHref(locale, month)}>{zh ? "健身" : "Fitness"}</a><span>/</span><span>{data.date}</span></>
-        : <span>{zh ? "健身" : "Fitness"}</span>}
+      <a href={home}>{zh ? "生活" : "Life"}</a><span>/</span><span>{zh ? "健身" : "Fitness"}</span>
     </nav>
+
     <header class="fitness-hero">
       <div>
         <p class="fitness-hero__eyebrow">{zh ? "生活 · 健身" : "Life · Fitness"}</p>
-        <h1>{data.kind === "month" ? (zh ? "训练日历" : "Training calendar") : (zh ? "训练详情" : "Workout details")}</h1>
-        <p>{data.kind === "month"
-          ? (zh ? "按月回看训练，点开日期查看动作与组数。" : "Browse your sessions by month. Select a date to see all sets.")
-          : workoutMonthName(month, locale)}</p>
+        <h1>{zh ? "健身记录" : "Training log"}</h1>
+        <p>{zh ? "记录训练习惯与长期变化，而不公开每天的训练明细。" : "Long-term consistency, without publishing daily workout details."}</p>
       </div>
-      <a class="fitness-hero__back" href={data.kind === "day" ? workoutMonthHref(locale, month) : home}>← {data.kind === "day" ? (zh ? "返回月历" : "Back to calendar") : (zh ? "生活记录" : "Life timeline")}</a>
+      <a class="fitness-back" href={home}>← {zh ? "生活记录" : "Life timeline"}</a>
     </header>
-    {data.kind === "month" ? (
-      <WorkoutCalendar locale={locale} month={data.month} months={data.months} sessions={sessions} />
-    ) : (
-      <section class="fitness-detail" data-pagefind-body data-pagefind-filter="type:fitness">
-        {isDemo && <p class="fitness-detail__demo">{zh ? "演示数据 · 非真实训记同步" : "Sample data · Not synchronized"}</p>}
-        <div class="fitness-detail__date"><time datetime={data.date}>{data.date.replaceAll("-", ".")}</time></div>
-        <h2>{sessions.map((session) => session.data.title).join(" · ")}</h2>
-        <div class="fitness-detail__stats">
-          <div><span>{zh ? "时长" : "Duration"}</span><strong>{recorded("durationMinutes") ? `${duration} ${zh ? "分钟" : "min"}` : "—"}</strong></div>
-          <div><span>{zh ? "训练容量" : "Volume"}</span><strong>{recorded("volumeKg") ? `${volume.toLocaleString(locale === "zh" ? "zh-CN" : "en-US")} kg` : "—"}</strong></div>
-          <div><span>{zh ? "消耗" : "Calories"}</span><strong>{recorded("caloriesKcal") ? `${calories.toLocaleString()} kcal` : "—"}</strong></div>
+
+    {publishedDemo && <p class="fitness-demo">{zh ? "演示数据 · 非真实训记同步" : "Synthetic demo data · Not synced with Xunji"}</p>}
+
+    <section class="fitness-month" aria-labelledby="fitness-month-title" data-pagefind-body data-pagefind-filter="type:fitness">
+      <div class="fitness-month__head">
+        <div><span class="fitness-eyebrow">{zh ? "月度概览" : "Monthly summary"}</span><h2 id="fitness-month-title">{localizedThisMonth}</h2></div>
+        <div class="fitness-month__nav" aria-label={zh ? "切换月份" : "Change month"}>
+          {prev ? <a href={workoutMonthHref(locale, prev)} aria-label={zh ? "上一有记录月份" : "Previous recorded month"}>←</a> : <span aria-disabled="true">←</span>}
+          {next ? <a href={workoutMonthHref(locale, next)} aria-label={zh ? "下一有记录月份" : "Next recorded month"}>→</a> : <span aria-disabled="true">→</span>}
         </div>
-        <div class="fitness-detail__exercises">
-          {sessions.flatMap((session) => session.data.exercises).map((exercise, index) => {
-            const completedSets = exercise.sets.filter((set) => set.completed);
-            const top = exercise.sets.find((set) => set.weightKg !== undefined && set.reps !== undefined);
-            const totalSets = completedSets.length;
-            return (
-              <details class="fitness-exercise" open={index === 0}>
-                <summary>
-                  <span class="fitness-exercise__index">{String(index + 1).padStart(2, "0")}</span>
-                  <span class="fitness-exercise__intro">
-                    <strong>{exercise.name}</strong>
-                    <small>{zh ? `${totalSets} / ${exercise.sets.length} 组完成` : `${totalSets} / ${exercise.sets.length} sets complete`}{top ? ` · ${top.weightKg} kg × ${top.reps}` : ""}</small>
-                  </span>
-                  <span class="fitness-exercise__toggle" aria-hidden="true">⌄</span>
-                </summary>
-                <div class="fitness-exercise__body">
-                  <table>
-                    <thead><tr>
-                      <th scope="col">{zh ? "组" : "Set"}</th>
-                      <th scope="col">{zh ? "重量" : "Weight"}</th>
-                      <th scope="col">{zh ? "次数" : "Reps"}</th>
-                      <th scope="col">{zh ? "状态" : "Status"}</th>
-                    </tr></thead>
-                    <tbody>
-                      {exercise.sets.map((set, i) => <tr>
-                        <td>{i + 1}</td>
-                        <td>{set.weightKg === undefined ? (zh ? "自重" : "Bodyweight") : `${set.weightKg} kg`}</td>
-                        <td>{set.reps ?? "—"}</td>
-                        <td><span class={set.completed ? "fitness-exercise__done" : "fitness-exercise__pending"}>{set.completed ? "✓" : "—"}</span></td>
-                      </tr>)}
-                    </tbody>
-                  </table>
-                  {exercise.restSeconds !== undefined && <p>{zh ? "组间休息" : "Rest between sets"} · {exercise.restSeconds} s</p>}
-                </div>
-              </details>
-            );
-          })}
+      </div>
+      <div class="fitness-stats">
+        <div><span>{zh ? "训练天数" : "Training days"}</span><strong>{summary ? summary.data.trainingDays : "—"}{summary && <small>{zh ? "天" : "days"}</small>}</strong></div>
+        <div><span>{zh ? "训练时长" : "Training time"}</span><strong>{duration === undefined ? "—" : (duration / 60).toLocaleString(zh ? "zh-CN" : "en-US", {maximumFractionDigits: 1})}{duration !== undefined && <small>h</small>}</strong></div>
+        <div><span>{zh ? "训练容量" : "Training volume"}</span><strong>{volume === undefined ? "—" : (volume / 1000).toLocaleString(zh ? "zh-CN" : "en-US", {maximumFractionDigits: 1})}{volume !== undefined && <small>t</small>}</strong></div>
+      </div>
+      {!summary && <p class="fitness-empty">{zh ? "尚无公开的月度汇总。同步后将在这里显示。" : "No published monthly summary yet."}</p>}
+      <p class="fitness-unit-note">{zh ? "训练容量是器械记录的重量与次数汇总，只供观察自身长期变化。" : "Training volume sums recorded weight and repetitions; it is useful for personal trends, not cross-exercise comparisons."}</p>
+    </section>
+
+    <WorkoutTrend locale={locale} month={month} summaries={summaries} />
+
+    <section class="fitness-archive" aria-labelledby="fitness-archive-title">
+      <div class="fitness-archive__head">
+        <h2 id="fitness-archive-title">{zh ? "训练归档" : "Monthly archive"}</h2>
+        <span>{summaries.length} {zh ? "个月" : "months"}</span>
+      </div>
+      {years.map((year) => (
+        <div class="fitness-archive__year">
+          <h3>{year}</h3>
+          <div class="fitness-archive__months">
+            {summaries.filter((entry) => entry.data.month.startsWith(year)).map((entry) => (
+              <a href={workoutMonthHref(locale, entry.data.month)}
+                aria-current={entry.data.month === month ? "page" : undefined}>
+                <span>{zh ? `${Number(entry.data.month.slice(5))} 月` : workoutMonthName(entry.data.month, locale).replace(` ${year}`, "")}</span>
+                <small>{entry.data.trainingDays} {zh ? "天" : "days"}</small>
+                <span aria-hidden="true">↗</span>
+              </a>
+            ))}
+          </div>
         </div>
-        <a class="fitness-detail__footer" href={workoutMonthHref(locale, month)}>← {zh ? "返回" : "Back to"} {workoutMonthName(month, locale)}</a>
-      </section>
-    )}
+      ))}
+    </section>
+    <p class="fitness-privacy">{zh ? "隐私：这里只发布月度汇总，不包含训练日期、时间、动作或每组重量。" : "Privacy: only monthly aggregates are published. Dates, times, exercises and individual sets are not included."}</p>
   </div>
 </BaseLayout>
-
 <style>
-  .fitness-page { max-width: 58rem; padding-block: 2rem 5.5rem; }
-  .fitness-breadcrumb { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; color: var(--muted); }
-  .fitness-breadcrumb a { color: inherit; text-decoration: none; }
-  .fitness-breadcrumb a:hover { color: var(--accent); }
-  .fitness-hero { margin: 1.75rem 0 2rem; display: flex; align-items: end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-  .fitness-hero__eyebrow { margin: 0 0 0.45rem; color: var(--muted); font-size: 0.76rem; letter-spacing: 0.05em; }
-  .fitness-hero h1 { margin: 0; font-size: clamp(2rem, 5vw, 2.7rem); letter-spacing: -0.04em; }
-  .fitness-hero p:not(.fitness-hero__eyebrow) { margin: 0.65rem 0 0; color: var(--muted); font-size: 0.91rem; }
-  .fitness-hero__back { font-size: 0.85rem; text-decoration: none; color: var(--muted); }
-  .fitness-detail { max-width: 48rem; }
-  .fitness-detail__demo { padding: 0.4rem 0.7rem; display: inline-block; border: 1px dashed var(--border); border-radius: 0.35rem; color: var(--muted); font-size: 0.8rem; }
-  .fitness-detail__date { color: var(--muted); margin-top: 1.3rem; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
-  .fitness-detail h2 { font-size: clamp(1.45rem, 5vw, 2rem); margin: 0.55rem 0 1.5rem; }
-  .fitness-detail__stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0.6rem; margin-bottom: 2.5rem; }
-  .fitness-detail__stats > div { display: grid; gap: 0.4rem; padding: 1rem; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--surface); }
-  .fitness-detail__stats span { color: var(--muted); font-size: 0.78rem; }
-  .fitness-detail__stats strong { font-size: clamp(0.95rem,3vw,1.2rem); font-variant-numeric: tabular-nums; }
-  .fitness-exercise { border-bottom: 1px solid var(--border); }
-  .fitness-exercise summary { display: flex; gap: 1rem; align-items: center; padding: 1.25rem 0; cursor: pointer; list-style: none; }
-  .fitness-exercise summary::-webkit-details-marker { display: none; }
-  .fitness-exercise__index { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-  .fitness-exercise__intro { display: grid; flex: 1; min-width: 0; gap: 0.4rem; }
-  .fitness-exercise__intro strong { font-size: 1.02rem; }
-  .fitness-exercise__intro small { color: var(--muted); font-size: 0.81rem; }
-  .fitness-exercise__toggle { color: var(--muted); font-size: 1.3rem; transform: rotate(0deg); transition: transform 160ms; }
-  .fitness-exercise[open] .fitness-exercise__toggle { transform: rotate(180deg); }
-  .fitness-exercise__body { padding: 0 0 1.2rem 2.5rem; }
-  .fitness-exercise__body table { border-collapse: collapse; width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
-  .fitness-exercise__body th { font-size: 0.74rem; text-align: left; font-weight: 500; color: var(--muted); padding: 0.65rem 0.4rem; border-bottom: 1px solid var(--border); }
-  .fitness-exercise__body td { padding: 0.65rem 0.4rem; border-bottom: 1px solid var(--border); }
-  .fitness-exercise__body th:last-child, .fitness-exercise__body td:last-child { text-align: right; }
-  .fitness-exercise__done { color: var(--accent); font-weight: 700; }
-  .fitness-exercise__pending { color: var(--muted); }
-  .fitness-exercise__body p { font-size: 0.78rem; margin: 0.75rem 0 0; color: var(--muted); }
-  .fitness-detail__footer { display: inline-block; text-decoration: none; margin-top: 2.5rem; color: var(--muted); font-size: 0.88rem; }
-  @media(max-width:520px) {
-    .fitness-page { padding-top: 1.5rem; }
-    .fitness-hero { margin-block: 1.2rem 1.5rem; }
-    .fitness-detail__stats { gap: 0.35rem; }
-    .fitness-detail__stats > div { padding: 0.7rem 0.55rem; }
-    .fitness-exercise summary { gap: 0.6rem; }
-    .fitness-exercise__body { padding-left: 1.4rem; }
-  }
+  .fitness-page { max-width: 56rem; padding-block: 2rem 5rem; min-width:0; }
+  .fitness-breadcrumb { display:flex; gap:0.55rem; color:var(--muted); font-size:0.8rem; }
+  .fitness-breadcrumb a { color:inherit; text-decoration:none; }
+  .fitness-hero { margin:1.6rem 0 2.1rem; display:flex; justify-content:space-between; align-items:end; gap:1rem; flex-wrap:wrap; }
+  .fitness-hero h1 { font-size:clamp(2rem, 5vw, 2.6rem); letter-spacing:-0.04em; margin:0; }
+  .fitness-hero__eyebrow { font-size:0.8rem; margin:0 0 0.5rem; color:var(--muted); }
+  .fitness-hero p:not(.fitness-hero__eyebrow) { font-size:0.88rem; color:var(--muted); margin:0.65rem 0 0; }
+  .fitness-back { font-size:0.85rem; color:var(--muted); text-decoration:none; }
+  .fitness-demo { display:inline-block; border:1px dashed var(--border); border-radius:0.4rem; font-size:0.8rem; color:var(--muted); padding:0.35rem 0.65rem; margin:0 0 1rem; }
+  .fitness-month__head { display:flex; justify-content:space-between; align-items:end; gap:0.9rem; margin:0.7rem 0 1rem; }
+  .fitness-month__head h2 { margin:0.2rem 0 0; font-size:clamp(1.35rem,4vw,1.7rem); letter-spacing:-0.025em; }
+  .fitness-eyebrow { font-size:0.79rem; color:var(--muted); }
+  .fitness-month__nav { display:flex; gap:0.5rem; }
+  .fitness-month__nav a,.fitness-month__nav span { width:2.2rem; height:2.2rem; display:grid; place-items:center; border:1px solid var(--border); border-radius:0.55rem; color:var(--text); text-decoration:none; }
+  .fitness-month__nav [aria-disabled] { opacity:0.35; }
+  .fitness-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.75rem; }
+  .fitness-stats > div { display:flex; flex-direction:column; gap:0.6rem; min-width:0; padding:1rem; border:1px solid var(--border); border-radius:0.6rem; background:var(--surface); }
+  .fitness-stats > div > span { font-size:0.82rem; color:var(--muted); }
+  .fitness-stats strong { font-size:clamp(1.4rem,4vw,1.85rem); letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
+  .fitness-stats small { margin-left:0.3rem; font-size:0.73rem; font-weight:400; letter-spacing:0; color:var(--muted); }
+  .fitness-unit-note,.fitness-empty,.fitness-privacy { margin:0.9rem 0; font-size:0.78rem; color:var(--muted); line-height:1.7; }
+  .fitness-archive__head { display:flex; align-items:baseline; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border); padding-bottom:0.7rem; }
+  .fitness-archive__head h2 { margin:0; font-size:1.12rem; }
+  .fitness-archive__head span { color:var(--muted); font-size:0.8rem; }
+  .fitness-archive__year h3 { margin:1.4rem 0 0.3rem; font-size:0.86rem; color:var(--muted); }
+  .fitness-archive__months { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 1.5rem; }
+  .fitness-archive__months a { display:flex; align-items:center; gap:0.6rem; padding:0.8rem 0.2rem; text-decoration:none; border-bottom:1px solid var(--border); font-size:0.9rem; }
+  .fitness-archive__months a[aria-current="page"] { color:var(--accent); }
+  .fitness-archive__months a small { color:var(--muted); font-size:0.78rem; margin-left:auto; }
+  .fitness-archive__months a > span:last-child { color:var(--muted); }
+  .fitness-privacy { border-top:1px solid var(--border); margin-top:3rem; padding-top:1rem; }
+  @media(max-width:540px) { .fitness-page { padding-top:1.5rem; } .fitness-stats { gap:0.4rem; } .fitness-stats > div { padding:0.7rem 0.6rem; } .fitness-stats > div > span { font-size:0.71rem; } .fitness-archive__months { grid-template-columns:1fr; } }
 </style>

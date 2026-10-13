@@ -1,0 +1,60 @@
+---
+import type { Locale } from "../config/i18n";
+import { workoutMonthHref, workoutMonthName, type WorkoutSummary } from "../lib/workouts";
+interface Props {
+  locale: Locale;
+  month: string;
+  summaries: WorkoutSummary[];
+}
+const { locale, month, summaries } = Astro.props;
+const zh = locale === "zh";
+const history = summaries.slice(0, 12).reverse();
+const maxDays = Math.max(1, ...history.map((entry) => entry.data.trainingDays));
+---
+<section class="workout-trend" aria-labelledby="workout-trend-title">
+  <div class="workout-trend__heading">
+    <h2 id="workout-trend-title">{zh ? "最近 12 个记录月" : "Last 12 recorded months"}</h2>
+    <small>{zh ? "每月训练天数" : "Training days per month"}</small>
+  </div>
+  {history.length ? (
+    <div class="workout-trend__scroll" role="region" tabindex="0" aria-label={zh ? "月度训练趋势，可水平滚动" : "Monthly training trend, horizontally scrollable"}>
+      <div class="workout-trend__chart">
+        {history.map((entry) => (
+          <a
+            href={workoutMonthHref(locale, entry.data.month)}
+            class:list={["workout-trend__item", { "workout-trend__item--active": entry.data.month === month }]}
+            aria-label={`${workoutMonthName(entry.data.month, locale)}: ${entry.data.trainingDays} ${zh ? "天" : "days"}`}
+            aria-current={entry.data.month === month ? "page" : undefined}
+            title={`${workoutMonthName(entry.data.month, locale)} · ${entry.data.trainingDays} ${zh ? "天" : "days"}`}
+          >
+            <strong>{entry.data.trainingDays}</strong>
+            <span class="workout-trend__bar-wrap">
+              <span class="workout-trend__bar" style={`height: ${Math.max(3, entry.data.trainingDays / maxDays * 100)}%`}></span>
+            </span>
+            <span class="workout-trend__month">{Number(entry.data.month.slice(5))}{zh ? "月" : ""}</span>
+            <small class="workout-trend__year">{entry.data.month.slice(0,4)}</small>
+          </a>
+        ))}
+      </div>
+    </div>
+  ) : <p class="workout-trend__empty">{zh ? "暂无训练趋势数据。" : "No trend data yet."}</p>}
+  <p class="workout-trend__hint">{zh ? "左右滑动查看完整趋势，点击月份切换概览。不公开具体训练日期。" : "Swipe horizontally to see all months. Select a bar for its summary; daily training dates stay private."}</p>
+</section>
+<style>
+  .workout-trend { margin-block: 2.2rem 2.7rem; }
+  .workout-trend__heading { display:flex; justify-content:space-between; align-items:baseline; gap:0.75rem; margin-bottom:1.2rem; }
+  .workout-trend__heading h2 { margin:0; font-size:1.12rem; letter-spacing:-0.02em; }
+  .workout-trend__heading small { font-size:0.77rem; color:var(--muted); }
+  .workout-trend__scroll { overflow-x:auto; padding-bottom:0.8rem; border-bottom:1px solid var(--border); }
+  .workout-trend__chart { display:grid; grid-template-columns:repeat(12,minmax(2.4rem,1fr)); align-items:end; gap:0.75rem; min-width:33rem; height:13.3rem; }
+  .workout-trend__item { display:flex; min-width:0; height:100%; flex-direction:column; justify-content:end; align-items:center; gap:0.3rem; color:var(--muted); text-decoration:none; }
+  .workout-trend__item strong { font-size:0.82rem; font-weight:600; font-variant-numeric:tabular-nums; color:var(--text); }
+  .workout-trend__bar-wrap { display:flex; align-items:end; justify-content:center; width:100%; height:8rem; }
+  .workout-trend__bar { display:block; background:var(--border); border-radius:0.35rem 0.35rem 0 0; width:100%; max-width:2.3rem; min-height:0.15rem; transition:background 120ms ease; }
+  .workout-trend__item:hover .workout-trend__bar { background:var(--muted); }
+  .workout-trend__item--active .workout-trend__bar { background:var(--accent); }
+  .workout-trend__month { color:var(--text); font-size:0.77rem; font-variant-numeric:tabular-nums; }
+  .workout-trend__year { font-size:0.66rem; color:var(--muted); }
+  .workout-trend__hint,.workout-trend__empty { font-size:0.78rem; color:var(--muted); margin:0.85rem 0; }
+  @media(max-width:520px) { .workout-trend__chart { gap:0.5rem; } }
+</style>
