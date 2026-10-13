@@ -8,7 +8,7 @@ const zh = locale === "zh";
 ---
 <header class="page-header collection-header">
   <h1 class="visually-hidden">{zh ? "生活" : "Life"}</h1>
-  <p>{zh ? "摄影与健身，记录生活的两个侧面。" : "Photographs and fitness, two parts of everyday life."}</p>
+  <p>{zh ? "用照片记录所见，用数据记录训练。" : "Capturing what I see through photos, and tracking training through data."}</p>
 </header>
 <nav class="life-section__tabs" aria-label={zh ? "生活分类" : "Life sections"}>
   <a href={localizePath(locale, "/life/")} aria-current={active === "photography" ? "page" : undefined}>

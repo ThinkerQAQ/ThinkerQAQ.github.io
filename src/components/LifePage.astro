@@ -18,7 +18,7 @@ const title = data.kind === "record" ? lifeTitle(data.entry)
   : [sectionTitle, data.year, data.page > 1 ? (zh ? `第 ${data.page} 页` : `Page ${data.page}`) : undefined].filter(Boolean).join(" · ");
 const description = data.kind === "record"
   ? data.entry.data.description ?? title
-  : zh ? "摄影与健身，记录生活的两个侧面。" : "Photographs and fitness, two parts of everyday life.";
+  : zh ? "用照片记录所见，用数据记录训练。" : "Capturing what I see through photos, and tracking training through data.";
 const photo = data.kind === "record" ? data.entry.data.images[0] : undefined;
 const languageAlternatives = data.kind === "index" && !data.year && data.page === 1
   ? [{ locale: "zh" as const, href: "/life/" }, { locale: "en" as const, href: "/en/life/" }]
