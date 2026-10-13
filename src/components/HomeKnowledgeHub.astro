@@ -16,6 +16,8 @@ import {
   sortProjects,
   sortSeries,
 } from "../lib/content";
+import LifeRecord from "./LifeRecord.astro";
+import { getLifeEntries } from "../lib/life";
 import ArticleList from "./ArticleList.astro";
 import ShowcaseList from "./ShowcaseList.astro";
 
@@ -30,6 +32,7 @@ interface KnowledgeDefinition {
 }
 
 const { locale } = Astro.props;
+const latestLife = (await getLifeEntries(locale)).slice(0, 2);
 
 const copy = locale === "en"
   ? {
@@ -231,6 +234,18 @@ const projectItems = projects.map((project) => {
     </section>
   )}
 
+  {latestLife.length > 0 && (
+    <section class="home-section" aria-labelledby="home-life-title">
+      <div class="section-heading">
+        <h2 id="home-life-title">{locale === "zh" ? "最近生活" : "Recent Life"}</h2>
+        <a href={localizePath(locale, "/life/")}>{locale === "zh" ? "全部生活" : "All Life"} →</a>
+      </div>
+      <div class="home-life-records" data-pagefind-ignore="all">
+        {latestLife.map((entry) => <LifeRecord entry={entry} />)}
+      </div>
+    </section>
+  )}
+
   {beyondEngineeringAreas.length > 0 && (
     <section class="home-section home-section--beyond" aria-labelledby="home-beyond-title">
       <div class="section-heading">
@@ -252,6 +267,7 @@ const projectItems = projects.map((project) => {
 </div>
 
 <style>
+  .home-life-records { max-width: 40rem; }
   .home {
     padding-block: clamp(2.5rem, 5vw, 4rem) 7rem;
   }

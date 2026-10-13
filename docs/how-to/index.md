@@ -9,3 +9,5 @@ Task-focused recipes. Read [Concepts](../concepts/system.md) only if you need th
 - [Operate BlogCTL and browser publishing](../../tools/blogctl/docs/guide/workflows.md)
 
 Each recipe states prerequisites, steps, verification, and failure boundaries.
+
+- [Life records and photo albums](life-records.md)

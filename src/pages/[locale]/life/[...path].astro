@@ -1,0 +1,14 @@
+---
+import LifePage from "../../../components/LifePage.astro";
+import { getLifePaths, type LifePageData } from "../../../lib/life";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "../../../config/i18n";
+export async function getStaticPaths() {
+  const paths = await Promise.all(SUPPORTED_LOCALES.filter((locale) => locale !== DEFAULT_LOCALE).map(async (locale) =>
+    (await getLifePaths(locale)).map((path) => ({ ...path, params: { ...path.params, locale } })),
+  ));
+  return paths.flat();
+}
+interface Props { data: LifePageData; locale: Locale; }
+const { data, locale } = Astro.props;
+---
+<LifePage locale={locale} data={data} />

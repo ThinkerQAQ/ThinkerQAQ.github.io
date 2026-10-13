@@ -5,8 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "assemble:fixtures": "go run ./tools/blogctl/cmd site assemble --content-root fixtures",
-    "dev": "npm run assemble:fixtures && npm run dev:site",
+    "assemble:template": "node scripts/assemble-template.mjs",
+    "dev": "npm run assemble:template && npm run dev:site",
     "dev:site": "npm run diagrams && astro dev --port 4321",
     "diagrams": "node scripts/render-diagrams.mjs",
     "diagrams:plantuml": "node scripts/render-plantuml.mjs",
@@ -23,21 +23,22 @@
     "test:engine": "npm run test:docs && npm run test:boundary && npm run test:public-content-safety && npm run test:diagrams && npm run test:blogctl-extension && npm run test:ai-search && npm run test:reactions && npm run test:reading-experience && npm run test:umami",
     "sync:blogs": "go run ./tools/blogctl/cmd sync",
     "build": "go run ./tools/blogctl/cmd build",
-    "build:fixtures": "npm run assemble:fixtures && npm run build",
     "check": "astro check",
     "preview": "astro preview --port 4321",
-    "test": "npm run test:engine && npm run assemble:fixtures && npm run check && npm run build",
+    "test": "npm run test:engine && npm run assemble:template && npm run check && npm run build",
     "covers:social": "node scripts/render-cover-social.mjs",
     "build:astro": "node scripts/clean-dist.mjs && npm run diagrams && npm run covers:social && astro build",
     "test:docs": "node scripts/check-doc-links.mjs",
-    "dev:quick": "npm run assemble:fixtures && astro dev --port 4321",
+    "dev:quick": "npm run assemble:template && astro dev --port 4321",
     "test:umami": "node --test src/layouts/BaseLayout.umami.test.mjs",
-    "test:blogctl-i18n": "node --test tools/blogctl/extension/tests/i18n.test.mjs"
+    "test:blogctl-i18n": "node --test tools/blogctl/extension/tests/i18n.test.mjs",
+    "build:template": "npm run assemble:template && npm run build"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
     "@astrojs/sitemap": "3.7.4",
     "astro": "7.2.10",
+    "photoswipe": "5.4.4",
     "sharp": "0.35.4"
   },
   "devDependencies": {

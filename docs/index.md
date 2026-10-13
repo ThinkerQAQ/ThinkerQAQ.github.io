@@ -12,7 +12,7 @@ The engine builds an Astro site from Markdown kept in a separate repository. Blo
 | Working with search, analytics or Workers | [Integrations](concepts/search-and-integrations.md) |
 | Solving an operational issue | [How-to](how-to/index.md) |
 | Checking exact commands and settings | [Reference](reference/index.md) |
-| Reviewing runnable fixtures | [Examples](examples/index.md) |
+| Reviewing public template examples | [Examples](examples/index.md) |
 | Extending the system | [Architecture principles](architecture/principles.md) |
 | Using the publishing application | [BlogCTL documentation](../tools/blogctl/docs/index.md) |
 

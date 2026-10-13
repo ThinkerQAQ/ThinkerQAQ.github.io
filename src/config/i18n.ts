@@ -15,6 +15,7 @@ export interface LocaleConfig {
     projects: string;
     series: string;
     notes: string;
+    life: string;
     about: string;
     contact: string;
     search: string;
@@ -82,6 +83,7 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
       projects: "项目",
       series: "系列",
       notes: "笔记",
+      life: "生活",
       about: "关于",
       contact: "联系",
       search: "搜索",
@@ -147,6 +149,7 @@ export const LOCALES: Record<Locale, LocaleConfig> = {
       projects: "Projects",
       series: "Series",
       notes: "Notes",
+      life: "Life",
       about: "About",
       contact: "Contact",
       search: "Search",

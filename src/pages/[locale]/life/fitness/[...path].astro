@@ -1,0 +1,14 @@
+---
+import WorkoutsPage from "../../../../components/WorkoutsPage.astro";
+import { getWorkoutPaths, type WorkoutOverview } from "../../../../lib/workouts";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "../../../../config/i18n";
+export async function getStaticPaths() {
+  const byLocale = await Promise.all(SUPPORTED_LOCALES.filter((locale) => locale !== DEFAULT_LOCALE)
+    .map(async (locale) => (await getWorkoutPaths(locale))
+      .map((path) => ({ ...path, params: { ...path.params, locale } }))));
+  return byLocale.flat();
+}
+interface Props { data: WorkoutOverview; locale: Locale; }
+const { data, locale } = Astro.props;
+---
+<WorkoutsPage locale={locale} data={data} />

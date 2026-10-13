@@ -116,6 +116,42 @@ test("PUT is idempotent and DELETE removes the reaction", async () => {
   assert.deepEqual(await response.json(), { count: 0, reacted: false });
 });
 
+test("fitness reactions are isolated by month and share canonical identity across locales", async () => {
+  const runtime = env();
+  const september = "/v1/reactions?contentType=fitness&contentId=2026-09";
+  const october = "/v1/reactions?contentType=fitness&contentId=2026-10";
+
+  let response = await handleRequest(request("PUT", september), runtime);
+  assert.deepEqual(await response.json(), { count: 1, reacted: true });
+
+  response = await handleRequest(request("PUT", september), runtime);
+  assert.deepEqual(await response.json(), { count: 1, reacted: true });
+
+  response = await handleRequest(request("GET", october), runtime);
+  assert.deepEqual(await response.json(), { count: 0, reacted: false });
+
+  response = await handleRequest(request("DELETE", september), runtime);
+  assert.deepEqual(await response.json(), { count: 0, reacted: false });
+});
+
+test("life photo reactions are isolated per published record and idempotent", async () => {
+  const runtime = env();
+  const first = "/v1/reactions?contentType=life&contentId=sample-photo-01";
+  const second = "/v1/reactions?contentType=life&contentId=sample-photo-02";
+
+  let result = await handleRequest(request("PUT", first), runtime);
+  assert.deepEqual(await result.json(), { count: 1, reacted: true });
+
+  result = await handleRequest(request("PUT", first), runtime);
+  assert.deepEqual(await result.json(), { count: 1, reacted: true });
+
+  result = await handleRequest(request("GET", second), runtime);
+  assert.deepEqual(await result.json(), { count: 0, reacted: false });
+
+  result = await handleRequest(request("DELETE", first), runtime);
+  assert.deepEqual(await result.json(), { count: 0, reacted: false });
+});
+
 test("different visitors contribute independently", async () => {
   const runtime = env();
   const path = "/v1/reactions?contentType=article&contentId=ddia";

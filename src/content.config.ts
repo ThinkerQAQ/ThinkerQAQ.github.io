@@ -177,4 +177,49 @@ const series = defineCollection({
   }),
 });
 
-export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series };
+const life = defineCollection({
+  loader: glob({
+    pattern: "**/*.md",
+    base: "./src/content/life",
+    generateId: ({ entry }) => entry.replace(/\.md$/i, "").replaceAll("\\", "/"),
+  }),
+  schema: z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    publishedAt: timestamp,
+    updatedAt: timestamp.optional(),
+    language: z.enum(SUPPORTED_LOCALES).default("zh"),
+    status: z.enum(["draft", "published"]).default("draft"),
+    location: z.string().optional(),
+    tags: z.array(z.string()).default([]),
+    images: z.array(z.object({
+      src: z.string().regex(/^(https?:\/\/|\/(?!\/))/, "Use an HTTP(S) URL or a site-root image path"),
+      thumbnail: z.string().regex(/^(https?:\/\/|\/(?!\/))/).optional(),
+      alt: z.string().default(""),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+    })).default([]),
+  }).superRefine((entry, ctx) => {
+    if (entry.updatedAt && entry.updatedAt < entry.publishedAt) {
+      ctx.addIssue({ code: "custom", path: ["updatedAt"], message: "updatedAt must not precede publishedAt" });
+    }
+  }),
+});
+
+// Only aggregate fields are permitted in publicly built workout data.
+const workoutSummaries = defineCollection({
+  loader: glob({
+    pattern: "**/*.json",
+    base: "./src/content/workout-summaries",
+    generateId: ({ entry }) => entry.replace(/\.json$/i, "").replaceAll("\\", "/"),
+  }),
+  schema: z.object({
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM"),
+    trainingDays: z.number().int().min(0).max(31),
+    durationMinutes: z.number().int().nonnegative().optional(),
+    volumeKg: z.number().nonnegative().optional(),
+    demo: z.boolean().default(false),
+  }).strict(),
+});
+
+export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series, life, workoutSummaries };

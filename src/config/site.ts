@@ -33,5 +33,6 @@ export const NAV_ITEMS = [
   { href: "/projects/", label: "项目" },
   { href: "/series/", label: "系列" },
   { href: "/notes/", label: "笔记" },
+  { href: "/life/", label: "生活" },
   { href: "/about/", label: "关于" },
 ] as const;

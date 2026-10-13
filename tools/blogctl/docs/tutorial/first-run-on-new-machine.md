@@ -39,7 +39,7 @@ npm ci
 npm run dev:quick
 ```
 
-Open [http://localhost:4321](http://localhost:4321). The engine assembles `fixtures/` and runs Astro, without production content or cloud credentials. In a second terminal run:
+Open [http://localhost:4321](http://localhost:4321). The engine assembles `blog-content-template/` and runs Astro, without production content or cloud credentials. In a second terminal run:
 
 ```bash
 npm run check

@@ -8,11 +8,11 @@
 
 ```bash
 go run ./tools/blogctl/cmd/maint verify
-npm run assemble:fixtures
+npm run assemble:template
 npm run check
 ```
 
-`assemble:fixtures` 失败时检查 Go 版本和内容路径。Astro 类型检查失败时根据报错定位到页面或集合 Schema。
+`assemble:template` 失败时检查 Go 版本和内容路径。Astro 类型检查失败时根据报错定位到页面或集合 Schema。
 
 ## 图表渲染
 

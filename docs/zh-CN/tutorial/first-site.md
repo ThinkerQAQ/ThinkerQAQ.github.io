@@ -36,7 +36,7 @@ go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
 npx --no-install astro dev --port 4321
 ```
 
-打开 [localhost:4321](http://localhost:4321)，检查文章、笔记、项目页面。这里直接启动 Astro，避免 `dev:quick` 重新装配 `fixtures/` 覆盖刚装配的模板内容。
+打开 [localhost:4321](http://localhost:4321)，检查文章、笔记、项目页面。这里直接启动 Astro，避免 `dev:quick` 重新装配默认公开模板，覆盖当前手工选择的内容来源。
 
 如果需要在预览前渲染图表，装好图表依赖后使用 `npm run dev:site`。
 
