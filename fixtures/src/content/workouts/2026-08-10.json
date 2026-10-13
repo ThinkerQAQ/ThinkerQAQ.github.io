@@ -1,0 +1,83 @@
+{
+  "date": "2026-08-10",
+  "title": "胸 · 肩",
+  "demo": true,
+  "durationMinutes": 57,
+  "volumeKg": 2148,
+  "caloriesKcal": 243,
+  "exercises": [
+    {
+      "name": "哑铃卧推",
+      "restSeconds": 120,
+      "sets": [
+        {
+          "weightKg": 26,
+          "reps": 10,
+          "completed": true
+        },
+        {
+          "weightKg": 26,
+          "reps": 10,
+          "completed": true
+        },
+        {
+          "weightKg": 26,
+          "reps": 10,
+          "completed": true
+        },
+        {
+          "weightKg": 26,
+          "reps": 10,
+          "completed": true
+        }
+      ]
+    },
+    {
+      "name": "上斜卧推",
+      "restSeconds": 90,
+      "sets": [
+        {
+          "weightKg": 22,
+          "reps": 10,
+          "completed": true
+        },
+        {
+          "weightKg": 22,
+          "reps": 10,
+          "completed": true
+        },
+        {
+          "weightKg": 22,
+          "reps": 10,
+          "completed": true
+        }
+      ]
+    },
+    {
+      "name": "侧平举",
+      "restSeconds": 90,
+      "sets": [
+        {
+          "weightKg": 8,
+          "reps": 14,
+          "completed": true
+        },
+        {
+          "weightKg": 8,
+          "reps": 14,
+          "completed": true
+        },
+        {
+          "weightKg": 8,
+          "reps": 14,
+          "completed": true
+        },
+        {
+          "weightKg": 8,
+          "reps": 14,
+          "completed": true
+        }
+      ]
+    }
+  ]
+}

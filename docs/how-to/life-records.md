@@ -48,6 +48,39 @@ Long text is expandable on the timeline and complete on the record page. Markdow
 
 Tag and year links filter across the entire collection, with ten records per page. A record's permanent URL is `/life/record/<file-id>/`; changing its date does not change its URL. The homepage shows the latest two published records in the current language. Photography learning notes stay under Notes.
 
+## Training calendar demo
+
+Fitness is a dedicated structured-data view under Life, not a photo caption or a new article category. It uses the `workouts` collection of JSON files under `src/content/workouts/`. Life records still use `src/content/life/` and their own tags. The routes are:
+
+- `/life/fitness/` — latest recorded month, or an empty calendar if none exists.
+- `/life/fitness/YYYY/MM/` — a specific recorded month.
+- `/life/fitness/YYYY/MM/DD/` — exercises and sets on a training day.
+
+The same routes also work under `/en/`. Clicking a recorded day in the calendar opens the corresponding detail page; exercise sets can be expanded. The Life index links to the calendar with a monthly preview card.
+
+A minimal imported JSON record:
+
+```json
+{
+  "date": "2026-08-06",
+  "title": "Back day",
+  "durationMinutes": 65,
+  "volumeKg": 4200,
+  "caloriesKcal": 250,
+  "exercises": [
+    {
+      "name": "Lat pulldown",
+      "restSeconds": 90,
+      "sets": [{ "weightKg": 60, "reps": 10, "completed": true }]
+    }
+  ]
+}
+```
+
+The JSON schema allows missing duration, volume, calories, and set weight because an upstream export may not provide them. Missing data renders as a dash; the site does not invent it. More than one session per date is supported. Date keys use local calendar dates (no UTC conversion).
+
+The `fixtures/src/content/workouts/` directory contains **synthetic demo data** with `"demo": true`, which is clearly marked in the UI. The real Xunji import is intentionally not wired into the browser: use the existing authenticated Railway proxy to export sanitized data to JSON in the separate content repository, then assemble/build. Do not commit upstream tokens, unreviewed raw exports, or personal history to this engine.
+
 ## Preview
 
 ```bash
