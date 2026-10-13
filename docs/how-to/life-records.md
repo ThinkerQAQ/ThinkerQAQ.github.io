@@ -1,6 +1,6 @@
 # Life records
 
-Life is a separate collection for short captions with an album, travel journals, and everyday records. Its Chinese and English indexes are `/life/` and `/en/life/`.
+Life exposes two shared navigation tabs: **Photography** (the default view at `/life/` or `/en/life/`) and **Fitness** (public monthly aggregates at `/life/fitness/` or `/en/life/fitness/`). There is no combined All tab. Photography reads caption-and-album records from the separate `life` collection; Fitness reads strict `workoutSummaries` JSON.
 
 Put canonical entries in the content repository at `src/content/life/`. The engine's existing assembly command copies this collection together with the rest of the content. Do not commit personal entries to the engine.
 
@@ -14,7 +14,7 @@ publishedAt: "2024-08-18T18:30:00+08:00"
 status: published
 language: zh
 location: 杭州
-tags: [旅行, 摄影]
+tags: [摄影]
 images:
   - src: /media/life/hangzhou/lake.jpg
     thumbnail: /media/life/hangzhou/lake-thumb.jpg
@@ -46,7 +46,7 @@ Record pages show the first nine thumbnails and load nine more per click. Withou
 
 Long text is expandable on the timeline and complete on the record page. Markdown supports text interleaved with images for longer travel journals. Inline Markdown images retain the site's existing single-image viewer; the `images` frontmatter field supplies the navigable album.
 
-Tag and year links filter across the entire collection, with ten records per page. A record's permanent URL is `/life/record/<file-id>/`; changing its date does not change its URL. The homepage shows the latest two published records in the current language. Photography learning notes stay under Notes.
+Published life records tagged 摄影 (Chinese) or Photography (English) appear in the Photography timeline, ten per page, with year archives. Other life tags are not rendered as visible sections, tag routes, or homepage cards. A record's permanent URL is `/life/record/<file-id>/`; changing its date does not change its URL. The homepage shows the latest two published Photography records in the current language. Photography learning notes stay under Notes.
 
 ## Public fitness summary
 

@@ -2,7 +2,7 @@
 publishedAt: "2024-10-01T00:35:00+08:00"
 language: zh
 status: published
-tags: [日常]
+tags: [摄影]
 updatedAt: "2026-10-13T11:00:00+08:00"
 images:
   - src: /media/life/sample-album/01.webp

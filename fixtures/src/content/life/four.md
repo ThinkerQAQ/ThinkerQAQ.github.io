@@ -3,7 +3,7 @@ title: "四张照片的记录"
 publishedAt: "2024-07-18T12:30:00+08:00"
 language: zh
 status: published
-tags: [旅行]
+tags: [摄影]
 images:
   - src: /media/life/sample-album/01.webp
     thumbnail: /media/life/sample-album/01-thumb.webp

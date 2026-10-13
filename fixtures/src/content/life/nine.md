@@ -4,7 +4,7 @@ publishedAt: "2024-09-21T18:15:00+08:00"
 language: zh
 status: published
 location: "演示城市"
-tags: [旅行, 摄影]
+tags: [摄影]
 images:
   - src: /media/life/sample-album/01.webp
     thumbnail: /media/life/sample-album/01-thumb.webp

@@ -3,7 +3,7 @@ title: "Sample life record"
 publishedAt: "2024-11-18T09:00:00+08:00"
 language: en
 status: published
-tags: [Travel]
+tags: [Photography]
 images:
   - src: /media/life/sample-album/01.webp
     thumbnail: /media/life/sample-album/01-thumb.webp
