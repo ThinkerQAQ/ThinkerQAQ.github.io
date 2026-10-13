@@ -86,4 +86,3 @@ jobs:
           gh release edit "$TAG" \
             --title "blogctl v${VERSION}" \
             --notes-file tools/blogctl/RELEASE_NOTES.md
-
