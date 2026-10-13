@@ -2,7 +2,7 @@ const RESOURCE_PATH = "/v1/reactions";
 const REACTION_TYPE = "helpful";
 const MAX_CONTENT_ID_LENGTH = 512;
 const VISITOR_ID_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
-const CONTENT_TYPES = new Set(["article", "note"]);
+const CONTENT_TYPES = new Set(["article", "note", "fitness"]);
 
 function json(body, status = 200, origin = "") {
   const headers = new Headers({

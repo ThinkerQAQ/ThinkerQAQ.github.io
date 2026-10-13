@@ -116,6 +116,24 @@ test("PUT is idempotent and DELETE removes the reaction", async () => {
   assert.deepEqual(await response.json(), { count: 0, reacted: false });
 });
 
+test("fitness reactions are isolated by month and share canonical identity across locales", async () => {
+  const runtime = env();
+  const september = "/v1/reactions?contentType=fitness&contentId=2026-09";
+  const october = "/v1/reactions?contentType=fitness&contentId=2026-10";
+
+  let response = await handleRequest(request("PUT", september), runtime);
+  assert.deepEqual(await response.json(), { count: 1, reacted: true });
+
+  response = await handleRequest(request("PUT", september), runtime);
+  assert.deepEqual(await response.json(), { count: 1, reacted: true });
+
+  response = await handleRequest(request("GET", october), runtime);
+  assert.deepEqual(await response.json(), { count: 0, reacted: false });
+
+  response = await handleRequest(request("DELETE", september), runtime);
+  assert.deepEqual(await response.json(), { count: 0, reacted: false });
+});
+
 test("different visitors contribute independently", async () => {
   const runtime = env();
   const path = "/v1/reactions?contentType=article&contentId=ddia";

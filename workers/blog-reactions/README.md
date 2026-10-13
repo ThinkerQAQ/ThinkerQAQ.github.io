@@ -1,6 +1,6 @@
 # Blog Helpful Reactions Worker
 
-This Worker backs the one-click `Helpful / 有帮助` reaction shown on article and note detail pages.
+This Worker backs the one-click `Helpful / 有帮助` reactions on article and note pages, and `Like / 点赞` on each fitness month.
 
 ## Design
 
@@ -12,6 +12,7 @@ This Worker backs the one-click `Helpful / 有帮助` reaction shown on article 
 - No GitHub login, email, raw visitor UUID, or IP is stored in D1
 - Mutation requests are rate-limited to 30 per minute per Cloudflare client IP
 - Allowed browser origins are restricted by `ALLOWED_ORIGINS`
+- Fitness pages use `contentType=fitness` and the `YYYY-MM` month as the stable content ID; the fitness index and both locales share that month's reaction count
 
 ## One-time Cloudflare setup
 

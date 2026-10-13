@@ -2,7 +2,7 @@
 import type { Locale } from "../config/i18n";
 
 interface Props {
-  contentType: "article" | "note";
+  contentType: "article" | "note" | "fitness";
   contentId: string;
   language?: Locale;
 }
@@ -11,8 +11,8 @@ const { contentType, contentId, language = "zh" } = Astro.props;
 const endpoint = String(import.meta.env.PUBLIC_REACTION_WORKER_URL ?? "").replace(/\/+$/, "");
 const enabled = Boolean(endpoint);
 const isChinese = language === "zh";
-const label = isChinese ? "有帮助" : "Helpful";
-const loadingLabel = isChinese ? "正在加载有帮助数量" : "Loading helpful count";
+const label = contentType === "fitness" ? (isChinese ? "点赞" : "Like") : (isChinese ? "有帮助" : "Helpful");
+const loadingLabel = contentType === "fitness" ? (isChinese ? "正在加载点赞数量" : "Loading like count") : (isChinese ? "正在加载有帮助数量" : "Loading helpful count");
 const errorLabel = isChinese ? "暂时无法连接点赞服务，请重试。" : "Unable to reach the reaction service. Please retry.";
 ---
 
@@ -26,7 +26,7 @@ const errorLabel = isChinese ? "暂时无法连接点赞服务，请重试。" :
     data-content-id={contentId}
     data-error-label={errorLabel}
     data-loading-label={loadingLabel}
-    aria-label={isChinese ? "内容反馈" : "Article feedback"}
+    aria-label={isChinese ? "内容反馈" : "Content feedback"}
   >
     <button
       class="content-reaction__button"

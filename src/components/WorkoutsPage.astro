@@ -2,6 +2,8 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import WorkoutTrend from "./WorkoutTrend.astro";
 import LifeSectionHeader from "./LifeSectionHeader.astro";
+import ContentReaction from "./ContentReaction.astro";
+import ContentComments from "./ContentComments.astro";
 import type { Locale } from "../config/i18n";
 import { workoutMonthHref, workoutMonthName, type WorkoutOverview } from "../lib/workouts";
 
@@ -54,12 +56,19 @@ const languageAlternatives = [
 
     <WorkoutTrend locale={locale} month={month} summaries={summaries} />
 
+    {summary && (
+      <section class="fitness-feedback" aria-label={zh ? "互动" : "Feedback"}>
+        <ContentReaction contentType="fitness" contentId={month} language={locale} />
+        <ContentComments language={locale} threadPath={workoutMonthHref("zh", month)} />
+      </section>
+    )}
     </div>
   </div>
 </BaseLayout>
 <style>
   .fitness-page { padding-block: 1rem 5rem; min-width:0; }
   .fitness-content { max-width: 56rem; min-width:0; }
+  .fitness-feedback { margin-block: 3.5rem 0; }
   .fitness-month__head { display:flex; justify-content:space-between; align-items:end; gap:0.9rem; margin:0.7rem 0 1rem; }
   .fitness-month__head h2 { margin:0.2rem 0 0; font-size:clamp(1.35rem,4vw,1.7rem); letter-spacing:-0.025em; }
   .fitness-eyebrow { font-size:0.79rem; color:var(--muted); }
