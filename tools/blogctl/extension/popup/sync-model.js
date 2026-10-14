@@ -186,9 +186,15 @@
       case "toutiao":
         if (numeric) editor = `https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=${id}`;
         break;
-      case "devto":
-        if (numeric) editor = `https://dev.to/dashboard/edit/${id}`;
+      case "devto": {
+        // Forem edits by username + full slug, not /dashboard/edit/:id.
+        // Draft slugs can include a temp-slug suffix; retain it verbatim.
+        const articlePath = parsed?.pathname.match(/^\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)(?:\/edit)?\/?$/);
+        if (articlePath && !["dashboard", "settings", "api"].includes(articlePath[1])) {
+          editor = `https://dev.to/${articlePath[1]}/${articlePath[2]}/edit`;
+        }
         break;
+      }
       case "medium":
         if (safeID) editor = `https://medium.com/p/${encodeURIComponent(id)}/edit`;
         break;
