@@ -1,14 +1,11 @@
-# BlogCTL v0.1.155
+# BlogCTL v0.1.156
 
-360 Search and Sogou now appear alongside IndexNow, Baidu and Google on the indexing page, using the same configured site and Sitemap resources.
+DEV.to draft editor links now use the article's complete username and slug instead of the invalid `/dashboard/edit/{id}` route.
 
-- Added 360 and Sogou webmaster-console links and Baidu-style status, statistics, incremental submission and full submission controls. Removed repeated site and Sitemap instructions from their cards.
-- Connected both controls through Extension messaging to authenticated Bridge JSON endpoints: `POST /v1/search/index/jobs/so360` and `POST /v1/search/index/jobs/sogou`.
-- Remote submission remains deferred. Valid requests return `supported:false`, `submitted:false` and `submission_not_implemented`; the UI reports that the provider is not connected. No URLs are sent, no successful task is fabricated and no submission snapshot is advanced.
-- Reject invalid modes, unknown request fields, multiple JSON documents and unauthenticated writes. Persist the last local attempt and log its provider, mode and outcome.
-- Kept site identity and Sitemap settings in the existing shared configuration. Engine filtering includes the new cards, and operation messages remain visible for every engine.
-- Added English translations and kept Extension, Bridge and executable versions aligned at 0.1.155.
-- Previous GitHub Releases are retained when publishing a new version.
+- Fixed draft links in detection, update matching, and task artifacts through their shared resolver, covering both the browser Extension and embedded Web Console.
+- Preserve the complete provider-returned slug, including `temp-slug` suffixes, and avoid appending `/edit` twice.
+- Do not generate a guessed editor link when the article URL is missing or invalid; refresh detection to retrieve the current URL.
+- Keep executable, Bridge, and Extension versions aligned at 0.1.156.
 
 ## Upgrade
 
@@ -16,6 +13,6 @@ Replace the executable and extension files together, preserve the existing `Data
 
 ## Validation
 
-Windows native and site builds, extension JavaScript checks and documentation checks passed. Local HTTP smoke checks verified both submission modes for both providers, invalid request rejection, authentication enforcement and unchanged configuration, jobs and IndexNow snapshot files. Both revised cards were inspected in the local browser preview. The Windows installation was updated to 0.1.155 for user review.
+Extension JavaScript syntax checks and the native BlogCTL build passed. The release workflow verifies and packages the cross-platform binaries, Extension ZIP, and SHA-256 checksums before publishing.
 
-Remote 360/Sogou Sitemap submission and indexing are not implemented or claimed by this release.
+Authenticated DEV.to navigation has not been verified; no remote article or draft was modified while validating this fix.
