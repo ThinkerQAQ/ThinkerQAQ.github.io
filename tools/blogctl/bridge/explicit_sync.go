@@ -133,7 +133,7 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 	}
 	output := strings.Join(completed, "\n")
 	if len(failures) > 0 {
-		return output, fmt.Errorf("%d remote operation(s) failed: %s", len(failures), strings.Join(failures, "; "))
+		return output, fmt.Errorf("%d publishing operation(s) failed: %s", len(failures), strings.Join(failures, "; "))
 	}
 	return output, nil
 }
