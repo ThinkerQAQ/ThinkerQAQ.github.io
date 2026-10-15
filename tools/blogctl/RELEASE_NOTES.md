@@ -1,11 +1,11 @@
-# BlogCTL v0.1.156
+# BlogCTL v0.1.157
 
-DEV.to draft editor links now use the article's complete username and slug instead of the invalid `/dashboard/edit/{id}` route.
+Article publishing now parses canonical frontmatter as YAML, fixing failures for valid inline tags such as `tags: [并发编程, Message Passing, Java]`.
 
-- Fixed draft links in detection, update matching, and task artifacts through their shared resolver, covering both the browser Extension and embedded Web Console.
-- Preserve the complete provider-returned slug, including `temp-slug` suffixes, and avoid appending `/edit` twice.
-- Do not generate a guessed editor link when the article URL is missing or invalid; refresh detection to retrieve the current URL.
-- Keep executable, Bridge, and Extension versions aligned at 0.1.156.
+- Replace the handwritten scalar and list parser with `go.yaml.in/yaml/v3`; support inline and multiline sequences, YAML comments, quoting and block scalars.
+- Include source paths, YAML diagnostics, parse status and duration in failures; report publishing failures without incorrectly implying a remote request occurred.
+- Preserve the DEV.to draft editor fixes from v0.1.156.
+- Keep executable, Bridge, and Extension versions aligned at 0.1.157.
 
 ## Upgrade
 
@@ -13,6 +13,4 @@ Replace the executable and extension files together, preserve the existing `Data
 
 ## Validation
 
-Extension JavaScript syntax checks and the native BlogCTL build passed. The release workflow verifies and packages the cross-platform binaries, Extension ZIP, and SHA-256 checksums before publishing.
-
-Authenticated DEV.to navigation has not been verified; no remote article or draft was modified while validating this fix.
+The native build, 102 real article/platform payload compilations, four valid YAML form integration runs, three rejected malformed/type/duplicate-key scenarios, documentation links, extension syntax and public boundary checks passed. No unit tests or remote publishing operations were run. Cross-platform release packaging and authenticated remote publishing have not been verified.
