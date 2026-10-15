@@ -1,5 +1,5 @@
 import { getCollection, type CollectionEntry } from "astro:content";
-import { localizePath, type Locale } from "../config/i18n";
+import { localizePath, type Locale, type LocaleAlternative } from "../config/i18n";
 
 export type LifeEntry = CollectionEntry<"life">;
 export const LIFE_PAGE_SIZE = 10;
@@ -15,8 +15,12 @@ export function lifeYear(entry: LifeEntry): string {
   return new Intl.DateTimeFormat("en", { timeZone: "Asia/Shanghai", year: "numeric" }).format(entry.data.publishedAt);
 }
 
+export function lifeSlug(entry: LifeEntry): string {
+  return entry.data.language === "en" ? entry.id.replace(/-en$/, "") : entry.id;
+}
+
 export function lifeHref(entry: LifeEntry): string {
-  return localizePath(entry.data.language, `/life/record/${entry.id.split("/").map(encodeURIComponent).join("/")}/`);
+  return localizePath(entry.data.language, `/life/record/${lifeSlug(entry).split("/").map(encodeURIComponent).join("/")}/`);
 }
 
 export function lifeTitle(entry: LifeEntry): string {
@@ -38,10 +42,11 @@ export interface LifeIndexData {
   pageCount: number;
   basePath: string;
 }
-export type LifePageData = LifeIndexData | { kind: "record"; entry: LifeEntry };
+export type LifePageData = LifeIndexData | { kind: "record"; entry: LifeEntry; alternatives: LocaleAlternative[] };
 
 export async function getLifePaths(locale: Locale) {
   const entries = await getLifeEntries(locale);
+  const counterparts = new Map((await getLifeEntries(locale === "zh" ? "en" : "zh")).map((entry) => [lifeSlug(entry), entry]));
   const years = [...new Set(entries.map(lifeYear))].sort().reverse();
   const paths: { params: { path: string | undefined }; props: { locale: Locale; data: LifePageData } }[] = [];
   const addIndex = (selected: LifeEntry[], path: string, filter: { year?: string } = {}) => {
@@ -60,7 +65,12 @@ export async function getLifePaths(locale: Locale) {
   addIndex(entries, "");
   for (const year of years) addIndex(entries.filter((entry) => lifeYear(entry) === year), `year/${year}`, { year });
   for (const entry of entries) {
-    paths.push({ params: { path: `record/${entry.id}` }, props: { locale, data: { kind: "record", entry } } });
+    const counterpart = counterparts.get(lifeSlug(entry));
+    const alternatives = [entry, ...(counterpart ? [counterpart] : [])].map((record) => ({
+      locale: record.data.language,
+      href: lifeHref(record),
+    }));
+    paths.push({ params: { path: `record/${lifeSlug(entry)}` }, props: { locale, data: { kind: "record", entry, alternatives } } });
   }
   return paths;
 }
