@@ -5,7 +5,7 @@ import Pagination from "./Pagination.astro";
 import ContentMediaViewer from "./ContentMediaViewer.astro";
 import ContentComments from "./ContentComments.astro";
 import ContentReaction from "./ContentReaction.astro";
-import { localizePath, type Locale } from "../config/i18n";
+import { localizePath, SUPPORTED_LOCALES, type Locale } from "../config/i18n";
 import { lifeHref, lifeTitle, type LifePageData } from "../lib/life";
 import { SITE } from "../config/site";
 import LifeSectionHeader from "./LifeSectionHeader.astro";
@@ -21,9 +21,16 @@ const description = data.kind === "record"
   ? data.entry.data.description ?? title
   : zh ? "用照片记录所见，用数据记录训练。" : "Capturing what I see through photos, and tracking training through data.";
 const photo = data.kind === "record" ? data.entry.data.images[0] : undefined;
-const languageAlternatives = data.kind === "index" && !data.year && data.page === 1
-  ? [{ locale: "zh" as const, href: "/life/" }, { locale: "en" as const, href: "/en/life/" }]
-  : [];
+const languageAlternatives = data.kind === "record"
+  ? (data.alternatives.length > 1 ? data.alternatives : [])
+  : !data.year && data.page === 1
+    ? [{ locale: "zh" as const, href: "/life/" }, { locale: "en" as const, href: "/en/life/" }]
+    : [];
+const languageSwitcherAlternatives = data.kind === "record"
+  ? SUPPORTED_LOCALES.map((targetLocale) =>
+      data.alternatives.find((alternative) => alternative.locale === targetLocale)
+      ?? { locale: targetLocale, href: localizePath(targetLocale, "/life/") })
+  : [{ locale: "zh" as const, href: "/life/" }, { locale: "en" as const, href: "/en/life/" }];
 const pageHref = (page: number) => data.kind === "index" ? (page === 1 ? data.basePath : `${data.basePath}page/${page}/`) : home;
 const previous = data.kind === "index" && data.page > 1 ? pageHref(data.page - 1) : undefined;
 const next = data.kind === "index" && data.page < data.pageCount ? pageHref(data.page + 1) : undefined;
@@ -43,7 +50,7 @@ const structuredData = data.kind === "record" ? {
   image={photo?.src} imageAlt={photo?.alt}
   noindex={data.kind === "index" && data.entries.length === 0}
   languageAlternatives={languageAlternatives}
-  languageSwitcherAlternatives={[{ locale: "zh", href: "/life/" }, { locale: "en", href: "/en/life/" }]}
+  languageSwitcherAlternatives={languageSwitcherAlternatives}
 >
   {previous && <link slot="head" rel="prev" href={previous} />}
   {next && <link slot="head" rel="next" href={next} />}
