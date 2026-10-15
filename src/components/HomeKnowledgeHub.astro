@@ -32,7 +32,7 @@ interface KnowledgeDefinition {
 }
 
 const { locale } = Astro.props;
-const latestLife = (await getLifeEntries(locale)).slice(0, 2);
+const latestLife = (await getLifeEntries(locale)).slice(0, 1);
 
 const copy = locale === "en"
   ? {
