@@ -1036,8 +1036,22 @@ main {
 .footer-links {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 1rem;
+}
+
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.footer-links svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
 }
 
 .footer-registration {
