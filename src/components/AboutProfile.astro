@@ -32,6 +32,9 @@ const copy = locale === "en"
       contactPrefix: "For technical discussions, feedback, or collaboration, email me at ",
       contactMiddle: " or find me on ",
       contactSuffix: ".",
+      sourcePrefix: "The source code for this website is available on ",
+      sourceLink: "GitHub",
+      sourceSuffix: ".",
     }
   : {
       title: "关于我",
@@ -56,6 +59,9 @@ const copy = locale === "en"
       contactPrefix: "技术交流、文章反馈或合作事宜，可以发邮件至 ",
       contactMiddle: "，或通过 ",
       contactSuffix: " 联系我。",
+      sourcePrefix: "本站的源码可以在 ",
+      sourceLink: "GitHub",
+      sourceSuffix: " 查看。",
     };
 ---
 
@@ -86,5 +92,8 @@ const copy = locale === "en"
   <h2>{copy.contactTitle}</h2>
   <p>
     {copy.contactPrefix}<a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>{copy.contactMiddle}<a href={SITE.github}>GitHub</a>{copy.contactSuffix}
+  </p>
+  <p>
+    {copy.sourcePrefix}<a href={SITE.repository}>{copy.sourceLink}</a>{copy.sourceSuffix}
   </p>
 </div>
