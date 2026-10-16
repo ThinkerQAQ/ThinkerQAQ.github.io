@@ -1,0 +1,90 @@
+---
+import CollectionHeader from "./CollectionHeader.astro";
+import { localizePath, type Locale } from "../config/i18n";
+import { SITE } from "../config/site";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const copy = locale === "en"
+  ? {
+      title: "About Me",
+      lead: "I'm ThinkerQAQ, a software engineer. This is where I share what I'm learning, building, and experiencing.",
+      meTitle: "About Me",
+      me: "I work mainly on backend systems and infrastructure, with a particular interest in concurrency, distributed systems, data systems, and AI infrastructure. Outside of engineering, I enjoy photography, fitness, and reading.",
+      whyTitle: "Why I Write",
+      why: "This site grew out of years of learning notes. Notes capture what I understood at the time; writing articles helps me connect the pieces and explain them more clearly. I keep older notes, including ideas I've since revised, because they show how my thinking has changed.",
+      whyLink: "Why I Still Write a Blog in the Age of Social Media",
+      whyPrefix: "I wrote more about this in ",
+      exploreTitle: "Explore the Site",
+      articles: "Articles",
+      series: "Series",
+      writing: " bring together longer writing and connected topics.",
+      notes: "Notes",
+      notesDetail: " cover both engineering knowledge and interests beyond engineering, including photography, investing, economics, and fitness.",
+      projects: "Projects",
+      projectsDetail: " document things I've built and what I learned along the way.",
+      life: "Life",
+      lifeDetail: " is for photos, travels, and everyday moments rather than study notes.",
+      contactTitle: "Contact",
+      contactPrefix: "For technical discussions, feedback, or collaboration, email me at ",
+      contactMiddle: " or find me on ",
+      contactSuffix: ".",
+    }
+  : {
+      title: "关于我",
+      lead: "我是 ThinkerQAQ，一名软件工程师。这里记录我的学习、实践与生活。",
+      meTitle: "关于我",
+      me: "主要从事后端与基础设施相关的开发，关注并发编程、分布式系统、数据系统，以及 AI 基础设施。写代码之外，我也喜欢摄影、健身和阅读。",
+      whyTitle: "为什么写博客",
+      why: "这个网站最初来自多年积累的学习笔记。笔记留下的是当时的理解，写文章则帮助我把零散的知识梳理清楚。我也会保留早期的笔记，即使其中有些认识已经改变，因为这些记录本身就是学习过程的一部分。",
+      whyLink: "《媒体时代，为什么我还要写博客》",
+      whyPrefix: "关于这个话题，我还写过 ",
+      exploreTitle: "这里有什么",
+      articles: "文章",
+      series: "系列",
+      writing: "：整理过的技术文章，以及围绕同一主题展开的连续写作。",
+      notes: "笔记",
+      notesDetail: "：既有工程知识，也有工程之外的摄影、投资、经济学和健身等学习记录。",
+      projects: "项目",
+      projectsDetail: "：记录做过的东西，以及开发过程中遇到的问题和积累的经验。",
+      life: "生活",
+      lifeDetail: "：用照片和短文记录旅行、见闻与日常，不同于偏知识整理的笔记。",
+      contactTitle: "联系我",
+      contactPrefix: "技术交流、文章反馈或合作事宜，可以发邮件至 ",
+      contactMiddle: "，或通过 ",
+      contactSuffix: " 联系我。",
+    };
+---
+
+<CollectionHeader title={copy.title} description={copy.lead} />
+
+<div class="prose">
+  <h2>{copy.meTitle}</h2>
+  <p>{copy.me}</p>
+
+  <h2>{copy.whyTitle}</h2>
+  <p>{copy.why}</p>
+  <p>
+    {copy.whyPrefix}<a href={localizePath(locale, "/articles/personal-blog-series-00-why-blog/")}>{copy.whyLink}</a>{locale === "en" ? "." : "。"}
+  </p>
+
+  <h2>{copy.exploreTitle}</h2>
+  <ul>
+    <li>
+      <a href={localizePath(locale, "/articles/")}>{copy.articles}</a>
+      {locale === "en" ? " and " : "与"}
+      <a href={localizePath(locale, "/series/")}>{copy.series}</a>{copy.writing}
+    </li>
+    <li><a href={localizePath(locale, "/notes/")}>{copy.notes}</a>{copy.notesDetail}</li>
+    <li><a href={localizePath(locale, "/projects/")}>{copy.projects}</a>{copy.projectsDetail}</li>
+    <li><a href={localizePath(locale, "/life/")}>{copy.life}</a>{copy.lifeDetail}</li>
+  </ul>
+
+  <h2>{copy.contactTitle}</h2>
+  <p>
+    {copy.contactPrefix}<a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>{copy.contactMiddle}<a href={SITE.github}>GitHub</a>{copy.contactSuffix}
+  </p>
+</div>
