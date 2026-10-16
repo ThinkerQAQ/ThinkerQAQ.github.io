@@ -1040,6 +1040,18 @@ main {
   gap: 1rem;
 }
 
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.footer-links svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
+}
+
 .footer-registration {
   display: flex;
   flex-direction: column;
