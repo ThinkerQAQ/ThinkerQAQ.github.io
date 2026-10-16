@@ -234,18 +234,6 @@ const projectItems = projects.map((project) => {
     </section>
   )}
 
-  {latestLife.length > 0 && (
-    <section class="home-section" aria-labelledby="home-life-title">
-      <div class="section-heading">
-        <h2 id="home-life-title">{locale === "zh" ? "最近生活" : "Recent Life"}</h2>
-        <a href={localizePath(locale, "/life/")}>{locale === "zh" ? "全部生活" : "All Life"} →</a>
-      </div>
-      <div class="home-life-records" data-pagefind-ignore="all">
-        {latestLife.map((entry) => <LifeRecord entry={entry} />)}
-      </div>
-    </section>
-  )}
-
   {beyondEngineeringAreas.length > 0 && (
     <section class="home-section home-section--beyond" aria-labelledby="home-beyond-title">
       <div class="section-heading">
@@ -264,6 +252,19 @@ const projectItems = projects.map((project) => {
       </ul>
     </section>
   )}
+
+  {latestLife.length > 0 && (
+    <section class="home-section" aria-labelledby="home-life-title">
+      <div class="section-heading">
+        <h2 id="home-life-title">{locale === "zh" ? "最近生活" : "Recent Life"}</h2>
+        <a href={localizePath(locale, "/life/")}>{locale === "zh" ? "全部生活" : "All Life"} →</a>
+      </div>
+      <div class="home-life-records" data-pagefind-ignore="all">
+        {latestLife.map((entry) => <LifeRecord entry={entry} />)}
+      </div>
+    </section>
+  )}
+
 </div>
 
 <style>
