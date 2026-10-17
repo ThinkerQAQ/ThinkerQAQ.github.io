@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -336,4 +337,48 @@ func TestBridgeUILocaleContract(t *testing.T) {
 	if config, err := normalizeBridgeConfig(bridgeConfig{}); err != nil || config.UILocale != "auto" {
 		t.Fatalf("default = %q, %v", config.UILocale, err)
 	}
+}
+
+func TestBufferAPIKeyPersistsAndNeverLeaks(t *testing.T) {
+	useIsolatedUserConfigDir(t)
+	config, err := normalizeBridgeConfig(bridgeConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Social.Buffer.APIKey = "private-test-token"
+	if err := saveBridgeConfig(config); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadBridgeConfig()
+	if loaded.Social.Buffer.APIKey != "private-test-token" {
+		t.Fatal("key was not loaded")
+	}
+	raw, err := os.ReadFile(func() string { d, _ := ConfigDir(); return filepath.Join(d, "blogctl.toml") }())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "private-test-token") {
+		t.Fatal("key not persisted in TOML")
+	}
+	for _, item := range toolRegistry(loaded) {
+		if item.Name != "buffer-api" {
+			continue
+		}
+		if _, ok := item.Config.Values["apiKey"]; ok {
+			t.Fatal("Buffer key leaked in tool registry")
+		}
+		if item.Config.Schema[0].Type != "secret" {
+			t.Fatal("Buffer key is not masked")
+		}
+		sanitized := publicBridgeConfig(loaded)
+		serialized, err := json.Marshal(sanitized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(serialized), "private-test-token") {
+			t.Fatal("Buffer key exposed in public config")
+		}
+		return
+	}
+	t.Fatal("Buffer API tool not registered")
 }

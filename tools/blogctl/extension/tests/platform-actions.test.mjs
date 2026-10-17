@@ -4,10 +4,10 @@ import test from "node:test";
 
 const source = async (path) => readFile(new URL("../" + path, import.meta.url), "utf8");
 
-test("navigation follows Detection, Creation, Update, Index, Tasks, Logs, Settings", async () => {
+test("navigation includes Social publishing between Update and Index", async () => {
   const html = await source("popup/popup.html");
   const tabs = [...html.matchAll(/data-tab="([^"]+)"/gu)].map((item) => item[1]);
-  assert.deepEqual(tabs, ["binding","creation","drafts","indexing","tasks","logs","environment"]);
+  assert.deepEqual(tabs, ["binding","creation","drafts","social","indexing","tasks","logs","environment"]);
   assert.doesNotMatch(html, /data-panel="publications"/u);
   assert.doesNotMatch(html, /id="publishSelected"/u);
   assert.match(html, /id="publishAfterSave"/u);

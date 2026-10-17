@@ -2,6 +2,21 @@
 // Catalog uses existing Chinese UI labels as stable source keys. i18next is
 // bundled locally for MV3 CSP and reused by Extension + Go-hosted Web Console.
 globalThis.BlogCTLEnMessages = Object.freeze({
+  "动态": "Social",
+  "社交动态 · Buffer": "Social Posts · Buffer",
+  "AI 从 BlogContent 全文生成社交草稿；本地审核后才会写入 Buffer 草稿，公开发布需再次确认。": "AI creates social copy from the full BlogContent article. Review locally before staging a Buffer draft; publication requires explicit confirmation.",
+  "英文正文": "English post",
+  "发布预览（自动追加原文 URL 与 UTM）": "Publication preview (source URL + UTM appended)",
+  "保存修改": "Save changes",
+  "审核通过": "Approve",
+  "存入 Buffer 草稿": "Stage Buffer draft",
+  "确认发布": "Confirm publish",
+  "选择社交草稿": "Select social draft",
+  "已审核": "Approved",
+  "待审核": "Pending review",
+  "文章封面": "Article cover",
+  "文字已修改，请先保存草稿再审核。": "Text changed. Save the draft before reviewing.",
+
   "360 搜索": "360 Search",
   "搜狗搜索": "Sogou Search",
   "360 控制台": "360 webmaster console",

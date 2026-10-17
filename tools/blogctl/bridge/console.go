@@ -43,7 +43,7 @@ func (s *Server) serveConsole(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Security-Policy",
-		"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; "+
+		"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https:; "+
 			"connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	if r.URL.Path == "/console" || r.URL.Path == "/console/" {
 		http.Redirect(w, r, "/console/popup/popup.html", http.StatusFound)
@@ -64,7 +64,7 @@ func (s *Server) serveConsole(w http.ResponseWriter, r *http.Request) {
 		s := fmt.Sprintf("<meta name=\"blogctl-style-nonce\" content=\"%s\">", nonce)
 		html := strings.Replace(string(data), "</head>", s+"\n</head>", 1)
 		w.Header().Set("Content-Security-Policy",
-			fmt.Sprintf("default-src 'none'; script-src 'self'; style-src 'self' 'nonce-%s'; img-src 'self'; "+
+			fmt.Sprintf("default-src 'none'; script-src 'self'; style-src 'self' 'nonce-%s'; img-src 'self' https:; "+
 				"connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'", nonce))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(html))

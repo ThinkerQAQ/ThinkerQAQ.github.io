@@ -755,3 +755,11 @@ input, select { min-height: 42px; font-size: 13px; }
 .environment-interface-settings .message {
   margin: 0;
 }
+
+
+/* Social publishing uses the existing workspace card and field vocabulary. */
+.social-preview { padding: 12px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;
+  font: inherit; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.social-cover { display: block; width: min(100%, 460px); max-height: 240px;
+  object-fit: contain; border-radius: 8px; }
+#socialText { min-height: 190px; width: 100%; resize: vertical; }

@@ -6,6 +6,7 @@ const modules = {
   creation: BlogCTLDrafts,
   tasks: BlogCTLTasks,
   logs: BlogCTLLogs,
+  social: BlogCTLSocial,
   indexing: BlogCTLIndexing,
   environment: BlogCTLEnvironment,
 };

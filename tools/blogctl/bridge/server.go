@@ -665,6 +665,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "social" {
+		s.handleSocial(response, request, parts)
+		return
+	}
 	if len(parts) == 4 && parts[0] == "v1" && parts[1] == "platforms" && parts[3] == "drafts" && request.Method == http.MethodPost {
 		s.handleDraft(response, request, parts[2])
 		return

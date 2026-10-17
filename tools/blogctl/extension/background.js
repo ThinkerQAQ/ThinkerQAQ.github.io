@@ -968,6 +968,25 @@ function kickGoogleIndexQueuePump() {
 async function handleMessage(message) {
   switch (message.type) {
     case "blogctl.status": return { ok: true, status: await getStatus() };
+    case "blogctl.social.list":
+      return fetchJSON("/v1/social/drafts");
+    case "blogctl.social.get": {
+      const id = encodeURIComponent(String(message.id || ""));
+      return fetchJSON(`/v1/social/drafts/${id}`);
+    }
+    case "blogctl.social.save":
+    case "blogctl.social.approve":
+    case "blogctl.social.stage":
+    case "blogctl.social.publish": {
+      const id = encodeURIComponent(String(message.id || ""));
+      const action = message.type.split(".")[2];
+      const url = action === "save"
+        ? `/v1/social/drafts/${id}`
+        : `/v1/social/drafts/${id}/${action}`;
+      return fetchJSON(url, jsonOptions(action === "save" ? "PUT" : "POST", {
+        revision: message.revision, platform: message.platform, posts: message.posts,
+      }));
+    }
     case "blogctl.articles": {
       const result = await fetchJSON("/v1/articles");
       return { ok: true, articles: result?.articles ?? [] };

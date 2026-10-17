@@ -48,6 +48,7 @@
         <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="binding" title="检测" aria-label="检测"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><span class="nav-text">检测</span></button>
         <button class="tab" type="button" role="tab" aria-selected="false" data-tab="creation" title="创建" aria-label="创建"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-text">创建</span></button>
         <button class="tab" type="button" role="tab" aria-selected="false" data-tab="drafts" title="更新" aria-label="更新"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.7-4.3L3 9M3 4v5h5M4 13a8 8 0 0 0 14.7 4.3L21 15M21 20v-5h-5"/></svg></span><span class="nav-text">更新</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="social" title="动态" aria-label="动态"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 11h11M4 16h7"/><path d="m17 15 4 3-4 3"/></svg></span><span class="nav-text">动态</span></button>
         <button class="tab" type="button" role="tab" aria-selected="false" data-tab="indexing" title="索引" aria-label="索引"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h1M3 12h1M3 18h1"/></svg></span><span class="nav-text">索引</span></button>
         <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tasks" title="任务" aria-label="任务"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h9M8 12h9M8 16h6"/></svg></span><span class="nav-text">任务</span></button>
         <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs" title="日志" aria-label="日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h12"/></svg></span><span class="nav-text">日志</span></button>
@@ -73,6 +74,28 @@
 
     <section class="panel" role="tabpanel" data-panel="creation"></section>
 
+    <section class="panel" role="tabpanel" data-panel="social">
+      <section class="status-card">
+        <div class="section-title">社交动态 · Buffer</div>
+        <p class="card-hint">AI 从 BlogContent 全文生成社交草稿；本地审核后才会写入 Buffer 草稿，公开发布需再次确认。</p>
+        <div class="binding-detect-toolbar">
+          <label class="field"><span>草稿</span><select id="socialDraftPicker"></select></label>
+          <button id="socialRefresh" class="secondary compact" type="button">刷新</button>
+        </div>
+        <label class="field"><span>平台</span><select id="socialPlatform"></select></label>
+        <label class="field"><span>英文正文</span><textarea id="socialText" rows="10" spellcheck="true"></textarea></label>
+        <div id="socialMedia"></div>
+        <p class="card-hint">发布预览（自动追加原文 URL 与 UTM）</p>
+        <pre id="socialPreview" class="social-preview"></pre>
+        <div class="binding-detect-toolbar">
+          <button id="socialSave" class="secondary compact" type="button">保存修改</button>
+          <button id="socialApprove" class="secondary compact" type="button">审核通过</button>
+          <button id="socialStage" class="secondary compact" type="button">存入 Buffer 草稿</button>
+          <button id="socialPublish" class="primary compact" type="button">确认发布</button>
+        </div>
+        <p id="socialMessage" class="message" role="status"></p>
+      </section>
+    </section>
     <section class="panel" role="tabpanel" data-panel="drafts">
       <div id="sharedDraftWorkspace">
       <section class="status-card">
@@ -444,6 +467,7 @@
             <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
             
             <div class="section-title">平台接入</div>
+            <div id="socialPlatformAccessConfig" class="tool-list"></div>
             <div id="platformAccessConfig" class="platform-access-config"><div class="platform-loading">正在读取平台配置…</div></div>
             
             <label class="switch-row" for="publishingChangedOnly"><span><strong>仅更新内容有变化的草稿</strong><small>此平台已有草稿且内容未变时跳过；Medium 暂不支持更新已有草稿。</small></span><input id="publishingChangedOnly" type="checkbox"></label>
@@ -520,6 +544,7 @@
   <script src="logs.js"></script>
   <script src="indexing.js"></script>
   <script src="assets.js"></script>
+  <script src="social.js"></script>
   <script src="publishing.js"></script>
   <script src="environment.js"></script>
   <script src="settings-navigation.js"></script>

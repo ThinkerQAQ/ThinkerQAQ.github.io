@@ -567,6 +567,27 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
+			Name: "buffer-api", DisplayName: "Buffer API", Kind: "publishing", Required: false,
+			Description: "LinkedIn / X / Bluesky 社交动态通过 Buffer 官方 GraphQL API 发布；密钥仅保存在本机 blogctl.toml。",
+			Health: func() toolHealth {
+				if config.Social.Buffer.APIKey == "" {
+					if os.Getenv("BUFFER_API_KEY") != "" {
+						return toolHealth{OK: true, Status: "ok", Summary: "已通过环境变量配置"}
+					}
+					return toolHealth{Status: "missing", Summary: "API Key 未配置"}
+				}
+				return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
+			}(),
+			Config: toolConfigView{
+				Scope: "bridge", Values: map[string]any{},
+				Schema: []toolField{{
+					Key: "apiKey", Label: "API Key", Type: "secret",
+					Placeholder: "Buffer Personal API Key（留空保持现有值）",
+					Description: "在 Buffer → API Settings 创建。留空不清除已保存的密钥；请勿提交到 Git。",
+				}},
+			},
+		},
+		{
 			Name: "devto-api", DisplayName: "DEV.to API", Kind: "publishing", Required: false,
 			Description: "DEV.to 文章生命周期使用官方 API；图片优先通过浏览器会话上传到 DEV.to，失败时回退 R2。API Key 仅保存在本机 BlogCTL 配置中。",
 			Health:      devtoAPIHealth(config),
@@ -738,6 +759,10 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 	case "logging":
 		config.LogDirectory = stringConfig(values, "directory")
 		config.LogLevel = stringConfig(values, "level")
+	case "buffer-api":
+		if key := stringConfig(values, "apiKey"); key != "" {
+			config.Social.Buffer.APIKey = key
+		}
 	case "devto-api":
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key

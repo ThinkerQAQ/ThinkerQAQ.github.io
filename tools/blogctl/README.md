@@ -45,6 +45,14 @@ Markdown source
 
 Session access stays in the browser Extension; Go handles local jobs and publishing adapters. See [Concepts](docs/concepts/index.md).
 
+## Social Publishing (Buffer)
+
+AI-authored short-form posts are reviewed locally before staging to Buffer and
+publishing to LinkedIn, X or Bluesky. The same BlogCTL Web Console previews the
+draft; a matching, explicit content revision is required for publication. See
+[Social Publishing](docs/guide/social-publishing.md), including the WSL/Windows
+Data directory setup.
+
 ## Documentation
 
 | Topic | English | 简体中文 |

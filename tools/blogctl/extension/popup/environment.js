@@ -15,7 +15,7 @@
   })();
   const expandedTools = storedExpandedTools ?? new Set();
   let initializedExpansion = storedExpandedTools !== null;
-  let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus, configPath, configEditButton;
+  let runtimeTools, searchEngineTools, dependencyTools, socialPlatformAccess, searchEngineStatus, configPath, configEditButton;
   let assetConfigCard, platformConfigCard, searchEngineCard, message;
 
   function persistExpandedTools() {
@@ -351,6 +351,7 @@
       persistExpandedTools();
     }
 
+    renderToolList(socialPlatformAccess, state.tools.filter((t)=>t.name==="buffer-api"), "未接入 Buffer API");
     renderToolList(runtimeTools, runtimeItems, "没有运行环境信息");
     renderToolList(searchEngineTools, searchTools, "没有搜索引擎配置");
     renderToolList(dependencyTools, dependencyItems);
@@ -389,6 +390,7 @@
   function init() {
     if (state.initialized) return;
     runtimeTools = document.getElementById("environmentRuntimeTools");
+    socialPlatformAccess = document.getElementById("socialPlatformAccessConfig");
     searchEngineTools = document.getElementById("searchEngineTools");
     dependencyTools = document.getElementById("environmentDependencyTools");
     searchEngineStatus = document.getElementById("searchEngineEnvironmentStatus");
