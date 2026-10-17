@@ -450,6 +450,13 @@ func googleSearchConsoleAPIPlaceholder(config bridgeConfig) string {
 	return "Google service-account JSON"
 }
 
+func bufferAPIPlaceholder(config bridgeConfig) string {
+	if config.Social.Buffer.APIKey != "" || os.Getenv("BUFFER_API_KEY") != "" {
+		return "已配置；留空保持不变"
+	}
+	return "Buffer Personal API Key"
+}
+
 func toolRegistry(config bridgeConfig) []toolDescriptor {
 	configPath, _ := ConfigPath()
 	pathField := func(key, label, description string) []toolField {
@@ -564,6 +571,27 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 						Options:     []string{"debug", "info", "warn", "error"},
 					},
 				},
+			},
+		},
+		{
+			Name: "buffer-api", DisplayName: "Buffer API", Kind: "social", Required: false,
+			Description: "LinkedIn / X / Bluesky 社交动态通过 Buffer 官方 GraphQL API 发布；密钥仅保存在本机 blogctl.toml。",
+			Health: func() toolHealth {
+				if config.Social.Buffer.APIKey == "" {
+					if os.Getenv("BUFFER_API_KEY") != "" {
+						return toolHealth{OK: true, Status: "ok", Summary: "已通过环境变量配置"}
+					}
+					return toolHealth{Status: "missing", Summary: "API Key 未配置"}
+				}
+				return toolHealth{OK: true, Status: "ok", Summary: "已配置"}
+			}(),
+			Config: toolConfigView{
+				Scope: "bridge", Values: map[string]any{},
+				Schema: []toolField{{
+					Key: "apiKey", Label: "API Key", Type: "secret",
+					Placeholder: bufferAPIPlaceholder(config),
+					Description: "在 Buffer → API Settings 创建。留空不清除已保存的密钥；请勿提交到 Git。",
+				}},
 			},
 		},
 		{
@@ -738,6 +766,10 @@ func updateToolConfig(config bridgeConfig, name string, values map[string]any) (
 	case "logging":
 		config.LogDirectory = stringConfig(values, "directory")
 		config.LogLevel = stringConfig(values, "level")
+	case "buffer-api":
+		if key := stringConfig(values, "apiKey"); key != "" {
+			config.Social.Buffer.APIKey = key
+		}
 	case "devto-api":
 		if key := stringConfig(values, "apiKey"); key != "" {
 			config.DevtoAPIKey = key

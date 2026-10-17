@@ -15,7 +15,7 @@
   })();
   const expandedTools = storedExpandedTools ?? new Set();
   let initializedExpansion = storedExpandedTools !== null;
-  let runtimeTools, searchEngineTools, dependencyTools, searchEngineStatus, configPath, configEditButton;
+  let runtimeTools, searchEngineTools, dependencyTools, socialPlatformAccess, socialChannelsList, socialChannelsRefresh, socialStatus, searchEngineStatus, configPath, configEditButton;
   let assetConfigCard, platformConfigCard, searchEngineCard, message;
 
   function persistExpandedTools() {
@@ -333,7 +333,7 @@
   }
 
   function renderTools() {
-    const tools = state.tools.filter((item) => item.kind !== "publishing");
+    const tools = state.tools.filter((item) => item.kind !== "publishing" && item.kind !== "social");
     const bridgeTool = tools.find((item) => item.name === "bridge");
     configPath.textContent = bridgeTool?.health?.path || "未找到 blogctl.toml";
     const searchNames = new Set(["search-site", "indexnow", "bing-webmaster", "baidu-search-resource", "google-search-console-api"]);
@@ -351,10 +351,54 @@
       persistExpandedTools();
     }
 
+    const socialTools = state.tools.filter((tool) => tool.kind === "social");
+    renderToolList(socialPlatformAccess, socialTools, "Buffer API 尚未接入");
+    const bufferTool = socialTools.find((tool) => tool.name === "buffer-api");
+    BlogCTLPopup.setStatus(socialStatus, healthKind(bufferTool?.health),
+      bufferTool?.health?.summary || "未配置");
     renderToolList(runtimeTools, runtimeItems, "没有运行环境信息");
     renderToolList(searchEngineTools, searchTools, "没有搜索引擎配置");
     renderToolList(dependencyTools, dependencyItems);
     renderSearchEngineStatus(searchTools);
+  }
+
+  function renderSocialChannels(channels) {
+    socialChannelsList.replaceChildren();
+    if (!channels.length) {
+      const empty = document.createElement("p");
+      empty.className = "card-hint";
+      empty.textContent = "尚未连接社交账号；请先在 Buffer 连接 LinkedIn、X 或 Bluesky。";
+      socialChannelsList.append(empty);
+      return;
+    }
+    const names = { linkedin: "LinkedIn", twitter: "X", bluesky: "Bluesky" };
+    for (const channel of channels) {
+      const row = document.createElement("div");
+      row.className = "status-row social-channel-row";
+      const name = document.createElement("span");
+      name.textContent = `${names[channel.service] || channel.service} · ${channel.displayName || channel.name || "未命名账号"}`;
+      const status = document.createElement("span");
+      const unavailable = channel.isLocked || channel.isDisconnected;
+      BlogCTLPopup.setStatus(status, unavailable ? "error" : "ok",
+        unavailable ? "连接异常" : channel.isQueuePaused ? "队列已暂停" : "已连接");
+      row.append(name, status);
+      socialChannelsList.append(row);
+    }
+  }
+
+  async function refreshSocialChannels() {
+    socialChannelsRefresh.disabled = true;
+    socialChannelsList.textContent = "正在查询 Buffer 渠道…";
+    try {
+      const response = await BlogCTLPopup.send("blogctl.social.channels");
+      if (state.active) renderSocialChannels(response.channels ?? []);
+    } catch (error) {
+      if (state.active) {
+        socialChannelsList.textContent = `检查失败：${BlogCTLPopup.errorMessage(error)}`;
+      }
+    } finally {
+      socialChannelsRefresh.disabled = false;
+    }
   }
 
   async function editConfigFile() {
@@ -377,6 +421,7 @@
       const toolsResponse = await BlogCTLPopup.send("blogctl.tools");
       state.tools = toolsResponse.tools ?? [];
       renderTools();
+      refreshSocialChannels().catch(() => {});
       BlogCTLPopup.refreshBridgeIndicator().catch(() => {});
     } catch (error) {
       runtimeTools.innerHTML = '<div class="platform-loading">环境读取失败</div>';
@@ -389,6 +434,11 @@
   function init() {
     if (state.initialized) return;
     runtimeTools = document.getElementById("environmentRuntimeTools");
+    socialPlatformAccess = document.getElementById("socialPlatformAccessConfig");
+    socialChannelsList = document.getElementById("socialChannelsList");
+    socialChannelsRefresh = document.getElementById("socialChannelsRefresh");
+    socialStatus = document.getElementById("socialConfigStatus");
+    socialChannelsRefresh.addEventListener("click", refreshSocialChannels);
     searchEngineTools = document.getElementById("searchEngineTools");
     dependencyTools = document.getElementById("environmentDependencyTools");
     searchEngineStatus = document.getElementById("searchEngineEnvironmentStatus");
