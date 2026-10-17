@@ -52,7 +52,7 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 			writeAPIError(w, http.StatusBadGateway, "buffer", err.Error(), nil)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"channels": channels})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "channels": channels})
 		return
 	}
 	if len(parts) == 3 && parts[2] == "drafts" && r.Method == http.MethodGet {
@@ -61,7 +61,7 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"drafts": drafts})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "drafts": drafts})
 		return
 	}
 	if len(parts) < 4 || parts[2] != "drafts" {
@@ -79,7 +79,7 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 		return
 	}
 	if len(parts) == 4 && r.Method == http.MethodGet {
-		writeJSON(w, http.StatusOK, map[string]any{"draft": draft})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "draft": draft})
 		return
 	}
 	if len(parts) == 4 && r.Method == http.MethodPut {
@@ -103,7 +103,7 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 			writeAPIError(w, http.StatusBadRequest, "invalid_draft", err.Error(), nil)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"draft": draft})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "draft": draft})
 		return
 	}
 	if len(parts) != 5 || r.Method != http.MethodPost {
@@ -140,5 +140,5 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 		writeAPIError(w, http.StatusConflict, "social_action_failed", err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"draft": draft})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "draft": draft})
 }
