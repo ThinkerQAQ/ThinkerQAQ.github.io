@@ -9,6 +9,7 @@
     { id: "content", title: "内容与路径", summary: "TOML 配置文件和内容目录", selectors: [".environment-config-file"] },
     { id: "runtime", title: "运行环境", summary: "Bridge、Extension 与本地依赖", selectors: ["#environmentRuntimeTools", "#environmentDependencyTools"] },
     { id: "platforms", title: "分发平台", summary: "平台策略、Footer、Canonical 和 Tracking", selectors: ["#platformConfigEnvironmentCard"] },
+    { id: "social", title: "社交平台", summary: "Buffer、账号连接和发布渠道", selectors: ["#socialConfigEnvironmentCard"] },
     { id: "assets", title: "素材与渲染", summary: "Mermaid、共享素材和 R2", selectors: ["#assetConfigEnvironmentCard"] },
     { id: "index", title: "搜索引擎", summary: "站点域名、索引 URL 与搜索引擎", selectors: ["#searchEngineEnvironmentCard"] },
     { id: "about", title: "关于", summary: "Extension 与 Bridge 版本", selectors: ["#environmentAbout"] },
@@ -22,7 +23,8 @@
 
   function nodeMetaText(meta) {
     const aliases = { interface: "ui locale language english 中文 english auto 语言 切换", content: "config file toml data 路径", runtime: "node go npm chrome bridge",
-      platforms: "平台 publish footer canonical tracking", assets: "mermaid png r2 图片",
+      platforms: "文章 分发 平台 publish footer canonical tracking", social: "社交 动态 buffer linkedin x twitter bluesky api key 渠道 账号",
+      assets: "mermaid png r2 图片",
       index: "baidu bing google sitemap indexnow 索引", about: "about version extension bridge 扩展 版本" };
     return [meta.title, meta.summary, aliases[meta.id] || ""].join(" ").toLowerCase();
   }
@@ -116,7 +118,7 @@
     search.type = "search";
     search.className = "settings-search";
     search.setAttribute("aria-label", "搜索设置分类");
-    search.placeholder = "搜索设置：平台、代理、R2、索引…";
+    search.placeholder = "搜索设置：社交平台、代理、R2、索引…";
     search.autocomplete = "off";
     search.addEventListener("input", render);
     tree = document.createElement("div");

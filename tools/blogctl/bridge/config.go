@@ -3,6 +3,7 @@ package bridge
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -23,6 +24,29 @@ type publishingCompilerConfig = blogpublishing.CompilerConfig
 type publishingR2Config = blogpublishing.R2Config
 type publishingAssetsConfig = blogpublishing.AssetsConfig
 type publishingConfig = blogpublishing.Config
+
+type SocialConfig struct {
+	Buffer struct {
+		APIKey string `json:"-" toml:"api_key"`
+	} `json:"buffer" toml:"buffer"`
+}
+
+// ResolvedSocialHTTPClient uses the same proxy rules as other BlogCTL publishers.
+func ResolvedSocialHTTPClient() (*http.Client, error) {
+	config, err := loadBridgeConfigChecked()
+	if err != nil {
+		return nil, err
+	}
+	return httpClientForConfig(config)
+}
+
+func ResolvedSocialConfig() SocialConfig {
+	config := loadBridgeConfig().Social
+	if config.Buffer.APIKey == "" {
+		config.Buffer.APIKey = strings.TrimSpace(os.Getenv("BUFFER_API_KEY"))
+	}
+	return config
+}
 
 type bridgeConfig struct {
 	Search       *blogsearch.SiteConfig `json:"search" toml:"search"`
@@ -46,6 +70,7 @@ type bridgeConfig struct {
 	BaiduToken                     string            `json:"baiduToken,omitempty" toml:"baidu_token"`
 	GoogleSearchConsoleServiceJSON string            `json:"googleSearchConsoleServiceJson,omitempty" toml:"google_search_console_service_json"`
 	Publishing                     publishingConfig  `json:"publishing" toml:"publishing"`
+	Social                         SocialConfig      `json:"-" toml:"social"`
 }
 
 var publishingPlatformOrder = blogpublishing.PlatformIDs()
@@ -244,6 +269,7 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.DistributionRoot = normalizeStoredPath(config.DistributionRoot)
 	config.PublicationBindingsPath = normalizeStoredPath(config.PublicationBindingsPath)
 	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)
+	config.Social.Buffer.APIKey = strings.TrimSpace(config.Social.Buffer.APIKey)
 	config.IndexNowEndpoint = strings.TrimSpace(config.IndexNowEndpoint)
 	config.IndexNowKey = strings.TrimSpace(config.IndexNowKey)
 	config.IndexNowKeyLocation = strings.TrimSpace(config.IndexNowKeyLocation)

@@ -205,7 +205,7 @@ test("all ten remote-association draft platforms resolve to an editor instead of
     ["toutiao", "72599220101", "https://www.toutiao.com/article/72599220101/",
       "https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=72599220101"],
     ["devto", "4826123", "https://dev.to/thinkerqaq/temp-slug-7479138",
-      "https://dev.to/dashboard/edit/4826123"],
+      "https://dev.to/thinkerqaq/temp-slug-7479138/edit"],
     ["medium", "6e2fff4d49cd", "https://medium.com/@thinkerqaq/temp-6e2fff4d49cd",
       "https://medium.com/p/6e2fff4d49cd/edit"],
   ];

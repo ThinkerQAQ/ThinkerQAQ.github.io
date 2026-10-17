@@ -73,6 +73,7 @@ test("environment configuration cards expose edit and requirement affordances", 
   for (const [card, requirement] of [
     ["assetConfigEnvironmentCard", "optional"],
     ["platformConfigEnvironmentCard", "required"],
+    ["socialConfigEnvironmentCard", "optional"],
     ["searchEngineEnvironmentCard", "optional"],
   ]) {
     const start = html.indexOf(`id="${card}"`);

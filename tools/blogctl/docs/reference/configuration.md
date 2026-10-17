@@ -63,6 +63,18 @@ This configuration identifies the site to index; the site's deployed resources m
 
 Defaults are created by `DefaultConfig()` and `DefaultPlatformConfig()`; DEV.to and Medium default to English and native canonical links, while other platforms use their registered default languages. Exact supported IDs come from [`platform/capabilities.go`](../../platform/capabilities.go).
 
+## Social publishing
+
+```toml
+[social.buffer]
+api_key = "YOUR_PERSONAL_BUFFER_API_KEY"
+```
+
+The key is a local secret masked from Bridge API config responses. Buffer-connected
+channels are discovered by API; only specifically requested platforms are used.
+See [Social Publishing](../guide/social-publishing.md) for the ChatGPT/WSL/Console workflow,
+approval steps, and sharing the same Data directory across Windows and WSL.
+
 ## Minimal example (paths are examples)
 
 ```toml
