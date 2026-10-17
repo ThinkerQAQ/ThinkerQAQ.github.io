@@ -186,7 +186,7 @@ test("uses explicit-publish capability for task confirmation", () => {
   assert.equal(model.canConfirmPublish({ ...completed, results: { cnblogs: { state: "failed" }, juejin: { state: "completed" } } }, status), false);
 });
 
-test("all ten remote-association draft platforms resolve to an editor instead of a public preview", () => {
+test("remote-association draft platforms resolve to an editor instead of a public preview", () => {
   const cases = [
     ["cnblogs", "23247130", "https://www.cnblogs.com/ThinkerQAQ/p/23247130",
       "https://i.cnblogs.com/posts/edit;postId=23247130"],
@@ -206,6 +206,8 @@ test("all ten remote-association draft platforms resolve to an editor instead of
       "https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=72599220101"],
     ["devto", "4826123", "https://dev.to/thinkerqaq/temp-slug-7479138",
       "https://dev.to/thinkerqaq/temp-slug-7479138/edit"],
+    ["hashnode", "6ad381a9ccbf8101ffb43761", "https://hashnode.com/draft/6ad381a9ccbf8101ffb43761",
+      "https://hashnode.com/draft/6ad381a9ccbf8101ffb43761"],
     ["medium", "6e2fff4d49cd", "https://medium.com/@thinkerqaq/temp-6e2fff4d49cd",
       "https://medium.com/p/6e2fff4d49cd/edit"],
   ];
@@ -229,6 +231,7 @@ test("published articles keep their original public links across all supported p
     ["oschina", "https://my.oschina.net/u/2360403/blog/19763618"],
     ["toutiao", "https://www.toutiao.com/article/72599220101/"],
     ["devto", "https://dev.to/thinkerqaq/published"],
+    ["hashnode", "https://thinkerqaq.hashnode.dev/concurrency-programming-0-the-problem-space-and-scope"],
     ["medium", "https://medium.com/@thinkerqaq/published-example"],
   ];
   for (const [platform, url] of published) {
@@ -245,6 +248,11 @@ test("draft link resolution is fail-closed for bad IDs or untrusted domains", ()
   }), null, "OSChina cannot derive numeric creator ID from a username");
   assert.equal(model.articleMatchLink("devto", { id: "../../secret", published: false }), null);
   assert.equal(model.articleMatchLink("cnblogs", { id: "abc", published: false }), null);
+  assert.equal(model.articleMatchLink("hashnode", { id: "../../secret", published: false }), null);
+  assert.equal(model.articleMatchLink("hashnode", { id: "invalid-id", published: false }), null);
+  assert.equal(model.articleMatchLink("hashnode", { id: "6ad381a9ccbf8101ffb43761", url: "https://hashnode.com.evil.example/draft/6ad381a9ccbf8101ffb43761", published: true }), null);
+  assert.equal(model.articleMatchLink("hashnode", { id: "6ad381a9ccbf8101ffb43761", url: "https://thinkerqaq.hashnode.dev.evil.example/example", published: true }), null);
+  assert.equal(model.articleMatchLink("hashnode", { id: "6ad381a9ccbf8101ffb43761", url: "http://thinkerqaq.hashnode.dev/example", published: true }), null);
   assert.equal(model.articleMatchLink("devto", { id: "123", url: "javascript:alert(1)", published: true }), null);
   assert.equal(model.articleMatchLink("medium", { id: "abc", url: "https://medium.com.evil.example/p/abc", published: true }), null);
   assert.equal(model.articleMatchLink("juejin", { id: "123", url: "http://juejin.cn/post/123", published: true }), null);

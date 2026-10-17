@@ -142,9 +142,14 @@
       oschina: ["my.oschina.net"],
       toutiao: ["mp.toutiao.com", "www.toutiao.com"],
       devto: ["dev.to"],
+      hashnode: ["hashnode.com"],
       medium: ["medium.com"],
     };
-    if (parsed && !hosts[platformID]?.includes(parsed.hostname)) parsed = null;
+    // Public Hashnode URLs are on each publication's *.hashnode.dev host,
+    // while the editor lives on hashnode.com. Never allow lookalike domains.
+    const hashnodePublicHost = platformID === "hashnode" && item?.published === true &&
+      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.hashnode\.dev$/u.test(parsed?.hostname || "");
+    if (parsed && !hosts[platformID]?.includes(parsed.hostname) && !hashnodePublicHost) parsed = null;
     if (item?.published === true) {
       return parsed ? { label: "查看文章", url: parsed.href } : null;
     }
@@ -195,6 +200,9 @@
         }
         break;
       }
+      case "hashnode":
+        if (/^[a-f0-9]{24}$/iu.test(id)) editor = `https://hashnode.com/draft/${id}`;
+        break;
       case "medium":
         if (safeID) editor = `https://medium.com/p/${encodeURIComponent(id)}/edit`;
         break;
