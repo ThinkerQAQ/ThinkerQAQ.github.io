@@ -1,24 +1,13 @@
 import rss from "@astrojs/rss";
-import { getCollection } from "astro:content";
-import { LOCALES } from "../../config/i18n";
 import { SITE } from "../../config/site";
-import { articleHref, sortArticles } from "../../lib/content";
+import { getFeedItems } from "../../lib/rss";
 
 export async function GET(context: { site?: URL }) {
-  const entries = sortArticles(await getCollection("articles", ({ data }) =>
-    data.status === "published" && data.language === "en",
-  ));
   return rss({
     title: SITE.title,
-    description: LOCALES.en.ui.articlesDescription,
+    description: "New articles, photography, and monthly fitness summaries.",
     site: context.site ?? new URL(SITE.url),
-    items: entries.map((entry) => ({
-      title: entry.data.title,
-      description: entry.data.description,
-      pubDate: entry.data.publishedAt,
-      link: articleHref(entry),
-      categories: entry.data.tags,
-    })),
+    items: await getFeedItems("en"),
     customData: "<language>en</language>",
   });
 }
