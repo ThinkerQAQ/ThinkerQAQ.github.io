@@ -1,23 +1,14 @@
 import rss from "@astrojs/rss";
-import { getCollection } from "astro:content";
 import { SITE } from "../config/site";
 import { DEFAULT_LOCALE } from "../config/i18n";
-import { articleHref, sortArticles } from "../lib/content";
+import { getFeedItems } from "../lib/rss";
 
 export async function GET(context: { site?: URL }) {
-  const entries = sortArticles(await getCollection("articles", ({ data }) => data.status === "published" && data.language === DEFAULT_LOCALE));
-
   return rss({
     title: SITE.title,
-    description: SITE.description,
+    description: "技术文章、摄影记录与健身月报的更新。",
     site: context.site ?? new URL(SITE.url),
-    items: entries.map((entry) => ({
-      title: entry.data.title,
-      description: entry.data.description,
-      pubDate: entry.data.publishedAt,
-      link: articleHref(entry),
-      categories: entry.data.tags,
-    })),
-    customData: `<language>zh-CN</language>`,
+    items: await getFeedItems(DEFAULT_LOCALE),
+    customData: "<language>zh-CN</language>",
   });
 }
