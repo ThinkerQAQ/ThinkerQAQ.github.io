@@ -59,3 +59,20 @@ func TestMediumTableFlattening(t *testing.T) {
 		t.Fatalf("flattened=%q", got)
 	}
 }
+
+func TestMediumCodeAndHeadingsMatchObservedEditorParagraphTypes(t *testing.T) {
+	markdown := "## Parent heading\n\n#### Subsection\n\n```go\nfunc main() {\n  println(42)\n}\n```\n\n1. First item\n"
+	blocks, warnings := parseMediumBlocks(markdown)
+	if len(warnings) != 0 || len(blocks) != 4 {
+		t.Fatalf("blocks=%+v warnings=%v", blocks, warnings)
+	}
+	if blocks[0].ParagraphType != 3 || blocks[1].ParagraphType != 3 {
+		t.Fatalf("headings must render as actual headings, not code blocks: %+v", blocks[:2])
+	}
+	if blocks[2].Kind != "pre" || blocks[2].ParagraphType != 8 || !strings.Contains(blocks[2].Text, "println(42)") {
+		t.Fatalf("code must use Medium PRE, not numbered list: %+v", blocks[2])
+	}
+	if blocks[3].Kind != "oli" || blocks[3].ParagraphType != 10 {
+		t.Fatalf("numbered list must use Medium OLI: %+v", blocks[3])
+	}
+}

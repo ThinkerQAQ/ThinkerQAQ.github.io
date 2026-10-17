@@ -267,24 +267,44 @@ func (c mediumClient) createStory(ctx context.Context, session platformSession) 
 	return decoded.Payload.Value.ID, decoded.Payload.Value.MediumURL, nil
 }
 
-func (c mediumClient) uploadImage(ctx context.Context, session platformSession, image publisher.RehostImage) (mediumUploadResult, error) {
-	result, err := c.uploadImageOnce(ctx, session, image)
+// Image format conversion is only useful when Medium rejects a file format.
+// A gateway failure indicates an unavailable endpoint, not a PNG incompatibility.
+type mediumUploadHTTPError struct {
+	status int
+	err    error
+}
+
+func (e *mediumUploadHTTPError) Error() string { return e.err.Error() }
+func (e *mediumUploadHTTPError) Unwrap() error { return e.err }
+
+func mediumUploadGatewayFailure(err error) bool {
+	var status *mediumUploadHTTPError
+	return errors.As(err, &status) && (status.status >= 500 || status.status == http.StatusTooManyRequests)
+}
+
+func (c mediumClient) uploadImage(ctx context.Context, session platformSession, draftID string, image publisher.RehostImage) (mediumUploadResult, error) {
+	result, err := c.uploadImageOnce(ctx, session, draftID, image)
 	if err == nil || mediumImageContentType(image.Payload, image.ContentType) != "image/png" {
 		return result, err
+	}
+	var status *mediumUploadHTTPError
+	if errors.As(err, &status) && status.status != http.StatusBadRequest && status.status != http.StatusUnsupportedMediaType {
+		// Never retry gateway/auth/rate-limit failures as JPEG.
+		return mediumUploadResult{}, err
 	}
 	retryImage, conversionErr := mediumPNGAsJPEG(image)
 	if conversionErr != nil {
 		return mediumUploadResult{}, err
 	}
 	slog.Warn("medium PNG upload failed; retrying as JPEG", "operation", "image-upload-retry", "originalByteSize", len(image.Payload), "retryByteSize", len(retryImage.Payload), "errorType", fmt.Sprintf("%T", err))
-	result, retryErr := c.uploadImageOnce(ctx, session, retryImage)
+	result, retryErr := c.uploadImageOnce(ctx, session, draftID, retryImage)
 	if retryErr != nil {
 		return mediumUploadResult{}, fmt.Errorf("Medium PNG upload failed: %v; JPEG retry failed: %w", err, retryErr)
 	}
 	return result, nil
 }
 
-func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSession, image publisher.RehostImage) (mediumUploadResult, error) {
+func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSession, draftID string, image publisher.RehostImage) (mediumUploadResult, error) {
 	started := time.Now()
 	session = c.primeXSRF(ctx, session)
 	contentType := mediumImageContentType(image.Payload, image.ContentType)
@@ -307,11 +327,21 @@ func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSessi
 		return mediumUploadResult{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/upload", &body)
+	// Medium's editor sends ?source=6 for image uploads (verified from a
+	// successful browser HAR). The file remains multipart uploadedFile.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/upload?source=6", &body)
 	if err != nil {
 		return mediumUploadResult{}, err
 	}
-	setMediumHeaders(req, session, mediumOrigin+"/new-story")
+	referer := mediumOrigin + "/new-story"
+	if draftID != "" {
+		referer = mediumOrigin + "/p/" + url.PathEscape(draftID) + "/edit"
+	}
+	setMediumHeaders(req, session, referer)
+	// These are upload-specific browser headers, not the JSON API headers.
+	req.Header.Set("accept", "*/*")
+	req.Header.Del("x-requested-with")
+	req.Header.Del("x-client-date")
 	req.Header.Set("content-type", writer.FormDataContentType())
 	requestCookieHeader := req.Header.Get("cookie")
 	slog.Info("medium image upload started", "operation", "image-upload", "contentType", contentType, "byteSize", len(image.Payload), "requestCookieNames", cookieHeaderNames(requestCookieHeader), "hasClearance", cookieHeaderHasName(requestCookieHeader, "cf_clearance"))
@@ -333,7 +363,7 @@ func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSessi
 	}
 	if err := decodeMediumResponse(response, &decoded); err != nil {
 		slog.Warn("medium image upload rejected", "operation", "image-upload", "status", response.StatusCode, "contentType", contentType, "byteSize", len(image.Payload), "durationMs", time.Since(started).Milliseconds(), "errorType", fmt.Sprintf("%T", err))
-		return mediumUploadResult{}, err
+		return mediumUploadResult{}, &mediumUploadHTTPError{status: response.StatusCode, err: err}
 	}
 	if !decoded.Success || strings.TrimSpace(decoded.Payload.Value.FileID) == "" {
 		return mediumUploadResult{}, errors.New("Medium image upload did not return a file id")
@@ -452,28 +482,12 @@ func cloneMediumDelta(delta map[string]any) map[string]any {
 	return result
 }
 
-func mediumLinkFallback(delta map[string]any, target, alt string) map[string]any {
-	label := "[Image]"
-	if strings.TrimSpace(alt) != "" {
-		label = "[Image: " + strings.TrimSpace(alt) + "]"
-	}
-	delta["paragraph"] = map[string]any{
-		"type": 1,
-		"text": label,
-		"markups": []any{map[string]any{
-			"type": 3, "start": 0, "end": len([]rune(label)),
-			"href": target, "anchorType": 0,
-		}},
-	}
-	delete(delta, "image")
-	return delta
-}
-
 func (c mediumClient) prepareDraftDeltas(
 	ctx context.Context,
 	session platformSession,
 	draft mediumDraft,
 	input publisher.DraftInput,
+	draftID string,
 ) ([]map[string]any, int, error) {
 	deltas := make([]map[string]any, 0, len(draft.Deltas)+1)
 	deltas = append(deltas, map[string]any{
@@ -496,15 +510,12 @@ func (c mediumClient) prepareDraftDeltas(
 		if err != nil {
 			return nil, fallbacks, fmt.Errorf("Medium image load failed: %w", err)
 		}
-		uploaded, uploadErr := c.uploadImage(ctx, session, image)
+		uploaded, uploadErr := c.uploadImage(ctx, session, draftID, image)
 		if uploadErr != nil {
-			target, fallbackErr := publisher.UploadR2Fallback(ctx, c.httpClient, input, image)
-			if fallbackErr != nil {
-				return nil, fallbacks, fmt.Errorf("Medium image upload failed: %v; R2 fallback failed: %w", uploadErr, fallbackErr)
-			}
-			deltas = append(deltas, mediumLinkFallback(delta, target, alt))
-			fallbacks++
-			continue
+			// A text hyperlink is not a substitute for a Medium image block.
+			// Refuse to write a visually corrupted draft. The user can still
+			// paste the saved HTML fallback manually while native upload is down.
+			return nil, fallbacks, fmt.Errorf("Medium image upload unavailable: refusing to replace image %q with a text link: %w", source, uploadErr)
 		}
 		paragraph, _ := delta["paragraph"].(map[string]any)
 		if paragraph == nil {
@@ -572,13 +583,17 @@ func (c mediumClient) createDraft(
 		return nil, fmt.Errorf("title and deltas are required")
 	}
 	session = c.primeXSRF(ctx, session)
+	// The editor uploads with the current story's /p/{id}/edit referer.
+	// Therefore we need a story ID before uploading. Report that ID even
+	// when image preparation fails so the user can recover the empty draft.
 	postID, mediumURL, err := c.createStory(ctx, session)
 	if err != nil {
 		return nil, err
 	}
-	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
+	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input, postID)
 	if err != nil {
-		return nil, err
+		return mediumDraftResult(postID, mediumURL, draft, fallbacks, true),
+			fmt.Errorf("Medium draft %s was created but images were not saved: %w", postID, err)
 	}
 	if _, err := c.writeDeltas(ctx, session, postID, -1, deltas); err != nil {
 		return nil, err
@@ -870,7 +885,7 @@ func (c mediumClient) updateDraft(
 	if err != nil {
 		return nil, err
 	}
-	replacement, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
+	replacement, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input, postID)
 	if err != nil {
 		return nil, err
 	}
@@ -1267,7 +1282,7 @@ func (c mediumClient) listPosts(ctx context.Context, session platformSession) (s
 }
 
 func setMediumHeaders(req *http.Request, session platformSession, referer string) {
-	req.Header.Set("accept", "*/*")
+	req.Header.Set("accept", "application/json")
 	req.Header.Set("accept-language", "zh-CN,zh;q=0.9,en;q=0.8")
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("origin", mediumOrigin)

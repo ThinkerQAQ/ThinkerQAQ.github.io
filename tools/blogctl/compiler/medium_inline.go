@@ -10,11 +10,11 @@ const (
 	mediumParagraph      = 1
 	mediumH2             = 3
 	mediumImageParagraph = 4
-	mediumH3             = 8
+	mediumH3             = 3 // Use Medium heading style, never PRE (8).
 	mediumBlockquote     = 9
-	mediumPre            = 10
+	mediumPre            = 8 // Confirmed from Medium editor rendering.
 	mediumULI            = 13
-	mediumOLI            = 15
+	mediumOLI            = 10 // Medium ordered-list paragraph; do not treat code as OLI.
 
 	mediumMarkupBold   = 1
 	mediumMarkupItalic = 2

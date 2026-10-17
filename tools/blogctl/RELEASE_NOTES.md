@@ -1,8 +1,47 @@
-# BlogCTL v0.1.164
+# BlogCTL v0.1.169
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium 原生图片上传请求与浏览器抓包对齐
+
+- 根据本机 Medium HAR 中成功的 HTTP 200 图片上传，将上传请求改为 /_/upload?source=6，并使用当前远端草稿 /p/{id}/edit 作为 Referer，设置 Accept: */*。
+- 对齐上传请求的额外请求头；继续复用既有代理、登录会话和 multipart uploadedFile。
+- 新建草稿需要先获取远端 ID 再上传；若图片准备失败，返回已有草稿 ID 供恢复，仍禁止把图片降级为文字超链接。
+- 增加基于脱敏 HAR 协议形状的模拟请求测试，没有将 HAR、Cookie 或请求凭证加入仓库。
+- 真实 Medium 图片上传仍需重新加载 Extension 后手动验收。
+
+
+### Medium 格式保真修复（测试版）
+
+- 对照实际 Medium 草稿渲染，修正代码块 PRE（type=8）及有序列表（type=10）映射，深层标题不再误显示为代码块。
+- 图片原生上传失败时拒绝将图片块降级为文字链接；在首次创建远端草稿之前完成图片准备，避免网关故障生成新的空草稿。
+- 保留原有浏览器会话、Compiler HTML 预览与数据；Medium 原生图片上传 HTTP 504 仍需独立验证，暂不自动修复已存在的远端草稿。
+
+
+### Medium 代理链路与草稿 JSON 请求修复
+
+- 代理开启时，Medium 浏览器指纹 HTTP Client 继续经 tlsclient.WithProxyUrl 访问配置的本机代理；新增离线 CONNECT 端到端测试证明实际经过代理。
+- Medium new-story / deltas 等 JSON API 改用 Accept: application/json，修复非 JSON Accept 导致远端返回 HTTP 400 的问题。
+- Medium 图片上传遭遇 HTTP 5xx/429 等网关异常不再转换 PNG 为 JPEG 重试；本次任务剩余图片直接复用已有 R2 兜底，避免对不可用上传接口逐张等待超时。
+- 不修改代理系统设置、不将登录 Cookie 写入日志或仓库；保留已有草稿及数据。
+
+
+### Medium 创建草稿后端链路恢复
+
+- 修复恢复 Medium 界面后，后端仍返回 `medium is temporarily disabled` 的历史拦截。
+- 将新版显式创建、更新与确认发布任务连接到已有的 Medium 浏览器会话、`new-story`、`deltas` 和发布方法；不另造适配器。
+- 创建草稿默认不公开发布；已发布文章的危险覆盖仍然拒绝；今日头条继续禁用。
+- 补充模拟 Medium 创建草稿与任务规范化测试。此次为本地试用版，尚未真实写入 Medium 验证。
+
+
+### 恢复 Medium 分发平台
+
+- 重新显示 Medium 平台入口，覆盖检测、创建、更新、任务与发布记录界面。
+- 沿用原有的英文 Compiler、浏览器会话和 Medium Publisher，不改变已有的远程绑定及其他平台配置。
+- 今日头条继续保持隐藏；本地安装版供手动验证 Medium 流程，不自动发布远端文章。
+
 
 ### Hashnode 编辑与文章链接修复
 
@@ -60,4 +99,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.164`
+版本：`0.1.169`

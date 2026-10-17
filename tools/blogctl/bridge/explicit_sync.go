@@ -106,7 +106,9 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 			for _, target := range targets {
 				var result publisher.ExplicitResult
 				var writeErr error
-				if platform == "hashnode" && req.Operation == "create" && !req.PublishAfter {
+				if platform == "medium" {
+					result, writeErr = runMediumExplicit(ctx, session, client, articles[0], input, config.DistributionRoot, req.Operation, target, req.PublishAfter)
+				} else if platform == "hashnode" && req.Operation == "create" && !req.PublishAfter {
 					var draft publisher.DraftResult
 					draft, writeErr = service.CreateOrUpdateDraftInput(ctx, platform, session, config.ContentRoot, input, true)
 					if writeErr == nil {
@@ -126,7 +128,11 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 				}
 				if writeErr != nil {
 					execution.failed = append(execution.failed, fmt.Sprintf("%s: %v", target.ID, writeErr))
-					report("running", "target-failed", result.URL, writeErr.Error(), target.ID)
+					failedID := target.ID
+					if result.ID != "" {
+						failedID = result.ID
+					}
+					report("running", "target-failed", result.URL, writeErr.Error(), failedID)
 					continue
 				}
 				execution.results = append(execution.results, fmt.Sprintf("%s → %s", result.ID, result.Kind))
