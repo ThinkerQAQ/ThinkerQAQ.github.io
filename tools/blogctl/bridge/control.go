@@ -865,7 +865,7 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 		request.Operation = operation
 		allowed := make(map[string]struct{}, len(request.Platforms))
 		for _, platform := range request.Platforms {
-			if platform == "medium" || platform == "toutiao" {
+			if platform == "toutiao" {
 				return request, fmt.Errorf("%s is temporarily disabled", platform)
 			}
 			allowed[platform] = struct{}{}
