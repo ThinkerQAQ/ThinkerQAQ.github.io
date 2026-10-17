@@ -28,6 +28,9 @@ const copy = locale === "en"
       projectsDetail: " document things I've built and what I learned along the way.",
       life: "Life",
       lifeDetail: " is for photos, travels, and everyday moments rather than study notes.",
+      subscribeTitle: "Subscribe to Updates",
+      subscribePrefix: "To follow updates to this site, subscribe via ",
+      subscribeSuffix: " for new articles, photo entries, and monthly fitness summaries.",
       contactTitle: "Contact",
       contactPrefix: "For technical discussions, feedback, or collaboration, email me at ",
       contactMiddle: " or find me on ",
@@ -55,6 +58,9 @@ const copy = locale === "en"
       projectsDetail: "：记录做过的东西，以及开发过程中遇到的问题和积累的经验。",
       life: "生活",
       lifeDetail: "：用照片和短文记录旅行、见闻与日常，不同于偏知识整理的笔记。",
+      subscribeTitle: "订阅更新",
+      subscribePrefix: "如果你想持续关注本站，可以通过 ",
+      subscribeSuffix: " 订阅新文章、摄影记录和每月健身记录。",
       contactTitle: "联系我",
       contactPrefix: "技术交流、文章反馈或合作事宜，可以发邮件至 ",
       contactMiddle: "，或通过 ",
@@ -67,7 +73,7 @@ const copy = locale === "en"
 
 <CollectionHeader title={copy.title} description={copy.lead} />
 
-<div class="prose">
+<div class="prose about-content">
   <h2>{copy.meTitle}</h2>
   <p>{copy.me}</p>
 
@@ -89,6 +95,9 @@ const copy = locale === "en"
     <li><a href={localizePath(locale, "/life/")}>{copy.life}</a>{copy.lifeDetail}</li>
   </ul>
 
+  <h2>{copy.subscribeTitle}</h2>
+  <p>{copy.subscribePrefix}<a href={localizePath(locale, "/rss.xml")}>RSS</a>{copy.subscribeSuffix}</p>
+
   <h2>{copy.contactTitle}</h2>
   <p>
     {copy.contactPrefix}<a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>{copy.contactMiddle}<a href={SITE.github}>GitHub</a>{copy.contactSuffix}
@@ -97,3 +106,7 @@ const copy = locale === "en"
     {copy.sourcePrefix}<a href={SITE.repository}>{copy.sourceLink}</a>{copy.sourceSuffix}
   </p>
 </div>
+
+<style>
+  .about-content > :is(p, ul) { max-width: var(--reading-width); }
+</style>

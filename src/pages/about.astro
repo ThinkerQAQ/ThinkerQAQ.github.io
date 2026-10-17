@@ -21,7 +21,7 @@ const profileSchema = profilePageSchema({
     type="application/ld+json"
     set:html={JSON.stringify(profileSchema).replaceAll("<", "\\u003c")}
   />
-  <div class="shell page narrow collection-page">
+  <div class="shell page collection-page">
     <AboutProfile locale="zh" />
   </div>
 </BaseLayout>
