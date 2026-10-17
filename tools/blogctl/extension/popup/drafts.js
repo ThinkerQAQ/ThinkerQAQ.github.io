@@ -106,7 +106,8 @@
 
   function resumableHashnodeDraft(id) {
     const existing=existingCreateArticles(id);
-    return id==="hashnode" && existing.length===1 && existing[0].id && !existing[0].published;
+    return id==="hashnode" && existing.length===1 && existing[0].id &&
+      existing[0].bound===true && !existing[0].published;
   }
 
   function eligibleCreatePlatforms() {

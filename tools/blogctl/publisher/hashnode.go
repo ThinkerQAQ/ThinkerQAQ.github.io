@@ -26,6 +26,7 @@ type hashnodeAdapter struct {
 	userAgent     string
 	origin        string
 	publicationID string
+	username      string
 }
 
 func NewHashnodeAdapter(base *http.Client, session Session) (Adapter, error) {
@@ -77,7 +78,8 @@ func (h *hashnodeAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	var response struct {
 		Success      bool `json:"success"`
 		Publications []struct {
-			ID string `json:"_id"`
+			ID       string `json:"_id"`
+			Username string `json:"username"`
 		} `json:"publications"`
 	}
 	if err := h.request(ctx, http.MethodGet, "/api/publications", nil, &response, "auth"); err != nil {
@@ -99,6 +101,7 @@ func (h *hashnodeAdapter) CheckAuth(ctx context.Context) (AuthResult, error) {
 	for _, publication := range response.Publications {
 		if publication.ID == selected {
 			h.publicationID = selected
+			h.username = publication.Username
 			return AuthResult{Authenticated: true, UserID: selected}, nil
 		}
 	}

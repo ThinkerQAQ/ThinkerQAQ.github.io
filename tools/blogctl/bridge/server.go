@@ -331,6 +331,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleZhihuLookupContext(response, request, request.URL.Query().Get("article"))
 		return
 	}
+	if path == "v1/hashnode/articles/list" && request.Method == http.MethodPost {
+		s.handleHashnodeArticleList(response, request, request.URL.Query().Get("article"))
+		return
+	}
 	if path == "v1/zhihu/articles/list" && request.Method == http.MethodPost {
 		s.handleZhihuArticleList(response, request, request.URL.Query().Get("article"))
 		return

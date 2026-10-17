@@ -25,7 +25,7 @@ func (s *Server) handleRemoteInventory(response http.ResponseWriter, request *ht
 		return
 	}
 	platform := strings.TrimSpace(request.URL.Query().Get("platform"))
-	allowed := map[string]bool{"cnblogs": true, "juejin": true, "csdn": true, "segmentfault": true, "zhihu": true, "51cto": true, "oschina": true, "devto": true}
+	allowed := map[string]bool{"cnblogs": true, "juejin": true, "csdn": true, "segmentfault": true, "zhihu": true, "51cto": true, "oschina": true, "devto": true, "hashnode": true}
 	if !allowed[platform] {
 		writeAPIError(response, http.StatusBadRequest, "invalid_platform", "platform inventory is unavailable", nil)
 		return
@@ -88,6 +88,16 @@ func (s *Server) handleRemoteInventory(response http.ResponseWriter, request *ht
 			return
 		}
 		switch platform {
+		case "hashnode":
+			var items []publisher.HashnodePost
+			var incomplete bool
+			account, items, incomplete, err = publisher.HashnodeListPosts(ctx, client, session)
+			for _, item := range items {
+				appendPost(item.ID, item.Title, item.URL, item.Published)
+			}
+			if incomplete {
+				partial = "Hashnode 列表存在更多文章；当前查询结果不完整"
+			}
 		case "cnblogs":
 			var items []publisher.CNBlogsPost
 			account, items, err = publisher.CNBlogsSearchPosts(ctx, client, session, "")

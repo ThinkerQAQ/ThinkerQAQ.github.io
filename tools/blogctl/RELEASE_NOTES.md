@@ -1,8 +1,15 @@
-# BlogCTL v0.1.162
+# BlogCTL v0.1.163
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Hashnode 远端检测与 Windows 图表验证
+
+- 使用浏览器会话读取 Hashnode 草稿列表和已发布文章列表，按英文标题及已有远程绑定匹配，支持「检测」和「创建前防重复检查」。
+- 远程查询分页尚未完整覆盖时主动报告不完整，不将未查到文章误判为可安全创建。
+- 只有本地已绑定的 Hashnode 草稿才允许继续同步，防止覆盖手动创建的其他草稿。
+- 增加 `tools/blogctl/scripts/verify-windows-mermaid.ps1`：实际启动 Windows Node、Mermaid CLI 和 Puppeteer 并校验 PNG，作为部署前专项端到端验证。
 
 ### Hashnode 英文草稿集成（浏览器会话）
 
@@ -46,4 +53,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.162`
+版本：`0.1.163`

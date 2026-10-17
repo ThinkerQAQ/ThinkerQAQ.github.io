@@ -195,3 +195,66 @@ func TestHashnodeNativeImageUploadDoesNotForwardBrowserCookies(t *testing.T) {
 		t.Fatalf("result=%s uploaded=%d err=%v", result, sent, err)
 	}
 }
+
+func TestHashnodeListPostsReadsBothTabsAndEditorURLs(t *testing.T) {
+	var draftsQueried, publishedQueried int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		switch r.URL.Path {
+		case "/api/publications":
+			fmt.Fprint(w, `{"success":true,"publications":[{"_id":"publication-1","username":"thinkerqaq"}]}`)
+		case "/api/drafts":
+			if r.URL.Query().Get("publicationId") != "publication-1" || r.URL.Query().Get("limit") != "50" {
+				t.Errorf("invalid list query: %s", r.URL.RawQuery)
+			}
+			switch r.URL.Query().Get("tab") {
+			case "drafts":
+				draftsQueried++
+				fmt.Fprint(w, `{"success":true,"drafts":[{"_id":"draft-1","title":"Draft title"}],"hasMore":false}`)
+			case "published":
+				publishedQueried++
+				fmt.Fprint(w, `{"success":true,"published":[{"_id":"post-1","title":"Public title","slug":"public-title"}],"hasMore":false}`)
+			default:
+				http.Error(w, "invalid tab", 400)
+			}
+		default:
+			http.Error(w, "not found", 404)
+		}
+	}))
+	defer server.Close()
+	adapter, err := newHashnodeAdapter(server.Client(), Session{Cookies: []BrowserCookie{{Name: "test", Value: "value", Domain: "localhost"}}}, server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, posts, partial, err := adapter.listPosts(context.Background(), "")
+	if err != nil || partial || user != "thinkerqaq" {
+		t.Fatalf("user=%q posts=%v partial=%v err=%v", user, posts, partial, err)
+	}
+	if draftsQueried != 1 || publishedQueried != 1 || len(posts) != 2 || posts[0].ID != "draft-1" || posts[0].URL != "https://hashnode.com/draft/draft-1" || posts[1].ID != "post-1" || posts[1].URL != "https://thinkerqaq.hashnode.dev/public-title" || !posts[1].Published {
+		t.Fatalf("unexpected Hashnode inventory: %+v", posts)
+	}
+}
+
+func TestHashnodeListPostsFailsClosedWhenDraftsAreTruncated(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		if r.URL.Path == "/api/publications" {
+			fmt.Fprint(w, `{"success":true,"publications":[{"_id":"p","username":"thinkerqaq"}]}`)
+			return
+		}
+		if r.URL.Query().Get("tab") == "drafts" {
+			fmt.Fprint(w, `{"success":true,"drafts":[],"hasMore":true}`)
+			return
+		}
+		fmt.Fprint(w, `{"success":true,"published":[],"hasMore":false}`)
+	}))
+	defer server.Close()
+	a, err := newHashnodeAdapter(server.Client(), Session{Cookies: []BrowserCookie{{Name: "session", Value: "v", Domain: "localhost"}}}, server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, incomplete, err := a.listPosts(context.Background(), "")
+	if err != nil || !incomplete {
+		t.Fatalf("missing incomplete detection: incomplete=%v error=%v", incomplete, err)
+	}
+}

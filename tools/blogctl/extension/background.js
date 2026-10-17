@@ -1010,7 +1010,7 @@ async function handleMessage(message) {
     }
     case "blogctl.remote.inventory": {
       const platform = String(message.platform || "").trim();
-      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto"].includes(platform)) {
+      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "hashnode"].includes(platform)) {
         throw new Error("不支持的平台");
       }
       if (platform !== "devto") await syncPlatformSession(platform);
@@ -1025,19 +1025,18 @@ async function handleMessage(message) {
       const platform = String(message.platform || "");
       if (!article || !platform) throw new Error("article and platform are required");
       if (platform === "hashnode") {
-        // A local association check, not a claim of exhaustive remote
-        // discovery. The remote editor's internal list is not a stable API.
-        const result = await fetchJSON("/v1/publications");
-        const existing = (result.records || []).filter((record) =>
-          record.article === decodeURIComponent(article) && record.platform === "hashnode");
+        await syncPlatformSession("hashnode");
+        const result = await fetchJSON(`/v1/hashnode/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
         return { ok: true, match: {
-          text: existing.length ? "BlogCTL 已有关联的 Hashnode 草稿。" :
-            "仅检查了本地关联，未穷尽查询 Hashnode 远端文章。请确认未手动创建同篇草稿。",
-          items: existing.map((record) => ({
-            title: decodeURIComponent(article), id: record.publishedRemoteId || record.remoteId,
-            published: Boolean(record.publishedRemoteId),
-            url: record.publishedUrl || record.draftUrl || "",
-          })).filter((item) => item.id),
+          text: candidates.length
+            ? `已从 Hashnode 草稿与已发布文章列表匹配到 ${candidates.length} 篇文章。`
+            : "已检查 Hashnode 草稿及已发布文章，没有匹配的英文标题。",
+          items: candidates.map((post) => ({
+            title: post.title, id: post.id, published: post.published,
+            url: post.url || "", bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
         } };
       }
       if (platform === "cnblogs") {
