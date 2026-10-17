@@ -85,7 +85,7 @@ export const PLATFORM_AUTH = Object.freeze([
   {
     id: "hashnode",
     label: "Hashnode",
-    probe: { kind: "cookies", cookieUrl: "https://hashnode.com/", requiredCookieNames: [] },
+    probe: { kind: "cookies", cookieUrl: "https://hashnode.com/", requiredCookieNames: [], requireAny: true },
   },
   {
     id: "medium",

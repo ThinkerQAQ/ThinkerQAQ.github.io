@@ -160,6 +160,7 @@ async function restartBridge() {
 async function probeCookies(probe) {
   const cookies = await chrome.cookies.getAll({ url: probe.cookieUrl });
   const byName = new Map(cookies.map((cookie) => [cookie.name, cookie]));
+  if (probe.requireAny) return cookies.some((cookie) => Boolean(cookie.name && cookie.value));
   return (probe.requiredCookieNames ?? []).every((name) => Boolean(byName.get(name)?.value));
 }
 
@@ -1002,6 +1003,22 @@ async function handleMessage(message) {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");
       if (!article || !platform) throw new Error("article and platform are required");
+      if (platform === "hashnode") {
+        // A local association check, not a claim of exhaustive remote
+        // discovery. The remote editor's internal list is not a stable API.
+        const result = await fetchJSON("/v1/publications");
+        const existing = (result.records || []).filter((record) =>
+          record.article === decodeURIComponent(article) && record.platform === "hashnode");
+        return { ok: true, match: {
+          text: existing.length ? "BlogCTL 已有关联的 Hashnode 草稿。" :
+            "仅检查了本地关联，未穷尽查询 Hashnode 远端文章。请确认未手动创建同篇草稿。",
+          items: existing.map((record) => ({
+            title: decodeURIComponent(article), id: record.publishedRemoteId || record.remoteId,
+            published: Boolean(record.publishedRemoteId),
+            url: record.publishedUrl || record.draftUrl || "",
+          })).filter((item) => item.id),
+        } };
+      }
       if (platform === "cnblogs") {
         await syncPlatformSession("cnblogs");
         const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });

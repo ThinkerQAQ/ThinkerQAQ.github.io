@@ -81,8 +81,9 @@ var definitions = []Definition{
 		ID: "hashnode", Label: "Hashnode", DefaultLanguage: "en",
 		Capabilities: Capabilities{
 			BrowserSession: true, DraftCreate: true, DraftUpdate: true,
+			// RemoteList and published updates stay off until verified.
 			BodyImages: true, BodyImageRehost: true,
-			CoverImage: true, NativeCanonical: true, Tags: true,
+			CoverImage: true, NativeCanonical: true,
 		},
 	},
 	{

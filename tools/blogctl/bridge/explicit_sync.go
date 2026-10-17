@@ -83,6 +83,11 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 			}
 			input := draftInputFromCompiled(articles[0], config.ContentRoot, config.DistributionRoot, config)
 			service := publisher.Service{HTTPClient: client}
+			if platform == "hashnode" {
+				// Hashnode creates an empty remote draft before uploading images.
+				// Persist its ID immediately so partial failures can resume safely.
+				service.PublicationPath = s.publicationBindingsPath()
+			}
 			targets := []explicitTaskTarget{{Platform: platform, State: "draft"}}
 			if req.Operation == "update" || req.Operation == "publish-draft" {
 				targets = nil
@@ -99,9 +104,26 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 				return
 			}
 			for _, target := range targets {
-				result, writeErr := service.RunExplicitDraft(ctx, platform, session, input, req.Operation,
-					publisher.ExplicitTarget{ID: target.ID, URL: target.URL, State: target.State, UpdatedAt: target.UpdatedAt},
-					req.PublishAfter)
+				var result publisher.ExplicitResult
+				var writeErr error
+				if platform == "hashnode" && req.Operation == "create" && !req.PublishAfter {
+					var draft publisher.DraftResult
+					draft, writeErr = service.CreateOrUpdateDraftInput(ctx, platform, session, config.ContentRoot, input, true)
+					if writeErr == nil {
+						kind := "draft-created"
+						if draft.Updated {
+							kind = "draft-updated"
+						}
+						if draft.Skipped {
+							kind = "skipped"
+						}
+						result = publisher.ExplicitResult{ID: draft.ID, URL: draft.URL, Kind: kind}
+					}
+				} else {
+					result, writeErr = service.RunExplicitDraft(ctx, platform, session, input, req.Operation,
+						publisher.ExplicitTarget{ID: target.ID, URL: target.URL, State: target.State, UpdatedAt: target.UpdatedAt},
+						req.PublishAfter)
+				}
 				if writeErr != nil {
 					execution.failed = append(execution.failed, fmt.Sprintf("%s: %v", target.ID, writeErr))
 					report("running", "target-failed", result.URL, writeErr.Error(), target.ID)

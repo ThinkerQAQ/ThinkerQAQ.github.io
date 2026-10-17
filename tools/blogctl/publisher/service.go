@@ -50,7 +50,7 @@ func publicationHasPublishedState(state PublicationState) bool {
 }
 
 func mayRecreateMissingDraft(platform string, state PublicationState) bool {
-	if (platform == "toutiao" || platform == "devto") && publicationHasPublishedState(state) {
+	if (platform == "toutiao" || platform == "devto" || platform == "hashnode") && publicationHasPublishedState(state) {
 		return false
 	}
 	return !publicationHasPublishedState(state) || PlatformCapabilitiesFor(platform).PublishedUpdate
@@ -80,7 +80,7 @@ func (s Service) CreateOrUpdateDraftInput(
 		slog.Info("reopening published article draft", "operation", "published-draft-edit", "platform", platform, "slug", slug, "remoteId", input.RemoteDraftID)
 	}
 	if input.RemoteDraftID == "" && (state.PublishedRemoteID != "" || state.PublishedURL != "") &&
-		((platform == "toutiao" || platform == "devto") || (!capabilities.PublishedUpdate && !capabilities.PublishedDraftEdit)) {
+		((platform == "toutiao" || platform == "devto" || platform == "hashnode") || (!capabilities.PublishedUpdate && !capabilities.PublishedDraftEdit)) {
 		return DraftResult{}, platformError(
 			ErrValidation, platform, "save-draft", 0,
 			"the article is already published; safe published-article updates are not supported for this platform yet",
@@ -110,6 +110,14 @@ func (s Service) CreateOrUpdateDraftInput(
 			}
 		} else {
 			result, operationErr = adapter.CreateDraft(ctx, input)
+			if operationErr == nil && platform == "hashnode" {
+				// Persist the empty remote draft immediately. If image upload or
+				// editing later fails, a retry must reuse it, not create another.
+				if operationErr = SavePublicationDraftResult(s.publicationPath(), slug, platform, "", result, s.now()); operationErr == nil {
+					input.RemoteDraftID = result.ID
+					result, operationErr = adapter.UpdateDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: result.URL}, input)
+				}
+			}
 		}
 		return operationErr
 	}
@@ -163,7 +171,7 @@ func (s Service) CreateOrUpdateDraftInput(
 		slog.Info("resolved published article draft", "operation", "published-draft-edit", "platform", platform, "slug", slug, "articleId", state.PublishedRemoteID, "draftId", input.RemoteDraftID)
 	}
 	err = run(adapter)
-	if err != nil && retryableAuthError(err) {
+	if err != nil && retryableAuthError(err) && platform != "hashnode" {
 		adapter, refreshErr := s.authenticatedAdapter(ctx, platform, session)
 		if refreshErr != nil {
 			return DraftResult{}, refreshErr
@@ -256,7 +264,7 @@ func (s Service) PublishDraftInput(
 		return PublishResult{}, platformError(ErrValidation, platform, "binding", 0, "publication belongs to a different CSDN account", false)
 	}
 	result, err := adapter.PublishDraft(ctx, DraftRef{ID: input.RemoteDraftID, URL: input.DraftURL}, input)
-	if err != nil && retryableAuthError(err) {
+	if err != nil && retryableAuthError(err) && platform != "hashnode" {
 		adapter, refreshErr := s.authenticatedAdapter(ctx, platform, session)
 		if refreshErr != nil {
 			return PublishResult{}, refreshErr
