@@ -29,4 +29,3 @@ test("Buffer secret is displayed through existing masked config UI",()=>{
  assert.match(env,/socialPlatformAccess/u);
  assert.match(html,/id="socialPlatformAccessConfig"/u);
 });
-

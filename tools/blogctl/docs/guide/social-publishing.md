@@ -118,4 +118,3 @@ and cannot silently replace an already-staged Buffer draft.
 **Current limitations:** no automatic AI summarization inside BlogCTL, no
 background scheduling UI, and no automatic reconciliation after ambiguous
 Buffer writes. All remote writes require explicit actions.
-
