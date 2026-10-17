@@ -1,8 +1,17 @@
-# BlogCTL v0.1.168
+# BlogCTL v0.1.169
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium 原生图片上传请求与浏览器抓包对齐
+
+- 根据本机 Medium HAR 中成功的 HTTP 200 图片上传，将上传请求改为 /_/upload?source=6，并使用当前远端草稿 /p/{id}/edit 作为 Referer，设置 Accept: */*。
+- 对齐上传请求的额外请求头；继续复用既有代理、登录会话和 multipart uploadedFile。
+- 新建草稿需要先获取远端 ID 再上传；若图片准备失败，返回已有草稿 ID 供恢复，仍禁止把图片降级为文字超链接。
+- 增加基于脱敏 HAR 协议形状的模拟请求测试，没有将 HAR、Cookie 或请求凭证加入仓库。
+- 真实 Medium 图片上传仍需重新加载 Extension 后手动验收。
+
 
 ### Medium 格式保真修复（测试版）
 
@@ -90,4 +99,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.168`
+版本：`0.1.169`

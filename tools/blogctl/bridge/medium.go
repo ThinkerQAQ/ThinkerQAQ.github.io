@@ -282,8 +282,8 @@ func mediumUploadGatewayFailure(err error) bool {
 	return errors.As(err, &status) && (status.status >= 500 || status.status == http.StatusTooManyRequests)
 }
 
-func (c mediumClient) uploadImage(ctx context.Context, session platformSession, image publisher.RehostImage) (mediumUploadResult, error) {
-	result, err := c.uploadImageOnce(ctx, session, image)
+func (c mediumClient) uploadImage(ctx context.Context, session platformSession, draftID string, image publisher.RehostImage) (mediumUploadResult, error) {
+	result, err := c.uploadImageOnce(ctx, session, draftID, image)
 	if err == nil || mediumImageContentType(image.Payload, image.ContentType) != "image/png" {
 		return result, err
 	}
@@ -297,14 +297,14 @@ func (c mediumClient) uploadImage(ctx context.Context, session platformSession, 
 		return mediumUploadResult{}, err
 	}
 	slog.Warn("medium PNG upload failed; retrying as JPEG", "operation", "image-upload-retry", "originalByteSize", len(image.Payload), "retryByteSize", len(retryImage.Payload), "errorType", fmt.Sprintf("%T", err))
-	result, retryErr := c.uploadImageOnce(ctx, session, retryImage)
+	result, retryErr := c.uploadImageOnce(ctx, session, draftID, retryImage)
 	if retryErr != nil {
 		return mediumUploadResult{}, fmt.Errorf("Medium PNG upload failed: %v; JPEG retry failed: %w", err, retryErr)
 	}
 	return result, nil
 }
 
-func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSession, image publisher.RehostImage) (mediumUploadResult, error) {
+func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSession, draftID string, image publisher.RehostImage) (mediumUploadResult, error) {
 	started := time.Now()
 	session = c.primeXSRF(ctx, session)
 	contentType := mediumImageContentType(image.Payload, image.ContentType)
@@ -327,11 +327,21 @@ func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSessi
 		return mediumUploadResult{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/upload", &body)
+	// Medium's editor sends ?source=6 for image uploads (verified from a
+	// successful browser HAR). The file remains multipart uploadedFile.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mediumOrigin+"/_/upload?source=6", &body)
 	if err != nil {
 		return mediumUploadResult{}, err
 	}
-	setMediumHeaders(req, session, mediumOrigin+"/new-story")
+	referer := mediumOrigin + "/new-story"
+	if draftID != "" {
+		referer = mediumOrigin + "/p/" + url.PathEscape(draftID) + "/edit"
+	}
+	setMediumHeaders(req, session, referer)
+	// These are upload-specific browser headers, not the JSON API headers.
+	req.Header.Set("accept", "*/*")
+	req.Header.Del("x-requested-with")
+	req.Header.Del("x-client-date")
 	req.Header.Set("content-type", writer.FormDataContentType())
 	requestCookieHeader := req.Header.Get("cookie")
 	slog.Info("medium image upload started", "operation", "image-upload", "contentType", contentType, "byteSize", len(image.Payload), "requestCookieNames", cookieHeaderNames(requestCookieHeader), "hasClearance", cookieHeaderHasName(requestCookieHeader, "cf_clearance"))
@@ -477,6 +487,7 @@ func (c mediumClient) prepareDraftDeltas(
 	session platformSession,
 	draft mediumDraft,
 	input publisher.DraftInput,
+	draftID string,
 ) ([]map[string]any, int, error) {
 	deltas := make([]map[string]any, 0, len(draft.Deltas)+1)
 	deltas = append(deltas, map[string]any{
@@ -499,7 +510,7 @@ func (c mediumClient) prepareDraftDeltas(
 		if err != nil {
 			return nil, fallbacks, fmt.Errorf("Medium image load failed: %w", err)
 		}
-		uploaded, uploadErr := c.uploadImage(ctx, session, image)
+		uploaded, uploadErr := c.uploadImage(ctx, session, draftID, image)
 		if uploadErr != nil {
 			// A text hyperlink is not a substitute for a Medium image block.
 			// Refuse to write a visually corrupted draft. The user can still
@@ -572,15 +583,17 @@ func (c mediumClient) createDraft(
 		return nil, fmt.Errorf("title and deltas are required")
 	}
 	session = c.primeXSRF(ctx, session)
-	// Prepare every image before creating a remote story. Failure must not
-	// leave another empty draft behind on Medium.
-	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
-	if err != nil {
-		return nil, err
-	}
+	// The editor uploads with the current story's /p/{id}/edit referer.
+	// Therefore we need a story ID before uploading. Report that ID even
+	// when image preparation fails so the user can recover the empty draft.
 	postID, mediumURL, err := c.createStory(ctx, session)
 	if err != nil {
 		return nil, err
+	}
+	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input, postID)
+	if err != nil {
+		return mediumDraftResult(postID, mediumURL, draft, fallbacks, true),
+			fmt.Errorf("Medium draft %s was created but images were not saved: %w", postID, err)
 	}
 	if _, err := c.writeDeltas(ctx, session, postID, -1, deltas); err != nil {
 		return nil, err
@@ -872,7 +885,7 @@ func (c mediumClient) updateDraft(
 	if err != nil {
 		return nil, err
 	}
-	replacement, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
+	replacement, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input, postID)
 	if err != nil {
 		return nil, err
 	}

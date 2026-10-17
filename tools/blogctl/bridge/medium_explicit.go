@@ -71,6 +71,13 @@ func runMediumExplicit(ctx context.Context, session publisher.Session, httpClien
 		result, err = medium.updateDraft(ctx, auth, target.ID, draft, input)
 	}
 	if err != nil {
+		// Preserve a newly created but incomplete remote draft reference.
+		// Do not mark it as saved or published.
+		if result != nil {
+			if id, ok := result["postId"].(string); ok && id != "" {
+				return publisher.ExplicitResult{ID: id, URL: mediumOrigin + "/p/" + url.PathEscape(id) + "/edit", Kind: "draft-created"}, err
+			}
+		}
 		return publisher.ExplicitResult{}, err
 	}
 	id, _ := result["postId"].(string)

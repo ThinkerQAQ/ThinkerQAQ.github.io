@@ -110,7 +110,7 @@ func TestMediumUploadRetriesRejectedPNGAsJPEG(t *testing.T) {
 	})}}
 	result, err := client.uploadImage(context.Background(), platformSession{
 		Cookies: map[string]string{"xsrf": "token"}, UserAgent: "BlogCTL-Test",
-	}, publisher.RehostImage{Source: "cover.png", Payload: pngPayload.Bytes(), ContentType: "image/png"})
+	}, "test-draft", publisher.RehostImage{Source: "cover.png", Payload: pngPayload.Bytes(), ContentType: "image/png"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -727,7 +727,7 @@ func TestMediumDoesNotRetryGatewayFailureAsJPEG(t *testing.T) {
 	if err := png.Encode(&pngBuffer, sample); err != nil {
 		t.Fatal(err)
 	}
-	_, err := client.uploadImage(context.Background(), platformSession{Cookies: map[string]string{"xsrf": "test"}},
+	_, err := client.uploadImage(context.Background(), platformSession{Cookies: map[string]string{"xsrf": "test"}}, "test-draft",
 		publisher.RehostImage{Payload: pngBuffer.Bytes(), ContentType: "image/png"})
 	if !mediumUploadGatewayFailure(err) {
 		t.Fatalf("expected typed gateway failure: %v", err)
@@ -772,12 +772,65 @@ func TestMediumImageGatewayFailureDoesNotWriteBrokenDraft(t *testing.T) {
 		"type": 1, "paragraph": map[string]any{"type": 4, "text": ""},
 		"image": map[string]any{"url": "blogctl-asset://mermaid/test", "alt": "must remain an image"},
 	}}}
-	_, err := client.createDraft(context.Background(), platformSession{Cookies: map[string]string{"xsrf": "test"}}, draft,
+	result, err := client.createDraft(context.Background(), platformSession{Cookies: map[string]string{"xsrf": "test"}}, draft,
 		publisher.DraftInput{DistributionRoot: assetRoot, Assets: []publisher.PublishingAsset{{Kind: "mermaid", ID: "test", Source: "blogctl-asset://mermaid/test"}}})
 	if err == nil || !strings.Contains(err.Error(), "refusing to replace image") {
 		t.Fatalf("must reject lossy image replacement: %v", err)
 	}
-	if uploaded != 1 || created != 0 || saved != 0 {
-		t.Fatalf("should fail before creating story: upload=%d created=%d saved=%d", uploaded, created, saved)
+	if uploaded != 1 || created != 1 || saved != 0 {
+		t.Fatalf("should not save broken image paragraphs: upload=%d created=%d saved=%d", uploaded, created, saved)
+	}
+	if result["postId"] != "new-post" {
+		t.Fatalf("lost recoverable draft ID: %+v", result)
+	}
+}
+
+// Non-secret HTTP details from a successful Medium browser HAR: POST
+// /_/upload?source=6 with a draft Referer, multipart file, and Accept */*.
+func TestMediumUploadMatchesSuccessfulBrowserHAR(t *testing.T) {
+	requestCount := 0
+	fake := mediumClient{httpClient: &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		if req.URL.Host != "medium.com" || req.URL.Path != "/_/upload" ||
+			req.URL.Query().Get("source") != "6" || req.Method != http.MethodPost {
+			t.Fatalf("upload endpoint differs from HAR: %s %s", req.Method, req.URL.String())
+		}
+		if got := req.Header.Get("Referer"); got != "https://medium.com/p/test-existing/edit" {
+			t.Fatalf("upload referer differs from HAR: %s", got)
+		}
+		if req.Header.Get("Accept") != "*/*" ||
+			req.Header.Get("x-requested-with") != "" || req.Header.Get("x-client-date") != "" {
+			t.Fatalf("upload headers differ from HAR")
+		}
+		if req.Header.Get("x-obvious-cid") != "web" ||
+			req.Header.Get("x-xsrf-token") != "example-xsrf" {
+			t.Fatalf("missing expected Medium upload headers")
+		}
+		multipart, err := req.MultipartReader()
+		if err != nil {
+			t.Fatal(err)
+		}
+		part, err := multipart.NextPart()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if part.FormName() != "uploadedFile" || part.Header.Get("content-type") != "image/png" {
+			t.Fatalf("multipart differs from HAR: %s %s", part.FormName(), part.Header.Get("content-type"))
+		}
+		return mediumResponse(req, http.StatusOK,
+			"])}while(1);</x>{\"success\":true,\"payload\":{\"value\":{\"fileId\":\"1*example.png\",\"imgWidth\":1200,\"imgHeight\":800}}}", nil), nil
+	})}}
+	var sample bytes.Buffer
+	if err := png.Encode(&sample, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	result, err := fake.uploadImageOnce(context.Background(), platformSession{
+		Cookies: map[string]string{"xsrf": "example-xsrf"}, UserAgent: "Mozilla/5.0 Chrome/155.0.0.0",
+	}, "test-existing", publisher.RehostImage{Source: "diagram.png", Payload: sample.Bytes(), ContentType: "image/png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requestCount != 1 || result.FileID != "1*example.png" || result.Width != 1200 || result.Height != 800 {
+		t.Fatalf("upload result: %+v requests=%d", result, requestCount)
 	}
 }
