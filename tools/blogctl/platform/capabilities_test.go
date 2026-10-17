@@ -8,7 +8,7 @@ import (
 func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 	want := []string{
 		"cnblogs", "juejin", "csdn", "segmentfault", "zhihu",
-		"51cto", "oschina", "toutiao", "devto", "medium",
+		"51cto", "oschina", "toutiao", "devto", "hashnode", "medium",
 	}
 	if got := IDs(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("IDs = %#v", got)
@@ -36,6 +36,11 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 		!devto.PublishedUpdate || !devto.RemoteList || !devto.BodyImages || !devto.BodyImageRehost ||
 		!devto.CoverImage || !devto.NativeCanonical || !devto.Tags {
 		t.Fatalf("DEV.to capabilities = %#v", devto)
+	}
+
+	hashnode := For("hashnode")
+	if !hashnode.BrowserSession || hashnode.ExplicitPublish || hashnode.PublishedUpdate || !hashnode.NativeCanonical || !hashnode.BodyImageRehost || !hashnode.CoverImage {
+		t.Fatalf("Hashnode capabilities = %#v", hashnode)
 	}
 
 	medium := For("medium")

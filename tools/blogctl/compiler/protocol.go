@@ -25,6 +25,7 @@ type CompiledArticle struct {
 	Platform           string          `json:"platform"`
 	Title              string          `json:"title"`
 	Description        string          `json:"description"`
+	Series             string          `json:"series,omitempty"`
 	Markdown           string          `json:"markdown"`
 	HTML               string          `json:"html"`
 	Language           string          `json:"language"`

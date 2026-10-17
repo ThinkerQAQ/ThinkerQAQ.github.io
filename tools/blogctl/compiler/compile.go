@@ -213,7 +213,7 @@ func compileOne(ctx context.Context, o CompileOptions, profile PlatformConfig, s
 	footer := renderFooter(profile, canonical, article.Title)
 	var compiled CompiledArticle
 	var hashSource string
-	if o.Platform == "devto" {
+	if o.Platform == "devto" || o.Platform == "hashnode" {
 		markdown := body
 		if footer != "" {
 			markdown += "\n\n---\n\n" + footer
@@ -228,6 +228,9 @@ func compileOne(ctx context.Context, o CompileOptions, profile PlatformConfig, s
 			native = canonical
 		}
 		tags := normalizeDevtoTags(article.Tags)
+		if o.Platform == "hashnode" {
+			tags = append([]string{}, article.Tags...)
+		}
 		cover := resolveArticleAssetURL(article.CoverImage)
 		hashPayload := struct {
 			Title              string   `json:"title"`
@@ -236,11 +239,12 @@ func compileOne(ctx context.Context, o CompileOptions, profile PlatformConfig, s
 			NativeCanonicalURL string   `json:"nativeCanonicalUrl"`
 			Tags               []string `json:"tags"`
 			CoverImageURL      string   `json:"coverImageUrl"`
+			Series             string   `json:"series"`
 			Published          bool     `json:"published"`
-		}{article.Title, truncateRunes(article.Description, 256), markdown, native, tags, cover, false}
+		}{article.Title, truncateRunes(article.Description, 256), markdown, native, tags, cover, article.Series, false}
 		payload, _ := json.Marshal(hashPayload)
 		hashSource = string(payload)
-		compiled = CompiledArticle{Version: ProtocolVersion, Slug: slug, Platform: o.Platform, Title: article.Title, Description: truncateRunes(article.Description, 256), Markdown: markdown, HTML: html, Language: profile.Language, CanonicalURL: canonical, NativeCanonicalURL: native, Tags: tags, CoverImageURL: cover, Published: false, SourceDir: filepath.Dir(source), Assets: assets}
+		compiled = CompiledArticle{Version: ProtocolVersion, Slug: slug, Platform: o.Platform, Title: article.Title, Description: truncateRunes(article.Description, 256), Series: article.Series, Markdown: markdown, HTML: html, Language: profile.Language, CanonicalURL: canonical, NativeCanonicalURL: native, Tags: tags, CoverImageURL: cover, Published: false, SourceDir: filepath.Dir(source), Assets: assets}
 	} else {
 		limit := 256
 		if o.Platform == "juejin" {
@@ -256,7 +260,7 @@ func compileOne(ctx context.Context, o CompileOptions, profile PlatformConfig, s
 			return CompiledArticle{}, err
 		}
 		hashSource = article.Title + "\n" + markdown + "\n<!-- blogctl-html -->\n" + html
-		compiled = CompiledArticle{Version: ProtocolVersion, Slug: slug, Platform: o.Platform, Title: article.Title, Description: truncateRunes(article.Description, limit), Markdown: markdown, HTML: html, Language: profile.Language, CanonicalURL: canonical, Tags: append([]string{}, article.Tags...), CoverImageURL: resolveArticleAssetURL(article.CoverImage), Published: false, SourceDir: filepath.Dir(source), Assets: assets}
+		compiled = CompiledArticle{Version: ProtocolVersion, Slug: slug, Platform: o.Platform, Title: article.Title, Description: truncateRunes(article.Description, limit), Series: article.Series, Markdown: markdown, HTML: html, Language: profile.Language, CanonicalURL: canonical, Tags: append([]string{}, article.Tags...), CoverImageURL: resolveArticleAssetURL(article.CoverImage), Published: false, SourceDir: filepath.Dir(source), Assets: assets}
 	}
 	compiled.ContentHash = hashText(hashSource)
 	if !o.DryRun {

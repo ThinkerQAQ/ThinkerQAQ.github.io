@@ -981,7 +981,7 @@ func draftInputFromCompiled(article blogcompiler.CompiledArticle, contentRoot, d
 	}
 	r2 := config.Publishing.Assets.R2
 	return publisher.DraftInput{
-		Slug: article.Slug, Title: article.Title, Description: article.Description,
+		Slug: article.Slug, Title: article.Title, Description: article.Description, Series: article.Series,
 		Markdown: article.Markdown, HTML: article.HTML, Language: article.Language,
 		ContentHash: article.ContentHash, SourceDir: article.SourceDir, ContentRoot: contentRoot,
 		DistributionRoot: strings.TrimSpace(distributionRoot),
@@ -1009,6 +1009,7 @@ var platformCookieHostSuffixes = map[string][]string{
 	"toutiao":      {"toutiao.com"},
 	"devto":        {"dev.to"},
 	"medium":       {"medium.com"},
+	"hashnode":     {"hashnode.com"},
 }
 
 func publisherCookieHostSuffixes(platform string) []string {

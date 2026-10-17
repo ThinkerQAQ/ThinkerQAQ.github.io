@@ -22,6 +22,7 @@
     "https://*.toutiao.com/*",
     "https://dev.to/*",
     "https://medium.com/*",
+    "https://hashnode.com/*",
     "http://127.0.0.1:32145/*",
     "https://cnblogs.com/*",
     "https://juejin.cn/*",

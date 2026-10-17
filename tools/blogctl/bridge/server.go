@@ -138,7 +138,7 @@ func validateCapturedRequestHeaders(platform string, headers map[string]string) 
 
 var browserSessionPlatforms = map[string]struct{}{
 	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {}, "hashnode": {},
 }
 
 // These allowlists are backed by the captured browser requests used to build
