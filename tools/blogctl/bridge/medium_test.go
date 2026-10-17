@@ -713,3 +713,26 @@ func TestMediumCanonicalMatchesTrackedFooterLink(t *testing.T) {
 		t.Fatal("unrelated canonical URL must not match")
 	}
 }
+
+// A gateway timeout is not a media format error. Do not waste another 10s
+// sending JPEG to the same unavailable proxy/upstream endpoint.
+func TestMediumDoesNotRetryGatewayFailureAsJPEG(t *testing.T) {
+	calls := 0
+	client := mediumClient{httpClient: &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		return mediumResponse(req, http.StatusGatewayTimeout, "{\"error\":\"upstream timeout\"}", nil), nil
+	})}}
+	var pngBuffer bytes.Buffer
+	sample := image.NewRGBA(image.Rect(0, 0, 3, 3))
+	if err := png.Encode(&pngBuffer, sample); err != nil {
+		t.Fatal(err)
+	}
+	_, err := client.uploadImage(context.Background(), platformSession{Cookies: map[string]string{"xsrf": "test"}},
+		publisher.RehostImage{Payload: pngBuffer.Bytes(), ContentType: "image/png"})
+	if !mediumUploadGatewayFailure(err) {
+		t.Fatalf("expected typed gateway failure: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("gateway error must not trigger JPEG retry, got %d uploads", calls)
+	}
+}

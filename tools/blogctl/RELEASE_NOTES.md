@@ -1,8 +1,16 @@
-# BlogCTL v0.1.166
+# BlogCTL v0.1.167
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium 代理链路与草稿 JSON 请求修复
+
+- 代理开启时，Medium 浏览器指纹 HTTP Client 继续经 tlsclient.WithProxyUrl 访问配置的本机代理；新增离线 CONNECT 端到端测试证明实际经过代理。
+- Medium new-story / deltas 等 JSON API 改用 Accept: application/json，修复非 JSON Accept 导致远端返回 HTTP 400 的问题。
+- Medium 图片上传遭遇 HTTP 5xx/429 等网关异常不再转换 PNG 为 JPEG 重试；本次任务剩余图片直接复用已有 R2 兜底，避免对不可用上传接口逐张等待超时。
+- 不修改代理系统设置、不将登录 Cookie 写入日志或仓库；保留已有草稿及数据。
+
 
 ### Medium 创建草稿后端链路恢复
 
@@ -75,4 +83,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.166`
+版本：`0.1.167`
