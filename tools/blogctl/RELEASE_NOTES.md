@@ -1,8 +1,17 @@
-# BlogCTL v0.1.161
+# BlogCTL v0.1.162
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Hashnode 英文草稿集成（浏览器会话）
+
+- 从 BlogContent 英文文章编译 Markdown、Canonical URL 和 UTM 回链，可通过网页编辑器 REST 链路创建并更新 Hashnode 草稿。
+- 正文及封面图片优先上传 Hashnode 自身存储，保留已有 R2 兜底处理。
+- 创建空草稿后先保存远程 Draft ID，再写入内容；失败时复用该草稿。
+- 这是仅创建草稿的试用能力，不会自动公开发布或修改已发布文章；使用已登录浏览器会话，不需要 Hashnode Pro API。
+- Hashnode 网页内部接口不公开承诺兼容性，首次使用前请先在非正式文章验证。
+
 
 ### Social Publishing：AI 草稿 → 审核预览 → Buffer → 社交平台
 
@@ -37,4 +46,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.161`
+版本：`0.1.162`
