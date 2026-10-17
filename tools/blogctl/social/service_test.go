@@ -46,24 +46,26 @@ func sampleDraft(t *testing.T, dir string) Draft {
 	}
 	return draft
 }
-func TestApprovalStagePublish(t *testing.T) {
+func TestStageImplicitlyApprovesAndPublishRequiresRemoteDraft(t *testing.T) {
 	dir := t.TempDir()
 	draft := sampleDraft(t, dir)
 	mock := &fakeBuffer{posts: map[string]buffer.RemotePost{}}
 	service := Service{DataRoot: dir, Buffer: mock}
-	if _, err := service.Stage(context.Background(), draft.ID, "linkedin", draft.Revision); err == nil {
-		t.Fatal("staged without approval")
+	if _, err := service.Publish(context.Background(), draft.ID, "linkedin", draft.Revision); err == nil {
+		t.Fatal("published before staging")
 	}
-	draft.ApprovedRevision = draft.Revision
-	if err := Save(dir, draft); err != nil {
-		t.Fatal(err)
+	if _, err := service.Stage(context.Background(), draft.ID, "linkedin", "outdated-revision"); err == nil {
+		t.Fatal("staged with wrong revision")
+	}
+	if mock.creates != 0 {
+		t.Fatal("incorrect revision triggered remote write")
 	}
 	staged, err := service.Stage(context.Background(), draft.ID, "linkedin", draft.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if staged.Remote["linkedin"].State != "draft" || mock.creates != 1 {
-		t.Fatalf("%+v creates=%d", staged.Remote, mock.creates)
+	if staged.Remote["linkedin"].State != "draft" || mock.creates != 1 || staged.ApprovedRevision != draft.Revision {
+		t.Fatalf("%+v creates=%d approved=%q", staged.Remote, mock.creates, staged.ApprovedRevision)
 	}
 	if _, err := service.Stage(context.Background(), draft.ID, "linkedin", draft.Revision); err == nil {
 		t.Fatal("duplicate stage allowed")
@@ -87,10 +89,6 @@ func TestApprovalStagePublish(t *testing.T) {
 func TestAmbiguousCreateNeverRetried(t *testing.T) {
 	dir := t.TempDir()
 	d := sampleDraft(t, dir)
-	d.ApprovedRevision = d.Revision
-	if err := Save(dir, d); err != nil {
-		t.Fatal(err)
-	}
 	mock := &fakeBuffer{posts: map[string]buffer.RemotePost{}, fail: true}
 	svc := Service{DataRoot: dir, Buffer: mock}
 	_, err := svc.Stage(context.Background(), d.ID, "linkedin", d.Revision)

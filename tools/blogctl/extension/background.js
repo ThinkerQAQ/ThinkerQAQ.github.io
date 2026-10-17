@@ -975,7 +975,6 @@ async function handleMessage(message) {
       return fetchJSON(`/v1/social/drafts/${id}`);
     }
     case "blogctl.social.save":
-    case "blogctl.social.approve":
     case "blogctl.social.stage":
     case "blogctl.social.publish": {
       const id = encodeURIComponent(String(message.id || ""));

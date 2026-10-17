@@ -176,7 +176,7 @@ func (a app) printHelp() {
   blogctl diagrams [plantuml|drawio]
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
-  blogctl social <channels|source|create|list|show|approve|stage|publish> [options]
+  blogctl social <channels|source|create|list|show|stage|publish> [options]
   blogctl doctor
   blogctl install | uninstall
   blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]
@@ -196,7 +196,7 @@ Usage:
   blogctl diagrams [plantuml|drawio]
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
-  blogctl social <channels|source|create|list|show|approve|stage|publish> [options]
+  blogctl social <channels|source|create|list|show|stage|publish> [options]
   blogctl doctor
   blogctl install | uninstall
   blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]

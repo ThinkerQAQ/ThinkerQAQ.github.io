@@ -77,7 +77,7 @@
     <section class="panel" role="tabpanel" data-panel="social">
       <section class="status-card">
         <div class="section-title">社交动态 · Buffer</div>
-        <p class="card-hint">AI 从 BlogContent 全文生成社交草稿；本地审核后才会写入 Buffer 草稿，公开发布需再次确认。</p>
+        <p class="card-hint">AI 从 BlogContent 全文生成社交草稿；点击「存入 Buffer 草稿」即确认当前内容版本，不会公开发布。</p>
         <div class="binding-detect-toolbar">
           <label class="field"><span>草稿</span><select id="socialDraftPicker"></select></label>
           <button id="socialRefresh" class="secondary compact" type="button">刷新</button>
@@ -89,7 +89,6 @@
         <pre id="socialPreview" class="social-preview"></pre>
         <div class="binding-detect-toolbar">
           <button id="socialSave" class="secondary compact" type="button">保存修改</button>
-          <button id="socialApprove" class="secondary compact" type="button">审核通过</button>
           <button id="socialStage" class="secondary compact" type="button">存入 Buffer 草稿</button>
           <button id="socialPublish" class="primary compact" type="button">确认发布</button>
         </div>

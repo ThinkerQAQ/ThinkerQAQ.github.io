@@ -57,9 +57,16 @@ func (s Service) channel(ctx context.Context, platform string) (buffer.Channel, 
 	return result, nil
 }
 func (s Service) Stage(ctx context.Context, id, platform, revision string) (Draft, error) {
-	draft, post, _, err := s.approved(id, platform, revision)
+	draft, err := Load(s.DataRoot, id)
 	if err != nil {
 		return Draft{}, err
+	}
+	if revision == "" || draft.Revision != revision {
+		return Draft{}, errors.New("draft revision mismatch; reload and review before staging")
+	}
+	post, ok := draft.Posts[platform]
+	if !ok {
+		return Draft{}, fmt.Errorf("no %s content", platform)
 	}
 	channel, err := s.channel(ctx, platform)
 	if err != nil {
@@ -69,6 +76,9 @@ func (s Service) Stage(ctx context.Context, id, platform, revision string) (Draf
 	if state.ID != "" || state.State != "" {
 		return Draft{}, errors.New("remote state already exists or is uncertain; inspect Buffer before retry")
 	}
+	// An explicit stage request confirms the current content revision.
+	// Record approval and the pending remote write in one atomic local save.
+	draft.ApprovedRevision = draft.Revision
 	state = Remote{ChannelID: channel.ID, State: "creating"}
 	if draft.Remote == nil {
 		draft.Remote = map[string]Remote{}

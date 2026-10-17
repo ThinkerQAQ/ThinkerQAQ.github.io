@@ -1,14 +1,14 @@
 "use strict";
 (function(root) {
   const state={initialized:false,draft:null,platform:"linkedin"};
-  let picker,platform,text,media,preview,message,approve,save,stage,publish,refresh;
+  let picker,platform,text,media,preview,message,save,stage,publish,refresh;
   async function request(type,payload={}) {
     return BlogCTLPopup.send("blogctl.social."+type,payload);
   }
   function note(value,kind="") { BlogCTLPopup.setMessage(message,value,kind); }
   function draftSummary(d) {
     const remotes=Object.entries(d.remote||{}).map(([p,v])=>p+":"+v.state).join(", ");
-    return d.id+" · "+(d.approvedRevision===d.revision?"已审核":"待审核")+(remotes?" · "+remotes:"");
+    return d.id+" · "+(d.approvedRevision===d.revision?"已确认版本":"本地草稿")+(remotes?" · "+remotes:"");
   }
   function render() {
     const d=state.draft;
@@ -17,7 +17,7 @@
     if(!d){
       preview.textContent="从 ChatGPT 生成草稿后，点击刷新即可在这里查看。";
       text.value="";media.replaceChildren();
-      [save,approve,stage,publish].forEach(b=>b.disabled=true);
+      [save,stage,publish].forEach(b=>b.disabled=true);
       return;
     }
     for(const key of Object.keys(d.posts||{})){
@@ -39,12 +39,11 @@
     suffix.searchParams.set("utm_source",state.platform);
     preview.textContent=post.text+"\n\n"+suffix.toString();
     const remote=d.remote?.[state.platform];
-    const ready=d.approvedRevision===d.revision;
     const blocked=remote&&Boolean(remote.state);
+    const staged=d.approvedRevision===d.revision;
     save.disabled=Boolean(blocked);
-    approve.disabled=ready||Boolean(blocked);
-    stage.disabled=!ready||Boolean(blocked);
-    publish.disabled=!ready||!remote||remote.state!=="draft";
+    stage.disabled=Boolean(blocked);
+    publish.disabled=!staged||!remote||remote.state!=="draft";
     note(draftSummary(d));
   }
   async function load() {
@@ -77,17 +76,14 @@
       if(!confirm("确认将已审核的 "+state.platform+" 动态公开发布？此操作不可撤销。"))return;
     }
     if(action==="stage"){
-      if(!confirm("确认向 Buffer 创建私有草稿？这不会公开发布。"))return;
-    }
-    if(action==="approve"){
-      if(!confirm("确认审核通过当前版本？审批后重新编辑将撤销审核。"))return;
+      if(!confirm("确认当前文案并存入 Buffer 私有草稿？这不会公开发布。"))return;
     }
     if(action==="save"){
       const posts=structuredClone(draft.posts);
       posts[state.platform].text=text.value;
       data.posts=posts;
     }
-    [save,approve,stage,publish].forEach(b=>b.disabled=true);
+    [save,stage,publish].forEach(b=>b.disabled=true);
     try{
       const response=await request(action,data);
       state.draft=response.draft;
@@ -110,7 +106,6 @@
       message=document.getElementById("socialMessage");
       refresh=document.getElementById("socialRefresh");
       save=document.getElementById("socialSave");
-      approve=document.getElementById("socialApprove");
       stage=document.getElementById("socialStage");
       publish=document.getElementById("socialPublish");
       picker.addEventListener("change",()=>selectDraft().catch(e=>note(e.message,"error")));
@@ -122,9 +117,9 @@
         preview.textContent=text.value+"\n\n"+u.toString();
         const changed=text.value!==d.posts[state.platform].text;
         save.disabled=!changed;
-        if(changed){approve.disabled=true;stage.disabled=true;publish.disabled=true;note("文字已修改，请先保存草稿再审核。");}
+        if(changed){stage.disabled=true;publish.disabled=true;note("文字已修改，请先保存后再存入 Buffer 草稿。");}
       });
-      for(const [button,action] of [[save,"save"],[approve,"approve"],[stage,"stage"],[publish,"publish"]]){
+      for(const [button,action] of [[save,"save"],[stage,"stage"],[publish,"publish"]]){
         button.addEventListener("click",()=>act(action).catch(e=>note(e.message,"error")));
       }
     },

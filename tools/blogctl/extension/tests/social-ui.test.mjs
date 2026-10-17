@@ -11,13 +11,14 @@ test("social panel shares side panel and web console UI",()=>{
  assert.match(html,/data-tab="social"/u);
  assert.match(html,/data-panel="social"/u);
  assert.match(html,/<script src="social\.js"><\/script>/u);
- for(const id of ["socialDraftPicker","socialPlatform","socialText","socialApprove","socialStage","socialPublish"]) {
+ for(const id of ["socialDraftPicker","socialPlatform","socialText","socialStage","socialPublish"]) {
   assert.match(html,new RegExp(`id="${id}"`));
  }
+ assert.doesNotMatch(html,/id="socialApprove"/u);
  assert.match(app,/root\.BlogCTLSocial=api/u);
  assert.doesNotMatch(app,/innerHTML/u);
 });
-test("separate publication confirmation and version-bound review",()=>{
+test("staging confirms review; publication retains a separate confirmation",()=>{
  assert.match(app,/action==="publish"/u);
  assert.match(app,/confirm\("/u);
  assert.match(app,/revision:draft\.revision/u);

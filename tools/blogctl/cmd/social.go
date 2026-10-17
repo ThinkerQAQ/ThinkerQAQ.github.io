@@ -18,7 +18,7 @@ import (
 
 func (a app) runSocial(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: blogctl social <channels|source|create|list|show|approve|stage|publish>")
+		return errors.New("usage: blogctl social <channels|source|create|list|show|stage|publish>")
 	}
 	sub := args[0]
 	flags := flag.NewFlagSet("social "+sub, flag.ContinueOnError)
@@ -111,19 +111,6 @@ func (a app) runSocial(args []string) error {
 	case "show":
 		draft, err := social.Load(dataRoot, *id)
 		if err != nil {
-			return err
-		}
-		return show(draft)
-	case "approve":
-		draft, err := social.Load(dataRoot, *id)
-		if err != nil {
-			return err
-		}
-		if *revision == "" || *revision != draft.Revision {
-			return errors.New("revision mismatch; review the current draft before approval")
-		}
-		draft.ApprovedRevision = draft.Revision
-		if err := social.Save(dataRoot, draft); err != nil {
 			return err
 		}
 		return show(draft)

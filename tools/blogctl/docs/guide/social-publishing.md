@@ -2,7 +2,7 @@
 
 BlogCTL supports social posts independently of long-form article syndication. The AI writes
 the actual English copy; BlogCTL validates an existing canonical source, adds a tracked
-URL, retains local review state, and publishes through Buffer only after explicit approval.
+URL, records the content version when staging a private Buffer draft, and never publishes publicly without a separate explicit action.
 
 ## Architecture
 
@@ -11,8 +11,8 @@ ChatGPT / local AI agent
     -> structured DraftInput JSON
     -> blogctl social create
     -> BlogCTL Web Console / Social tab
-    -> review + optional edits + explicit approval
-    -> Buffer private draft (stage)
+    -> review + optional edits
+    -> confirm current content revision + create Buffer private draft (stage)
     -> explicit public publish
 ```
 
@@ -92,16 +92,16 @@ blogctl social list
 blogctl social show --id mutex-memory-guarantees
 ```
 
-Review the `revision` from `show`, or edit and approve the current content
-in the **Social** Web Console tab.
+Review the `revision` from `show`, or edit and save the current content
+in the **Social** Web Console tab. Clicking **Stage Buffer draft** itself
+confirms the exact saved content revision; there is no separate approval step.
 
 ```bash
-blogctl social approve --id mutex-memory-guarantees --revision <reviewed-revision>
 blogctl social stage --id mutex-memory-guarantees --platform linkedin \
   --revision <reviewed-revision>
 ```
 
-`stage` creates a **private Buffer draft**, not a public LinkedIn post. The
+`stage` implicitly approves the current content revision and creates a **private Buffer draft**, not a public LinkedIn post. The
 user must explicitly confirm any publication:
 
 ```bash
@@ -112,7 +112,7 @@ blogctl social publish --id mutex-memory-guarantees --platform linkedin \
 `publish` only advances an already-staged, verified remote draft. It never
 creates a new post as a fallback. A network timeout or unexpected remote state
 is recorded as unresolved to prevent duplicate retries; verify the outcome in
-Buffer before any manual recovery. Text edits invalidate the approved revision
+Buffer before any manual recovery. Text edits invalidate the staged revision
 and cannot silently replace an already-staged Buffer draft.
 
 **Current limitations:** no automatic AI summarization inside BlogCTL, no

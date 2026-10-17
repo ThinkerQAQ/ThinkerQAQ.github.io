@@ -73,9 +73,10 @@ func TestSocialBridgeReturnsExtensionCompatibleSuccessEnvelope(t *testing.T) {
 	if loaded["draft"].(map[string]any)["id"] != draft.ID {
 		t.Fatalf("draft lookup: %+v", loaded)
 	}
-	approved := request(http.MethodPost, "/v1/social/drafts/"+draft.ID+"/approve", `{"revision":"`+draft.Revision+`"}`)
-	remote := approved["draft"].(map[string]any)
-	if remote["approvedRevision"] != draft.Revision {
-		t.Fatalf("approval: %+v", approved)
+	changed := request(http.MethodPut, "/v1/social/drafts/"+draft.ID,
+		`{"revision":"`+draft.Revision+`","posts":{"linkedin":{"text":"Updated hello from Scott"}}}`)
+	remote := changed["draft"].(map[string]any)
+	if remote["approvedRevision"] != nil || remote["revision"] == draft.Revision {
+		t.Fatalf("editing must invalidate the content revision: %+v", changed)
 	}
 }

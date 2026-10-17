@@ -120,9 +120,6 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 		return
 	}
 	switch parts[4] {
-	case "approve":
-		draft.ApprovedRevision = draft.Revision
-		err = social.Save(root, draft)
 	case "stage", "publish":
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
