@@ -3,6 +3,7 @@ package bridge
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -28,6 +29,15 @@ type SocialConfig struct {
 	Buffer struct {
 		APIKey string `json:"-" toml:"api_key"`
 	} `json:"buffer" toml:"buffer"`
+}
+
+// ResolvedSocialHTTPClient uses the same proxy rules as other BlogCTL publishers.
+func ResolvedSocialHTTPClient() (*http.Client, error) {
+	config, err := loadBridgeConfigChecked()
+	if err != nil {
+		return nil, err
+	}
+	return httpClientForConfig(config)
 }
 
 func ResolvedSocialConfig() SocialConfig {

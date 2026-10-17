@@ -38,7 +38,11 @@ func (a app) runSocial(args []string) error {
 		return err
 	}
 	config := bridge.ResolvedSocialConfig()
-	client := buffer.Client{APIKey: config.Buffer.APIKey}
+	httpClient, err := bridge.ResolvedSocialHTTPClient()
+	if err != nil {
+		return err
+	}
+	client := buffer.Client{APIKey: config.Buffer.APIKey, HTTPClient: httpClient}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	show := func(value any) error {

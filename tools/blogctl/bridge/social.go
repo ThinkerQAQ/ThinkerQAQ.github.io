@@ -25,11 +25,12 @@ func (s *Server) socialService() (social.Service, error) {
 	}
 	s.mu.Lock()
 	key := strings.TrimSpace(s.config.Social.Buffer.APIKey)
+	httpClient := s.httpClient
 	s.mu.Unlock()
 	if key == "" {
 		key = os.Getenv("BUFFER_API_KEY")
 	}
-	return social.Service{DataRoot: root, Buffer: buffer.Client{APIKey: key}}, nil
+	return social.Service{DataRoot: root, Buffer: buffer.Client{APIKey: key, HTTPClient: httpClient}}, nil
 }
 func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []string) {
 	// Never expose unpublished drafts to unauthenticated HTTP clients.
