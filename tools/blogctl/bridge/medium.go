@@ -472,23 +472,6 @@ func cloneMediumDelta(delta map[string]any) map[string]any {
 	return result
 }
 
-func mediumLinkFallback(delta map[string]any, target, alt string) map[string]any {
-	label := "[Image]"
-	if strings.TrimSpace(alt) != "" {
-		label = "[Image: " + strings.TrimSpace(alt) + "]"
-	}
-	delta["paragraph"] = map[string]any{
-		"type": 1,
-		"text": label,
-		"markups": []any{map[string]any{
-			"type": 3, "start": 0, "end": len([]rune(label)),
-			"href": target, "anchorType": 0,
-		}},
-	}
-	delete(delta, "image")
-	return delta
-}
-
 func (c mediumClient) prepareDraftDeltas(
 	ctx context.Context,
 	session platformSession,
@@ -502,7 +485,6 @@ func (c mediumClient) prepareDraftDeltas(
 		"paragraph": map[string]any{"type": 3, "text": draft.Title, "markups": []any{}},
 	})
 	fallbacks := 0
-	nativeUploadUnavailable := false // Per article/task; never persisted between runs.
 	for _, original := range draft.Deltas {
 		delta := cloneMediumDelta(original)
 		delta["index"] = len(deltas)
@@ -517,25 +499,12 @@ func (c mediumClient) prepareDraftDeltas(
 		if err != nil {
 			return nil, fallbacks, fmt.Errorf("Medium image load failed: %w", err)
 		}
-		var uploaded mediumUploadResult
-		var uploadErr error
-		if nativeUploadUnavailable {
-			uploadErr = errors.New("Medium image upload skipped: previous gateway failure in this task")
-		} else {
-			uploaded, uploadErr = c.uploadImage(ctx, session, image)
-			if mediumUploadGatewayFailure(uploadErr) {
-				nativeUploadUnavailable = true
-				slog.Warn("medium image upload gateway failure; use configured R2 fallback for remaining images in this task", "operation", "image-upload-fallback")
-			}
-		}
+		uploaded, uploadErr := c.uploadImage(ctx, session, image)
 		if uploadErr != nil {
-			target, fallbackErr := publisher.UploadR2Fallback(ctx, c.httpClient, input, image)
-			if fallbackErr != nil {
-				return nil, fallbacks, fmt.Errorf("Medium image upload failed: %v; R2 fallback failed: %w", uploadErr, fallbackErr)
-			}
-			deltas = append(deltas, mediumLinkFallback(delta, target, alt))
-			fallbacks++
-			continue
+			// A text hyperlink is not a substitute for a Medium image block.
+			// Refuse to write a visually corrupted draft. The user can still
+			// paste the saved HTML fallback manually while native upload is down.
+			return nil, fallbacks, fmt.Errorf("Medium image upload unavailable: refusing to replace image %q with a text link: %w", source, uploadErr)
 		}
 		paragraph, _ := delta["paragraph"].(map[string]any)
 		if paragraph == nil {
@@ -603,11 +572,13 @@ func (c mediumClient) createDraft(
 		return nil, fmt.Errorf("title and deltas are required")
 	}
 	session = c.primeXSRF(ctx, session)
-	postID, mediumURL, err := c.createStory(ctx, session)
+	// Prepare every image before creating a remote story. Failure must not
+	// leave another empty draft behind on Medium.
+	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
 	if err != nil {
 		return nil, err
 	}
-	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input)
+	postID, mediumURL, err := c.createStory(ctx, session)
 	if err != nil {
 		return nil, err
 	}

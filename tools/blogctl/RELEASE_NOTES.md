@@ -1,8 +1,15 @@
-# BlogCTL v0.1.167
+# BlogCTL v0.1.168
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium 格式保真修复（测试版）
+
+- 对照实际 Medium 草稿渲染，修正代码块 PRE（type=8）及有序列表（type=10）映射，深层标题不再误显示为代码块。
+- 图片原生上传失败时拒绝将图片块降级为文字链接；在首次创建远端草稿之前完成图片准备，避免网关故障生成新的空草稿。
+- 保留原有浏览器会话、Compiler HTML 预览与数据；Medium 原生图片上传 HTTP 504 仍需独立验证，暂不自动修复已存在的远端草稿。
+
 
 ### Medium 代理链路与草稿 JSON 请求修复
 
@@ -83,4 +90,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.167`
+版本：`0.1.168`

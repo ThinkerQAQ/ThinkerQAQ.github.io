@@ -736,3 +736,48 @@ func TestMediumDoesNotRetryGatewayFailureAsJPEG(t *testing.T) {
 		t.Fatalf("gateway error must not trigger JPEG retry, got %d uploads", calls)
 	}
 }
+
+func TestMediumImageGatewayFailureDoesNotWriteBrokenDraft(t *testing.T) {
+	var created, saved, uploaded int
+	client := mediumClient{httpClient: &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Path {
+		case "/_/upload":
+			uploaded++
+			return mediumResponse(req, http.StatusGatewayTimeout, "gateway unavailable", nil), nil
+		case "/new-story":
+			created++
+			return mediumResponse(req, http.StatusOK, `])}while(1);</x>{"success":true,"payload":{"value":{"id":"new-post"}}}`, nil), nil
+		case "/p/new-post/deltas":
+			saved++
+			return mediumResponse(req, http.StatusOK, `])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":1}}}`, nil), nil
+		default:
+			t.Fatalf("unexpected endpoint %q", req.URL.Path)
+			return nil, nil
+		}
+	})}}
+	var pngImage bytes.Buffer
+	if err := png.Encode(&pngImage, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	assetRoot := t.TempDir()
+	assetDir := filepath.Join(assetRoot, "assets", "mermaid")
+	if err := os.MkdirAll(assetDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	pngFile := filepath.Join(assetDir, "test.png")
+	if err := os.WriteFile(pngFile, pngImage.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	draft := mediumDraft{Title: "Demo", Deltas: []map[string]any{{
+		"type": 1, "paragraph": map[string]any{"type": 4, "text": ""},
+		"image": map[string]any{"url": "blogctl-asset://mermaid/test", "alt": "must remain an image"},
+	}}}
+	_, err := client.createDraft(context.Background(), platformSession{Cookies: map[string]string{"xsrf": "test"}}, draft,
+		publisher.DraftInput{DistributionRoot: assetRoot, Assets: []publisher.PublishingAsset{{Kind: "mermaid", ID: "test", Source: "blogctl-asset://mermaid/test"}}})
+	if err == nil || !strings.Contains(err.Error(), "refusing to replace image") {
+		t.Fatalf("must reject lossy image replacement: %v", err)
+	}
+	if uploaded != 1 || created != 0 || saved != 0 {
+		t.Fatalf("should fail before creating story: upload=%d created=%d saved=%d", uploaded, created, saved)
+	}
+}
