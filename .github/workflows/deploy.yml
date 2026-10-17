@@ -3,6 +3,10 @@ name: Deploy Astro site to GitHub Pages
 on:
   push:
     branches: [main]
+  # Publish completed workout months even when the content repository has no new commit.
+  # First day of each month, 08:15 Asia/Shanghai (GitHub Actions cron is UTC).
+  schedule:
+    - cron: "15 0 1 * *"
   workflow_dispatch:
     inputs:
       content_sha:
