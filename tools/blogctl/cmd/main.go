@@ -59,6 +59,9 @@ func rootsForCommand(args []string) (string, string, error) {
 		return "", "", nil
 	}
 	command := args[0]
+	if command == "social" {
+		return "", "", nil
+	}
 	if command == "sync" || command == "toutiao" {
 		return resolveSyncWorkspace()
 	}
@@ -95,6 +98,8 @@ func (a app) run(args []string) error {
 		return a.runSearch(args)
 	case "sync":
 		return a.runSync(args)
+	case "social":
+		return a.runSocial(args)
 	case "doctor":
 		return a.doctor()
 	case "toutiao":
@@ -171,6 +176,7 @@ func (a app) printHelp() {
   blogctl diagrams [plantuml|drawio]
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
+  blogctl social <channels|source|create|list|show|approve|stage|publish> [options]
   blogctl doctor
   blogctl install | uninstall
   blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]
@@ -190,6 +196,7 @@ Usage:
   blogctl diagrams [plantuml|drawio]
   blogctl search <build|inventory|submit|audit|notify> [options]
   blogctl sync --article <slug> --platforms <list> [--dry-run] [--changed] [--draft]
+  blogctl social <channels|source|create|list|show|approve|stage|publish> [options]
   blogctl doctor
   blogctl install | uninstall
   blogctl toutiao probe --har <HAR-file> [--confirm-create-draft]
