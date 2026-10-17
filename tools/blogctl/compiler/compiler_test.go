@@ -73,3 +73,22 @@ func TestCompilePublishingMarkdownNormalizesLinksAndDiagrams(t *testing.T) {
 		t.Fatalf("diagram source leaked into output: %s", output)
 	}
 }
+
+func TestHashnodeEnglishSourceTrackingAndCanonical(t *testing.T) {
+	profile := defaultPlatformConfig("hashnode")
+	if profile.Language != "en" || profile.Canonical.Mode != "native" {
+		t.Fatalf("Hashnode should use English source and native canonical: %+v", profile)
+	}
+	canonical := "https://thinkerqaq.com/en/articles/concurrency-series-00/"
+	footer := renderFooter(profile, canonical, "Concurrency Programming")
+	if !strings.Contains(footer, "utm_source=hashnode&utm_medium=referral&utm_campaign=article_syndication") {
+		t.Fatalf("Hashnode source tracking missing: %s", footer)
+	}
+	if !strings.Contains(footer, "ThinkerQAQ's personal blog") {
+		t.Fatalf("Hashnode must generate English footer: %s", footer)
+	}
+	article, err := ParseArticle(strings.Replace(articleFixture, "status: published", "series: concurrency-programming\nstatus: published", 1), "fixture.md")
+	if err != nil || article.Series != "concurrency-programming" {
+		t.Fatalf("series metadata lost: %+v %v", article, err)
+	}
+}

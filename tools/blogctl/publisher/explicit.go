@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -26,6 +27,9 @@ type ExplicitResult struct {
 func (s Service) RunExplicitDraft(ctx context.Context, platform string, session Session,
 	input DraftInput, operation string, target ExplicitTarget, publish bool,
 ) (ExplicitResult, error) {
+	if platform == "hashnode" {
+		return ExplicitResult{}, errors.New("Hashnode drafts require the persisted BlogCTL creation workflow")
+	}
 	if platform == "medium" || platform == "toutiao" {
 		return ExplicitResult{}, fmt.Errorf("%s is temporarily disabled", platform)
 	}

@@ -160,6 +160,7 @@ async function restartBridge() {
 async function probeCookies(probe) {
   const cookies = await chrome.cookies.getAll({ url: probe.cookieUrl });
   const byName = new Map(cookies.map((cookie) => [cookie.name, cookie]));
+  if (probe.requireAny) return cookies.some((cookie) => Boolean(cookie.name && cookie.value));
   return (probe.requiredCookieNames ?? []).every((name) => Boolean(byName.get(name)?.value));
 }
 
@@ -1009,7 +1010,7 @@ async function handleMessage(message) {
     }
     case "blogctl.remote.inventory": {
       const platform = String(message.platform || "").trim();
-      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto"].includes(platform)) {
+      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "hashnode"].includes(platform)) {
         throw new Error("不支持的平台");
       }
       if (platform !== "devto") await syncPlatformSession(platform);
@@ -1023,6 +1024,21 @@ async function handleMessage(message) {
       const article = encodeURIComponent(String(message.article || ""));
       const platform = String(message.platform || "");
       if (!article || !platform) throw new Error("article and platform are required");
+      if (platform === "hashnode") {
+        await syncPlatformSession("hashnode");
+        const result = await fetchJSON(`/v1/hashnode/articles/list?article=${article}`, { method: "POST" });
+        const candidates = result.candidates ?? [];
+        return { ok: true, match: {
+          text: candidates.length
+            ? `已从 Hashnode 草稿与已发布文章列表匹配到 ${candidates.length} 篇文章。`
+            : "已检查 Hashnode 草稿及已发布文章，没有匹配的英文标题。",
+          items: candidates.map((post) => ({
+            title: post.title, id: post.id, published: post.published,
+            url: post.url || "", bound: Boolean(post.bound),
+            bindingState: post.bindingState || "",
+          })),
+        } };
+      }
       if (platform === "cnblogs") {
         await syncPlatformSession("cnblogs");
         const result = await fetchJSON(`/v1/cnblogs/binding/search?article=${article}`, { method: "POST" });

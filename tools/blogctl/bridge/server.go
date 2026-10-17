@@ -138,7 +138,7 @@ func validateCapturedRequestHeaders(platform string, headers map[string]string) 
 
 var browserSessionPlatforms = map[string]struct{}{
 	"cnblogs": {}, "juejin": {}, "csdn": {}, "segmentfault": {},
-	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {},
+	"zhihu": {}, "51cto": {}, "oschina": {}, "toutiao": {}, "devto": {}, "medium": {}, "hashnode": {},
 }
 
 // These allowlists are backed by the captured browser requests used to build
@@ -329,6 +329,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if path == "v1/zhihu/lookup-context" && request.Method == http.MethodPost {
 		s.handleZhihuLookupContext(response, request, request.URL.Query().Get("article"))
+		return
+	}
+	if path == "v1/hashnode/articles/list" && request.Method == http.MethodPost {
+		s.handleHashnodeArticleList(response, request, request.URL.Query().Get("article"))
 		return
 	}
 	if path == "v1/zhihu/articles/list" && request.Method == http.MethodPost {

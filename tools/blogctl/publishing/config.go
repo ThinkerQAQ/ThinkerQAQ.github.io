@@ -81,7 +81,7 @@ func DefaultPlatformConfig(platform string) PlatformConfig {
 		language = "zh-CN"
 	}
 	mode := "footer"
-	if platform == "devto" || platform == "medium" {
+	if platform == "devto" || platform == "medium" || platform == "hashnode" {
 		mode = "native"
 	}
 	return PlatformConfig{

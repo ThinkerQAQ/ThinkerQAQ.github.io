@@ -104,11 +104,17 @@
       !state.createScanning.has(platformID);
   }
 
+  function resumableHashnodeDraft(id) {
+    const existing=existingCreateArticles(id);
+    return id==="hashnode" && existing.length===1 && existing[0].id &&
+      existing[0].bound===true && !existing[0].published;
+  }
+
   function eligibleCreatePlatforms() {
     return selectedPlatformIDs().filter((id)=>{
       const platform=state.status?.platforms?.find((p)=>p.id===id);
       return platform && availability(platform).available &&
-        createReady(id) && !existingCreateArticles(id).length;
+        createReady(id) && (!existingCreateArticles(id).length || resumableHashnodeDraft(id));
     });
   }
 
@@ -334,11 +340,11 @@
           refreshCreateMatches([platform.id]);
         });
         actions.append(detect);
-        if(!existing.length){
+        if(!existing.length || resumableHashnodeDraft(platform.id)){
           const create=document.createElement("button");
         create.type="button";
         create.className="secondary compact";
-        create.textContent="创建草稿";
+        create.textContent=existing.length ? "继续同步草稿" : "创建草稿";
         create.disabled=!permission.available || !state.selectedSlug || running() ||
           !createReady(platform.id);
         create.addEventListener("click",()=>startExplicit([platform.id],[],false));
@@ -429,14 +435,14 @@
     try {
       if(state.mode==="update")validateTargets(targets);
       if(state.mode==="create" && platforms.some((id)=>!createReady(id) ||
-          existingCreateArticles(id).length)){
+          (existingCreateArticles(id).length && !resumableHashnodeDraft(id)))){
         throw new Error("远端已有文章或尚未完成检测；请先确认，不要重复创建。");
       }
       if(publishAfter && (state.mode==="update"&&targets.some((t)=>t.state==="published")))
         throw new Error("已发布文章无需再次发布，请使用「更新所选」。");
       if(publishAfter && !canPublishAfter())throw new Error("有平台不支持直接发布草稿。");
       if(!window.confirm(state.mode==="create"
-        ? `将在 ${platforms.length} 个平台创建新草稿${publishAfter?"并发布":""}，确认？`
+        ? `将在 ${platforms.length} 个平台创建或继续同步草稿${publishAfter?"并发布":""}，确认？`
         : `将覆盖 ${targets.length} 篇所选远端文章${publishAfter?"并发布草稿":""}，确认？`))return;
       const request={
         article:state.selectedSlug,platforms,operation:state.mode,

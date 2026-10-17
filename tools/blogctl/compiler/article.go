@@ -14,6 +14,7 @@ import (
 type Article struct {
 	Title         string   `yaml:"title"`
 	Description   string   `yaml:"description"`
+	Series        string   `yaml:"series"`
 	Status        string   `yaml:"status"`
 	Tags          []string `yaml:"tags"`
 	CoverImage    string   `yaml:"coverImage"`

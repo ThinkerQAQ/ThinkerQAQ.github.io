@@ -83,6 +83,11 @@ export const PLATFORM_AUTH = Object.freeze([
     },
   },
   {
+    id: "hashnode",
+    label: "Hashnode",
+    probe: { kind: "cookies", cookieUrl: "https://hashnode.com/", requiredCookieNames: [], requireAny: true },
+  },
+  {
     id: "medium",
     label: "Medium",
     probe: {
@@ -186,6 +191,12 @@ export const PLATFORM_SESSIONS = Object.freeze({
     requiredCookieNames: [],
     optional: true,
   },
+  hashnode: {
+    sessionProbeUrl: "https://hashnode.com/api/publications",
+    cookieDomains: ["hashnode.com"],
+    cookieUrls: ["https://hashnode.com/", "https://hashnode.com/api/publications"],
+    requiredCookieNames: [],
+  },
   medium: {
     sessionProbeUrl: "https://medium.com/me/stories",
     cookieDomains: ["medium.com"],
@@ -207,4 +218,5 @@ export const PLATFORM_HOSTS = Object.freeze({
   toutiao: "https://*.toutiao.com/*",
   devto: "https://dev.to/*",
   medium: "https://medium.com/*",
+  hashnode: "https://hashnode.com/*",
 });

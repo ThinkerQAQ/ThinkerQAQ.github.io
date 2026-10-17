@@ -4,6 +4,8 @@ import "net/http"
 
 func newAdapter(platform string, base *http.Client, session Session) (Adapter, error) {
 	switch platform {
+	case "hashnode":
+		return NewHashnodeAdapter(base, session)
 	case "devto":
 		return NewDEVToAdapter(base, session)
 	case "juejin":

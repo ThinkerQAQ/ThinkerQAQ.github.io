@@ -70,3 +70,11 @@ test("native publishing adapters retain authorization and disabled experimental 
   assert.match(background, /case "blogctl\.job\.start":/u);
   assert.doesNotMatch(background, /cto51PublishInBrowser|ensureToutiaoEditorTab/u);
 });
+
+test("Hashnode detection must query the remote draft and published inventory, not only local bindings", async () => {
+  const [background, drafts] = await Promise.all([source("background.js"), source("popup/drafts.js")]);
+  assert.match(background, /\/v1\/hashnode\/articles\/list\?article=/u);
+  assert.match(background, /\/v1\/remote\/inventory/u);
+  assert.doesNotMatch(background, /仅检查了本地关联，未穷尽查询 Hashnode/u);
+  assert.match(drafts, /existing\[0\]\.bound===true/u);
+});

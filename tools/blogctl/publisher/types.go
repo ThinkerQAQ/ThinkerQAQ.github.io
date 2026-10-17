@@ -49,6 +49,7 @@ type DraftInput struct {
 	Slug               string
 	Title              string
 	Description        string
+	Series             string
 	Markdown           string
 	HTML               string
 	Language           string
