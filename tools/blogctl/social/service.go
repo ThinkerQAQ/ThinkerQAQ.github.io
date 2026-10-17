@@ -15,7 +15,7 @@ type BufferAPI interface {
 	Channels(context.Context) ([]buffer.Channel, error)
 	Post(context.Context, string) (buffer.RemotePost, error)
 	CreateDraft(context.Context, buffer.PostPayload) (buffer.RemotePost, error)
-	PublishDraft(context.Context, string) (buffer.RemotePost, error)
+	PublishDraft(context.Context, string, string) (buffer.RemotePost, error)
 }
 type Service struct {
 	DataRoot string
@@ -205,7 +205,7 @@ func (s Service) Publish(ctx context.Context, id, platform, revision string) (Dr
 	if err := Save(s.DataRoot, draft); err != nil {
 		return Draft{}, err
 	}
-	result, err := s.Buffer.PublishDraft(ctx, state.ID)
+	result, err := s.Buffer.PublishDraft(ctx, state.ID, remote.Text)
 	if err != nil {
 		state.Error = strings.TrimSpace(err.Error())
 		if len(state.Error) > 400 {

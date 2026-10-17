@@ -34,7 +34,10 @@ func (f *fakeBuffer) CreateDraft(_ context.Context, p buffer.PostPayload) (buffe
 	f.posts[post.ID] = post
 	return post, nil
 }
-func (f *fakeBuffer) PublishDraft(_ context.Context, id string) (buffer.RemotePost, error) {
+func (f *fakeBuffer) PublishDraft(_ context.Context, id, text string) (buffer.RemotePost, error) {
+	if text != f.posts[id].Text {
+		return buffer.RemotePost{}, errors.New("publish text differs from reviewed Buffer draft")
+	}
 	f.publishes++
 	if f.publishError != nil {
 		return buffer.RemotePost{}, f.publishError

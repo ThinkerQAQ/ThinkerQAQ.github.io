@@ -179,11 +179,17 @@ func (c Client) CreateDraft(ctx context.Context, p PostPayload) (RemotePost, err
 	}
 	return checkAction(data.CreatePost)
 }
-func (c Client) PublishDraft(ctx context.Context, id string) (RemotePost, error) {
+
+// PublishDraft advances an existing Buffer draft without creating another post.
+// Buffer validates content on editPost, so the verified text must be sent again.
+func (c Client) PublishDraft(ctx context.Context, id, text string) (RemotePost, error) {
+	if strings.TrimSpace(text) == "" {
+		return RemotePost{}, errors.New("Buffer publication requires non-empty reviewed text")
+	}
 	var data struct {
 		EditPost action `json:"editPost"`
 	}
-	err := c.query(ctx, `mutation($input:EditPostInput!){editPost(input:$input)`+postFields+`}`, map[string]any{"input": map[string]any{"id": id, "mode": "shareNow", "saveToDraft": false}}, &data)
+	err := c.query(ctx, `mutation($input:EditPostInput!){editPost(input:$input)`+postFields+`}`, map[string]any{"input": map[string]any{"id": id, "text": text, "mode": "shareNow", "saveToDraft": false}}, &data)
 	if err != nil {
 		return RemotePost{}, err
 	}

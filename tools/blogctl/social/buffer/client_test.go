@@ -68,7 +68,7 @@ func TestPublishExistingDraftDoesNotCreateAnotherPost(t *testing.T) {
 	}))
 	defer server.Close()
 	client := Client{APIKey: "test", Endpoint: server.URL}
-	post, err := client.PublishDraft(context.Background(), "existing")
+	post, err := client.PublishDraft(context.Background(), "existing", "hello")
 	if err != nil || post.Status != "sending" {
 		t.Fatalf("post=%+v error=%v", post, err)
 	}
@@ -76,7 +76,18 @@ func TestPublishExistingDraftDoesNotCreateAnotherPost(t *testing.T) {
 		t.Fatal("publication must edit the same remote draft rather than create a new one")
 	}
 	input := request["variables"].(map[string]any)["input"].(map[string]any)
-	if input["id"] != "existing" || input["mode"] != "shareNow" || input["saveToDraft"] != false {
+	if input["id"] != "existing" || input["text"] != "hello" || input["mode"] != "shareNow" || input["saveToDraft"] != false {
 		t.Fatalf("unexpected publishing input: %+v", input)
+	}
+}
+
+func TestPublishDraftRefusesEmptyContentBeforeHTTPRequest(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++ }))
+	defer server.Close()
+	client := Client{APIKey: "test", Endpoint: server.URL}
+	_, err := client.PublishDraft(context.Background(), "existing", " ")
+	if err == nil || calls != 0 {
+		t.Fatalf("unexpected publication attempt: err=%v calls=%d", err, calls)
 	}
 }
