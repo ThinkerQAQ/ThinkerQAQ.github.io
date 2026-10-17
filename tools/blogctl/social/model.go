@@ -39,6 +39,7 @@ type Remote struct {
 	ChannelID string `json:"channelId,omitempty"`
 	State     string `json:"state,omitempty"`
 	Error     string `json:"error,omitempty"`
+	URL       string `json:"url,omitempty"`
 }
 type Draft struct {
 	DraftInput

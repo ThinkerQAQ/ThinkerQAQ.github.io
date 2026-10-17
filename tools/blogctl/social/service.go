@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/social/buffer"
 )
@@ -111,6 +114,70 @@ func (s Service) Stage(ctx context.Context, id, platform, revision string) (Draf
 	}
 	return draft, nil
 }
+
+// Reconcile reads the actual Buffer post before changing any local state.
+// It cannot send or create a post. A recent in-flight publish is never reset
+// to draft, even if the Buffer read still reports draft.
+func (s Service) Reconcile(ctx context.Context, id, platform, revision string) (Draft, error) {
+	draft, err := Load(s.DataRoot, id)
+	if err != nil {
+		return Draft{}, err
+	}
+	if revision == "" || revision != draft.Revision {
+		return Draft{}, errors.New("revision mismatch; reload before reconciling")
+	}
+	post, ok := draft.Posts[platform]
+	if !ok {
+		return Draft{}, fmt.Errorf("no %s content", platform)
+	}
+	state, ok := draft.Remote[platform]
+	if !ok || state.ID == "" || state.ChannelID == "" {
+		return Draft{}, errors.New("no remote Buffer post for this platform")
+	}
+	remote, err := s.Buffer.Post(ctx, state.ID)
+	if err != nil {
+		return Draft{}, fmt.Errorf("unable to inspect Buffer post: %w", err)
+	}
+	if remote.ID != state.ID || remote.ChannelID != state.ChannelID {
+		return Draft{}, errors.New("Buffer post identity mismatch; local state unchanged")
+	}
+	if remote.Text != RenderText(draft.Source.URL, platform, post) {
+		return Draft{}, errors.New("Buffer post differs from reviewed content; local state unchanged")
+	}
+	if remote.Status == "draft" && (state.State == "publishing" || state.State == "creating") {
+		path, err := SafeFile(s.DataRoot, id)
+		if err != nil {
+			return Draft{}, err
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return Draft{}, err
+		}
+		if time.Since(info.ModTime()) < 2*time.Minute {
+			return Draft{}, errors.New("publish attempt is recent; wait two minutes before recovery")
+		}
+	}
+	switch remote.Status {
+	case "draft", "scheduled", "sending", "sent", "error":
+		state.State = remote.Status
+	default:
+		state.State = "uncertain"
+		state.Error = "Buffer returned unknown state: " + remote.Status
+	}
+	if remote.Status == "draft" && state.Error == "" {
+		state.Error = "Buffer still has a private draft; no public post was confirmed"
+	}
+	if remote.Status == "sent" || remote.Status == "sending" || remote.Status == "scheduled" {
+		state.Error = ""
+	}
+	state.URL = remote.ExternalLink
+	draft.Remote[platform] = state
+	if err := Save(s.DataRoot, draft); err != nil {
+		return Draft{}, err
+	}
+	return draft, nil
+}
+
 func (s Service) Publish(ctx context.Context, id, platform, revision string) (Draft, error) {
 	draft, post, _, err := s.approved(id, platform, revision)
 	if err != nil {
@@ -122,31 +189,61 @@ func (s Service) Publish(ctx context.Context, id, platform, revision string) (Dr
 	}
 	state := draft.Remote[platform]
 	if state.State != "draft" || state.ID == "" || state.ChannelID != channel.ID {
-		return Draft{}, errors.New("no verified remote draft to publish")
+		return Draft{}, errors.New("no verified Buffer draft available to publish; check remote state first")
 	}
 	remote, err := s.Buffer.Post(ctx, state.ID)
 	if err != nil {
 		return Draft{}, err
 	}
-	if remote.ChannelID != channel.ID || remote.Status != "draft" || remote.Text != RenderText(draft.Source.URL, platform, post) {
+	if remote.ID != state.ID || remote.ChannelID != channel.ID || remote.Status != "draft" ||
+		remote.Text != RenderText(draft.Source.URL, platform, post) {
 		return Draft{}, errors.New("Buffer remote draft differs from reviewed content")
 	}
 	state.State = "publishing"
+	state.Error = ""
 	draft.Remote[platform] = state
-	if err = Save(s.DataRoot, draft); err != nil {
+	if err := Save(s.DataRoot, draft); err != nil {
 		return Draft{}, err
 	}
 	result, err := s.Buffer.PublishDraft(ctx, state.ID)
 	if err != nil {
-		return Draft{}, fmt.Errorf("publish outcome uncertain; inspect Buffer: %w", err)
+		state.Error = strings.TrimSpace(err.Error())
+		if len(state.Error) > 400 {
+			state.Error = state.Error[:400]
+		}
+		draft.Remote[platform] = state
+		// A request can be accepted by Buffer before the network fails.
+		// Leave an explicit unresolved state until a read-only reconciliation.
+		if saveErr := Save(s.DataRoot, draft); saveErr != nil {
+			return Draft{}, fmt.Errorf("publish failed: %w (also failed to store result: %v)", err, saveErr)
+		}
+		return Draft{}, fmt.Errorf("publish not confirmed; check Buffer status before retrying: %w", err)
 	}
-	state.State = "submitted"
-	if result.Status == "sent" {
-		state.State = "sent"
+	if result.ID != state.ID || result.ChannelID != state.ChannelID {
+		state.State = "uncertain"
+		state.Error = "Buffer response identity mismatch"
+	} else {
+		switch result.Status {
+		case "sent", "sending", "scheduled":
+			state.State = result.Status
+		case "draft":
+			state.State = "draft"
+			state.Error = "Buffer returned a private draft instead of publishing"
+		case "error":
+			state.State = "error"
+			state.Error = "Buffer reported a publishing failure"
+		default:
+			state.State = "uncertain"
+			state.Error = "Buffer returned unexpected post status: " + result.Status
+		}
 	}
+	state.URL = result.ExternalLink
 	draft.Remote[platform] = state
-	if err = Save(s.DataRoot, draft); err != nil {
+	if err := Save(s.DataRoot, draft); err != nil {
 		return Draft{}, err
+	}
+	if state.Error != "" {
+		return Draft{}, fmt.Errorf("publish not confirmed: %s", state.Error)
 	}
 	return draft, nil
 }

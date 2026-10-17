@@ -118,3 +118,24 @@ and cannot silently replace an already-staged Buffer draft.
 **Current limitations:** no automatic AI summarization inside BlogCTL, no
 background scheduling UI, and no automatic reconciliation after ambiguous
 Buffer writes. All remote writes require explicit actions.
+
+
+## Diagnose an unresolved publication
+
+If an API request fails or times out, BlogCTL records the unresolved state
+and the error in its private social draft. It never silently creates another
+post or retries publishing.
+
+Use **Check publishing status** in the Social tab, or:
+
+```bash
+blogctl social reconcile --id mutex-memory-guarantees --platform linkedin \
+  --revision <reviewed-revision>
+```
+
+The reconciliation is **read-only against Buffer**. It compares the remote
+post ID, channel ID and exact rendered content before persisting the observed
+status. If the local state is `publishing` and Buffer still reports a private
+draft, wait at least two minutes after the failed attempt before reconciling.
+Once the state is confirmed `draft`, the user may explicitly choose whether
+to submit the existing draft again. Nothing is published automatically.

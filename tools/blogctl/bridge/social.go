@@ -120,7 +120,7 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 		return
 	}
 	switch parts[4] {
-	case "stage", "publish":
+	case "stage", "reconcile", "publish":
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 		if parts[4] == "stage" {
@@ -128,6 +128,9 @@ func (s *Server) handleSocial(w http.ResponseWriter, r *http.Request, parts []st
 		}
 		if parts[4] == "publish" {
 			draft, err = svc.Publish(ctx, id, body.Platform, body.Revision)
+		}
+		if parts[4] == "reconcile" {
+			draft, err = svc.Reconcile(ctx, id, body.Platform, body.Revision)
 		}
 	default:
 		writeAPIError(w, http.StatusNotFound, "not_found", "unknown social action", nil)

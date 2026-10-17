@@ -116,17 +116,18 @@ func (c Client) Channels(ctx context.Context) ([]Channel, error) {
 }
 
 type RemotePost struct {
-	ID        string `json:"id"`
-	Text      string `json:"text"`
-	Status    string `json:"status"`
-	ChannelID string `json:"channelId"`
+	ID           string `json:"id"`
+	Text         string `json:"text"`
+	Status       string `json:"status"`
+	ChannelID    string `json:"channelId"`
+	ExternalLink string `json:"externalLink,omitempty"`
 }
 
 func (c Client) Post(ctx context.Context, id string) (RemotePost, error) {
 	var data struct {
 		Post RemotePost `json:"post"`
 	}
-	err := c.query(ctx, `query($id:PostId!){post(input:{id:$id}){id text status channelId}}`, map[string]any{"id": id}, &data)
+	err := c.query(ctx, `query($id:PostId!){post(input:{id:$id}){id text status channelId externalLink}}`, map[string]any{"id": id}, &data)
 	if err != nil {
 		return RemotePost{}, err
 	}
@@ -154,7 +155,7 @@ func (p PostPayload) input() map[string]any {
 	return result
 }
 
-const postFields = `{ __typename ... on PostActionSuccess { post { id text status channelId } } ... on MutationError { message } }`
+const postFields = `{ __typename ... on PostActionSuccess { post { id text status channelId externalLink } } ... on MutationError { message } }`
 
 type action struct {
 	Type    string     `json:"__typename"`

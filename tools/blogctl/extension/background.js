@@ -978,6 +978,7 @@ async function handleMessage(message) {
     }
     case "blogctl.social.save":
     case "blogctl.social.stage":
+    case "blogctl.social.reconcile":
     case "blogctl.social.publish": {
       const id = encodeURIComponent(String(message.id || ""));
       const action = message.type.split(".")[2];

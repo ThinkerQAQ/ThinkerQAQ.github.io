@@ -8,11 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeBuffer struct {
 	posts              map[string]buffer.RemotePost
 	fail               bool
+	publishError       error
+	publishStatus      string
 	creates, publishes int
 }
 
@@ -33,8 +36,14 @@ func (f *fakeBuffer) CreateDraft(_ context.Context, p buffer.PostPayload) (buffe
 }
 func (f *fakeBuffer) PublishDraft(_ context.Context, id string) (buffer.RemotePost, error) {
 	f.publishes++
+	if f.publishError != nil {
+		return buffer.RemotePost{}, f.publishError
+	}
 	result := f.posts[id]
 	result.Status = "sent"
+	if f.publishStatus != "" {
+		result.Status = f.publishStatus
+	}
 	f.posts[id] = result
 	return result, nil
 }
@@ -127,5 +136,99 @@ func TestSourceAndStore(t *testing.T) {
 	}
 	if d.Revision != d.Hash() {
 		t.Fatal("revision mismatch")
+	}
+}
+
+func TestPublishErrorPersistsAndRequiresReadOnlyRecovery(t *testing.T) {
+	dir := t.TempDir()
+	d := sampleDraft(t, dir)
+	mock := &fakeBuffer{posts: map[string]buffer.RemotePost{}, publishError: errors.New("Buffer rejected the publish request")}
+	svc := Service{DataRoot: dir, Buffer: mock}
+	if _, err := svc.Stage(context.Background(), d.ID, "linkedin", d.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Publish(context.Background(), d.ID, "linkedin", d.Revision); err == nil {
+		t.Fatal("expected publish error")
+	}
+	pending, err := Load(dir, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.Remote["linkedin"].State != "publishing" || !strings.Contains(pending.Remote["linkedin"].Error, "rejected") {
+		t.Fatalf("unrecorded error: %+v", pending.Remote)
+	}
+	if _, err := svc.Publish(context.Background(), d.ID, "linkedin", d.Revision); err == nil {
+		t.Fatal("duplicate publish during uncertainty")
+	}
+	if mock.publishes != 1 {
+		t.Fatal("duplicate Buffer mutation")
+	}
+	if _, err := svc.Reconcile(context.Background(), d.ID, "linkedin", d.Revision); err == nil {
+		t.Fatal("reconciled a fresh in-flight request")
+	}
+	path, _ := SafeFile(dir, d.ID)
+	old := time.Now().Add(-3 * time.Minute)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := svc.Reconcile(context.Background(), d.ID, "linkedin", d.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered.Remote["linkedin"].State != "draft" {
+		t.Fatalf("not recovered: %+v", recovered.Remote)
+	}
+	if mock.publishes != 1 {
+		t.Fatal("reconciliation must not publish")
+	}
+	mock.publishError = nil
+	sent, err := svc.Publish(context.Background(), d.ID, "linkedin", d.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sent.Remote["linkedin"].State != "sent" || mock.publishes != 2 {
+		t.Fatal("explicit retry failed")
+	}
+}
+func TestPublishSuccessWithStillDraftDoesNotClaimSent(t *testing.T) {
+	dir := t.TempDir()
+	d := sampleDraft(t, dir)
+	mock := &fakeBuffer{posts: map[string]buffer.RemotePost{}, publishStatus: "draft"}
+	svc := Service{DataRoot: dir, Buffer: mock}
+	if _, err := svc.Stage(context.Background(), d.ID, "linkedin", d.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Publish(context.Background(), d.ID, "linkedin", d.Revision); err == nil {
+		t.Fatal("false success: still draft")
+	}
+	local, err := Load(dir, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if local.Remote["linkedin"].State != "draft" || local.Remote["linkedin"].Error == "" {
+		t.Fatalf("false successful publication: %+v", local.Remote)
+	}
+}
+func TestReconcileActualRemoteSentDoesNotPublishAgain(t *testing.T) {
+	dir := t.TempDir()
+	d := sampleDraft(t, dir)
+	mock := &fakeBuffer{posts: map[string]buffer.RemotePost{}}
+	svc := Service{DataRoot: dir, Buffer: mock}
+	if _, err := svc.Stage(context.Background(), d.ID, "linkedin", d.Revision); err != nil {
+		t.Fatal(err)
+	}
+	post := mock.posts["post1"]
+	post.Status = "sent"
+	post.ExternalLink = "https://www.linkedin.com/feed/update/test/"
+	mock.posts[post.ID] = post
+	local, err := svc.Reconcile(context.Background(), d.ID, "linkedin", d.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if local.Remote["linkedin"].State != "sent" || local.Remote["linkedin"].URL != post.ExternalLink {
+		t.Fatalf("not reconciled: %+v", local.Remote)
+	}
+	if mock.publishes != 0 {
+		t.Fatal("reconcile must not publish")
 	}
 }

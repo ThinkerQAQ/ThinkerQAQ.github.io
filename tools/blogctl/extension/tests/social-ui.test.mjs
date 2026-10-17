@@ -48,3 +48,10 @@ test("Social settings is a standalone category, not duplicated under article dis
  assert.match(env,/state\.tools\.filter\(\(tool\) => tool\.kind === "social"\)/u);
  assert.match(env,/BlogCTLPopup\.send\("blogctl\.social\.channels"\)/u);
 });
+
+test("failed publication exposes read-only reconcile before an explicit retry",()=>{
+  assert.match(html,/id="socialReconcile"/u);
+  assert.match(app,/action==="reconcile"/u);
+  assert.match(app,/remote\?\.error/u);
+  assert.match(bg,/case "blogctl\.social\.reconcile":/u);
+});

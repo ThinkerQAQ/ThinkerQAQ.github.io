@@ -1,7 +1,7 @@
 "use strict";
 (function(root) {
   const state={initialized:false,draft:null,platform:"linkedin"};
-  let picker,platform,text,media,preview,message,save,stage,publish,refresh;
+  let picker,platform,text,media,preview,message,save,stage,reconcile,publish,refresh;
   async function request(type,payload={}) {
     return BlogCTLPopup.send("blogctl.social."+type,payload);
   }
@@ -17,7 +17,7 @@
     if(!d){
       preview.textContent="从 ChatGPT 生成草稿后，点击刷新即可在这里查看。";
       text.value="";media.replaceChildren();
-      [save,stage,publish].forEach(b=>b.disabled=true);
+      [save,stage,reconcile,publish].forEach(b=>b.disabled=true);
       return;
     }
     for(const key of Object.keys(d.posts||{})){
@@ -44,7 +44,8 @@
     save.disabled=Boolean(blocked);
     stage.disabled=Boolean(blocked);
     publish.disabled=!staged||!remote||remote.state!=="draft";
-    note(draftSummary(d));
+    reconcile.disabled=!remote?.id;
+    note(draftSummary(d)+(remote?.error?" · "+remote.error:""),remote?.error?"error":"");
   }
   async function load() {
     const result=await request("list");
@@ -78,12 +79,16 @@
     if(action==="stage"){
       if(!confirm("确认当前文案并存入 Buffer 私有草稿？这不会公开发布。"))return;
     }
+    if(action==="reconcile"){
+      // Remote read and local state repair only; never re-attempt publishing.
+      note("正在检查 Buffer 实际发布状态…");
+    }
     if(action==="save"){
       const posts=structuredClone(draft.posts);
       posts[state.platform].text=text.value;
       data.posts=posts;
     }
-    [save,stage,publish].forEach(b=>b.disabled=true);
+    [save,stage,reconcile,publish].forEach(b=>b.disabled=true);
     try{
       const response=await request(action,data);
       state.draft=response.draft;
@@ -108,6 +113,7 @@
       save=document.getElementById("socialSave");
       stage=document.getElementById("socialStage");
       publish=document.getElementById("socialPublish");
+      reconcile=document.getElementById("socialReconcile");
       picker.addEventListener("change",()=>selectDraft().catch(e=>note(e.message,"error")));
       platform.addEventListener("change",()=>{state.platform=platform.value;render();});
       refresh.addEventListener("click",()=>load().catch(e=>note(e.message,"error")));
@@ -117,9 +123,9 @@
         preview.textContent=text.value+"\n\n"+u.toString();
         const changed=text.value!==d.posts[state.platform].text;
         save.disabled=!changed;
-        if(changed){stage.disabled=true;publish.disabled=true;note("文字已修改，请先保存后再存入 Buffer 草稿。");}
+        if(changed){stage.disabled=true;reconcile.disabled=true;publish.disabled=true;note("文字已修改，请先保存后再存入 Buffer 草稿。");}
       });
-      for(const [button,action] of [[save,"save"],[stage,"stage"],[publish,"publish"]]){
+      for(const [button,action] of [[save,"save"],[stage,"stage"],[reconcile,"reconcile"],[publish,"publish"]]){
         button.addEventListener("click",()=>act(action).catch(e=>note(e.message,"error")));
       }
     },

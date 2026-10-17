@@ -18,7 +18,7 @@ import (
 
 func (a app) runSocial(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: blogctl social <channels|source|create|list|show|stage|publish>")
+		return errors.New("usage: blogctl social <channels|source|create|list|show|stage|reconcile|publish>")
 	}
 	sub := args[0]
 	flags := flag.NewFlagSet("social "+sub, flag.ContinueOnError)
@@ -114,7 +114,7 @@ func (a app) runSocial(args []string) error {
 			return err
 		}
 		return show(draft)
-	case "stage", "publish":
+	case "stage", "reconcile", "publish":
 		if *platform == "" {
 			return errors.New("--platform is required")
 		}
@@ -126,6 +126,9 @@ func (a app) runSocial(args []string) error {
 		}
 		if sub == "publish" {
 			draft, err = svc.Publish(ctx, *id, *platform, *revision)
+		}
+		if sub == "reconcile" {
+			draft, err = svc.Reconcile(ctx, *id, *platform, *revision)
 		}
 		if err != nil {
 			return err

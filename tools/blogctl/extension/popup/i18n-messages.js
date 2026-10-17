@@ -121,6 +121,7 @@ globalThis.BlogCTLEnMessages = Object.freeze({
   "已连接的渠道": "Connected channels",
   "连接或更换账号请在 Buffer 中操作。": "Connect or change accounts in Buffer.",
   "检查连接": "Check connections",
+  "检查发布状态": "Check publishing status",
   "分发平台": "Publishing platforms", "创建草稿": "Create draft",
   "发布草稿": "Publish draft", "已有文章": "Existing article",
   "暂无日志": "No logs", "更新中…": "Updating…",

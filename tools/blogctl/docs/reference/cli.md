@@ -22,7 +22,7 @@ blogctl help
 | `blogctl search build\|inventory\|submit\|audit\|notify` | Search index tasks; see `cmd/search.go` |
 | `blogctl sync --article SLUG --platforms LIST [--dry-run] [--changed] [--draft]` | Article publishing / preview via Bridge |
 | `blogctl sync --all --platforms LIST` | Explicit scope: all published local articles |
-| `blogctl social channels|source|create|list|show|stage|publish` | Review-gated Buffer social publishing; see [Social Publishing](../guide/social-publishing.md) |
+| `blogctl social channels|source|create|list|show|stage|reconcile|publish` | Review-gated Buffer social publishing; see [Social Publishing](../guide/social-publishing.md) |
 | `blogctl toutiao probe --har FILE` | Specialized experiment; see historical research and security boundary |
 
 ### `sync` flags

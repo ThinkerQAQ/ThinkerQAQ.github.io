@@ -56,3 +56,27 @@ func TestTypedMutationError(t *testing.T) {
 		t.Fatalf("error=%v", err)
 	}
 }
+
+func TestPublishExistingDraftDoesNotCreateAnotherPost(t *testing.T) {
+	var request map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"editPost":{"__typename":"PostActionSuccess","post":{"id":"existing","text":"hello","status":"sending","channelId":"linkedin-channel"}}}}`))
+	}))
+	defer server.Close()
+	client := Client{APIKey: "test", Endpoint: server.URL}
+	post, err := client.PublishDraft(context.Background(), "existing")
+	if err != nil || post.Status != "sending" {
+		t.Fatalf("post=%+v error=%v", post, err)
+	}
+	if !strings.Contains(request["query"].(string), "editPost(input:") {
+		t.Fatal("publication must edit the same remote draft rather than create a new one")
+	}
+	input := request["variables"].(map[string]any)["input"].(map[string]any)
+	if input["id"] != "existing" || input["mode"] != "shareNow" || input["saveToDraft"] != false {
+		t.Fatalf("unexpected publishing input: %+v", input)
+	}
+}
