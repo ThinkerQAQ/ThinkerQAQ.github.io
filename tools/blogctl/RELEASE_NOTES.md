@@ -1,8 +1,15 @@
-# BlogCTL v0.1.164
+# BlogCTL v0.1.165
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### 恢复 Medium 分发平台
+
+- 重新显示 Medium 平台入口，覆盖检测、创建、更新、任务与发布记录界面。
+- 沿用原有的英文 Compiler、浏览器会话和 Medium Publisher，不改变已有的远程绑定及其他平台配置。
+- 今日头条继续保持隐藏；本地安装版供手动验证 Medium 流程，不自动发布远端文章。
+
 
 ### Hashnode 编辑与文章链接修复
 
@@ -60,4 +67,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.164`
+版本：`0.1.165`
