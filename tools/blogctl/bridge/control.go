@@ -450,6 +450,13 @@ func googleSearchConsoleAPIPlaceholder(config bridgeConfig) string {
 	return "Google service-account JSON"
 }
 
+func bufferAPIPlaceholder(config bridgeConfig) string {
+	if config.Social.Buffer.APIKey != "" || os.Getenv("BUFFER_API_KEY") != "" {
+		return "已配置；留空保持不变"
+	}
+	return "Buffer Personal API Key"
+}
+
 func toolRegistry(config bridgeConfig) []toolDescriptor {
 	configPath, _ := ConfigPath()
 	pathField := func(key, label, description string) []toolField {
@@ -567,7 +574,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 			},
 		},
 		{
-			Name: "buffer-api", DisplayName: "Buffer API", Kind: "publishing", Required: false,
+			Name: "buffer-api", DisplayName: "Buffer API", Kind: "social", Required: false,
 			Description: "LinkedIn / X / Bluesky 社交动态通过 Buffer 官方 GraphQL API 发布；密钥仅保存在本机 blogctl.toml。",
 			Health: func() toolHealth {
 				if config.Social.Buffer.APIKey == "" {
@@ -582,7 +589,7 @@ func toolRegistry(config bridgeConfig) []toolDescriptor {
 				Scope: "bridge", Values: map[string]any{},
 				Schema: []toolField{{
 					Key: "apiKey", Label: "API Key", Type: "secret",
-					Placeholder: "Buffer Personal API Key（留空保持现有值）",
+					Placeholder: bufferAPIPlaceholder(config),
 					Description: "在 Buffer → API Settings 创建。留空不清除已保存的密钥；请勿提交到 Git。",
 				}},
 			},

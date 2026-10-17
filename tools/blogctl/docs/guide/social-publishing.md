@@ -30,7 +30,7 @@ api_key = "YOUR_PERSONAL_BUFFER_API_KEY"
 
 On Linux, this normally lives at `~/.config/BlogCTL/blogctl.toml`. On Windows
 it is stored in the installed executable's `Data/blogctl.toml`. You can also edit
-the key under **Settings → Distribution platforms → Buffer API** in the BlogCTL
+the key under **Settings → Social platforms → Buffer API** in the BlogCTL
 Web Console. Key values are masked in API responses and are never logged.
 
 The `BUFFER_API_KEY` environment variable is supported as a fallback when

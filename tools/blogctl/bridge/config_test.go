@@ -370,6 +370,9 @@ func TestBufferAPIKeyPersistsAndNeverLeaks(t *testing.T) {
 		if item.Config.Schema[0].Type != "secret" {
 			t.Fatal("Buffer key is not masked")
 		}
+		if item.Kind != "social" || !strings.Contains(item.Config.Schema[0].Placeholder, "已配置") {
+			t.Fatalf("Buffer must be a configured Social provider with masked key: %+v", item)
+		}
 		sanitized := publicBridgeConfig(loaded)
 		serialized, err := json.Marshal(sanitized)
 		if err != nil {

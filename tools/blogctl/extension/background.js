@@ -968,6 +968,8 @@ function kickGoogleIndexQueuePump() {
 async function handleMessage(message) {
   switch (message.type) {
     case "blogctl.status": return { ok: true, status: await getStatus() };
+    case "blogctl.social.channels":
+      return fetchJSON("/v1/social/channels");
     case "blogctl.social.list":
       return fetchJSON("/v1/social/drafts");
     case "blogctl.social.get": {

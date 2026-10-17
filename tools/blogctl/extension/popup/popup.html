@@ -466,7 +466,6 @@
             <label class="field"><span>平台</span><select id="publishingPlatform"><option value="">正在加载配置…</option></select></label>
             
             <div class="section-title">平台接入</div>
-            <div id="socialPlatformAccessConfig" class="tool-list"></div>
             <div id="platformAccessConfig" class="platform-access-config"><div class="platform-loading">正在读取平台配置…</div></div>
             
             <label class="switch-row" for="publishingChangedOnly"><span><strong>仅更新内容有变化的草稿</strong><small>此平台已有草稿且内容未变时跳过；Medium 暂不支持更新已有草稿。</small></span><input id="publishingChangedOnly" type="checkbox"></label>
@@ -497,6 +496,26 @@
               </div>
             </div>
             <p id="publishingMessage" class="message" role="status"></p>
+          </div>
+        </details>
+
+        <details id="socialConfigEnvironmentCard" class="tool-card environment-large-card">
+          <summary class="status-row">
+            <span class="tool-identity">
+              <strong>社交平台 · Buffer</strong>
+              <span class="tool-requirement optional">可选</span>
+            </span>
+            <span id="socialConfigStatus" class="status checking">检测中</span>
+          </summary>
+          <div class="tool-card-body environment-embedded-tool">
+            <p class="card-hint">通过 Buffer 统一管理 LinkedIn、X、Bluesky 等社交动态；与技术文章的分发平台配置相互独立。</p>
+            <div id="socialPlatformAccessConfig" class="tool-list"></div>
+            <div class="section-title">已连接的渠道</div>
+            <div class="binding-detect-toolbar">
+              <span class="card-hint">连接或更换账号请在 Buffer 中操作。</span>
+              <button id="socialChannelsRefresh" type="button" class="secondary compact">检查连接</button>
+            </div>
+            <div id="socialChannelsList" class="tool-list" role="status">正在读取…</div>
           </div>
         </details>
 

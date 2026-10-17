@@ -763,3 +763,6 @@ input, select { min-height: 42px; font-size: 13px; }
 .social-cover { display: block; width: min(100%, 460px); max-height: 240px;
   object-fit: contain; border-radius: 8px; }
 #socialText { min-height: 190px; width: 100%; resize: vertical; }
+
+.social-channel-row { gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--ui-border); font-size: 12px; }
+.social-channel-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }

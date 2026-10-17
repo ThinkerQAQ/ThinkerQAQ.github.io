@@ -34,6 +34,7 @@ test("the same Settings Catalog and controls mount in both UI hosts", async () =
   ]);
   assert.match(settings, /CATEGORY_META/u);
   assert.match(settings, /#platformConfigEnvironmentCard/u);
+  assert.match(settings, /#socialConfigEnvironmentCard/u);
   assert.match(settings, /#assetConfigEnvironmentCard/u);
   assert.match(settings, /#searchEngineEnvironmentCard/u);
   assert.match(settings, /section\.append\(element\)/u);
