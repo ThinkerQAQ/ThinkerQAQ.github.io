@@ -1566,6 +1566,8 @@ async function handleMessage(message) {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
+      if (result?.job && ["running", "queued", "waiting"].includes(result.job.state) &&
+          (result.job.platforms ?? []).includes("medium")) beginMediumUploadPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.jobs.clear": {
@@ -1585,6 +1587,7 @@ async function handleMessage(message) {
       }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      if ((result?.job?.platforms ?? []).includes("medium")) beginMediumUploadPump();
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.pause": {
@@ -1603,6 +1606,7 @@ async function handleMessage(message) {
       }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/resume`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      if ((result?.job?.platforms ?? []).includes("medium")) beginMediumUploadPump();
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     default: return null;
@@ -1647,6 +1651,7 @@ async function pollMediumUploads() {
   if (mediumPumpRunning) return;
   mediumPumpRunning = true;
   try {
+    await writeBridgeLog("info", "medium browser upload pump started");
     for (let attempt = 0; attempt < 900; attempt++) {
       const jobs = (await fetchJSON("/v1/jobs")).jobs ?? [];
       const active = jobs.some((job) => ["running", "queued", "waiting"].includes(job.state) &&
@@ -1661,12 +1666,16 @@ async function pollMediumUploads() {
         await mediumDelay(700);
         continue;
       }
+      await writeBridgeLog("info", "medium browser upload task claimed", { draftId: task.draftId });
       let result;
       try {
         result = await processMediumUpload(task);
       } catch (error) {
         result = { error: errorMessage(error).slice(0, 220) };
       }
+      await writeBridgeLog(result.error ? "warn" : "info", "medium browser upload finished", {
+        draftId: task.draftId, success: !result.error, error: result.error ?? "",
+      });
       await fetchJSON("/v1/medium/browser-upload/result", jsonOptions("POST", {
         id: task.id, fileId: result.fileId ?? "",
         width: result.width ?? 0, height: result.height ?? 0,
@@ -1675,14 +1684,18 @@ async function pollMediumUploads() {
     }
   } catch (error) {
     console.warn("BlogCTL Medium browser upload polling paused:", errorMessage(error));
+    await writeBridgeLog("error", "medium browser upload pump failed", {
+      error: errorMessage(error).slice(0, 220),
+    });
   } finally {
     mediumPumpRunning = false;
   }
 }
 
 function beginMediumUploadPump() {
+  if (mediumPumpRunning) return;
   // MV3 service workers may sleep. A repeating alarm resumes the task pump.
-  chrome.alarms?.create(MEDIUM_UPLOAD_ALARM, { periodInMinutes: 0.5 }).catch(() => {});
+  chrome.alarms.create(MEDIUM_UPLOAD_ALARM, { periodInMinutes: 0.5 }).catch(() => {});
   void pollMediumUploads();
 }
 

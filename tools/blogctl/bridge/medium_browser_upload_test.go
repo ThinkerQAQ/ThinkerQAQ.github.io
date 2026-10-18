@@ -103,3 +103,46 @@ func TestMediumBrowserUploadBridgeRequiresExtensionAndToken(t *testing.T) {
 		}
 	}
 }
+
+func TestMediumBrowserUploadClaimRecoversAfterWorkerSuspension(t *testing.T) {
+	hub := newMediumBrowserUploadHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := hub.upload(ctx, "2b52b8609f8e", publisher.RehostImage{Source: "cover.png", Payload: []byte("sample"), ContentType: "image/png"})
+		done <- err
+	}()
+	var task map[string]any
+	for attempt := 0; attempt < 100; attempt++ {
+		task = hub.next()
+		if task != nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if task == nil {
+		t.Fatal("missing image task")
+	}
+	if second := hub.next(); second != nil {
+		t.Fatal("claimed image issued twice without lease expiry")
+	}
+	hub.mu.Lock()
+	hub.pending[task["id"].(string)].claimedAt = time.Now().Add(-46 * time.Second)
+	hub.mu.Unlock()
+	retried := hub.next()
+	if retried == nil || retried["id"] != task["id"] {
+		t.Fatal("crashed browser worker never recovered the upload")
+	}
+	if err := hub.complete(task["id"].(string), "1*safe", 640, 480, ""); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("upload result not delivered")
+	}
+}

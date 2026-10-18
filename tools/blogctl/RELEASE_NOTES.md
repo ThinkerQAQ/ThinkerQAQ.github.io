@@ -1,8 +1,17 @@
-# BlogCTL v0.1.171
+# BlogCTL v0.1.172
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium 浏览器图片上传任务唤醒与诊断（本地测试版）
+
+- 修复仅在创建/更新任务启动瞬间触发 Medium 上传轮询的问题；任务页轮询、重试及恢复也可重新唤醒浏览器上传。
+- 为 Go 图片任务交接增加排队、领取和结果日志，Extension 增加上传轮询启动、领取、完成及异常日志，用于区别浏览器未启动、任务未领取与真实 Medium 上传失败。
+- 添加浏览器工作线程挂起后的 45 秒租约恢复机制，避免图片任务被领取后永久搁置。
+- 通过隔离的真实 Edge 实例验证 Extension -> Native Host -> Go Bridge 消息通信；并验证真实 Edge 的 MAIN world 注入逻辑正确拒绝非目标 Medium 编辑页，不访问登录凭证。
+- 保留原有数据和草稿，线上 Medium 登录态图片上传尚需再次验收。
+
 
 ### Medium 浏览器原生图片上传（本地测试版）
 
@@ -116,4 +125,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.171`
+版本：`0.1.172`

@@ -91,3 +91,10 @@ test("Medium upload is delegated to the browser and never sends session credenti
   assert.match(pageUpload, /location\.origin !== "https:\/\/medium\.com"/u);
   assert.ok(JSON.parse(manifest).permissions.includes("alarms"));
 });
+
+test("Medium job polling and retries wake browser uploads", async () => {
+  const background = await source("background.js");
+  assert.match(background, /case "blogctl.job.get"/u);
+  assert.match(background, /beginMediumUploadPump\(\)/u);
+  assert.match(background, /medium browser upload pump failed/u);
+});

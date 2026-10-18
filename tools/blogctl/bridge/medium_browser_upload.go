@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -27,6 +28,7 @@ type mediumPendingUpload struct {
 	id, draftID, filename, mime string
 	payload                     []byte
 	claimed                     bool
+	claimedAt                   time.Time
 	reply                       chan mediumBrowserUploadReply
 }
 type mediumBrowserUploadReply struct {
@@ -60,6 +62,7 @@ func (h *mediumBrowserUploadHub) upload(ctx context.Context, draftID string, ima
 	h.pending[item.id] = item
 	h.order = append(h.order, item.id)
 	h.mu.Unlock()
+	slog.Info("medium browser upload queued", "operation", "medium-browser-upload", "draftId", draftID, "byteSize", len(image.Payload))
 	defer func() { h.mu.Lock(); delete(h.pending, item.id); h.mu.Unlock() }()
 	waitCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
@@ -87,10 +90,12 @@ func (h *mediumBrowserUploadHub) next() map[string]any {
 	}
 	for _, id := range h.order {
 		item, ok := h.pending[id]
-		if !ok || item.claimed {
+		if !ok || (item.claimed && time.Since(item.claimedAt) < 45*time.Second) {
 			continue
 		}
 		item.claimed = true
+		item.claimedAt = time.Now()
+		slog.Info("medium browser upload claimed", "operation", "medium-browser-upload", "draftId", item.draftID)
 		return map[string]any{"id": item.id, "draftId": item.draftID, "filename": item.filename, "mimeType": item.mime, "base64": base64.StdEncoding.EncodeToString(item.payload)}
 	}
 	return nil
@@ -104,6 +109,7 @@ func (h *mediumBrowserUploadHub) complete(id, fileID string, width, height int, 
 	}
 	delete(h.pending, id)
 	h.mu.Unlock()
+	slog.Info("medium browser upload result received", "operation", "medium-browser-upload", "draftId", item.draftID, "ok", reportedError == "")
 	if reportedError != "" {
 		item.reply <- mediumBrowserUploadReply{err: fmt.Errorf("Medium browser upload failed: %s", truncate(reportedError, 250))}
 		return nil
