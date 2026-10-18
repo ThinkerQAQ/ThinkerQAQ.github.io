@@ -66,8 +66,11 @@ func TestMediumCodeAndHeadingsMatchObservedEditorParagraphTypes(t *testing.T) {
 	if len(warnings) != 0 || len(blocks) != 4 {
 		t.Fatalf("blocks=%+v warnings=%v", blocks, warnings)
 	}
-	if blocks[0].ParagraphType != 3 || blocks[1].ParagraphType != 3 {
-		t.Fatalf("headings must render as actual headings, not code blocks: %+v", blocks[:2])
+	if blocks[0].ParagraphType != mediumH2 ||
+		blocks[1].ParagraphType != mediumParagraph ||
+		len(blocks[1].Markups) == 0 ||
+		blocks[1].Markups[len(blocks[1].Markups)-1].Type != mediumMarkupBold {
+		t.Fatalf("H4 must use a distinct bold paragraph, never PRE: %+v", blocks[:2])
 	}
 	if blocks[2].Kind != "pre" || blocks[2].ParagraphType != 8 || !strings.Contains(blocks[2].Text, "println(42)") {
 		t.Fatalf("code must use Medium PRE, not numbered list: %+v", blocks[2])

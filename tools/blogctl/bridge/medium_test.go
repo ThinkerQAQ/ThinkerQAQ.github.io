@@ -799,6 +799,9 @@ func TestMediumUploadMatchesSuccessfulBrowserHAR(t *testing.T) {
 			t.Fatalf("upload referer differs from HAR: %s", got)
 		}
 		if req.Header.Get("Accept") != "*/*" ||
+			req.Header.Get("Cache-Control") != "no-cache" ||
+			req.Header.Get("Pragma") != "no-cache" ||
+			req.Header.Get("Dnt") != "1" ||
 			req.Header.Get("x-requested-with") != "" || req.Header.Get("x-client-date") != "" {
 			t.Fatalf("upload headers differ from HAR")
 		}

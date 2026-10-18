@@ -10,7 +10,6 @@ const (
 	mediumParagraph      = 1
 	mediumH2             = 3
 	mediumImageParagraph = 4
-	mediumH3             = 3 // Use Medium heading style, never PRE (8).
 	mediumBlockquote     = 9
 	mediumPre            = 8 // Confirmed from Medium editor rendering.
 	mediumULI            = 13

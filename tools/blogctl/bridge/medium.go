@@ -217,6 +217,14 @@ func decodeMediumResponse(response *http.Response, output any) error {
 		return err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		// Upstream HTML errors (often a 504 proxy/CDN page) are not an API
+		// response. Do not leak the large HTML document into task events.
+		trimmed := strings.TrimSpace(string(raw))
+		if strings.Contains(strings.ToLower(response.Header.Get("content-type")), "text/html") ||
+			strings.HasPrefix(strings.ToLower(trimmed), "<!doctype html") ||
+			strings.HasPrefix(strings.ToLower(trimmed), "<html") {
+			return fmt.Errorf("Medium request failed (%d): upstream returned an HTML error page", response.StatusCode)
+		}
 		return fmt.Errorf("Medium request failed (%d): %s", response.StatusCode, truncate(stripMediumXSSI(string(raw)), 500))
 	}
 	if output == nil {
@@ -340,8 +348,12 @@ func (c mediumClient) uploadImageOnce(ctx context.Context, session platformSessi
 	setMediumHeaders(req, session, referer)
 	// These are upload-specific browser headers, not the JSON API headers.
 	req.Header.Set("accept", "*/*")
+	req.Header.Set("cache-control", "no-cache")
+	req.Header.Set("pragma", "no-cache")
+	req.Header.Set("dnt", "1")
 	req.Header.Del("x-requested-with")
 	req.Header.Del("x-client-date")
+	// Upload requests are browser XHRs, not Medium JSON API calls.
 	req.Header.Set("content-type", writer.FormDataContentType())
 	requestCookieHeader := req.Header.Get("cookie")
 	slog.Info("medium image upload started", "operation", "image-upload", "contentType", contentType, "byteSize", len(image.Payload), "requestCookieNames", cookieHeaderNames(requestCookieHeader), "hasClearance", cookieHeaderHasName(requestCookieHeader, "cf_clearance"))
@@ -1290,7 +1302,13 @@ func setMediumHeaders(req *http.Request, session platformSession, referer string
 	req.Header.Set("cookie", mediumSessionCookieHeader(session))
 	req.Header.Set("user-agent", session.UserAgent)
 	if major := mediumChromeMajor(session.UserAgent); major > 0 {
-		req.Header.Set("sec-ch-ua", fmt.Sprintf(`"Chromium";v="%d", "Google Chrome";v="%d", "Not_A Brand";v="99"`, major, major))
+		// Match the browser family advertised by the actual User-Agent.
+		// Edge sends Microsoft Edge, not Google Chrome, in Client Hints.
+		if strings.Contains(session.UserAgent, "Edg/") {
+			req.Header.Set("sec-ch-ua", fmt.Sprintf(`"Microsoft Edge";v="%d", "Chromium";v="%d", "Not(A:Brand";v="24"`, major, major))
+		} else {
+			req.Header.Set("sec-ch-ua", fmt.Sprintf(`"Chromium";v="%d", "Google Chrome";v="%d", "Not_A Brand";v="99"`, major, major))
+		}
 	}
 	req.Header.Set("sec-ch-ua-mobile", "?0")
 	req.Header.Set("sec-ch-ua-platform", `"Windows"`)

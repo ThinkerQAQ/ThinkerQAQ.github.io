@@ -112,3 +112,30 @@ func TestMediumRequestsAdvertiseJSONResponses(t *testing.T) {
 		t.Fatalf("Medium delta must send JSON: %q", got)
 	}
 }
+
+func TestMediumEdgeClientHintsMatchBrowserFamily(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, mediumOrigin+"/_/upload?source=6", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setMediumHeaders(req, platformSession{UserAgent: "Mozilla/5.0 Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0"}, mediumOrigin+"/p/draft-id/edit")
+	got := req.Header.Get("sec-ch-ua")
+	if !strings.Contains(got, "Microsoft Edge") || strings.Contains(got, "Google Chrome") {
+		t.Fatalf("Edge UA must not advertise Chrome brand: %q", got)
+	}
+}
+func TestMediumHTMLGatewayResponseIsSafelySummarized(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, mediumOrigin+"/_/upload", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := "<!DOCTYPE html><html><title>Service Unavailable</title><body>SENSITIVE-HTML-PAYLOAD</body></html>"
+	res := mediumResponse(req, http.StatusGatewayTimeout, html, http.Header{"Content-Type": {"text/html; charset=utf-8"}})
+	var payload any
+	err = decodeMediumResponse(res, &payload)
+	if err == nil || !strings.Contains(err.Error(), "504") ||
+		!strings.Contains(err.Error(), "HTML error page") ||
+		strings.Contains(err.Error(), "SENSITIVE-HTML-PAYLOAD") {
+		t.Fatalf("gateway response must be status-only, not HTML dump: %v", err)
+	}
+}
