@@ -1,8 +1,17 @@
-# BlogCTL v0.1.172
+# BlogCTL v0.1.173
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium Extension 图片任务鉴权修复（本地测试版）
+
+- 依据真实 Edge Extension 请求复现，修复 Bridge 对只读队列 GET 错误要求 Origin 必须存在的故障；该 GET 始终需要有效 Bridge Token，若携带不可信 Origin 继续拒绝。
+- 写入图片上传结果的 POST 继续同时要求有效 Token 与浏览器 Extension Origin，不放松写入鉴权。
+- 增加 GET 无 Origin 及 POST 无 Origin、错误 Token、非扩展来源的安全回归测试。
+- 不修改业务操作语义：创建每次均新建草稿；更新必须明确选择远端草稿。
+- 保留已有数据和草稿；Medium 图片上传需要继续通过用户登录态的 Edge 验证。
+
 
 ### Medium 浏览器图片上传任务唤醒与诊断（本地测试版）
 
@@ -125,4 +134,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.172`
+版本：`0.1.173`

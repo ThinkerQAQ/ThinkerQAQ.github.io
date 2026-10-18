@@ -86,3 +86,26 @@ func TestMediumExplicitRequestIsAcceptedButToutiaoRemainsDisabled(t *testing.T) 
 		t.Fatal("Toutiao must remain disabled")
 	}
 }
+
+// Explicit Create never reuses a remote draft; explicit Update requires a
+// draft ID selected by the user in the update workflow.
+func TestMediumExplicitCreateAndUpdateStaySeparate(t *testing.T) {
+	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("unexpected network request for invalid explicit operation: %s", req.URL.Path)
+		return nil, nil
+	})}
+	compiled := blogcompiler.CompiledArticle{Payload: []byte(`{"title":"semantic test","deltas":[]}`), Title: "semantic test"}
+	for _, tc := range []struct {
+		op            string
+		target        explicitTaskTarget
+		errorContains string
+	}{
+		{"create", explicitTaskTarget{Platform: "medium", ID: "65eb8f90268b", State: "draft"}, "must not specify an existing remote post"},
+		{"update", explicitTaskTarget{Platform: "medium", State: "draft"}, "requires a selected draft ID"},
+	} {
+		_, err := runMediumExplicit(context.Background(), publisher.Session{}, client, compiled, publisher.DraftInput{}, t.TempDir(), tc.op, tc.target, false)
+		if err == nil || !strings.Contains(err.Error(), tc.errorContains) {
+			t.Fatalf("%s should reject invalid target: %v", tc.op, err)
+		}
+	}
+}

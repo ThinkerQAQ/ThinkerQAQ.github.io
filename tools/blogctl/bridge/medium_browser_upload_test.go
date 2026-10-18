@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,7 +83,10 @@ func TestMediumBrowserUploadBridgeRequiresExtensionAndToken(t *testing.T) {
 		status        int
 	}{
 		{"https://thinkerqaq.com", "test-token", http.StatusForbidden},
+		{"", "wrong", http.StatusForbidden},
 		{"chrome-extension://approved", "wrong", http.StatusForbidden},
+		// Real Edge extension GET requests can have no Origin header.
+		{"", "test-token", http.StatusOK},
 		{"chrome-extension://approved", "test-token", http.StatusOK},
 	} {
 		req, err := http.NewRequest(http.MethodGet, handler.URL+"/v1/medium/browser-upload/next", nil)
@@ -144,5 +148,39 @@ func TestMediumBrowserUploadClaimRecoversAfterWorkerSuspension(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("upload result not delivered")
+	}
+}
+
+func TestMediumBrowserUploadResultRequiresExtensionOrigin(t *testing.T) {
+	server, err := New("test-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := httptest.NewServer(server.Handler())
+	defer web.Close()
+	for _, tc := range []struct {
+		origin, token string
+		want          int
+	}{
+		{"", "test-token", http.StatusForbidden},
+		{"https://untrusted.example", "test-token", http.StatusForbidden},
+		{"chrome-extension://approved", "wrong", http.StatusForbidden},
+		{"chrome-extension://approved", "test-token", http.StatusConflict},
+	} {
+		request, err := http.NewRequest(http.MethodPost, web.URL+"/v1/medium/browser-upload/result", strings.NewReader("{}"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", tc.origin)
+		request.Header.Set("x-thinkerqaq-token", tc.token)
+		res, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != tc.want {
+			t.Errorf("POST result origin=%q status=%d want=%d", tc.origin, res.StatusCode, tc.want)
+		}
 	}
 }

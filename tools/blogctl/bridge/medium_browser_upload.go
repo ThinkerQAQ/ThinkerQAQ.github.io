@@ -122,7 +122,14 @@ func (h *mediumBrowserUploadHub) complete(id, fileID string, width, height int, 
 	return nil
 }
 func (s *Server) handleMediumBrowserUpload(response http.ResponseWriter, request *http.Request) {
-	if request.Header.Get("x-thinkerqaq-token") != s.token || !validBrowserExtensionOrigin(request.Header.Get("origin")) {
+	origin := request.Header.Get("origin")
+	// Browser extension GET fetches can omit Origin entirely, even when
+	// the corresponding POST includes it. The Bridge Token is mandatory for
+	// both. Only the read-only queue claim allows an absent Origin; never
+	// allow a supplied untrusted Origin or weaken writes.
+	isQueueRead := request.Method == http.MethodGet && request.URL.Path == "/v1/medium/browser-upload/next"
+	originAllowed := validBrowserExtensionOrigin(origin) || (isQueueRead && origin == "")
+	if request.Header.Get("x-thinkerqaq-token") != s.token || !originAllowed {
 		writeAPIError(response, http.StatusForbidden, "forbidden", "Medium browser upload requires the authorized Extension", nil)
 		return
 	}
