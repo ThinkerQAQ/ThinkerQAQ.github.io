@@ -44,3 +44,36 @@ export function validMediumUploadTask(task) {
     typeof task.base64 === "string" && task.base64.length > 0 &&
     task.base64.length <= 28 * 1024 * 1024);
 }
+
+// Extension context: after chrome.tabs.create(), Edge may report about:blank
+// as tab.url and the requested editor address only in pendingUrl until the
+// first navigation commits. Never treat this expected transition as redirect.
+export async function findMediumEditorTab(draftId, tabs = chrome.tabs, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))) {
+  if (!/^[a-f0-9]{8,24}$/.test(draftId)) throw new Error("Invalid Medium draft identifier");
+  const editorUrl = "https://medium.com/p/" + draftId + "/edit";
+  const found = await tabs.query({ url: "https://medium.com/p/*/edit" });
+  const existing = found.find((tab) => tab.url === editorUrl);
+  const tab = existing ?? await tabs.create({ url: editorUrl, active: false });
+  if (!Number.isInteger(tab?.id)) throw new Error("Could not open Medium editor tab");
+
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const current = await tabs.get(tab.id);
+    // If already at the final editor document, this is safe to inject even
+    // if the browser still exposes a stale pendingUrl property.
+    if (current.status === "complete" && current.url === editorUrl) return current.id;
+    // Edge sometimes reports the placeholder about:blank as "complete" while
+    // the actual editor is still in pendingUrl. Do not abort that transition.
+    if (current.pendingUrl === editorUrl) {
+      await sleep(500);
+      continue;
+    }
+    if (current.status === "complete") {
+      throw new Error("Medium editor redirected or failed to load the expected draft");
+    }
+    if (current.pendingUrl && current.pendingUrl !== editorUrl && current.url !== editorUrl) {
+      throw new Error("Medium editor navigation was redirected");
+    }
+    await sleep(500);
+  }
+  throw new Error("Medium editor did not finish loading within 60 seconds");
+}

@@ -1,8 +1,17 @@
-# BlogCTL v0.1.173
+# BlogCTL v0.1.174
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium 创建草稿时的编辑页导航修复
+
+- 经真实 Edge 验证，新建的标签页可能暂时报告 tab.url=about:blank，Medium 编辑器地址仅存在 tab.pendingUrl。修复误判跳转错误导致图片尚未上传即终止的故障。
+- 仅当页面实际加载为目标 /p/{draftId}/edit 时才执行图片上传；目标重定向、错误页面或超时仍安全拒绝。
+- 增加加载中、待导航、已加载、实际重定向和无效草稿 ID 的回归测试。
+- 不改变创建/更新语义：创建始终新建草稿；更新必须选择目标草稿。
+- 完整 Medium 登录态图片上传及远端正文保存仍需真实操作验收。
+
 
 ### Medium Extension 图片任务鉴权修复（本地测试版）
 
@@ -134,4 +143,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.173`
+版本：`0.1.174`

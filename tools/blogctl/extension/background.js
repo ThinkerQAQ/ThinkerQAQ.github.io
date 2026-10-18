@@ -1,7 +1,7 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
-import { uploadMediumInPage, validMediumUploadTask } from "./medium-upload.js";
+import { uploadMediumInPage, validMediumUploadTask, findMediumEditorTab } from "./medium-upload.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -1618,19 +1618,6 @@ let mediumPumpRunning = false;
 
 const mediumDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function findMediumEditorTab(draftId) {
-  const editorUrl = "https://medium.com/p/" + draftId + "/edit";
-  const found = await chrome.tabs.query({ url: "https://medium.com/p/*/edit" });
-  const existing = found.find((tab) => tab.url === editorUrl);
-  const tab = existing ?? await chrome.tabs.create({ url: editorUrl, active: false });
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const current = await chrome.tabs.get(tab.id);
-    if (current.url !== editorUrl) throw new Error("Medium editor navigated away");
-    if (current.status === "complete") return current.id;
-    await mediumDelay(400);
-  }
-  throw new Error("Medium editor did not finish loading");
-}
 
 async function processMediumUpload(task) {
   if (!validMediumUploadTask(task)) throw new Error("Invalid Medium browser upload task");
