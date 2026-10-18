@@ -1,6 +1,7 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
+import { uploadMediumInPage, validMediumUploadTask } from "./medium-upload.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -1556,6 +1557,9 @@ async function handleMessage(message) {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
+      if ((request.platforms ?? []).includes("medium") && result?.job?.id) {
+        beginMediumUploadPump();
+      }
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
@@ -1604,6 +1608,87 @@ async function handleMessage(message) {
     default: return null;
   }
 }
+
+const MEDIUM_UPLOAD_ALARM = "blogctl.medium.upload";
+let mediumPumpRunning = false;
+
+const mediumDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function findMediumEditorTab(draftId) {
+  const editorUrl = "https://medium.com/p/" + draftId + "/edit";
+  const found = await chrome.tabs.query({ url: "https://medium.com/p/*/edit" });
+  const existing = found.find((tab) => tab.url === editorUrl);
+  const tab = existing ?? await chrome.tabs.create({ url: editorUrl, active: false });
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const current = await chrome.tabs.get(tab.id);
+    if (current.url !== editorUrl) throw new Error("Medium editor navigated away");
+    if (current.status === "complete") return current.id;
+    await mediumDelay(400);
+  }
+  throw new Error("Medium editor did not finish loading");
+}
+
+async function processMediumUpload(task) {
+  if (!validMediumUploadTask(task)) throw new Error("Invalid Medium browser upload task");
+  const tabId = await findMediumEditorTab(task.draftId);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId }, world: "MAIN",
+    func: uploadMediumInPage,
+    args: [task.base64, task.mimeType, task.filename, task.draftId],
+  });
+  const response = results?.[0]?.result;
+  if (!response || typeof response !== "object") {
+    throw new Error("Medium page did not return an upload result");
+  }
+  return response;
+}
+
+async function pollMediumUploads() {
+  if (mediumPumpRunning) return;
+  mediumPumpRunning = true;
+  try {
+    for (let attempt = 0; attempt < 900; attempt++) {
+      const jobs = (await fetchJSON("/v1/jobs")).jobs ?? [];
+      const active = jobs.some((job) => ["running", "queued", "waiting"].includes(job.state) &&
+        (job.platforms ?? []).includes("medium"));
+      if (!active) {
+        await chrome.alarms?.clear(MEDIUM_UPLOAD_ALARM);
+        return;
+      }
+      const response = await fetchJSON("/v1/medium/browser-upload/next");
+      const task = response?.upload;
+      if (!task) {
+        await mediumDelay(700);
+        continue;
+      }
+      let result;
+      try {
+        result = await processMediumUpload(task);
+      } catch (error) {
+        result = { error: errorMessage(error).slice(0, 220) };
+      }
+      await fetchJSON("/v1/medium/browser-upload/result", jsonOptions("POST", {
+        id: task.id, fileId: result.fileId ?? "",
+        width: result.width ?? 0, height: result.height ?? 0,
+        error: result.error ?? "",
+      }));
+    }
+  } catch (error) {
+    console.warn("BlogCTL Medium browser upload polling paused:", errorMessage(error));
+  } finally {
+    mediumPumpRunning = false;
+  }
+}
+
+function beginMediumUploadPump() {
+  // MV3 service workers may sleep. A repeating alarm resumes the task pump.
+  chrome.alarms?.create(MEDIUM_UPLOAD_ALARM, { periodInMinutes: 0.5 }).catch(() => {});
+  void pollMediumUploads();
+}
+
+chrome.alarms?.onAlarm.addListener((alarm) => {
+  if (alarm.name === MEDIUM_UPLOAD_ALARM) void pollMediumUploads();
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;

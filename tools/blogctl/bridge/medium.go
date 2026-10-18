@@ -44,7 +44,8 @@ var (
 )
 
 type mediumClient struct {
-	httpClient *http.Client
+	httpClient    *http.Client
+	browserUpload func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error)
 }
 
 type mediumCoverImage struct {
@@ -291,6 +292,9 @@ func mediumUploadGatewayFailure(err error) bool {
 }
 
 func (c mediumClient) uploadImage(ctx context.Context, session platformSession, draftID string, image publisher.RehostImage) (mediumUploadResult, error) {
+	if c.browserUpload != nil {
+		return c.browserUpload(ctx, draftID, image)
+	}
 	result, err := c.uploadImageOnce(ctx, session, draftID, image)
 	if err == nil || mediumImageContentType(image.Payload, image.ContentType) != "image/png" {
 		return result, err

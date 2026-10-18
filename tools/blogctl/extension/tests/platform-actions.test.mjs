@@ -78,3 +78,16 @@ test("Hashnode detection must query the remote draft and published inventory, no
   assert.doesNotMatch(background, /仅检查了本地关联，未穷尽查询 Hashnode/u);
   assert.match(drafts, /existing\[0\]\.bound===true/u);
 });
+
+test("Medium upload is delegated to the browser and never sends session credentials through Go", async () => {
+  const [background, pageUpload, manifest] = await Promise.all([
+    source("background.js"), source("medium-upload.js"), source("manifest.json"),
+  ]);
+  assert.match(background, /world: "MAIN"/u);
+  assert.match(background, /\/v1\/medium\/browser-upload\/next/u);
+  assert.match(background, /\/v1\/medium\/browser-upload\/result/u);
+  assert.match(pageUpload, /credentials: "same-origin"/u);
+  assert.ok(pageUpload.includes("/_/upload?source=6"));
+  assert.match(pageUpload, /location\.origin !== "https:\/\/medium\.com"/u);
+  assert.ok(JSON.parse(manifest).permissions.includes("alarms"));
+});

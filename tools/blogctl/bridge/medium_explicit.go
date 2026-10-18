@@ -20,8 +20,12 @@ import (
 func runMediumExplicit(ctx context.Context, session publisher.Session, httpClient *http.Client,
 	compiled blogcompiler.CompiledArticle, input publisher.DraftInput, distributionRoot,
 	operation string, target explicitTaskTarget, publishAfter bool,
+	browserUploaders ...func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error),
 ) (publisher.ExplicitResult, error) {
 	medium := mediumClient{httpClient: httpClient}
+	if len(browserUploaders) > 0 {
+		medium.browserUpload = browserUploaders[0]
+	}
 	auth := mediumPlatformSession(session)
 	publish := func(postID string) (publisher.ExplicitResult, error) {
 		remote, err := medium.publishDraft(ctx, auth, postID, compiled.Title, compiled.Description)

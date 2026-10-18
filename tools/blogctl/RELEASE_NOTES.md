@@ -1,8 +1,17 @@
-# BlogCTL v0.1.170
+# BlogCTL v0.1.171
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium 浏览器原生图片上传（本地测试版）
+
+- Medium 显式草稿同步将图片上传委托给真实 Edge 的已登录 Medium 草稿页面，而非 Go tls-client 网络请求；Go 继续负责编译正文、生成图片 Delta 和保存文章。
+- 新增受 Bridge Token 与 Extension Origin 限制的单次图片任务交接，浏览器仅返回 Medium 原生 fileId 和图片尺寸，不向 Go 返回 Cookie 或 XSRF。
+- Extension 自动寻找或打开指定草稿编辑页，并在页面同源环境进行 multipart 上传；后台轮询和浏览器 alarm 协同处理服务工作线程休眠。
+- 限制目标草稿、文件格式、大小及响应字段；若浏览器图片上传失败则保留草稿并明确报错，不把图片替换为普通链接。
+- 加入 Go 任务交接/授权/超时与 Extension 页面上传的模拟测试；真实 Medium 线上成功率仍需人工验收。
+
 
 ### Medium HAR 格式对齐（本地测试版）
 
@@ -107,4 +116,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.170`
+版本：`0.1.171`
