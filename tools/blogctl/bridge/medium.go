@@ -517,7 +517,6 @@ func (c mediumClient) prepareDraftDeltas(
 			continue
 		}
 		source := strings.TrimSpace(mediumValueString(imageSpec["url"]))
-		alt := strings.TrimSpace(mediumValueString(imageSpec["alt"]))
 		image, err := c.loadImage(ctx, input, source)
 		if err != nil {
 			return nil, fallbacks, fmt.Errorf("Medium image load failed: %w", err)
@@ -537,9 +536,11 @@ func (c mediumClient) prepareDraftDeltas(
 		paragraph["text"] = ""
 		paragraph["markups"] = []any{}
 		paragraph["layout"] = 1
+		// medium.com3.har confirms these three native image metadata fields.
+		// Do not add an unobserved "alt" property to the saved Delta.
 		paragraph["metadata"] = map[string]any{
 			"id": uploaded.FileID, "originalWidth": uploaded.Width,
-			"originalHeight": uploaded.Height, "alt": nullString(alt),
+			"originalHeight": uploaded.Height,
 		}
 		delta["paragraph"] = paragraph
 		delete(delta, "image")

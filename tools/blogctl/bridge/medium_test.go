@@ -434,10 +434,34 @@ func TestBridgeNativePublisherUploadsMediumBodyImage(t *testing.T) {
 			return mediumResponse(request, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"value":{"fileId":"1*medium.png","imgWidth":1200,"imgHeight":800}}}`, nil), nil
 		case "/p/post-image/deltas":
-			raw, _ := io.ReadAll(request.Body)
-			if !strings.Contains(string(raw), `"type":4`) ||
-				!strings.Contains(string(raw), `"id":"1*medium.png"`) {
-				t.Fatalf("delta body = %s", raw)
+			var requestBody struct {
+				Deltas []struct {
+					Paragraph struct {
+						Type     int            `:"type"`
+						Layout   int            `:"layout"`
+						Metadata map[string]any `:"metadata"`
+					} `:"paragraph"`
+				} `:"deltas"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&requestBody); err != nil {
+				t.Fatal(err)
+			}
+			foundImage := false
+			for _, delta := range requestBody.Deltas {
+				if delta.Paragraph.Type != 4 {
+					continue
+				}
+				foundImage = true
+				meta := delta.Paragraph.Metadata
+				if delta.Paragraph.Layout != 1 || len(meta) != 3 ||
+					meta["id"] != "1*medium.png" ||
+					meta["originalWidth"] != float64(1200) ||
+					meta["originalHeight"] != float64(800) {
+					t.Fatalf("image metadata differs from browser's saved Delta: %+v", delta.Paragraph)
+				}
+			}
+			if !foundImage {
+				t.Fatal("no native image paragraph was sent")
 			}
 			return mediumResponse(request, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":4}}}`, nil), nil

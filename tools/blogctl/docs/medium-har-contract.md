@@ -16,25 +16,49 @@ authorization headers, signed URLs, full request bodies, or captured IDs.
 | Upload response | JSON success, value has fileId, md5, mimeType, fileSize, fileName, imgWidth, imgHeight. |
 | Editor save | Three successful POST /p/{draftId}/deltas?logLockId=... requests; baseRev advances between requests; editor used type=3 paragraph changes. |
 
+## Second capture: 2026-10-18 medium.com3.har
+
+174 browser events, including one successful native image upload and the
+following editor saves on an EXISTING draft:
+
+- POST /_/upload?source=6, HTTP/2 200 in ~2.86 seconds; multipart request
+  content length ~1.87 MB. The HAR omits the actual multipart binary body.
+- Two image insertion-related editor saves follow the upload:
+  1. Delta type=1 inserts paragraph type=4, layout=1 and initially empty
+     metadata; delta type=3 updates originalWidth/originalHeight.
+  2. A subsequent delta type=3 sets metadata exactly to id,
+     originalWidth, originalHeight, with layout=1. This id matches the
+     uploaded fileId, and the dimensions match the upload response.
+- Editor saves include logLockId and incrementing baseRev. The HAR does not
+  show how the editor acquired the logLockId; do not replay captured values.
+- The captured image metadata does NOT contain an alt attribute.
+- The browser upload has the cf_clearance cookie; the Go upload also has
+  cf_clearance. The browser additionally includes the _dd_s telemetry
+  cookie, which the Go session does not forward. Cookie names were compared,
+  but NO cookie VALUES were read or saved.
+- The Go version 0.1.170 upload to the same endpoint still returned 504
+  in ~13.87 seconds. The Medium GraphQL and new-story requests both
+  succeeded. This is consistent with a transport-level difference, but
+  does not identify whether a TLS/HTTP2 fingerprint, multipart encoding,
+  Medium anti-abuse rule or intermediary is responsible.
+
 ## Crucial limitations
 
-- The captured deltas represent an ALREADY MALFORMED BlogCTL-created
-  article, so paragraph types therein are NOT a trustworthy template
-  for good heading/list/code formatting.
-- The returned image fileId DOES NOT APPEAR in any of the three
-  captured deltas. The HAR proves image upload, not image insertion.
-- The logLockId is a per-editor mutation parameter; the HAR does not
-  provide evidence for a safe acquisition mechanism. Do not copy a
-  captured value into a generic publishing request.
-- The Go tls-client browser-profile transport supports HTTPS CONNECT
-  through the configured proxy but is not the user's actual Edge network
-  stack. The current proxy/path/header alignment does NOT prove
-  that HTTP 504 is fixed.
-- The browser-exported HAR omits the binary contents of uploaded files.
-  Do not infer multipart boundary framing beyond the observed form field,
-  content type and Content-Length.
-- Do not reinterpret editor-created type=3 changes as equivalent to
-  BlogCTL type=1 inserts without a verified revision/read-back test.
+- Image insertion is now confirmed as an editor update sequence, not just an
+  upload. BlogCTL currently prepares a fully populated native image
+  paragraph as one insert. Whether that single-insert variant is accepted
+  by Medium has NOT been verified.
+- The browser-exported HAR omits uploaded binary body bytes, so multipart
+  framing cannot be compared byte-for-byte with Go.
+- The Go tls-client uses its available Chrome 152 profile for the user's Edge
+  155 browser, and it is not the actual Edge network stack. Header tweaks
+  cannot guarantee a matching TLS/HTTP2 fingerprint.
+- The editor's image insertion sequence was captured. The rest of the
+  document's old code/heading/list paragraphs are still malformed; DO NOT
+  copy those paragraph types back into the Compiler.
+- The logLockId and per-revision save logic are not yet fully understood.
+  Do not create a new story or replay a captured editor revision to test
+  these unknowns.
 
 ## Safety and next validation
 
@@ -42,9 +66,10 @@ Keep Medium as a draft-only test until both steps pass:
 
 1. Upload a prepared PNG in the ACTUAL logged-in Edge page and verify
    the returned Medium native fileId without copying credentials.
-2. Save a native Medium image paragraph in an EXISTING draft and
-   read back the resulting paragraph metadata to prove the image renders
-   as an image, not a hyperlink. Also verify H4/code/list rendering.
+2. Apply the verified editor image insertion/update sequence to an
+   EXISTING draft with the correct revision handling, then read back the
+   resulting paragraph metadata and rendered image. Also verify
+   H4/code/list formatting.
 
 The browser upload route (via a tightly scoped BlogCTL Extension action)
 is preferable to endlessly modifying tls-client fingerprint headers.
