@@ -1,8 +1,16 @@
-# BlogCTL v0.1.169
+# BlogCTL v0.1.170
 
 BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Social Publishing / Buffer**，同时保留既有文章分发能力。
 
 ## 本版本更新
+
+### Medium HAR 格式对齐（本地测试版）
+
+- 根据 2026-10-17 浏览器成功上传 HAR，对齐 Edge Client Hints、图片上传缓存控制头等非敏感字段。
+- Medium 返回 HTTP 504 HTML 错误页时不再输出整段页面内容。
+- 四级标题采用加粗普通段落，防止错误地显示成代码块，并保留不同标题级别的视觉差异。
+- 新增脱敏 HAR 协议说明和回归测试；目前尚未完成真实 Edge 图片上传及 Delta 回读验收。
+
 
 ### Medium 原生图片上传请求与浏览器抓包对齐
 
@@ -99,4 +107,4 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 - Windows / macOS / Linux Native Messaging 安装及卸载脚本
 - `SHA256SUMS`
 
-版本：`0.1.169`
+版本：`0.1.170`
