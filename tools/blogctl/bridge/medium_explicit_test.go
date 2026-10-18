@@ -1,8 +1,11 @@
 package bridge
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/png"
 	"net/http"
 	"strings"
 	"testing"
@@ -107,5 +110,101 @@ func TestMediumExplicitCreateAndUpdateStaySeparate(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.errorContains) {
 			t.Fatalf("%s should reject invalid target: %v", tc.op, err)
 		}
+	}
+}
+
+// Exercise the full explicit Create path, including a remote story ID, a
+// downloaded PNG, browser-native upload callback and Medium image/code deltas.
+// This is an offline integration test: it does not write a real Medium draft.
+func TestMediumExplicitCreateWithBrowserNativeCoverAndCode(t *testing.T) {
+	const newID = "456789abcdef"
+	var pngBuffer bytes.Buffer
+	if err := png.Encode(&pngBuffer, image.NewRGBA(image.Rect(0, 0, 4, 4))); err != nil {
+		t.Fatal(err)
+	}
+	steps := []string{}
+	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Path {
+		case "/new-story":
+			steps = append(steps, "create")
+			return mediumResponse(req, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"id":"456789abcdef"}}}`, nil), nil
+		case "/cover.png":
+			steps = append(steps, "download")
+			return mediumResponse(req, http.StatusOK, pngBuffer.String(), http.Header{"Content-Type": {"image/png"}}), nil
+		case "/_/upload":
+			t.Fatal("native image must not go through Go tls-client")
+			return nil, nil
+		case "/p/456789abcdef/deltas":
+			steps = append(steps, "save")
+			var payload struct {
+				ID     string `json:"id"`
+				Deltas []struct {
+					Paragraph struct {
+						Type     int            `json:"type"`
+						Metadata map[string]any `json:"metadata"`
+					} `json:"paragraph"`
+				} `json:"deltas"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.ID != newID {
+				t.Fatalf("saved to unexpected draft: %q", payload.ID)
+			}
+			var imageOK, codeOK bool
+			for _, d := range payload.Deltas {
+				if d.Paragraph.Type == 8 {
+					codeOK = true
+				}
+				if d.Paragraph.Type != 4 {
+					continue
+				}
+				imageOK = true
+				meta := d.Paragraph.Metadata
+				if len(meta) != 3 || meta["id"] != "1*browser-native" ||
+					meta["originalWidth"] != float64(800) || meta["originalHeight"] != float64(600) {
+					t.Fatalf("native image metadata mismatch: %#v", meta)
+				}
+			}
+			if !imageOK || !codeOK {
+				t.Fatalf("missing image or native code block: image=%v code=%v", imageOK, codeOK)
+			}
+			return mediumResponse(req, http.StatusOK,
+				`])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":1}}}`, nil), nil
+		default:
+			t.Fatalf("unexpected HTTP request %s %s", req.Method, req.URL.Path)
+			return nil, nil
+		}
+	})}
+	serialized, err := json.Marshal(mediumDraft{
+		Title: "Browser native Medium create",
+		Deltas: []map[string]any{
+			{"type": 1, "paragraph": map[string]any{"type": 4, "text": "", "markups": []any{}}, "image": map[string]any{"url": "https://asset.example/cover.png"}},
+			{"type": 1, "paragraph": map[string]any{"type": 8, "text": "func main() { println(42) }"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	upload := func(_ context.Context, draftID string, image publisher.RehostImage) (mediumUploadResult, error) {
+		if draftID != newID || image.ContentType != "image/png" || len(image.Payload) == 0 {
+			t.Fatalf("wrong browser upload task: draft=%q, mime=%q, bytes=%d", draftID, image.ContentType, len(image.Payload))
+		}
+		steps = append(steps, "browser-upload")
+		return mediumUploadResult{FileID: "1*browser-native", Width: 800, Height: 600}, nil
+	}
+	result, err := runMediumExplicit(context.Background(),
+		publisher.Session{Cookies: []publisher.BrowserCookie{{Name: "xsrf", Value: "test-only", Domain: "medium.com"}}},
+		client, blogcompiler.CompiledArticle{Payload: serialized, Title: "Browser native Medium create"},
+		publisher.DraftInput{}, t.TempDir(), "create", explicitTaskTarget{}, false, upload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ID != newID || result.Kind != "draft-created" {
+		t.Fatalf("result: %#v", result)
+	}
+	if got := strings.Join(steps, ","); got != "create,download,browser-upload,save" {
+		t.Fatalf("native create flow out of order: %s", got)
 	}
 }
