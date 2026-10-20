@@ -34,7 +34,33 @@ func runMediumExplicitWithProgress(ctx context.Context, session publisher.Sessio
 	operation string, target explicitTaskTarget, publishAfter bool, onCreated func(string),
 	browserUploaders ...func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error),
 ) (publisher.ExplicitResult, error) {
+	return runMediumExplicitConfigured(ctx, session, httpClient, compiled, input, distributionRoot,
+		operation, target, publishAfter, onCreated, nil, browserUploaders...)
+}
+
+type mediumBrowserFlow struct {
+	insert func(context.Context, string, string, publisher.RehostImage) error
+	verify func(context.Context, string, int) error
+}
+
+func runMediumExplicitWithBrowser(ctx context.Context, session publisher.Session, httpClient *http.Client,
+	compiled blogcompiler.CompiledArticle, input publisher.DraftInput, distributionRoot,
+	operation string, target explicitTaskTarget, publishAfter bool, onCreated func(string),
+	flow mediumBrowserFlow, browserUploaders ...func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error),
+) (publisher.ExplicitResult, error) {
+	return runMediumExplicitConfigured(ctx, session, httpClient, compiled, input, distributionRoot,
+		operation, target, publishAfter, onCreated, &flow, browserUploaders...)
+}
+
+func runMediumExplicitConfigured(ctx context.Context, session publisher.Session, httpClient *http.Client,
+	compiled blogcompiler.CompiledArticle, input publisher.DraftInput, distributionRoot,
+	operation string, target explicitTaskTarget, publishAfter bool, onCreated func(string),
+	flow *mediumBrowserFlow, browserUploaders ...func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error),
+) (publisher.ExplicitResult, error) {
 	medium := mediumClient{httpClient: httpClient, verifyAfterCreate: true, onStoryCreated: onCreated}
+	if flow != nil {
+		medium.browserInsert, medium.browserVerify = flow.insert, flow.verify
+	}
 	if len(browserUploaders) > 0 {
 		medium.browserUpload = browserUploaders[0]
 	}

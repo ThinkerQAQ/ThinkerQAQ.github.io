@@ -2,6 +2,7 @@ import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
 import { uploadMediumInPage, validMediumUploadTask, findMediumEditorTab } from "./medium-upload.js";
+import { insertMediumImageInPage, verifyMediumDraftInPage, validMediumEditorTask } from "./medium-insert.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -1620,6 +1621,40 @@ const mediumDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 
 async function processMediumUpload(task) {
+  if (task.mode === "insert" || task.mode === "verify") {
+    if (!validMediumEditorTask(task)) throw new Error("Invalid Medium browser editor task");
+    const tabId = await findMediumEditorTab(task.draftId);
+    if (task.mode === "verify") {
+      // A reload proves that Medium actually persisted the image paragraphs.
+      await chrome.tabs.reload(tabId);
+      let loaded = false;
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.status === "complete" && tab.url === "https://medium.com/p/" + task.draftId + "/edit") {
+          loaded = true; break;
+        }
+        await mediumDelay(500);
+      }
+      if (!loaded) throw new Error("Medium draft did not reload for verification");
+      // Editor mount can lag behind browser load event.
+      for (let attempt = 0; attempt < 25; attempt++) {
+        const rows = await chrome.scripting.executeScript({
+          target: { tabId }, world: "MAIN", func: verifyMediumDraftInPage,
+          args: [task.draftId, task.expectedImages],
+        });
+        const result = rows?.[0]?.result;
+        if (result?.inserted) return result;
+        if (result?.error && !/has not loaded/.test(result.error)) throw new Error(result.error);
+        await mediumDelay(500);
+      }
+      throw new Error("Medium editor was not ready after reloading");
+    }
+    const rows = await chrome.scripting.executeScript({
+      target: { tabId }, world: "MAIN", func: insertMediumImageInPage,
+      args: [task.base64, task.mimeType, task.filename, task.draftId, task.marker],
+    });
+    return rows?.[0]?.result ?? { error: "Medium editor returned no image insertion result" };
+  }
   if (!validMediumUploadTask(task)) throw new Error("Invalid Medium browser upload task");
   const tabId = await findMediumEditorTab(task.draftId);
   const results = await chrome.scripting.executeScript({
@@ -1666,6 +1701,7 @@ async function pollMediumUploads() {
       await fetchJSON("/v1/medium/browser-upload/result", jsonOptions("POST", {
         id: task.id, fileId: result.fileId ?? "",
         width: result.width ?? 0, height: result.height ?? 0,
+        inserted: result.inserted === true, imageCount: result.imageCount ?? 0,
         error: result.error ?? "",
       }));
     }

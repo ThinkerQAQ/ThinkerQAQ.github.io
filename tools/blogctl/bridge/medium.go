@@ -46,6 +46,8 @@ var (
 type mediumClient struct {
 	httpClient    *http.Client
 	browserUpload func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error)
+	browserInsert func(context.Context, string, string, publisher.RehostImage) error
+	browserVerify func(context.Context, string, int) error
 	// Report the story ID immediately; image preparation can take several minutes.
 	onStoryCreated    func(string)
 	verifyAfterCreate bool
@@ -56,9 +58,21 @@ type mediumCoverImage struct {
 	Alt string `json:"alt"`
 }
 
+type mediumBrowserDraftImage struct {
+	Marker string `json:"marker"`
+	URL string `json:"url"`
+	Alt string `json:"alt"`
+}
+
+type mediumBrowserDraftPlan struct {
+	Deltas []map[string]any `json:"deltas"`
+	Images []mediumBrowserDraftImage `json:"images"`
+}
+
 type mediumDraft struct {
 	Title        string            `json:"title"`
 	Deltas       []map[string]any  `json:"deltas"`
+	BrowserPlan *mediumBrowserDraftPlan `json:"browserPlan,omitempty"`
 	CanonicalURL string            `json:"canonicalUrl"`
 	Tags         []string          `json:"tags"`
 	CoverImage   *mediumCoverImage `json:"coverImage,omitempty"`
@@ -612,6 +626,9 @@ func (c mediumClient) createDraft(
 	}
 	if c.onStoryCreated != nil {
 		c.onStoryCreated(postID)
+	}
+	if draft.BrowserPlan != nil && c.browserInsert != nil {
+		return c.createDraftUsingBrowserImages(ctx, session, draft, input, postID, mediumURL)
 	}
 	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input, postID)
 	if err != nil {

@@ -107,13 +107,13 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 				var result publisher.ExplicitResult
 				var writeErr error
 				if platform == "medium" {
-					result, writeErr = runMediumExplicitWithProgress(ctx, session, client, articles[0], input,
+					result, writeErr = runMediumExplicitWithBrowser(ctx, session, client, articles[0], input,
 						config.DistributionRoot, req.Operation, target, req.PublishAfter,
 						func(postID string) {
 							url := mediumOrigin + "/p/" + postID + "/edit"
 							report("running", "draft-allocated", url,
 								"Medium draft allocated; preparing images and content", postID)
-						}, s.mediumUploads.upload)
+						}, mediumBrowserFlow{insert: s.mediumUploads.insert, verify: s.mediumUploads.verify}, s.mediumUploads.upload)
 				} else if platform == "hashnode" && req.Operation == "create" && !req.PublishAfter {
 					var draft publisher.DraftResult
 					draft, writeErr = service.CreateOrUpdateDraftInput(ctx, platform, session, config.ContentRoot, input, true)
