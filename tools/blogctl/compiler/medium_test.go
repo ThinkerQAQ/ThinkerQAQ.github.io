@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -77,5 +78,48 @@ func TestMediumCodeAndHeadingsMatchObservedEditorParagraphTypes(t *testing.T) {
 	}
 	if blocks[3].Kind != "oli" || blocks[3].ParagraphType != 10 {
 		t.Fatalf("numbered list must use Medium OLI: %+v", blocks[3])
+	}
+}
+
+// A browser-driven image pass must not change any of the previously fixed
+// Medium native text/heading/list/PRE paragraph mappings.
+func TestMediumBrowserImagePlanKeepsNativeFormattingAndOrder(t *testing.T) {
+	article := Article{Title: "Native format"}
+	markdown := "## Section\n\n" + "§§§text\na := 1\n  b := 2\n§§§\n\n" +
+		"![diagram](https://assets.example/a.png)\n\n- one\n\n" +
+		"![diagram two](https://assets.example/b.png)\n\n1. two"
+	markdown = strings.ReplaceAll(markdown, "§", string(rune(96)))
+	payload, warnings := buildMediumPayload(article, "browser-image-test", PlatformConfig{}, markdown)
+	if len(warnings) != 0 {
+		t.Fatalf("compiler warnings: %v", warnings)
+	}
+	if len(payload.BrowserPlan.Images) != 2 || len(payload.BrowserPlan.Deltas) != len(payload.Deltas) {
+		t.Fatalf("unexpected browser plan: %+v", payload.BrowserPlan)
+	}
+	wantedMarkers := []string{"[BLOGCTL_IMAGE_001]", "[BLOGCTL_IMAGE_002]"}
+	found := []string{}
+	for i, original := range payload.Deltas {
+		browser := payload.BrowserPlan.Deltas[i]
+		if browser.Image != nil {
+			t.Fatalf("browser image at paragraph %d was not replaced", i)
+		}
+		if original.Image != nil {
+			found = append(found, browser.Paragraph.Text)
+			if browser.Paragraph.Type != mediumParagraph || browser.Paragraph.Text != wantedMarkers[len(found)-1] {
+				t.Fatalf("image %d was not a standalone normal placeholder paragraph: %+v", i, browser)
+			}
+			if original.Image.URL != payload.BrowserPlan.Images[len(found)-1].URL {
+				t.Fatal("image source order changed")
+			}
+			continue
+		}
+		if browser.Paragraph.Type != original.Paragraph.Type ||
+			browser.Paragraph.Text != original.Paragraph.Text ||
+			!reflect.DeepEqual(browser.Paragraph.Markups, original.Paragraph.Markups) {
+			t.Fatalf("native formatting was changed at %d: original=%+v browser=%+v", i, original, browser)
+		}
+	}
+	if !reflect.DeepEqual(found, wantedMarkers) {
+		t.Fatalf("image markers wrong: %v", found)
 	}
 }

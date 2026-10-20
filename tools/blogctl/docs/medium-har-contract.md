@@ -91,3 +91,20 @@ Medium draft. Do not claim complete Medium integration based only on mock
 tests. A failed explicit create is not automatically retried because that
 could allocate duplicate remote stories; users must inspect the recorded
 draft link before a new attempt. The draft-create flow does not publish.
+
+
+## 2026-10-20: compiler contract for browser-driven images
+
+Native Medium paragraph compilation (including PRE code blocks, headings,
+lists and inline markups) **must remain unchanged**. Image insertion is a
+distinct browser-editor responsibility. The compiler now also emits a
+browserPlan with the same native text paragraph sequence, but image paragraphs
+replaced by unique plain-text marker paragraphs. An ordered image list carries
+the matching source URL and alt text. The cover is included as the first image.
+
+This is an output contract only. The existing explicit Medium Create transport
+still writes its legacy image Delta representation. Do NOT claim browser image
+insertion works, or advertise this as a complete integration, until the Bridge
+consumes browserPlan and the logged-in Medium editor has actually inserted and
+verified each image (and removed its corresponding marker). Do not replace the
+native PRE formatting with a full HTML clipboard re-paste.
