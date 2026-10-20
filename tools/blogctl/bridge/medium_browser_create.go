@@ -14,6 +14,16 @@ var mediumBrowserMarker = regexp.MustCompile("^\\[BLOGCTL_IMAGE_[0-9]{3}\\]$")
 // The editor, not a private image Delta request, inserts PNGs at markers.
 func (c mediumClient) createDraftUsingBrowserImages(ctx context.Context, session platformSession,
 	draft mediumDraft, input publisher.DraftInput, postID, mediumURL string) (map[string]any, error) {
+	return c.completeDraftBrowserImages(ctx, session, draft, input, postID, mediumURL, true)
+}
+
+func (c mediumClient) resumeDraftUsingBrowserImages(ctx context.Context, session platformSession,
+	draft mediumDraft, input publisher.DraftInput, postID string) (map[string]any, error) {
+	return c.completeDraftBrowserImages(ctx, session, draft, input, postID, "", false)
+}
+
+func (c mediumClient) completeDraftBrowserImages(ctx context.Context, session platformSession,
+	draft mediumDraft, input publisher.DraftInput, postID, mediumURL string, writeText bool) (map[string]any, error) {
 	partial := func(err error) (map[string]any, error) {
 		return mediumDraftResult(postID, mediumURL, draft, 0, true),
 			fmt.Errorf("Medium draft %s exists but browser creation is incomplete: %w", postID, err)
@@ -56,8 +66,10 @@ func (c mediumClient) createDraftUsingBrowserImages(ctx context.Context, session
 		}
 		deltas = append(deltas, delta)
 	}
-	if _, err := c.writeDeltas(ctx, session, postID, -1, deltas); err != nil {
-		return partial(fmt.Errorf("native text save: %w", err))
+	if writeText {
+		if _, err := c.writeDeltas(ctx, session, postID, -1, deltas); err != nil {
+			return partial(fmt.Errorf("native text save: %w", err))
+		}
 	}
 	for index, item := range plan.Images {
 		image, err := c.loadImage(ctx, input, item.URL)

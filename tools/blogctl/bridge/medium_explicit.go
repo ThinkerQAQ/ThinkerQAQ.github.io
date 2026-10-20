@@ -83,7 +83,7 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 		}
 		return publish(target.ID)
 	}
-	if operation != "create" && operation != "update" {
+	if operation != "create" && operation != "update" && operation != "resume-medium" {
 		return publisher.ExplicitResult{}, fmt.Errorf("unsupported Medium operation %q", operation)
 	}
 	if operation == "create" && publishAfter {
@@ -104,7 +104,12 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 	}
 	var result map[string]any
 	var err error
-	if operation == "create" {
+	if operation == "resume-medium" {
+		if !mediumEditorPostID.MatchString(target.ID) || draft.BrowserPlan == nil || medium.browserInsert == nil {
+			return publisher.ExplicitResult{}, errors.New("Medium resume requires a known draft ID and browser driver")
+		}
+		result, err = medium.resumeDraftUsingBrowserImages(ctx, auth, draft, input, target.ID)
+	} else if operation == "create" {
 		if target.ID != "" {
 			return publisher.ExplicitResult{}, errors.New("Medium create must not specify an existing remote post")
 		}
@@ -131,7 +136,7 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 		return publisher.ExplicitResult{}, errors.New("Medium returned an incomplete or inconsistent draft reference")
 	}
 	kind := "draft-created"
-	if operation == "update" {
+	if operation == "update" || operation == "resume-medium" {
 		kind = "draft-updated"
 	}
 	saved := publisher.ExplicitResult{ID: id, URL: draftURL, Kind: kind}

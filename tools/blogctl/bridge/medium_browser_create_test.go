@@ -137,3 +137,51 @@ func TestMediumBrowserImageFailureRetainsPartialDraft(t *testing.T) {
 		t.Fatalf("partial ID lost: %+v, steps %d", result, steps)
 	}
 }
+
+func TestMediumResumeExistingDraftNeverCreatesOrRewritesBody(t *testing.T) {
+	steps := []string{}
+	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path != "/resumable.png" {
+			t.Fatalf("resume must not create a story or replay text deltas: %s", req.URL)
+		}
+		steps = append(steps, "download")
+		return mediumResponse(req, http.StatusOK, "image", http.Header{"Content-Type": {"image/png"}}), nil
+	})}
+	draft := mediumDraft{Title: "Resume draft",
+		Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 4}}},
+		BrowserPlan: &mediumBrowserDraftPlan{
+			Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}}},
+			Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]", URL: "https://medium.com/resumable.png"}},
+		},
+	}
+	raw, _ := json.Marshal(draft)
+	flow := mediumBrowserFlow{
+		insert: func(_ context.Context, id, marker string, _ publisher.RehostImage) error {
+			if id != "1111aaaabbbb" || marker != "[BLOGCTL_IMAGE_001]" {
+				t.Fatal("wrong resume target")
+			}
+			steps = append(steps, "insert")
+			return nil
+		},
+		verify: func(_ context.Context, id string, n int) error {
+			if id != "1111aaaabbbb" || n != 1 {
+				t.Fatal("wrong post-resume verification")
+			}
+			steps = append(steps, "reload")
+			return nil
+		},
+	}
+	result, err := runMediumExplicitWithBrowser(context.Background(), publisher.Session{}, client,
+		blogcompiler.CompiledArticle{Payload: raw, Title: "Resume draft"}, publisher.DraftInput{},
+		t.TempDir(), "resume-medium", explicitTaskTarget{Platform: "medium", ID: "1111aaaabbbb", State: "draft"},
+		false, nil, flow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ID != "1111aaaabbbb" || result.Kind != "draft-updated" {
+		t.Fatalf("resume result: %+v", result)
+	}
+	if got := strings.Join(steps, ","); got != "download,insert,reload" {
+		t.Fatalf("unsafe resume steps: %s", got)
+	}
+}

@@ -284,6 +284,26 @@ func canRetrySyncJobOperation(operation string, request syncRequest) bool {
 	return true
 }
 
+// A failed Medium create can resume only its already allocated remote draft.
+// No failed create with an unknown ID is automatically retried.
+func mediumRetryDraftID(job syncJob) string {
+	if job.Operation != "create" || len(job.Platforms) != 1 ||
+		job.Platforms[0] != "medium" || job.Request.PublishAfter {
+		return ""
+	}
+	for index := len(job.Events) - 1; index >= 0; index-- {
+		event := job.Events[index]
+		if event.Platform == "medium" && event.Result == "draft-allocated" &&
+			mediumEditorPostID.MatchString(event.TargetID) {
+			return event.TargetID
+		}
+	}
+	if mediumEditorPostID.MatchString(job.Request.ResumeMediumDraftID) {
+		return job.Request.ResumeMediumDraftID
+	}
+	return ""
+}
+
 func syncTaskView(job syncJob) taskJobView {
 	title := job.Article
 	if title == "" {
@@ -292,7 +312,7 @@ func syncTaskView(job syncJob) taskJobView {
 	return taskJobView{
 		ID: job.ID, Kind: "publishing", Type: job.Operation, Title: title, State: job.State,
 		StartedAt: job.StartedAt, UpdatedAt: job.FinishedAt, FinishedAt: job.FinishedAt,
-		Error: job.Error, CanRetry: job.State == "failed" && canRetrySyncJobOperation(job.Operation, job.Request),
+		Error: job.Error, CanRetry: job.State == "failed" && (canRetrySyncJobOperation(job.Operation, job.Request) || mediumRetryDraftID(job) != ""),
 		Progress: taskProgress{Current: completedSyncPlatforms(job), Total: len(job.Platforms), Unit: "platform"},
 		Article:  job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
 		Results: job.Results, Events: job.Events, Output: job.Output, DryRun: job.DryRun,
@@ -316,7 +336,7 @@ func publishingDurableTask(job *syncJob, existing *durableTaskJob, now time.Time
 		ID: job.ID, Kind: "publishing", Type: job.Operation, Title: title, State: job.State,
 		CreatedAt: createdAt, StartedAt: job.StartedAt, UpdatedAt: now.UTC().Format(time.RFC3339),
 		FinishedAt: job.FinishedAt, Error: job.Error,
-		CanRetry: job.State == "failed" && canRetrySyncJobOperation(job.Operation, job.Request),
+		CanRetry: job.State == "failed" && (canRetrySyncJobOperation(job.Operation, job.Request) || mediumRetryDraftID(*job) != ""),
 		Progress: taskProgress{Current: completedSyncPlatforms(*job), Total: len(job.Platforms), Unit: "platform"},
 		Payload:  payload,
 		Article:  job.Article, Platforms: append([]string{}, job.Platforms...), Operation: job.Operation,
