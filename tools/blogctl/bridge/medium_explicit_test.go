@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/png"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -14,8 +15,26 @@ import (
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
 
+// Model persisted paragraph fields from the deltas accepted by the mock.
+func mediumMockDraftReadback(req *http.Request, postID string, deltas []map[string]any) *http.Response {
+	paragraphs := make([]map[string]any, 0, len(deltas))
+	for _, delta := range deltas {
+		if paragraph, ok := delta["paragraph"].(map[string]any); ok {
+			paragraphs = append(paragraphs, paragraph)
+		}
+	}
+	raw, _ := json.Marshal([]any{map[string]any{
+		"data": map[string]any{"postResult": map[string]any{
+			"id":      postID,
+			"content": map[string]any{"bodyModel": map[string]any{"paragraphs": paragraphs}},
+		}},
+	}})
+	return mediumResponse(req, http.StatusOK, string(raw), nil)
+}
+
 func TestMediumExplicitCreateUsesNativeBridgeAndLeavesUnpublished(t *testing.T) {
 	calls := []string{}
+	var saved []map[string]any
 	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		calls = append(calls, req.Method+" "+req.URL.Path)
 		if req.Header.Get("x-xsrf-token") != "test-xsrf" {
@@ -25,6 +44,8 @@ func TestMediumExplicitCreateUsesNativeBridgeAndLeavesUnpublished(t *testing.T) 
 		case "/new-story":
 			return mediumResponse(req, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"value":{"id":"1e645140212b"}}}`, nil), nil
+		case "/_/graphql":
+			return mediumMockDraftReadback(req, "1e645140212b", saved), nil
 		case "/p/1e645140212b/deltas":
 			var body map[string]any
 			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
@@ -32,6 +53,9 @@ func TestMediumExplicitCreateUsesNativeBridgeAndLeavesUnpublished(t *testing.T) 
 			}
 			if body["id"] != "1e645140212b" {
 				t.Fatalf("unexpected delta target: %#v", body)
+			}
+			for _, row := range body["deltas"].([]any) {
+				saved = append(saved, row.(map[string]any))
 			}
 			return mediumResponse(req, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":1}}}`, nil), nil
@@ -56,7 +80,7 @@ func TestMediumExplicitCreateUsesNativeBridgeAndLeavesUnpublished(t *testing.T) 
 	if result.ID != "1e645140212b" || result.URL != "https://medium.com/p/1e645140212b/edit" || result.Kind != "draft-created" {
 		t.Fatalf("Medium result: %+v", result)
 	}
-	if got := strings.Join(calls, ","); got != "POST /new-story,POST /p/1e645140212b/deltas" {
+	if got := strings.Join(calls, ","); got != "POST /new-story,POST /p/1e645140212b/deltas,POST /_/graphql" {
 		t.Fatalf("unexpected requests: %s", got)
 	}
 }
@@ -118,6 +142,7 @@ func TestMediumExplicitCreateAndUpdateStaySeparate(t *testing.T) {
 // This is an offline integration test: it does not write a real Medium draft.
 func TestMediumExplicitCreateWithBrowserNativeCoverAndCode(t *testing.T) {
 	const newID = "456789abcdef"
+	var saved []map[string]any
 	var pngBuffer bytes.Buffer
 	if err := png.Encode(&pngBuffer, image.NewRGBA(image.Rect(0, 0, 4, 4))); err != nil {
 		t.Fatal(err)
@@ -135,6 +160,9 @@ func TestMediumExplicitCreateWithBrowserNativeCoverAndCode(t *testing.T) {
 		case "/_/upload":
 			t.Fatal("native image must not go through Go tls-client")
 			return nil, nil
+		case "/_/graphql":
+			steps = append(steps, "verify")
+			return mediumMockDraftReadback(req, newID, saved), nil
 		case "/p/456789abcdef/deltas":
 			steps = append(steps, "save")
 			var payload struct {
@@ -146,8 +174,19 @@ func TestMediumExplicitCreateWithBrowserNativeCoverAndCode(t *testing.T) {
 					} `json:"paragraph"`
 				} `json:"deltas"`
 			}
-			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			data, err := io.ReadAll(req.Body)
+			if err != nil {
 				t.Fatal(err)
+			}
+			if err := json.Unmarshal(data, &payload); err != nil {
+				t.Fatal(err)
+			}
+			var full map[string]any
+			if err := json.Unmarshal(data, &full); err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range full["deltas"].([]any) {
+				saved = append(saved, row.(map[string]any))
 			}
 			if payload.ID != newID {
 				t.Fatalf("saved to unexpected draft: %q", payload.ID)
@@ -204,7 +243,7 @@ func TestMediumExplicitCreateWithBrowserNativeCoverAndCode(t *testing.T) {
 	if result.ID != newID || result.Kind != "draft-created" {
 		t.Fatalf("result: %#v", result)
 	}
-	if got := strings.Join(steps, ","); got != "create,download,browser-upload,save" {
+	if got := strings.Join(steps, ","); got != "create,download,browser-upload,save,verify" {
 		t.Fatalf("native create flow out of order: %s", got)
 	}
 }

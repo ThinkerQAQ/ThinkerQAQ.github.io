@@ -74,3 +74,20 @@ Keep Medium as a draft-only test until both steps pass:
 The browser upload route (via a tightly scoped BlogCTL Extension action)
 is preferable to endlessly modifying tls-client fingerprint headers.
 Do not create a new story for each image retry.
+
+
+## 2026-10-20: draft creation readback guard (offline-verified)
+
+The explicit draft-create path now records the returned Medium draft ID in a
+durable task event immediately after new-story succeeds. The saved body must
+then pass a GraphQL readback integrity check (paragraph count and order,
+paragraph type, exact text including code formatting, native image file IDs
+and dimensions). The check fails closed and leaves the incomplete draft
+reference available for inspection.
+
+This does **not** validate the unconfirmed GraphQL schema or the editor's
+multi-step image Delta save semantics: both still require a real logged-in
+Medium draft. Do not claim complete Medium integration based only on mock
+tests. A failed explicit create is not automatically retried because that
+could allocate duplicate remote stories; users must inspect the recorded
+draft link before a new attempt. The draft-create flow does not publish.

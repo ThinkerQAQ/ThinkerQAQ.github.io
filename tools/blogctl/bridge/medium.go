@@ -46,6 +46,9 @@ var (
 type mediumClient struct {
 	httpClient    *http.Client
 	browserUpload func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error)
+	// Report the story ID immediately; image preparation can take several minutes.
+	onStoryCreated    func(string)
+	verifyAfterCreate bool
 }
 
 type mediumCoverImage struct {
@@ -607,13 +610,21 @@ func (c mediumClient) createDraft(
 	if err != nil {
 		return nil, err
 	}
+	if c.onStoryCreated != nil {
+		c.onStoryCreated(postID)
+	}
 	deltas, fallbacks, err := c.prepareDraftDeltas(ctx, session, draft, input, postID)
 	if err != nil {
 		return mediumDraftResult(postID, mediumURL, draft, fallbacks, true),
 			fmt.Errorf("Medium draft %s was created but images were not saved: %w", postID, err)
 	}
 	if _, err := c.writeDeltas(ctx, session, postID, -1, deltas); err != nil {
-		return nil, err
+		return mediumDraftResult(postID, mediumURL, draft, fallbacks, true), fmt.Errorf("Medium draft %s was created but content was not saved: %w", postID, err)
+	}
+	if c.verifyAfterCreate {
+		if err := c.verifyDraft(ctx, session, postID, deltas); err != nil {
+			return mediumDraftResult(postID, mediumURL, draft, fallbacks, true), fmt.Errorf("Medium draft %s was created but remote content verification failed: %w", postID, err)
+		}
 	}
 	return mediumDraftResult(postID, mediumURL, draft, fallbacks, true), nil
 }

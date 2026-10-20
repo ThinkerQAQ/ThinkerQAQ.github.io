@@ -22,7 +22,19 @@ func runMediumExplicit(ctx context.Context, session publisher.Session, httpClien
 	operation string, target explicitTaskTarget, publishAfter bool,
 	browserUploaders ...func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error),
 ) (publisher.ExplicitResult, error) {
-	medium := mediumClient{httpClient: httpClient}
+	return runMediumExplicitWithProgress(ctx, session, httpClient, compiled, input, distributionRoot,
+		operation, target, publishAfter, nil, browserUploaders...)
+}
+
+// On real jobs, record the allocated ID before image preparation and writing
+// the body. A failed draft can then be inspected instead of disappearing from
+// the job history.
+func runMediumExplicitWithProgress(ctx context.Context, session publisher.Session, httpClient *http.Client,
+	compiled blogcompiler.CompiledArticle, input publisher.DraftInput, distributionRoot,
+	operation string, target explicitTaskTarget, publishAfter bool, onCreated func(string),
+	browserUploaders ...func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error),
+) (publisher.ExplicitResult, error) {
+	medium := mediumClient{httpClient: httpClient, verifyAfterCreate: true, onStoryCreated: onCreated}
 	if len(browserUploaders) > 0 {
 		medium.browserUpload = browserUploaders[0]
 	}
@@ -47,6 +59,9 @@ func runMediumExplicit(ctx context.Context, session publisher.Session, httpClien
 	}
 	if operation != "create" && operation != "update" {
 		return publisher.ExplicitResult{}, fmt.Errorf("unsupported Medium operation %q", operation)
+	}
+	if operation == "create" && publishAfter {
+		return publisher.ExplicitResult{}, errors.New("Medium create only saves a draft; publish it manually in Medium")
 	}
 	if operation == "update" && target.State != "draft" {
 		return publisher.ExplicitResult{}, errors.New("Medium cannot safely update published articles")
