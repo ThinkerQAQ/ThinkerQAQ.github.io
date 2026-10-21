@@ -386,3 +386,29 @@ func TestMediumDelayedSavedUsesEditorDocumentInsteadOfOldPublishedBody(t *testin
 		t.Fatalf("delayed editor save checks=%d err=%v", checks, err)
 	}
 }
+
+func TestMediumResumeOfCompletedAutosaveNeverDownloadsOrReplaysImages(t *testing.T) {
+	steps := []string{}
+	client := mediumClient{httpClient: &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("complete saved editor must not perform HTTP writes/downloads: %s", req.URL)
+		return nil, nil
+	})},
+		browserVerify: func(_ context.Context, id string, n int) error {
+			if id != "2b5cbaf3bf08" || n != 1 {
+				t.Fatal("wrong saved editor")
+			}
+			steps = append(steps, "verify-images")
+			return nil
+		},
+		browserDocument: func(context.Context, string, mediumDraft) error { steps = append(steps, "verify-document"); return nil },
+		browserInsert: func(context.Context, string, string, publisher.RehostImage) error {
+			t.Fatal("must not replay missing markers in a completed document")
+			return nil
+		},
+	}
+	draft := mediumDraft{Title: "Saved", BrowserPlan: &mediumBrowserDraftPlan{Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]", URL: "https://example.org/never-download.png"}}}}
+	result, err := client.resumeDraftUsingBrowserImages(context.Background(), platformSession{}, draft, publisher.DraftInput{}, "2b5cbaf3bf08")
+	if err != nil || result["postId"] != "2b5cbaf3bf08" || strings.Join(steps, ",") != "verify-images,verify-document" {
+		t.Fatalf("unsafe resume: %v %v", result, err)
+	}
+}

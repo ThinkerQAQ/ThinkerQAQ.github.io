@@ -294,7 +294,8 @@ func mediumRetryDraftID(job syncJob) string {
 		target := job.Request.Targets[0]
 		if target.Platform == "medium" && mediumEditorPostID.MatchString(target.ID) &&
 			(strings.Contains(job.Error, "Medium browser draft full text verification failed") ||
-				strings.Contains(job.Error, "Medium draft "+target.ID+" exists but browser creation is incomplete")) {
+				strings.Contains(job.Error, "Medium draft "+target.ID+" exists but browser creation is incomplete") ||
+				strings.Contains(job.Error, "medium: "+target.ID+": Medium content saved but canonical settings incomplete:")) {
 			return target.ID
 		}
 	}

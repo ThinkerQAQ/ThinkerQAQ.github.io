@@ -42,3 +42,20 @@ func TestMediumUpdateResumesKnownSavedImagesAfterDelayedAutosave(t *testing.T) {
 		t.Fatal("must not infer a different post ID")
 	}
 }
+
+func TestMediumCanonicalFailureResumesOnlyTheSelectedSavedEditor(t *testing.T) {
+	request := syncRequest{Operation: "update", Platforms: []string{"medium"}, Targets: []explicitTaskTarget{{Platform: "medium", ID: "2b5cbaf3bf08", State: "published"}}}
+	job := syncJob{Operation: "update", Platforms: request.Platforms, Request: request, Error: "1 publishing operation(s) failed: medium: 2b5cbaf3bf08: Medium content saved but canonical settings incomplete: No tab with id"}
+	if got := mediumRetryDraftID(job); got != "2b5cbaf3bf08" {
+		t.Fatalf("must verify saved content and resume canonical, got %q", got)
+	}
+	job.Request.Targets[0].ID = "fb20c187d357"
+	if mediumRetryDraftID(job) != "" {
+		t.Fatal("canonical failure for another story must not authorize resume")
+	}
+	job.Request.Targets[0].ID = "2b5cbaf3bf08"
+	job.Request.PublishAfter = true
+	if mediumRetryDraftID(job) != "" {
+		t.Fatal("manual publication requirement must survive retry")
+	}
+}
