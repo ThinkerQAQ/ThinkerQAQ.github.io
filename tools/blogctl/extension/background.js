@@ -1504,6 +1504,9 @@ async function handleMessage(message) {
         tools: await environmentTools(result?.tools ?? []),
       };
     }
+    case "blogctl.medium.engine": {
+      return { ok: true, version: "native-autosave-20261021" };
+    }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");
       return {
@@ -1625,29 +1628,33 @@ async function processMediumUpload(task) {
     if (!validMediumEditorTask(task)) throw new Error("Invalid Medium browser editor task");
     const tabId = await findMediumEditorTab(task.draftId);
     if (task.mode === "verify") {
-      // A reload proves that Medium actually persisted the image paragraphs.
-      await chrome.tabs.reload(tabId);
-      let loaded = false;
+      // Allow Medium's debounced autosave to finish after the last paste.
+      // Do not reload the editor: refreshing during a pending save can lose
+      // the last few inserted figures.
+      await mediumDelay(7000);
+      // Medium saves editor operations automatically. Port the Tampermonkey
+      // "scan after insertion" logic; do not reload or recreate the draft.
+      let lastError = "Medium editor is not ready";
       for (let attempt = 0; attempt < 60; attempt++) {
         const tab = await chrome.tabs.get(tabId);
-        if (tab.status === "complete" && tab.url === "https://medium.com/p/" + task.draftId + "/edit") {
-          loaded = true; break;
+        if (tab.url && tab.url !== "https://medium.com/p/" + task.draftId + "/edit" &&
+            tab.pendingUrl !== "https://medium.com/p/" + task.draftId + "/edit") {
+          throw new Error("Medium draft redirected during verification");
+        }
+        try {
+          const rows = await chrome.scripting.executeScript({
+            target: { tabId }, world: "MAIN", func: verifyMediumDraftInPage,
+            args: [task.draftId, task.expectedImages],
+          });
+          const result = rows?.[0]?.result;
+          if (result?.inserted) return result;
+          if (result?.error) lastError = result.error;
+        } catch (error) {
+          lastError = String(error?.message || error).slice(0,220);
         }
         await mediumDelay(500);
       }
-      if (!loaded) throw new Error("Medium draft did not reload for verification");
-      // Editor mount can lag behind browser load event.
-      for (let attempt = 0; attempt < 25; attempt++) {
-        const rows = await chrome.scripting.executeScript({
-          target: { tabId }, world: "MAIN", func: verifyMediumDraftInPage,
-          args: [task.draftId, task.expectedImages],
-        });
-        const result = rows?.[0]?.result;
-        if (result?.inserted) return result;
-        if (result?.error && !/has not loaded/.test(result.error)) throw new Error(result.error);
-        await mediumDelay(500);
-      }
-      throw new Error("Medium editor was not ready after reloading");
+      throw new Error("Medium draft autosave verification failed: " + lastError);
     }
     const rows = await chrome.scripting.executeScript({
       target: { tabId }, world: "MAIN", func: insertMediumImageInPage,

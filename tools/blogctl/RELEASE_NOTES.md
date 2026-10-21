@@ -4,6 +4,19 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 
 ## 本版本更新
 
+### Medium 原生段落类型修正与真实草稿格式审计
+
+- 从登录的 Medium 草稿 format=json 实测：6=BLOCKQUOTE、9=ULI、10=OLI、13=H4、8=PRE，修正此前 BLOCKQUOTE=9、ULI=13 的错误映射。
+- 与并发系列 1.5 原文逐段比较：316 个有效段落及图片位置逐一对齐，文本归一化后 0 处差异，22 个原生 PRE 代码块完整，42 张图片无占位符、Medium 编辑器显示 DraftSaved。
+- 初始真实草稿中有 7 个引用误映射为列表、7 个无序列表误映射为 H4，后续创建会采用修正后的 Compiler 映射；旧草稿的这 14 处样式必须另行核验修复，不能仅用编译测试宣称已修好。
+
+### Medium：复用已验证的油猴插图逻辑（浏览器自动保存）
+
+- BlogCTL Extension 直接使用 Medium 编辑器的图片粘贴事件插入 PNG，严格匹配独立的图片占位符，图片成功后才删除占位符；由 BlogCTL 传图，无需本地手动选择文件或启用油猴脚本。
+- 单图和整篇校验通过编辑器当前 DOM、Medium CDN 图片及 DraftSaved 状态确认，不再强制刷新草稿；批量结束预留一次 Medium 自动保存的等待时间。
+- 重试时跳过已在对应段落位置保存的图片，避免重复插入；发现 Medium 编辑冲突时立即停止，保留原草稿，不悄悄覆盖或重新创建。
+- 真实编辑器已保存部分图片，但 Medium 曾出现 Saving failed because someone is also editing 提示；最终完整 42 张图片仍待恢复验收。
+
 ### Medium：Browser-first 草稿插图联调（待真实完成验收）
 
 - 新增原生正文/代码块 Delta + 浏览器编辑器 PNG 插图两阶段创建：从 BlogCTL 的创建任务自动调度 Extension，读取 Compiler browserPlan、传输 PNG、原生粘贴并删除图片占位符。

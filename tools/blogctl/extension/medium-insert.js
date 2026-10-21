@@ -36,7 +36,38 @@ export async function insertMediumImageInPage(base64, mimeType, filename, expect
     selection.removeAllRanges();
     selection.addRange(r);
   };
+  const markerNumber = Number(marker.slice(-4, -1));
+  const conflictingEdit = () => /Saving failed because someone is also editing|Reload to see their changes/i
+    .test(document.body?.innerText || "");
+  const savedStatus = () => {
+    const status = document.querySelector(".js-metabarMessage");
+    return Boolean(status && /Saved\s*$/i.test(status.textContent || "") &&
+      !/Saving|Unsaved/i.test(status.textContent || ""));
+  };
+  // The original Tampermonkey script detects an exact, standalone marker.
+  // A missing marker is NOT sufficient for an idempotent retry: only skip
+  // after a matching, already-rendered native picture occupies its position.
+  const alreadySaved = () => {
+    const paragraphs = [...document.querySelectorAll("p")];
+    const remaining = paragraphs.map(p => (p.textContent || "").trim())
+      .filter(t => /^\[BLOGCTL_IMAGE_\d{3}\]$/.test(t));
+    if (remaining.includes(marker)) return false;
+    if (remaining.some(t => Number(t.slice(-4, -1)) < markerNumber)) return false;
+    const next = paragraphs.find(p => /^\[BLOGCTL_IMAGE_\d{3}\]$/.test(p.textContent?.trim() || "") &&
+      Number(p.textContent.trim().slice(-4, -1)) > markerNumber);
+    const pictures = [...new Set([...document.querySelectorAll("figure img,article img,[contenteditable] img")])];
+    const beforeNext = next
+      ? pictures.filter(img => Boolean(img.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING))
+      : pictures;
+    return beforeNext.length >= markerNumber &&
+      beforeNext.every(img => img.complete && img.naturalWidth > 0 &&
+        (img.currentSrc || img.src).startsWith("https://cdn-images"));
+  };
   try {
+    if (conflictingEdit()) return fail("Medium rejected autosave due to concurrent edits; inspect the draft before retrying");
+    if (alreadySaved()) {
+      return { inserted: true, alreadyPresent: true, imageCount: imageCount() };
+    }
     // Medium may show a Cloudflare challenge at the SAME /p/{id}/edit URL.
     // Wait for the real editor and marker, not merely tab.status=complete.
     let ready = false;
@@ -74,30 +105,68 @@ export async function insertMediumImageInPage(base64, mimeType, filename, expect
     if (!document.execCommand("delete", false, null) || matches().length !== 0) {
       return fail("Image was inserted, but marker deletion failed; inspect before retry");
     }
-    // Wait for Medium's save indicator. The final task will reload and verify.
-    await new Promise((r) => setTimeout(r, 500));
+    // Port the Tampermonkey completion contract: upload a real File through
+    // the editor paste handler, remove only that marker, then let Medium
+    // autosave. No page reload or private Delta requests.
+    //
+    // Wait for the image to acquire its Medium CDN URL and for the editor's
+    // native "Saved" indicator; a temporary <img> alone is not completion.
+    const settledAt = Date.now();
+    let savedConfirmed = false;
+    while (Date.now() - settledAt < 22000) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      if (conflictingEdit()) {
+        return fail("Medium rejected autosave due to concurrent edits; stop this task instead of duplicating images");
+      }
+      const images = [...new Set([...document.querySelectorAll("figure img,article img,[contenteditable] img")])];
+      const uploaded = images.length > before &&
+        images.every(img => img.complete && img.naturalWidth > 0 &&
+          (img.currentSrc || img.src).startsWith("https://cdn-images"));
+      if (uploaded && savedStatus() && Date.now() - settledAt > 1200) {
+        savedConfirmed = true;
+        break;
+      }
+    }
+    if (!savedConfirmed) return fail("Medium editor has not confirmed autosave of " + marker + "; do not retry blindly");
     return { inserted: true, imageCount: imageCount() };
   } catch (error) {
     return fail(String(error?.message || error).slice(0, 260));
   }
 }
 
-// This must run on a freshly loaded editor after all image tasks finish.
+// Check the editor's current auto-saved state without navigating or reloading.
+// The original userscript's final scan is retained, with stronger image checks.
 export function verifyMediumDraftInPage(expectedDraftID, expectedImages) {
   if (location.origin !== "https://medium.com" ||
       location.pathname !== "/p/" + expectedDraftID + "/edit") {
     return { error: "Browser verification is not on the expected Medium draft" };
   }
-  const root = document.querySelector('[contenteditable="true"]');
+  const root = document.querySelector('.postArticle-content[contenteditable="true"]');
   if (!root) return { error: "Medium draft editor has not loaded" };
-  const markers = [...document.querySelectorAll("p,div,span")].filter((el) =>
-    el.isContentEditable && /^\[BLOGCTL_IMAGE_\d{3}\]$/.test(el.textContent?.trim() || ""));
-  const pictures = new Set([...document.querySelectorAll("figure img,article img,[contenteditable] img")]);
-  if (markers.length !== 0) return { error: markers.length + " image placeholders remain after reload" };
-  if (pictures.size !== expectedImages) {
-    return { error: "Medium persisted " + pictures.size + " images; expected " + expectedImages };
+  if (/Saving failed because someone is also editing|Reload to see their changes/i
+    .test(document.body?.innerText || "")) {
+    return { error: "Medium rejected autosave due to concurrent edits" };
   }
-  return { inserted: true, imageCount: pictures.size };
+  const markers = [...root.querySelectorAll("p")].filter(el =>
+    /^\[BLOGCTL_IMAGE_\d{3}\]$/.test(el.textContent?.trim() || ""));
+  const pictures = [...new Set([...root.querySelectorAll("figure img,article img,img")])];
+  if (markers.length) {
+    return { error: markers.length + " image placeholders remain in Medium draft" };
+  }
+  if (pictures.length !== expectedImages) {
+    return { error: "Medium editor has " + pictures.length +
+      " images; expected " + expectedImages };
+  }
+  if (pictures.some(img => !img.complete || img.naturalWidth < 1 ||
+    !(img.currentSrc || img.src).startsWith("https://cdn-images"))) {
+    return { error: "Medium image uploads have not all resolved to native CDN images" };
+  }
+  const status = document.querySelector(".js-metabarMessage");
+  if (!status || !/Saved\s*$/i.test(status.textContent || "") ||
+      /Saving|Unsaved/i.test(status.textContent || "")) {
+    return { error: "Medium editor has not confirmed autosave" };
+  }
+  return { inserted: true, imageCount: pictures.length };
 }
 
 export function validMediumEditorTask(task) {

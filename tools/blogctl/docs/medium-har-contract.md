@@ -109,3 +109,29 @@ consumes browserPlan and the logged-in Medium editor has actually inserted and
 verified each image (and removed its corresponding marker). Do not replace the
 native PRE formatting with a full HTML clipboard re-paste.
 \n\n## BlogCTL browser-first smoke test (2026-10-20)\n\nUsing installed BlogCTL Extension command blogctl.job.start, the new draft ID\n89da2be2e4d5 was allocated. A text-only Delta save was acknowledged, then\nBridge dispatched the first PNG to the real Edge editor. Medium presented a\nCloudflare human-verification challenge at the exact editing URL, without\nmounting any contenteditable blocks. Insertion returned an error and the\nBlogCTL job was correctly marked failed with the allocated draft ID retained.\n\nThe browser insertion handler now waits for actual editor readiness and\nrecognizes the challenge. Automated challenge bypass is explicitly out of\nscope; a user must satisfy it before safe image insertion resumes. A failed\ncreate must never be retried as a fresh story by default.\n\n## Resume of partial create\n\nOnly a failed single-platform Medium create job that previously emitted a\nvalid draft-allocated event can be retried. The retried task retains the same\nBlogCTL job ID and stores its resume draft ID internally; externally provided\nresume IDs are rejected. Resume never calls new-story or replays text Deltas.\nIt requires all expected image markers to still exist; partially completed\ninsertion sequences must be assessed individually rather than replayed blindly.\n
+## Auto-save based browser insertion (2026-10-21)
+
+BlogCTL Extension now owns the formerly Tampermonkey-only mechanism: select
+the exact image marker, dispatch a real PNG File through the editor paste
+handler, observe the new Medium CDN image, select/delete only that marker,
+and wait for the Medium DraftSaved indicator. No forced editor reload occurs
+in normal verification. A timed settling period after the final image lets
+Medium complete its debounced auto-save. Fail closed on concurrent editing
+conflicts; never treat a transient rendered figure as a saved draft.
+
+## Confirmed Medium native paragraph IDs (October 2026)
+
+Read-only format=json of the newly created draft and editor HTML
+confirmed: 6 is blockquote, 9 unordered-list item, 10 ordered-list
+item, 13 fourth-level heading, and 8 PRE. Previously guessed 9
+for blockquote and 13 for ULI were wrong: this made 7 quoted paragraphs
+into bullets and 7 bullet items into H4 text in the initial draft.
+The Compiler now uses corrected values.
+
+Full source/DOM audit: one native title plus 315 Compiler paragraphs matched
+316 meaningful editor blocks in exact order, with zero normalized text
+mismatches. Medium inserted one empty paragraph after each of 42 figures.
+22 PRE blocks, 42 images and all link/code/bold markup counts matched.
+
+Do not imply the existing draft was automatically repaired
+by changing Compiler constants: its styles require separate verification.

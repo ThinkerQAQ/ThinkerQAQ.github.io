@@ -10,9 +10,9 @@ const (
 	mediumParagraph      = 1
 	mediumH2             = 3
 	mediumImageParagraph = 4
-	mediumBlockquote     = 9
-	mediumPre            = 8 // Confirmed from Medium editor rendering.
-	mediumULI            = 13
+	mediumBlockquote     = 6  // Verified in Medium native /p/{id}?format=json after editor quote action.
+	mediumPre            = 8  // Confirmed from Medium editor rendering.
+	mediumULI            = 9  // Verified from real Medium native unordered-list paragraphs.
 	mediumOLI            = 10 // Medium ordered-list paragraph; do not treat code as OLI.
 
 	mediumMarkupBold   = 1

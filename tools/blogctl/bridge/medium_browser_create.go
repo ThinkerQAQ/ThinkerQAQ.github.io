@@ -82,7 +82,7 @@ func (c mediumClient) completeDraftBrowserImages(ctx context.Context, session pl
 	}
 	if c.browserVerify != nil {
 		if err := c.browserVerify(ctx, postID, len(plan.Images)); err != nil {
-			return partial(fmt.Errorf("post-reload browser verification: %w", err))
+			return partial(fmt.Errorf("browser autosave verification: %w", err))
 		}
 	}
 	return mediumDraftResult(postID, mediumURL, draft, 0, true), nil

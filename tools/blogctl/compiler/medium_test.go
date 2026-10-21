@@ -123,3 +123,31 @@ func TestMediumBrowserImagePlanKeepsNativeFormattingAndOrder(t *testing.T) {
 		t.Fatalf("image markers wrong: %v", found)
 	}
 }
+
+// Observed directly from an editor-created Medium draft: native paragraph
+// type 6 renders BLOCKQUOTE, 9 renders UL LI, 10 renders OL LI, 13 renders H4.
+// Keep the compiler from silently turning callouts into bullets or bullets
+// into headings.
+func TestMediumNativeParagraphStyleIDs(t *testing.T) {
+	if mediumBlockquote != 6 || mediumULI != 9 || mediumOLI != 10 ||
+		mediumPre != 8 || mediumH2 != 3 {
+		t.Fatalf("Medium native paragraph types are incompatible with observed editor")
+	}
+	blocks, warnings := parseMediumBlocks(`> **Quoted sentence**
+
+- First bullet
+- Second bullet
+
+1. Ordered`)
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected compile warnings: %v", warnings)
+	}
+	got := make([]int, 0, len(blocks))
+	for _, b := range blocks {
+		got = append(got, b.ParagraphType)
+	}
+	want := []int{6, 9, 9, 10}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("native paragraph types=%v want %v", got, want)
+	}
+}

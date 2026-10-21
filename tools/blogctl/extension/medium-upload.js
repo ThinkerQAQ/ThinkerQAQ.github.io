@@ -52,7 +52,11 @@ export async function findMediumEditorTab(draftId, tabs = chrome.tabs, sleep = (
   if (!/^[a-f0-9]{8,24}$/.test(draftId)) throw new Error("Invalid Medium draft identifier");
   const editorUrl = "https://medium.com/p/" + draftId + "/edit";
   const found = await tabs.query({ url: "https://medium.com/p/*/edit" });
-  const existing = found.find((tab) => tab.url === editorUrl);
+  const matches = found.filter(tab => tab.url === editorUrl);
+  if (matches.length > 1) {
+    throw new Error("Multiple Medium editor tabs exist for the same draft; close duplicates before using BlogCTL");
+  }
+  const existing = matches[0];
   const tab = existing ?? await tabs.create({ url: editorUrl, active: false });
   if (!Number.isInteger(tab?.id)) throw new Error("Could not open Medium editor tab");
 
