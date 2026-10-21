@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
@@ -71,4 +72,46 @@ func (h *mediumBrowserUploadHub) verify(ctx context.Context, draftID string, exp
 		return fmt.Errorf("Medium browser persisted image count %d, expected %d", reply.imageCount, expected)
 	}
 	return nil
+}
+
+// Canonical is a native Story settings save, never a story publication.
+func (h *mediumBrowserUploadHub) canonical(ctx context.Context, draftID, canonical string) error {
+	u, err := url.Parse(canonical)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || !mediumEditorPostID.MatchString(draftID) {
+		return errors.New("invalid Medium canonical settings task")
+	}
+	reply, err := h.queueBrowserTask(ctx, &mediumPendingUpload{mode: "canonical", draftID: draftID, canonicalURL: canonical})
+	if err != nil {
+		return err
+	}
+	if !reply.inserted {
+		return errors.New("Medium canonical settings were not confirmed")
+	}
+	return nil
+}
+
+func (h *mediumBrowserUploadHub) paragraphCount(ctx context.Context, draftID string) (int, error) {
+	if !mediumEditorPostID.MatchString(draftID) {
+		return 0, errors.New("invalid Medium editor ID")
+	}
+	reply, err := h.queueBrowserTask(ctx, &mediumPendingUpload{mode: "prepare", draftID: draftID})
+	if err != nil {
+		return 0, err
+	}
+	if !reply.inserted || reply.imageCount < 1 || reply.imageCount > 20000 {
+		return 0, errors.New("invalid saved editor paragraph count")
+	}
+	return reply.imageCount, nil
+}
+func (h *mediumBrowserUploadHub) document(ctx context.Context, draftID string, draft mediumDraft) error {
+	expected := []map[string]any{{"type": 3, "text": draft.Title}}
+	for _, delta := range draft.BrowserPlan.Deltas {
+		p, ok := delta["paragraph"].(map[string]any)
+		if !ok {
+			return errors.New("missing expected paragraph")
+		}
+		expected = append(expected, p)
+	}
+	_, err := h.queueBrowserTask(ctx, &mediumPendingUpload{mode: "document", draftID: draftID, expectedDocument: expected})
+	return err
 }

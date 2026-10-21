@@ -39,8 +39,11 @@ func runMediumExplicitWithProgress(ctx context.Context, session publisher.Sessio
 }
 
 type mediumBrowserFlow struct {
-	insert func(context.Context, string, string, publisher.RehostImage) error
-	verify func(context.Context, string, int) error
+	insert         func(context.Context, string, string, publisher.RehostImage) error
+	verify         func(context.Context, string, int) error
+	canonical      func(context.Context, string, string) error
+	paragraphCount func(context.Context, string) (int, error)
+	document       func(context.Context, string, mediumDraft) error
 }
 
 func runMediumExplicitWithBrowser(ctx context.Context, session publisher.Session, httpClient *http.Client,
@@ -60,6 +63,7 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 	medium := mediumClient{httpClient: httpClient, verifyAfterCreate: true, onStoryCreated: onCreated}
 	if flow != nil {
 		medium.browserInsert, medium.browserVerify = flow.insert, flow.verify
+		medium.browserParagraphCount, medium.browserDocument = flow.paragraphCount, flow.document
 	}
 	if len(browserUploaders) > 0 {
 		medium.browserUpload = browserUploaders[0]
@@ -141,6 +145,11 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 	draftURL, _ := result["draftUrl"].(string)
 	if id == "" || (operation == "update" && id != target.ID) || draftURL != mediumOrigin+"/p/"+url.PathEscape(id)+"/edit" {
 		return publisher.ExplicitResult{}, errors.New("Medium returned an incomplete or inconsistent draft reference")
+	}
+	if flow != nil && flow.canonical != nil && draft.CanonicalURL != "" {
+		if err := flow.canonical(ctx, id, draft.CanonicalURL); err != nil {
+			return publisher.ExplicitResult{ID: id, URL: mediumOrigin + "/p/" + url.PathEscape(id) + "/edit", Kind: "draft-updated"}, fmt.Errorf("Medium content saved but canonical settings incomplete: %w", err)
+		}
 	}
 	kind := "draft-created"
 	if operation == "update" || operation == "resume-medium" {

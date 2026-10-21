@@ -151,3 +151,28 @@ func TestMediumNativeParagraphStyleIDs(t *testing.T) {
 		t.Fatalf("native paragraph types=%v want %v", got, want)
 	}
 }
+
+func TestMediumSectionReferencesUseOriginalArticleInsteadOfBrokenMediumFragments(t *testing.T) {
+	profile := PlatformConfig{Language: "en"}
+	payload, _ := buildMediumPayload(Article{Title: "Test"}, "example", profile, "See [**section**](#12-execution-layers) and [docs](https://example.org/docs#ok).")
+	links := payload.Deltas[0].Paragraph.Markups
+	found := false
+	for _, link := range links {
+		if link.Type != mediumMarkupLink {
+			continue
+		}
+		if link.Href == CanonicalURL("example", "en")+"#12-execution-layers" {
+			found = true
+		}
+		if strings.HasPrefix(link.Href, "#") {
+			t.Fatalf("broken Medium fragment: %s", link.Href)
+		}
+	}
+	if !found {
+		t.Fatalf("missing original section link: %+v", links)
+	}
+	copyHTML := buildMediumCopyHTML(Article{Title: "Test"}, "example", profile, "See [section](#12-execution-layers).")
+	if !strings.Contains(copyHTML, CanonicalURL("example", "en")+"#12-execution-layers") {
+		t.Fatal("copy fallback has a broken fragment")
+	}
+}
