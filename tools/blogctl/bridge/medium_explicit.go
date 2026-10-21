@@ -89,8 +89,11 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 	if operation == "create" && publishAfter {
 		return publisher.ExplicitResult{}, errors.New("Medium create only saves a draft; publish it manually in Medium")
 	}
-	if operation == "update" && target.State != "draft" {
-		return publisher.ExplicitResult{}, errors.New("Medium cannot safely update published articles")
+	if operation == "update" && target.State != "draft" && target.State != "published" {
+		return publisher.ExplicitResult{}, errors.New("Medium update requires a selected draft or published article")
+	}
+	if operation == "update" && target.State == "published" && publishAfter {
+		return publisher.ExplicitResult{}, errors.New("Medium published edits must be saved for manual Save and publish")
 	}
 	if len(compiled.Payload) == 0 {
 		return publisher.ExplicitResult{}, errors.New("compiled Medium article is missing transport payload")
@@ -142,6 +145,9 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 	kind := "draft-created"
 	if operation == "update" || operation == "resume-medium" {
 		kind = "draft-updated"
+		if target.State == "published" {
+			kind = "published-edit-saved"
+		}
 	}
 	saved := publisher.ExplicitResult{ID: id, URL: draftURL, Kind: kind}
 	if !publishAfter {

@@ -85,7 +85,7 @@ func TestMediumExplicitCreateUsesNativeBridgeAndLeavesUnpublished(t *testing.T) 
 	}
 }
 
-func TestMediumExplicitPublishedTargetFailsWithoutNetwork(t *testing.T) {
+func TestMediumExplicitPublishedTargetAllowedForUpdateWithoutPublishing(t *testing.T) {
 	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		t.Fatalf("unexpected remote request: %s", req.URL.String())
 		return nil, nil
@@ -93,8 +93,14 @@ func TestMediumExplicitPublishedTargetFailsWithoutNetwork(t *testing.T) {
 	_, err := runMediumExplicit(context.Background(), publisher.Session{}, client,
 		blogcompiler.CompiledArticle{}, publisher.DraftInput{}, t.TempDir(),
 		"update", explicitTaskTarget{Platform: "medium", ID: "1e645140212b", State: "published"}, false)
-	if err == nil || !strings.Contains(err.Error(), "published") {
-		t.Fatalf("must block published update: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "missing transport payload") {
+		t.Fatalf("published Update must pass the target validation and require a compiler payload: %v", err)
+	}
+	_, err = runMediumExplicit(context.Background(), publisher.Session{}, client,
+		blogcompiler.CompiledArticle{}, publisher.DraftInput{}, t.TempDir(),
+		"update", explicitTaskTarget{Platform: "medium", ID: "1e645140212b", State: "published"}, true)
+	if err == nil || !strings.Contains(err.Error(), "manual Save and publish") {
+		t.Fatalf("published Update must reject automatic publication: %v", err)
 	}
 }
 

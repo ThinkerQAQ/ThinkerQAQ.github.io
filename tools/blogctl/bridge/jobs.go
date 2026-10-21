@@ -284,9 +284,19 @@ func canRetrySyncJobOperation(operation string, request syncRequest) bool {
 	return true
 }
 
-// A failed Medium create can resume only its already allocated remote draft.
-// No failed create with an unknown ID is automatically retried.
+// A failed Medium create can resume its allocated draft. An explicitly
+// selected published-editor Update that reached the text-write phase can
+// resume its pictures without overwriting the already saved staged revision.
+// Never create a new story or retry blind writes on a partial failure.
 func mediumRetryDraftID(job syncJob) string {
+	if job.Operation == "update" && len(job.Platforms) == 1 && job.Platforms[0] == "medium" &&
+		!job.Request.PublishAfter && len(job.Request.Targets) == 1 &&
+		strings.Contains(job.Error, "Medium browser draft full text verification failed") {
+		target := job.Request.Targets[0]
+		if target.Platform == "medium" && mediumEditorPostID.MatchString(target.ID) {
+			return target.ID
+		}
+	}
 	if job.Operation != "create" || len(job.Platforms) != 1 ||
 		job.Platforms[0] != "medium" || job.Request.PublishAfter {
 		return ""
