@@ -1557,7 +1557,12 @@ async function handleMessage(message) {
     }
     case "blogctl.jobs": {
       const result = await fetchJSON("/v1/jobs");
-      return { ok: true, jobs: result?.jobs ?? [] };
+      const jobs = result?.jobs ?? [];
+      // CLI/Bridge can enqueue authorized jobs too. The task list must wake
+      // the browser driver, just as opening an individual active job does.
+      if (jobs.some(job => ["running", "queued", "waiting"].includes(job.state) &&
+          (job.platforms ?? []).includes("medium"))) beginMediumUploadPump();
+      return { ok: true, jobs };
     }
     case "blogctl.job.start": {
       const request = message.request ?? {};
