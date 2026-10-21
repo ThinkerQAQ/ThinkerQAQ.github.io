@@ -291,9 +291,18 @@ func parseMediumBlocks(markdown string) ([]mediumBlock, []string) {
 		if h := mediumHeading.FindStringSubmatch(line); h != nil {
 			level := len(h[1])
 			inline := parseMediumInline(h[2], &warnings)
-			ptype := mediumH3
-			if level <= 3 {
-				ptype = mediumH2
+			// The HAR's H4=8 is from the already malformed draft: Medium
+			// rendered it as a code block. Medium's native H4 style is not
+			// verified, so use a distinct bold paragraph instead of
+			// emitting PRE or collapsing H4 into the same H2/H3 style.
+			ptype := mediumH2
+			if level >= 4 {
+				ptype = mediumParagraph
+				if inline.Text != "" {
+					inline.Markups = append(inline.Markups, mediumMarkup{
+						Type: mediumMarkupBold, Start: 0, End: utf16Length(inline.Text),
+					})
+				}
 			}
 			blocks = append(blocks, mediumBlock{Kind: "heading", Level: level, ParagraphType: ptype, Text: inline.Text, Markups: inline.Markups, HTML: inline.HTML})
 			index++

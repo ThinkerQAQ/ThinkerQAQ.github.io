@@ -131,6 +131,17 @@ func assetForDiagram(kind, source, base string) (Asset, error) {
 		}
 		return Asset{Kind: kind, ID: id, Renderer: MermaidRenderer, ObjectKey: key, PublicURL: pub, Content: n, Alt: alt}, nil
 	}
+	if kind == "ascii" {
+		n := strings.TrimRight(normalizeNewlines(source), "\n")
+		sum := sha256.Sum256([]byte("medium-ascii:v1:preserve-spaces\n" + n))
+		id := hex.EncodeToString(sum[:])[:24]
+		key := "generated/ascii/" + id + ".png"
+		pub, err := assetURL(base, key)
+		if err != nil {
+			return Asset{}, err
+		}
+		return Asset{Kind: kind, ID: id, Renderer: "text-art", ObjectKey: key, PublicURL: pub, Content: n, Alt: "Monospaced execution diagram (original text layout preserved)"}, nil
+	}
 	if kind == "plantuml" {
 		n, err := normalizePlantUML(source)
 		if err != nil {
@@ -156,7 +167,15 @@ func escapeAlt(v string) string {
 	v = strings.ReplaceAll(v, "]", "\\]")
 	return strings.Join(strings.Fields(v), " ")
 }
+
+// Medium cannot preserve the horizontal layout of long PRE text diagrams.
+func CompileMediumPublishingMarkdown(markdown, base string) (string, []Asset, error) {
+	return compilePublishingMarkdown(markdown, base, true)
+}
 func CompilePublishingMarkdown(markdown, base string) (string, []Asset, error) {
+	return compilePublishingMarkdown(markdown, base, false)
+}
+func compilePublishingMarkdown(markdown, base string, mediumASCII bool) (string, []Asset, error) {
 	lines := strings.Split(normalizeNewlines(markdown), "\n")
 	out := make([]string, 0, len(lines))
 	assets := map[string]Asset{}
@@ -176,7 +195,11 @@ func CompilePublishingMarkdown(markdown, base string) (string, []Asset, error) {
 		closed := i < len(lines)
 		end := i
 		source := strings.Join(lines[start+1:end], "\n")
-		kind := diagramKind(fenceLanguage(o.info), source)
+		language := fenceLanguage(o.info)
+		kind := diagramKind(language, source)
+		if kind == "" && mediumASCII && (language == "text" || language == "plaintext" || language == "") && mediumASCIIDiagram(source) {
+			kind = "ascii"
+		}
 		if kind != "" && !closed {
 			return "", nil, errors.New("unclosed diagram fenced block")
 		}

@@ -63,9 +63,9 @@ test("Creation is a separate explicit task and exposes create or create-and-publ
   assert.match(drafts, /!window\.confirm/u);
 });
 
-test("native publishing adapters retain authorization and disabled experimental platforms", async () => {
+test("Medium is visible again while Toutiao remains disabled", async () => {
   const [background, model] = await Promise.all([source("background.js"),source("popup/sync-model.js")]);
-  assert.match(model, /new Set\(\["medium", "toutiao"\]\)/u);
+  assert.match(model, /new Set\(\["toutiao"\]\)/u);
   assert.match(background, /platform === "toutiao"/u);
   assert.match(background, /case "blogctl\.job\.start":/u);
   assert.doesNotMatch(background, /cto51PublishInBrowser|ensureToutiaoEditorTab/u);
@@ -77,4 +77,24 @@ test("Hashnode detection must query the remote draft and published inventory, no
   assert.match(background, /\/v1\/remote\/inventory/u);
   assert.doesNotMatch(background, /仅检查了本地关联，未穷尽查询 Hashnode/u);
   assert.match(drafts, /existing\[0\]\.bound===true/u);
+});
+
+test("Medium upload is delegated to the browser and never sends session credentials through Go", async () => {
+  const [background, pageUpload, manifest] = await Promise.all([
+    source("background.js"), source("medium-upload.js"), source("manifest.json"),
+  ]);
+  assert.match(background, /world: "MAIN"/u);
+  assert.match(background, /\/v1\/medium\/browser-upload\/next/u);
+  assert.match(background, /\/v1\/medium\/browser-upload\/result/u);
+  assert.match(pageUpload, /credentials: "same-origin"/u);
+  assert.ok(pageUpload.includes("/_/upload?source=6"));
+  assert.match(pageUpload, /location\.origin !== "https:\/\/medium\.com"/u);
+  assert.ok(JSON.parse(manifest).permissions.includes("alarms"));
+});
+
+test("Medium job polling and retries wake browser uploads", async () => {
+  const background = await source("background.js");
+  assert.match(background, /case "blogctl.job.get"/u);
+  assert.match(background, /beginMediumUploadPump\(\)/u);
+  assert.match(background, /medium browser upload pump failed/u);
 });

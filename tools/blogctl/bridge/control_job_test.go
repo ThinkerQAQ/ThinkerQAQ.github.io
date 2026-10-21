@@ -252,3 +252,36 @@ func TestChangedPoliciesForRequestUsesSelectedPlatformConfig(t *testing.T) {
 		t.Fatal("publish operation must ignore draft policy")
 	}
 }
+
+func TestRetryFailedMediumCreateKeepsPreviouslyAllocatedDraft(t *testing.T) {
+	server, err := New("test-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	received := make(chan syncRequest, 1)
+	server.syncRunner = func(_ context.Context, _ bridgeConfig, request syncRequest, _ func(blogapp.SyncEvent)) (string, error) {
+		received <- request
+		return "ok", nil
+	}
+	request := syncRequest{Article: "test", Platforms: []string{"medium"}, Operation: "create"}
+	server.jobs["resume-job"] = &syncJob{
+		ID: "resume-job", Article: "test", Operation: "create", Platforms: []string{"medium"}, Request: request,
+		State: "failed", Events: []syncJobEvent{{Platform: "medium", State: "running", Result: "draft-allocated", TargetID: "89da2be2e4d5"}},
+	}
+	server.jobOrder = []string{"resume-job"}
+	got, err := server.retrySyncJob("resume-job")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != "resume-job" || got.Request.ResumeMediumDraftID != "89da2be2e4d5" {
+		t.Fatalf("Medium retry allocated new remote story: %+v", got)
+	}
+	select {
+	case forwarded := <-received:
+		if forwarded.ResumeMediumDraftID != "89da2be2e4d5" {
+			t.Fatal("failed to pass allocated remote ID")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("retry runner was not invoked")
+	}
+}

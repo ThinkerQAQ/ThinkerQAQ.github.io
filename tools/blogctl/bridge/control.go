@@ -54,6 +54,7 @@ type syncRequest struct {
 	UsePlatformChangedOnly bool                 `json:"usePlatformChangedOnly,omitempty"`
 	Draft                  bool                 `json:"draft"`
 	Operation              string               `json:"operation,omitempty"`
+	ResumeMediumDraftID    string               `json:"resumeMediumDraftId,omitempty"`
 }
 
 type syncPlatformResult struct {
@@ -854,6 +855,9 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 	// distinct task contract; they NEVER read PublicationBinding for targets.
 	operation := strings.ToLower(strings.TrimSpace(request.Operation))
 	if operation == "create" || operation == "update" || operation == "publish-draft" {
+		if request.ResumeMediumDraftID != "" {
+			return request, errors.New("Medium draft resume ID can only be set by the failed-job retry handler")
+		}
 		base := blogapp.SyncRequest{Articles: []string{request.Article}, Platforms: request.Platforms,
 			DryRun: request.DryRun, Operation: "draft"}
 		normalized, err := blogapp.NormalizeSyncRequest(base)
@@ -865,7 +869,7 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 		request.Operation = operation
 		allowed := make(map[string]struct{}, len(request.Platforms))
 		for _, platform := range request.Platforms {
-			if platform == "medium" || platform == "toutiao" {
+			if platform == "toutiao" {
 				return request, fmt.Errorf("%s is temporarily disabled", platform)
 			}
 			allowed[platform] = struct{}{}
@@ -1694,12 +1698,17 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		s.mu.Unlock()
 		return nil, errors.New("running sync job cannot be retried")
 	}
-	if job.Operation == "publish" || job.Operation == "publish-draft" || job.Operation == "create" ||
+	resumeID := mediumRetryDraftID(*job)
+	if job.Operation == "publish" || job.Operation == "publish-draft" ||
+		(job.Operation == "create" && resumeID == "") ||
 		(job.Operation == "update" && (job.Request.PublishAfter || len(job.Request.Targets) > 1)) {
 		s.mu.Unlock()
 		return nil, errors.New("create/publish or multi-target update cannot be retried safely; inspect the remote outcomes and explicitly select failed targets")
 	}
 	request := job.Request
+	if job.Operation == "create" && resumeID != "" {
+		request.ResumeMediumDraftID = resumeID
+	}
 	replacement := newSyncJob(id, request, startedAt)
 	s.jobs[id] = replacement
 	s.jobOrder = moveJobToFront(s.jobOrder, id)

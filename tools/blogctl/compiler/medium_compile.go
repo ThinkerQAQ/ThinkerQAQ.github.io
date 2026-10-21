@@ -36,9 +36,27 @@ type mediumDeltaPayload struct {
 	Image     *mediumImage           `json:"image,omitempty"`
 }
 
+// mediumBrowserImage records where the browser editor must insert an image.
+// The compiler does not upload images or guess Medium's private image Delta
+// protocol. Markers are regular native paragraphs until the editor replaces
+// them with browser-inserted images.
+type mediumBrowserImage struct {
+	Marker string `json:"marker"`
+	URL    string `json:"url"`
+	Alt    string `json:"alt"`
+}
+
+// mediumBrowserPlan preserves the existing native text/code/list Delta mapping
+// while deferring only actual image insertion to a real Medium editor.
+type mediumBrowserPlan struct {
+	Deltas []mediumDeltaPayload `json:"deltas"`
+	Images []mediumBrowserImage `json:"images"`
+}
+
 type mediumPayload struct {
 	Title        string               `json:"title"`
 	Deltas       []mediumDeltaPayload `json:"deltas"`
+	BrowserPlan  mediumBrowserPlan    `json:"browserPlan"`
 	CanonicalURL string               `json:"canonicalUrl"`
 	Tags         []string             `json:"tags"`
 	CoverImage   *mediumImage         `json:"coverImage"`
@@ -112,9 +130,35 @@ func buildMediumPayload(article Article, slug string, profile PlatformConfig, co
 	if coverURL != "" {
 		cover = &mediumImage{URL: coverURL, Alt: article.CoverImageAlt}
 	}
+	// Browser mode must never flatten or reinterpret non-image paragraphs.
+	// PRE, headings, lists and inline markups use the same verified mappings
+	// as the existing native Medium payload.
+	browser := mediumBrowserPlan{
+		Deltas: make([]mediumDeltaPayload, 0, len(deltas)),
+		Images: []mediumBrowserImage{},
+	}
+	for _, delta := range deltas {
+		if delta.Image == nil {
+			browser.Deltas = append(browser.Deltas, delta)
+			continue
+		}
+		// Stable position and image ordering let the browser insert at the
+		// corresponding block without reconstructing nearby content.
+		marker := fmt.Sprintf("[BLOGCTL_IMAGE_%03d]", len(browser.Images)+1)
+		browser.Images = append(browser.Images, mediumBrowserImage{
+			Marker: marker, URL: delta.Image.URL, Alt: delta.Image.Alt,
+		})
+		browser.Deltas = append(browser.Deltas, mediumDeltaPayload{
+			Type: delta.Type, Index: delta.Index,
+			Paragraph: mediumParagraphPayload{
+				Type: mediumParagraph, Text: marker, Markups: []mediumMarkup{},
+			},
+		})
+	}
 	return mediumPayload{
-		Title: article.Title, Deltas: deltas, CanonicalURL: nativeCanonical,
-		Tags: firstMediumTags(article.Tags), CoverImage: cover,
+		Title: article.Title, Deltas: deltas, BrowserPlan: browser,
+		CanonicalURL: nativeCanonical, Tags: firstMediumTags(article.Tags),
+		CoverImage: cover,
 	}, warnings
 }
 
@@ -254,7 +298,7 @@ func jsonStringify(value any) (string, error) {
 
 func compileMedium(ctx compileContext) (CompiledArticle, error) {
 	article := ctx.article
-	portable, assets, err := CompilePublishingMarkdown(article.Body, ctx.assetBase)
+	portable, assets, err := CompileMediumPublishingMarkdown(article.Body, ctx.assetBase)
 	if err != nil {
 		return CompiledArticle{}, err
 	}

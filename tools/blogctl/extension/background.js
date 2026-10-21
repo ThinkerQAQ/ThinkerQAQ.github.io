@@ -1,6 +1,8 @@
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
+import { uploadMediumInPage, validMediumUploadTask, findMediumEditorTab } from "./medium-upload.js";
+import { insertMediumImageInPage, verifyMediumDraftInPage, validMediumEditorTask } from "./medium-insert.js";
 
 const NATIVE_HOST = "com.thinkerqaq.blogctl";
 const AUTH_TIMEOUT_MS = 7000;
@@ -1502,6 +1504,9 @@ async function handleMessage(message) {
         tools: await environmentTools(result?.tools ?? []),
       };
     }
+    case "blogctl.medium.engine": {
+      return { ok: true, version: "native-cdn-batch-20261021" };
+    }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");
       return {
@@ -1556,12 +1561,17 @@ async function handleMessage(message) {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
+      if ((request.platforms ?? []).includes("medium") && result?.job?.id) {
+        beginMediumUploadPump();
+      }
       return { ok: true, job: result?.job };
     }
     case "blogctl.job.get": {
       const id = String(message.id || "").trim();
       if (!id) throw new Error("job id is required");
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}`);
+      if (result?.job && ["running", "queued", "waiting"].includes(result.job.state) &&
+          (result.job.platforms ?? []).includes("medium")) beginMediumUploadPump();
       return { ok: true, job: result?.job };
     }
     case "blogctl.jobs.clear": {
@@ -1581,6 +1591,7 @@ async function handleMessage(message) {
       }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      if ((result?.job?.platforms ?? []).includes("medium")) beginMediumUploadPump();
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     case "blogctl.job.pause": {
@@ -1599,11 +1610,128 @@ async function handleMessage(message) {
       }
       const result = await fetchJSON(`/v1/jobs/${encodeURIComponent(id)}/resume`, { method: "POST" });
       if (result?.job?.type === "google-request-indexing") kickGoogleIndexQueuePump();
+      if ((result?.job?.platforms ?? []).includes("medium")) beginMediumUploadPump();
       return { ok: true, job: result?.job, ...(google ? { google } : {}) };
     }
     default: return null;
   }
 }
+
+const MEDIUM_UPLOAD_ALARM = "blogctl.medium.upload";
+let mediumPumpRunning = false;
+
+const mediumDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+
+async function processMediumUpload(task) {
+  if (task.mode === "insert" || task.mode === "verify") {
+    if (!validMediumEditorTask(task)) throw new Error("Invalid Medium browser editor task");
+    const tabId = await findMediumEditorTab(task.draftId);
+    if (task.mode === "verify") {
+      // Allow Medium's debounced autosave to finish after the last paste.
+      // Do not reload the editor: refreshing during a pending save can lose
+      // the last few inserted figures.
+      await mediumDelay(7000);
+      // Medium saves editor operations automatically. Port the Tampermonkey
+      // "scan after insertion" logic; do not reload or recreate the draft.
+      let lastError = "Medium editor is not ready";
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.url && tab.url !== "https://medium.com/p/" + task.draftId + "/edit" &&
+            tab.pendingUrl !== "https://medium.com/p/" + task.draftId + "/edit") {
+          throw new Error("Medium draft redirected during verification");
+        }
+        try {
+          const rows = await chrome.scripting.executeScript({
+            target: { tabId }, world: "MAIN", func: verifyMediumDraftInPage,
+            args: [task.draftId, task.expectedImages],
+          });
+          const result = rows?.[0]?.result;
+          if (result?.inserted) return result;
+          if (result?.error) lastError = result.error;
+        } catch (error) {
+          lastError = String(error?.message || error).slice(0,220);
+        }
+        await mediumDelay(500);
+      }
+      throw new Error("Medium draft autosave verification failed: " + lastError);
+    }
+    const rows = await chrome.scripting.executeScript({
+      target: { tabId }, world: "MAIN", func: insertMediumImageInPage,
+      args: [task.base64, task.mimeType, task.filename, task.draftId, task.marker],
+    });
+    return rows?.[0]?.result ?? { error: "Medium editor returned no image insertion result" };
+  }
+  if (!validMediumUploadTask(task)) throw new Error("Invalid Medium browser upload task");
+  const tabId = await findMediumEditorTab(task.draftId);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId }, world: "MAIN",
+    func: uploadMediumInPage,
+    args: [task.base64, task.mimeType, task.filename, task.draftId],
+  });
+  const response = results?.[0]?.result;
+  if (!response || typeof response !== "object") {
+    throw new Error("Medium page did not return an upload result");
+  }
+  return response;
+}
+
+async function pollMediumUploads() {
+  if (mediumPumpRunning) return;
+  mediumPumpRunning = true;
+  try {
+    await writeBridgeLog("info", "medium browser upload pump started");
+    for (let attempt = 0; attempt < 900; attempt++) {
+      const jobs = (await fetchJSON("/v1/jobs")).jobs ?? [];
+      const active = jobs.some((job) => ["running", "queued", "waiting"].includes(job.state) &&
+        (job.platforms ?? []).includes("medium"));
+      if (!active) {
+        await chrome.alarms?.clear(MEDIUM_UPLOAD_ALARM);
+        return;
+      }
+      const response = await fetchJSON("/v1/medium/browser-upload/next");
+      const task = response?.upload;
+      if (!task) {
+        await mediumDelay(700);
+        continue;
+      }
+      await writeBridgeLog("info", "medium browser upload task claimed", { draftId: task.draftId });
+      let result;
+      try {
+        result = await processMediumUpload(task);
+      } catch (error) {
+        result = { error: errorMessage(error).slice(0, 220) };
+      }
+      await writeBridgeLog(result.error ? "warn" : "info", "medium browser upload finished", {
+        draftId: task.draftId, success: !result.error, error: result.error ?? "",
+      });
+      await fetchJSON("/v1/medium/browser-upload/result", jsonOptions("POST", {
+        id: task.id, fileId: result.fileId ?? "",
+        width: result.width ?? 0, height: result.height ?? 0,
+        inserted: result.inserted === true, imageCount: result.imageCount ?? 0,
+        error: result.error ?? "",
+      }));
+    }
+  } catch (error) {
+    console.warn("BlogCTL Medium browser upload polling paused:", errorMessage(error));
+    await writeBridgeLog("error", "medium browser upload pump failed", {
+      error: errorMessage(error).slice(0, 220),
+    });
+  } finally {
+    mediumPumpRunning = false;
+  }
+}
+
+function beginMediumUploadPump() {
+  if (mediumPumpRunning) return;
+  // MV3 service workers may sleep. A repeating alarm resumes the task pump.
+  chrome.alarms.create(MEDIUM_UPLOAD_ALARM, { periodInMinutes: 0.5 }).catch(() => {});
+  void pollMediumUploads();
+}
+
+chrome.alarms?.onAlarm.addListener((alarm) => {
+  if (alarm.name === MEDIUM_UPLOAD_ALARM) void pollMediumUploads();
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
