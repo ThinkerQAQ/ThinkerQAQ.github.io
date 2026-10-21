@@ -108,11 +108,11 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 				var writeErr error
 				if platform == "medium" {
 					mediumOperation := req.Operation
-					if req.Operation == "create" && req.ResumeMediumDraftID != "" {
+					if (req.Operation == "create" || req.Operation == "update") && req.ResumeMediumDraftID != "" {
 						mediumOperation = "resume-medium"
 						target.ID = req.ResumeMediumDraftID
 						report("running", "draft-resumed", mediumOrigin+"/p/"+target.ID+"/edit",
-							"Resuming existing Medium draft without allocating a new story", target.ID)
+							"Resuming saved Medium editor content without a second text write", target.ID)
 					}
 					result, writeErr = runMediumExplicitWithBrowser(ctx, session, client, articles[0], input,
 						config.DistributionRoot, mediumOperation, target, req.PublishAfter,

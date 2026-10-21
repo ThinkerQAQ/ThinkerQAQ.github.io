@@ -46,7 +46,7 @@ func TestVerifiedAdvancedCapabilitiesStayFailClosed(t *testing.T) {
 	medium := For("medium")
 	if !medium.BrowserSession || !medium.DraftCreate || !medium.DraftUpdate || !medium.ExplicitPublish ||
 		!medium.RemoteList || !medium.BodyImages || !medium.BodyImageRehost ||
-		medium.CoverImage || medium.NativeCanonical || medium.Tags || medium.PublishedUpdate {
+		medium.CoverImage || medium.NativeCanonical || medium.Tags || medium.PublishedUpdate || !medium.PublishedDraftEdit {
 		t.Fatalf("Medium capabilities = %#v", medium)
 	}
 

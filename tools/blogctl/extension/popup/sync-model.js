@@ -82,6 +82,7 @@
     skipped: "无变化",
     "dry-run": "Dry Run 完成",
     "draft-created": "草稿已创建",
+    "published-edit-saved": "已保存待发布修改",
     published: "已发布",
     "waiting-for-session": "等待 Session",
     "rate-limit-retry": "等待限流重试",
@@ -214,15 +215,16 @@
   // Reuse the same verified editor/public URL policy as Detection/Update.
   function taskArtifactLinks(job, platformID) {
     const completedKinds = new Set([
-      "draft-created", "draft-updated", "published", "published-updated",
+      "draft-created", "draft-updated", "published", "published-updated", "published-edit-saved",
     ]);
     const byRemote = new Map();
     for (const event of job?.events ?? []) {
       if (event?.platform !== platformID || !completedKinds.has(event.result)) continue;
-      const isPublished = event.result === "published" || event.result === "published-updated";
+      const isPublished = ["published", "published-updated", "published-edit-saved"].includes(event.result);
       const target = { id: String(event.targetId || ""), url: event.url || "", published: isPublished };
       const link = articleMatchLink(platformID, target);
       if (!link) continue;
+      if (event.result === "published-edit-saved") link.label = "检查待发布修改";
       const identity = target.id || link.url;
       byRemote.set(identity, {
         ...link, id: target.id, state: isPublished ? "published" : "draft",
@@ -232,7 +234,7 @@
     if (!byRemote.size) {
       const result = job?.results?.[platformID];
       if (result?.url && result.state === "completed") {
-        const published = ["published", "published-updated"].includes(result.result) ||
+        const published = ["published", "published-updated", "published-edit-saved"].includes(result.result) ||
           job.operation === "publish";
         const link = articleMatchLink(platformID, {
           id: String(result.targetId || ""), url: result.url, published,

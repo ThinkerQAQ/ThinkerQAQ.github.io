@@ -71,6 +71,14 @@ test("Medium is visible again while Toutiao remains disabled", async () => {
   assert.doesNotMatch(background, /cto51PublishInBrowser|ensureToutiaoEditorTab/u);
 });
 
+test("Medium published targets can be updated as saved editor revisions without an automatic publish action", async () => {
+  const [sync, drafts] = await Promise.all([source("popup/sync.js"), source("popup/drafts.js")]);
+  assert.match(sync, /platform\.id === "medium"/u);
+  assert.match(sync, /platform\.capabilities\?\.publishedDraftEdit === true/u);
+  assert.match(drafts, /candidateTargets\(\)\.every\(\(target\) => target\.state==="draft"\)/u);
+  assert.match(drafts, /publishButton\.disabled=!canSubmit \|\| !canPublishAfter\(\)/u);
+});
+
 test("Medium remote inventory is enabled through the existing read-only endpoint", async () => {
   const [background, inventory, model] = await Promise.all([
     source("background.js"), source("popup/inventory.js"), source("popup/sync-model.js"),

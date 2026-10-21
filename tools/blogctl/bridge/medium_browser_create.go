@@ -126,7 +126,7 @@ func mediumFullReplacementDeltas(existingCount int, title string, body []map[str
 }
 
 // updateDraftUsingBrowserImages replaces ALL native paragraphs of the same
-// unpublished draft, including title, from the compiler's create document.
+// draft or pending edit of a published story, including its title.
 // Browser inserts PNGs after the full text has been persisted and checked.
 // The editor must not be concurrently open during the revisioned replacement.
 func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
@@ -140,9 +140,9 @@ func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	if meta.FirstPublishedAt > 0 {
-		return nil, errors.New("Medium draft already published")
-	}
+	// For a published story, Medium stores edits separately from the public
+	// body until its Save and publish action. Keep that action manual.
+	publishedEdit := meta.FirstPublishedAt > 0
 	count, err := c.paragraphCount(ctx, session, postID)
 	if err != nil {
 		return nil, err
@@ -167,15 +167,23 @@ func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
 	}
 	// Read back the completely replaced source text before beginning browser
 	// image insertions. No image upload should touch a partially saved model.
-	if err := c.verifyDraft(ctx, session, postID, deltas[count:]); err != nil {
-		return nil, fmt.Errorf("Medium browser draft full text verification failed: %w", err)
+	if !publishedEdit {
+		if err := c.verifyDraft(ctx, session, postID, deltas[count:]); err != nil {
+			return nil, fmt.Errorf("Medium browser draft full text verification failed: %w", err)
+		}
 	}
 	result, err := c.completeDraftBrowserImages(ctx, session, draft, input, postID, meta.MediumURL, false)
 	if err != nil {
 		return result, err
 	}
-	if err := c.verifyMediumBrowserPersisted(ctx, session, postID, draft); err != nil {
-		return result, fmt.Errorf("Medium full document replacement integrity check failed: %w", err)
+	// A published post's public GraphQL body is the OLD published version,
+	// not the editor's new saved-but-unpublished revision. Browser Verify
+	// already proves image/marker/CDN state and the Medium Saved indicator;
+	// reading public GraphQL here would yield a false mismatch.
+	if !publishedEdit {
+		if err := c.verifyMediumBrowserPersisted(ctx, session, postID, draft); err != nil {
+			return result, fmt.Errorf("Medium full document replacement integrity check failed: %w", err)
+		}
 	}
 	return result, nil
 }

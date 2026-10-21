@@ -1706,7 +1706,7 @@ func (s *Server) retrySyncJob(id string) (*syncJob, error) {
 		return nil, errors.New("create/publish or multi-target update cannot be retried safely; inspect the remote outcomes and explicitly select failed targets")
 	}
 	request := job.Request
-	if job.Operation == "create" && resumeID != "" {
+	if (job.Operation == "create" || job.Operation == "update") && resumeID != "" {
 		request.ResumeMediumDraftID = resumeID
 	}
 	replacement := newSyncJob(id, request, startedAt)

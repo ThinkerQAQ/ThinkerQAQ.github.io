@@ -71,7 +71,7 @@
     // creation of the same article.
     for (const event of state.currentJob.events || []) {
       if (event.platform!==platformID ||
-          !["draft-created","published","draft-updated","published-updated"].includes(event.result)) continue;
+          !["draft-created","published","draft-updated","published-updated","published-edit-saved"].includes(event.result)) continue;
       const id=String(event.targetId || "");
       if (entries.some((item)=>id && item.id===id)) continue;
       entries.push({

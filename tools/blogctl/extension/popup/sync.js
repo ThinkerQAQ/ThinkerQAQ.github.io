@@ -88,8 +88,10 @@
   function availableForUpdate(platform, item) {
     if (!item || !String(item.id || "").trim() || item.localOnly) return false;
     if (item.published) {
-      // A published article may only use the platform's explicit safe update
-      // contract; it is NEVER routed through draft update.
+      // Medium edits an existing published story as a saved, pending revision.
+      // Its Save and publish button stays exclusively in the user's hands.
+      if (platform.id === "medium") return platform.capabilities?.publishedDraftEdit === true;
+      // Other published article update contracts remain independently guarded.
       return platform.capabilities?.publishedUpdate === true &&
         ["cnblogs", "devto"].includes(platform.id);
     }

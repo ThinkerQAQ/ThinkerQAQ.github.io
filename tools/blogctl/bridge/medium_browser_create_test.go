@@ -267,3 +267,78 @@ func TestMediumBrowserNativeUpdateReplacesWholeDocumentWithoutPrivateImageDeltas
 		t.Fatalf("flow=%s", got)
 	}
 }
+
+// Medium's published postResult is the public OLD article, not the saved
+// editor-stage revision. Verify browser/CDN/Saved instead of querying a stale
+// published body. Never create a story or click publish during this flow.
+func TestMediumPublishedUpdateSavesEditorWithoutPublishing(t *testing.T) {
+	const id = "fb20c187d357"
+	steps := []string{}
+	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		steps = append(steps, req.Method+" "+req.URL.Path)
+		switch req.URL.Path {
+		case "/":
+			return mediumResponse(req, http.StatusOK, "ok", nil), nil
+		case "/p/" + id + "/notes":
+			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"post":{"id":"fb20c187d357","latestRev":35,"firstPublishedAt":1789485232457}}}`, nil), nil
+		case "/_/graphql":
+			if req.Header.Get("graphql-operation") == "BlogCTLMediumDraftVerification" {
+				t.Fatal("published GraphQL body is stale and must not be checked")
+				return nil, nil
+			}
+			return mediumResponse(req, http.StatusOK, `[{"data":{"postResult":{"content":{"bodyModel":{"paragraphs":[{"name":"oldTitle"},{"name":"oldBody"}]}}}}}]`, nil), nil
+		case "/p/" + id + "/deltas":
+			var body struct {
+				BaseRev int              `json:"baseRev"`
+				Deltas  []map[string]any `json:"deltas"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.BaseRev != 35 || len(body.Deltas) != 4 {
+				t.Fatalf("unexpected replacement: %+v", body)
+			}
+			if body.Deltas[1]["type"] != float64(2) || body.Deltas[1]["index"] != float64(0) {
+				t.Fatalf("old title not removed: %+v", body.Deltas)
+			}
+			if title := body.Deltas[2]["paragraph"].(map[string]any); title["text"] != "New headline" {
+				t.Fatalf("title not replaced: %+v", title)
+			}
+			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"value":{"latestRev":36}}}`, nil), nil
+		case "/diagram.png":
+			return mediumResponse(req, http.StatusOK, "png-bytes", http.Header{"Content-Type": {"image/png"}}), nil
+		default:
+			t.Fatalf("unexpected Medium API request, especially publication: %s", req.URL)
+			return nil, nil
+		}
+	})}
+	draft := mediumDraft{Title: "New headline", Deltas: []map[string]any{{"paragraph": map[string]any{"type": 4}}}, BrowserPlan: &mediumBrowserDraftPlan{
+		Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}}}, Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]", URL: "https://medium.com/diagram.png"}},
+	}}
+	medium := mediumClient{httpClient: client,
+		browserInsert: func(_ context.Context, post, marker string, _ publisher.RehostImage) error {
+			if post != id || marker != "[BLOGCTL_IMAGE_001]" {
+				t.Fatalf("wrong browser target: %s %s", post, marker)
+			}
+			steps = append(steps, "browser-insert")
+			return nil
+		},
+		browserVerify: func(_ context.Context, post string, count int) error {
+			if post != id || count != 1 {
+				t.Fatalf("wrong editor saved verification: %s %d", post, count)
+			}
+			steps = append(steps, "browser-Saved")
+			return nil
+		},
+	}
+	result, err := medium.updateDraftUsingBrowserImages(context.Background(), platformSession{}, draft, publisher.DraftInput{}, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["postId"] != id {
+		t.Fatalf("existing published ID was lost: %+v", result)
+	}
+	if !strings.Contains(strings.Join(steps, ","), "browser-insert,browser-Saved") {
+		t.Fatalf("browser verification absent: %v", steps)
+	}
+}
