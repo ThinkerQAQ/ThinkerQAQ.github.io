@@ -44,10 +44,12 @@ var (
 )
 
 type mediumClient struct {
-	httpClient    *http.Client
-	browserUpload func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error)
-	browserInsert func(context.Context, string, string, publisher.RehostImage) error
-	browserVerify func(context.Context, string, int) error
+	httpClient            *http.Client
+	browserUpload         func(context.Context, string, publisher.RehostImage) (mediumUploadResult, error)
+	browserInsert         func(context.Context, string, string, publisher.RehostImage) error
+	browserVerify         func(context.Context, string, int) error
+	browserParagraphCount func(context.Context, string) (int, error)
+	browserDocument       func(context.Context, string, mediumDraft) error
 	// Report the story ID immediately; image preparation can take several minutes.
 	onStoryCreated    func(string)
 	verifyAfterCreate bool

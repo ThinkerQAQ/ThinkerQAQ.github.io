@@ -95,6 +95,11 @@ func (c mediumClient) completeDraftBrowserImages(ctx context.Context, session pl
 			}
 		}
 	}
+	if c.browserDocument != nil {
+		if err := c.browserDocument(ctx, postID, draft); err != nil {
+			return partial(fmt.Errorf("complete document verification: %w", err))
+		}
+	}
 	return mediumDraftResult(postID, mediumURL, draft, 0, true), nil
 }
 
@@ -143,7 +148,15 @@ func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
 	// For a published story, Medium stores edits separately from the public
 	// body until its Save and publish action. Keep that action manual.
 	publishedEdit := meta.FirstPublishedAt > 0
-	count, err := c.paragraphCount(ctx, session, postID)
+	var count int
+	if publishedEdit && c.browserParagraphCount != nil {
+		count, err = c.browserParagraphCount(ctx, postID)
+		if err == nil {
+			meta, err = c.postMeta(ctx, session, postID)
+		}
+	} else {
+		count, err = c.paragraphCount(ctx, session, postID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +182,11 @@ func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
 	// image insertions. No image upload should touch a partially saved model.
 	if !publishedEdit {
 		if err := c.verifyDraft(ctx, session, postID, deltas[count:]); err != nil {
+			return nil, fmt.Errorf("Medium browser draft full text verification failed: %w", err)
+		}
+	}
+	if c.browserDocument != nil {
+		if err := c.browserDocument(ctx, postID, draft); err != nil {
 			return nil, fmt.Errorf("Medium browser draft full text verification failed: %w", err)
 		}
 	}

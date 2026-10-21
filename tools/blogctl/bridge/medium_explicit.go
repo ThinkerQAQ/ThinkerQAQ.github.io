@@ -39,9 +39,11 @@ func runMediumExplicitWithProgress(ctx context.Context, session publisher.Sessio
 }
 
 type mediumBrowserFlow struct {
-	insert    func(context.Context, string, string, publisher.RehostImage) error
-	verify    func(context.Context, string, int) error
-	canonical func(context.Context, string, string) error
+	insert         func(context.Context, string, string, publisher.RehostImage) error
+	verify         func(context.Context, string, int) error
+	canonical      func(context.Context, string, string) error
+	paragraphCount func(context.Context, string) (int, error)
+	document       func(context.Context, string, mediumDraft) error
 }
 
 func runMediumExplicitWithBrowser(ctx context.Context, session publisher.Session, httpClient *http.Client,
@@ -61,6 +63,7 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 	medium := mediumClient{httpClient: httpClient, verifyAfterCreate: true, onStoryCreated: onCreated}
 	if flow != nil {
 		medium.browserInsert, medium.browserVerify = flow.insert, flow.verify
+		medium.browserParagraphCount, medium.browserDocument = flow.paragraphCount, flow.document
 	}
 	if len(browserUploaders) > 0 {
 		medium.browserUpload = browserUploaders[0]

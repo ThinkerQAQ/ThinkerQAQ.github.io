@@ -289,11 +289,15 @@ func TestMediumPublishedUpdateSavesEditorWithoutPublishing(t *testing.T) {
 		case "/p/" + id + "/notes":
 			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"post":{"id":"fb20c187d357","latestRev":35,"firstPublishedAt":1789485232457}}}`, nil), nil
 		case "/_/graphql":
+			t.Fatal("published public body must not determine replacement length")
+			return nil, nil
+		/*
 			if req.Header.Get("graphql-operation") == "BlogCTLMediumDraftVerification" {
 				t.Fatal("published GraphQL body is stale and must not be checked")
 				return nil, nil
 			}
 			return mediumResponse(req, http.StatusOK, `[{"data":{"postResult":{"content":{"bodyModel":{"paragraphs":[{"name":"oldTitle"},{"name":"oldBody"}]}}}}}]`, nil), nil
+		*/
 		case "/p/" + id + "/deltas":
 			var body struct {
 				BaseRev int              `json:"baseRev"`
@@ -302,13 +306,13 @@ func TestMediumPublishedUpdateSavesEditorWithoutPublishing(t *testing.T) {
 			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
-			if body.BaseRev != 35 || len(body.Deltas) != 4 {
+			if body.BaseRev != 35 || len(body.Deltas) != 6 {
 				t.Fatalf("unexpected replacement: %+v", body)
 			}
-			if body.Deltas[1]["type"] != float64(2) || body.Deltas[1]["index"] != float64(0) {
+			if body.Deltas[3]["type"] != float64(2) || body.Deltas[3]["index"] != float64(0) {
 				t.Fatalf("old title not removed: %+v", body.Deltas)
 			}
-			if title := body.Deltas[2]["paragraph"].(map[string]any); title["text"] != "New headline" {
+			if title := body.Deltas[4]["paragraph"].(map[string]any); title["text"] != "New headline" {
 				t.Fatalf("title not replaced: %+v", title)
 			}
 			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"value":{"latestRev":36}}}`, nil), nil
@@ -323,6 +327,20 @@ func TestMediumPublishedUpdateSavesEditorWithoutPublishing(t *testing.T) {
 		Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}}}, Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]", URL: "https://medium.com/diagram.png"}},
 	}}
 	medium := mediumClient{httpClient: client,
+		browserParagraphCount: func(_ context.Context, post string) (int, error) {
+			if post != id {
+				t.Fatal("wrong editor target")
+			}
+			steps = append(steps, "actual-editor-count")
+			return 4, nil
+		},
+		browserDocument: func(_ context.Context, post string, expected mediumDraft) error {
+			if post != id || expected.Title != "New headline" {
+				t.Fatal("wrong document verification")
+			}
+			steps = append(steps, "complete-document")
+			return nil
+		},
 		browserInsert: func(_ context.Context, post, marker string, _ publisher.RehostImage) error {
 			if post != id || marker != "[BLOGCTL_IMAGE_001]" {
 				t.Fatalf("wrong browser target: %s %s", post, marker)
@@ -345,7 +363,7 @@ func TestMediumPublishedUpdateSavesEditorWithoutPublishing(t *testing.T) {
 	if result["postId"] != id {
 		t.Fatalf("existing published ID was lost: %+v", result)
 	}
-	if !strings.Contains(strings.Join(steps, ","), "browser-insert,browser-Saved") {
+	if !strings.Contains(strings.Join(steps, ","), "browser-insert,browser-Saved,complete-document") {
 		t.Fatalf("browser verification absent: %v", steps)
 	}
 }

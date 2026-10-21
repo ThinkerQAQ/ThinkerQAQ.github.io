@@ -89,3 +89,29 @@ func (h *mediumBrowserUploadHub) canonical(ctx context.Context, draftID, canonic
 	}
 	return nil
 }
+
+func (h *mediumBrowserUploadHub) paragraphCount(ctx context.Context, draftID string) (int, error) {
+	if !mediumEditorPostID.MatchString(draftID) {
+		return 0, errors.New("invalid Medium editor ID")
+	}
+	reply, err := h.queueBrowserTask(ctx, &mediumPendingUpload{mode: "prepare", draftID: draftID})
+	if err != nil {
+		return 0, err
+	}
+	if !reply.inserted || reply.imageCount < 1 || reply.imageCount > 20000 {
+		return 0, errors.New("invalid saved editor paragraph count")
+	}
+	return reply.imageCount, nil
+}
+func (h *mediumBrowserUploadHub) document(ctx context.Context, draftID string, draft mediumDraft) error {
+	expected := []map[string]any{{"type": 3, "text": draft.Title}}
+	for _, delta := range draft.BrowserPlan.Deltas {
+		p, ok := delta["paragraph"].(map[string]any)
+		if !ok {
+			return errors.New("missing expected paragraph")
+		}
+		expected = append(expected, p)
+	}
+	_, err := h.queueBrowserTask(ctx, &mediumPendingUpload{mode: "document", draftID: draftID, expectedDocument: expected})
+	return err
+}
