@@ -7,7 +7,7 @@ export function readMediumEditorDocument(id,expected=null) {
  const saved=document.querySelector('.js-metabarMessage')?.textContent?.trim();
  if(!/^(Saved|DraftSaved)$/.test(saved||""))return {error:"Medium editor has not confirmed autosave"};
  const allNodes=[...root.querySelectorAll('.graf')];
- const nodes=allNodes.filter(n=>n.tagName!=="P"||n.textContent.trim()||!n.classList.contains('graf--empty'));
+ const nodes=allNodes.filter(n=>n.tagName!=="P"||n.textContent.replace(/[\u200a\u200b\ufeff\u2060]/g,"").trim());
  if(!nodes.length)return {error:"Medium editor document is empty"};
  if(expected){
   if(nodes.length!==expected.length)return {error:`Medium editor has ${nodes.length} paragraphs; expected ${expected.length}`};
