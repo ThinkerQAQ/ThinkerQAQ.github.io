@@ -131,6 +131,18 @@ func assetForDiagram(kind, source, base string) (Asset, error) {
 		}
 		return Asset{Kind: kind, ID: id, Renderer: MermaidRenderer, ObjectKey: key, PublicURL: pub, Content: n, Alt: alt}, nil
 	}
+	if kind == "table" {
+		n := strings.TrimRight(normalizeNewlines(source), "\n")
+		sum := sha256.Sum256([]byte("medium-table:v1:svg-text\n" + n))
+		id := hex.EncodeToString(sum[:])[:24]
+		key := "generated/table/" + id + ".png"
+		pub, err := assetURL(base, key)
+		if err != nil {
+			return Asset{}, err
+		}
+		headers := splitMediumTableRow(strings.Split(n, "\n")[0])
+		return Asset{Kind: "table", ID: id, Renderer: "medium-table", ObjectKey: key, PublicURL: pub, Content: n, Alt: "Comparison table: " + strings.Join(headers, "; ")}, nil
+	}
 	if kind == "ascii" {
 		n := strings.TrimRight(normalizeNewlines(source), "\n")
 		sum := sha256.Sum256([]byte("medium-ascii:v1:preserve-spaces\n" + n))
@@ -181,6 +193,29 @@ func compilePublishingMarkdown(markdown, base string, mediumASCII bool) (string,
 	assets := map[string]Asset{}
 	var order []string
 	for i := 0; i < len(lines); {
+		if mediumASCII && i+1 < len(lines) && strings.Contains(lines[i], "|") && isMediumTableSeparator(lines[i+1]) {
+			header := splitMediumTableRow(lines[i])
+			if len(header) >= 2 && len(splitMediumTableRow(lines[i+1])) == len(header) {
+				end := i + 2
+				for end < len(lines) && strings.TrimSpace(lines[end]) != "" && strings.Contains(lines[end], "|") && len(splitMediumTableRow(lines[end])) == len(header) {
+					end++
+				}
+				if end > i+2 {
+					a, err := assetForDiagram("table", strings.Join(lines[i:end], "\n"), base)
+					if err != nil {
+						return "", nil, err
+					}
+					k := a.Kind + ":" + a.ID
+					if _, found := assets[k]; !found {
+						assets[k] = a
+						order = append(order, k)
+					}
+					out = append(out, "!["+escapeAlt(a.Alt)+"]("+a.PublicURL+")")
+					i = end
+					continue
+				}
+			}
+		}
 		o, ok := fenceStart(lines[i])
 		if !ok {
 			out = append(out, absoluteRootLinks(lines[i]))

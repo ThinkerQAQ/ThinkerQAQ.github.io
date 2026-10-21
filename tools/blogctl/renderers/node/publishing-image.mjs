@@ -111,6 +111,87 @@ async function renderASCII(source, outputFile) {
     +'<g font-family="DejaVu Sans Mono, Consolas, monospace" font-size="'+fontSize+'" fill="#252525">'+rows+'</g></svg>';
   await sharp(Buffer.from(svg)).png().toFile(outputFile);
 }
+// Medium has no editable native table paragraph. Rasterize Markdown tables
+// with native SVG text (no foreignObject), retaining the original row/column
+// structure and readability. Escape all untrusted content as XML text.
+function splitMarkdownTableRow(row) {
+  let text=row.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells=[];let current="",ticks=0,escaped=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(escaped){current+=ch;escaped=false;continue;}
+    if(ch==="\\"){escaped=true;continue;}
+    if(ch==="`"){
+      let run=1;while(text[i+run]==="`")run++;
+      current+="`".repeat(run);i+=run-1;
+      ticks=ticks===run?0:(ticks===0?run:ticks);continue;
+    }
+    if(ch==="|" && ticks===0){cells.push(current.trim());current="";continue;}
+    current+=ch;
+  }
+  cells.push(current.trim());return cells;
+}
+function plainTableCell(value){
+  return value.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/__([^_]+)__/g,"$1")
+    .replace(/`+([^`]+)`+/g,"$1").replace(/\[([^\]]+)\]\([^)]+\)/g,"$1").replace(/\*([^*]+)\*/g,"$1");
+}
+function weightedTextLength(text){
+  return [...text].reduce((sum,ch)=>sum+(/[^\x00-\x7F]/u.test(ch)?1.7:/[MWmw@%]/u.test(ch)?1.2:/[iltI1.,:;]/u.test(ch)?0.46:0.95),0);
+}
+function wrapTableCell(raw,maxWidth,fontSize){
+  const text=plainTableCell(raw).replace(/\s+/g," ").trim();
+  const limit=maxWidth/(fontSize*0.59);
+  const words=text.split(" ");const lines=[];let line="";
+  for(const word of words){
+    if(!word)continue;
+    if(line && weightedTextLength(line+" "+word)<=limit){line+=" "+word;continue;}
+    if(line){lines.push(line);line="";}
+    if(weightedTextLength(word)<=limit){line=word;continue;}
+    for(const c of word){
+      if(line && weightedTextLength(line+c)>limit){lines.push(line);line="";}
+      line+=c;
+    }
+  }
+  if(line)lines.push(line);
+  return lines.length?lines:[""];
+}
+async function renderTable(source,outputFile){
+  const rows=source.replaceAll("\r\n","\n").trim().split("\n").map(splitMarkdownTableRow);
+  if(rows.length<3 || rows.length>64)throw Error("Markdown table has invalid row count");
+  const headers=rows[0],colCount=headers.length;
+  if(colCount<2 || colCount>8 || rows.some(row=>row.length!==colCount))throw Error("Markdown table column mismatch");
+  const values=[headers,...rows.slice(2)];
+  const fontSize=22,lineHeight=32,padding=18,outer=22,border=1;
+  const width=colCount===2?1080:Math.min(1800,Math.max(1080,colCount*275));
+  const innerWidth=width-2*outer;
+  const colWidths=colCount===2?[Math.round(innerWidth*.23),Math.round(innerWidth*.77)]:Array(colCount).fill(innerWidth/colCount);
+  const wrapped=values.map(row=>row.map((cell,i)=>wrapTableCell(cell,colWidths[i]-2*padding,fontSize)));
+  const rowHeights=wrapped.map(row=>Math.max(54,Math.max(...row.map(cell=>cell.length))*lineHeight+padding*2));
+  const height=Math.ceil(rowHeights.reduce((a,b)=>a+b,0)+2*outer);
+  if(width>4096||height>4096)throw Error("Rendered table exceeds size limits");
+  const parts=['<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'">',
+    '<rect width="100%" height="100%" fill="#ffffff"/>'];
+  let y=outer;
+  for(let r=0;r<wrapped.length;r++){
+    let x=outer;
+    const rowHeight=rowHeights[r];
+    for(let c=0;c<colCount;c++){
+      const cw=colWidths[c];
+      const fill=r===0?"#eef2f6":r%2===0?"#f8fafc":"#ffffff";
+      parts.push(`<rect x="${x}" y="${y}" width="${cw}" height="${rowHeight}" fill="${fill}" stroke="#cbd5e1" stroke-width="${border}"/>`);
+      const bold=r===0||c===0;
+      for(let k=0;k<wrapped[r][c].length;k++){
+        const t=wrapped[r][c][k];
+        parts.push(`<text x="${x+padding}" y="${y+padding+fontSize+k*lineHeight}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="${bold?600:400}" font-size="${fontSize}" fill="#242a31">${escapeASCIIForSVG(t)}</text>`);
+      }
+      x+=cw;
+    }
+    y+=rowHeight;
+  }
+  parts.push("</svg>");
+  await sharp(Buffer.from(parts.join(""))).png().toFile(outputFile);
+}
+
 async function constrain(outputFile) {
   const input = await readFile(outputFile);
   const metadata = await sharp(input).metadata();
@@ -142,6 +223,8 @@ async function main() {
     await renderPlantUML(source, output);
   } else if (args.kind === "ascii") {
     await renderASCII(source, output);
+  } else if (args.kind === "table") {
+    await renderTable(source, output);
   } else {
     throw new Error("Unsupported publishing asset kind: " + args.kind);
   }
