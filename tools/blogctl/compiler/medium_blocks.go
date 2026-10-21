@@ -156,7 +156,10 @@ func flattenMediumTables(markdown string) string {
 					rowTitle = headers[0]
 				}
 				if len(cells) == 2 {
-					out = append(out, "**"+rowTitle+"** — "+cells[1], "")
+					if !strings.HasPrefix(rowTitle, "**") || !strings.HasSuffix(rowTitle, "**") {
+						rowTitle = "**" + rowTitle + "**"
+					}
+					out = append(out, rowTitle+" — "+cells[1], "")
 				} else {
 					out = append(out, "**"+rowTitle+"**")
 					details := []string{}

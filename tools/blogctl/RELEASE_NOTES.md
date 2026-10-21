@@ -1,24 +1,25 @@
-# BlogCTL v0.1.177
+# BlogCTL v0.1.178
 
-本版修复 Medium 草稿**已保存，却被误报 `Medium editor has not confirmed autosave`** 的问题。重点是更正保存成功的判定依据，而不是增加不可靠的固定等待时间。
+修复 Medium 并发系列第 0 篇暴露的 Markdown **表格格式丢失、表格中的多余 `**` 标记**问题，明确代码块真实的持久化行为。
 
-## Medium 草稿持久化验证
+## Medium 表格保真
 
-- 修复：图片已插入并在 Medium 服务器成功保存，但编辑器顶部的 `DraftSaved` 状态更新滞后，导致整篇图片上传被误报为 `partial-failure`。
-- Medium 的 HTML 编辑器仍核对 CDN 图片是否加载、占位符是否清空、是否发生多人编辑冲突；若唯一问题是自动保存提示延迟，则由 Bridge 使用当前账号的已登录会话，**只读回查 GraphQL 服务器端持久化正文**。
-- 逐项比对草稿标题、文本、代码段类型和内容、结构段落、原生图片数与 CDN 元数据，以及占位符清理情况；只有服务器端内容完整吻合才视为成功。缺图、正文丢失、图片元数据异常、会话失效等仍明确报错。
-- 兼容 Medium GraphQL 实际返回的 `H3`、`P`、`IMG`、`PRE`、`BQ`、`ULI`、`OLI` 类型，同时保留历史数字段落类型的验证逻辑。
-- Create/Update 继续维持草稿操作，不会自动公开发布；出错后可通过 Retry 在原草稿 ID 上继续，不会创建重复草稿。
+- 之前 Compiler 的 `flattenMediumTables` 将 Markdown 表格降级为逐行普通段落，破坏两列布局，并对已经包含 `**Atomicity**` 的表头单元格重复添加 Markdown 强调标记。
+- Medium 不提供可靠的原生可编辑表格段落，因此仅在 **Medium 专用编译**时，识别合法的 Markdown 表格，保留列结构，使用已有 Sharp 渲染组件和 SVG 原生 `<text>` 节点输出 PNG 图片；由已经验证过的浏览器贴图流程插入草稿。
+- 预处理只识别有效表格，避开代码围栏；其他平台的 Markdown 表格保留不变。对于未按表格识别的降级文本，避免重复加粗标记。
+- 文本和单元格行高采用计算布局，不依赖浏览器 `<foreignObject>`，避免 Sharp 渲染空白文字；Renderer 的尺寸和长度有上限。
 
-## 现场验证
+## 第 0 篇真实草稿验证
 
-- 并发系列 1：原任务 `6c053ee08205d0e4` 于 `18:44` 报告保存验证失败；随后在 Medium 编辑器和只读 GraphQL 中确认原草稿 `6bf61c3f3ebd` **19 张图片完整保存，无占位符，服务器持久化 176 个段落**。对原 Job 安全 Retry 后任务状态恢复为 `completed`，草稿 ID 未变化，也未发布。
-- 回归测试验证 GraphQL 字符串段落类型映射、延迟保存提示与服务器端完整回读、缺图/篡改正文/残留图片占位符拒绝，以及真正的编辑器错误不可绕过。
+- 通过 BlogCTL 新建私有测试草稿 `e81d5dc8c2f4`，再使用同一个草稿 ID 完成真实 Update；没有自动发布。
+- 新表格图片已插入 Medium：服务器 GraphQL 实际返回 6 张原生图片（原本 5 张，加表格 1 张），0 个图片占位符，`DraftSaved`。
+- **16 个 PRE 代码段**保持不变；包含 Goroutine A/B 的 Go 源码仍处于同一个服务器端 PRE 段落和浏览器 `<pre>` 元素中。无需修改代码的换行格式。
+- 首次 Update 在第一张图片插入时没有取得返回值，保留草稿 ID 和失败现场；预检确认无图片、6 个原始占位符并且已保存后，采用相同 BlogCTL Job 的受控 Retry，最终执行成功。
 
-## 兼容和安装
+## 兼容
 
-- 兼容 v0.1.176 的 Medium 远端清单、创建和更新流程；无 Data 迁移。
-- Windows 安装保留 `Data/`、凭据及发布关联；CLI / Native Host / Extension 版本均为 `0.1.177`。
-- 更新解压安装的 Edge 扩展后，如浏览器提示需要重新加载，请在 `edge://extensions` 手动重新加载。
+- 保留 v0.1.177 的 Medium 保存回读修复、远端文章清单、创建/更新能力，不改变其他发布平台。
+- CLI、Bridge、Native Host、浏览器 Extension 升级到 `0.1.178`；保留 Windows `Data/` 和现有任务。
+- 新的表格渲染器使用 `engine_root/tools/blogctl/renderers/node/publishing-image.mjs`；部署时需要同步本地 EngineRoot 源码。
 
-版本：`0.1.177`
+版本：`0.1.178`
