@@ -21,6 +21,17 @@ func (c mediumClient) createDraftUsingBrowserImages(ctx context.Context, session
 
 func (c mediumClient) resumeDraftUsingBrowserImages(ctx context.Context, session platformSession,
 	draft mediumDraft, input publisher.DraftInput, postID string) (map[string]any, error) {
+	// A delayed autosave can complete after the previous task has failed.
+	// Verify that exact saved revision first; a complete document needs no
+	// image-marker replay, downloads or second text replacement.
+	if draft.BrowserPlan != nil && c.browserVerify != nil && c.browserDocument != nil {
+		if err := c.browserVerify(ctx, postID, len(draft.BrowserPlan.Images)); err == nil {
+			if err := c.browserDocument(ctx, postID, draft); err != nil {
+				return mediumDraftResult(postID, "", draft, 0, true), fmt.Errorf("saved Medium editor differs from retry source: %w", err)
+			}
+			return mediumDraftResult(postID, "", draft, 0, true), nil
+		}
+	}
 	return c.completeDraftBrowserImages(ctx, session, draft, input, postID, "", false)
 }
 
