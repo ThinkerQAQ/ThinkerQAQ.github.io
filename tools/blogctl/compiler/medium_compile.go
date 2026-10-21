@@ -85,9 +85,27 @@ func firstMediumTags(tags []string) []string {
 	return append([]string{}, tags[:limit]...)
 }
 
+// Medium assigns its own opaque paragraph IDs. Source heading fragments are
+// valid only on the original article, including lower-level headings that
+// Medium represents as bold paragraphs. Keep these links useful on both
+// initial creation and full replacements without guessing Medium IDs.
+func resolveMediumFragmentLinks(blocks []mediumBlock, canonical string) {
+	for i := range blocks {
+		for j := range blocks[i].Markups {
+			markup := &blocks[i].Markups[j]
+			if markup.Type == mediumMarkupLink && strings.HasPrefix(markup.Href, "#") {
+				fragment := markup.Href
+				markup.Href = canonical + fragment
+				blocks[i].HTML = strings.ReplaceAll(blocks[i].HTML, `href="`+mediumEscapeHTML(fragment)+`"`, `href="`+mediumEscapeHTML(markup.Href)+`"`)
+			}
+		}
+	}
+}
+
 func buildMediumPayload(article Article, slug string, profile PlatformConfig, compiledMarkdown string) (mediumPayload, []string) {
 	canonical := CanonicalURL(slug, profile.Language)
 	blocks, warnings := parseMediumBlocks(compiledMarkdown)
+	resolveMediumFragmentLinks(blocks, canonical)
 	coverURL := resolveArticleAssetURL(article.CoverImage)
 	content := blocks
 	if coverURL != "" {
@@ -222,6 +240,7 @@ func renderMediumBlocks(blocks []mediumBlock) string {
 func buildMediumCopyHTML(article Article, slug string, profile PlatformConfig, compiledMarkdown string) string {
 	canonical := CanonicalURL(slug, profile.Language)
 	blocks, _ := parseMediumBlocks(compiledMarkdown)
+	resolveMediumFragmentLinks(blocks, canonical)
 	body := renderMediumBlocks(blocks)
 	coverURL := resolveArticleAssetURL(article.CoverImage)
 	coverHTML := ""

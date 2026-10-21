@@ -12,7 +12,7 @@ test("article search uses a native datalist rather than a custom ARIA dropdown",
   assert.doesNotMatch(code, /function articlePickerOpen\(/u);
 });
 
-async function creationUI() {
+async function creationUI(extraPlatforms = []) {
   const { runInNewContext } = await import("node:vm");
   class Element {
     children = []; handlers = {}; dataset = {}; disabled = false; value = "";
@@ -33,7 +33,7 @@ async function creationUI() {
   };
   const calls = [];
   let resolveMatch, rejectMatch;
-  const platforms = ["devto", "cnblogs"].map(id => ({ id, capabilities: { draftCreate: true, remoteList: true, explicitPublish: true } }));
+  const platforms = [...["devto", "cnblogs"].map(id => ({ id, capabilities: { draftCreate: true, remoteList: true, explicitPublish: true } })), ...extraPlatforms];
   const context = {
     document, localStorage: { getItem: () => "one", setItem() {} },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
@@ -111,4 +111,27 @@ test("detected existing articles remain excluded and stale results cannot affect
   ui.button("draftArticlePicker").value = "two"; ui.button("draftArticlePicker").handlers.input();
   ui.finish([{ id: "old-result" }]); await ui.flush();
   assert.equal(ui.button("saveDrafts").disabled, false);
+});
+
+
+test("actual update submit accepts Medium published revisions and keeps publishing manual", async () => {
+ const ui = await creationUI([{id:"medium",capabilities:{draftCreate:true,remoteList:true,publishedDraftEdit:true}}]);
+ ui.context.BlogCTLDrafts.setMode("update");
+ await ui.context.BlogCTLDrafts.updateTargets([{platform:"medium",id:"fb20c187d357",state:"published"}]);
+ const call = ui.calls.find(x=>x.type==="blogctl.job.start");
+ assert.ok(call, "Update was blocked before Bridge submission");
+ assert.equal(call.payload.request.operation,"update");
+ assert.equal(call.payload.request.targets[0].id,"fb20c187d357");
+ assert.equal(call.payload.request.publishAfter,false);
+ const before = ui.calls.filter(x=>x.type==="blogctl.job.start").length;
+ await ui.context.BlogCTLDrafts.updateTargets([{platform:"medium",id:"fb20c187d357",state:"published"}],true);
+ assert.equal(ui.calls.filter(x=>x.type==="blogctl.job.start").length,before);
+});
+
+
+test("published Medium targets without staged-edit capability still fail closed", async () => {
+ const ui = await creationUI([{id:"medium",capabilities:{draftCreate:true,remoteList:true}}]);
+ ui.context.BlogCTLDrafts.setMode("update");
+ await ui.context.BlogCTLDrafts.updateTargets([{platform:"medium",id:"fb20c187d357",state:"published"}]);
+ assert.equal(ui.calls.some(x=>x.type==="blogctl.job.start"),false);
 });

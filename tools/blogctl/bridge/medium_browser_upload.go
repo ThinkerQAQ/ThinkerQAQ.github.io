@@ -27,6 +27,7 @@ type mediumBrowserUploadHub struct {
 type mediumPendingUpload struct {
 	id, draftID, filename, mime string
 	mode, marker                string
+	canonicalURL                string
 	expectedImages              int
 	payload                     []byte
 	claimed                     bool
@@ -100,7 +101,7 @@ func (h *mediumBrowserUploadHub) next() map[string]any {
 		item.claimed = true
 		item.claimedAt = time.Now()
 		slog.Info("medium browser upload claimed", "operation", "medium-browser-upload", "draftId", item.draftID)
-		return map[string]any{"id": item.id, "draftId": item.draftID, "filename": item.filename, "mimeType": item.mime, "base64": base64.StdEncoding.EncodeToString(item.payload), "mode": item.mode, "marker": item.marker, "expectedImages": item.expectedImages}
+		return map[string]any{"id": item.id, "draftId": item.draftID, "filename": item.filename, "mimeType": item.mime, "base64": base64.StdEncoding.EncodeToString(item.payload), "mode": item.mode, "marker": item.marker, "expectedImages": item.expectedImages, "canonicalUrl": item.canonicalURL}
 	}
 	return nil
 }
@@ -122,7 +123,7 @@ func (h *mediumBrowserUploadHub) completeTask(id, fileID string, width, height i
 		item.reply <- mediumBrowserUploadReply{err: fmt.Errorf("Medium browser upload failed: %s", truncate(reportedError, 250))}
 		return nil
 	}
-	if item.mode == "insert" || item.mode == "verify" {
+	if item.mode == "insert" || item.mode == "verify" || item.mode == "canonical" {
 		if !inserted || (item.mode == "verify" && imageCount != item.expectedImages) {
 			item.reply <- mediumBrowserUploadReply{err: errors.New("Medium browser did not confirm the saved image content")}
 			return nil

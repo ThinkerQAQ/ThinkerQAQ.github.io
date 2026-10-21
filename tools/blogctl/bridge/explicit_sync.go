@@ -120,7 +120,7 @@ func (s *Server) runExplicitSync(ctx context.Context, config bridgeConfig,
 							url := mediumOrigin + "/p/" + postID + "/edit"
 							report("running", "draft-allocated", url,
 								"Medium draft allocated; preparing images and content", postID)
-						}, mediumBrowserFlow{insert: s.mediumUploads.insert, verify: s.mediumUploads.verify}, s.mediumUploads.upload)
+						}, mediumBrowserFlow{insert: s.mediumUploads.insert, verify: s.mediumUploads.verify, canonical: s.mediumUploads.canonical}, s.mediumUploads.upload)
 				} else if platform == "hashnode" && req.Operation == "create" && !req.PublishAfter {
 					var draft publisher.DraftResult
 					draft, writeErr = service.CreateOrUpdateDraftInput(ctx, platform, session, config.ContentRoot, input, true)

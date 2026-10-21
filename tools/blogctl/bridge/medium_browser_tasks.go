@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
@@ -69,6 +70,22 @@ func (h *mediumBrowserUploadHub) verify(ctx context.Context, draftID string, exp
 	}
 	if !reply.inserted || reply.imageCount != expected {
 		return fmt.Errorf("Medium browser persisted image count %d, expected %d", reply.imageCount, expected)
+	}
+	return nil
+}
+
+// Canonical is a native Story settings save, never a story publication.
+func (h *mediumBrowserUploadHub) canonical(ctx context.Context, draftID, canonical string) error {
+	u, err := url.Parse(canonical)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || !mediumEditorPostID.MatchString(draftID) {
+		return errors.New("invalid Medium canonical settings task")
+	}
+	reply, err := h.queueBrowserTask(ctx, &mediumPendingUpload{mode: "canonical", draftID: draftID, canonicalURL: canonical})
+	if err != nil {
+		return err
+	}
+	if !reply.inserted {
+		return errors.New("Medium canonical settings were not confirmed")
 	}
 	return nil
 }

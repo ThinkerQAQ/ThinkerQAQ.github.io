@@ -1,3 +1,4 @@
+import { configureMediumCanonical } from "./medium-settings.js";
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
 import { collectBrowserSessionCookieBatches, cookieHeaderFromRequest, cookieQueryDiagnostic, selectBrowserSessionCookies } from "./session.js";
 import { toError } from "./errors.js";
@@ -1624,6 +1625,7 @@ const mediumDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 
 async function processMediumUpload(task) {
+  if (task.mode === "canonical") return configureMediumCanonical(task);
   if (task.mode === "insert" || task.mode === "verify") {
     if (!validMediumEditorTask(task)) throw new Error("Invalid Medium browser editor task");
     const tabId = await findMediumEditorTab(task.draftId);

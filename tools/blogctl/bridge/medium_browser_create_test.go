@@ -55,7 +55,7 @@ func TestMediumExplicitBrowserCreatePreservesNativeBodyAndInsertsImages(t *testi
 		}
 	})}
 	original := mediumDraft{
-		Title: "Test",
+		Title: "Test", CanonicalURL: "https://thinkerqaq.com/en/articles/example/",
 		Deltas: []map[string]any{
 			{"type": 1, "paragraph": map[string]any{"type": 8, "text": "a := 1\n  b := 2"}},
 			{"type": 1, "paragraph": map[string]any{"type": 4, "text": ""}, "image": map[string]any{"url": "https://medium.com/test.png"}},
@@ -72,6 +72,13 @@ func TestMediumExplicitBrowserCreatePreservesNativeBodyAndInsertsImages(t *testi
 	}
 	raw, _ := json.Marshal(original)
 	flow := mediumBrowserFlow{
+		canonical: func(_ context.Context, id, canonical string) error {
+			if id != "1111aaaabbbb" || canonical != original.CanonicalURL {
+				t.Fatal("wrong canonical target")
+			}
+			steps = append(steps, "canonical-persisted")
+			return nil
+		},
 		insert: func(_ context.Context, id, marker string, img publisher.RehostImage) error {
 			if id != "1111aaaabbbb" || marker != "[BLOGCTL_IMAGE_001]" || string(img.Payload) != "image-bytes" {
 				t.Fatalf("invalid browser image task: %q %q", id, marker)
@@ -98,7 +105,7 @@ func TestMediumExplicitBrowserCreatePreservesNativeBodyAndInsertsImages(t *testi
 	if allocated != result.ID || result.Kind != "draft-created" {
 		t.Fatalf("lost saved browser draft: %+v", result)
 	}
-	if got := strings.Join(steps, ","); got != "create,checkpoint,text,image-download,browser-insert,browser-reload" {
+	if got := strings.Join(steps, ","); got != "create,checkpoint,text,image-download,browser-insert,browser-reload,canonical-persisted" {
 		t.Fatalf("unexpected BlogCTL flow: %s", got)
 	}
 }
