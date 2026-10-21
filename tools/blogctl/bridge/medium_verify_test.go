@@ -150,3 +150,103 @@ func TestMediumCreateReadbackMismatchPreservesRemoteDraft(t *testing.T) {
 		t.Fatalf("lost partial draft reference: %+v", result)
 	}
 }
+
+func TestMediumBrowserReadbackAcceptsRealGraphQLEnums(t *testing.T) {
+	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path != "/_/graphql" {
+			t.Fatalf("unexpected endpoint: %s", req.URL)
+			return nil, nil
+		}
+		if req.Header.Get("graphql-operation") != "BlogCTLMediumDraftVerification" {
+			t.Fatal("expected existing readback query")
+		}
+		return mediumResponse(req, http.StatusOK, `[{"data":{"postResult":{"id":"abc12345","content":{"bodyModel":{"paragraphs":[{"type":"H3","text":"Title"},{"type":"P","text":"Body"},{"type":"IMG","text":"","metadata":{"id":"1*persistedimage","originalWidth":1100,"originalHeight":650}},{"type":"P","text":""},{"type":"PRE","text":"foo()\n  bar()"}]}}}}}]`, nil), nil
+	})}
+	got, err := (mediumClient{httpClient: client}).readDraftParagraphs(context.Background(), platformSession{}, "abc12345")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 5 || got[0].Type != 3 || got[1].Type != 1 || got[2].Type != 4 || got[3].Type != 1 || got[4].Type != 8 {
+		t.Fatalf("unexpected Medium enum mapping: %+v", got)
+	}
+	draft := mediumDraft{Title: "Title", BrowserPlan: &mediumBrowserDraftPlan{
+		Deltas: []map[string]any{
+			{"paragraph": map[string]any{"type": 1, "text": "Body"}},
+			{"paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}},
+			{"paragraph": map[string]any{"type": 8, "text": "foo()\n  bar()"}},
+		},
+		Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]"}},
+	}}
+	if err := verifyMediumBrowserSavedParagraphs(draft, got); err != nil {
+		t.Fatalf("real Media readback must pass: %v", err)
+	}
+	badText := append([]mediumSavedParagraph(nil), got...)
+	badText[4].Text = "foo() bar()"
+	if err := verifyMediumBrowserSavedParagraphs(draft, badText); err == nil {
+		t.Fatal("corrupted PRE content accepted")
+	}
+	badImage := append([]mediumSavedParagraph(nil), got...)
+	badImage[2].Metadata.ID = "invalid-image"
+	if err := verifyMediumBrowserSavedParagraphs(draft, badImage); err == nil {
+		t.Fatal("image without Medium CDN metadata accepted")
+	}
+	if err := verifyMediumBrowserSavedParagraphs(draft, got[:4]); err == nil {
+		t.Fatal("missing final paragraph accepted")
+	}
+	if err := verifyMediumBrowserSavedParagraphs(draft, append(got, got[2])); err == nil {
+		t.Fatal("extra IMG accepted")
+	}
+	stillMarker := append([]mediumSavedParagraph(nil), got...)
+	stillMarker[3].Text = "[BLOGCTL_IMAGE_001]"
+	if err := verifyMediumBrowserSavedParagraphs(draft, stillMarker); err == nil {
+		t.Fatal("remaining image placeholder accepted")
+	}
+}
+
+func TestMediumBrowserVerifyAcceptsServerPersistenceAfterDelayedBadge(t *testing.T) {
+	draft := mediumDraft{Title: "Title", Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}}},
+		BrowserPlan: &mediumBrowserDraftPlan{
+			Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}}},
+			Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]", URL: "https://medium.com/cover.png"}},
+		},
+	}
+	calls := []string{}
+	client := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls = append(calls, req.URL.Path)
+		switch req.URL.Path {
+		case "/cover.png":
+			return mediumResponse(req, http.StatusOK, "image-bytes", http.Header{"Content-Type": {"image/png"}}), nil
+		case "/_/graphql":
+			return mediumResponse(req, http.StatusOK, `[{"data":{"postResult":{"id":"abc12345","content":{"bodyModel":{"paragraphs":[{"type":"H3","text":"Title"},{"type":"IMG","text":"","metadata":{"id":"1*savedcover","originalWidth":1200,"originalHeight":720}},{"type":"P","text":""}]}}}}}]`, nil), nil
+		default:
+			t.Fatalf("unexpected browser readback call: %s", req.URL)
+			return nil, nil
+		}
+	})}
+	medium := mediumClient{httpClient: client,
+		browserInsert: func(_ context.Context, _, _ string, _ publisher.RehostImage) error {
+			calls = append(calls, "browser-insert")
+			return nil
+		},
+		browserVerify: func(_ context.Context, _ string, _ int) error {
+			calls = append(calls, "browser-verify")
+			return errors.New("Medium browser upload failed: Medium draft autosave verification failed: Medium editor has not confirmed autosave")
+		},
+	}
+	_, err := medium.completeDraftBrowserImages(context.Background(), platformSession{}, draft, publisher.DraftInput{}, "abc12345", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(calls, ","), "browser-verify,/_/graphql") {
+		t.Fatalf("expected server-authoritative fallback, got %v", calls)
+	}
+}
+
+func TestMediumBrowserVerifyDoesNotBypassBrokenImages(t *testing.T) {
+	medium := mediumClient{browserInsert: func(context.Context, string, string, publisher.RehostImage) error { return nil }, browserVerify: func(context.Context, string, int) error { return errors.New("Medium editor still has 1 missing image") }}
+	draft := mediumDraft{Title: "Title", Deltas: []map[string]any{{"paragraph": map[string]any{"type": 1, "text": "body"}}}, BrowserPlan: &mediumBrowserDraftPlan{Deltas: []map[string]any{{"paragraph": map[string]any{"type": 1, "text": "body"}}}}}
+	_, err := medium.completeDraftBrowserImages(context.Background(), platformSession{}, draft, publisher.DraftInput{}, "abc12345", "", false)
+	if err == nil || !strings.Contains(err.Error(), "1 missing image") {
+		t.Fatalf("must preserve safety failure, got %v", err)
+	}
+}

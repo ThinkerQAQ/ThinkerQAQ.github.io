@@ -12,10 +12,33 @@ import (
 	"time"
 )
 
+// Medium's editor sends numeric paragraph types, while its read-only
+// GraphQL response uses named enum types. Decode both into one model.
+type mediumParagraphType int
+
+func (value *mediumParagraphType) UnmarshalJSON(raw []byte) error {
+	var numeric int
+	if err := json.Unmarshal(raw, &numeric); err == nil {
+		*value = mediumParagraphType(numeric)
+		return nil
+	}
+	var name string
+	if err := json.Unmarshal(raw, &name); err != nil {
+		return fmt.Errorf("Medium paragraph type must be numeric or an enum: %w", err)
+	}
+	types := map[string]int{"P": 1, "H3": 3, "IMG": 4, "BQ": 6, "PRE": 8, "ULI": 9, "OLI": 10}
+	numeric, ok := types[name]
+	if !ok {
+		return fmt.Errorf("unknown Medium saved paragraph type %q", name)
+	}
+	*value = mediumParagraphType(numeric)
+	return nil
+}
+
 // Only the fields required to verify native text, PRE and IMAGE paragraphs.
 type mediumSavedParagraph struct {
-	Type     int    `json:"type"`
-	Text     string `json:"text"`
+	Type     mediumParagraphType `json:"type"`
+	Text     string              `json:"text"`
 	Metadata struct {
 		ID             string `json:"id"`
 		OriginalWidth  int    `json:"originalWidth"`
@@ -130,7 +153,7 @@ func verifyMediumParagraphs(deltas []map[string]any, actual []mediumSavedParagra
 			return fmt.Errorf("expected paragraph %d type is invalid", index)
 		}
 		got := actual[index]
-		if got.Type != typ {
+		if int(got.Type) != typ {
 			return fmt.Errorf("Medium paragraph %d type %d, expected %d", index, got.Type, typ)
 		}
 		text, _ := expected["text"].(string)
@@ -176,4 +199,104 @@ func (c mediumClient) verifyDraft(ctx context.Context, session platformSession, 
 		last = err
 	}
 	return fmt.Errorf("remote draft integrity check failed: %w", last)
+}
+
+// verifyMediumBrowserSavedParagraphs uses the server's persisted body as
+// authoritative evidence when the editor's DraftSaved badge is delayed.
+// Medium inserts an IMG block and clears each placeholder P in-place. Thus
+// filtering IMG blocks leaves exactly the compiler's original text model.
+func verifyMediumBrowserSavedParagraphs(draft mediumDraft, saved []mediumSavedParagraph) error {
+	plan := draft.BrowserPlan
+	if plan == nil {
+		return errors.New("missing Medium browser compiler plan")
+	}
+	wantText := len(plan.Deltas) + 1 // title and original body paragraphs
+	wantImages := len(plan.Images)
+	if len(saved) != wantText+wantImages {
+		return fmt.Errorf("remote Medium draft has %d saved paragraphs; expected %d (text %d + images %d)",
+			len(saved), wantText+wantImages, wantText, wantImages)
+	}
+	images := 0
+	index := 0
+	verifyText := func(typ int, text string) error {
+		for index < len(saved) && saved[index].Type == 4 {
+			image := saved[index]
+			if !strings.HasPrefix(image.Metadata.ID, "1*") || image.Metadata.OriginalWidth <= 0 || image.Metadata.OriginalHeight <= 0 {
+				return fmt.Errorf("Medium remote image %d is missing native CDN metadata", images+1)
+			}
+			images++
+			index++
+		}
+		if index >= len(saved) {
+			return errors.New("Medium remote text paragraphs are missing")
+		}
+		if int(saved[index].Type) != typ || saved[index].Text != text {
+			return fmt.Errorf("Medium remote text paragraph %d differs from the compiler", index)
+		}
+		index++
+		return nil
+	}
+	if err := verifyText(3, draft.Title); err != nil {
+		return err
+	}
+	markers := map[string]bool{}
+	for _, image := range plan.Images {
+		markers[image.Marker] = true
+	}
+	for _, delta := range plan.Deltas {
+		paragraph, ok := delta["paragraph"].(map[string]any)
+		if !ok {
+			return errors.New("Medium compiler paragraph data is missing")
+		}
+		typ, ok := mediumDeltaNumber(paragraph["type"])
+		if !ok {
+			return errors.New("Medium compiler paragraph type is invalid")
+		}
+		text, _ := paragraph["text"].(string)
+		if markers[text] {
+			if typ != 1 {
+				return errors.New("Medium image marker is not a plain paragraph")
+			}
+			text = "" // the editor clears the marker after native paste
+		}
+		if err := verifyText(typ, text); err != nil {
+			return err
+		}
+	}
+	for index < len(saved) && saved[index].Type == 4 {
+		image := saved[index]
+		if !strings.HasPrefix(image.Metadata.ID, "1*") || image.Metadata.OriginalWidth <= 0 || image.Metadata.OriginalHeight <= 0 {
+			return fmt.Errorf("Medium remote image %d is missing native CDN metadata", images+1)
+		}
+		images++
+		index++
+	}
+	if index != len(saved) || images != wantImages {
+		return fmt.Errorf("Medium remote image integrity mismatch: %d saved, expected %d", images, wantImages)
+	}
+	return nil
+}
+
+// The editor save indicator is UI state, not a persistence proof. Confirm
+// actual server-side paragraphs and images before accepting a delayed badge.
+func (c mediumClient) verifyMediumBrowserPersisted(ctx context.Context, session platformSession, postID string, draft mediumDraft) error {
+	var last error
+	for i := 0; i < 4; i++ {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(900 * time.Millisecond):
+			}
+		}
+		paragraphs, err := c.readDraftParagraphs(ctx, session, postID)
+		if err == nil {
+			err = verifyMediumBrowserSavedParagraphs(draft, paragraphs)
+		}
+		if err == nil {
+			return nil
+		}
+		last = err
+	}
+	return fmt.Errorf("Medium remote persistence was not confirmed: %w", last)
 }
