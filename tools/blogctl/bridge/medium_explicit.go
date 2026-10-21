@@ -118,7 +118,11 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 		if target.ID == "" {
 			return publisher.ExplicitResult{}, errors.New("Medium update requires a selected draft ID")
 		}
-		result, err = medium.updateDraft(ctx, auth, target.ID, draft, input)
+		if draft.BrowserPlan != nil && medium.browserInsert != nil {
+			result, err = medium.updateDraftUsingBrowserImages(ctx, auth, draft, input, target.ID)
+		} else {
+			result, err = medium.updateDraft(ctx, auth, target.ID, draft, input)
+		}
 	}
 	if err != nil {
 		// Preserve a newly created but incomplete remote draft reference.

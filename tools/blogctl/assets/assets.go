@@ -226,7 +226,7 @@ func prepareOne(ctx context.Context, config Config, asset blogcompiler.Asset, ou
 
 func validate(asset blogcompiler.Asset) error {
 	switch asset.Kind {
-	case "mermaid", "plantuml":
+	case "mermaid", "plantuml", "ascii":
 	default:
 		return fmt.Errorf("unsupported publishing asset kind: %s", asset.Kind)
 	}

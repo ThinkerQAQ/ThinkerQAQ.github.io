@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -86,4 +87,48 @@ func (c mediumClient) completeDraftBrowserImages(ctx context.Context, session pl
 		}
 	}
 	return mediumDraftResult(postID, mediumURL, draft, 0, true), nil
+}
+
+// updateDraftUsingBrowserImages replaces an existing UNPUBLISHED draft's
+// native text and placeholder paragraphs, then inserts raster images through
+// the Medium editor. It never writes private image Delta metadata. The editor
+// must not be concurrently open during the revisioned text replacement.
+func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
+	session platformSession, draft mediumDraft, input publisher.DraftInput,
+	postID string) (map[string]any, error) {
+	if draft.BrowserPlan == nil || c.browserInsert == nil || c.browserVerify == nil {
+		return nil, errors.New("Medium browser image update flow unavailable")
+	}
+	session = c.primeXSRF(ctx, session)
+	meta, err := c.postMeta(ctx, session, postID)
+	if err != nil {
+		return nil, err
+	}
+	if meta.FirstPublishedAt > 0 {
+		return nil, errors.New("Medium draft already published")
+	}
+	count, err := c.paragraphCount(ctx, session, postID)
+	if err != nil {
+		return nil, err
+	}
+	if count < 1 {
+		return nil, errors.New("Existing Medium draft has no title")
+	}
+	// Preserve curated Medium headline; replace only body.
+	var deltas []map[string]any
+	for i := count - 1; i >= 1; i-- {
+		deltas = append(deltas, map[string]any{"type": 2, "index": i})
+	}
+	for i, paragraph := range draft.BrowserPlan.Deltas {
+		delta := cloneMediumDelta(paragraph)
+		if _, bad := delta["image"]; bad {
+			return nil, errors.New("Browser draft text unexpectedly contains image delta")
+		}
+		delta["index"] = i + 1
+		deltas = append(deltas, delta)
+	}
+	if _, err := c.writeDeltas(ctx, session, postID, meta.LatestRev, deltas); err != nil {
+		return nil, fmt.Errorf("Medium browser draft text replacement failed: %w", err)
+	}
+	return c.completeDraftBrowserImages(ctx, session, draft, input, postID, meta.MediumURL, false)
 }

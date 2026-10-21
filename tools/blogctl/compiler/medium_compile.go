@@ -298,7 +298,7 @@ func jsonStringify(value any) (string, error) {
 
 func compileMedium(ctx compileContext) (CompiledArticle, error) {
 	article := ctx.article
-	portable, assets, err := CompilePublishingMarkdown(article.Body, ctx.assetBase)
+	portable, assets, err := CompileMediumPublishingMarkdown(article.Body, ctx.assetBase)
 	if err != nil {
 		return CompiledArticle{}, err
 	}

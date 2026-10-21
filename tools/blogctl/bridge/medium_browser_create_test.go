@@ -185,3 +185,63 @@ func TestMediumResumeExistingDraftNeverCreatesOrRewritesBody(t *testing.T) {
 		t.Fatalf("unsafe resume steps: %s", got)
 	}
 }
+
+func TestMediumBrowserNativeUpdateReplacesBodyWithoutPrivateImageDeltas(t *testing.T) {
+	steps := []string{}
+	httpClient := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Path {
+		case "/":
+			return mediumResponse(req, http.StatusOK, "OK", nil), nil
+		case "/p/1111aaaabbbb/notes":
+			steps = append(steps, "read-meta")
+			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"post":{"id":"1111aaaabbbb","latestRev":12}}}`, nil), nil
+		case "/_/graphql":
+			steps = append(steps, "read-count")
+			return mediumResponse(req, http.StatusOK, `[{"data":{"postResult":{"content":{"bodyModel":{"paragraphs":[{"name":"title"},{"name":"old1"},{"name":"old2"}]}}}}}]`, nil), nil
+		case "/p/1111aaaabbbb/deltas":
+			steps = append(steps, "replace-body")
+			var body struct {
+				BaseRev int              `json:"baseRev"`
+				Deltas  []map[string]any `json:"deltas"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.BaseRev != 12 || len(body.Deltas) != 3 {
+				t.Fatalf("unexpected update delta: %+v", body)
+			}
+			for _, delta := range body.Deltas {
+				if delta["image"] != nil {
+					t.Fatal("private image Delta sent")
+				}
+			}
+			if body.Deltas[0]["type"] != float64(2) || body.Deltas[1]["type"] != float64(2) || body.Deltas[2]["type"] != float64(1) {
+				t.Fatalf("expected delete-old-body + marker insert, got %+v", body.Deltas)
+			}
+			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"value":{"latestRev":13}}}`, nil), nil
+		case "/diagram.png":
+			steps = append(steps, "read-PNG")
+			return mediumResponse(req, http.StatusOK, "png", http.Header{"Content-Type": {"image/png"}}), nil
+		default:
+			t.Fatalf("unexpected endpoint %s", req.URL)
+			return nil, nil
+		}
+	})}
+	draft := mediumDraft{Title: "Retain Medium headline", Deltas: []map[string]any{{"image": map[string]any{"url": "https://medium.com/diagram.png"}}},
+		BrowserPlan: &mediumBrowserDraftPlan{Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}}},
+			Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]", URL: "https://medium.com/diagram.png"}}}}
+	medium := mediumClient{httpClient: httpClient,
+		browserInsert: func(_ context.Context, id, marker string, img publisher.RehostImage) error {
+			steps = append(steps, "browser-insert")
+			return nil
+		},
+		browserVerify: func(_ context.Context, id string, count int) error { steps = append(steps, "verify"); return nil },
+	}
+	_, err := medium.updateDraftUsingBrowserImages(context.Background(), platformSession{}, draft, publisher.DraftInput{}, "1111aaaabbbb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(steps, ","); got != "read-meta,read-count,replace-body,read-PNG,browser-insert,verify" {
+		t.Fatalf("flow=%s", got)
+	}
+}

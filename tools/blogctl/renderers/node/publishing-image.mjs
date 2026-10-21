@@ -93,6 +93,24 @@ async function renderPlantUML(source, outputFile) {
   await sharp(Buffer.from(svg)).png().toFile(outputFile);
 }
 
+// Render aligned text diagrams as faithful monospace PNGs.
+// SVG <text> elements (unlike foreignObject) survive Sharp rasterization.
+function escapeASCIIForSVG(s) {
+  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+async function renderASCII(source, outputFile) {
+  const lines = source.replaceAll("\r\n","\n").replaceAll("\r","\n").replace(/\n$/, "").split("\n");
+  if (lines.length > 130 || source.length > 24000) throw new Error("Text diagram exceeds size limit");
+  const chars = Math.max(...lines.map(line => [...line].length));
+  const fontSize = 19, xAdvance = 11.5, lineHeight = 30;
+  const width = Math.ceil(chars * xAdvance + 70), height = Math.ceil(lines.length*lineHeight+55);
+  if (width>4096 || height>4096) throw new Error("Text diagram exceeds raster limits");
+  const rows = lines.map((line,i) => '<text x="36" y="'+(46+i*lineHeight)+'" xml:space="preserve">'+escapeASCIIForSVG(line)+'</text>').join("");
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'">'
+    +'<rect width="100%" height="100%" fill="#f8f8f8"/>'
+    +'<g font-family="DejaVu Sans Mono, Consolas, monospace" font-size="'+fontSize+'" fill="#252525">'+rows+'</g></svg>';
+  await sharp(Buffer.from(svg)).png().toFile(outputFile);
+}
 async function constrain(outputFile) {
   const input = await readFile(outputFile);
   const metadata = await sharp(input).metadata();
@@ -122,6 +140,8 @@ async function main() {
     await renderMermaid(input, output, args.renderer, args.width, args.scale);
   } else if (args.kind === "plantuml") {
     await renderPlantUML(source, output);
+  } else if (args.kind === "ascii") {
+    await renderASCII(source, output);
   } else {
     throw new Error("Unsupported publishing asset kind: " + args.kind);
   }
