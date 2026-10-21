@@ -367,3 +367,22 @@ func TestMediumPublishedUpdateSavesEditorWithoutPublishing(t *testing.T) {
 		t.Fatalf("browser verification absent: %v", steps)
 	}
 }
+
+func TestMediumDelayedSavedUsesEditorDocumentInsteadOfOldPublishedBody(t *testing.T) {
+	checks := 0
+	client := mediumClient{httpClient: &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("must not read old published body: %s", req.URL)
+		return nil, nil
+	})},
+		browserVerify: func(context.Context, string, int) error {
+			return errors.New("Medium editor has not confirmed autosave")
+		},
+		browserDocument: func(context.Context, string, mediumDraft) error { checks++; return nil },
+	}
+	body := []map[string]any{{"paragraph": map[string]any{"type": 1, "text": "Body"}}}
+	draft := mediumDraft{Title: "Title", Deltas: body, BrowserPlan: &mediumBrowserDraftPlan{Deltas: body}}
+	_, err := client.completeDraftBrowserImages(context.Background(), platformSession{}, draft, publisher.DraftInput{}, "fb20c187d357", "", false)
+	if err != nil || checks != 2 {
+		t.Fatalf("delayed editor save checks=%d err=%v", checks, err)
+	}
+}

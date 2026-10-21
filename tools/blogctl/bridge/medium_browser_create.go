@@ -90,7 +90,15 @@ func (c mediumClient) completeDraftBrowserImages(ctx context.Context, session pl
 			if !strings.Contains(err.Error(), "Medium editor has not confirmed autosave") {
 				return partial(fmt.Errorf("browser autosave verification: %w", err))
 			}
-			if persistedErr := c.verifyMediumBrowserPersisted(ctx, session, postID, draft); persistedErr != nil {
+			var persistedErr error
+			if c.browserDocument != nil {
+				// Published GraphQL is the old public body. Wait for and
+				// verify the saved editor revision that this job wrote.
+				persistedErr = c.browserDocument(ctx, postID, draft)
+			} else {
+				persistedErr = c.verifyMediumBrowserPersisted(ctx, session, postID, draft)
+			}
+			if persistedErr != nil {
 				return partial(fmt.Errorf("browser autosave verification: %w; %v", err, persistedErr))
 			}
 		}

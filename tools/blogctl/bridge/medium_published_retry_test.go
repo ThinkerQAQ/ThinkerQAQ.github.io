@@ -30,3 +30,15 @@ func TestMediumPublishedEditorRetryResumesSavedTextNotSecondRewrite(t *testing.T
 		t.Fatal("test precondition")
 	}
 }
+
+func TestMediumUpdateResumesKnownSavedImagesAfterDelayedAutosave(t *testing.T) {
+	request := syncRequest{Operation: "update", Platforms: []string{"medium"}, Targets: []explicitTaskTarget{{Platform: "medium", ID: "2b5cbaf3bf08", State: "published"}}}
+	job := syncJob{Operation: "update", Platforms: request.Platforms, Request: request, Error: "Medium draft 2b5cbaf3bf08 exists but browser creation is incomplete: browser autosave verification"}
+	if mediumRetryDraftID(job) != "2b5cbaf3bf08" {
+		t.Fatal("must resume same saved editor without a second body write")
+	}
+	job.Error = "Medium draft fb20c187d357 exists but browser creation is incomplete"
+	if mediumRetryDraftID(job) != "" {
+		t.Fatal("must not infer a different post ID")
+	}
+}
