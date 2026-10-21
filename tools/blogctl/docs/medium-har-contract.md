@@ -135,3 +135,14 @@ mismatches. Medium inserted one empty paragraph after each of 42 figures.
 
 Do not imply the existing draft was automatically repaired
 by changing Compiler constants: its styles require separate verification.
+
+## Wide ASCII text diagrams (2026-10-21)
+
+Medium's PRE editor line-wraps multi-column ASCII diagrams and loses
+horizontal positioning. Only the Medium compiler converts structural text
+fences to ASCII raster assets, using deterministic monospace SVG text nodes
+and Sharp PNG. Literal text and code examples remain PRE; other platforms
+receive their original markdown. Medium image insertion now only requires
+an uploaded CDN figure and removed marker per paragraph. DraftSaved is
+checked at the end: waiting on it per individual image caused a real
+false timeout even though the image was saved later.

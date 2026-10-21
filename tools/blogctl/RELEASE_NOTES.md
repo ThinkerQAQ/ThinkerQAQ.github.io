@@ -4,6 +4,12 @@ BlogCTL 是 ThinkerQAQ 博客的本地发布控制面。本次版本新增 **Soc
 
 ## 本版本更新
 
+### Medium 宽幅文本结构图与自动保存
+
+- Medium 专用编译路径将宽幅 text ASCII 结构图渲染为对齐无误的 PNG（assets/ascii），普通代码块继续使用原生 PRE；其他平台和 BlogContent 原文保持不变。
+- 对已分配的未发布 Medium 草稿新增原生正文替换 + 浏览器插图的更新路径，避免为修复图表创建重复文章。
+- 修复单图等待 DraftSaved 的误判：真实联调中第 11 张 PNG 在单图超时后仍然保存成功。现在逐图检查 Medium CDN 图片和占位符移除，整篇结束时统一核对 DraftSaved。
+
 ### Medium 原生段落类型修正与真实草稿格式审计
 
 - 从登录的 Medium 草稿 format=json 实测：6=BLOCKQUOTE、9=ULI、10=OLI、13=H4、8=PRE，修正此前 BLOCKQUOTE=9、ULI=13 的错误映射。

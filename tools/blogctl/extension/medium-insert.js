@@ -105,29 +105,28 @@ export async function insertMediumImageInPage(base64, mimeType, filename, expect
     if (!document.execCommand("delete", false, null) || matches().length !== 0) {
       return fail("Image was inserted, but marker deletion failed; inspect before retry");
     }
-    // Port the Tampermonkey completion contract: upload a real File through
-    // the editor paste handler, remove only that marker, then let Medium
-    // autosave. No page reload or private Delta requests.
-    //
-    // Wait for the image to acquire its Medium CDN URL and for the editor's
-    // native "Saved" indicator; a temporary <img> alone is not completion.
+    // A native image is committed asynchronously. Do not time out an
+    // individual insertion merely because Medium has not changed its
+    // DraftSaving indicator to DraftSaved: our real 2-series test showed
+    // that this incorrectly failed on image #11 even though the image was
+    // eventually saved. Require a real CDN image and no marker, then let
+    // the final whole-draft verification wait for DraftSaved.
     const settledAt = Date.now();
-    let savedConfirmed = false;
-    while (Date.now() - settledAt < 22000) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    let uploaded = false;
+    while (Date.now() - settledAt < 30000) {
+      await new Promise(resolve => setTimeout(resolve, 350));
       if (conflictingEdit()) {
-        return fail("Medium rejected autosave due to concurrent edits; stop this task instead of duplicating images");
+        return fail("Medium rejected autosave due to concurrent edits");
       }
       const images = [...new Set([...document.querySelectorAll("figure img,article img,[contenteditable] img")])];
-      const uploaded = images.length > before &&
-        images.every(img => img.complete && img.naturalWidth > 0 &&
-          (img.currentSrc || img.src).startsWith("https://cdn-images"));
-      if (uploaded && savedStatus() && Date.now() - settledAt > 1200) {
-        savedConfirmed = true;
-        break;
-      }
+      uploaded = images.length > before && images.every(img =>
+        img.complete && img.naturalWidth > 0 &&
+        (img.currentSrc || img.src).startsWith("https://cdn-images"));
+      if (uploaded && matches().length === 0 && Date.now()-settledAt >= 1100) break;
     }
-    if (!savedConfirmed) return fail("Medium editor has not confirmed autosave of " + marker + "; do not retry blindly");
+    if (!uploaded || matches().length) {
+      return fail("Medium did not render the inserted CDN image at " + marker);
+    }
     return { inserted: true, imageCount: imageCount() };
   } catch (error) {
     return fail(String(error?.message || error).slice(0, 260));

@@ -1505,7 +1505,7 @@ async function handleMessage(message) {
       };
     }
     case "blogctl.medium.engine": {
-      return { ok: true, version: "native-autosave-20261021" };
+      return { ok: true, version: "native-cdn-batch-20261021" };
     }
     case "blogctl.publishing": {
       const result = await fetchJSON("/v1/publishing");
