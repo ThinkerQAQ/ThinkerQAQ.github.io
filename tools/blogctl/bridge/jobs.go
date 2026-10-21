@@ -290,10 +290,11 @@ func canRetrySyncJobOperation(operation string, request syncRequest) bool {
 // Never create a new story or retry blind writes on a partial failure.
 func mediumRetryDraftID(job syncJob) string {
 	if job.Operation == "update" && len(job.Platforms) == 1 && job.Platforms[0] == "medium" &&
-		!job.Request.PublishAfter && len(job.Request.Targets) == 1 &&
-		strings.Contains(job.Error, "Medium browser draft full text verification failed") {
+		!job.Request.PublishAfter && len(job.Request.Targets) == 1 {
 		target := job.Request.Targets[0]
-		if target.Platform == "medium" && mediumEditorPostID.MatchString(target.ID) {
+		if target.Platform == "medium" && mediumEditorPostID.MatchString(target.ID) &&
+			(strings.Contains(job.Error, "Medium browser draft full text verification failed") ||
+				strings.Contains(job.Error, "Medium draft "+target.ID+" exists but browser creation is incomplete")) {
 			return target.ID
 		}
 	}

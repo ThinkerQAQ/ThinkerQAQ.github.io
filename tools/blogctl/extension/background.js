@@ -1640,7 +1640,7 @@ async function processMediumUpload(task) {
       // Medium saves editor operations automatically. Port the Tampermonkey
       // "scan after insertion" logic; do not reload or recreate the draft.
       let lastError = "Medium editor is not ready";
-      for (let attempt = 0; attempt < 60; attempt++) {
+      for (let attempt = 0; attempt < 180; attempt++) {
         const tab = await chrome.tabs.get(tabId);
         if (tab.url && tab.url !== "https://medium.com/p/" + task.draftId + "/edit" &&
             tab.pendingUrl !== "https://medium.com/p/" + task.draftId + "/edit") {
