@@ -98,12 +98,6 @@
     return [...byId.values()];
   }
 
-  function createReady(platformID) {
-    return state.createMatches.has(platformID) &&
-      !state.createMatches.get(platformID).error &&
-      !state.createScanning.has(platformID);
-  }
-
   function resumableHashnodeDraft(id) {
     const existing=existingCreateArticles(id);
     return id==="hashnode" && existing.length===1 && existing[0].id &&
@@ -114,7 +108,7 @@
     return selectedPlatformIDs().filter((id)=>{
       const platform=state.status?.platforms?.find((p)=>p.id===id);
       return platform && availability(platform).available &&
-        createReady(id) && (!existingCreateArticles(id).length || resumableHashnodeDraft(id));
+        (!existingCreateArticles(id).length || resumableHashnodeDraft(id));
     });
   }
 
@@ -163,11 +157,6 @@
     for(const id of candidates) state.createMatches.delete(id);
     void scanCreateMatches(candidates);
     renderPlatforms();
-  }
-
-  function ensureCreateScan() {
-    if(state.mode!=="create" || !state.active || !state.selectedSlug || !state.status)return;
-    void scanCreateMatches(createDetectablePlatforms());
   }
 
   function ensureUpdateScan() {
@@ -237,7 +226,7 @@
     });
     const targets = candidateTargets();
     const canSubmit = Boolean(state.selectedSlug && state.status?.bridge?.running) &&
-      !running() && !(root.BlogCTLSync?.isBindingBusy?.() ?? false) &&
+      !running() && (state.mode==="create" || !(root.BlogCTLSync?.isBindingBusy?.() ?? false)) &&
       (state.mode==="create" ? eligibleCreatePlatforms().length>0 : targets.length>0);
     actionButton.disabled=!canSubmit;
     publishButton.disabled=!canSubmit || !canPublishAfter();
@@ -245,7 +234,7 @@
       const detect=document.getElementById("refreshArticleMatches");
       detect.disabled=!state.selectedSlug || !state.status?.bridge?.running ||
         running() || state.createScanning.size>0 || !createDetectablePlatforms().length;
-      detect.title="重新检测勾选平台是否已有对应文章";
+      detect.title="检测勾选平台是否已有对应文章";
     }
     actionButton.textContent=state.mode==="create"?"创建草稿":"更新所选";
     publishButton.textContent=state.mode==="create"?"创建并发布":"更新并发布";
@@ -280,7 +269,6 @@
       detail:{article:item.slug},
     }));
     renderPlatforms();
-    ensureCreateScan();
     ensureUpdateScan();
   }
 
@@ -298,7 +286,7 @@
       check.checked=state.selectedPlatformIDs.has(platform.id);
       const permission=availability(platform);
       check.disabled=!state.selectedSlug || running() || !permission.available ||
-        (root.BlogCTLSync?.isBindingBusy?.() ?? false);
+        (state.mode==="update" && (root.BlogCTLSync?.isBindingBusy?.() ?? false));
       check.addEventListener("change",()=>{
         if(check.checked)state.selectedPlatformIDs.add(platform.id);
         else state.selectedPlatformIDs.delete(platform.id);
@@ -324,14 +312,13 @@
       const actions=document.createElement("div");
       actions.className="platform-card-actions";
       const existing=state.mode==="create" ? existingCreateArticles(platform.id) : [];
-      const scanning=state.mode==="create" && (state.createScanning.has(platform.id) ||
-        (!state.createMatches.has(platform.id) && permission.available));
+      const scanning=state.mode==="create" && state.createScanning.has(platform.id);
       if(state.mode==="create"){
         const detect=document.createElement("button");
         detect.type="button";
         detect.className="secondary compact";
         detect.textContent="检测关联";
-        detect.title="重新检测此平台是否已有对应文章";
+        detect.title="检测此平台是否已有对应文章";
         detect.disabled=!permission.available || !state.selectedSlug || running() ||
           state.createScanning.has(platform.id);
         detect.addEventListener("click",()=>{
@@ -345,8 +332,7 @@
         create.type="button";
         create.className="secondary compact";
         create.textContent=existing.length ? "继续同步草稿" : "创建草稿";
-        create.disabled=!permission.available || !state.selectedSlug || running() ||
-          !createReady(platform.id);
+        create.disabled=!permission.available || !state.selectedSlug || running();
         create.addEventListener("click",()=>startExplicit([platform.id],[],false));
           actions.append(create);
         }
@@ -382,7 +368,7 @@
           const retry=document.createElement("button");
           retry.type="button";
           retry.className="secondary compact create-detection-retry";
-          retry.textContent="重新检测";
+          retry.textContent="检测";
           retry.addEventListener("click",()=>void scanCreateMatches([platform.id]));
           card.append(retry);
         }
@@ -434,9 +420,9 @@
     if(!state.selectedSlug||running()||!platforms.length)return;
     try {
       if(state.mode==="update")validateTargets(targets);
-      if(state.mode==="create" && platforms.some((id)=>!createReady(id) ||
-          (existingCreateArticles(id).length && !resumableHashnodeDraft(id)))){
-        throw new Error("远端已有文章或尚未完成检测；请先确认，不要重复创建。");
+      if(state.mode==="create" && platforms.some((id)=>
+          existingCreateArticles(id).length && !resumableHashnodeDraft(id))){
+        throw new Error("远端已有文章；请先确认，不要重复创建。");
       }
       if(publishAfter && (state.mode==="update"&&targets.some((t)=>t.state==="published")))
         throw new Error("已发布文章无需再次发布，请使用「更新所选」。");
@@ -472,10 +458,7 @@
       renderPlatforms();
       if(["completed","failed"].includes(state.currentJob?.state)){
         // Real remote objects are recorded in job events. Show their direct
-        // editor links immediately, and refresh the read-only inventory.
-        if(state.currentJob.operation==="create"){
-          refreshCreateMatches();
-        }
+        // editor links immediately without starting remote detection.
         BlogCTLPopup.setMessage(message,state.currentJob.state==="completed"?
           "任务完成，结果已记录。":"部分或全部平台失败，请在任务页查看具体远端 ID 和错误。",
           state.currentJob.state==="completed"?"ok":"error");
@@ -525,7 +508,6 @@
         detail:{article:state.selectedSlug},
       }));
       renderPlatforms();
-      ensureCreateScan();
       ensureUpdateScan();
       if(running()&&state.currentJob?.id)pollJob(state.currentJob.id);
       BlogCTLPopup.refreshBridgeIndicator(state.status).catch(()=>{});
@@ -543,14 +525,13 @@
       "选择本地文章和平台，明确创建一篇新草稿，不读取历史绑定。":
       "选择本地文章，检测并勾选远端目标，然后直接更新。";
     document.getElementById("draftPlatformHint").textContent=mode==="create"?
-      "检测勾选平台的远端文章；已有文章可编辑，仅未创建文章的平台允许新建草稿。":
+      "可手动检测勾选平台的文章关联；检测不影响创建操作。":
       "自动检测已选平台的远端文章；勾选目标后直接更新。可手动重新检测。";
     const detect=document.getElementById("refreshArticleMatches");
     detect.hidden=false;
-    detect.textContent="重新检测";
+    detect.textContent=mode==="create"?"检测":"重新检测";
     root.BlogCTLSync?.clearMatches?.();
     if(state.initialized)renderPlatforms();
-    ensureCreateScan();
     ensureUpdateScan();
   }
 
