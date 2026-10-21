@@ -71,6 +71,20 @@ test("Medium is visible again while Toutiao remains disabled", async () => {
   assert.doesNotMatch(background, /cto51PublishInBrowser|ensureToutiaoEditorTab/u);
 });
 
+test("Medium remote inventory is enabled through the existing read-only endpoint", async () => {
+  const [background, inventory, model] = await Promise.all([
+    source("background.js"), source("popup/inventory.js"), source("popup/sync-model.js"),
+  ]);
+  const handler = background.match(/case "blogctl\.remote\.inventory": \{([\s\S]*?)case "blogctl\.article\.match":/u)?.[1];
+  assert.ok(handler, "remote inventory handler missing");
+  assert.match(handler, /"medium"/u, "Medium must be allowed in inventory requests");
+  assert.match(handler, /syncPlatformSession\(platform\)/u);
+  assert.match(handler, /\/v1\/remote\/inventory/u);
+  assert.match(inventory, /blogctl\.remote\.inventory/u);
+  assert.match(model, /medium: \["medium\.com"\]/u);
+  assert.match(model, /case "medium":/u);
+});
+
 test("Hashnode detection must query the remote draft and published inventory, not only local bindings", async () => {
   const [background, drafts] = await Promise.all([source("background.js"), source("popup/drafts.js")]);
   assert.match(background, /\/v1\/hashnode\/articles\/list\?article=/u);

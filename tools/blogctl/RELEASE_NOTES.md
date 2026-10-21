@@ -1,34 +1,24 @@
-# BlogCTL v0.1.175
+# BlogCTL v0.1.176
 
-本版完成 Medium **英文文章草稿创建与更新**链路的真实验收，并统一升级 BlogCTL Windows/Linux/macOS CLI、Native Host 与浏览器扩展版本。
+本版修复 **Medium「远端文章清单」显示“不支持的平台”** 的问题，沿用已有的 Medium 查询与登录态能力，不引入新的文章操作接口。
 
-## Medium 草稿发布链路
+## 修复内容
 
-- **Create**：由 Compiler 输出原生段落（标题、列表、引用、行内格式、PRE 代码），由已登录的浏览器扩展按占位符把封面和正文 PNG 插入 Medium 编辑器。
-- **Update**：显式指定现有未公开的 Medium 草稿 ID，替换正文及图片，保持原草稿 ID；不会重新创建文章。
-- **图片保真**：宽幅 ASCII 结构示意图仅在 Medium 分发路径转为等宽 PNG，避免编辑器自动换行；其余代码块保留原生可复制的格式。修正原生引用和无序列表段落类型映射。
-- **自动保存与失败保护**：逐图确认 Medium CDN 图片和占位符移除，整篇检查 DraftSaved；遇到真人验证、并发编辑、上传失败时停止并保留草稿；恢复时避免重复插入图片。
-- **边界**：BlogCTL 只创建或更新草稿，**不会自动公开发布**；已经公开的 Medium 文章不会通过本链路更新。
+- 将 `medium` 纳入 Extension 和 Bridge 的远端文章清单支持平台，两端能力保持一致。
+- 清单复用 Medium 已验证的 `listPosts`（GraphQL），读取当前账号的**草稿**和**已发布文章**，保留标题、ID、状态和正确的编辑/查看链接。
+- 清单仅作账号级别的只读查询，文章关联与变更仍在「更新」中显式执行；不创建草稿、不改动现有文章、不自动发布。
+- 需要有效 Medium 登录态；若会话失效，显示错误而不是伪装成空列表。
+- 添加真实 Bridge 路由的双状态模拟回归、Session/Extension 认证测试，以及 Extension 平台入口契约测试。
 
-## 实际验收
+## 兼容性
 
-- 并发系列 1.5：42 张图片已保存至 Medium 草稿（原有少量历史段落的手动样式修正不计入本次 2～8 系列的完整验收）。
-- 并发系列 **2～8**：7 篇英文文章均已完成 Create 和 Update，逐篇检查 **917 个内容块、119 张图片**，正文、代码、列表、引用、行内格式差异均为 0，图片缺失/损坏/占位符均为 0，且草稿 ID 保持不变、保存状态均为 DraftSaved。
-- 独立测试草稿：真实 Create → 修改文字、列表、代码与图片 → Update，原草稿 ID 保持不变，图片数量从 3 变为 4，逐项复查通过。
-- 已补充单元测试及浏览器联调后的异常处理；Medium 草稿依赖浏览器有效登录状态。
+- 保留 v0.1.175 的 Medium 创建、更新、图片插入与格式保真功能，以及其他平台的发布能力。
+- Windows 更新时保留 `Data/`、平台凭据和历史任务；CLI、Bridge、Native Host、浏览器扩展统一为 `0.1.176`。
+- Edge/Chrome 解压扩展更新文件后需要重新加载扩展，扩展 ID 不变。
 
-## 兼容与升级
+## Release 构件
 
-- 保留现有 Buffer / Hashnode 及其余平台逻辑，无需重新初始化 BlogCTL Data。
-- Windows 安装目录升级时保留 `Data/`、凭据、历史任务及发布关联记录。
-- 浏览器扩展与 Native Host / Bridge 使用同一版本 `0.1.175`。升级扩展文件后应重新加载扩展；已安装用户可保持扩展 ID 不变。
+- Windows amd64 / arm64、macOS amd64 / arm64、Linux amd64 / arm64
+- `blogctl-extension.zip`、`SHA256SUMS`
 
-## GitHub Release 构件
-
-- Windows amd64 / arm64
-- macOS amd64 / arm64
-- Linux amd64 / arm64
-- `blogctl-extension.zip`
-- `SHA256SUMS`
-
-版本：`0.1.175`
+版本：`0.1.176`

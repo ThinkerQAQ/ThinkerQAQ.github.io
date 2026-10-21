@@ -1012,7 +1012,7 @@ async function handleMessage(message) {
     }
     case "blogctl.remote.inventory": {
       const platform = String(message.platform || "").trim();
-      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "hashnode"].includes(platform)) {
+      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "hashnode", "medium"].includes(platform)) {
         throw new Error("不支持的平台");
       }
       if (platform !== "devto") await syncPlatformSession(platform);
