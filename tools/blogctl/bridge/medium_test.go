@@ -507,12 +507,16 @@ func TestBridgeNativePublisherUpdatesChangedMediumDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	installMediumBridgeSession(server)
+	var newParagraphs []map[string]any
 	server.httpClient = &http.Client{Transport: mediumRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/p/post-existing/notes":
 			return mediumResponse(request, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"post":{"id":"post-existing","latestRev":9,"firstPublishedAt":0,"uniqueSlug":"","mediumUrl":"","creator":{"username":"ThinkerQAQ"}}}}`, nil), nil
 		case "/_/graphql":
+			if request.Header.Get("graphql-operation") == "BlogCTLMediumDraftVerification" {
+				return mediumMockDraftReadback(request, "post-existing", newParagraphs), nil
+			}
 			return mediumResponse(request, http.StatusOK,
 				`[{"data":{"postResult":{"content":{"bodyModel":{"paragraphs":[{"name":"title"},{"name":"body"}]}}}}}]`, nil), nil
 		case "/p/post-existing/deltas":
@@ -526,14 +530,11 @@ func TestBridgeNativePublisherUpdatesChangedMediumDraft(t *testing.T) {
 			if body.BaseRev != 9 || len(body.Deltas) < 2 {
 				t.Fatalf("update body = %#v", body)
 			}
-			for _, delta := range body.Deltas {
-				if delta["type"] == float64(2) && delta["index"] == float64(0) {
-					t.Fatalf("update must preserve Medium title paragraph: %#v", body.Deltas)
-				}
-				if delta["type"] == float64(1) && delta["index"] == float64(0) {
-					t.Fatalf("update must not recreate source title at index 0: %#v", body.Deltas)
-				}
+			if len(body.Deltas) != 4 || body.Deltas[1]["type"] != float64(2) || body.Deltas[1]["index"] != float64(0) ||
+				body.Deltas[2]["type"] != float64(1) || body.Deltas[2]["index"] != float64(0) {
+				t.Fatalf("update must discard old title and replace the entire document: %#v", body.Deltas)
 			}
+			newParagraphs = body.Deltas[2:]
 			return mediumResponse(request, http.StatusOK,
 				`])}while(1);</x>{"success":true,"payload":{"value":{"latestRev":13}}}`, nil), nil
 		default:
