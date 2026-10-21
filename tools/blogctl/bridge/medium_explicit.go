@@ -142,14 +142,14 @@ func runMediumExplicitConfigured(ctx context.Context, session publisher.Session,
 		return publisher.ExplicitResult{}, err
 	}
 	id, _ := result["postId"].(string)
+	draftURL, _ := result["draftUrl"].(string)
+	if id == "" || (operation == "update" && id != target.ID) || draftURL != mediumOrigin+"/p/"+url.PathEscape(id)+"/edit" {
+		return publisher.ExplicitResult{}, errors.New("Medium returned an incomplete or inconsistent draft reference")
+	}
 	if flow != nil && flow.canonical != nil && draft.CanonicalURL != "" {
 		if err := flow.canonical(ctx, id, draft.CanonicalURL); err != nil {
 			return publisher.ExplicitResult{ID: id, URL: mediumOrigin + "/p/" + url.PathEscape(id) + "/edit", Kind: "draft-updated"}, fmt.Errorf("Medium content saved but canonical settings incomplete: %w", err)
 		}
-	}
-	draftURL, _ := result["draftUrl"].(string)
-	if id == "" || (operation == "update" && id != target.ID) || draftURL != mediumOrigin+"/p/"+url.PathEscape(id)+"/edit" {
-		return publisher.ExplicitResult{}, errors.New("Medium returned an incomplete or inconsistent draft reference")
 	}
 	kind := "draft-created"
 	if operation == "update" || operation == "resume-medium" {
