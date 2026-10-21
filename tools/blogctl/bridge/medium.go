@@ -937,19 +937,17 @@ func (c mediumClient) updateDraft(
 	if count < 1 || len(replacement) < 1 {
 		return nil, errors.New("Medium draft is missing its title paragraph")
 	}
-	// Keep the existing Medium title. Users often curate a platform-specific
-	// headline; saving source Markdown should replace the body, not overwrite it.
-	bodyReplacement := replacement[1:]
-	for index := range bodyReplacement {
-		bodyReplacement[index]["index"] = index + 1
+	// Match the create document semantics: replace title AND body, instead
+	// of relying on the existing paragraph 0 and its formatting.
+	deltas, err := mediumFullReplacementDeltas(count, draft.Title, replacement[1:])
+	if err != nil {
+		return nil, err
 	}
-	deltas := make([]map[string]any, 0, max(0, count-1)+len(bodyReplacement))
-	for index := count - 1; index >= 1; index-- {
-		deltas = append(deltas, map[string]any{"type": 2, "index": index})
-	}
-	deltas = append(deltas, bodyReplacement...)
 	if _, err := c.writeDeltas(ctx, session, postID, meta.LatestRev, deltas); err != nil {
 		return nil, err
+	}
+	if err := c.verifyDraft(ctx, session, postID, deltas[count:]); err != nil {
+		return nil, fmt.Errorf("Medium complete draft replacement verification failed: %w", err)
 	}
 	return mediumDraftResult(postID, meta.MediumURL, draft, fallbacks, false), nil
 }

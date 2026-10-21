@@ -98,10 +98,37 @@ func (c mediumClient) completeDraftBrowserImages(ctx context.Context, session pl
 	return mediumDraftResult(postID, mediumURL, draft, 0, true), nil
 }
 
-// updateDraftUsingBrowserImages replaces an existing UNPUBLISHED draft's
-// native text and placeholder paragraphs, then inserts raster images through
-// the Medium editor. It never writes private image Delta metadata. The editor
-// must not be concurrently open during the revisioned text replacement.
+// mediumFullReplacementDeltas is the same title+body insert sequence as
+// creation, preceded by reverse-order deletion of the old document.
+// All deltas go to the same revision-checked request and post ID.
+// Never mutate compiler-owned deltas: retries need them intact.
+func mediumFullReplacementDeltas(existingCount int, title string, body []map[string]any) ([]map[string]any, error) {
+	if existingCount < 1 || strings.TrimSpace(title) == "" {
+		return nil, errors.New("Medium complete replacement requires an existing draft and title")
+	}
+	deltas := make([]map[string]any, 0, existingCount+len(body)+1)
+	for index := existingCount - 1; index >= 0; index-- {
+		deltas = append(deltas, map[string]any{"type": 2, "index": index})
+	}
+	deltas = append(deltas, map[string]any{
+		"type": 1, "index": 0,
+		"paragraph": map[string]any{"type": 3, "text": title, "markups": []any{}},
+	})
+	for i, original := range body {
+		delta := cloneMediumDelta(original)
+		if _, ok := delta["paragraph"].(map[string]any); !ok {
+			return nil, fmt.Errorf("Medium replacement paragraph %d is missing", i)
+		}
+		delta["index"] = i + 1
+		deltas = append(deltas, delta)
+	}
+	return deltas, nil
+}
+
+// updateDraftUsingBrowserImages replaces ALL native paragraphs of the same
+// unpublished draft, including title, from the compiler's create document.
+// Browser inserts PNGs after the full text has been persisted and checked.
+// The editor must not be concurrently open during the revisioned replacement.
 func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
 	session platformSession, draft mediumDraft, input publisher.DraftInput,
 	postID string) (map[string]any, error) {
@@ -123,21 +150,32 @@ func (c mediumClient) updateDraftUsingBrowserImages(ctx context.Context,
 	if count < 1 {
 		return nil, errors.New("Existing Medium draft has no title")
 	}
-	// Preserve curated Medium headline; replace only body.
-	var deltas []map[string]any
-	for i := count - 1; i >= 1; i-- {
-		deltas = append(deltas, map[string]any{"type": 2, "index": i})
+	// A Medium update is a fresh compiler document on the same draft ID.
+	// Replace the title as well as the body, avoiding style inherited from
+	// the existing title/paragraph boundary.
+	deltas, err := mediumFullReplacementDeltas(count, draft.Title, draft.BrowserPlan.Deltas)
+	if err != nil {
+		return nil, err
 	}
-	for i, paragraph := range draft.BrowserPlan.Deltas {
-		delta := cloneMediumDelta(paragraph)
-		if _, bad := delta["image"]; bad {
+	for _, paragraph := range draft.BrowserPlan.Deltas {
+		if _, bad := paragraph["image"]; bad {
 			return nil, errors.New("Browser draft text unexpectedly contains image delta")
 		}
-		delta["index"] = i + 1
-		deltas = append(deltas, delta)
 	}
 	if _, err := c.writeDeltas(ctx, session, postID, meta.LatestRev, deltas); err != nil {
-		return nil, fmt.Errorf("Medium browser draft text replacement failed: %w", err)
+		return nil, fmt.Errorf("Medium browser draft full text replacement failed: %w", err)
 	}
-	return c.completeDraftBrowserImages(ctx, session, draft, input, postID, meta.MediumURL, false)
+	// Read back the completely replaced source text before beginning browser
+	// image insertions. No image upload should touch a partially saved model.
+	if err := c.verifyDraft(ctx, session, postID, deltas[count:]); err != nil {
+		return nil, fmt.Errorf("Medium browser draft full text verification failed: %w", err)
+	}
+	result, err := c.completeDraftBrowserImages(ctx, session, draft, input, postID, meta.MediumURL, false)
+	if err != nil {
+		return result, err
+	}
+	if err := c.verifyMediumBrowserPersisted(ctx, session, postID, draft); err != nil {
+		return result, fmt.Errorf("Medium full document replacement integrity check failed: %w", err)
+	}
+	return result, nil
 }

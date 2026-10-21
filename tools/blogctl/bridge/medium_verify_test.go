@@ -250,3 +250,72 @@ func TestMediumBrowserVerifyDoesNotBypassBrokenImages(t *testing.T) {
 		t.Fatalf("must preserve safety failure, got %v", err)
 	}
 }
+
+func TestMediumFullReplacementDiscardAllOldDocumentStyles(t *testing.T) {
+	body := []map[string]any{
+		{"type": 1, "index": 8, "paragraph": map[string]any{"type": 8, "text": "go func() {\n\tcount++\n}", "markups": []any{}}},
+		{"type": 1, "index": 9, "paragraph": map[string]any{"type": 1, "text": "Atomicity", "markups": []any{map[string]any{"type": 1, "start": 0, "end": 9}}}},
+	}
+	deltas, err := mediumFullReplacementDeltas(3, "Fresh compiler title", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deltas) != 6 {
+		t.Fatalf("wrong replacement size: %d", len(deltas))
+	}
+	for i := 0; i < 3; i++ {
+		if typ, ok := mediumDeltaNumber(deltas[i]["type"]); !ok || typ != 2 || deltas[i]["index"] != 2-i {
+			t.Fatalf("old paragraph %d not deleted in reverse order: %+v", i, deltas[i])
+		}
+	}
+	title := deltas[3]["paragraph"].(map[string]any)
+	if deltas[3]["index"] != 0 || title["type"] != 3 || title["text"] != "Fresh compiler title" {
+		t.Fatalf("source title must be recreated: %+v", deltas[3])
+	}
+	for i, b := range body {
+		p := deltas[i+4]["paragraph"].(map[string]any)
+		if deltas[i+4]["index"] != i+1 || p["text"] != b["paragraph"].(map[string]any)["text"] {
+			t.Fatalf("fresh body %d is missing: %+v", i, deltas[i+4])
+		}
+	}
+	deltas[4]["paragraph"].(map[string]any)["text"] = "changed"
+	if body[0]["paragraph"].(map[string]any)["text"] != "go func() {\n\tcount++\n}" {
+		t.Fatal("replacement changed the compiler source")
+	}
+	for _, tc := range []struct {
+		count int
+		title string
+	}{{0, "valid"}, {3, " "}} {
+		if _, err := mediumFullReplacementDeltas(tc.count, tc.title, body); err == nil {
+			t.Fatalf("invalid replacement accepted: %+v", tc)
+		}
+	}
+}
+
+func TestMediumSavedInlineStyleVerificationRejectsDroppedOrShiftedMarkup(t *testing.T) {
+	raw := []byte(`[{"type":"STRONG","start":0,"end":9},{"type":"CODE","start":12,"end":20},{"type":"A","start":24,"end":28}]`)
+	var actual []mediumSavedMarkup
+	if err := json.Unmarshal(raw, &actual); err != nil {
+		t.Fatal(err)
+	}
+	expected := []any{
+		map[string]any{"type": 10, "start": 12, "end": 20},
+		map[string]any{"type": 3, "start": 24, "end": 28},
+		map[string]any{"type": 1, "start": 0, "end": 9},
+	}
+	if err := verifyMediumSavedMarkups(expected, actual); err != nil {
+		t.Fatalf("unordered real saved styles should match: %v", err)
+	}
+	bad := append([]mediumSavedMarkup(nil), actual...)
+	bad[1].Start++
+	if err := verifyMediumSavedMarkups(expected, bad); err == nil {
+		t.Fatal("moved inline code range was accepted")
+	}
+	if err := verifyMediumSavedMarkups(expected, actual[:2]); err == nil {
+		t.Fatal("dropped link formatting was accepted")
+	}
+	badType := []byte(`[{"type":"UNKNOWN","start":0,"end":9}]`)
+	if err := json.Unmarshal(badType, &actual); err == nil {
+		t.Fatal("unknown saved markup type accepted")
+	}
+}

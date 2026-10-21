@@ -35,10 +35,70 @@ func (value *mediumParagraphType) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
+// GraphQL returns enum strings for inline marks; the editor's own deltas
+// use numeric markup IDs. Normalize both before comparing spans.
+type mediumSavedMarkupType int
+
+func (value *mediumSavedMarkupType) UnmarshalJSON(raw []byte) error {
+	var numeric int
+	if err := json.Unmarshal(raw, &numeric); err == nil {
+		*value = mediumSavedMarkupType(numeric)
+		return nil
+	}
+	var name string
+	if err := json.Unmarshal(raw, &name); err != nil {
+		return fmt.Errorf("Medium markup type must be numeric or an enum: %w", err)
+	}
+	types := map[string]int{"STRONG": 1, "EM": 2, "A": 3, "CODE": 10, "DEL": 11}
+	numeric, ok := types[name]
+	if !ok {
+		return fmt.Errorf("unknown Medium saved markup type %q", name)
+	}
+	*value = mediumSavedMarkupType(numeric)
+	return nil
+}
+
+type mediumSavedMarkup struct {
+	Type  mediumSavedMarkupType `json:"type"`
+	Start int                   `json:"start"`
+	End   int                   `json:"end"`
+}
+
+func verifyMediumSavedMarkups(expected any, actual []mediumSavedMarkup) error {
+	if expected == nil && len(actual) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(expected)
+	if err != nil {
+		return err
+	}
+	var wanted []mediumSavedMarkup
+	if err := json.Unmarshal(raw, &wanted); err != nil {
+		return err
+	}
+	if len(wanted) != len(actual) {
+		return fmt.Errorf("Medium inline styles differ: expected %d, got %d", len(wanted), len(actual))
+	}
+	seen := make(map[mediumSavedMarkup]int, len(wanted))
+	for _, item := range wanted {
+		seen[item]++
+	}
+	for _, item := range actual {
+		seen[item]--
+	}
+	for _, count := range seen {
+		if count != 0 {
+			return errors.New("Medium inline style type or UTF-16 offset differs")
+		}
+	}
+	return nil
+}
+
 // Only the fields required to verify native text, PRE and IMAGE paragraphs.
 type mediumSavedParagraph struct {
 	Type     mediumParagraphType `json:"type"`
 	Text     string              `json:"text"`
+	Markups  []mediumSavedMarkup `json:"markups"`
 	Metadata struct {
 		ID             string `json:"id"`
 		OriginalWidth  int    `json:"originalWidth"`
@@ -56,6 +116,7 @@ const mediumDraftBodyQuery = `query BlogCTLMediumDraftVerification($postId: ID!)
           paragraphs {
             type
             text
+            markups { type start end }
             metadata { id originalWidth originalHeight }
           }
         }
@@ -160,6 +221,9 @@ func verifyMediumParagraphs(deltas []map[string]any, actual []mediumSavedParagra
 		if got.Text != text {
 			return fmt.Errorf("Medium paragraph %d text differs (type %d)", index, typ)
 		}
+		if err := verifyMediumSavedMarkups(expected["markups"], got.Markups); err != nil {
+			return fmt.Errorf("Medium paragraph %d formatting: %w", index, err)
+		}
 		if typ != 4 {
 			continue
 		}
@@ -218,7 +282,7 @@ func verifyMediumBrowserSavedParagraphs(draft mediumDraft, saved []mediumSavedPa
 	}
 	images := 0
 	index := 0
-	verifyText := func(typ int, text string) error {
+	verifyText := func(typ int, text string, markups any) error {
 		for index < len(saved) && saved[index].Type == 4 {
 			image := saved[index]
 			if !strings.HasPrefix(image.Metadata.ID, "1*") || image.Metadata.OriginalWidth <= 0 || image.Metadata.OriginalHeight <= 0 {
@@ -233,10 +297,13 @@ func verifyMediumBrowserSavedParagraphs(draft mediumDraft, saved []mediumSavedPa
 		if int(saved[index].Type) != typ || saved[index].Text != text {
 			return fmt.Errorf("Medium remote text paragraph %d differs from the compiler", index)
 		}
+		if err := verifyMediumSavedMarkups(markups, saved[index].Markups); err != nil {
+			return fmt.Errorf("Medium remote paragraph %d formatting: %w", index, err)
+		}
 		index++
 		return nil
 	}
-	if err := verifyText(3, draft.Title); err != nil {
+	if err := verifyText(3, draft.Title, nil); err != nil {
 		return err
 	}
 	markers := map[string]bool{}
@@ -259,7 +326,7 @@ func verifyMediumBrowserSavedParagraphs(draft mediumDraft, saved []mediumSavedPa
 			}
 			text = "" // the editor clears the marker after native paste
 		}
-		if err := verifyText(typ, text); err != nil {
+		if err := verifyText(typ, text, paragraph["markups"]); err != nil {
 			return err
 		}
 	}

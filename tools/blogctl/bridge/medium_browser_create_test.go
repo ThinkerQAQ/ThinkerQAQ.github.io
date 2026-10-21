@@ -186,8 +186,9 @@ func TestMediumResumeExistingDraftNeverCreatesOrRewritesBody(t *testing.T) {
 	}
 }
 
-func TestMediumBrowserNativeUpdateReplacesBodyWithoutPrivateImageDeltas(t *testing.T) {
+func TestMediumBrowserNativeUpdateReplacesWholeDocumentWithoutPrivateImageDeltas(t *testing.T) {
 	steps := []string{}
+	var newParagraphs []map[string]any
 	httpClient := &http.Client{Transport: mediumRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
 		case "/":
@@ -196,6 +197,10 @@ func TestMediumBrowserNativeUpdateReplacesBodyWithoutPrivateImageDeltas(t *testi
 			steps = append(steps, "read-meta")
 			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"post":{"id":"1111aaaabbbb","latestRev":12}}}`, nil), nil
 		case "/_/graphql":
+			if req.Header.Get("graphql-operation") == "BlogCTLMediumDraftVerification" {
+				steps = append(steps, "verify-complete-text")
+				return mediumMockDraftReadback(req, "1111aaaabbbb", newParagraphs), nil
+			}
 			steps = append(steps, "read-count")
 			return mediumResponse(req, http.StatusOK, `[{"data":{"postResult":{"content":{"bodyModel":{"paragraphs":[{"name":"title"},{"name":"old1"},{"name":"old2"}]}}}}}]`, nil), nil
 		case "/p/1111aaaabbbb/deltas":
@@ -207,7 +212,7 @@ func TestMediumBrowserNativeUpdateReplacesBodyWithoutPrivateImageDeltas(t *testi
 			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
-			if body.BaseRev != 12 || len(body.Deltas) != 3 {
+			if body.BaseRev != 12 || len(body.Deltas) != 5 {
 				t.Fatalf("unexpected update delta: %+v", body)
 			}
 			for _, delta := range body.Deltas {
@@ -215,9 +220,17 @@ func TestMediumBrowserNativeUpdateReplacesBodyWithoutPrivateImageDeltas(t *testi
 					t.Fatal("private image Delta sent")
 				}
 			}
-			if body.Deltas[0]["type"] != float64(2) || body.Deltas[1]["type"] != float64(2) || body.Deltas[2]["type"] != float64(1) {
-				t.Fatalf("expected delete-old-body + marker insert, got %+v", body.Deltas)
+			if body.Deltas[0]["type"] != float64(2) || body.Deltas[0]["index"] != float64(2) ||
+				body.Deltas[1]["type"] != float64(2) || body.Deltas[1]["index"] != float64(1) ||
+				body.Deltas[2]["type"] != float64(2) || body.Deltas[2]["index"] != float64(0) ||
+				body.Deltas[3]["type"] != float64(1) || body.Deltas[3]["index"] != float64(0) ||
+				body.Deltas[4]["type"] != float64(1) || body.Deltas[4]["index"] != float64(1) {
+				t.Fatalf("expected complete delete + create-equivalent replacement, got %+v", body.Deltas)
 			}
+			if para := body.Deltas[3]["paragraph"].(map[string]any); para["type"] != float64(3) || para["text"] != "New source headline" {
+				t.Fatalf("new compiler title missing: %+v", para)
+			}
+			newParagraphs = body.Deltas[3:]
 			return mediumResponse(req, http.StatusOK, `)]}'{"success":true,"payload":{"value":{"latestRev":13}}}`, nil), nil
 		case "/diagram.png":
 			steps = append(steps, "read-PNG")
@@ -227,12 +240,21 @@ func TestMediumBrowserNativeUpdateReplacesBodyWithoutPrivateImageDeltas(t *testi
 			return nil, nil
 		}
 	})}
-	draft := mediumDraft{Title: "Retain Medium headline", Deltas: []map[string]any{{"image": map[string]any{"url": "https://medium.com/diagram.png"}}},
+	draft := mediumDraft{Title: "New source headline", Deltas: []map[string]any{{"image": map[string]any{"url": "https://medium.com/diagram.png"}}},
 		BrowserPlan: &mediumBrowserDraftPlan{Deltas: []map[string]any{{"type": 1, "paragraph": map[string]any{"type": 1, "text": "[BLOGCTL_IMAGE_001]"}}},
 			Images: []mediumBrowserDraftImage{{Marker: "[BLOGCTL_IMAGE_001]", URL: "https://medium.com/diagram.png"}}}}
 	medium := mediumClient{httpClient: httpClient,
 		browserInsert: func(_ context.Context, id, marker string, img publisher.RehostImage) error {
 			steps = append(steps, "browser-insert")
+			if id != "1111aaaabbbb" || marker != "[BLOGCTL_IMAGE_001]" || len(newParagraphs) != 2 {
+				t.Fatalf("invalid browser insertion state: id=%q marker=%q paragraphs=%d", id, marker, len(newParagraphs))
+			}
+			// The browser inserts an IMG before the now-empty placeholder P.
+			newParagraphs[1]["paragraph"].(map[string]any)["text"] = ""
+			newParagraphs = []map[string]any{newParagraphs[0], {
+				"paragraph": map[string]any{"type": 4, "text": "", "metadata": map[string]any{
+					"id": "1*mock.png", "originalWidth": 1200, "originalHeight": 700}},
+			}, newParagraphs[1]}
 			return nil
 		},
 		browserVerify: func(_ context.Context, id string, count int) error { steps = append(steps, "verify"); return nil },
@@ -241,7 +263,7 @@ func TestMediumBrowserNativeUpdateReplacesBodyWithoutPrivateImageDeltas(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(steps, ","); got != "read-meta,read-count,replace-body,read-PNG,browser-insert,verify" {
+	if got := strings.Join(steps, ","); got != "read-meta,read-count,replace-body,verify-complete-text,read-PNG,browser-insert,verify,verify-complete-text" {
 		t.Fatalf("flow=%s", got)
 	}
 }
