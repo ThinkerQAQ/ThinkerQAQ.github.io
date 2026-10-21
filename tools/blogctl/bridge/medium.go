@@ -60,22 +60,22 @@ type mediumCoverImage struct {
 
 type mediumBrowserDraftImage struct {
 	Marker string `json:"marker"`
-	URL string `json:"url"`
-	Alt string `json:"alt"`
+	URL    string `json:"url"`
+	Alt    string `json:"alt"`
 }
 
 type mediumBrowserDraftPlan struct {
-	Deltas []map[string]any `json:"deltas"`
+	Deltas []map[string]any          `json:"deltas"`
 	Images []mediumBrowserDraftImage `json:"images"`
 }
 
 type mediumDraft struct {
-	Title        string            `json:"title"`
-	Deltas       []map[string]any  `json:"deltas"`
-	BrowserPlan *mediumBrowserDraftPlan `json:"browserPlan,omitempty"`
-	CanonicalURL string            `json:"canonicalUrl"`
-	Tags         []string          `json:"tags"`
-	CoverImage   *mediumCoverImage `json:"coverImage,omitempty"`
+	Title        string                  `json:"title"`
+	Deltas       []map[string]any        `json:"deltas"`
+	BrowserPlan  *mediumBrowserDraftPlan `json:"browserPlan,omitempty"`
+	CanonicalURL string                  `json:"canonicalUrl"`
+	Tags         []string                `json:"tags"`
+	CoverImage   *mediumCoverImage       `json:"coverImage,omitempty"`
 }
 
 type mediumPost struct {
