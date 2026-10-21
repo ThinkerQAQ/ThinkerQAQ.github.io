@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publisher"
 )
@@ -83,7 +84,15 @@ func (c mediumClient) completeDraftBrowserImages(ctx context.Context, session pl
 	}
 	if c.browserVerify != nil {
 		if err := c.browserVerify(ctx, postID, len(plan.Images)); err != nil {
-			return partial(fmt.Errorf("browser autosave verification: %w", err))
+			// Only a late DraftSaved badge may fall back to authoritative remote
+			// GraphQL readback. Missing images, stale editor content and conflicts
+			// remain hard failures and must never be silently accepted.
+			if !strings.Contains(err.Error(), "Medium editor has not confirmed autosave") {
+				return partial(fmt.Errorf("browser autosave verification: %w", err))
+			}
+			if persistedErr := c.verifyMediumBrowserPersisted(ctx, session, postID, draft); persistedErr != nil {
+				return partial(fmt.Errorf("browser autosave verification: %w; %v", err, persistedErr))
+			}
 		}
 	}
 	return mediumDraftResult(postID, mediumURL, draft, 0, true), nil
