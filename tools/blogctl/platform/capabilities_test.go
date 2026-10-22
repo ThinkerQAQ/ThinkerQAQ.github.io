@@ -16,8 +16,8 @@ func TestRegistryCoversSupportedPublishingPlatforms(t *testing.T) {
 	for _, id := range want {
 		if id == "toutiao" {
 			if !Supported(id) || !For(id).RemoteList || !For(id).DraftCreate || !For(id).DraftUpdate ||
-				!For(id).PublishedUpdate || For(id).ExplicitPublish {
-				t.Fatalf("%s should support drafts and guarded published updates, not public publish: %#v", id, For(id))
+				!For(id).PublishedUpdate || !For(id).ExplicitPublish {
+				t.Fatalf("%s should support drafts, explicit publication and guarded published updates: %#v", id, For(id))
 			}
 			continue
 		}

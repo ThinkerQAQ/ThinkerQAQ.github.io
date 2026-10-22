@@ -36,6 +36,7 @@ Update requires a remote ID and never falls back to Create. Targets, their remot
 | --- | --- |
 | Draft on a supported platform | Replace the selected draft |
 | Published cnblogs or DEV.to article | Update the existing public article; cnblogs also checks the detected remote version |
+| Published Toutiao article | Submit an update to the same article after checking its detected remote version |
 | Published Medium article | Save a pending editor revision; the user clicks **Save and publish** on Medium to make it public |
 | Other published articles | Not offered as a normal published-body update in the current UI |
 
@@ -45,7 +46,7 @@ Medium's public body can remain unchanged after a successful pending-edit save. 
 
 Tasks with a saved remote draft ID may offer **Publish draft** when the adapter supports it. This invokes the draft publish operation for that ID; it does not create another draft. Some platforms require current local article content again as part of that request.
 
-The platform catalog currently exposes explicit publication for cnblogs, Juejin, CSDN, SegmentFault, Zhihu, 51CTO, DEV.to and Medium. OSChina and Hashnode do not expose this action. Hashnode draft creation/update and account listing remain available. Toutiao is hidden from the normal UI. Check the installed UI's enabled actions before choosing a workflow; implementation and account constraints can still reject a request.
+The platform catalog currently exposes explicit publication for cnblogs, Juejin, CSDN, SegmentFault, Zhihu, 51CTO, Toutiao, DEV.to and Medium. OSChina and Hashnode do not expose this action. Hashnode draft creation/update and account listing remain available. Toutiao is available for account detection, draft creation/update and explicit publication. Writes require the installed Extension and its signed-in Toutiao creator editor; BlogCTL opens a background editor for the browser-native signed request. A publish request submits the article for platform review; verify its remote state before retrying. Claimed browser writes are never automatically redelivered after a disconnect. Check the installed UI's enabled actions before choosing a workflow; implementation and account constraints can still reject a request.
 
 ## Read a partial failure
 
@@ -68,3 +69,9 @@ Short social posts use the separate [Buffer workflow](social-publishing.md): loc
 ## Console connection
 
 Open the Console from the Extension at `http://127.0.0.1:32145/console/`. Keep the Extension enabled: the page relies on its relay for restricted requests. The page loading successfully does not prove that the browser session or Bridge is connected. Use [Bridge troubleshooting](../how-to/debug-bridge.md) if operations fail.
+
+### Toutiao section references
+
+Toutiao does not preserve heading anchors. BlogCTL converts fragment-only TOC and body links to their original rich text labels, preserving external URLs, including fragments. The creator preview may disable pointer interactions on the entire article.
+
+A published Toutiao update requires a detected remote version. Changed versions and articles still under review are rejected; a successful update is a submission for platform processing, not a guarantee of immediate public visibility.

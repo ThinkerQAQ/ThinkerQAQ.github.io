@@ -1,3 +1,4 @@
+import { performToutiaoBrowserRequest } from "./toutiao-request.js";
 import { prepareMediumReplacement, verifyMediumDocument } from "./medium-document.js";
 import { configureMediumCanonical } from "./medium-settings.js";
 import { PLATFORM_AUTH, PLATFORM_SESSIONS } from "./platforms.js";
@@ -1014,7 +1015,7 @@ async function handleMessage(message) {
     }
     case "blogctl.remote.inventory": {
       const platform = String(message.platform || "").trim();
-      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "devto", "hashnode", "medium"].includes(platform)) {
+      if (!["cnblogs", "juejin", "csdn", "segmentfault", "zhihu", "51cto", "oschina", "toutiao", "devto", "hashnode", "medium"].includes(platform)) {
         throw new Error("不支持的平台");
       }
       if (platform !== "devto") await syncPlatformSession(platform);
@@ -1109,6 +1110,7 @@ async function handleMessage(message) {
             title: post.title,
             id: post.id,
             published: post.published,
+            updatedAt: post.updatedAt || "",
             url: post.url || "",
             bound: Boolean(post.bound),
             bindingState: post.bindingState || "",
@@ -1558,6 +1560,7 @@ async function handleMessage(message) {
     case "blogctl.jobs": {
       const result = await fetchJSON("/v1/jobs");
       const jobs = result?.jobs ?? [];
+      if (jobs.some(job => ["running", "queued", "waiting"].includes(job.state) && (job.platforms ?? []).includes("toutiao"))) beginToutiaoRequestPump();
       // CLI/Bridge can enqueue authorized jobs too. The task list must wake
       // the browser driver, just as opening an individual active job does.
       if (jobs.some(job => ["running", "queued", "waiting"].includes(job.state) &&
@@ -1568,6 +1571,7 @@ async function handleMessage(message) {
       const request = message.request ?? {};
       await syncSessionsForPlatforms(request.platforms ?? []);
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
+      if ((request.platforms ?? []).includes("toutiao")) beginToutiaoRequestPump();
       if ((request.platforms ?? []).includes("medium") && result?.job?.id) {
         beginMediumUploadPump();
       }
@@ -1696,7 +1700,7 @@ async function pollMediumUploads() {
       const active = jobs.some((job) => ["running", "queued", "waiting"].includes(job.state) &&
         (job.platforms ?? []).includes("medium"));
       if (!active) {
-        await chrome.alarms?.clear(MEDIUM_UPLOAD_ALARM);
+        if (!jobs.some(job => ["running", "queued", "waiting"].includes(job.state) && (job.platforms ?? []).includes("toutiao"))) await chrome.alarms?.clear(MEDIUM_UPLOAD_ALARM);
         return;
       }
       const response = await fetchJSON("/v1/medium/browser-upload/next");
@@ -1740,7 +1744,7 @@ function beginMediumUploadPump() {
 }
 
 chrome.alarms?.onAlarm.addListener((alarm) => {
-  if (alarm.name === MEDIUM_UPLOAD_ALARM) void pollMediumUploads();
+  if (alarm.name === MEDIUM_UPLOAD_ALARM) { void pollMediumUploads(); void pollToutiaoRequests(); }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1753,3 +1757,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   });
   return true;
 });
+
+let toutiaoPumpRunning = false;
+function beginToutiaoRequestPump() {
+ chrome.alarms.create(MEDIUM_UPLOAD_ALARM, { periodInMinutes: 0.5 }).catch(() => {});
+ void pollToutiaoRequests();
+}
+async function pollToutiaoRequests() {
+  if (toutiaoPumpRunning) return;
+  toutiaoPumpRunning = true;
+  try {
+    for (let attempt = 0; attempt < 900; attempt++) {
+      const jobs = (await fetchJSON("/v1/jobs")).jobs ?? [];
+      const active = jobs.some(job => ["running", "queued", "waiting"].includes(job.state) && (job.platforms ?? []).includes("toutiao"));
+      if (!active) return;
+      const next = await fetchJSON("/v1/toutiao/browser/next");
+      if (!next.request) { await delay(700); continue; }
+      await writeBridgeLog("info", "toutiao browser request claimed");
+      let result;
+      try { result = await performToutiaoBrowserRequest(next.request); }
+      catch { result = { error: "Browser request failed; inspect remote state before retrying" }; }
+      await writeBridgeLog(result.error ? "warn" : "info", "toutiao browser request finished", { success: !result.error, status: result.status ?? 0 });
+      await fetchJSON("/v1/toutiao/browser/result", jsonOptions("POST", { id: next.request.id, ...result }));
+    }
+  } catch {
+    console.warn("Toutiao browser transport unavailable");
+  } finally {
+    toutiaoPumpRunning = false;
+  }
+}

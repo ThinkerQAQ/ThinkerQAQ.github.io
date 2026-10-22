@@ -49,7 +49,7 @@ blogctl sync --article sample-article --platforms devto --dry-run
 
 Dry-run 不需要浏览器连接，但可能安装 Node 依赖、在本地保存工作区路径。它返回编译结果，不承诺导出正文预览文件。真实 `sync` 走 Bridge 的 `draft` 流程；界面中显式创建/更新的目标选择不是 CLI `sync` 参数。指定远端更新目标时使用工作台。
 
-平台 ID 见 [`platform/capabilities.go`](../../../platform/capabilities.go)。平台注册不代表所有操作开放：普通界面隐藏今日头条，开源中国和 Hashnode 不开放显式发布。
+平台 ID 见 [`platform/capabilities.go`](../../../platform/capabilities.go)。平台注册不代表所有操作开放：今日头条支持账号检测、草稿和显式发布；开源中国和 Hashnode 不开放显式发布。
 
 ## 社交与实验命令
 

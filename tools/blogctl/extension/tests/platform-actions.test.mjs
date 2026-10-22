@@ -63,9 +63,9 @@ test("Creation is a separate explicit task and exposes create or create-and-publ
   assert.match(drafts, /!window\.confirm/u);
 });
 
-test("Medium is visible again while Toutiao remains disabled", async () => {
+test("Medium and Toutiao are visible with their backend capability controls", async () => {
   const [background, model] = await Promise.all([source("background.js"),source("popup/sync-model.js")]);
-  assert.match(model, /new Set\(\["toutiao"\]\)/u);
+  assert.match(model, /const HIDDEN_PLATFORMS = new Set\(\)/u);
   assert.match(background, /platform === "toutiao"/u);
   assert.match(background, /case "blogctl\.job\.start":/u);
   assert.doesNotMatch(background, /cto51PublishInBrowser|ensureToutiaoEditorTab/u);

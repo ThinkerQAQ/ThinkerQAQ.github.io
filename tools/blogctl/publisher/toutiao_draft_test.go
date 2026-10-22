@@ -143,6 +143,9 @@ func TestToutiaoUpdateDraftRejectsChangedRemoteID(t *testing.T) {
 
 func TestToutiaoPublishIsNotDraftSave(t *testing.T) {
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/mp/agw/creator_center/draft_list" {
+			return jsonResponse(req, 200, `{"code":0,"draft_list":[{"gid":"123","title":"发布"}]}`, nil), nil
+		}
 		if req.URL.Path != "/mp/agw/article/publish" {
 			t.Fatalf("unexpected endpoint %s", req.URL.Path)
 		}

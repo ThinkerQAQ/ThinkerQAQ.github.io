@@ -410,7 +410,7 @@
   function validateTargets(targets) {
     if(!targets.length)throw new Error("请先检测并勾选至少一篇远端文章。更新不会自动创建草稿。");
     if(targets.some((t)=>t.state==="published"&&
-      !["cnblogs","devto"].includes(t.platform) &&
+      !["cnblogs","devto","toutiao"].includes(t.platform) &&
       !(t.platform==="medium" && state.status?.platforms?.find((p)=>p.id===t.platform)?.capabilities?.publishedDraftEdit===true)))
       throw new Error("所选平台的已发布文章暂不支持安全更新。");
     if(targets.some((t)=>!state.selectedPlatformIDs.has(t.platform)))

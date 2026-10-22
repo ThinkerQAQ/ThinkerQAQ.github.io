@@ -23,7 +23,7 @@ func TestPlatformCapabilitiesMatchCurrentControlPlane(t *testing.T) {
 		}},
 		{"toutiao", func(value PlatformCapabilities) bool {
 			return value.BrowserSession && value.RemoteList &&
-				value.DraftCreate && value.DraftUpdate && !value.ExplicitPublish &&
+				value.DraftCreate && value.DraftUpdate && value.ExplicitPublish &&
 				value.PublishedUpdate && value.BodyImages && value.BodyImageRehost
 		}},
 		{"csdn", func(value PlatformCapabilities) bool {

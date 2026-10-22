@@ -25,7 +25,7 @@ func (s *Server) handleRemoteInventory(response http.ResponseWriter, request *ht
 		return
 	}
 	platform := strings.TrimSpace(request.URL.Query().Get("platform"))
-	allowed := map[string]bool{"cnblogs": true, "juejin": true, "csdn": true, "segmentfault": true, "zhihu": true, "51cto": true, "oschina": true, "devto": true, "hashnode": true, "medium": true}
+	allowed := map[string]bool{"cnblogs": true, "juejin": true, "csdn": true, "segmentfault": true, "zhihu": true, "51cto": true, "oschina": true, "toutiao": true, "devto": true, "hashnode": true, "medium": true}
 	if !allowed[platform] {
 		writeAPIError(response, http.StatusBadRequest, "invalid_platform", "platform inventory is unavailable", nil)
 		return
@@ -88,6 +88,12 @@ func (s *Server) handleRemoteInventory(response http.ResponseWriter, request *ht
 			return
 		}
 		switch platform {
+		case "toutiao":
+			var items []publisher.ToutiaoPost
+			account, items, err = publisher.ToutiaoListPosts(ctx, client, session)
+			for _, item := range items {
+				appendPost(item.ID, item.Title, item.URL, item.Published)
+			}
 		case "medium":
 			var items []mediumPost
 			account, items, err = (mediumClient{httpClient: client}).listPosts(ctx, mediumPlatformSession(session))
