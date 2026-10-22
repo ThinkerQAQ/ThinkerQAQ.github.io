@@ -21,4 +21,4 @@
 
 A new remote publishing platform should reuse the existing BlogCTL adapter contract and mature HTTP/SDK support. Do not duplicate authentication, asset handling or retry state. Verify a real remote draft readback before declaring write support.
 
-**Boundary:** technical investigation and rejected alternatives go into Deep Design; actual supported CLI and config remain in Reference.
+**Documentation boundary:** keep design decisions and relevant tradeoffs under Architecture, system models under Concepts, and supported CLI/configuration under Reference. Inkerio and BlogCTL retain separate documentation entrypoints; link shared workflows instead of duplicating them.

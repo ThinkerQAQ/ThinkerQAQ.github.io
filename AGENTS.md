@@ -1,6 +1,6 @@
-# Agent Contract — ThinkerQAQ Blog Engine
+# Agent Contract — Inkerio
 
-This repository builds the public blog and contains BlogCTL. Canonical articles live in the separate `ThinkerQAQ/blog-content` repository.
+This repository contains Inkerio, the reusable Astro blog engine, and its companion BlogCTL application. ThinkerQAQ is the author and personal site identity, not the engine brand. Canonical articles live in the separate `ThinkerQAQ/blog-content` repository.
 
 ## First minute
 

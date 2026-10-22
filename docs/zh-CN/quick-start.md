@@ -1,6 +1,6 @@
 # 快速开始
 
-使用仓库自带的示例内容，在本机启动博客。不需要访问私有内容仓库，也不需要云服务密钥。
+使用独立的公开内容模板，在本机启动 Inkerio。不需要访问私有内容仓库，也不需要云服务密钥。
 
 ## 环境要求
 
@@ -17,7 +17,7 @@ npm run dev:quick
 
 浏览器打开 [http://localhost:4321](http://localhost:4321)。
 
-`dev:quick` 先从独立的 `blog-content-template` 仓库装配示例内容（首次自动克隆），再启动 Astro。为了减少首次启动的依赖，它跳过 Mermaid、PlantUML 等图表预渲染，因此部分图表不会显示。
+`dev:quick` 先从独立的 `inkerio-content-template` 仓库装配示例内容（首次自动克隆），再启动 Astro。为了减少首次启动的依赖，它跳过 Mermaid、PlantUML 等图表预渲染，因此部分图表不会显示。
 
 ## 检查
 

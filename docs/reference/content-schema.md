@@ -11,7 +11,7 @@
 | Series | `blog-content/src/content/series/` |
 | Media | `blog-content/public/media/` |
 
-The source repository is separate; `src/content/` inside the engine is the assembled build input. For a runnable example, use [the content template](https://github.com/ThinkerQAQ/blog-content-template) or [the demo assembly example](../examples/content-template.md).
+The source repository is separate; `src/content/` inside the engine is the assembled build input. For a runnable example, use [the content template](https://github.com/ThinkerQAQ/inkerio-content-template) or [the demo assembly example](../examples/content-template.md).
 
 Content schema changes require updating both the parser/collections and their verified examples; do not derive field definitions from an old article in isolation.
 
@@ -19,4 +19,4 @@ Content schema changes require updating both the parser/collections and their ve
 
 A project's tutorials and documentation arrays accept article IDs or external links. An article ID must reference a root article associated with the project. External links use title, url, optional description, and optional locale-specific translations (which override the title, URL, and description).
 
-The default entry may point to Chinese documentation, with an en translation pointing to the English version. These URLs link directly to the GitHub documentation: the blog does not maintain a second copy. See the [project example](https://github.com/ThinkerQAQ/blog-content-template/blob/main/src/content/projects/sample-project.md) for both forms.
+The default entry may point to Chinese documentation, with an en translation pointing to the English version. These URLs link directly to the GitHub documentation: the blog does not maintain a second copy. See the [project example](https://github.com/ThinkerQAQ/inkerio-content-template/blob/main/src/content/projects/sample-project.md) for both forms.

@@ -186,7 +186,7 @@ scripts/ 存放仓库级 Node 构建、验证和渲染脚本。`)
 		return
 	}
 
-	fmt.Fprintln(a.out, `blogctl - ThinkerQAQ blog developer tool
+	fmt.Fprintln(a.out, `blogctl - Inkerio blog developer tool
 
 Usage:
   blogctl

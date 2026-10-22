@@ -1,8 +1,8 @@
 # BlogCTL 文档
 
-[English](../index.md) · [博客引擎文档](../../../../docs/zh-CN/index.md)
+[English](../index.md) · [Inkerio 引擎文档](../../../../docs/zh-CN/index.md)
 
-BlogCTL 负责文章装配、多平台分发、搜索引擎提交与本地工作台。Astro 页面、内容 Schema 和网站部署放在博客引擎文档中。
+BlogCTL 是 Inkerio 配套的管理与分发工具，负责文章装配、多平台分发、搜索引擎提交与本地工作台。Astro 页面、内容 Schema 和网站部署放在博客引擎文档中。
 
 | 要做什么 | 对应文档 |
 | --- | --- |

@@ -5,13 +5,13 @@
 ## 1. 获取两个仓库
 
 ```bash
-mkdir thinkerqaq-blog
-cd thinkerqaq-blog
+mkdir inkerio-workspace
+cd inkerio-workspace
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-git clone https://github.com/ThinkerQAQ/blog-content-template.git blog-content
+git clone https://github.com/ThinkerQAQ/inkerio-content-template.git blog-content
 ```
 
-此时 `ThinkerQAQ.github.io/` 与 `blog-content/` 处于同一层目录。模板仓库只是示例，不包含博客的私有生产内容。
+此时 `ThinkerQAQ.github.io/` 与 `blog-content/` 处于同一层目录。模板仓库只是示例，不包含博客的私有生产内容。`blog-content` 是本地目录名，不必与远端模板仓库同名。正式维护自己的内容时，可以通过 GitHub 模板创建仓库或 Fork，再把自己的仓库克隆为 `blog-content`，文章修改提交到该仓库。
 
 ## 2. 安装依赖
 

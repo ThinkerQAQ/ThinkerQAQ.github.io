@@ -1,8 +1,8 @@
 # BlogCTL documentation
 
-[简体中文](zh-CN/index.md) · [Blog engine](../../../docs/index.md)
+[简体中文](zh-CN/index.md) · [Inkerio](../../../docs/index.md)
 
-BlogCTL handles site assembly, browser-assisted publishing and search indexing. Use the engine documentation for Astro routes, content collection schemas and website deployment.
+BlogCTL is Inkerio's companion application for site assembly, browser-assisted publishing and search indexing. Use the engine documentation for Astro routes, content collection schemas and website deployment.
 
 | What you're doing | Read |
 | --- | --- |

@@ -1,6 +1,8 @@
-# How to deploy the public engine
+# How to deploy Inkerio
 
 **Task:** deploy an engine/content pair using the repository's existing CI.
+
+Inkerio is the reusable engine; `thinkerqaq.com` is the author's instance. Configure your own site identity, domain and integrations rather than deploying the author's settings unchanged. The template repository is `ThinkerQAQ/inkerio-content-template`; the engine repository and its owner-specific CI guards remain `ThinkerQAQ/ThinkerQAQ.github.io`.
 
 ## Preconditions
 

@@ -5,7 +5,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 
 const roots = ["docs", "tools/blogctl/docs"];
-const entrypoints = ["README.md", "README_ZH.md", "AGENTS.md", "tools/blogctl/README.md", "tools/blogctl/AGENTS.md"];
+const entrypoints = ["README.md", "README_ZH.md", "AGENTS.md", "tools/blogctl/README.md", "tools/blogctl/README_ZH.md", "tools/blogctl/AGENTS.md"];
 const documents = [...entrypoints];
 
 function addMarkdown(dir) {

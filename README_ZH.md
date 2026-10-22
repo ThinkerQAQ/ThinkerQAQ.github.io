@@ -1,8 +1,17 @@
-# ThinkerQAQ Blog
+# Inkerio
 
-[English](README.md) · [博客](https://thinkerqaq.com/) · [项目介绍](https://thinkerqaq.com/projects/personal-blog-system/)
+[English](README.md) · [实际站点](https://thinkerqaq.com/) · [项目介绍](https://thinkerqaq.com/projects/personal-blog-system/)
 
-基于 Astro 的双语技术博客。文章和笔记保存在独立的内容仓库；BlogCTL 负责内容装配、分发及搜索引擎提交。
+Inkerio 是基于 Astro 的双语静态博客引擎。文章和笔记保存在独立的内容仓库，BlogCTL 负责内容装配、多平台分发及搜索引擎提交。
+
+| 组成 | 职责 |
+| --- | --- |
+| **Inkerio** | 网站渲染、搜索、SEO 与静态部署，代码位于当前仓库 |
+| **[BlogCTL](tools/blogctl/README_ZH.md)** | 配套的 Go 应用、浏览器扩展与本地工作台 |
+| **[inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template)** | 用于首次体验或创建自己内容仓库的公开示例 |
+| **[ThinkerQAQ](https://thinkerqaq.com/)** | 作者使用 Inkerio 搭建的个人站点 |
+
+引擎仓库继续使用 `ThinkerQAQ/ThinkerQAQ.github.io`，保留现有 Pages 托管。Inkerio 是项目名称，使用者可以为自己的站点设置独立身份。
 
 ## 快速开始
 
@@ -15,7 +24,7 @@ npm ci
 npm run dev:quick
 ```
 
-访问 [localhost:4321](http://localhost:4321)。这条命令使用仓库自带的示例内容，跳过图表预渲染。完整图表构建所需的 Java、Graphviz 等依赖见[快速开始](docs/zh-CN/quick-start.md)。
+访问 [localhost:4321](http://localhost:4321)。这条命令从独立的公开内容模板装配示例（首次自动克隆），跳过图表预渲染。完整图表构建所需的 Java、Graphviz 等依赖见[快速开始](docs/zh-CN/quick-start.md)。
 
 ## AI Agent
 

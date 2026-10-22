@@ -1,6 +1,6 @@
 # First run on a new machine
 
-This tutorial starts with a fresh checkout and ends with a working BlogCTL workspace. It first uses bundled sample content; writing to an external publishing platform is optional and must be explicitly authorized.
+This tutorial starts with a fresh checkout and ends with a working BlogCTL workspace. It first assembles the separate public Inkerio content template; writing to an external publishing platform is optional and must be explicitly authorized.
 
 The screenshots below are **real screenshots of BlogCTL's English Web Console**, served by a Go Bridge using a new, isolated data directory. No browser publishing accounts were connected. They show genuine empty/connection states rather than invented remote articles.
 
@@ -39,7 +39,7 @@ npm ci
 npm run dev:quick
 ```
 
-Open [http://localhost:4321](http://localhost:4321). The engine assembles `blog-content-template/` and runs Astro, without production content or cloud credentials. In a second terminal run:
+Open [http://localhost:4321](http://localhost:4321). The engine assembles `inkerio-content-template/` and runs Astro, without production content or cloud credentials. In a second terminal run:
 
 ```bash
 npm run check
@@ -88,7 +88,7 @@ Open **Settings → Interface & language** and choose **Follow browser language 
 
 ## 6. Connect content and inspect remote articles
 
-Open **Settings**. Set **Engine Root** to the `ThinkerQAQ.github.io/` checkout and **Content Root** to a separate `blog-content/` checkout. For practice, use the [public content template](https://github.com/ThinkerQAQ/blog-content-template).
+Open **Settings**. Set **Engine Root** to the `ThinkerQAQ.github.io/` checkout and **Content Root** to a separate `blog-content/` checkout. For practice, use the [public content template](https://github.com/ThinkerQAQ/inkerio-content-template).
 
 In **Detect**, choose a platform and inspect its **Draft** and **Published** articles. This is read-only. When testing a real account, sign in on that platform in the browser first. A failed detection does not mean the article is absent.
 

@@ -4,7 +4,7 @@
 
 ## 前提
 
-准备好与引擎平级的 `blog-content/`，也可以使用公开的[内容模板](https://github.com/ThinkerQAQ/blog-content-template)。
+准备好与引擎平级的 `blog-content/`，也可以使用公开的[内容模板](https://github.com/ThinkerQAQ/inkerio-content-template)。
 
 ## 操作
 

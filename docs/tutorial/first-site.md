@@ -5,13 +5,13 @@
 ## 1. Clone both repositories
 
 ```bash
-mkdir thinkerqaq-blog
-cd thinkerqaq-blog
+mkdir inkerio-workspace
+cd inkerio-workspace
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-git clone https://github.com/ThinkerQAQ/blog-content-template.git blog-content
+git clone https://github.com/ThinkerQAQ/inkerio-content-template.git blog-content
 ```
 
-The resulting `ThinkerQAQ.github.io/` and `blog-content/` directories are siblings. The template is public sample content; it is not the private production repository.
+The resulting `ThinkerQAQ.github.io/` and `blog-content/` directories are siblings. The template is public sample content; it is not the private production repository. `blog-content` is the local checkout name, independent of the remote template name. To maintain your own content, create a repository from the GitHub template or fork it, then clone your repository as `blog-content`; commit your writing there.
 
 ## 2. Install engine dependencies
 

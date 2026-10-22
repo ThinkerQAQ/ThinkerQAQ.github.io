@@ -1,8 +1,17 @@
-# ThinkerQAQ Blog
+# Inkerio
 
-[简体中文](README_ZH.md) · [Website](https://thinkerqaq.com/) · [Project overview](https://thinkerqaq.com/en/projects/personal-blog-system/)
+[简体中文](README_ZH.md) · [Live example](https://thinkerqaq.com/) · [Project overview](https://thinkerqaq.com/en/projects/personal-blog-system/)
 
-A bilingual technical blog built with Astro. Articles and notes live in a separate content repository; BlogCTL handles site assembly, publishing and search-engine submission.
+Inkerio is a bilingual static blog engine built with Astro. Keep your writing in a separate content repository and use BlogCTL for site assembly, multi-platform publishing and search-engine submission.
+
+| Component | Role |
+| --- | --- |
+| **Inkerio** | Site rendering, search, SEO and static deployment; hosted in this repository |
+| **[BlogCTL](tools/blogctl/README.md)** | Companion Go application, browser Extension and local Web Console |
+| **[inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template)** | Public sample content for a first run or your own content repository |
+| **[ThinkerQAQ](https://thinkerqaq.com/)** | Author's personal site built with Inkerio |
+
+The engine repository remains `ThinkerQAQ/ThinkerQAQ.github.io` to preserve its existing Pages hosting. Inkerio is the project name, not a replacement for your site's identity.
 
 ## Quick Start
 
@@ -15,7 +24,7 @@ npm ci
 npm run dev:quick
 ```
 
-Open [localhost:4321](http://localhost:4321). This uses the bundled sample content and skips diagram rendering. For full diagram support, see the [setup requirements](docs/quick-start.md).
+Open [localhost:4321](http://localhost:4321). This fetches the separate public content template when absent and skips diagram rendering. For full diagram support, see the [setup requirements](docs/quick-start.md).
 
 ## For AI Agents
 

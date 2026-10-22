@@ -4,7 +4,7 @@
 
 ## Preconditions
 
-Use a checkout of the canonical `blog-content` repository or the public [content template](https://github.com/ThinkerQAQ/blog-content-template) beside the engine.
+Use a checkout of the canonical `blog-content` repository or the public [content template](https://github.com/ThinkerQAQ/inkerio-content-template) beside the engine.
 
 ## Steps
 

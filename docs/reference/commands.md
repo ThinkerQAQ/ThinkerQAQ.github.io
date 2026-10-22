@@ -8,7 +8,7 @@
 | `npm run dev:quick` | Assemble the public content template and launch Astro without diagram pre-rendering (minimal new-user path) |
 | `npm run dev` | Assemble fixture content, then diagrams and Astro dev server (requires Java/Graphviz/Chromium) |
 | `npm run dev:site` | Render diagrams and start Astro at port 4321, without reassembling content |
-| `npm run assemble:template` | Clone/reuse `blog-content-template` and run BlogCTL `site assemble` |
+| `npm run assemble:template` | Clone/reuse `inkerio-content-template` and run BlogCTL `site assemble` |
 | `npm run check` | `astro check` |
 | `npm run build` | Go BlogCTL `build` |
 | `npm run build:template` | Assemble public template content then build |
