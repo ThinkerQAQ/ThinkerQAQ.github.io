@@ -1,6 +1,6 @@
 # Website integrations reference
 
-This is an index into **actual implementation ownership**, not a second hand-maintained API schema.
+Use this table to find the configuration and code for each website integration.
 
 | Capability | Authoritative sources | Configuration / lifecycle |
 | --- | --- | --- |
@@ -18,4 +18,4 @@ The Umami browser bundle is vendored at `public/u.js` (served as `/u.js`). Sourc
 
 Check the actual site build/environment before describing an integration as active. The environment names supplied by CI are documented in [Deployment Reference](deployment.md); secrets must never be committed.
 
-RSS feeds are locale-specific: Chinese `/rss.xml` and English `/en/rss.xml`. Each contains only published articles in that language.
+RSS feeds are Chinese `/rss.xml` and English `/en/rss.xml`. Each includes published articles and photography in that language, plus non-demo completed fitness months from 2026-09 onward with at least one training day. Photography starts at 2026-01-01; the feed keeps the latest 100 entries, ordered by original publication date. Workout entries use 00:00 Asia/Shanghai on the first day of the next month. Rebuilding does not move an old item to the top. The cutoffs and filters are in [`src/lib/rss.ts`](../../src/lib/rss.ts).

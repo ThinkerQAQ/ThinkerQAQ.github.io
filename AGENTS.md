@@ -14,7 +14,7 @@ go run ./tools/blogctl/cmd/maint build
 go run ./tools/blogctl/cmd/maint package
 ```
 
-These commands are implemented in Go, independently of the product CLI. The existing `npm run` scripts remain authoritative for Astro, frontend, diagrams, and site previews. `package` generates cross-platform BlogCTL binaries, the browser extension ZIP, installer scripts, and SHA-256 checksums in `.build/artifacts/blogctl-release/`. Never publish a release just because packaging succeeded.
+These commands are implemented in Go, independently of the product CLI. The existing `npm run` scripts remain authoritative for Astro, frontend, diagrams, and site previews. `package` generates cross-platform BlogCTL binaries, the browser extension ZIP and SHA-256 checksums in `.build/artifacts/blogctl-release/`. Never publish a release just because packaging succeeded.
 
 ## Native code intelligence
 

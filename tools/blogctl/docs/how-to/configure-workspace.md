@@ -1,22 +1,24 @@
-# How to configure a BlogCTL workspace
+# Configure the workspace
 
-**Task:** connect one engine checkout and one canonical content checkout to an installed Bridge.
+Open **Settings → Content and paths** in the connected Extension/Console.
 
-## Prerequisites
+| Field | Select |
+| --- | --- |
+| Engine Root | Root containing `package.json`, `astro.config.mjs` and `tools/blogctl/` |
+| Content Root | Root containing `src/content/articles/` |
 
-Two valid repositories, installed Extension/Bridge, and a writable local data directory.
+Select repository roots, not `src/content/` or the executable directory. Save, leave Settings, then reopen and confirm the paths. Check local articles on Create/Update; Detect lists remote account content.
 
-## Steps
+## Windows and WSL
 
-1. Open **设置** in BlogCTL.
-2. Set **Engine Root** to the `ThinkerQAQ.github.io` checkout and **Content Root** to the adjacent `blog-content` checkout.
-3. Save the fields. These persist to the single `blogctl.toml` file in the selected Data directory.
-4. To change the data location for a custom deployment, set `BLOGCTL_DATA_DIR` to an **absolute** filesystem path before starting the Bridge, then move or restore the expected files yourself.
+Windows Bridge paths use Windows syntax, such as `C:\code\blog-content`. A Linux Bridge in WSL uses Linux paths. A Windows browser requires a Windows Native Messaging executable even if source files are edited in WSL.
 
-## Verify
+CLI `sync` uses its current directory or `BLOG_CONTENT_ROOT` and `BLOGCTL_ENGINE_ROOT` to discover repositories. Saved UI paths do not override those discovery rules. See [CLI](../reference/cli.md).
 
-Reopen Settings and check both roots; use **检测** to confirm the local article list and authenticated platform state. `blogctl.toml` is a config file; `jobs.json` and `publications.json` are runtime state, not configuration.
+## Move or share Data
 
-## Common errors
+Set absolute `BLOGCTL_DATA_DIR` before starting the process. Stop the previous Bridge, back up/copy existing Data, start at the new location and inspect Settings and Tasks. The override does not copy files or translate workspace paths.
 
-A relative `BLOGCTL_DATA_DIR` is rejected. Moving the executable on Windows also changes its default Data directory. Keep credentials out of Git. Consult [Configuration Reference](../reference/configuration.md).
+For WSL social commands sharing a Windows installation, use its `/mnt/c/.../Data` directory and pass explicit Linux `--content-root` where saved paths are Windows paths. Avoid concurrent runtimes overwriting incompatible workspace paths in the same configuration.
+
+See [Configuration](../reference/configuration.md) for directory defaults and TOML keys.

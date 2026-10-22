@@ -8,6 +8,7 @@ Inkerio builds an Astro site from Markdown kept in a separate repository. [inker
 | --- | --- |
 | Running the engine locally | [Quick Start](quick-start.md) |
 | Setting up a content checkout | [Tutorial](tutorial/first-site.md) |
+| Replacing the author’s name, domain and services | [Customize your site](how-to/customize-site.md) |
 | Understanding content assembly and deployment | [System architecture](concepts/system.md) |
 | Working with search, analytics or Workers | [Integrations](concepts/search-and-integrations.md) |
 | Solving an operational issue | [How-to](how-to/index.md) |
@@ -30,4 +31,4 @@ Commands are documented under [Reference](reference/commands.md). The Go and Typ
 | Examples | Runnable sample content and configurations |
 | Architecture | Design principles, constraints and extension decisions |
 
-Keep site documentation here and publishing-tool documentation under `tools/blogctl/docs/`. Link between them instead of copying instructions. English pages live directly under `docs/`; Chinese counterparts use the same paths under `docs/zh-CN/`. Preserve these paths when changing branding.
+Keep site documentation here and publishing-tool documentation under `tools/blogctl/docs/`. Link between them instead of copying instructions. English pages live directly under `docs/`; Chinese counterparts use the same paths under `docs/zh-CN/`.

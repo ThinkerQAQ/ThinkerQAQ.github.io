@@ -1,33 +1,36 @@
-# Tutorial — first safe BlogCTL publishing workflow
+# Publish your first platform draft
 
-**Goal:** discover local content, check an existing platform account, and preview an article before any remote write.
+This walkthrough uses DEV.to as an example. Start with one article and one platform so the result is easy to inspect.
 
-## 1. Prepare content
+## Prepare the article and account
 
-Follow the engine [first-site tutorial](../../../../docs/tutorial/first-site.md) to obtain a `ThinkerQAQ.github.io/` engine checkout beside `blog-content/`. Start with a **sample article** in the content repository.
+Complete [BlogCTL installation](../quick-start.md) and the [Inkerio content tutorial](../../../../docs/tutorial/first-site.md). In **Settings**, set the engine and content roots. For the public template, the root slug `sample-article` has both Chinese and English versions.
 
-## 2. Connect the control plane
+In the platform's settings, choose `en` for DEV.to. Sign in to DEV.to in the browser profile running the Extension, or configure its API key. Other browser platforms need their own signed-in sessions. An interface-language change does not change article language.
 
-Follow [BlogCTL Quick Start](../quick-start.md). Use **设置** to select Engine Root and Content Root and configure your browser platform session. A Windows installation saves runtime files inside `Data/`.
+## Check compilation locally
 
-## 3. Discover without changing anything
-
-Open **检测**, select a platform and read the existing draft/published list. Open **创建**, choose a local article, and check the read-only association results. If a matching remote article exists, inspect its editor/view link rather than creating a duplicate.
-
-## 4. Compile locally (optional CLI path)
-
-From the **content repository** with a running Bridge and a configured platform:
+From the content repository, with `blogctl` on PATH:
 
 ```bash
 blogctl sync --article sample-article --platforms devto --dry-run
 ```
 
-Replace `sample-article` with an existing slug. `--dry-run` does not write to the remote platform. See [CLI Reference](../reference/cli.md) for prerequisites and flags.
+This runs the local compiler; it does not require a running authenticated Bridge. It can install missing Node dependencies and save workspace paths locally. A zero exit code confirms compilation, not remote login, image upload or publication. No HTML preview file is promised by this CLI command.
 
-## 5. Explicit publish decision
+If the engine is not beside the content checkout under its usual name, set `BLOGCTL_ENGINE_ROOT` to the engine's absolute path. See [CLI workspace selection](../reference/cli.md).
 
-Only after verifying the account and payload, use **创建草稿** for a new article; existing articles belong to **更新** with an explicitly selected remote target. Treat remote writes as separate user-approved actions. If a request times out, inspect **检测** / **任务** before repeating it.
+## Create the draft
 
-## 6. Verify and continue
+1. Open **Create**, select `sample-article` and DEV.to.
+2. If the account may already contain that article, click **Detect**. Detection is optional and manual; there is no automatic scan to wait for.
+3. For an existing article, switch to **Update** and select it. Otherwise choose **Create draft**.
+4. Open **Tasks**, inspect the per-platform outcome, then open the returned editor link.
 
-Inspect **任务** for remote IDs and results and open the remote draft editor. For exact UI behavior read the [workflow guide](../guide/workflows.md); for side-effect boundaries see [Concepts](../concepts/operations.md).
+Creating the sample writes it to your real platform account. Only perform this step when you want that draft. The script's successful dry run does not authorize or execute this write.
+
+## Verify the result
+
+Check the remote title, language, body, cover, image order and original-source link. The task should contain a remote ID and a draft result. If image insertion or another later step fails, the article may already exist; use the recorded ID before making another create request.
+
+Updating a draft and publishing it are separate actions. Use the task's **Publish draft** action only when you intend to make it public and the platform supports it. For Medium published edits, save the pending version and finish **Save and publish** manually on Medium. See [platform differences](../guide/workflows.md).

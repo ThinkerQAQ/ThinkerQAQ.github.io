@@ -1,95 +1,95 @@
-# BlogCTL Configuration Reference
+# BlogCTL configuration
 
-**Authority:** [`bridge/config.go`](../../bridge/config.go) (`bridgeConfig`, defaults, paths) and [`publishing/config.go`](../../publishing/config.go) (`Config` and platform defaults). These Go structs and `toml` tags are the source of truth; the table below is a human lookup, not a separate schema.
+Use Settings in the Extension or Console to edit `blogctl.toml`. Stop the Bridge before manual file edits so a UI save does not overwrite them.
 
-## Storage contract
+## Data directories
 
-| Platform | Default user-data directory |
+| OS | Default directory |
 | --- | --- |
-| Windows | `Data/` next to the installed executable |
-| Linux / macOS | `os.UserConfigDir()/BlogCTL` |
-| All | Absolute `BLOGCTL_DATA_DIR` environment override |
+| Windows | `Data/` beside the executable |
+| Linux | Usually `~/.config/BlogCTL/`, following `os.UserConfigDir()` |
+| macOS | Usually `~/Library/Application Support/BlogCTL/` |
+| Override | Absolute `BLOGCTL_DATA_DIR`, set before process startup |
 
-Only `blogctl.toml` is user configuration. `jobs.json`, `publications.json`, `distribution/`, logs and similar files are runtime data, not hand-edited config. Changing the Windows executable location may change the default Data path. Back up Data before relocation; migration is not automatic.
+`jobs.json`, `publications.json`, `distribution/`, logs and `social/` are runtime state. They may contain private data. Back up the directory before moving an installation; an environment override does not migrate files.
 
-**Interface language:** `ui_locale = "auto"` by default; alternatives are `zh-CN` and `en`. This is separate from per-platform article language. See [the language How-to](../how-to/switch-interface-language.md).
+Windows and WSL have separate defaults and path syntax. Shared social drafts need both processes to address the same Data directory, using Windows and `/mnt/...` paths respectively. Pass an explicit Linux `--content-root` to WSL social commands if saved paths are Windows paths.
 
-## Top-level TOML fields
+## Common TOML settings
 
 | Key | Meaning |
 | --- | --- |
-| `content_root`, `engine_root` | Canonical content and public engine checkouts |
-| `distribution_root`, `publication_bindings_path` | Optional persistent state path overrides |
-| `log_directory`, `log_level` | Logging |
-| `proxy_enabled`, `proxy_host`, `proxy_port` | HTTP proxy behavior |
-| `tool_paths` | Executable path overrides (map) |
-| `devto_api_key` | DEV.to credentials |
-| `indexnow_endpoint`, `indexnow_key`, `indexnow_key_location` | IndexNow |
-| `baidu_token` | Baidu submission; site identity comes from `[search]` |
-| `google_search_console_service_json` | Google Search Console credentials |
+| `engine_root`, `content_root` | Checkout roots accessible to the executable |
+| `ui_locale` | `auto` (default), `zh-CN`, or `en`; interface only |
+| `log_level`, `log_directory` | Default level `info`, optional log output path |
+| `proxy_enabled`, `proxy_host`, `proxy_port` | Enable and select an HTTP proxy |
+| `tool_paths` | Map of executable path overrides |
+| `distribution_root`, `publication_bindings_path` | Optional runtime output/history locations |
+| `devto_api_key` | DEV.to credential |
+| `indexnow_endpoint`, `indexnow_key`, `indexnow_key_location` | IndexNow endpoint and ownership key |
+| `baidu_token` | Baidu submission credential |
+| `google_search_console_service_json` | Google service-account JSON setting |
 
-## Shared search site configuration
-
-Configure **Settings → Search engines → Indexing site and URLs**. The indexing page displays these saved values and derives provider console links from them; it has no separate editable URL settings.
-
-```toml
-[search]
-site_origin = "https://thinkerqaq.com"
-url_list_url = "https://thinkerqaq.com/sitemap-all.txt"
-sitemap_url = "https://thinkerqaq.com/sitemap-index.xml"
-fingerprint_url = "https://thinkerqaq.com/sitemap-inventory.json"
-google_property = "sc-domain:thinkerqaq.com"
-```
-
-All resource URLs must belong to `site_origin`. The Google property must cover that site. An empty `fingerprint_url` explicitly disables fingerprint fetching; incremental submission then conservatively treats existing URLs as changed. Missing required fields, wrong types, unknown `[search]` keys, foreign URLs and incompatible properties are rejected with the configuration path.
-
-The Bridge migrates an existing configuration without `[search]` to the previous site defaults on startup and writes the explicit section. The obsolete `baidu_site` field is removed; Baidu uses the shared origin. Existing provider credentials remain unchanged. Changing the executable/data location is still a separate manual migration.
-
-Inventory refresh, IndexNow, Baidu, Google Sitemap, URL Inspection, browser Request Indexing and CLI search commands consume the same site configuration. A CLI `--site-url` selection must match the configured Google property. Running search tasks prevent site edits; queued/retried tasks carry their site configuration and reject a changed identity. Domain migrations reset the active inventory view and exclude old-origin snapshots and queue entries from new requests. Provider API endpoints, authentication protocols and batch limits remain provider-owned rules.
-
-This configuration identifies the site to index; the site's deployed resources must actually exist at the configured addresses. It does not itself change DNS or deploy the site's canonical URLs.
-
-## Publishing fields
-
-| TOML section | Contract |
-| --- | --- |
-| `[publishing.compiler.mermaid]` | `format` (default `png`), `width` (1200), `scale` (2) |
-| `[publishing.assets]` | `store` (default `r2`) |
-| `[publishing.assets.r2]` | `bucket`, `public_base_url`, `access_key_id`, `secret_access_key`, `account_id`, `endpoint` |
-| `[publishing.platforms.PLATFORM]` | `language`, `changed_only` |
-| `[publishing.platforms.PLATFORM.footer]` | `enabled`, `template` |
-| `[publishing.platforms.PLATFORM.canonical]` | `mode` |
-| `[publishing.platforms.PLATFORM.tracking]` | `enabled`, `source`, `medium`, `campaign` |
-
-Defaults are created by `DefaultConfig()` and `DefaultPlatformConfig()`; DEV.to and Medium default to English and native canonical links, while other platforms use their registered default languages. Exact supported IDs come from [`platform/capabilities.go`](../../platform/capabilities.go).
-
-## Social publishing
-
-```toml
-[social.buffer]
-api_key = "YOUR_PERSONAL_BUFFER_API_KEY"
-```
-
-The key is a local secret masked from Bridge API config responses. Buffer-connected
-channels are discovered by API; only specifically requested platforms are used.
-See [Social Publishing](../guide/social-publishing.md) for the ChatGPT/WSL/Console workflow,
-approval steps, and sharing the same Data directory across Windows and WSL.
-
-## Minimal example (paths are examples)
+Partial example; save through Settings to preserve initialized defaults:
 
 ```toml
 engine_root = "/home/user/blog/ThinkerQAQ.github.io"
 content_root = "/home/user/blog/blog-content"
+ui_locale = "en"
 log_level = "info"
-
-[publishing.compiler.mermaid]
-format = "png"
-width = 1200
-scale = 2
+proxy_enabled = false
 
 [publishing.platforms.devto]
 language = "en"
 changed_only = false
 ```
 
-Use the Extension **设置** UI to modify credentials. Do not commit a real `blogctl.toml`, private key, cookie or service account JSON.
+For Windows paths, TOML literal strings avoid backslash escaping: `engine_root = 'C:\code\ThinkerQAQ.github.io'`.
+
+## The site to index
+
+Edit **Settings → Search engines → Indexing site and URLs**:
+
+```toml
+[search]
+site_origin = "https://example.com"
+url_list_url = "https://example.com/sitemap-all.txt"
+sitemap_url = "https://example.com/sitemap-index.xml"
+fingerprint_url = "https://example.com/sitemap-inventory.json"
+google_property = "sc-domain:example.com"
+```
+
+Replace the example origin/property with your deployed site. Resource URLs must belong to the site and actually exist. Set `fingerprint_url = ""` to disable fingerprint fetching; incremental submissions then conservatively treat existing URLs as changed.
+
+Missing required fields, unknown search keys, foreign URLs and incompatible Google properties are rejected. CLI `--site-url` must match `google_property`. Older configurations without `[search]` are migrated to the previous site defaults; review them before submitting your own site. The obsolete `baidu_site` field is removed during migration.
+
+Running indexing tasks block site edits. Queued tasks retain their site identity, and domain migrations reset active inventories rather than generating foreign-domain deletion requests. This configuration does not deploy the website or change DNS.
+
+## Publishing
+
+| Section | Fields / defaults |
+| --- | --- |
+| `[publishing.platforms.PLATFORM]` | `language`, `changed_only` |
+| `.footer` | `enabled`, `template`; placeholders `{site}`, `{url}`, `{title}` |
+| `.canonical` | `mode`: `native`, `footer`, or `none` |
+| `.tracking` | `enabled`, `source`, `medium`, `campaign` |
+| `[publishing.compiler.mermaid]` | `format` (`png`), `width` (1200), `scale` (2) |
+| `[publishing.assets]` | `store` (`r2`) |
+| `[publishing.assets.r2]` | `bucket`, `public_base_url`, `account_id`, `endpoint`, `access_key_id`, `secret_access_key` |
+
+Dotted rows are nested under the platform section, for example `[publishing.platforms.devto.footer]`. DEV.to, Medium and Hashnode default to English and native canonical mode; other registered platforms use their default language and footer mode. Article language selects an existing source translation; it does not translate text.
+
+Configure your own R2 bucket and credentials before publishing assets. The author's built-in public asset base grants no write access to that bucket.
+
+**Domain limitation:** the publishing compiler still uses `SiteOrigin` in [compiler/markdown.go](../../compiler/markdown.go) for canonical and root-relative links. Changing Astro `site` or `[search]` does not change it. Adapt and verify publishing links before using a fork to syndicate your own content.
+
+## Buffer
+
+```toml
+[social.buffer]
+api_key = "YOUR_PERSONAL_BUFFER_API_KEY"
+```
+
+The Bridge masks the saved key in API responses. `BUFFER_API_KEY` is a fallback when it is empty; Bash startup variables may not reach a Windows or noninteractive Bridge. See [Buffer publishing](../guide/social-publishing.md).
+
+Implementation: [Bridge config](../../bridge/config.go), [publishing config](../../publishing/config.go). Keep real configuration, credentials and Data files out of Git.

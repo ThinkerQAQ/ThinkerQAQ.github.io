@@ -2,65 +2,53 @@
 
 [简体中文](README_ZH.md) · [Documentation](docs/index.md) · [Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest)
 
-BlogCTL is Inkerio's companion Go application. It assembles site content, prepares articles for other publishing platforms, and runs a local Bridge for the browser Extension and Web Console.
+BlogCTL is Inkerio's companion Go application. It assembles content, compiles articles for publishing platforms, submits URLs to search engines and runs the local Bridge used by the browser Extension and Web Console.
 
-For a step-by-step first run with actual English UI screenshots, follow the [new-machine tutorial](docs/tutorial/first-run-on-new-machine.md).
+The Extension accesses your logged-in browser sessions; the Bridge runs local jobs. Platform support varies: creating a draft, editing a draft and updating a published article are separate capabilities.
 
-## Quick Start
+## First use
 
-To inspect the CLI from a checkout of the [blog engine](../../README.md):
+From an engine checkout:
 
 ```bash
 go run ./tools/blogctl/cmd help
 go run ./tools/blogctl/cmd doctor
 ```
 
-For Windows installations, download the current executable, keep its `Data/` directory between upgrades and register the Native Messaging host from the executable itself:
+For a desktop installation, download the executable for your OS and architecture and the Extension ZIP from Releases. Extract them into persistent directories, run the executable's `install` command and load the unpacked Extension in Edge or Chrome. On Windows:
 
 ```powershell
-& C:\software\Codinglogctllogctl-windows-amd64.exe install
+& C:\software\Coding\blogctl\blogctl-windows-amd64.exe install
 ```
 
-Load the unpacked Extension in Edge or Chrome. The **打开工作台** action opens the local Console. For installation details on each OS, follow the [Quick Start](docs/quick-start.md).
+Keep the adjacent `Data/` directory during upgrades. See [Quick Start](docs/quick-start.md) for storage locations on other systems and [new-machine setup](docs/tutorial/first-run-on-new-machine.md) for screenshots.
 
-## For AI Agents
+## Publishing
 
-Follow the repository's [AGENTS.md](../../AGENTS.md) and [BlogCTL-specific contract](AGENTS.md). From the engine root:
+Select a local article and platforms in the Console. Existing-article detection is optional and runs only when requested. A match removes that platform from batch creation; detection failure does not prevent creation. Review remote state before retrying a failed creation.
+
+Updating requires an explicit remote article or draft ID. Medium published-article edits are saved in its editor and require a manual publish action. See [workflows](docs/guide/workflows.md) for the full operation and retry rules.
+
+Short-form publishing through Buffer has a separate [review and publication workflow](docs/guide/social-publishing.md).
+
+| Task | English | 简体中文 |
+| --- | --- | --- |
+| Install and connect | [Quick Start](docs/quick-start.md) | [快速开始](docs/zh-CN/quick-start.md) |
+| Create the first draft | [Tutorial](docs/tutorial/first-publish.md) | [首次发布](docs/zh-CN/tutorial/first-publish.md) |
+| Configure paths and storage | [Configuration](docs/reference/configuration.md) | [配置参考](docs/zh-CN/reference/configuration.md) |
+| Diagnose a disconnected Console | [Bridge troubleshooting](docs/how-to/debug-bridge.md) | [连接排查](docs/zh-CN/how-to/debug-bridge.md) |
+| Inspect CLI flags | [CLI](docs/reference/cli.md) | [命令行](docs/zh-CN/reference/cli.md) |
+
+## Development
+
+From the engine root:
 
 ```bash
 go run ./tools/blogctl/cmd/maint verify
 go run ./tools/blogctl/cmd/maint build
+go run ./tools/blogctl/cmd/maint package
 ```
 
-## Architecture
-
-```text
-Markdown source
-  └──► BlogCTL compiler / assets / site assembly
-                ├──► Astro build
-                └──► platform publishers
-                         ▲
-           Extension ↔ Go Bridge ↔ Web Console
-```
-
-Session access stays in the browser Extension; Go handles local jobs and publishing adapters. See [Concepts](docs/concepts/index.md).
-
-## Social Publishing (Buffer)
-
-AI-authored short-form posts are reviewed locally before staging to Buffer and
-publishing to LinkedIn, X or Bluesky. The same BlogCTL Web Console previews the
-draft; a matching, explicit content revision is required for publication. See
-[Social Publishing](docs/guide/social-publishing.md), including the WSL/Windows
-Data directory setup.
-
-## Documentation
-
-| Topic | English | 简体中文 |
-| --- | --- | --- |
-| First use | [Quick Start](docs/quick-start.md) | [快速开始](docs/zh-CN/quick-start.md) |
-| Publishing workflow | [Tutorial](docs/tutorial/first-publish.md) | [教程](docs/zh-CN/tutorial/first-publish.md) |
-| Models and interfaces | [Concepts and Reference](docs/index.md) | [中文文档目录](docs/zh-CN/index.md) |
-
-Build, verification and release packaging use the engine's native Go maintainer at `tools/blogctl/cmd/maint/`.
+Build output goes to `.build/out/`. Packaging produces six platform executables, the Extension ZIP and checksums. Read the [root rules](../../AGENTS.md) and [BlogCTL rules](AGENTS.md) before modifying the code.
 
 [MIT License](../../LICENSE)

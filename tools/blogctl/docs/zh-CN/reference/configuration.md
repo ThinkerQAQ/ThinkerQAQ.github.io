@@ -1,41 +1,95 @@
-# 配置
+# BlogCTL 配置
 
-以 [bridge/config.go](../../../bridge/config.go) 和 [publishing/config.go](../../../publishing/config.go) 定义为准。
+通过扩展或工作台「设置」编辑 `blogctl.toml`。手工修改前先停止 Bridge，避免与界面保存互相覆盖。
 
-**界面语言：** `ui_locale` 默认为 `auto`，也可设置 `zh-CN` 或 `en`，与发布文章语言独立。见[切换界面语言](../how-to/switch-interface-language.md)。
+## 数据目录
 
-Windows 默认使用可执行文件旁的 `Data/`，Linux/macOS 使用用户配置目录。绝对路径环境变量 `BLOGCTL_DATA_DIR` 可覆盖默认目录。
+| 系统 | 默认位置 |
+| --- | --- |
+| Windows | 程序旁的 `Data/` |
+| Linux | 通常为 `~/.config/BlogCTL/`，遵循 `os.UserConfigDir()` |
+| macOS | 通常为 `~/Library/Application Support/BlogCTL/` |
+| 覆盖 | 启动前设置绝对路径 `BLOGCTL_DATA_DIR` |
 
-`blogctl.toml` 包含 `engine_root`、`content_root`、`log_level`、网络代理及搜索引擎配置；`jobs.json`、`publications.json` 等属于运行时数据。
+`jobs.json`、`publications.json`、`distribution/`、日志和 `social/` 属于运行数据，可能包含私有内容。迁移前备份整个目录；设置环境变量不会自动搬文件。
+
+Windows 与 WSL 默认目录和路径语法不同。共享社交草稿时，两个进程应指向同一 Data，分别使用 Windows 路径和 `/mnt/...` 路径。保存的工作区路径若是 Windows 格式，WSL social 命令应显式传入 Linux `--content-root`。
+
+## 常用 TOML 字段
+
+| 键 | 用途 |
+| --- | --- |
+| `engine_root`、`content_root` | 程序可访问的仓库根目录 |
+| `ui_locale` | 默认 `auto`，可选 `zh-CN`、`en`，只控制界面 |
+| `log_level`、`log_directory` | 默认 `info`，可选日志目录 |
+| `proxy_enabled`、`proxy_host`、`proxy_port` | HTTP 代理开关、地址和端口 |
+| `tool_paths` | 可执行工具的路径映射 |
+| `distribution_root`、`publication_bindings_path` | 可选运行产物和历史记录目录 |
+| `devto_api_key` | DEV.to 凭据 |
+| `indexnow_endpoint`、`indexnow_key`、`indexnow_key_location` | IndexNow 接口和站点密钥 |
+| `baidu_token` | 百度提交凭据 |
+| `google_search_console_service_json` | Google Service Account JSON 设置 |
+
+部分配置示例，通过设置保存可保留初始化默认值：
 
 ```toml
 engine_root = "/home/user/blog/ThinkerQAQ.github.io"
 content_root = "/home/user/blog/blog-content"
+ui_locale = "zh-CN"
 log_level = "info"
+proxy_enabled = false
 
 [publishing.platforms.devto]
 language = "en"
+changed_only = false
 ```
 
-请通过工作台配置真实密钥，不要将数据目录提交至 Git。
+Windows 路径可用 TOML 字面字符串避免反斜杠转义，如 `engine_root = 'C:\code\ThinkerQAQ.github.io'`。
 
-## 统一索引站点配置
+## 要索引的站点
 
-在 **设置 → 搜索引擎 → 索引站点与 URL** 中编辑；索引页只读取并展示保存后的配置。
+在「设置 → 搜索引擎 → 索引站点与 URL」填写：
 
 ```toml
 [search]
-site_origin = "https://thinkerqaq.com"
-url_list_url = "https://thinkerqaq.com/sitemap-all.txt"
-sitemap_url = "https://thinkerqaq.com/sitemap-index.xml"
-fingerprint_url = "https://thinkerqaq.com/sitemap-inventory.json"
-google_property = "sc-domain:thinkerqaq.com"
+site_origin = "https://example.com"
+url_list_url = "https://example.com/sitemap-all.txt"
+sitemap_url = "https://example.com/sitemap-index.xml"
+fingerprint_url = "https://example.com/sitemap-inventory.json"
+google_property = "sc-domain:example.com"
 ```
 
-TXT、XML 和指纹清单必须属于配置的域名，Google Property 必须覆盖该站点。指纹清单可显式留空，表示不读取指纹；此时增量会保守地把已有 URL 视为变化。其余必填字段缺失、类型错误、未知 `[search]` 字段或跨域地址会被明确拒绝，不会退回硬编码站点。
+全部换成自己已经部署的站点，资源 URL 必须属于该站点且能访问。`fingerprint_url = ""` 关闭指纹获取；此时增量保守地将已有 URL 视为变化。
 
-旧配置在 Bridge 启动时自动写入 `[search]` 默认值，并移除重复的 `baidu_site`；现有凭据不变。刷新、IndexNow、百度、Google API、浏览器 Request Indexing 和 CLI 共用这份配置。控制台入口由域名和 Google Property 派生。`--site-url` 必须与配置的 Google Property 一致。
+缺少必填字段、未知搜索键、跨域 URL 和不匹配的 Google Property 会被拒绝。CLI `--site-url` 必须与 `google_property` 一致。缺少 `[search]` 的旧配置会迁移为此前默认站点，提交自己的站点前应检查；旧 `baidu_site` 在迁移时删除。
 
-运行中的索引任务完成前不能修改站点；任务保存自己的站点身份，配置变化后旧任务不能盲目重放。改域名不会向新站点提交旧域名的删除通知，旧 Google 请求队列也不会继续执行。
+索引任务运行时禁止修改站点，排队任务保存其站点身份。域名迁移会重置当前清单，不会生成旧域名的错误删除请求。此配置不会部署网站或修改 DNS。
 
-配置指定的是要索引的站点。它不会自动修改 DNS、部署站点或变更 Astro 页面中的 canonical；配置的公开资源地址必须实际存在。
+## 文章分发
+
+| 配置段 | 字段及默认值 |
+| --- | --- |
+| `[publishing.platforms.PLATFORM]` | `language`、`changed_only` |
+| `.footer` | `enabled`、`template`，占位符 `{site}`、`{url}`、`{title}` |
+| `.canonical` | `mode`：`native`、`footer` 或 `none` |
+| `.tracking` | `enabled`、`source`、`medium`、`campaign` |
+| `[publishing.compiler.mermaid]` | `format`（`png`）、`width`（1200）、`scale`（2） |
+| `[publishing.assets]` | `store`（`r2`） |
+| `[publishing.assets.r2]` | `bucket`、`public_base_url`、`account_id`、`endpoint`、`access_key_id`、`secret_access_key` |
+
+点号行嵌套在平台下，如 `[publishing.platforms.devto.footer]`。DEV.to、Medium、Hashnode 默认英文和原生 canonical，其余平台使用注册的默认语言与页脚模式。文章语言用于选择已有译文，不会自动翻译正文。
+
+发布素材前配置自己的 R2 Bucket 和凭据。内置的作者公开素材地址不代表拥有对应 Bucket 的写权限。
+
+**域名限制：** 分发编译器仍使用 [compiler/markdown.go](../../../compiler/markdown.go) 中的 `SiteOrigin` 常量生成 canonical 和根路径链接。修改 Astro `site` 或 `[search]` 不会改变它。Fork 用于自己的站外分发前，需要调整并验证这些链接。
+
+## Buffer
+
+```toml
+[social.buffer]
+api_key = "YOUR_PERSONAL_BUFFER_API_KEY"
+```
+
+Bridge API 会遮蔽已保存 Key；配置为空时使用 `BUFFER_API_KEY`。Bash 启动变量不一定传递到 Windows 或非交互 Bridge。完整操作见 [Buffer 发布](../guide/social-publishing.md)。
+
+实现见 [Bridge 配置](../../../bridge/config.go)、[分发配置](../../../publishing/config.go)。真实配置、凭据和 Data 文件不要提交到 Git。

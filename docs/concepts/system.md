@@ -1,49 +1,44 @@
-# System model and boundaries
+# How content becomes a website
 
-**Definition:** Inkerio is a static-blog *engine* that turns separately versioned canonical content into a searchable, deployable bilingual site.
+Inkerio turns a separately versioned content repository into a bilingual static website. BlogCTL assembles the build inputs and also provides a separate route for publishing articles to external platforms.
 
-The public `inkerio-content-template` contains fictional examples; a user-owned content repository contains canonical writing. The engine repository name remains `ThinkerQAQ.github.io`, while the software brand is Inkerio.
+## Data flow
 
-## Problem and core model
-
-Writers need a single content source, while website presentation, third-party distribution, search and infrastructure have different lifecycles.
-
-```text
-Canonical Markdown repository (blog-content)
-   │
-   ▼
-BlogCTL Site Assembly ──► src/content + public/media (generated in engine)
-   │                                   │
-   │                                   ▼
-   │                           Astro content collections
-   │                                   │
-   ▼                                   ▼
-BlogCTL Publisher                    dist/ + Pagefind
-   │                                   ├──► GitHub Pages
-   ▼                                   └──► EdgeOne Makers
-External article platforms                      │
-                                 Optional Edge Functions / Workers
+```mermaid
+flowchart TD
+  C["Content repository"] --> A["BlogCTL assembly"]
+  A --> I["Engine content and media"]
+  I --> B["Astro build and Pagefind"]
+  B --> D["Static hosting"]
+  C --> P["BlogCTL article compiler"]
+  P --> R["External publishing platforms"]
 ```
 
-## Boundaries
+The public [inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template) supplies sample content. For your own site, create a content repository from it. The engine repository retains its existing name, `ThinkerQAQ.github.io`.
 
-| Model | Owner | Source of truth |
-| --- | --- | --- |
-| Articles / notes / projects / series | `blog-content` | Content Markdown and media |
-| Routes, layouts, metadata, RSS, SEO | Engine | `src/`, `astro.config.mjs` |
-| Assembly, publishing, browser Bridge | BlogCTL | `tools/blogctl/` |
-| Static diagram generation | Engine build scripts | `scripts/`, `src/markdown/` |
-| Static deploy | GitHub Actions | `.github/workflows/deploy.yml` |
-| Browser analytics/reactions/AI Search | Configured Workers or site integration | `workers/` and site code |
+## Ownership
 
-Site search uses Pagefind in the static site. AI Search is an independent optional Worker pipeline and should not be confused with Pagefind.
+| Part | Owns |
+| --- | --- |
+| Content repository | Markdown, translations, source media, workout records and optional content manifest |
+| Engine `src/` and `astro.config.mjs` | Routes, layouts, metadata, SEO, RSS and collection schemas |
+| `tools/blogctl/` | Assembly, article compilation, asset processing, publishing, indexing and browser Bridge |
+| `scripts/` and `src/markdown/` | Diagram rendering and site build support |
+| `.github/workflows/` | Build, release and deployment orchestration |
+| `workers/` | Separately configured tracking, reports, reactions and optional AI retrieval |
 
-For search, comments, analytics and Workers, see [Search and integrations](search-and-integrations.md).
+Assembly replaces generated `src/content/` in the engine. When source media is present it replaces the corresponding engine media tree. The original content checkout is not modified. Edit and commit writing there; engine upgrades and repeated assemblies can then regenerate the website inputs.
 
-## Implementation boundaries
+The [tutorial](../tutorial/first-site.md) follows this separation using two local checkouts. Built output lives in `dist/`, including Pagefind indexes. Static hosts serve those files; they do not need a running Go or Astro server.
 
-A normal engine build does not write canonical articles back to `blog-content`. A BlogCTL remote publish is a separate, explicitly authorized workflow. GitHub Pages gets the static artifact; the EdgeOne job deploys a static-only artifact. Generated diagrams belong to build output rather than the content repository.
+## Search and publishing
 
-## Example and design decision
+Pagefind searches the built website in the browser. Optional AI Search uploads selected public content to Cloudflare and supports retrieval separately; disabling Ask Blog does not disable Pagefind.
 
-The [tutorial](../tutorial/first-site.md) assembles editable template content without touching the production content repository. This validates the architecture's key rule: **content lifecycle and engine lifecycle are independent**. See [architecture principles](../architecture/principles.md) for extension decisions and [deployment reference](../reference/deployment.md) for actual CI implementation.
+A site build does not publish articles to third-party accounts. BlogCTL publishing compiles selected source articles for each platform and uses explicitly selected creation/update targets. The Extension supplies browser-controlled account access; the local Bridge runs jobs and records outcomes. See [BlogCTL workflows](../../tools/blogctl/docs/guide/workflows.md).
+
+## Deployment configuration
+
+The checked-in workflows describe the author's Pages and EdgeOne deployment, including owner guards and optional cloud services. A fork needs its own identity, content access and hosting settings; see [customization](../how-to/customize-site.md) and [deployment](../how-to/deploy.md).
+
+See [integrations](search-and-integrations.md) for comments and browser services, and [architecture principles](../architecture/principles.md) for extension decisions.
