@@ -150,7 +150,19 @@ func TestToutiaoPrepareHTMLAlsoNormalizesBodySectionReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(got, `href="#`) || !strings.Contains(got, `见<em>第一节</em>。`) || !strings.Contains(got, `href="https://example.com/#api"`) {
+	if !strings.Contains(got, `href="#one"`) || !strings.Contains(got, `<em>第一节</em>`) || !strings.Contains(got, `href="https://example.com/#api"`) {
 		t.Fatalf("invalid Toutiao payload: %s", got)
+	}
+}
+
+func TestToutiaoTOCKeepsMatchedHeadingLinksAndFlattensHierarchy(t *testing.T) {
+	raw := `<h2>目录</h2><ul><li><a href="#1">1. 主章节</a><ul><li><a href="#11-%E5%AD%90%E7%AB%A0%E8%8A%82">1.1 子章节</a></li><li><a href="#missing">1.2 无目标</a></li></ul></li></ul><h2 id="1">1. 主章节</h2><h3 id="11-子章节">1.1 子章节</h3><p>见<a href="#1">主章节</a>。</p>`
+	got := normalizeToutiaoSectionReferences(normalizeToutiaoTOC(raw))
+	if !strings.Contains(got, `href="#1"`) || !strings.Contains(got, `href="#11-%E5%AD%90%E7%AB%A0%E8%8A%82"`) || strings.Contains(got, `href="#missing"`) {
+		t.Fatalf("invalid references: %s", got)
+	}
+	_, nested := toutiaoTOCListItems(t, got)
+	if nested != 0 {
+		t.Fatal("TOC remains nested")
 	}
 }

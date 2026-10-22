@@ -1,6 +1,7 @@
 package publisher
 
 import (
+	"net/url"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -9,9 +10,10 @@ import (
 
 // normalizeToutiaoTOC converts the nested Markdown TOC into one list item per
 // heading. Toutiao's creator editor merges nested LI links into the parent
-// item and removes heading IDs, making the original TOC unreadable and its
-// in-page links ineffective. Only a list immediately following a TOC heading
-// is rewritten; article body lists are preserved.
+// item, making the original TOC unreadable. The compiler supplies heading IDs
+// so references can be retained when their targets exist. Only a list immediately following a TOC heading
+// is rewritten; article body lists are preserved. Matched heading links remain
+// clickable; unresolved fragments degrade to plain labels.
 func normalizeToutiaoTOC(raw string) string {
 	root := &html.Node{Type: html.ElementNode, Data: "body", DataAtom: atom.Body}
 	fragment, err := html.ParseFragment(strings.NewReader(raw), root)
@@ -21,6 +23,7 @@ func normalizeToutiaoTOC(raw string) string {
 	for _, node := range fragment {
 		root.AppendChild(node)
 	}
+	targets := toutiaoAnchorTargets(root)
 	changed := false
 	for heading := root.FirstChild; heading != nil; heading = heading.NextSibling {
 		if !toutiaoTOCHeading(heading) {
@@ -35,7 +38,7 @@ func normalizeToutiaoTOC(raw string) string {
 			continue
 		}
 		replacement := &html.Node{Type: html.ElementNode, Data: "ul", DataAtom: atom.Ul}
-		toutiaoAppendTOCItems(list, 0, replacement)
+		toutiaoAppendTOCItems(list, 0, replacement, targets)
 		if replacement.FirstChild == nil {
 			continue
 		}
@@ -90,13 +93,22 @@ func toutiaoText(node *html.Node, ignoreLists bool) string {
 	return b.String()
 }
 
-func toutiaoOwnLinks(node *html.Node, links *[]string) {
+type toutiaoTOCLink struct{ label, href string }
+
+func toutiaoOwnLinks(node *html.Node, links *[]toutiaoTOCLink) {
 	if toutiaoListNode(node) {
 		return
 	}
 	if node.Type == html.ElementNode && node.Data == "a" {
 		if text := strings.Join(strings.Fields(toutiaoText(node, false)), " "); text != "" {
-			*links = append(*links, text)
+			href := ""
+			for _, attr := range node.Attr {
+				if attr.Key == "href" {
+					href = attr.Val
+					break
+				}
+			}
+			*links = append(*links, toutiaoTOCLink{label: text, href: href})
 		}
 		return
 	}
@@ -130,41 +142,54 @@ func toutiaoTOCDepth(label string, nestedDepth int) int {
 	return min(len(sections)-1, 3)
 }
 
-func toutiaoAddTOCItem(dest *html.Node, label string, depth int) {
+func toutiaoAddTOCItem(dest *html.Node, label string, depth int, href string) {
 	if label == "" {
 		return
 	}
 	item := &html.Node{Type: html.ElementNode, Data: "li", DataAtom: atom.Li}
 	// U+3000 is not collapsed by HTML whitespace normalization.
-	item.AppendChild(&html.Node{Type: html.TextNode, Data: strings.Repeat("　", toutiaoTOCDepth(label, depth)) + label})
+	if href == "" {
+		item.AppendChild(&html.Node{Type: html.TextNode, Data: strings.Repeat("　", toutiaoTOCDepth(label, depth)) + label})
+	} else {
+		indent := strings.Repeat("　", toutiaoTOCDepth(label, depth))
+		if indent != "" {
+			item.AppendChild(&html.Node{Type: html.TextNode, Data: indent})
+		}
+		link := &html.Node{Type: html.ElementNode, Data: "a", DataAtom: atom.A, Attr: []html.Attribute{{Key: "href", Val: href}}}
+		link.AppendChild(&html.Node{Type: html.TextNode, Data: label})
+		item.AppendChild(link)
+	}
 	dest.AppendChild(item)
 }
 
-func toutiaoAppendTOCItems(list *html.Node, depth int, output *html.Node) {
+func toutiaoAppendTOCItems(list *html.Node, depth int, output *html.Node, targets map[string]bool) {
 	for item := list.FirstChild; item != nil; item = item.NextSibling {
 		if item.Type != html.ElementNode || item.Data != "li" {
 			continue
 		}
-		var links []string
+		var links []toutiaoTOCLink
 		toutiaoOwnLinks(item, &links)
 		if len(links) > 0 {
 			for _, link := range links {
-				toutiaoAddTOCItem(output, link, depth)
+				href := link.href
+				if strings.HasPrefix(strings.TrimSpace(href), "#") && !toutiaoFragmentResolves(href, targets) {
+					href = ""
+				}
+				toutiaoAddTOCItem(output, link.label, depth, href)
 			}
 		} else {
-			toutiaoAddTOCItem(output, strings.Join(strings.Fields(toutiaoText(item, true)), " "), depth)
+			toutiaoAddTOCItem(output, strings.Join(strings.Fields(toutiaoText(item, true)), " "), depth, "")
 		}
 		for child := item.FirstChild; child != nil; child = child.NextSibling {
 			if toutiaoListNode(child) {
-				toutiaoAppendTOCItems(child, depth+1, output)
+				toutiaoAppendTOCItems(child, depth+1, output, targets)
 			}
 		}
 	}
 }
 
-// Toutiao removes heading IDs, so fragment-only body links cannot navigate.
-// Keep their rich text labels and leave external URLs, including URL fragments,
-// intact. This applies only to the outgoing Toutiao payload.
+// Keep fragment references when their target exists in the compiled payload.
+// Only unresolved references degrade to rich text labels; external links stay intact.
 func normalizeToutiaoSectionReferences(raw string) string {
 	root := &html.Node{Type: html.ElementNode, Data: "body", DataAtom: atom.Body}
 	nodes, err := html.ParseFragment(strings.NewReader(raw), root)
@@ -174,6 +199,7 @@ func normalizeToutiaoSectionReferences(raw string) string {
 	for _, node := range nodes {
 		root.AppendChild(node)
 	}
+	targets := toutiaoAnchorTargets(root)
 	changed := false
 	var visit func(*html.Node)
 	visit = func(parent *html.Node) {
@@ -182,7 +208,7 @@ func normalizeToutiaoSectionReferences(raw string) string {
 			visit(node)
 			if node.Type == html.ElementNode && node.DataAtom == atom.A {
 				for _, attr := range node.Attr {
-					if attr.Key == "href" && strings.HasPrefix(strings.TrimSpace(attr.Val), "#") {
+					if attr.Key == "href" && strings.HasPrefix(strings.TrimSpace(attr.Val), "#") && !toutiaoFragmentResolves(attr.Val, targets) {
 						for child := node.FirstChild; child != nil; child = node.FirstChild {
 							node.RemoveChild(child)
 							parent.InsertBefore(child, node)
@@ -207,4 +233,27 @@ func normalizeToutiaoSectionReferences(raw string) string {
 		}
 	}
 	return result.String()
+}
+
+func toutiaoAnchorTargets(root *html.Node) map[string]bool {
+	targets := map[string]bool{}
+	var visit func(*html.Node)
+	visit = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			for _, attr := range n.Attr {
+				if attr.Key == "id" || (n.DataAtom == atom.A && attr.Key == "name") {
+					targets[attr.Val] = true
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			visit(c)
+		}
+	}
+	visit(root)
+	return targets
+}
+func toutiaoFragmentResolves(href string, targets map[string]bool) bool {
+	id, err := url.PathUnescape(strings.TrimPrefix(strings.TrimSpace(href), "#"))
+	return err == nil && id != "" && targets[id]
 }

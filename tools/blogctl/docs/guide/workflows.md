@@ -72,6 +72,6 @@ Open the Console from the Extension at `http://127.0.0.1:32145/console/`. Keep t
 
 ### Toutiao section references
 
-Toutiao does not preserve heading anchors. BlogCTL converts fragment-only TOC and body links to their original rich text labels, preserving external URLs, including fragments. The creator preview may disable pointer interactions on the entire article.
+The compiler assigns heading IDs from matching authored TOC/reference links. BlogCTL flattens the Toutiao TOC while retaining resolvable in-page links; only references without a target degrade to rich text labels. External URLs, including their fragments, are preserved. The creator preview may disable pointer interactions on the entire article.
 
 A published Toutiao update requires a detected remote version. Changed versions and articles still under review are rejected; a successful update is a submission for platform processing, not a guarantee of immediate public visibility.
