@@ -91,9 +91,10 @@
       // Medium edits an existing published story as a saved, pending revision.
       // Its Save and publish button stays exclusively in the user's hands.
       if (platform.id === "medium") return platform.capabilities?.publishedDraftEdit === true;
+      if (platform.id === "toutiao" && !String(item.updatedAt || "").trim()) return false;
       // Other published article update contracts remain independently guarded.
       return platform.capabilities?.publishedUpdate === true &&
-        ["cnblogs", "devto"].includes(platform.id);
+        ["cnblogs", "devto", "toutiao"].includes(platform.id);
     }
     return platform.capabilities?.draftCreate === true;
   }

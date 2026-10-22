@@ -1110,6 +1110,7 @@ async function handleMessage(message) {
             title: post.title,
             id: post.id,
             published: post.published,
+            updatedAt: post.updatedAt || "",
             url: post.url || "",
             bound: Boolean(post.bound),
             bindingState: post.bindingState || "",

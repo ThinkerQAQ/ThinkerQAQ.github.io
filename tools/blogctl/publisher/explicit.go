@@ -160,6 +160,30 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 			return ExplicitResult{}, fmt.Errorf("%s does not support safe updates of published articles", platform)
 		}
 		switch platform {
+		case "toutiao":
+			if target.UpdatedAt == "" {
+				return ExplicitResult{}, fmt.Errorf("Toutiao published article requires a verified remote version; detect it again")
+			}
+			a := adapter.(*toutiaoAdapter)
+			posts, err := a.listPublished(ctx)
+			if err != nil {
+				return ExplicitResult{}, err
+			}
+			var original *ToutiaoPost
+			for i := range posts {
+				if posts[i].ID == target.ID {
+					original = &posts[i]
+					break
+				}
+			}
+			if original == nil || original.ModifiedAt == "" || original.ModifiedAt == "0" || original.ModifiedAt != target.UpdatedAt {
+				return ExplicitResult{}, fmt.Errorf("Toutiao article is not published in this account or changed since detection; detect it again")
+			}
+			id, err := a.mutate(ctx, original.ID, input, true, original.FeedCovers)
+			if err != nil {
+				return ExplicitResult{}, err
+			}
+			return ExplicitResult{ID: id, URL: original.URL, Kind: "published-updated"}, nil
 		case "cnblogs":
 			if target.UpdatedAt == "" {
 				return ExplicitResult{}, fmt.Errorf("CNBlogs published article requires a verified remote version; detect it again before updating")

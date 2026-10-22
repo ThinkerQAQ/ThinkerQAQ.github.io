@@ -161,3 +161,50 @@ func toutiaoAppendTOCItems(list *html.Node, depth int, output *html.Node) {
 		}
 	}
 }
+
+// Toutiao removes heading IDs, so fragment-only body links cannot navigate.
+// Keep their rich text labels and leave external URLs, including URL fragments,
+// intact. This applies only to the outgoing Toutiao payload.
+func normalizeToutiaoSectionReferences(raw string) string {
+	root := &html.Node{Type: html.ElementNode, Data: "body", DataAtom: atom.Body}
+	nodes, err := html.ParseFragment(strings.NewReader(raw), root)
+	if err != nil {
+		return raw
+	}
+	for _, node := range nodes {
+		root.AppendChild(node)
+	}
+	changed := false
+	var visit func(*html.Node)
+	visit = func(parent *html.Node) {
+		for node := parent.FirstChild; node != nil; {
+			next := node.NextSibling
+			visit(node)
+			if node.Type == html.ElementNode && node.DataAtom == atom.A {
+				for _, attr := range node.Attr {
+					if attr.Key == "href" && strings.HasPrefix(strings.TrimSpace(attr.Val), "#") {
+						for child := node.FirstChild; child != nil; child = node.FirstChild {
+							node.RemoveChild(child)
+							parent.InsertBefore(child, node)
+						}
+						parent.RemoveChild(node)
+						changed = true
+						break
+					}
+				}
+			}
+			node = next
+		}
+	}
+	visit(root)
+	if !changed {
+		return raw
+	}
+	var result strings.Builder
+	for node := root.FirstChild; node != nil; node = node.NextSibling {
+		if err := html.Render(&result, node); err != nil {
+			return raw
+		}
+	}
+	return result.String()
+}

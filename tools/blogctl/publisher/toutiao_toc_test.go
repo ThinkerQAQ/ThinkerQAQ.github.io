@@ -121,3 +121,36 @@ func TestToutiaoTOCPrepareHTMLTransformsOnlyPlatformPayload(t *testing.T) {
 		t.Fatalf("Toutiao HTML did not normalize TOC: %s", actual)
 	}
 }
+
+func TestToutiaoSectionReferencesPreserveLabelsAndExternalFragments(t *testing.T) {
+	raw := `<p>见<a href="#chapter"><strong>1.2</strong> <code>Thread</code></a>与<a href=" #other ">下一节</a>。</p><ul><li><a href="#nested">嵌套引用</a></li></ul><p><a href="https://go.dev/ref/mem#tmp_1" target="_blank">Go 官方文档</a> <a href="https://thinkerqaq.com/articles/a/#chapter">原文章节</a></p><pre><code>&lt;a href="#literal"&gt;代码示例&lt;/a&gt;</code></pre>`
+	got := normalizeToutiaoSectionReferences(raw)
+	if strings.Contains(got, `href="#chapter"`) || strings.Contains(got, `href=" #other "`) || strings.Contains(got, `href="#nested"`) {
+		t.Fatalf("broken section links remain: %s", got)
+	}
+	for _, expected := range []string{`<strong>1.2</strong> <code>Thread</code>`, `与下一节。`, `<li>嵌套引用</li>`, `href="https://go.dev/ref/mem#tmp_1"`, `href="https://thinkerqaq.com/articles/a/#chapter"`, `&lt;a href=&#34;#literal&#34;&gt;代码示例&lt;/a&gt;`} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("lost %q: %s", expected, got)
+		}
+	}
+	if again := normalizeToutiaoSectionReferences(got); again != got {
+		t.Fatal("normalization is not idempotent")
+	}
+}
+func TestToutiaoSectionReferencesLeaveUnrelatedHTMLByteIdentical(t *testing.T) {
+	raw := `<p><a href="https://example.com/#part" class="source">官方资料</a></p><pre><code>1 &lt; 2</code></pre>`
+	if got := normalizeToutiaoSectionReferences(raw); got != raw {
+		t.Fatalf("unrelated HTML changed: %s", got)
+	}
+}
+func TestToutiaoPrepareHTMLAlsoNormalizesBodySectionReferences(t *testing.T) {
+	raw := `<h2>目录</h2><ul><li><a href="#one">1. 第一节</a></li></ul><h2 id="one">1. 第一节</h2><p>见<a href="#one"><em>第一节</em></a>。参考<a href="https://example.com/#api">外部 API</a>。</p>`
+	adapter := &toutiaoAdapter{}
+	got, err := adapter.prepareHTML(context.Background(), DraftInput{HTML: raw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, `href="#`) || !strings.Contains(got, `见<em>第一节</em>。`) || !strings.Contains(got, `href="https://example.com/#api"`) {
+		t.Fatalf("invalid Toutiao payload: %s", got)
+	}
+}

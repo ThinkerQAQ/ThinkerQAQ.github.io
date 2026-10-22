@@ -22,6 +22,7 @@ type toutiaoCandidateView struct {
 	Published    bool   `json:"published"`
 	Bound        bool   `json:"bound"`
 	BindingState string `json:"bindingState,omitempty"`
+	UpdatedAt    string `json:"updatedAt,omitempty"`
 }
 
 func toutiaoBindingViews(binding publisher.PublicationBinding) []toutiaoBindingView {
@@ -88,7 +89,7 @@ func (s *Server) handleToutiaoArticleList(response http.ResponseWriter, request 
 		bound, state := toutiaoBindingState(binding, post)
 		candidates = append(candidates, toutiaoCandidateView{
 			ID: post.ID, Title: post.Title, URL: post.URL, Published: post.Published,
-			Bound: bound, BindingState: state,
+			Bound: bound, BindingState: state, UpdatedAt: post.ModifiedAt,
 		})
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
