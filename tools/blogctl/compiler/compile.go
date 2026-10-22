@@ -150,6 +150,9 @@ func renderHTML(ctx context.Context, o CompileOptions, markdown string) (string,
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("render publishing HTML: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
+	if o.Platform == "toutiao" {
+		return addLinkedHeadingIDs(stdout.String())
+	}
 	return stdout.String(), nil
 }
 func articleRoot(root, language string) string {
