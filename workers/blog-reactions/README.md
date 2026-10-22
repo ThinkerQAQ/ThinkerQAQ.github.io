@@ -22,10 +22,10 @@ Run these commands from the repository root.
 ### 1. Create the D1 database
 
 ```bash
-npx wrangler@latest d1 create thinkerqaq-blog-reactions --location apac
+npx wrangler@latest d1 create my-blog-reactions --location apac
 ```
 
-Cloudflare prints a database UUID. Replace `REPLACE_WITH_D1_DATABASE_ID` in `workers/blog-reactions/wrangler.jsonc` with that UUID.
+Cloudflare prints a database UUID. In `workers/blog-reactions/wrangler.jsonc`, replace the checked-in `database_id` with your UUID and `database_name` with your database name. Keep the binding `REACTIONS_DB`. The checked-in ID is an existing author-owned database, not a placeholder. Also set your own Worker name and `ALLOWED_ORIGINS` before deploying.
 
 ### 2. Apply the schema
 
@@ -58,7 +58,7 @@ npx wrangler@latest deploy --config workers/blog-reactions/wrangler.jsonc
 Wrangler will print a `workers.dev` URL similar to:
 
 ```text
-https://thinkerqaq-blog-reactions.<your-subdomain>.workers.dev
+https://my-blog-reactions.<your-subdomain>.workers.dev
 ```
 
 ### 5. Configure GitHub Pages
@@ -70,7 +70,7 @@ In GitHub, open:
 Create this repository variable:
 
 ```text
-PUBLIC_REACTION_WORKER_URL=https://thinkerqaq-blog-reactions.<your-subdomain>.workers.dev
+PUBLIC_REACTION_WORKER_URL=https://my-blog-reactions.<your-subdomain>.workers.dev
 ```
 
 Then rerun the GitHub Pages deployment workflow.
@@ -116,4 +116,4 @@ Response:
 }
 ```
 
-`contentType` accepts `article` or `note`. `contentId` is the Astro content collection ID, not the title.
+`contentType` accepts `article`, `note`, `fitness` or `life`. Article, note and life IDs are the content collection entry IDs; fitness uses the `YYYY-MM` month. IDs are stable identifiers, not titles.

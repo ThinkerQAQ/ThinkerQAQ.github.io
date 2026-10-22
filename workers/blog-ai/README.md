@@ -1,194 +1,125 @@
-# Ask this blog Worker
+# Blog AI and analytics Worker
 
-Cloudflare Worker backend for the blog's **Ask / 问博客** feature.
+This Worker serves Umami tracking and analytics reports, scheduled snapshots, and an optional Ask Blog API. The entry point is `src/policy-worker.js`, configured in [wrangler.jsonc](wrangler.jsonc).
 
-## Architecture
+**Public Ask Blog is currently disabled.** `ASK_BLOG_ENABLED: "false"` makes `/chat` return 404 before Turnstile, retrieval or model calls; a missing setting also disables it. The Astro layout does not mount the Ask UI. Tracking, reporting and the cron remain active.
 
-The production path is:
+## Configure your own deployment
 
-1. The first question in a browser tab obtains a one-time Cloudflare Turnstile token.
-2. After Turnstile succeeds, the Worker issues an origin-bound, signed Ask session token valid for 20 minutes.
-3. Follow-up questions reuse that short-lived Ask session, so they do not run Turnstile again while the session is valid. Rate limiting still applies to every request.
-4. The browser sends the current question plus a bounded recent conversation history to `POST /chat`.
-5. The Worker validates origin, input size, history shape, rate limit and either the Ask session or Turnstile.
-6. The Worker builds a contextual retrieval query from the current question plus the last one or two user questions, then queries Cloudflare AI Search with hybrid keyword + vector retrieval, RRF fusion, article-priority boosting and reranking.
-7. The Worker sends the retrieved blog context plus recent conversational context to Workers AI. Conversation history is context only; factual claims must still be grounded in the current retrieval results.
-8. The Worker returns the answer plus only the source links that the answer actually cites.
+The checked-in configuration belongs to the author's deployment. Before deploying a fork:
 
-Conversation state and the short-lived Ask session token are kept in browser `sessionStorage`; the Worker does not persist chat sessions. Clearing the conversation also clears the Ask session. Pagefind remains dedicated to the site's normal interactive search, while the Worker is the sole trust boundary for retrieval and answer generation.
+| Setting | Action |
+| --- | --- |
+| Worker `name` | Choose your own service name |
+| `ANALYTICS_KV` | Create a KV namespace in your account and replace the existing namespace ID |
+| `BLOG_ORIGIN`, `ALLOWED_ORIGINS` | Set your canonical site and allowed local/production origins |
+| `UMAMI_SHARE_SLUG` | Use your own Umami shared report |
+| `AI_SEARCH`, `AI_SEARCH_INSTANCE` | Bind your own AI Search namespace and instance if using retrieval |
+| `AI_MODEL` | Select a model available to your account |
+| Release workflow | Replace the hardcoded smoke-test base URL with your own Worker URL |
 
-## AI Search setup
+Leave the public Ask endpoint disabled until its configuration and frontend are ready. Do not remove the whole Worker to disable chat: the site may also use its `/u.js`, `/api/send` and analytics endpoints.
 
-The Worker uses the `default` AI Search namespace and expects an instance named:
+## Analytics
+
+A cron at minute 7 of every hour collects complete UTC-hour snapshots and the previous two complete calendar weeks from Umami. A run backfills up to four missing hours; health reports the remaining backlog.
+
+| Route | Parameters / default |
+| --- | --- |
+| `/analytics/hour-range` | Inclusive ISO hour labels with timezone; previous complete hour; max 48 hours |
+| `/analytics/day-range` | Inclusive `YYYY-MM-DD` dates in Asia/Shanghai; today to now; max 31 days |
+| `/analytics/weekly-range` | Inclusive Monday dates in Asia/Shanghai; previous complete week; max 12 weeks |
+| `/analytics/health` | Collection health, last successful collection and pending hours |
+
+Supply `start` and `end` together or omit both. The old `/analytics/hourly`, `/analytics/today` and `/analytics/weekly` routes return 404.
 
 ```text
-thinkerqaq-blog
+/analytics/hour-range?start=2026-10-10T00:00:00Z&end=2026-10-10T03:00:00Z
+/analytics/day-range?start=2026-10-08&end=2026-10-10
+/analytics/weekly-range?start=2026-09-28&end=2026-10-05
 ```
 
-`wrangler.jsonc` declares the namespace binding as `AI_SEARCH`. The deployment sync script creates or upgrades the instance with:
+Visitors are deduplicated over the entire requested window, not summed across buckets. Matching complete buckets reuse scheduled KV snapshots; other complete ranges can be cached for seven days. Recent or unfinished ranges use a 60-second response cache. Public responses omit website IDs, region/city breakdowns and raw internal errors. See the [full report contract](../../docs/reference/analytics.md).
 
-- vector search enabled
-- keyword/BM25 search enabled
-- trigram keyword tokenizer for mixed Chinese + code identifiers
-- keyword `or` matching for higher recall
-- RRF fusion
-- query rewriting disabled so technical identifiers stay intact
-- numeric authority metadata (`articles=2`, `notes=1`) with descending relevance boosting
-- `@cf/baai/bge-reranker-base` reranking
-- 512-token chunks with a small overlap
-- up to 20 retrieval candidates before Worker-side document deduplication and top-5 context selection
+## Optional AI Search pipeline
 
-Only public Markdown under `src/content/{articles,notes}` is uploaded to AI Search built-in storage. Draft articles and notes with `indexable: false` are excluded. Deleted or newly private documents are removed from the AI Search instance.
+BlogCTL's `ai-search prepare|sync|verify` commands own the indexing pipeline. The former `scripts/sync-ai-search.mjs` and `scripts/eval-ai-search.mjs` are no longer entry points.
 
-The GitHub Pages deployment runs `scripts/sync-ai-search.mjs` after the site deploy and then runs `scripts/eval-ai-search.mjs` as a retrieval regression suite. Configure these repository values:
+From the engine root, inspect [the command implementation](../../tools/blogctl/cmd/ai_search.go) and [deployment workflow](../../.github/workflows/deploy.yml) before running a live sync. Synchronization writes to Cloudflare; verification queries the live index.
+
+The pipeline uploads eligible public Markdown from assembled articles and notes; draft articles and notes with `indexable: false` are excluded. It removes stale items. The instance uses vector and keyword retrieval, trigram tokenization, RRF fusion, article-priority metadata and reranking. The Worker deduplicates results and selects up to five context documents. Pagefind remains the independent static-site search.
+
+Actions configuration:
 
 ```text
 Variable: CLOUDFLARE_ACCOUNT_ID
-Variable: CLOUDFLARE_AI_SEARCH_INSTANCE=thinkerqaq-blog   # optional; this is the default
+Variable: CLOUDFLARE_AI_SEARCH_INSTANCE (optional; default thinkerqaq-blog)
 Secret:   CLOUDFLARE_AI_SEARCH_TOKEN
 ```
 
-The same `CLOUDFLARE_AI_SEARCH_TOKEN` is also used by GitHub Actions to deploy this Worker automatically. Create it as a Cloudflare custom API token with:
+The current workflows use the token for AI Search and Worker deployment. Configure account permissions for AI Search Edit/Run and Workers Scripts Edit as required by the operations you enable. Provision the KV binding separately.
 
-```text
-Account > AI Search:Edit
-Account > AI Search:Run
-Account > Workers Scripts:Edit
-```
+## Enable Ask Blog
 
-The sync job fails on missing credentials, unrecoverable Cloudflare API errors, indexing errors, or failed readiness/search checks. Cloudflare indexing may continue asynchronously after the instance becomes searchable; the regression step verifies representative queries against the live index.
+1. Configure the AI Search binding and a populated instance.
+2. Create a Turnstile widget allowing **your actual website hostname**.
+3. Store `TURNSTILE_SECRET_KEY` as a Worker secret.
+4. Optionally store `ASK_SESSION_SECRET` for independent session-key rotation. Otherwise session signing derives a separate key from the Turnstile secret.
+5. Set `ASK_BLOG_ENABLED` to `"true"` and deploy the Worker.
+6. Restore the `AskBlogSession` mount in `src/layouts/BaseLayout.astro`, configure `PUBLIC_ASK_BLOG_WORKER_URL` and `PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY`, then rebuild the site.
 
-## Turnstile and Ask session setup
-
-Create a Turnstile widget in the Cloudflare dashboard and allow the production hostname:
-
-```text
-thinkerqaq.github.io
-```
-
-The widget gives you two values:
-
-- **Site Key**: public; it is embedded in the Astro page.
-- **Secret Key**: private; it is stored only as a Cloudflare Worker Secret.
-
-Store the Turnstile Worker secret from `workers/blog-ai`:
+From the engine root:
 
 ```bash
-npx wrangler@latest secret put TURNSTILE_SECRET_KEY
+npx wrangler@latest secret put TURNSTILE_SECRET_KEY --config workers/blog-ai/wrangler.jsonc
 ```
 
-No additional secret is required for the 20-minute Ask session: the Worker derives a domain-separated signing key from the existing Turnstile secret. If you want independent key rotation, you may optionally configure a dedicated secret:
+The site key and Worker URL are public build settings; secret keys stay in Cloudflare. Local Turnstile test credentials belong only in local environment files and must not be deployed.
 
-```bash
-npx wrangler@latest secret put ASK_SESSION_SECRET
-```
+## Chat request contract
 
-When present, `ASK_SESSION_SECRET` is preferred. Neither secret may be committed to Git or exposed to frontend JavaScript.
-
-For local testing, Cloudflare provides dedicated test credentials. Use the always-pass test site key in the Astro build and put the always-pass test secret in `workers/blog-ai/.dev.vars`; never use those test credentials in production.
-
-## Analytics snapshots
-
-The same Worker also owns the lightweight Umami reporting path.
-
-- A Cloudflare Cron Trigger runs at minute 7 of every hour.
-- Complete UTC-hour buckets are persisted in the `ANALYTICS_KV` namespace.
-- If a scheduled run was missed, the next run backfills up to four missing hours and keeps the remaining backlog visible through health metadata.
-- `GET /analytics/hourly` returns the latest complete hour, the immediately preceding hour, and their delta.
-- `GET /analytics/today` queries the exact current Beijing-calendar-day window, persists it briefly in KV, and caches the response for five minutes.
-- `GET /analytics/health` exposes only minimal public health state, the last successful collection, and pending-hour count.
-- Public responses omit `websiteId`, region/city breakdowns, internal scheduler metadata, and raw error details; KV keeps the richer aggregate payload for internal processing.
-- Cache API is only a read-through hot cache; KV remains the durable source for hourly snapshots.
-
-The existing KV namespace is bound explicitly as `ANALYTICS_KV` in `wrangler.jsonc`. The namespace is provisioned once outside CI; normal deployments only bind and use the existing namespace.
-
-## Temporarily disable public Ask Blog
-
-The public Ask Blog feature is disabled in `wrangler.jsonc` by `ASK_BLOG_ENABLED: "false"`.
-The `/chat` route rejects all request methods with HTTP 404 *before* rate limiting, Turnstile,
-retrieval, or Workers AI. An absent setting also fails closed. To enable Ask Blog again,
-set the variable to `"true"`, redeploy this Worker, and restore the
-`AskBlogSession` mount in the Astro `BaseLayout`.
-
-Do not disable the whole Worker or its `workers.dev` route: this service also
-provides Umami tracking (`/u.js` and `/api/send`), analytics reporting, and
-scheduled analytics snapshots. The BlogCTL AI Search evaluation uses Cloudflare
-AI Search directly and does not require the public `/chat` route.
-
-## Deploy the Worker
-
-Worker deployment is handled by `.github/workflows/worker-release.yml`. A push to `main` that changes `workers/blog-ai/**` (or the release workflow itself) runs the Worker test suite, deploys, and then smoke-tests the public analytics endpoints with structural/health assertions.
-
-```text
-wrangler deploy --config workers/blog-ai/wrangler.jsonc
-```
-
-GitHub Actions authenticates non-interactively with the existing `CLOUDFLARE_ACCOUNT_ID` variable and `CLOUDFLARE_AI_SEARCH_TOKEN` secret. Worker release and GitHub Pages deployment are separate workflows; neither workflow waits for the other.
-
-You do not need to run `wrangler login` or `wrangler deploy` locally for normal Worker releases.
-
-When Ask Blog is enabled, `/chat` is the frontend endpoint. For the GitHub Pages build, the following public repository variables may remain configured while the UI is hidden:
-
-```text
-PUBLIC_ASK_BLOG_WORKER_URL
-PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY
-```
-
-Neither is a credential. Worker secrets stay only in Cloudflare.
-
-## Multi-turn request contract
-
-The first request can ask the Worker to mint a reusable security session:
+The first request to `POST /chat` includes a one-time Turnstile token:
 
 ```json
 {
-  "question": "Go CAS 为什么可以无锁？",
+  "question": "How does the blog build its search index?",
   "history": [],
   "turnstileToken": "...",
   "requestSession": true
 }
 ```
 
-A successful response may include:
+A successful response may include `sessionToken` and `sessionExpiresAt`. Subsequent requests use `sessionToken` instead of another Turnstile token and may include recent `user`/`assistant` messages.
 
-```json
-{
-  "sessionToken": "...",
-  "sessionExpiresAt": 1789350000000
-}
+The browser keeps conversation and session state in `sessionStorage`. The Worker does not persist chat sessions. Clearing the conversation clears the token. An invalid or expired session returns 401 with `requiresTurnstile: true`; the client obtains Turnstile again and retries once.
+
+Retrieval uses the question and up to two recent user questions. Assistant responses are not search queries. Generated factual answers use the retrieved documents; responses include only cited sources and retain their original `citationIndex`.
+
+## Limits and security
+
+| Input / resource | Limit |
+| --- | --- |
+| Question | 1,000 characters |
+| History | 6 messages; 3,000 characters each; 9,000 total |
+| Request body | 24 KiB, checked on bytes read |
+| Retrieved context | 5 documents; 5,000 characters each; 20,000 total |
+| Ask session | 20 minutes, signed and bound to the requesting origin |
+| Rate limit | 10 requests per 60 seconds per connecting IP, including valid sessions |
+
+Origins must be in `ALLOWED_ORIGINS`. Turnstile verifies the hostname against the origin and requires action `ask_blog`. CORS does not authenticate callers; Turnstile permits human visitors rather than identifying an account. Conversation and retrieved text remain untrusted prompt context. Source keys are decoded only for known collections.
+
+## Tests and releases
+
+```bash
+node --test workers/blog-ai/src/*.test.js
 ```
 
-Follow-up requests reuse that token:
+[worker-release.yml](../../.github/workflows/worker-release.yml) tests, deploys and smoke-tests the range endpoints on matching pushes to `main` or manual dispatch. It is separate from the site deployment. The checked-in smoke-test URL targets the author's Worker; update it for a fork.
 
-```json
-{
-  "question": "那 ARM 呢？",
-  "history": [
-    { "role": "user", "content": "Go CAS 为什么可以无锁？" },
-    { "role": "assistant", "content": "……[1]" }
-  ],
-  "sessionToken": "..."
-}
+For an intentional manual deployment:
+
+```bash
+npx wrangler@latest deploy --config workers/blog-ai/wrangler.jsonc
 ```
 
-History is bounded to six recent `user`/`assistant` messages and is used only to resolve follow-up context. Retrieval uses the current question plus up to the two most recent user questions; assistant answers are not inserted into the search query.
-
-If the Ask session has expired or is invalid, the Worker returns `401` with `requiresTurnstile: true`; the browser performs Turnstile again and retries the question once. The response contains only sources actually cited by the generated answer. Each source includes its original `citationIndex`, so an answer that cites `[1]` and `[4]` can render source numbers 1 and 4 without implying that sources 2 and 3 were used.
-
-## Security boundaries
-
-- CORS only accepts origins in `ALLOWED_ORIGINS`. CORS is not treated as authentication.
-- The first question requires Turnstile. A successful verification can mint an origin-bound HMAC-signed Ask session valid for 20 minutes.
-- Follow-up requests may use the Ask session instead of a fresh Turnstile token. The session is stored only in browser `sessionStorage` and is cleared with the conversation or when the tab closes.
-- The Worker validates the returned Turnstile hostname against the request origin and requires action `ask_blog`.
-- Turnstile tokens are short-lived and single-use.
-- Worker rate limiting applies to every question, including valid Ask sessions: 10 calls per 60 seconds per connecting IP.
-- AI Search item keys are decoded only for known blog collections before being exposed as source URLs.
-- Question length: max 1,000 characters.
-- Conversation history: max 6 messages, max 3,000 characters per message, max 9,000 characters total.
-- AI Search context: max 5 documents, max 5,000 characters each, max 20,000 characters total.
-- Request body: max 24 KiB, enforced on the bytes actually read so requests without `Content-Length` cannot bypass the limit.
-- Conversation history and retrieved blog text are treated as untrusted context in the prompt and cannot override system instructions.
-- The prompt explicitly keeps primitive-level properties separate from algorithm-level guarantees; using a primitive such as CAS does not by itself prove a whole algorithm is lock-free.
-
-Turnstile reduces automated abuse; it does not turn this anonymous public feature into user authentication. A human visitor who passes Turnstile is intentionally allowed to ask the blog.
+Deploy only after replacing the account-specific settings and provisioning resources.
