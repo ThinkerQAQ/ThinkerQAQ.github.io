@@ -6,7 +6,8 @@ export async function performToutiaoBrowserRequest(request) {
  try {
  const results=await chrome.scripting.executeScript({target:{tabId:tab.id},world:"MAIN",args:[request.body],func:async body=>{
   if(location.origin!=="https://mp.toutiao.com"||!location.pathname.startsWith("/profile_v4/graphic/publish")) throw new Error("Creator editor required");
-  if(!window.byted_acrawler) throw new Error("Creator editor is not ready");
+  for (let i=0;i<75 && (!window.byted_acrawler || !document.querySelector(".ProseMirror"));i++) await new Promise(resolve=>setTimeout(resolve,200));
+  if(!window.byted_acrawler || !document.querySelector(".ProseMirror")) throw new Error("Creator editor is not ready");
   const preflight=await fetch("/spice/image",{method:"HEAD",credentials:"include",headers:{"x-secsdk-csrf-request":"1","x-secsdk-csrf-version":"1.2.22"}});
   const csrf=(preflight.headers.get("x-ware-csrf-token")||"").split(",")[1];
   if(!preflight.ok||!csrf) throw new Error("Creator CSRF unavailable");
