@@ -1568,9 +1568,9 @@ async function handleMessage(message) {
     }
     case "blogctl.job.start": {
       const request = message.request ?? {};
-      if ((request.platforms ?? []).includes("toutiao")) beginToutiaoRequestPump();
       await syncSessionsForPlatforms(request.platforms ?? []);
       const result = await fetchJSON("/v1/sync/jobs", jsonOptions("POST", request));
+      if ((request.platforms ?? []).includes("toutiao")) beginToutiaoRequestPump();
       if ((request.platforms ?? []).includes("medium") && result?.job?.id) {
         beginMediumUploadPump();
       }
@@ -1699,7 +1699,7 @@ async function pollMediumUploads() {
       const active = jobs.some((job) => ["running", "queued", "waiting"].includes(job.state) &&
         (job.platforms ?? []).includes("medium"));
       if (!active) {
-        await chrome.alarms?.clear(MEDIUM_UPLOAD_ALARM);
+        if (!jobs.some(job => ["running", "queued", "waiting"].includes(job.state) && (job.platforms ?? []).includes("toutiao"))) await chrome.alarms?.clear(MEDIUM_UPLOAD_ALARM);
         return;
       }
       const response = await fetchJSON("/v1/medium/browser-upload/next");
@@ -1763,18 +1763,25 @@ function beginToutiaoRequestPump() {
  void pollToutiaoRequests();
 }
 async function pollToutiaoRequests() {
- if (toutiaoPumpRunning) return;
- toutiaoPumpRunning = true;
- try {
-  for (let idle=0;idle<45;) {
-   const next=await fetchJSON("/v1/toutiao/browser/next");
-   if (!next.request) { idle++; await delay(1000); continue; }
-   idle=0;
-   let result;
-   try { result=await performToutiaoBrowserRequest(next.request); }
-   catch { result={error:"Browser request failed; inspect remote state before retrying"}; }
-   await fetchJSON("/v1/toutiao/browser/result",jsonOptions("POST",{id:next.request.id,...result}));
+  if (toutiaoPumpRunning) return;
+  toutiaoPumpRunning = true;
+  try {
+    for (let attempt = 0; attempt < 900; attempt++) {
+      const jobs = (await fetchJSON("/v1/jobs")).jobs ?? [];
+      const active = jobs.some(job => ["running", "queued", "waiting"].includes(job.state) && (job.platforms ?? []).includes("toutiao"));
+      if (!active) return;
+      const next = await fetchJSON("/v1/toutiao/browser/next");
+      if (!next.request) { await delay(700); continue; }
+      await writeBridgeLog("info", "toutiao browser request claimed");
+      let result;
+      try { result = await performToutiaoBrowserRequest(next.request); }
+      catch { result = { error: "Browser request failed; inspect remote state before retrying" }; }
+      await writeBridgeLog(result.error ? "warn" : "info", "toutiao browser request finished", { success: !result.error, status: result.status ?? 0 });
+      await fetchJSON("/v1/toutiao/browser/result", jsonOptions("POST", { id: next.request.id, ...result }));
+    }
+  } catch {
+    console.warn("Toutiao browser transport unavailable");
+  } finally {
+    toutiaoPumpRunning = false;
   }
- } catch (error) { console.warn("Toutiao browser transport unavailable"); }
- finally { toutiaoPumpRunning=false; }
 }
