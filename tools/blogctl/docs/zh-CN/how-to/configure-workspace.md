@@ -1,22 +1,24 @@
-# 配置 BlogCTL 工作区
+# 设置工作区
 
-目标是把当前博客引擎和内容仓库连接到本地 Bridge。
+在已连接的扩展或工作台打开「设置 → 内容与路径」。
 
-## 前提
+| 字段 | 选择目录 |
+| --- | --- |
+| Engine Root | 包含 `package.json`、`astro.config.mjs` 和 `tools/blogctl/` 的根目录 |
+| Content Root | 包含 `src/content/articles/` 的内容仓库根目录 |
 
-已经安装并连接浏览器扩展与 Bridge，且本地存在引擎和内容仓库。
+不要选择 `src/content/` 或程序安装目录。保存后离开设置，再打开确认。到「创建/更新」检查本地文章；「检测」页列的是远端账号内容。
 
-## 设置
+## Windows 与 WSL
 
-1. 打开工作台「设置」。
-2. 将 **Engine Root** 指向 `ThinkerQAQ.github.io/`。
-3. 将 **Content Root** 指向相邻的 `blog-content/`。
-4. 保存后关闭设置，再打开确认路径仍然存在。
+Windows Bridge 使用 `C:\code\blog-content` 等 Windows 路径，WSL Linux 程序使用 Linux 路径。Windows 浏览器需要 Windows Native Messaging 程序，源码在 WSL 编辑并不改变这个要求。
 
-这两个配置会保存在数据目录下唯一的 `blogctl.toml` 文件中。
+CLI `sync` 通过当前目录或 `BLOG_CONTENT_ROOT`、`BLOGCTL_ENGINE_ROOT` 定位仓库，界面保存路径不能覆盖这些规则。详见 [CLI](../reference/cli.md)。
 
-需要自定义数据目录时，在启动 Bridge 前设置绝对路径的 `BLOGCTL_DATA_DIR`。迁移目录应自行备份并复制原有数据；工具不会自动搬迁。
+## 迁移或共享 Data
 
-## 验证与排查
+启动前设置绝对路径 `BLOGCTL_DATA_DIR`。停止原 Bridge，备份、复制已有 Data，从新位置启动，再检查设置与任务。环境变量不会搬文件，也不会转换工作区路径。
 
-在「检测」中检查本地文章和已登录平台。相对路径的 `BLOGCTL_DATA_DIR` 会被拒绝；Windows 下移动可执行文件也会改变默认 Data 目录。详见[配置参考](../reference/configuration.md)。
+WSL 社交命令共享 Windows 安装时，使用对应的 `/mnt/c/.../Data`；保存路径为 Windows 格式时，显式传入 Linux `--content-root`。避免两个运行环境并发覆盖同一配置中的不兼容路径。
+
+默认目录和字段见[配置参考](../reference/configuration.md)。

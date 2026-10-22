@@ -1,54 +1,70 @@
-# BlogCTL 快速开始
+# 安装 BlogCTL 并连接浏览器
 
-这份指南用于安装 BlogCTL、连接浏览器扩展，并打开本地工作台。
+BlogCTL 包含本地 Go 程序、Edge/Chrome 扩展和 Web Console。依赖浏览器账号的操作需要扩展；网站构建还需要 Inkerio 源码和 Node/npm。
 
-第一次安装建议阅读[从零上手教程](tutorial/first-run-on-new-machine.md)，可以对照真实英文界面截图操作。
+## 1. 下载匹配文件
 
-## 1. 获取程序
+从 [Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest) 下载对应系统/CPU 的程序，以及**同一个 BlogCTL Release** 的扩展 ZIP。六种二进制覆盖 Windows、Linux、macOS 的 amd64/arm64。将扩展解压到固定位置。
 
-从 [GitHub Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest) 下载匹配操作系统与架构的安装包。
+Release 程序无需安装 Go。Windows 建议先把程序放到长期使用的位置，例如 `C:\software\Coding\blogctl\`。相邻的 `Data/` 保存配置和任务，升级时保留。
 
-如果从源码运行，进入博客引擎根目录：
+从源码构建时，在引擎根目录运行：
 
 ```bash
-go build -o blogctl ./tools/blogctl/cmd
-./blogctl help
-./blogctl doctor
+go run ./tools/blogctl/cmd/maint build
+.build/out/blogctl help
 ```
 
-Release 内的二进制不需要 Go 运行时。网站构建仍需要 Node/npm 和对应图表工具。
+上述命令使用 Bash。Windows 需要带 `.exe` 的程序时，可用 `go build -o blogctl-windows-amd64.exe ./tools/blogctl/cmd` 构建；匹配扩展使用同一源码目录的 `tools/blogctl/extension/`。
 
-## 2. 安装 Bridge
+## 2. 注册 Native Messaging
 
-Windows 安装目录建议将程序、扩展和安装脚本放在一起。执行：
+Windows PowerShell：
 
 ```powershell
-& C:\software\Codinglogctllogctl-windows-amd64.exe install
+& 'C:\software\Coding\blogctl\blogctl-windows-amd64.exe' install
 ```
 
-安装后的配置、日志和运行时数据默认在可执行文件旁的 `Data/`。升级时保留这个目录。
+Linux 示例：
 
-Linux/macOS 直接运行对应架构二进制的 `install` 命令；解除注册用 `uninstall`。不会删除配置、数据与浏览器扩展。
+```bash
+chmod +x ./blogctl-linux-amd64
+./blogctl-linux-amd64 install
+```
 
-## 3. 加载扩展
+macOS 使用对应的 `blogctl-darwin-*` 文件。`install` 把当前程序注册为浏览器 Native Messaging Host，不会替你加载扩展。移动程序后重新注册。`uninstall` 解除 Host 注册，保留用户数据。
 
-在 Edge 的 `edge://extensions` 或 Chrome 的 `chrome://extensions`：
+## 3. 加载并打开扩展
 
-1. 打开开发者模式。
-2. 选择「加载已解压的扩展程序」，指向解压后的 `extension`。
-3. 打开 BlogCTL 扩展，确认 Bridge 已连接。
-4. 点击「打开工作台」，进入 `http://127.0.0.1:32145/console/`。
+1. 在准备使用的浏览器配置中打开 `edge://extensions` 或 `chrome://extensions`。
+2. 开启开发者模式，点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的目录。
+3. 打开 BlogCTL，扩展会按需启动、连接 Bridge。
+4. 确认已连接，再点击「打开工作台」。
 
-更换扩展包后，应在扩展管理页面重新加载。
+工作台地址为 `http://127.0.0.1:32145/console/`。保持扩展启用；直接打开 URL 不会自动建立浏览器转发通道。
 
-## 4. 验证
+## 4. 设置工作区
 
-PowerShell 可直接检查本地服务：
+在「设置」填写 **Engine Root**（Inkerio 引擎）和 **Content Root**（内容仓库）。路径必须能被程序所在系统访问：Windows 程序使用 Windows 路径，WSL Linux 程序使用 Linux 路径。保存后重新打开设置，确认持久化成功。
+
+在引擎目录运行 `blogctl doctor` 检查 Node/npm/Git。与 `help`、`install` 不同，当前 `doctor` 需要在引擎工作目录运行。
+
+## 5. 验证与升级
+
+PowerShell：
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:32145/v1/health
 ```
 
-工作台中打开「检测」，检查已登录平台的远端文章；这一步不会创建草稿。
+Bash：
 
-如果连接失败，按 [Bridge 排查指南](how-to/debug-bridge.md)检查。准备发布文章时，继续[第一次发布教程](tutorial/first-publish.md)。
+```bash
+curl http://127.0.0.1:32145/v1/health
+```
+
+健康响应说明 HTTP 服务正常，还需检查扩展连接指示器。这一步不需要发布平台账号。
+
+升级时保留 `Data/`，一起替换程序和扩展，再从浏览器扩展页重新加载、打开工作台。程序位置变化时重新注册。排查版本不一致时，先确认没有旧 Bridge 进程仍在运行。
+
+下一步查看[创建首个草稿](tutorial/first-publish.md)、[新机器教程](tutorial/first-run-on-new-machine.md)或[连接排查](how-to/debug-bridge.md)。

@@ -1,73 +1,70 @@
-# BlogCTL Workflows
+# Create, update and publish articles
 
-BlogCTL 为同一份本地 Markdown 内容提供「检测、创建、更新」三个核心动作。Extension Side Panel 与 Bridge Web Console 使用相同的 HTML、Feature JS 和样式；唯一不同的是扩展内部消息或 Web Console 的受限 Extension relay Transport。
+The Extension side panel and Web Console use the same controls. Before writing to a platform, set the engine/content paths in **Settings**, select the intended article language, and sign in to that platform in the same browser profile. DEV.to also supports an API key.
 
-导航统一在左侧：检测、创建、更新、索引、任务、日志、设置。索引页筛选 IndexNow、百度、Google、360 或搜狗；日志页内置 CodeMirror 只读查看、行号与全文查找。
+## Detect: inspect the account
 
-## 检测：查询当前平台账号内容
+Open **Detect**, choose a platform and filter **Draft / Published / All**. Results show remote titles, IDs and editor/view links. This reads the account without selecting a local article or creating an article binding.
 
-检测 → 选择平台 → 选择状态（全部、草稿、已发布）→ 查看远端标题、ID 与编辑/查看链接。
+Listing and matching are different operations: the Detect page lists the account; **Detect associations** on Create/Update compares a selected local article with remote candidates. A title match is a candidate, so inspect the remote link before updating it.
 
-纯读取，不需选本地文章，也不产生文章绑定。掘金通过现有登录会话同时读取草稿和已发布文章；草稿直接显示编辑链接，也可在更新页按标题匹配或通过已知 ID 定位。草稿列表按掘金分页接口读取，最多返回最近 500 篇，达到上限时界面提示截断。
+Juejin lists at most the latest 500 drafts and reports truncation. A truncated or failed listing cannot establish that an article is absent. DEV.to editor links require the full URL returned by the platform, including a `temp-slug` suffix when present; a numeric ID alone is insufficient to construct an editor link.
 
-DEV.to 的草稿编辑链接使用平台返回的文章 URL，在完整的 `/{username}/{slug}` 后追加 `/edit`；草稿 slug 中的 `temp-slug` 后缀必须保留。检测、更新和任务页共用这一规则。只有数字 ID 或旧的 `/dashboard/edit/{id}` 地址时，界面不生成编辑链接；重新检测以取得平台当前返回的文章 URL。
+## Create: make a new article
 
-## 创建：明确创建新草稿
+1. Open **Create**, choose a local article and select platforms.
+2. Optionally click the top **Detect** button or a platform's **Detect associations** action.
+3. Review any matches. For an existing article, use **Update** instead.
+4. Choose **Create draft**, or **Create and publish** where that platform supports it.
+5. Open **Tasks** and inspect each platform result and remote link.
 
-创建 → 选择本地文章 → 选择平台 → 「创建草稿」或「创建并发布」。
+**Detection is manual and optional.** Selecting/changing an article, refreshing the page, or completing a task does not automatically run detection. Undetected, running or failed detection does not disable creation. A platform with a detected existing article is excluded from batch creation. An active write task disables creation to prevent double submission.
 
-创建从不读取旧 `PublicationBinding` 来选择目标；如果平台拒绝写入，显示平台错误，其他平台独立完成。创建可能产生不可逆远端副作用，因此创建任务不自动重试；遇到网络中断时先在检测页检查远端内容，避免重复创建。创建并发布先写草稿再调用平台的显式发布接口；若只创建成功，任务日志会报告草稿 ID。
+Create always creates a new draft; it does not reuse a previous publication binding. **Create and publish** first creates the draft, then invokes the platform's publishing operation. If the second step fails, inspect the saved draft ID rather than creating another one.
 
-## 更新：明确选中的远端 ID
+## Update: choose the remote target
 
-更新 → 选择本地文章 → 勾选平台 → 检测关联 → 勾选候选文章（可多选）→ 「更新所选」或「更新并发布」。
+1. Open **Update**, choose the local article and platforms.
+2. Click **Detect associations**.
+3. Open candidate links and select the exact remote articles to replace. Multiple targets are allowed; a known draft ID can be entered where that platform supports it.
+4. Choose **Update selected** or **Update and publish**, if available.
+5. Inspect the task result and remote editor.
 
-- 没选远端文章时，更新按钮不可操作，也不能把更新自动变为创建。
-- 可以在候选行点击「更新此文章」；某平台无法枚举草稿时，可在对应平台输入草稿 ID 作为显式目标。
-- 远端 ID、平台、发布状态及可获取的远端版本随任务快照持久化到 `Data/jobs.json`。重试使用原快照。
-- 各平台独立运行；同平台多目标逐条执行，一条失败不妨碍其他目标。任务事件包括远端目标 ID。
-- 草稿可更新，平台有显式发布能力时才能再发布；已发布文章不做二次发布。
-- 已发布原文更新使用明确验证的实现，当前开放 **博客园和 DEV.to**，并支持 **Medium 保存待发布编辑版本**（必须由用户在 Medium 手动点击 Save and publish）；博客园还要求检测结果包含远端更新时间，提交前比对远端版本，避免覆盖检测后发生的更新。
-- 不支持的原文更新直接拒绝，绝不退化成草稿创建。
-- 原有 `publications.json` 保留作旧数据与历史任务查看，但新创建/更新操作不从它读取目标。
+Update requires a remote ID and never falls back to Create. Targets, their remote state and available version metadata are stored with the task. A failed platform does not undo successful writes to other platforms.
 
-## 直接发布任务中已创建的草稿
+| Target | Current UI behavior |
+| --- | --- |
+| Draft on a supported platform | Replace the selected draft |
+| Published cnblogs or DEV.to article | Update the existing public article; cnblogs also checks the detected remote version |
+| Published Medium article | Save a pending editor revision; the user clicks **Save and publish** on Medium to make it public |
+| Other published articles | Not offered as a normal published-body update in the current UI |
 
-创建或更新任务完成后，「任务」页会读取逐条远端写入事件并展示「编辑草稿」链接。对具备明确草稿发布能力的平台，还可以点击「发布草稿」并确认后直接发起 `publish-draft` 任务：
+Medium's public body can remain unchanged after a successful pending-edit save. Verify the editor revision, not just the public URL. See [Medium editor integration](../medium-har-contract.md).
 
-- 传入原本的本地文章和**唯一远端草稿 ID**；使用与「创建并发布 / 更新并发布」共用的 `PublishDraft` 适配器，不会隐式执行 CreateDraft 或 UpdateDraft。
-- 部分平台的发布接口要求随请求重传标题、正文或分类；这部分由既有 `PublishDraft` 适配器处理，内容来自当前本地文章。
-- 已发布文章 ID、无效 URL、不同账号和不支持的发布能力必须直接拒绝。
-- 发布操作可能发生不可逆副作用，`publish-draft` 任务不提供盲目重试。需要再次发布时先检查远端实际状态。
-- **开源中国**：现有适配器的 `PublishDraft` 调用的是新增博客的接口，并未验证从草稿 ID 转为公开文章。该平台的直接发布、创建并发布及更新并发布入口暂时关闭，直到获得真正的草稿发布接口证据；创建草稿和更新草稿仍可使用。
+## Publish an existing draft
 
-## 任务、索引
+Tasks with a saved remote draft ID may offer **Publish draft** when the adapter supports it. This invokes the draft publish operation for that ID; it does not create another draft. Some platforms require current local article content again as part of that request.
 
-任务页展示批次状态、平台结果和带远端 ID 的操作事件。**创建任务不支持自动重试**，单目标、无发布动作的更新任务可按原目标快照重试；多目标或带发布动作的任务拒绝盲目重试，需先检查远端状态，再明确选取失败目标。
+The platform catalog currently exposes explicit publication for cnblogs, Juejin, CSDN, SegmentFault, Zhihu, 51CTO, DEV.to and Medium. OSChina and Hashnode do not expose this action. Hashnode draft creation/update and account listing remain available. Toutiao is hidden from the normal UI. Check the installed UI's enabled actions before choosing a workflow; implementation and account constraints can still reject a request.
 
-索引仍使用独立的 IndexNow / Baidu / Google Search Console 工作流，不依赖发布动作。
+## Read a partial failure
 
-360 和搜狗使用与百度相同的状态、统计及增量/全量提交卡片，站点和 Sitemap 共用现有配置。Extension 分别将 `blogctl.index.so360.submit` 和 `blogctl.index.sogou.submit` 转发至 Bridge 的 `POST /v1/search/index/jobs/so360` 和 `POST /v1/search/index/jobs/sogou`，请求体为 `{"mode":"incremental"}` 或 `{"mode":"full"}`。当前远端适配暂缓，合法请求返回 HTTP 200 JSON：`ok:true` 表示本地请求已处理，`result.supported:false`、`result.submitted:false`、`result.code:"submission_not_implemented"` 表示没有向搜索引擎提交；界面显示「未接入」、实际提交 0、远端 HTTP「未请求」，未计算的差异统计保持空值。不会创建虚假成功任务或推进提交快照。非法请求返回 HTTP 400 JSON，认证与其他写接口一致。站点验证文件存在也不等于已验证或已收录。
+| Result | What to do |
+| --- | --- |
+| Draft ID returned, later image/save step failed | Open that draft; do not assume nothing was created |
+| One platform succeeded, another failed | Keep the successful result and inspect only the failed platform |
+| Write timed out | Read Tasks and remote state before submitting another write |
+| Retry action is offered | Confirm its retained target; a single-target update or eligible Medium resume can reuse it |
+| Retry is unavailable | Inspect the remote outcome and submit a new explicit action only when its effect is understood |
 
-- **360**：在 [站点管理](https://zhanzhang.so.com/sitetool/site_manage) 中选择站点，通过「Sitemap 提交」添加 XML 地址。[官方公告](https://bbs.360.cn/thread-15979727-1-1.html)说明旧自动收录功能已关闭，建议提交并持续更新 Sitemap；这不等于证明所有 API 都不存在。截至 2026-10-13，尚未找到可验证的公开 Sitemap 提交 API 契约。
-- **搜狗**：在 [网站管理](https://zhanzhang.sogou.com/index.php/dashboard/index) 中检查站点验证、资质和 Sitemap 权限。[官方帮助](https://zhanzhang.sogou.com/index.php/help/sitemap)说明 Sitemap 提交采用邀请制，支持 TXT、XML 和一级 XML 索引，每文件最多 50,000 条且小于 10 MB。已添加的相同地址不要重复添加。资源收录的 URL 提交入口不接受 Sitemap 文件。
+Create and publish actions have no generic blind retry. Medium has a specific resume path for an allocated draft or eligible saved edit; it uses the recorded ID and verifies content before continuing. Do not paste a different draft ID into an internal resume request. Old `publications.json` records are retained for history; current explicit Create/Update target selection does not use them to choose an article.
 
-后续浏览器提交适配需要真实、已授权的录制证据：进入平台、选择站点、检查权限、查看已有 Sitemap、添加或更新、读取结果，以及验证码或拒绝路径。会话 Cookie 和凭据保持在浏览器中；不要把未公开的网页请求假装成稳定 Open API，也不要在网络中断后盲目重试新增提交。
+## Indexing and social posts
 
-## 设置
+Indexing is separate from article publication. Use IndexNow, Baidu or Google Search Console with the site's saved search configuration. Acceptance by a provider does not guarantee indexing. 360/Sogou controls currently report `submission_not_implemented` and no remote submission; see [index troubleshooting](../how-to/diagnose-index-submission.md).
 
-分类树结构参考 IDFlow，包括内容与路径、运行环境、分发平台、素材与渲染、搜索引擎。可以搜索分类或已加载字段，逐级进入并在原有的 TOML 编辑组件中保存或取消。配置仍使用唯一的 `blogctl.toml`。
+Short social posts use the separate [Buffer workflow](social-publishing.md): local draft, review, private Buffer staging, then explicit public publication.
 
-## Web Console
+## Console connection
 
-在 Extension 点击「打开工作台」，打开 `http://127.0.0.1:32145/console/`。Go Bridge 直接托管**同一套静态 UI**，扩展 Side Panel 与 Web 页面之间没有单独的业务逻辑副本。
-
-Web Console 在当前版本要求 Edge/Chrome 已启用 BlogCTL Extension，以便通过固定 loopback 域名的 content script 转发身份受限的操作。Web 页面本身没有 Bridge Token、浏览器 Cookie 或独立高权限接口。关闭扩展后页面可展示静态工作台，但业务操作会报告连接失败。
-
-## 创建页的远端文章状态
-
-创建页默认不检测远端文章。选择本地文章和平台后，可以直接创建草稿；需要检查文章关联时，点击顶部「检测」检查勾选平台，或点击平台卡片上的「检测关联」。切换文章、刷新页面和任务完成后都不会自动发起检测。
-
-检测仅用于展示关联结果，未检测、检测中或检测失败均不阻止创建。检测到对应远端文章时，列出标题、草稿/发布状态、远端 ID 与编辑/查看链接；已有文章的平台仍从批量新建中排除。任务执行期间禁用创建操作，防止重复提交。
-
-任务完成后利用持久任务事件中的远端 ID/URL 立即更新页面，无需等待远端检测。这里不创建持久文章绑定表，也不会删除或修改已有的远端文章。
+Open the Console from the Extension at `http://127.0.0.1:32145/console/`. Keep the Extension enabled: the page relies on its relay for restricted requests. The page loading successfully does not prove that the browser session or Bridge is connected. Use [Bridge troubleshooting](../how-to/debug-bridge.md) if operations fail.

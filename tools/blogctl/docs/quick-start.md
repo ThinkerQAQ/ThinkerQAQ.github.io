@@ -1,49 +1,70 @@
-# Quick Start — BlogCTL
+# Install BlogCTL and connect the browser
 
-**Outcome:** validate a working BlogCTL local executable and open the Extension/Console. Site building can be explored without a publishing account.
+BlogCTL has a local Go executable, an Edge/Chrome Extension and a Web Console. You need the Extension for browser-backed account operations. Building a website also requires an Inkerio checkout and Node/npm.
 
-For an end-to-end walkthrough with fresh-environment verification and real English UI screenshots, see the [new-machine tutorial](tutorial/first-run-on-new-machine.md).
+## 1. Download matching files
 
-## 1. Obtain the application
+From [Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest), download the binary matching your OS/CPU and the Extension ZIP from the **same BlogCTL release**. The six binaries cover Windows, Linux and macOS on amd64/arm64. Extract the Extension ZIP into a stable directory.
 
-Download the current artifacts from [GitHub Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest). Match your OS/architecture and keep the executable and Extension archive contents together. On Windows, preserve the `Data/` directory across upgrades.
+A release executable does not need Go installed. On Windows, keep the executable in its permanent location, for example `C:\software\Coding\blogctl\`. Its adjacent `Data/` directory stores configuration and tasks; preserve it across upgrades.
 
-Or build from source from the engine root:
+To build a local executable instead, run from the engine root:
 
 ```bash
-go build -o blogctl ./tools/blogctl/cmd
-./blogctl help
-./blogctl doctor
+go run ./tools/blogctl/cmd/maint build
+.build/out/blogctl help
 ```
 
-The release binary does not require Go, but site builds require Node/npm and other renderers as documented in the [CLI reference](reference/cli.md).
+The example is for Bash. For a named Windows executable, build with `go build -o blogctl-windows-amd64.exe ./tools/blogctl/cmd`. Use `tools/blogctl/extension/` from that checkout for the matching Extension.
 
-## 2. Register the browser Bridge (Windows)
+## 2. Register Native Messaging
 
-Run the installed executable directly:
+Windows PowerShell:
 
 ```powershell
-& C:\software\Codinglogctllogctl-windows-amd64.exe install
+& 'C:\software\Coding\blogctl\blogctl-windows-amd64.exe' install
 ```
 
-For Linux/macOS, execute the matching binary with `install` (e.g., `./blogctl-linux-amd64 install`). Use `uninstall` to unregister the browser host without deleting `Data/`.
+Linux example:
 
-## 3. Load the Extension
+```bash
+chmod +x ./blogctl-linux-amd64
+./blogctl-linux-amd64 install
+```
 
-In `edge://extensions` or `chrome://extensions`, enable developer mode, load the unpacked `extension` directory and open BlogCTL. Extension and Bridge versions should agree. If the Extension was updated, click Reload.
+On macOS use the matching `blogctl-darwin-*` binary. `install` registers the executable as the browser's Native Messaging host; it does not itself load the Extension. Re-run it after moving the executable. `uninstall` removes host registration while preserving user data.
 
-Use **打开工作台** for the shared Web Console at `http://127.0.0.1:32145/console/`. The Console requires the installed Extension to relay restricted operations; a static page alone cannot authorize publishing.
+## 3. Load and open the Extension
 
-## 4. Validate the connection
+1. Open `edge://extensions` or `chrome://extensions` in the intended browser profile.
+2. Enable **Developer mode**, choose **Load unpacked**, and select the extracted folder containing `manifest.json`.
+3. Open BlogCTL. The Extension starts/connects to the Bridge on demand.
+4. Confirm its connected state and choose **Open workspace**.
 
-From PowerShell:
+The Console opens at `http://127.0.0.1:32145/console/`. Keep the Extension enabled. Merely opening the URL does not establish its browser relay.
+
+## 4. Set the workspace
+
+In **Settings**, set **Engine Root** to the Inkerio checkout and **Content Root** to your content repository, using paths visible to the executable's OS. A Windows executable needs Windows paths; a Linux executable in WSL needs Linux paths. Save and reopen Settings to confirm persistence.
+
+Run `blogctl doctor` from the engine directory to inspect Node/npm/Git availability. Unlike `help` and `install`, `doctor` currently requires an engine working directory.
+
+## 5. Verify and upgrade
+
+PowerShell:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:32145/v1/health
 ```
 
-In the UI, use **检测** to read a supported platform session or inspect **日志**. Detection must not create remote content. Credentials can be configured via **设置** when needed.
+Bash:
 
-## 5. Success and next steps
+```bash
+curl http://127.0.0.1:32145/v1/health
+```
 
-The local health endpoint responds, the Extension shows a connected Bridge and the Console opens. Follow the [first workflow tutorial](tutorial/first-publish.md), [workspace How-to](how-to/configure-workspace.md) or [configuration reference](reference/configuration.md).
+A successful health response confirms HTTP is running; also check the Extension connection indicator. No platform account is needed for this check.
+
+For upgrades, preserve `Data/`, replace the binary and Extension together, reload the Extension in the browser and reopen the Console. If the binary moved, register it again. Avoid leaving an older Bridge running while diagnosing a version mismatch.
+
+Continue with [first draft](tutorial/first-publish.md), [new-machine walkthrough](tutorial/first-run-on-new-machine.md) or [connection troubleshooting](how-to/debug-bridge.md).

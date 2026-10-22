@@ -7,7 +7,7 @@ BlogCTL is Inkerio's companion application for site assembly, browser-assisted p
 | What you're doing | Read |
 | --- | --- |
 | Installing the CLI and Extension | [Quick Start](quick-start.md) |
-| Start from zero with actual English screenshots | [New-machine tutorial](tutorial/first-run-on-new-machine.md) |
+| Set up a new machine with interface examples | [New-machine tutorial](tutorial/first-run-on-new-machine.md) |
 | Publishing your first article | [Tutorial](tutorial/first-publish.md) |
 | Understanding the Bridge and publishing model | [Concepts](concepts/index.md) |
 | Configuring or troubleshooting a feature | [How-to](how-to/index.md) |
@@ -15,4 +15,4 @@ BlogCTL is Inkerio's companion application for site assembly, browser-assisted p
 | Working from an example | [Examples](examples/index.md) |
 | Reviewing architectural boundaries | [Architecture](architecture/index.md) |
 
-Agents should start with the [root contract](../../../AGENTS.md) and the [BlogCTL contract](../AGENTS.md).
+For development, read the [root rules](../../../AGENTS.md) and [BlogCTL rules](../AGENTS.md).

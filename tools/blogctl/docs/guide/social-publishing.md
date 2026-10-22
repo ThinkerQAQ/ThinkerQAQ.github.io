@@ -1,20 +1,12 @@
 # Social Publishing via Buffer
 
-BlogCTL supports social posts independently of long-form article syndication. The AI writes
+BlogCTL supports social posts independently of long-form article syndication. A person or external AI writes
 the actual English copy; BlogCTL validates an existing canonical source, adds a tracked
 URL, records the content version when staging a private Buffer draft, and never publishes publicly without a separate explicit action.
 
 ## Architecture
 
-```text
-ChatGPT / local AI agent
-    -> structured DraftInput JSON
-    -> blogctl social create
-    -> BlogCTL Web Console / Social tab
-    -> review + optional edits
-    -> confirm current content revision + create Buffer private draft (stage)
-    -> explicit public publish
-```
+Write a local draft, preview and edit it in the Social tab, stage its reviewed revision as a private Buffer draft, then explicitly publish that same revision.
 
 There is no embedded LLM, web-facing AI service, or browser-cookie based LinkedIn adapter.
 X and Bluesky become available only after connecting those channels in Buffer.
@@ -48,7 +40,7 @@ Never commit a real API key, `blogctl.toml`, or `Data/social/*.json`.
 
 ## Draft input contract
 
-The AI outputs **only** the social expression: no publication IDs, invented
+The input contains the social expression and source reference: no publication IDs, invented
 canonical URLs, credentials, or API calls.
 
 ```json

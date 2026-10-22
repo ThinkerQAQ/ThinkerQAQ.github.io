@@ -1,120 +1,79 @@
-# 新电脑上从零运行 BlogCTL
+# 从源码建立 BlogCTL 工作区
 
-这篇教程从一个空目录开始，依次完成源码获取、依赖检查、启动博客、安装本地 Bridge、连接浏览器扩展、切换语言以及查看检测、创建、更新和任务流程。
+这篇教程从引擎源码开始，先运行示例站点，再把 BlogCTL 接入浏览器。不需要发布平台账号即可完成安装；使用预编译程序时可直接看[安装指南](../quick-start.md)。
 
-**前半段无需发布平台账号或 API 密钥。** 三张英文截图来自独立数据目录中实际运行的 BlogCTL，展示真实的初始状态，没有伪造远端文章和任务。
+## 1. 获取源码并检查工具
 
-## 1. 检查工具
-
-安装 Git、Go 1.27.1+、Node.js 22+ 和 npm。打开终端执行：
-
-```bash
-git --version
-go version
-node --version
-npm --version
-```
-
-只运行预编译 Release 时不需要安装 Go；开发或构建博客网站仍需要 Node/npm。
-
-## 2. 从空目录下载项目
+安装 Git、Node.js 22.12+、npm、Go 1.27.1 或兼容的更新工具链。
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
 cd ThinkerQAQ.github.io
-go run ./tools/blogctl/cmd help
+git --version
+go version
+node --version
+npm --version
 go run ./tools/blogctl/cmd doctor
-```
-
-`doctor` 会检查 Node、npm、Git 及当前操作系统。出现缺失项时先补齐依赖。
-
-**版本要求：** 界面语言切换需要 BlogCTL v0.1.149 或更新版本。使用旧版本时不会显示语言选择器；升级后还需重新加载浏览器扩展。
-
-## 3. 先把博客运行起来
-
-```bash
 npm ci
 npm run dev:quick
 ```
 
-打开 [http://localhost:4321](http://localhost:4321)，应看到示例文章。它读取公开的 `inkerio-content-template` 仓库，无需私有内容仓库、云服务密钥，也不要求先安装 Java/Graphviz。
+打开 [localhost:4321](http://localhost:4321)，示例来源是引擎旁的 `inkerio-content-template`。在第二个终端进入引擎根目录执行 `npm run check`，完成后按 **Ctrl+C** 停止开发服务。
 
-在第二个终端运行 `npm run check`；检查通过后可按 **Ctrl+C** 停止开发服务器。
+## 2. 构建并注册 BlogCTL
 
-## 4. 安装 Bridge 和浏览器扩展
+Linux/macOS Bash：
 
-**Windows — 从仓库根目录打开 PowerShell：**
+```bash
+go run ./tools/blogctl/cmd/maint build
+.build/out/blogctl install
+```
+
+Windows PowerShell，在已安装 Go 的 Windows 源码目录中：
 
 ```powershell
 go build -o blogctl-windows-amd64.exe ./tools/blogctl/cmd
-$exe = (Resolve-Path .\blogctl-windows-amd64.exe).Path
-& $exe install
+& .\blogctl-windows-amd64.exe install
 ```
 
-BlogCTL 的 `install` 命令会给 Chrome 和 Edge 注册 Native Messaging Host。Windows 下的运行时数据默认位于**可执行文件旁的 `Data/`**，升级时要保留。正式 Release 直接运行对应二进制的 `install` 命令。
+程序需要匹配浏览器所在的操作系统。WSL 编译出的 Linux 程序不能直接作为 Windows Native Messaging 程序。Windows Edge 应使用 Windows 二进制，以及 Windows 可访问的引擎、内容路径。长期安装目录和升级方法见[安装指南](../quick-start.md)。
 
-**Linux/macOS — Release：** 运行对应架构二进制的 `install` 命令，例如 `./blogctl-linux-amd64 install`。解除浏览器注册使用 `uninstall`，不会删除用户数据。
+## 3. 加载匹配扩展
 
-**浏览器操作：**
+在浏览器扩展页开启开发者模式，加载该源码目录的 `tools/blogctl/extension/`。打开 BlogCTL，确认 Bridge 已连接，再点击「打开工作台」。
 
-1. 打开 `edge://extensions` 或 `chrome://extensions`，启用**开发者模式**。
-2. 点击「加载已解压的扩展程序」。源码安装时选择 `tools/blogctl/extension/`。
-3. 打开 **BlogCTL** 扩展；Native Messaging 会按需启动本地 Bridge。
-4. 确认扩展中的 Bridge 显示**已连接**，然后点击 **Open workspace（打开工作台）**。
+打开 `http://127.0.0.1:32145/v1/health`，或用 `curl`、PowerShell 查询。既要看健康响应，也要检查扩展连接状态；HTTP 正常不能单独证明浏览器转发正常。
 
-工作台位于 `http://127.0.0.1:32145/console/`。Windows PowerShell 验证：
+## 4. 选择内容与语言
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:32145/v1/health
-```
+在「设置」填写程序可以访问的 Engine Root 和 Content Root。正式写作时，按 [Inkerio 教程](../../../../../docs/zh-CN/tutorial/first-site.md)克隆自己的内容仓库；首次体验也可直接选择示例仓库。
 
-Linux/macOS 可执行 `curl http://127.0.0.1:32145/v1/health`。返回 `"ok": true` 表示 HTTP 服务正常；**还必须检查浏览器扩展的连接指示器**，不能仅凭 HTTP 响应判断会话通道正常。
+在「界面与语言」选择跟随浏览器、简体中文或 English，对应 `ui_locale`。各平台还有独立的文章语言配置。保存并重新打开设置，确认路径和语言已保存。
 
-## 5. 切换中英文界面
+## 5. 检查并创建文章
 
-进入 **Settings（设置）→ 界面与语言**，选择 **跟随浏览器 / 简体中文 / English**。Auto 跟随浏览器语言；手动选择后，Bridge 会将 `ui_locale` 保存至 `blogctl.toml`。这是界面语言，不会改变文章内容语言。
+在「检测」选择已登录平台，查看草稿和已发布内容。到「创建」选择本地文章与平台，需要关联结果时手动点击「检测」；创建页不会自动运行检测，也不以检测成功作为创建按钮的前提。
 
-![真实运行的 BlogCTL 英文检测界面](../../assets/01-detect-en.webp)
+已有文章到「更新」打开候选链接并选择准确 ID。需要新增时才执行「创建草稿」，然后检查「任务」和编辑链接。本地编译与远端结果检查见[首个草稿教程](first-publish.md)。
 
-*Detect 是第一个主导航。截图来自尚未登录任何发布平台的干净浏览器环境。*
+## 界面示例
 
-## 6. 指定工作区并检测远端文章
+以下截图拍摄于 2026-10-10，用于说明导航布局，早于后续发布功能改动。当前按钮和手动检测行为以上文为准。
 
-打开 **Settings（设置）**，填写：
+![检测页](../../assets/01-detect-en.webp)
 
-- **Engine Root**：`ThinkerQAQ.github.io/` 博客引擎仓库。
-- **Content Root**：独立的 `blog-content/` 内容仓库。首次体验可以使用[公开模板](https://github.com/ThinkerQAQ/inkerio-content-template)。
+![创建页](../../assets/02-create-en.webp)
 
-进入 **Detect（检测）**，选择平台，查看 Draft / Published 内容。检测为只读操作。需要查询真实平台时，先在普通浏览器中登录该平台；**查询失败不能等同于远端文章不存在**。
+![任务页](../../assets/03-tasks-en.webp)
 
-## 7. 创建草稿或更新文章
+## 安装不成功时
 
-在 **Create（创建）** 选择本地文章和平台，等待关联检测完成。只有明确确认远端没有对应文章，才能执行 **Create draft（创建草稿）**。
+| 现象 | 优先检查 |
+| --- | --- |
+| 浏览器找不到 Native Host | 程序系统是否匹配、路径是否固定、是否执行 `install` |
+| 工作台可打开但不能操作 | 当前浏览器配置中的扩展是否启用并连接 |
+| 没有本地文章 | Content Root、文章状态和语言 |
+| WSL CLI 与 Windows 工作台的草稿不同 | 是否使用同一份且可访问的 `BLOGCTL_DATA_DIR` |
+| 分配草稿后任务超时 | 先打开已保存 ID，不要直接重新创建 |
 
-![真实运行的 BlogCTL 英文创建界面](../../assets/02-create-en.webp)
-
-如果远端已存在目标，进入 **Update（更新）** 并明确选择文章 ID。更新失败时不能自动改为创建。
-
-不希望向远端写入时，可在**内容仓库根目录**执行：
-
-```bash
-blogctl sync --article YOUR_SLUG --platforms devto --dry-run
-```
-
-替换 `YOUR_SLUG` 为真实文章 slug。实际创建、更新或发布需要有效浏览器会话和明确确认；**这次全新环境复现没有执行远端写入**。
-
-## 8. 在 Tasks 查看执行结果
-
-打开 **Tasks（任务）**，查看任务状态、平台结果、远端 ID 和编辑链接。
-
-![真实运行的 BlogCTL 英文任务界面](../../assets/03-tasks-en.webp)
-
-*刚安装的工作区没有已提交任务；执行真实发布操作后才会出现远端结果。*
-
-发生超时时，先回到 Detect 和 Tasks 检查远端状态，再决定是否重试。更多说明见 [Bridge 排查](../how-to/debug-bridge.md)、[操作安全边界](../concepts/operations.md)及[完整发布流程](../guide/workflows.md)。
-
-## 全新环境复现结果
-
-2026-10-10 使用全新浅克隆验证，环境为 Linux/WSL、Go 1.27.1、Node 24.21.0、npm 11.19.0，并通过独立 `BLOGCTL_DATA_DIR` 隔离原有安装。`help`、`doctor`、Go 构建、`npm ci`、公开内容模板装配、Astro 检查（**0 errors、0 warnings**）、Bridge 健康检查与英文界面截图均已通过。未连接真实发布平台账号，也未创建草稿。
-
-这三张图来自**真实 Go Bridge 提供的工作台**，并非概念设计图或填充的假数据。
+更多说明见 [Bridge 排查](../how-to/debug-bridge.md)和[数据路径配置](../reference/configuration.md)。

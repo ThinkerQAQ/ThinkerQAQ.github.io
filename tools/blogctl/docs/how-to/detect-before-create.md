@@ -1,21 +1,13 @@
-# How to avoid duplicate remote drafts
+# Check for an existing article before creating
 
-**Task:** create a new platform draft only when the account does not already have that article.
+Use this check when an article may already have been distributed to the selected account. Creation remains available without it.
 
-## Preconditions
+1. Confirm the Extension/Bridge is connected and the intended platform account is signed in.
+2. On **Detect**, inspect that account's draft and published lists.
+3. On **Create**, choose the local article and platforms, then click the top **Detect** button or a card's **Detect associations** action.
+4. Open a candidate's link and compare it with your source. For an existing article, go to **Update** and select that remote ID.
+5. For a new article, choose **Create draft** and inspect its resulting remote ID in **Tasks**.
 
-A connected Extension/Bridge, a selected local article and a platform account.
+The Create page does not detect automatically. Detection errors do not disable its create buttons; they also do not prove that the article is absent. The UI excludes platforms with a detected existing article from batch creation. An active write task disables a second create submission.
 
-## Steps
-
-1. Open **检测** and inspect that platform's draft/published inventory.
-2. Open **创建**, choose the article, and allow automatic association detection to finish.
-3. If matching remote articles exist, use their view/edit links or switch to **更新** with the explicit remote target.
-4. Only when detection succeeds and returns no match, use **创建草稿**.
-5. Open **任务** and confirm the remote ID before attempting additional writes.
-
-## Verify / errors
-
-After an ambiguous timeout, re-check remote inventory first. A failed or truncated remote read is **not** evidence the article does not exist; do not force a blind Create.
-
-For platform-by-platform details consult [Workflows](../guide/workflows.md).
+After a timeout, inspect the task's saved ID and the remote list before repeating a write. A partial or truncated listing is not a complete inventory. See [the full workflow](../guide/workflows.md).
