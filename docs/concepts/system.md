@@ -1,6 +1,8 @@
 # System model and boundaries
 
-**Definition:** this repository is a static-blog *engine* that turns separately versioned canonical content into a searchable, deployable bilingual site.
+**Definition:** Inkerio is a static-blog *engine* that turns separately versioned canonical content into a searchable, deployable bilingual site.
+
+The public `inkerio-content-template` contains fictional examples; a user-owned content repository contains canonical writing. The engine repository name remains `ThinkerQAQ.github.io`, while the software brand is Inkerio.
 
 ## Problem and core model
 

@@ -2,7 +2,7 @@
 
 Life exposes two shared navigation tabs: **Photography** (the default view at `/life/` or `/en/life/`) and **Fitness** (public monthly aggregates at `/life/fitness/` or `/en/life/fitness/`). There is no combined All tab. Photography reads caption-and-album records from the separate `life` collection; Fitness reads strict `workoutSummaries` JSON.
 
-Canonical personal entries belong in the private BlogContent repository at `src/content/life/`. Public fictional examples belong in the separate [blog-content-template](https://github.com/ThinkerQAQ/blog-content-template) repository, **not** in the engine. The engine only defines the schema and rendering; assembly copies a selected content repository into ignored build inputs.
+Canonical personal entries belong in the private BlogContent repository at `src/content/life/`. Public fictional examples belong in the separate [inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template) repository, **not** in the engine. The engine only defines the schema and rendering; assembly copies a selected content repository into ignored build inputs.
 
 ## Import a Moments post
 

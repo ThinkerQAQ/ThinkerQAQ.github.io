@@ -5,10 +5,10 @@ import { spawnSync } from "node:child_process";
 
 const engineRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const contentRoot = resolve(
-  process.env.BLOG_TEMPLATE_ROOT || join(engineRoot, "..", "blog-content-template"),
+  process.env.BLOG_TEMPLATE_ROOT || join(engineRoot, "..", "inkerio-content-template"),
 );
 const sourceContent = join(contentRoot, "src", "content");
-const templateUrl = "https://github.com/ThinkerQAQ/blog-content-template.git";
+const templateUrl = "https://github.com/ThinkerQAQ/inkerio-content-template.git";
 
 function run(program, args, cwd = engineRoot) {
   const result = spawnSync(program, args, { cwd, stdio: "inherit" });

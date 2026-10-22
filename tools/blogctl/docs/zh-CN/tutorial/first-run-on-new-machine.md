@@ -37,7 +37,7 @@ npm ci
 npm run dev:quick
 ```
 
-打开 [http://localhost:4321](http://localhost:4321)，应看到示例文章。它读取公开的 `blog-content-template` 仓库，无需私有内容仓库、云服务密钥，也不要求先安装 Java/Graphviz。
+打开 [http://localhost:4321](http://localhost:4321)，应看到示例文章。它读取公开的 `inkerio-content-template` 仓库，无需私有内容仓库、云服务密钥，也不要求先安装 Java/Graphviz。
 
 在第二个终端运行 `npm run check`；检查通过后可按 **Ctrl+C** 停止开发服务器。
 
@@ -83,7 +83,7 @@ Linux/macOS 可执行 `curl http://127.0.0.1:32145/v1/health`。返回 `"ok": tr
 打开 **Settings（设置）**，填写：
 
 - **Engine Root**：`ThinkerQAQ.github.io/` 博客引擎仓库。
-- **Content Root**：独立的 `blog-content/` 内容仓库。首次体验可以使用[公开模板](https://github.com/ThinkerQAQ/blog-content-template)。
+- **Content Root**：独立的 `blog-content/` 内容仓库。首次体验可以使用[公开模板](https://github.com/ThinkerQAQ/inkerio-content-template)。
 
 进入 **Detect（检测）**，选择平台，查看 Draft / Published 内容。检测为只读操作。需要查询真实平台时，先在普通浏览器中登录该平台；**查询失败不能等同于远端文章不存在**。
 

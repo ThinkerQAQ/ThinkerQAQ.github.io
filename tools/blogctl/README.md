@@ -2,7 +2,7 @@
 
 [简体中文](README_ZH.md) · [Documentation](docs/index.md) · [Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest)
 
-BlogCTL is the Go application that assembles the blog, prepares articles for other publishing platforms, and runs a local Bridge for the browser Extension and Web Console.
+BlogCTL is Inkerio's companion Go application. It assembles site content, prepares articles for other publishing platforms, and runs a local Bridge for the browser Extension and Web Console.
 
 For a step-by-step first run with actual English UI screenshots, follow the [new-machine tutorial](docs/tutorial/first-run-on-new-machine.md).
 

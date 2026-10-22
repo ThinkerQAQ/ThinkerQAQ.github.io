@@ -1,6 +1,8 @@
-# 部署博客
+# 部署 Inkerio 站点
 
 当前仓库使用 GitHub Actions 构建 Astro，并分别部署到 GitHub Pages 和 EdgeOne Makers。
+
+Inkerio 是通用引擎，`thinkerqaq.com` 是作者的个人实例。搭建自己的站点时，应配置自己的站点身份、域名与集成。公开模板已更名为 `ThinkerQAQ/inkerio-content-template`；引擎仓库与其专用 CI 判断仍使用 `ThinkerQAQ/ThinkerQAQ.github.io`。
 
 ## 准备
 

@@ -2,7 +2,7 @@
 
 [English](README.md) · [中文文档](docs/zh-CN/index.md) · [当前版本](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest)
 
-BlogCTL 是博客的 Go 控制工具，负责内容装配、多平台文章分发、搜索引擎提交，以及本地 Bridge、浏览器扩展和工作台。
+BlogCTL 是 Inkerio 配套的 Go 控制工具，负责内容装配、多平台文章分发、搜索引擎提交，以及本地 Bridge、浏览器扩展和工作台。
 
 第一次安装建议阅读[从零上手教程](docs/zh-CN/tutorial/first-run-on-new-machine.md)，并对照三张真实英文工作台截图操作。
 

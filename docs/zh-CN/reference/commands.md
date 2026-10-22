@@ -8,7 +8,7 @@
 | `npm run dev:quick` | 装配独立的公开内容模板并启动 Astro，跳过图表预渲染 |
 | `npm run dev` | 装配公开内容模板、渲染图表并启动 Astro |
 | `npm run dev:site` | 渲染图表并启动 Astro，不重新装配内容 |
-| `npm run assemble:template` | 从独立的 `blog-content-template` 装配示例内容 |
+| `npm run assemble:template` | 从独立的 `inkerio-content-template` 装配示例内容 |
 | `npm run check` | Astro 类型与诊断检查 |
 | `npm run build` | 调用 BlogCTL 执行站点构建 |
 | `npm run build:template` | 从公开模板装配并构建 |
