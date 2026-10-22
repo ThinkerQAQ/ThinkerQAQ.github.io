@@ -8,6 +8,7 @@
 | --- | --- |
 | 尽快看到博客运行 | [快速开始](quick-start.md) |
 | 接入自己的内容仓库 | [从零构建一个站点](tutorial/first-site.md) |
+| 替换作者身份、域名与服务 | [站点个性化](how-to/customize-site.md) |
 | 理解内容、渲染和部署的关系 | [系统架构](concepts/system.md) |
 | 理解搜索、统计与 Worker | [站点集成](concepts/search-and-integrations.md) |
 | 添加文章或排查故障 | [操作指南](how-to/index.md) |
@@ -29,4 +30,4 @@
 | Examples / 示例 | 可运行的示例内容与配置 |
 | Architecture / 架构 | 设计原则、约束与扩展决策 |
 
-站点文档放在 `docs/`，发布工具文档放在 `tools/blogctl/docs/`，通过链接关联，避免复制维护。英文文档直接位于各自文档根目录，中文对应文档位于 `zh-CN/`，保持相同的相对路径；品牌更新沿用现有目录与链接。
+站点文档放在 `docs/`，发布工具文档放在 `tools/blogctl/docs/`，通过链接关联，避免复制维护。英文文档直接位于各自文档根目录，中文对应文档位于 `zh-CN/`，保持相同的相对路径。

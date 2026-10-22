@@ -1,18 +1,18 @@
 # Engine Command Reference
 
-**Authoritative sources:** [`package.json`](../../package.json), [`tools/blogctl/cmd/main.go`](../../tools/blogctl/cmd/main.go), and [native maintainer](../../tools/blogctl/cmd/maint/main.go). Verify these sources before adding command entries.
+Definitions: [`package.json`](../../package.json), [`tools/blogctl/cmd/main.go`](../../tools/blogctl/cmd/main.go), and [native maintainer](../../tools/blogctl/cmd/maint/main.go).
 
 | Command | Actual operation |
 | --- | --- |
 | `npm ci` | Install exact Node dependencies from lockfile |
 | `npm run dev:quick` | Assemble the public content template and launch Astro without diagram pre-rendering (minimal new-user path) |
-| `npm run dev` | Assemble fixture content, then diagrams and Astro dev server (requires Java/Graphviz/Chromium) |
+| `npm run dev` | Assemble the public template, render diagrams and start the Astro server |
 | `npm run dev:site` | Render diagrams and start Astro at port 4321, without reassembling content |
 | `npm run assemble:template` | Clone/reuse `inkerio-content-template` and run BlogCTL `site assemble` |
 | `npm run check` | `astro check` |
 | `npm run build` | Go BlogCTL `build` |
 | `npm run build:template` | Assemble public template content then build |
-| `npm run test` | Engine tests + fixture assembly + check + build |
+| `npm run test` | Engine tests + public template assembly + check + build |
 | `npm run test:docs` | Validate internal Markdown links via the existing remark parser |
 | `npm run test:engine` | Public boundary/content, diagrams, extension, Worker and UI checks |
 | `npm run diagrams` | Execute `scripts/render-diagrams.mjs` |
@@ -22,6 +22,6 @@
 | `go run ./tools/blogctl/cmd site build --content-root ../blog-content` | Assemble and build site |
 | `go run ./tools/blogctl/cmd/maint verify` | Go, Node, docs, extension, and boundary checks |
 | `go run ./tools/blogctl/cmd/maint build` | Build local BlogCTL binary at `.build/out/blogctl` |
-| `go run ./tools/blogctl/cmd/maint package` | Six cross-platform binaries, extension ZIP, installers, and SHA256SUMS under `.build/artifacts/blogctl-release/` |
+| `go run ./tools/blogctl/cmd/maint package` | Six cross-platform binaries, extension ZIP and SHA256SUMS under `.build/artifacts/blogctl-release/` |
 
-For publishing/search commands and flags see [BlogCTL CLI](../../tools/blogctl/docs/reference/cli.md). For document navigation, use an LSP client with Marksman; for complete review, read every affected section: [Agent Contract](../../AGENTS.md).
+For publishing/search commands and flags see [BlogCTL CLI](../../tools/blogctl/docs/reference/cli.md). Development instructions are in [AGENTS.md](../../AGENTS.md).

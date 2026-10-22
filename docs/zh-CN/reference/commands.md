@@ -22,6 +22,6 @@
 | `go run ./tools/blogctl/cmd site build --content-root ../blog-content` | 装配并构建静态站点 |
 | `go run ./tools/blogctl/cmd/maint verify` | Go、Node、文档、扩展与边界检查 |
 | `go run ./tools/blogctl/cmd/maint build` | 构建本地可执行文件，输出到 `.build/out/blogctl` |
-| `go run ./tools/blogctl/cmd/maint package` | 打包六个平台二进制、扩展 ZIP、安装脚本与 SHA256SUMS，输出到 `.build/artifacts/blogctl-release/` |
+| `go run ./tools/blogctl/cmd/maint package` | 打包六个平台二进制、扩展 ZIP 与 SHA256SUMS，输出到 `.build/artifacts/blogctl-release/` |
 
-完整发布与搜索命令见 [BlogCTL CLI](../../../tools/blogctl/docs/zh-CN/reference/cli.md)。Markdown 链接与结构导航优先使用 Marksman LSP；完整 Review 仍应逐节阅读。
+完整发布与搜索命令见 [BlogCTL CLI](../../../tools/blogctl/docs/zh-CN/reference/cli.md)。开发规范见 [AGENTS.md](../../../AGENTS.md)。

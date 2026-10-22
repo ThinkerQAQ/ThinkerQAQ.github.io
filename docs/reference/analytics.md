@@ -32,7 +32,7 @@ The response contains `granularity`, `timezoneOffsetMinutes`, `range`, `generate
 
 The Worker reuses Cron-written hourly and weekly snapshots when the request exactly matches one finished bucket. Other finished ranges are fetched from Umami and cached in KV for **7 days**. Recent/unfinished windows stay in the edge response cache for 60 seconds and are not persisted as stable snapshots.
 
-On the Workers KV Free plan, the documented limits are 1 GB storage and 1,000 writes/day. The 7-day expiry limits stored-history growth and historical ranges can be recollected from Umami. KV write failure does not replace an otherwise valid Umami report with fabricated zeroes.
+The 7-day expiry limits stored-history growth; expired historical ranges can be fetched again from Umami. Check your Cloudflare plan for current storage and write quotas. KV write failure does not replace an otherwise valid Umami report with fabricated zeroes.
 
 ## Verification
 

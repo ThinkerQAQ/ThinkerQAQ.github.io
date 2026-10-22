@@ -1,12 +1,18 @@
-# Quick Start
+# Run the sample site
 
-Run Inkerio locally using the separate public content template. No private content repository or cloud credentials are needed.
+This starts Inkerio on your computer using the public content template. It does not deploy a website or publish articles to another platform.
 
-## Requirements
+## Install the tools
 
-Install Node.js 22+, Go 1.27.1, npm and Git. This first run does not require the private `blog-content` repository or any cloud credentials.
+| Tool | Required for |
+| --- | --- |
+| Git | Cloning the engine and template |
+| Node.js 22.12+ and npm 9.6.5+ | Astro and frontend dependencies |
+| Go 1.27.1 or a compatible newer toolchain | BlogCTL content assembly; the workspace version is in `go.work` |
 
-## Start the site
+Check `git --version`, `node --version`, `npm --version` and `go version` in the terminal you will use. Windows users can use PowerShell or WSL; install the tools in the chosen environment.
+
+## Start Inkerio
 
 ```bash
 git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
@@ -15,23 +21,41 @@ npm ci
 npm run dev:quick
 ```
 
-Open [localhost:4321](http://localhost:4321). `dev:quick` assembles from the separate public `inkerio-content-template` checkout (cloning it if absent) and starts Astro without rendering diagrams. You can browse the sample articles, notes and projects.
+Open [http://localhost:4321](http://localhost:4321). You should see the sample article, note, project and Life pages. Use the language switch to inspect the English site. Stop the server with **Ctrl+C**.
 
-## Check the project
+On the first run, `dev:quick` clones `inkerio-content-template` beside the engine. Later runs reuse that checkout; they do not pull newer template commits. The command copies the selected template into the engine's generated content directories before starting Astro. It skips diagram pre-rendering, so uncached diagrams may be missing.
 
-In another terminal:
+To use a different template directory in Bash:
+
+```bash
+BLOG_TEMPLATE_ROOT=/absolute/path/to/template npm run dev:quick
+```
+
+In PowerShell, set `$env:BLOG_TEMPLATE_ROOT` to that absolute path before running the command.
+
+## Check and build
+
+In a second terminal, from the engine directory:
 
 ```bash
 npm run check
 ```
 
-For a production-style build, install Java 17+, Graphviz (`dot`) and the headless Chromium/Mermaid dependencies, then run:
+A zero exit code means the Astro diagnostics check passed. This does not create `dist/`.
+
+For a static build, install the renderers needed by your content: Java 17+ and Graphviz for PlantUML, Puppeteer's browser for Mermaid, and draw.io Desktop for new or changed `.drawio` sources. See [build troubleshooting](how-to/diagnose-build.md).
 
 ```bash
-npm run dev
-npm run test
+npm run build:template
+npm run preview
 ```
 
-The full build renders Mermaid and PlantUML diagrams; `java -version` and `dot -V` help diagnose missing prerequisites.
+The build writes `dist/`; preview serves that output at port 4321. Stop the development server before previewing because the port is strict.
 
-To build from a separate content repository, follow the [tutorial](tutorial/first-site.md). Command details are in the [reference](reference/commands.md).
+## Next
+
+- [Create and edit your own content](tutorial/first-site.md).
+- [Set your site's name, domain and integrations](how-to/customize-site.md).
+- [Deploy to GitHub Pages](how-to/deploy.md).
+
+Use `dev:quick` for the public demo. Once you select your own content checkout, assemble it explicitly and start Astro directly; otherwise the demo command replaces your assembled preview.

@@ -1,8 +1,12 @@
-# Tutorial — run a site with a separate content repository
+# Create your first site
 
-**Goal:** assemble a real, editable content checkout into the public engine, then preview it locally.
+By the end of this tutorial, your own article will appear at `/articles/hello-inkerio/`. The engine and writing live in separate Git repositories.
 
-## 1. Clone both repositories
+## 1. Prepare the content repository
+
+On [inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template), choose **Use this template → Create a new repository**. A fork also works. Choose a public or private content repository as appropriate for your writing.
+
+For a local trial, clone the public template directly:
 
 ```bash
 mkdir inkerio-workspace
@@ -11,44 +15,74 @@ git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
 git clone https://github.com/ThinkerQAQ/inkerio-content-template.git blog-content
 ```
 
-The resulting `ThinkerQAQ.github.io/` and `blog-content/` directories are siblings. The template is public sample content; it is not the private production repository. `blog-content` is the local checkout name, independent of the remote template name. To maintain your own content, create a repository from the GitHub template or fork it, then clone your repository as `blog-content`; commit your writing there.
+For ongoing writing, replace the second clone URL with your own repository URL, keeping the local directory name `blog-content`. Confirm its remote with `git -C blog-content remote -v` before pushing changes.
 
-## 2. Install engine dependencies
+## 2. Install and assemble
+
+Use the [Quick Start requirements](../quick-start.md), then run from the engine checkout:
 
 ```bash
 cd ThinkerQAQ.github.io
 npm ci
-```
-
-Ensure Node.js 22+, Go 1.27.1 and Git are installed. The full diagram renderer also requires Java 17+, Graphviz and headless Chromium; the minimal Astro preview below does not render diagrams.
-
-## 3. Assemble canonical content
-
-```bash
 go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
-```
-
-BlogCTL reads the sibling source and assembles the engine's `src/content/` tree. Treat assembled content as generated output; edit `../blog-content/` instead.
-
-## 4. Run and inspect
-
-```bash
 npx --no-install astro dev --port 4321
 ```
 
-Open [http://localhost:4321](http://localhost:4321) and check the article, note and project routes. For a full diagram-enabled preview use `npm run dev:site` once its Java/Graphviz/Chromium dependencies are installed. Do **not** use `dev:quick` here, because it deliberately reassembles the public content template and would overwrite your selected source.
+Open [localhost:4321](http://localhost:4321). The assembly message starts with `[site] assembled content=`. Astro should list the sample content.
 
-## 5. Edit and verify
+Assembly replaces the engine's `src/content/` tree. It also replaces `public/media/` when the source has that directory, and copies the content manifest when present. Edit the source checkout, because another assembly discards edits made to generated content.
 
-Edit a sample article under `../blog-content/src/content/articles/`. Re-run the assembly command, then:
+## 3. Add an article
 
-```bash
-npm run check
-npm run build
+Create `blog-content/src/content/articles/hello-inkerio.md` in your editor:
+
+```markdown
+---
+title: "Hello Inkerio"
+description: "My first article on this site."
+publishedAt: "2026-10-22T10:00:00+08:00"
+language: zh
+status: published
+tags: [Example]
+coverImage: "/media/articles/sample-article/cover.svg"
+coverImageAlt: "Sample cover from the content template"
+---
+
+This article is stored in the content repository.
 ```
 
-The `build` script calls the Go CLI site-build path and requires the full diagram build dependencies. Check `dist/` for the static output.
+The example uses the cover shipped with the template. For your own cover, put a file under `blog-content/public/media/` and use its site-root path, such as `/media/articles/hello-inkerio/cover.jpg`.
 
-## 6. Continue
+`publishedAt` is a quoted timestamp with a timezone. Published articles require a non-empty `coverImage` and `coverImageAlt`. A new article defaults to `draft` when `status` is omitted, and drafts are hidden unless `INCLUDE_DRAFTS=true` is explicitly set.
 
-For a fork's deployment, follow [Deploy a site](../how-to/deploy.md). For publishing, begin at [BlogCTL Quick Start](../../tools/blogctl/docs/quick-start.md). The exact content fields are defined by [the content schema](../reference/content-schema.md).
+## 4. Refresh the preview
+
+Keep the dev server running. In another terminal, from the engine root:
+
+```bash
+go run ./tools/blogctl/cmd site assemble --content-root ../blog-content
+npm run check
+```
+
+Visit [the article](http://localhost:4321/articles/hello-inkerio/). Check the title, description, cover and body. Astro watches generated files, but it does not automatically assemble edits from the external content checkout; repeat assembly after source edits.
+
+Use `npx --no-install astro dev --port 4321` to restart this preview. `npm run dev` and `dev:quick` select the public template again.
+
+## 5. Add an English version
+
+Create `blog-content/src/content/articles/en/hello-inkerio.md` with the same required fields, English text, `language: en` and `translationOf: hello-inkerio`. Assemble again. Its URL is `/en/articles/hello-inkerio/`; `translationOf` identifies the original file without `.md`.
+
+Titles do not determine URLs. Renaming the file changes the content ID and can break links; keep IDs stable after publication. See [content fields and relationships](../reference/content-schema.md).
+
+## 6. Build and save your work
+
+After installing the [diagram dependencies](../how-to/diagnose-build.md), stop the dev server and run:
+
+```bash
+npm run build
+npm run preview
+```
+
+The build uses the currently assembled content, writes static output to `dist/`, and generates the search index. Search is best checked in this built preview.
+
+Review changes in the content repository with `git -C ../blog-content diff`. Commit and push writing there; commit engine configuration and code changes in the engine repository. Set your [site identity](../how-to/customize-site.md) before following the [deployment guide](../how-to/deploy.md).
