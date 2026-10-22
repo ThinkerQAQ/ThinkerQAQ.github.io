@@ -234,10 +234,6 @@ func (s Service) PublishDraftInput(
 	contentRoot string,
 	input DraftInput,
 ) (PublishResult, error) {
-	if platform == "toutiao" {
-		return PublishResult{}, platformError(ErrValidation, platform, "publish-draft", 0,
-			"pure HTTP publishing is currently unavailable: Toutiao creator request signing has not been verified", false)
-	}
 	slug := input.Slug
 	state, _, err := LoadPublicationState(s.publicationPath(), slug, platform)
 	if err != nil {

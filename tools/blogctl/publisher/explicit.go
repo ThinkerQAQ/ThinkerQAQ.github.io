@@ -30,9 +30,6 @@ func (s Service) RunExplicitDraft(ctx context.Context, platform string, session 
 	if platform == "hashnode" {
 		return ExplicitResult{}, errors.New("Hashnode drafts require the persisted BlogCTL creation workflow")
 	}
-	if platform == "toutiao" {
-		return ExplicitResult{}, fmt.Errorf("%s is temporarily disabled", platform)
-	}
 	if platform == "medium" {
 		return ExplicitResult{}, errors.New("Medium explicit operations must use the existing browser bridge transport")
 	}

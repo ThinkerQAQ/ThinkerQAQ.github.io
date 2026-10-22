@@ -104,7 +104,7 @@ func TestMediumExplicitPublishedTargetAllowedForUpdateWithoutPublishing(t *testi
 	}
 }
 
-func TestMediumExplicitRequestIsAcceptedButToutiaoRemainsDisabled(t *testing.T) {
+func TestMediumAndToutiaoExplicitRequestsAreAccepted(t *testing.T) {
 	for _, op := range []string{"create", "update", "publish-draft"} {
 		req := syncRequest{Article: "concurrency-series-00", Platforms: []string{"medium"}, Operation: op}
 		if op != "create" {
@@ -115,8 +115,8 @@ func TestMediumExplicitRequestIsAcceptedButToutiaoRemainsDisabled(t *testing.T) 
 		}
 	}
 	req := syncRequest{Article: "concurrency-series-00", Platforms: []string{"toutiao"}, Operation: "create"}
-	if _, err := normalizeSyncRequest(req); err == nil {
-		t.Fatal("Toutiao must remain disabled")
+	if _, err := normalizeSyncRequest(req); err != nil {
+		t.Fatalf("Toutiao create rejected: %v", err)
 	}
 }
 

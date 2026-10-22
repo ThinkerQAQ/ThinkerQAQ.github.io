@@ -1,9 +1,8 @@
 "use strict";
 
 (function (root) {
-  // Toutiao remains temporarily hidden. Medium is available again with its
-  // existing publisher, browser session and publication bindings unchanged.
-  const HIDDEN_PLATFORMS = new Set(["toutiao"]);
+  // Availability is defined by each platform capability and browser session.
+  const HIDDEN_PLATFORMS = new Set();
 
   function isVisiblePlatform(id) {
     return !HIDDEN_PLATFORMS.has(id);

@@ -177,14 +177,15 @@ func filterVerifiedSessionCookies(platform string, cookies []browserCookie) []br
 }
 
 type Server struct {
-	token         string
-	now           func() time.Time
-	httpClient    *http.Client
-	config        bridgeConfig
-	restart       func()
-	syncRunner    syncRunner
-	mediumUploads *mediumBrowserUploadHub
-	searchMu      sync.Mutex
+	token           string
+	now             func() time.Time
+	httpClient      *http.Client
+	config          bridgeConfig
+	restart         func()
+	syncRunner      syncRunner
+	mediumUploads   *mediumBrowserUploadHub
+	toutiaoRequests *toutiaoBrowserHub
+	searchMu        sync.Mutex
 
 	mu             sync.Mutex
 	distributionMu sync.Mutex
@@ -218,16 +219,17 @@ func New(token string) (*Server, error) {
 	}
 	syncJobs, syncJobOrder := restoreSyncJobsFromDurable(taskJobs, taskJobOrder)
 	server := &Server{
-		token:         token,
-		now:           time.Now,
-		httpClient:    client,
-		config:        config,
-		sessions:      make(map[string]platformSession),
-		mediumUploads: newMediumBrowserUploadHub(),
-		jobs:          syncJobs,
-		jobOrder:      syncJobOrder,
-		taskJobs:      taskJobs,
-		taskJobOrder:  taskJobOrder,
+		token:           token,
+		now:             time.Now,
+		httpClient:      client,
+		config:          config,
+		sessions:        make(map[string]platformSession),
+		mediumUploads:   newMediumBrowserUploadHub(),
+		toutiaoRequests: newToutiaoBrowserHub(),
+		jobs:            syncJobs,
+		jobOrder:        syncJobOrder,
+		taskJobs:        taskJobs,
+		taskJobOrder:    taskJobOrder,
 	}
 	server.mu.Lock()
 	_ = server.persistDurableTasksLocked()
@@ -275,6 +277,10 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if strings.HasPrefix(request.URL.Path, "/v1/toutiao/browser/") {
+		s.handleToutiaoBrowser(response, request)
+		return
+	}
 	if strings.HasPrefix(request.URL.Path, "/v1/medium/browser-upload/") {
 		s.handleMediumBrowserUpload(response, request)
 		return

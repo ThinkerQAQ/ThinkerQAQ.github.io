@@ -273,6 +273,9 @@ func (t *toutiaoAdapter) mutate(ctx context.Context, refID string, input DraftIn
 		values.Set("entrance", "main")
 		values.Set("praise", "0")
 		values.Set("draft_form_data", `{"coverType":1}`)
+		if strings.TrimSpace(covers) == "" || strings.TrimSpace(covers) == "[]" {
+			values.Set("draft_form_data", `{"coverType":2}`)
+		}
 		values.Set("extra", `{"content_source":100000000402,"content_word_cnt":`+strconv.Itoa(utf8.RuneCountInString(input.Markdown))+`,"is_multi_title":0,"sub_titles":[],"gd_ext":{"entrance":"","from_page":"publisher_mp","enter_from":"PC","device_platform":"mp","is_message":0},"tuwen_wtt_trans_flag":"0","info_source":{"source_type":-1}}`)
 		for _, name := range []string{"ic_uri_list", "appid_list", "stock_ids", "concern_list", "title_id"} {
 			values.Set(name, "")
@@ -372,7 +375,21 @@ func (t *toutiaoAdapter) PublishDraft(ctx context.Context, ref DraftRef, input D
 	if strings.TrimSpace(ref.ID) == "" {
 		return PublishResult{}, platformError(ErrValidation, t.ID(), "publish-draft", 0, "draft id is required", false)
 	}
-	id, err := t.mutate(ctx, ref.ID, input, true, "")
+	drafts, err := t.listDrafts(ctx)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	var selected *ToutiaoPost
+	for i := range drafts {
+		if drafts[i].ID == ref.ID {
+			selected = &drafts[i]
+			break
+		}
+	}
+	if selected == nil {
+		return PublishResult{}, platformError(ErrValidation, t.ID(), "publish-draft", 0, "selected draft no longer exists in this account; detect again before publishing", false)
+	}
+	id, err := t.mutate(ctx, ref.ID, input, true, selected.FeedCovers)
 	if err != nil {
 		return PublishResult{}, err
 	}

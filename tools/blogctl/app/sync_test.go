@@ -293,8 +293,8 @@ func TestNormalizeSyncRequestEnablesToutiaoDraftAndGuardedPublishedUpdate(t *tes
 	if _, err := NormalizeSyncRequest(SyncRequest{
 		Articles: []string{"concurrency-06"}, Platforms: []string{"toutiao"},
 		Operation: "publish",
-	}); err == nil {
-		t.Fatal("publishing a new Toutiao article must remain disabled")
+	}); err != nil {
+		t.Fatalf("explicit Toutiao publish should be enabled: %v", err)
 	}
 }
 

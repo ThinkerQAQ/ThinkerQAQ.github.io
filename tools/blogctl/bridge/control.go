@@ -869,9 +869,6 @@ func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
 		request.Operation = operation
 		allowed := make(map[string]struct{}, len(request.Platforms))
 		for _, platform := range request.Platforms {
-			if platform == "toutiao" {
-				return request, fmt.Errorf("%s is temporarily disabled", platform)
-			}
 			allowed[platform] = struct{}{}
 			if (request.PublishAfter || operation == "publish-draft") && !publisher.PlatformCapabilitiesFor(platform).ExplicitPublish {
 				return request, fmt.Errorf("%s does not support publishing the selected draft", platform)
@@ -1117,6 +1114,13 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 				return publisher.Session{}, nil, err
 			}
 			return publisherSession, browserHTTPClient, nil
+		}
+	}
+	if platform == "toutiao" {
+		if base, production := httpClient.Transport.(*http.Transport); production {
+			copyClient := *httpClient
+			copyClient.Transport = toutiaoBrowserTransport{base: base, hub: p.server.toutiaoRequests}
+			return publisherSession, &copyClient, nil
 		}
 	}
 	return publisherSession, httpClient, nil

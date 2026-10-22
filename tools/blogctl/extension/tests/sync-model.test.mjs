@@ -264,7 +264,7 @@ test("51CTO draft keeps an authenticated creator-provided editor route", () => {
   }), { label: "编辑草稿", url: "https://blog.51cto.com/blogger/edit/3223421" });
 });
 
-test("Medium is restored while Toutiao remains hidden without modifying capabilities", () => {
+test("Toutiao is visible without modifying capabilities", () => {
   const list = [
     { id: "cnblogs", capabilities: { draftCreate: true } },
     { id: "medium", capabilities: { draftCreate: true, remoteList: true } },
@@ -272,24 +272,24 @@ test("Medium is restored while Toutiao remains hidden without modifying capabili
     { id: "toutiao", capabilities: { draftCreate: true, remoteList: true } },
     { id: "devto", capabilities: { draftCreate: true } },
   ];
-  assert.deepEqual(model.visiblePlatforms(list).map((p) => p.id), ["cnblogs", "medium", "juejin", "devto"]);
+  assert.deepEqual(model.visiblePlatforms(list).map((p) => p.id), ["cnblogs", "medium", "juejin", "toutiao", "devto"]);
   assert.equal(list[1].capabilities.draftCreate, true, "Medium capabilities are retained");
   assert.equal(list[3].capabilities.draftCreate, true, "Toutiao capabilities are retained");
   assert.deepEqual(model.visiblePlatformIDs(["medium", "juejin", "toutiao", "cnblogs", "medium"]),
-    ["medium", "juejin", "cnblogs", "medium"], "hide only Toutiao from persisted selections");
+    ["medium", "juejin", "toutiao", "cnblogs", "medium"], "retain restored platform selections");
   assert.equal(model.isVisiblePlatform("medium"), true);
-  assert.equal(model.isVisiblePlatform("toutiao"), false);
+  assert.equal(model.isVisiblePlatform("toutiao"), true);
   assert.equal(model.isVisiblePlatform("oschina"), true);
 });
 
-test("published history and bindings are not mutated when delivery records are hidden", () => {
+test("restored published history retains existing identities", () => {
   const records = [
     { article: "article", platform: "medium", remoteId: "abc" },
     { article: "article", platform: "toutiao", remoteId: "123" },
     { article: "article", platform: "cnblogs", remoteId: "456" },
   ];
   const active = model.visiblePublicationRecords(records);
-  assert.deepEqual(active.map((x) => x.platform), ["medium", "cnblogs"]);
+  assert.deepEqual(active.map((x) => x.platform), ["medium", "toutiao", "cnblogs"]);
   assert.equal(records.length, 3, "local data and historical records are preserved");
   assert.equal(records[0].remoteId, "abc");
   assert.equal(records[1].remoteId, "123");

@@ -49,7 +49,7 @@ blogctl sync --article sample-article --platforms devto --dry-run
 
 Dry-run does not need a browser connection, but may install Node dependencies and persist workspace roots locally. It returns a success/failure result and does not promise a rendered preview file. Live `sync` uses the Bridge's `draft` workflow; the explicit Create/Update target controls documented for the UI are not CLI `sync` flags. Use the UI to choose a specific remote update target.
 
-Registered IDs are in [`platform/capabilities.go`](../../platform/capabilities.go). Registration alone does not make every action available: Toutiao is hidden in the normal UI, and OSChina/Hashnode explicit publishing is disabled.
+Registered IDs are in [`platform/capabilities.go`](../../platform/capabilities.go). Registration alone does not make every action available: Toutiao supports account detection, drafts and explicit publication; OSChina/Hashnode explicit publishing is disabled.
 
 ## Social and experimental commands
 

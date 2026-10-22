@@ -62,10 +62,9 @@ var definitions = []Definition{
 	},
 	{
 		ID: "toutiao", Label: "今日头条", DefaultLanguage: "zh-CN",
-		// Native HTTP draft and verified published-update operations are opt-in.
-		// Explicit publishing a NEW article remains disabled.
+		// New publications require an explicit draft publish action.
 		Capabilities: Capabilities{
-			BrowserSession: true, DraftCreate: true, DraftUpdate: true,
+			BrowserSession: true, DraftCreate: true, DraftUpdate: true, ExplicitPublish: true,
 			PublishedUpdate: true, RemoteList: true, BodyImages: true, BodyImageRehost: true,
 		},
 	},
