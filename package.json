@@ -27,7 +27,7 @@
     "preview": "astro preview --port 4321",
     "test": "npm run test:engine && npm run assemble:template && npm run check && npm run build",
     "covers:social": "node scripts/render-cover-social.mjs",
-    "build:astro": "node scripts/clean-dist.mjs && npm run diagrams && npm run covers:social && astro build",
+    "build:astro": "node scripts/clean-dist.mjs && npm run diagrams && npm run covers:social && astro build && node scripts/check-home-website-schema.mjs",
     "test:docs": "node scripts/check-doc-links.mjs",
     "dev:quick": "npm run assemble:template && astro dev --port 4321",
     "test:umami": "node --test src/layouts/BaseLayout.umami.test.mjs",

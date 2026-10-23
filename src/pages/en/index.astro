@@ -1,8 +1,10 @@
 ---
 import HomeKnowledgeHub from "../../components/HomeKnowledgeHub.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { siteWebsiteSchema } from "../../lib/structured-data";
 
 const locale = "en" as const;
+const websiteSchema = siteWebsiteSchema();
 const description =
   "ThinkerQAQ's technical knowledge garden for backend engineering, concurrency, distributed systems, data systems, and software engineering.";
 ---
@@ -12,5 +14,11 @@ const description =
   locale={locale}
   canonicalPath="/en/"
 >
+  <script
+    is:inline
+    slot="head"
+    type="application/ld+json"
+    set:html={JSON.stringify(websiteSchema).replaceAll("<", "\\u003c")}
+  />
   <HomeKnowledgeHub locale={locale} />
 </BaseLayout>
