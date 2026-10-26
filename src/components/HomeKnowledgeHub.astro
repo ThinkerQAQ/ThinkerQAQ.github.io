@@ -102,12 +102,11 @@ const localizedSeries = sortSeries(allSeries).filter((series) =>
 );
 const featuredSeries = localizedSeries.filter((series) => series.data.featured);
 const activeSeries = localizedSeries.filter((series) => series.data.status === "active");
-const startSeriesSource = featuredSeries.length > 0
-  ? featuredSeries
-  : activeSeries.length > 0
-    ? activeSeries
-    : localizedSeries;
-const startSeries = startSeriesSource.slice(0, 3);
+const startSeries = [...featuredSeries, ...activeSeries, ...localizedSeries]
+  .filter((series, index, candidates) =>
+    candidates.findIndex((candidate) => candidate.id === series.id) === index,
+  )
+  .slice(0, 2);
 
 function seriesArticleCount(series: (typeof allSeries)[number]): number {
   if (locale === "zh") {
