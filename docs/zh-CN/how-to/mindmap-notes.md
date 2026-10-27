@@ -40,7 +40,9 @@ defaultView: mindmap
 
 建议用一个 `#` 标题作为根节点，后续 `##`、`###` 等标题以及嵌套列表构建分支，节点文本尽量简洁。
 
-`defaultView: mindmap` 表示浏览器启用 JavaScript 时默认打开思维导图。省略字段或设置 `defaultView: markdown` 则默认显示 Markdown；如果 JavaScript 不可用，原始正文仍可阅读。此字段仅用于**笔记**，不适用于文章页面。
+`defaultView: mindmap` 表示浏览器启用 JavaScript 时默认打开思维导图。省略字段或设置 `defaultView: markdown` 则默认显示 Markdown；如果 JavaScript 不可用，原始正文仍可阅读。所有文章和笔记详情页都提供视图切换按钮。此字段适用于**文章和笔记**，仅决定初始视图，不影响切换功能是否可用。文章的英文翻译使用自己的 Markdown 正文和 defaultView 配置。
+
+导图依据标题和嵌套列表生成，不会自动生成 AI 摘要。没有结构节点的纯段落页面会显示以页面标题为内容的单个根节点。
 
 ## 2. 添加英文翻译（可选）
 

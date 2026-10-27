@@ -26,6 +26,8 @@ import {
 import type { ProjectRelation } from "../lib/project-relations";
 import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
 import ContentMediaViewer from "../components/ContentMediaViewer.astro";
+import ContentViewSwitcher from "../components/ContentViewSwitcher.astro";
+import { articleSourceHref } from "../lib/article-source.mjs";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Heading {
@@ -170,7 +172,14 @@ const schema = {
       )}
 
       <div id="reading-start" class="reading-anchor" aria-hidden="true"></div>
-      <div class="prose" data-reading-content><slot /></div>
+      <ContentViewSwitcher
+        title={data.title}
+        defaultView={data.defaultView}
+        locale={locale}
+        markdownSourceUrl={articleSourceHref(article.id)}
+      >
+        <div class="prose"><slot /></div>
+      </ContentViewSwitcher>
       <div id="reading-end" class="reading-anchor" aria-hidden="true"></div>
       <ContentReaction contentType="article" contentId={article.id} language={locale} />
       <RelatedContent

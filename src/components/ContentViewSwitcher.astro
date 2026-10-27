@@ -1,25 +1,28 @@
 ---
-import { NOTE_VIEW_UI } from "../config/i18n-features";
+import { CONTENT_VIEW_UI } from "../config/i18n-features";
 import type { Locale } from "../config/i18n";
 
 interface Props {
   defaultView?: "markdown" | "mindmap";
   locale: Locale;
+  title: string;
   markdownSourceUrl: string;
 }
 
 const {
   defaultView = "markdown",
   locale,
+  title,
   markdownSourceUrl,
 } = Astro.props;
-const ui = NOTE_VIEW_UI[locale];
+const ui = CONTENT_VIEW_UI[locale];
 ---
 
 <div
   class="note-view-switcher"
   data-note-view-switcher
   data-default-view={defaultView}
+  data-content-title={title}
   data-active-view="markdown"
   data-markdown-source={markdownSourceUrl}
   data-loading-message={ui.loading}
@@ -200,9 +203,14 @@ const ui = NOTE_VIEW_UI[locale];
           loadMarkmapModules(),
         ]);
         const transformer = new Transformer();
-        // Notes are public content, but raw HTML must not become active inside SVG/foreignObject nodes.
+        // Articles and notes are public content, but raw HTML must not become active inside SVG/foreignObject nodes.
         transformer.md.set({ html: false });
-        const { root: tree } = transformer.transform(markdown);
+        let { root: tree } = transformer.transform(markdown);
+        // A prose-only page has no heading/list nodes. Still provide a valid root.
+        if (!tree || (!tree.content?.trim() && !tree.children?.length)) {
+          const title = (root.dataset.contentTitle || "Content").replace(/[\\`*_{}[\]()<>#+.!|~-]/g, "\\$&").replace(/[\r\n]+/g, " ");
+          tree = transformer.transform("# " + title).root;
+        }
         if (!tree || (!tree.content?.trim() && !tree.children?.length)) {
           throw new Error("Markdown did not produce a mind-map tree");
         }

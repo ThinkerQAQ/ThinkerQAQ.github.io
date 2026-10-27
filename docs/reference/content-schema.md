@@ -19,6 +19,8 @@ Images belong in `public/media/`; content uses `/media/...` URLs. `src/data/cont
 
 ## Articles
 
+Articles also accept `defaultView: markdown | mindmap` (default `markdown`). All article and note detail pages offer reading/mind-map switching; this field only chooses the initial view. Article translations configure it independently and render their own body.
+
 | Field | Required / default | Meaning |
 | --- | --- | --- |
 | `title`, `description` | Required strings | Page title and summary |

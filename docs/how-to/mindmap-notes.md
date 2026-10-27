@@ -40,7 +40,9 @@ defaultView: mindmap
 
 Use one top-level `#` heading as the root. Subsequent headings (`##`, `###`, etc.) and nested lists create the branches. Short node labels are easier to read. The sample uses English labels for brevity; the content language can be Chinese or English.
 
-`defaultView: mindmap` opens the map automatically when JavaScript is enabled. Omit the field or set `defaultView: markdown` to open normal reading mode instead. With JavaScript unavailable, the Markdown content remains visible. This setting applies to **notes**, not article pages.
+`defaultView: mindmap` opens the map automatically when JavaScript is enabled. Omit the field or set `defaultView: markdown` to open normal reading mode instead. With JavaScript unavailable, the Markdown content remains visible. All article and note detail pages provide the view switcher. This setting applies to both **articles and notes**; it controls only the initial view, not whether switching is available. Article translations use their own Markdown and defaultView setting.
+
+The map follows headings and nested lists; it does not generate an AI summary. Prose-only pages without structural nodes show the page title as a single root node.
 
 ## 2. Add a translation (optional)
 

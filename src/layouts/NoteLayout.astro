@@ -22,7 +22,7 @@ import { articleHref, categoryHref, formatDate, getNoteTopicPath, noteHref, note
 import { localizeNoteTagLabel } from "../lib/note-taxonomy-i18n";
 import ContentAnalyticsRuntime from "../components/ContentAnalyticsRuntime.astro";
 import ContentMediaViewer from "../components/ContentMediaViewer.astro";
-import NoteViewSwitcher from "../components/NoteViewSwitcher.astro";
+import ContentViewSwitcher from "../components/ContentViewSwitcher.astro";
 import { noteSourceHref } from "../lib/note-source.mjs";
 import BaseLayout from "./BaseLayout.astro";
 
@@ -166,13 +166,14 @@ const schema = {
         </p>
       )}
       <div id="reading-start" class="reading-anchor" aria-hidden="true"></div>
-      <NoteViewSwitcher
+      <ContentViewSwitcher
+        title={data.title}
         defaultView={data.defaultView}
         locale={locale}
         markdownSourceUrl={markdownSourceUrl}
       >
         <div class="prose"><slot /></div>
-      </NoteViewSwitcher>
+      </ContentViewSwitcher>
       <div id="reading-end" class="reading-anchor" aria-hidden="true"></div>
       <ContentReaction contentType="note" contentId={note.id} language={locale} />
       <RelatedContent
