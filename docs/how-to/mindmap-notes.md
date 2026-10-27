@@ -81,7 +81,7 @@ npm run check
 npx --no-install astro dev --port 4321
 ```
 
-Open `/notes/system-design-map/` and `/en/notes/system-design-map/`. You can switch between **Markdown** and **Mind map**, drag to pan, use the mouse wheel to zoom, expand/collapse nodes, or use the floating toolbar to zoom, fit the whole map, toggle recursive expansion and enter fullscreen. The toolbar uses the upstream `markmap-toolbar` controls plus a browser fullscreen button.
+Open `/notes/system-design-map/` and `/en/notes/system-design-map/`. Use the floating **Read / Map** switch above the existing reading jump and Ask controls to change views from anywhere on the page; switching returns to the beginning of the note. It temporarily hides while the Ask panel or mobile reading navigation is open. In the map itself, drag to pan, use the mouse wheel to zoom, expand/collapse nodes, or use its separate top-right toolbar to zoom, fit visible branches, toggle recursive expansion and enter fullscreen. The canvas toolbar uses upstream `markmap-toolbar` controls plus a browser fullscreen button.
 
 The browser loads the mind-map renderer on demand. A large map starts with deeper nodes folded; use the nodes to explore branches gradually. A "fit" operation frames **currently visible branches**, not every folded descendant. For very large maps, consider splitting topics into separate notes.
 
