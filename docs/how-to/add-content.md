@@ -23,11 +23,11 @@ Publishing the website and updating copies on external platforms are separate op
 
 ## Notes on the home page
 
-The **Engineering Knowledge** section combines two different views: **Recent Notes** for newly maintained notes, and **Knowledge Categories** for long-term browsing.
+The homepage places **Projects → Recent Notes → Engineering Knowledge → Beyond Engineering** as separate peer sections after its article/series highlights. **Recent Notes** is a cross-category feed of individual notes; **Engineering Knowledge** and **Beyond Engineering** are curated category indexes using the same two-column layout.
 
-- The recent list selects up to **3** indexable notes with `status: active`, ordered by `updatedAt` descending. No more than **2 notes per category** appear at once. A tied date prefers `featured: true`, then the note's `order` and ID for stable results.
-- Imported notes with `status: historical` remain accessible through the category index, but are not promoted into the recent list simply to fill empty slots.
-- Only engineering categories configured in `src/components/HomeKnowledgeHub.astro` appear in this section. Add a category there when it should be discoverable on the homepage; no new content field is required.
-- The English homepage shows only notes that have an English `noteTranslations` entry. Both the visible title and update date come from the English translation.
+- Recent Notes selects up to **3** indexable notes with `status: active` from **any category**, ordered by `updatedAt` descending. No more than **2 notes per category** appear at once. A tied date prefers `featured: true`, then the note's `order` and ID for stable results.
+- Imported notes with `status: historical` remain accessible through the category indexes, but are not promoted into the recent list simply to fill empty slots.
+- Only categories configured in the engine's `src/components/HomeKnowledgeHub.astro` appear in the two curated category sections. Add a category to the appropriate list to expose an archive entry; this does **not** affect Recent Notes eligibility.
+- The English homepage only links to notes with a matching English `noteTranslations` entry; the displayed title, description and update date are localized from that translation.
 
 See the [note schema](../reference/content-schema.md) and the [interactive mind-map guide](mindmap-notes.md).

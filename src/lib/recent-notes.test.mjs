@@ -58,3 +58,15 @@ test("empty or disabled feeds do not produce entries", () => {
   assert.deepEqual(selectRecentNotes(pool, { limit: 0 }), []);
   assert.deepEqual(selectRecentNotes(pool, { maxPerCategory: 0 }), []);
 });
+
+test("the recent feed includes nontechnical categories alongside engineering notes", () => {
+  const pool = [
+    note("ai/first", "ai", "2026-10-27"),
+    note("photography/first", "photography", "2026-10-26"),
+    note("database/first", "database", "2026-10-25"),
+    note("fitness/archive", "fitness", "2026-10-28", { status: "historical" }),
+  ];
+  assert.deepEqual(selectRecentNotes(pool).map((entry) => entry.id), [
+    "ai/first", "photography/first", "database/first",
+  ]);
+});

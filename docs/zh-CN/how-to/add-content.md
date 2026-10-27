@@ -23,11 +23,11 @@ npx --no-install astro dev --port 4321
 
 ## 首页的笔记展示
 
-首页「**技术知识**」分为两层：「**最近笔记**」用于展示正在更新的新内容，「**知识分类**」用于长期检索和归档。
+首页在文章/系列之后依次展示「**项目 → 最近笔记 → 技术知识 → 工程之外**」四个平级栏目。「最近笔记」展示各个领域近期维护的具体笔记；「技术知识」与「工程之外」仅展示各自的双列分类集合。
 
-- 最近笔记最多展示 **3 篇**，按 `updatedAt` 倒序排列，只选 `status: active` 且 `indexable: true` 的笔记；**同一分类最多 2 篇**。更新时间相同时优先 `featured: true`，其次使用 `order` 与 ID 保证顺序稳定。
-- `status: historical` 的旧笔记保留在分类集合内，不会为了凑满 3 篇而混入最近笔记。
-- 首页只列出 `src/components/HomeKnowledgeHub.astro` 中定义的技术分类。需要新增首页分类入口时，在这个配置中补充即可，无须新增内容字段。
-- 英文首页只展示存在英文 `noteTranslations` 的笔记，标题和更新时间取自英文译文，不会把中文笔记直接放到英文首页。
+- 最近笔记最多展示 **3 篇**，按 `updatedAt` 倒序排列，只选所有分类中 `status: active` 且 `indexable: true` 的笔记；**同一分类最多 2 篇**。更新时间相同时优先 `featured: true`，其次使用 `order` 与 ID 保证顺序稳定。
+- `status: historical` 的旧笔记保留在分类集合中，不会为了凑满 3 篇而混入最近笔记。
+- 「技术知识」与「工程之外」仅展示 `src/components/HomeKnowledgeHub.astro` 中各自配置的分类入口；增加分类入口不影响最近笔记的筛选资格。
+- 英文首页只展示存在对应英文 `noteTranslations` 的笔记，标题、简介和更新时间取自英文译文，不混入中文正文。
 
 字段说明参见[笔记内容规范](../reference/content-schema.md)，导图笔记参见[思维导图教程](mindmap-notes.md)。

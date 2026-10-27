@@ -49,7 +49,6 @@ const copy = locale === "en"
       allArticles: "All Articles",
       engineeringTitle: "Engineering Knowledge",
       recentNotesTitle: "Recent Notes",
-      browseNotesTitle: "Knowledge Categories",
       allNotes: "All Notes",
       beyondTitle: "Beyond Engineering",
       projectsTitle: "Projects",
@@ -67,7 +66,6 @@ const copy = locale === "en"
       allArticles: "全部文章",
       engineeringTitle: "技术知识",
       recentNotesTitle: "最近笔记",
-      browseNotesTitle: "知识分类",
       allNotes: "全部笔记",
       beyondTitle: "工程之外",
       projectsTitle: "项目",
@@ -172,17 +170,18 @@ function resolveKnowledge(definitions: KnowledgeDefinition[], minimumNotes = 1) 
 const engineeringAreas = resolveKnowledge(engineeringDefinitions);
 const beyondEngineeringAreas = resolveKnowledge(beyondDefinitions);
 
-const engineeringCategories = new Set(engineeringDefinitions.map((definition) => definition.category));
-const categoryLabels = new Map(engineeringDefinitions.map((definition) => [
-  definition.category,
-  locale === "en" ? definition.en : definition.zh,
-]));
-// Only surface active, indexable technical notes. English links must have an
-// actual English translation; historical imports remain in the category archive.
+const categoryLabels = new Map(
+  [...engineeringDefinitions, ...beyondDefinitions].map((definition) => [
+    definition.category,
+    locale === "en" ? definition.en : definition.zh,
+  ]),
+);
+// Recent notes are cross-category, not a subset of engineering knowledge.
+// English entries must have a translation; historical and non-indexable notes
+// are excluded by selectRecentNotes and remain available in category archives.
 const recentNotes = selectRecentNotes(
   allNotes
-    .filter((note) => engineeringCategories.has(note.data.category)
-      && (locale === "zh" || Boolean(noteTranslationFor(note, allNoteTranslations, locale))))
+    .filter((note) => locale === "zh" || Boolean(noteTranslationFor(note, allNoteTranslations, locale)))
     .map((note) => localizeNoteMetadata(note, allNoteTranslations, locale)),
 ).map((note) => ({
   href: noteHref(note, locale),
@@ -234,47 +233,6 @@ const projectItems = projects.map((project) => {
     </section>
   )}
 
-  {engineeringAreas.length > 0 && (
-    <section class="home-section" aria-labelledby="home-engineering-title">
-      <div class="section-heading">
-        <h2 id="home-engineering-title">{copy.engineeringTitle}</h2>
-        <a href={localizePath(locale, "/notes/")}>{copy.allNotes} →</a>
-      </div>
-      {recentNotes.length > 0 && (
-        <div class="home-knowledge-recent">
-          <h3 class="home-knowledge-subheading">{copy.recentNotesTitle}</h3>
-          <ol class="home-recent-notes">
-            {recentNotes.map((note) => (
-              <li>
-                <div class="home-recent-notes__body">
-                  <a href={note.href}>{note.title}</a>
-                  <p>{note.description}</p>
-                </div>
-                <div class="home-recent-notes__meta">
-                  <span>{note.categoryLabel}</span>
-                  <time datetime={note.updatedAt.toISOString()}>{formatDate(note.updatedAt, locale)}</time>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-      <div class:list={["home-knowledge-categories", { "home-knowledge-categories--after-recent": recentNotes.length > 0 }]}>
-        {recentNotes.length > 0 && <h3 class="home-knowledge-subheading">{copy.browseNotesTitle}</h3>}
-        <ul class="home-knowledge-grid">
-          {engineeringAreas.map((area) => (
-            <li>
-              <a href={categoryHref(area.category, locale)}>
-                <span>{area.label}</span>
-                <small>{copy.notesCount(area.count)}</small>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  )}
-
   {projectItems.length > 0 && (
     <section class="home-section" aria-labelledby="home-projects-title">
       <div class="section-heading">
@@ -285,8 +243,50 @@ const projectItems = projects.map((project) => {
     </section>
   )}
 
+  {recentNotes.length > 0 && (
+    <section class="home-section" aria-labelledby="home-recent-notes-title">
+      <div class="section-heading">
+        <h2 id="home-recent-notes-title">{copy.recentNotesTitle}</h2>
+        <a href={localizePath(locale, "/notes/")}>{copy.allNotes} →</a>
+      </div>
+      <ol class="home-recent-notes">
+        {recentNotes.map((note) => (
+          <li>
+            <div class="home-recent-notes__body">
+              <a href={note.href}>{note.title}</a>
+              <p>{note.description}</p>
+            </div>
+            <div class="home-recent-notes__meta">
+              <span>{note.categoryLabel}</span>
+              <time datetime={note.updatedAt.toISOString()}>{formatDate(note.updatedAt, locale)}</time>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )}
+
+  {engineeringAreas.length > 0 && (
+    <section class="home-section" aria-labelledby="home-engineering-title">
+      <div class="section-heading">
+        <h2 id="home-engineering-title">{copy.engineeringTitle}</h2>
+        <a href={localizePath(locale, "/notes/")}>{copy.allNotes} →</a>
+      </div>
+      <ul class="home-knowledge-grid">
+        {engineeringAreas.map((area) => (
+          <li>
+            <a href={categoryHref(area.category, locale)}>
+              <span>{area.label}</span>
+              <small>{copy.notesCount(area.count)}</small>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
   {beyondEngineeringAreas.length > 0 && (
-    <section class="home-section home-section--beyond" aria-labelledby="home-beyond-title">
+    <section class="home-section" aria-labelledby="home-beyond-title">
       <div class="section-heading">
         <h2 id="home-beyond-title">{copy.beyondTitle}</h2>
         <a href={localizePath(locale, "/notes/")}>{copy.allNotes} →</a>
@@ -348,30 +348,9 @@ const projectItems = projects.map((project) => {
     margin-top: 3.25rem;
   }
 
-  .home-knowledge-recent {
-    padding-top: 1.65rem;
-  }
-
-  .home-knowledge-categories--after-recent {
-    margin-top: 4.25rem;
-  }
-
-  .home-knowledge-categories:not(.home-knowledge-categories--after-recent) .home-knowledge-grid {
-    border-top: 0;
-  }
-
-  .home-knowledge-subheading {
-    margin: 0 0 1rem;
-    font-size: 1.075rem;
-    font-weight: 700;
-    line-height: 1.4;
-    letter-spacing: -0.015em;
-  }
-
   .home-recent-notes {
     margin: 0;
     padding: 0;
-    border-top: 1px solid var(--border);
     list-style: none;
   }
 
@@ -451,10 +430,6 @@ const projectItems = projects.map((project) => {
     white-space: nowrap;
   }
 
-  .home-section--beyond {
-    padding-top: 0.5rem;
-  }
-
   @media (max-width: 680px) {
     .home {
       padding-block: 2.25rem 4.5rem;
@@ -466,10 +441,6 @@ const projectItems = projects.map((project) => {
 
     .home-hero + .home-section {
       margin-top: 2.75rem;
-    }
-
-    .home-knowledge-categories--after-recent {
-      margin-top: 3.25rem;
     }
 
     .home-recent-notes > li {
