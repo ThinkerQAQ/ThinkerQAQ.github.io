@@ -254,6 +254,21 @@ main {
   font-size: 0.88rem;
 }
 
+/* Home sections share one divider immediately below their main heading.
+   Lists provide their own row separators but must not add a second top line. */
+.home-section > .section-heading {
+  margin-bottom: 0;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.home-section > .section-heading + .content-list,
+.home-section > .section-heading + .showcase-list,
+.home-section > .section-heading + .home-knowledge-grid,
+.home-section > .section-heading + .home-life-records {
+  border-top: 0;
+}
+
 .content-list {
   margin: 0;
   padding: 0;

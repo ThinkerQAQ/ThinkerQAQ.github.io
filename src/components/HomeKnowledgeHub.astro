@@ -4,10 +4,12 @@ import { localizePath, type Locale } from "../config/i18n";
 import {
   articleIsIncluded,
   categoryHref,
+  formatDate,
   groupByCategory,
   localizedProjectSummary,
   localizedProjectTags,
   localizedSeriesSummary,
+  noteHref,
   projectHref,
   projectStatusLabel,
   seriesHref,
@@ -16,6 +18,8 @@ import {
   sortProjects,
   sortSeries,
 } from "../lib/content";
+import { localizeNoteMetadata, noteTranslationFor } from "../lib/note-i18n";
+import { selectRecentNotes } from "../lib/recent-notes.mjs";
 import LifeRecord from "./LifeRecord.astro";
 import { getLifeEntries } from "../lib/life";
 import ArticleList from "./ArticleList.astro";
@@ -44,6 +48,8 @@ const copy = locale === "en"
       latestTitle: "Latest Articles",
       allArticles: "All Articles",
       engineeringTitle: "Engineering Knowledge",
+      recentNotesTitle: "Recent Notes",
+      browseNotesTitle: "Knowledge Categories",
       allNotes: "All Notes",
       beyondTitle: "Beyond Engineering",
       projectsTitle: "Projects",
@@ -60,6 +66,8 @@ const copy = locale === "en"
       latestTitle: "最新文章",
       allArticles: "全部文章",
       engineeringTitle: "技术知识",
+      recentNotesTitle: "最近笔记",
+      browseNotesTitle: "知识分类",
       allNotes: "全部笔记",
       beyondTitle: "工程之外",
       projectsTitle: "项目",
@@ -70,6 +78,7 @@ const copy = locale === "en"
     };
 
 const engineeringDefinitions: KnowledgeDefinition[] = [
+  { category: "ai", zh: "AI", en: "AI" },
   { category: "distributed-systems", zh: "分布式系统", en: "Distributed Systems" },
   { category: "computer-architecture-assembly", zh: "计算机体系结构与汇编", en: "Computer Architecture & Assembly" },
   { category: "java", zh: "Java / JVM", en: "Java / JVM" },
@@ -85,10 +94,11 @@ const beyondDefinitions: KnowledgeDefinition[] = [
   { category: "fitness", zh: "健身", en: "Fitness" },
 ];
 
-const [allArticles, allSeries, allNotes, allProjects] = await Promise.all([
+const [allArticles, allSeries, allNotes, allNoteTranslations, allProjects] = await Promise.all([
   getCollection("articles"),
   getCollection("series"),
   getCollection("notes"),
+  getCollection("noteTranslations"),
   getCollection("projects"),
 ]);
 
@@ -162,6 +172,26 @@ function resolveKnowledge(definitions: KnowledgeDefinition[], minimumNotes = 1) 
 const engineeringAreas = resolveKnowledge(engineeringDefinitions);
 const beyondEngineeringAreas = resolveKnowledge(beyondDefinitions);
 
+const engineeringCategories = new Set(engineeringDefinitions.map((definition) => definition.category));
+const categoryLabels = new Map(engineeringDefinitions.map((definition) => [
+  definition.category,
+  locale === "en" ? definition.en : definition.zh,
+]));
+// Only surface active, indexable technical notes. English links must have an
+// actual English translation; historical imports remain in the category archive.
+const recentNotes = selectRecentNotes(
+  allNotes
+    .filter((note) => engineeringCategories.has(note.data.category)
+      && (locale === "zh" || Boolean(noteTranslationFor(note, allNoteTranslations, locale))))
+    .map((note) => localizeNoteMetadata(note, allNoteTranslations, locale)),
+).map((note) => ({
+  href: noteHref(note, locale),
+  title: note.data.title,
+  description: note.data.description,
+  categoryLabel: categoryLabels.get(note.data.category) ?? note.data.categoryLabel,
+  updatedAt: note.data.updatedAt,
+}));
+
 const localizedProjects = locale === "en"
   ? allProjects.filter((project) => Boolean(project.data.translations?.en))
   : allProjects;
@@ -210,16 +240,38 @@ const projectItems = projects.map((project) => {
         <h2 id="home-engineering-title">{copy.engineeringTitle}</h2>
         <a href={localizePath(locale, "/notes/")}>{copy.allNotes} →</a>
       </div>
-      <ul class="home-knowledge-grid">
-        {engineeringAreas.map((area) => (
-          <li>
-            <a href={categoryHref(area.category, locale)}>
-              <span>{area.label}</span>
-              <small>{copy.notesCount(area.count)}</small>
-            </a>
-          </li>
-        ))}
-      </ul>
+      {recentNotes.length > 0 && (
+        <div class="home-knowledge-recent">
+          <h3 class="home-knowledge-subheading">{copy.recentNotesTitle}</h3>
+          <ol class="home-recent-notes">
+            {recentNotes.map((note) => (
+              <li>
+                <div class="home-recent-notes__body">
+                  <a href={note.href}>{note.title}</a>
+                  <p>{note.description}</p>
+                </div>
+                <div class="home-recent-notes__meta">
+                  <span>{note.categoryLabel}</span>
+                  <time datetime={note.updatedAt.toISOString()}>{formatDate(note.updatedAt, locale)}</time>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      <div class:list={["home-knowledge-categories", { "home-knowledge-categories--after-recent": recentNotes.length > 0 }]}>
+        {recentNotes.length > 0 && <h3 class="home-knowledge-subheading">{copy.browseNotesTitle}</h3>}
+        <ul class="home-knowledge-grid">
+          {engineeringAreas.map((area) => (
+            <li>
+              <a href={categoryHref(area.category, locale)}>
+                <span>{area.label}</span>
+                <small>{copy.notesCount(area.count)}</small>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   )}
 
@@ -296,6 +348,73 @@ const projectItems = projects.map((project) => {
     margin-top: 3.25rem;
   }
 
+  .home-knowledge-recent {
+    padding-top: 1.65rem;
+  }
+
+  .home-knowledge-categories--after-recent {
+    margin-top: 4.25rem;
+  }
+
+  .home-knowledge-categories:not(.home-knowledge-categories--after-recent) .home-knowledge-grid {
+    border-top: 0;
+  }
+
+  .home-knowledge-subheading {
+    margin: 0 0 1rem;
+    font-size: 1.075rem;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: -0.015em;
+  }
+
+  .home-recent-notes {
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .home-recent-notes > li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .home-recent-notes__body {
+    min-width: 0;
+  }
+
+  .home-recent-notes__body a {
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .home-recent-notes__body p {
+    display: -webkit-box;
+    overflow: hidden;
+    max-width: 48rem;
+    margin: 0.5rem 0 0;
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.65;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .home-recent-notes__meta {
+    display: flex;
+    flex: none;
+    align-items: baseline;
+    gap: 1rem;
+    color: var(--faint);
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
   .home-knowledge-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -347,6 +466,19 @@ const projectItems = projects.map((project) => {
 
     .home-hero + .home-section {
       margin-top: 2.75rem;
+    }
+
+    .home-knowledge-categories--after-recent {
+      margin-top: 3.25rem;
+    }
+
+    .home-recent-notes > li {
+      gap: 0.65rem;
+      flex-direction: column;
+    }
+
+    .home-recent-notes__meta {
+      gap: 0.75rem;
     }
 
     .home-knowledge-grid {
