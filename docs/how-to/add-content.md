@@ -20,3 +20,14 @@ For a new draft, omit `status` or use `draft`. To preview article drafts in Bash
 When updating a published article, retain its ID and `publishedAt`; set `updatedAt` for a substantive revision. Formatting changes do not require changing dates. Commit source Markdown and media to the content repository. Run `npm run build` after assembly when checking final rendering and references.
 
 Publishing the website and updating copies on external platforms are separate operations: follow [deployment](deploy.md) and [BlogCTL publishing](../../tools/blogctl/docs/tutorial/first-publish.md) as needed.
+
+## Notes on the home page
+
+The **Engineering Knowledge** section combines two different views: **Recent Notes** for newly maintained notes, and **Knowledge Categories** for long-term browsing.
+
+- The recent list selects up to **3** indexable notes with `status: active`, ordered by `updatedAt` descending. No more than **2 notes per category** appear at once. A tied date prefers `featured: true`, then the note's `order` and ID for stable results.
+- Imported notes with `status: historical` remain accessible through the category index, but are not promoted into the recent list simply to fill empty slots.
+- Only engineering categories configured in `src/components/HomeKnowledgeHub.astro` appear in this section. Add a category there when it should be discoverable on the homepage; no new content field is required.
+- The English homepage shows only notes that have an English `noteTranslations` entry. Both the visible title and update date come from the English translation.
+
+See the [note schema](../reference/content-schema.md) and the [interactive mind-map guide](mindmap-notes.md).
