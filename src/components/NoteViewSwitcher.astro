@@ -31,17 +31,27 @@ const ui = NOTE_VIEW_UI[locale];
   data-recurse-label={ui.recurse}
   data-reading-content
 >
-  <div
-    class="note-view-switcher__toolbar"
-    role="group"
-    aria-label={ui.controlsLabel}
-    data-note-view-controls
+  <button
+    type="button"
+    class="note-view-switcher__toggle"
+    data-note-view-toggle
+    data-switch-to-markdown={ui.switchToMarkdown}
+    data-switch-to-mindmap={ui.switchToMindmap}
     data-pagefind-ignore="all"
+    aria-label={ui.switchToMindmap}
+    title={ui.switchToMindmap}
     hidden
   >
-    <button type="button" data-note-view="markdown" aria-label="Markdown" aria-pressed="true">{ui.markdown}</button>
-    <button type="button" data-note-view="mindmap" aria-label={ui.mindmapLabel} aria-pressed="false">{ui.mindmap}</button>
-  </div>
+    <svg data-note-view-icon="mindmap" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 12h5m0 0V6m0 6v6m0-12h4m-4 12h4" />
+      <circle cx="4" cy="12" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <circle cx="18" cy="18" r="2" />
+    </svg>
+    <svg data-note-view-icon="markdown" class="note-view-switcher__icon--hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 3.5h7l4 4V20H7zM14 3.5V8h4M9.5 12h6M9.5 15.5h6" />
+    </svg>
+  </button>
   <p
     class="note-view-switcher__status"
     role="status"
@@ -94,17 +104,18 @@ const ui = NOTE_VIEW_UI[locale];
   const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
   const initializeSwitcher = (root: HTMLElement) => {
-    const toolbar = root.querySelector<HTMLElement>("[data-note-view-controls]");
+    const toggleButton = root.querySelector<HTMLButtonElement>("[data-note-view-toggle]");
+    const markdownIcon = root.querySelector<SVGSVGElement>('[data-note-view-icon="markdown"]');
+    const mindmapIcon = root.querySelector<SVGSVGElement>('[data-note-view-icon="mindmap"]');
     const markdownPanel = root.querySelector<HTMLElement>("[data-note-markdown-panel]");
     const mindmapPanel = root.querySelector<HTMLElement>("[data-note-mindmap-panel]");
     const svg = root.querySelector<SVGSVGElement>(".note-view-switcher__svg");
     const status = root.querySelector<HTMLElement>("[data-note-view-status]");
     const markmapToolbarContainer = root.querySelector<HTMLElement>("[data-markmap-toolbar]");
     const sourceUrl = root.dataset.markdownSource;
-    const buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-note-view]")];
     const fullscreenButton = root.querySelector<HTMLButtonElement>('[data-mindmap-action="fullscreen"]');
 
-    if (!toolbar || !markdownPanel || !mindmapPanel || !svg || !status || !markmapToolbarContainer || !sourceUrl || buttons.length !== 2 || !fullscreenButton) return;
+    if (!toggleButton || !markdownIcon || !mindmapIcon || !markdownPanel || !mindmapPanel || !svg || !status || !markmapToolbarContainer || !sourceUrl || !fullscreenButton) return;
 
     let activeView: View = "markdown";
     let requestedView: View = "markdown";
@@ -124,14 +135,24 @@ const ui = NOTE_VIEW_UI[locale];
       else delete status.dataset.kind;
     };
 
+    const syncToggle = () => {
+      // The icon indicates the destination, including while a mind map is loading.
+      const targetView: View = requestedView === "mindmap" ? "markdown" : "mindmap";
+      const label = targetView === "markdown"
+        ? toggleButton.dataset.switchToMarkdown
+        : toggleButton.dataset.switchToMindmap;
+      toggleButton.dataset.targetView = targetView;
+      toggleButton.setAttribute("aria-label", label || targetView);
+      toggleButton.title = label || targetView;
+      markdownIcon.classList.toggle("note-view-switcher__icon--hidden", targetView !== "markdown");
+      mindmapIcon.classList.toggle("note-view-switcher__icon--hidden", targetView !== "mindmap");
+    };
+
     const setActiveView = (view: View) => {
       activeView = view;
       root.dataset.activeView = view;
       markdownPanel.hidden = view !== "markdown";
       mindmapPanel.hidden = view !== "mindmap";
-      buttons.forEach((button) => {
-        button.setAttribute("aria-pressed", String(button.dataset.noteView === view));
-      });
     };
 
     const fetchMarkdown = () => {
@@ -274,6 +295,7 @@ const ui = NOTE_VIEW_UI[locale];
 
     const requestView = (view: View) => {
       requestedView = view;
+      syncToggle();
       if (view === "markdown") {
         setActiveView("markdown");
         setStatus();
@@ -295,6 +317,7 @@ const ui = NOTE_VIEW_UI[locale];
         if (!success) {
           setActiveView("markdown");
           requestedView = "markdown";
+          syncToggle();
           return false;
         }
         setActiveView("mindmap");
@@ -304,6 +327,7 @@ const ui = NOTE_VIEW_UI[locale];
         } catch {
           setActiveView("markdown");
           requestedView = "markdown";
+          syncToggle();
           setStatus(root.dataset.loadFailedMessage || "Could not load the mind map.", "error");
           return false;
         }
@@ -313,17 +337,13 @@ const ui = NOTE_VIEW_UI[locale];
       });
     };
 
-    buttons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const nextView = button.dataset.noteView === "mindmap" ? "mindmap" : "markdown";
-        if (nextView === activeView && nextView === requestedView) return;
-        requestView(nextView);
-        // A floating switch may be used far below the note's beginning.
-        // Bring the selected view into sight instead of leaving the reader below a collapsed page.
-        root.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-          block: "start",
-        });
+    toggleButton.addEventListener("click", () => {
+      const nextView: View = toggleButton.dataset.targetView === "markdown" ? "markdown" : "mindmap";
+      requestView(nextView);
+      // A floating switch can be used far below the note's beginning.
+      root.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
       });
     });
 
@@ -355,7 +375,7 @@ const ui = NOTE_VIEW_UI[locale];
       const askOpen = askToggle?.getAttribute("aria-expanded") === "true";
       const mobileNavigationOpen = document.body.classList.contains("mobile-reading-nav-open");
       const mapFullscreen = document.fullscreenElement === mindmapPanel;
-      toolbar.hidden = Boolean(askOpen || mobileNavigationOpen || mapFullscreen);
+      toggleButton.hidden = Boolean(askOpen || mobileNavigationOpen || mapFullscreen);
     };
 
     if (askToggle) {
@@ -370,6 +390,7 @@ const ui = NOTE_VIEW_UI[locale];
     });
     document.addEventListener("fullscreenchange", syncFloatingControls);
 
+    syncToggle();
     syncFloatingControls();
     if (root.dataset.defaultView === "mindmap") requestView("mindmap");
   };
@@ -387,7 +408,7 @@ const ui = NOTE_VIEW_UI[locale];
     display: none !important;
   }
 
-  .note-view-switcher__toolbar {
+  .note-view-switcher__toggle {
     position: fixed;
     z-index: 20;
     right: var(--floating-action-edge);
@@ -398,44 +419,42 @@ const ui = NOTE_VIEW_UI[locale];
       var(--floating-action-jump-size) +
       var(--floating-action-stack-gap)
     );
-    display: flex;
-    align-items: center;
-    gap: 0.2rem;
-    margin: 0;
-    padding: 0.22rem;
+    display: grid;
+    width: var(--floating-action-jump-size);
+    height: var(--floating-action-jump-size);
+    padding: 0;
+    place-items: center;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: 50%;
     background: var(--surface);
-    box-shadow: var(--shadow);
-    transition: bottom 140ms ease, border-color 160ms ease;
-  }
-
-  .note-view-switcher__toolbar button {
-    min-height: 2.1rem;
-    padding: 0.35rem 0.65rem;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
     color: var(--muted);
-    font: inherit;
-    font-size: 0.78rem;
-    font-weight: 600;
-    line-height: 1;
-    white-space: nowrap;
+    box-shadow: var(--shadow);
     cursor: pointer;
+    transition: bottom 140ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
   }
 
-  .note-view-switcher__toolbar button[aria-pressed="true"] {
-    background: var(--text);
-    color: var(--surface);
+  .note-view-switcher__toggle svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    stroke: currentColor;
+    stroke-width: 1.65;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
-  .note-view-switcher__toolbar button:hover:not([aria-pressed="true"]) {
-    background: var(--accent-soft);
-    color: var(--text);
+  .note-view-switcher__toggle svg.note-view-switcher__icon--hidden {
+    display: none;
   }
 
-  .note-view-switcher__toolbar button:focus-visible {
+  .note-view-switcher__toggle:hover,
+  .note-view-switcher__toggle:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: none;
+    transform: translateY(-1px);
+  }
+
+  .note-view-switcher__toggle:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
@@ -557,8 +576,8 @@ const ui = NOTE_VIEW_UI[locale];
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .note-view-switcher__toolbar button {
-      scroll-behavior: auto;
+    .note-view-switcher__toggle {
+      transition: none;
     }
   }
 </style>

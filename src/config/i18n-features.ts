@@ -161,9 +161,8 @@ export const READING_EXPERIENCE_UI: Record<Locale, ReadingExperienceUiCopy> = {
 };
 
 export interface NoteViewUiCopy {
-  controlsLabel: string;
-  markdown: string;
-  mindmap: string;
+  switchToMarkdown: string;
+  switchToMindmap: string;
   loading: string;
   loadFailed: string;
   mindmapLabel: string;
@@ -180,9 +179,8 @@ export interface NoteViewUiCopy {
 
 export const NOTE_VIEW_UI: Record<Locale, NoteViewUiCopy> = {
   zh: {
-    controlsLabel: "笔记阅读模式",
-    markdown: "正文",
-    mindmap: "导图",
+    switchToMarkdown: "切换到正文",
+    switchToMindmap: "切换到思维导图",
     loading: "正在生成思维导图…",
     loadFailed: "思维导图加载失败，已切回 Markdown。可以重试，正文仍然可读。",
     mindmapLabel: "笔记思维导图",
@@ -197,9 +195,8 @@ export const NOTE_VIEW_UI: Record<Locale, NoteViewUiCopy> = {
     interactionHint: "拖动可平移，滚轮缩放，点击节点可展开或折叠。大型导图默认折叠较深层级，可点击节点继续展开。",
   },
   en: {
-    controlsLabel: "Note reading mode",
-    markdown: "Read",
-    mindmap: "Map",
+    switchToMarkdown: "Switch to reading view",
+    switchToMindmap: "Switch to mind map",
     loading: "Generating mind map…",
     loadFailed: "The mind map could not be loaded. Switched back to Markdown; the note remains readable.",
     mindmapLabel: "Note mind map",
