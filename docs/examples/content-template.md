@@ -19,4 +19,6 @@ npm run build:template
 
 To use a custom local template checkout, set `BLOG_TEMPLATE_ROOT=/path/to/inkerio-content-template` before assembly. For a **real** content repository, explicitly run `go run ./tools/blogctl/cmd site assemble --content-root /path/to/BlogContent`; `npm run dev:site` starts Astro without replacing the selected assembled content.
 
+The template includes a bilingual **Software System Design Mind Map** example: `/notes/sample-mindmap/` (Chinese) and `/en/notes/sample-mindmap/` (English). The note is Markdown with `defaultView: mindmap`; both URLs display their own localized Markdown or generated Markmap view. See the [mind-map how-to](../how-to/mindmap-notes.md) for controls and authoring guidelines.
+
 The engine retains only programmatic test fixtures tied to component tests (e.g. Draw.io rendering); published sample content lives exclusively in the template repository.

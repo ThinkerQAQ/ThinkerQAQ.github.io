@@ -16,3 +16,5 @@ npm run build:template
 ```
 
 需要指定其他模板路径，可设置环境变量 `BLOG_TEMPLATE_ROOT`。使用真实的私有内容时，应显式运行 `go run ./tools/blogctl/cmd site assemble --content-root /path/to/BlogContent`，随后执行 `npm run dev:site`，避免重新装配模板。
+
+模板新增了**软件系统设计思维导图**中英文示例：中文 `/notes/sample-mindmap/`、英文 `/en/notes/sample-mindmap/`。示例采用 Markdown 层级和 `defaultView: mindmap`，两种语言都可切换 Markdown / 思维导图，详见[思维导图笔记教程](../how-to/mindmap-notes.md)。

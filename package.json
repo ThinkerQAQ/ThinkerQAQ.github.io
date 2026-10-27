@@ -32,12 +32,16 @@
     "dev:quick": "npm run assemble:template && astro dev --port 4321",
     "test:umami": "node --test src/layouts/BaseLayout.umami.test.mjs",
     "test:blogctl-i18n": "node --test tools/blogctl/extension/tests/i18n.test.mjs",
-    "build:template": "npm run assemble:template && npm run build"
+    "build:template": "npm run assemble:template && npm run build",
+    "test:note-view": "node --test src/lib/note-source.test.mjs"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
     "@astrojs/sitemap": "3.7.4",
     "astro": "7.2.10",
+    "markmap-lib": "^0.18.12",
+    "markmap-toolbar": "^0.18.12",
+    "markmap-view": "^0.18.12",
     "photoswipe": "5.4.4",
     "sharp": "0.35.4"
   },

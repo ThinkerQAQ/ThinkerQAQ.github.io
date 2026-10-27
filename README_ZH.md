@@ -33,6 +33,7 @@ npm run dev:quick
 | --- | --- | --- |
 | 安装依赖并本地运行 | [快速开始](docs/zh-CN/quick-start.md) | [Quick Start](docs/quick-start.md) |
 | 添加内容与双语版本 | [站点教程](docs/zh-CN/tutorial/first-site.md) | [First site](docs/tutorial/first-site.md) |
+| 编辑交互式思维导图笔记 | [思维导图笔记](docs/zh-CN/how-to/mindmap-notes.md) | [Mind-map notes](docs/how-to/mindmap-notes.md) |
 | 替换作者身份与服务配置 | [站点个性化](docs/zh-CN/how-to/customize-site.md) | [Customize your site](docs/how-to/customize-site.md) |
 | 部署 Fork | [部署指南](docs/zh-CN/how-to/deploy.md) | [Deployment](docs/how-to/deploy.md) |
 | 查询字段和命令 | [参考手册](docs/zh-CN/reference/index.md) | [Reference](docs/reference/index.md) |
