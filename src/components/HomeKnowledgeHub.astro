@@ -255,7 +255,7 @@ const projectItems = projects.map((project) => {
           </ol>
         </div>
       )}
-      <div class="home-knowledge-categories">
+      <div class:list={["home-knowledge-categories", { "home-knowledge-categories--after-recent": recentNotes.length > 0 }]}>
         {recentNotes.length > 0 && <h3 class="home-knowledge-subheading">{copy.browseNotesTitle}</h3>}
         <ul class="home-knowledge-grid">
           {engineeringAreas.map((area) => (
@@ -345,14 +345,25 @@ const projectItems = projects.map((project) => {
   }
 
   .home-knowledge-recent {
-    margin-bottom: 2rem;
+    padding-top: 1.65rem;
+  }
+
+  .home-knowledge-categories--after-recent {
+    margin-top: 2.35rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .home-knowledge-categories:not(.home-knowledge-categories--after-recent) .home-knowledge-grid {
+    border-top: 0;
   }
 
   .home-knowledge-subheading {
-    margin: 0 0 0.8rem;
-    font-size: 0.95rem;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    margin: 0 0 1rem;
+    font-size: 1.075rem;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: -0.015em;
   }
 
   .home-recent-notes {
@@ -367,7 +378,7 @@ const projectItems = projects.map((project) => {
     align-items: baseline;
     justify-content: space-between;
     gap: 1.25rem;
-    padding: 0.9rem 0;
+    padding: 1.05rem 0;
     border-bottom: 1px solid var(--border);
   }
 
