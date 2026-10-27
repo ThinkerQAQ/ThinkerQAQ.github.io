@@ -33,7 +33,7 @@ Continue with the [first-site tutorial](docs/tutorial/first-site.md) to edit you
 | --- | --- | --- |
 | Install dependencies and run locally | [Quick Start](docs/quick-start.md) | [快速开始](docs/zh-CN/quick-start.md) |
 | Create content and translations | [First site](docs/tutorial/first-site.md) | [站点教程](docs/zh-CN/tutorial/first-site.md) |
-| Write interactive mind-map notes | [Mind-map notes](docs/how-to/mindmap-notes.md) | [思维导图笔记](docs/zh-CN/how-to/mindmap-notes.md) |
+| Switch articles and notes to mind maps | [Article and note mind maps](docs/how-to/mindmap-notes.md) | [文章与笔记思维导图](docs/zh-CN/how-to/mindmap-notes.md) |
 | Replace the author's identity and integrations | [Customize your site](docs/how-to/customize-site.md) | [站点个性化](docs/zh-CN/how-to/customize-site.md) |
 | Deploy a fork | [Deployment](docs/how-to/deploy.md) | [部署指南](docs/zh-CN/how-to/deploy.md) |
 | Check fields and commands | [Reference](docs/reference/index.md) | [参考手册](docs/zh-CN/reference/index.md) |

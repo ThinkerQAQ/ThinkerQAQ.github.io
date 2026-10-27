@@ -8,7 +8,7 @@ Inkerio builds an Astro site from Markdown kept in a separate repository. [inker
 | --- | --- |
 | Running the engine locally | [Quick Start](quick-start.md) |
 | Setting up a content checkout | [Tutorial](tutorial/first-site.md) |
-| Writing Markdown and mind-map notes | [Mind-map notes](how-to/mindmap-notes.md) |
+| Article and note mind-map views | [Article and note mind maps](how-to/mindmap-notes.md) |
 | Replacing the author’s name, domain and services | [Customize your site](how-to/customize-site.md) |
 | Understanding content assembly and deployment | [System architecture](concepts/system.md) |
 | Working with search, analytics or Workers | [Integrations](concepts/search-and-integrations.md) |

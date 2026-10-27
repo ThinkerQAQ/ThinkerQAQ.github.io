@@ -1,6 +1,19 @@
-# Add an interactive mind-map note
+# Switch articles and notes between reading and mind-map views
 
-Inkerio renders **note Markdown** in two views: normal Markdown and an interactive Markmap mind map. Both views use the same source content; the mind map is not an uploaded image or an editable `.xmind` file.
+Inkerio renders **article and note Markdown** in two views: normal Markdown and an interactive Markmap mind map. Both views use the same source content; the mind map is not an uploaded image or an editable `.xmind` file.
+
+## Existing articles and notes
+
+Every article and note detail page has a floating view-switch button near the lower-right corner, including older content and translated pages. No per-page opt-in or content migration is required. Index/category pages do not have a full-body mind-map view.
+
+| Content | Initial view | Translation behavior |
+| --- | --- | --- |
+| Article | Reading view unless its own `defaultView` says otherwise | Uses its own translated body and setting |
+| Note | Reading view unless `defaultView: mindmap` | Inherits the original note's setting and uses its own translated body |
+
+To open an existing article as a map by default, add `defaultView: mindmap` to its existing frontmatter in `src/content/articles/<slug>.md`; set it separately in `src/content/articles/en/<slug>.md` if desired. Keep all existing publication metadata. Omitting the field keeps reading view as the default.
+
+The map renderer and Markdown source load on demand when switching to the map. If loading fails, the original body remains readable and switching can be retried. If the button is missing on a detail page, close the AI panel/mobile reading navigation or exit map fullscreen; those modes temporarily hide the floating button. Check that JavaScript is enabled and that the deployed engine includes this feature.
 
 ## 1. Write a structured note
 
