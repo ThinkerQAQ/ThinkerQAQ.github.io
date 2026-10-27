@@ -41,6 +41,7 @@ const notes = defineCollection({
     status: z.enum(["active", "historical"]).default("active"),
     language: z.enum(SUPPORTED_LOCALES).default("zh"),
     featured: z.boolean().default(false),
+    defaultView: z.enum(["markdown", "mindmap"]).default("markdown"),
     indexable: z.boolean().default(true),
     canonicalPath: z.string().optional(),
   }),

@@ -159,3 +159,58 @@ export const READING_EXPERIENCE_UI: Record<Locale, ReadingExperienceUiCopy> = {
     jumpToEnd: "Jump to reading end",
   },
 };
+
+export interface NoteViewUiCopy {
+  controlsLabel: string;
+  markdown: string;
+  mindmap: string;
+  loading: string;
+  loadFailed: string;
+  mindmapLabel: string;
+  mindmapControlsLabel: string;
+  zoomIn: string;
+  zoomOut: string;
+  fit: string;
+  recurse: string;
+  fullscreen: string;
+  exitFullscreen: string;
+  fullscreenFailed: string;
+  interactionHint: string;
+}
+
+export const NOTE_VIEW_UI: Record<Locale, NoteViewUiCopy> = {
+  zh: {
+    controlsLabel: "笔记视图",
+    markdown: "Markdown",
+    mindmap: "思维导图",
+    loading: "正在生成思维导图…",
+    loadFailed: "思维导图加载失败，已切回 Markdown。可以重试，正文仍然可读。",
+    mindmapLabel: "笔记思维导图",
+    mindmapControlsLabel: "思维导图画布控制",
+    zoomIn: "放大",
+    zoomOut: "缩小",
+    fit: "全局视图",
+    recurse: "递归展开/折叠",
+    fullscreen: "全屏",
+    exitFullscreen: "退出全屏",
+    fullscreenFailed: "无法进入全屏模式，请检查浏览器权限或改用普通画布。",
+    interactionHint: "拖动可平移，滚轮缩放，点击节点可展开或折叠。大型导图默认折叠较深层级，可点击节点继续展开。",
+  },
+  en: {
+    controlsLabel: "Note view",
+    markdown: "Markdown",
+    mindmap: "Mind map",
+    loading: "Generating mind map…",
+    loadFailed: "The mind map could not be loaded. Switched back to Markdown; the note remains readable.",
+    mindmapLabel: "Note mind map",
+    mindmapControlsLabel: "Mind map canvas controls",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    fit: "Fit overview",
+    recurse: "Toggle recursively",
+    fullscreen: "Fullscreen",
+    exitFullscreen: "Exit fullscreen",
+    fullscreenFailed: "Could not enter fullscreen. Check browser permissions or continue in the regular canvas.",
+    interactionHint: "Drag to pan, scroll to zoom, and click a node to expand or collapse it. Large maps start with deeper levels collapsed; click nodes to expand them.",
+  },
+};
