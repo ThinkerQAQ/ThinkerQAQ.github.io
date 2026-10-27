@@ -42,7 +42,9 @@
 
 笔记必填 `title`、`description`、`sourcePath`、`category`、`categoryLabel`、正整数 `order` 和 `updatedAt`。`sourcePath` 记录来源，`category` 用于路由，`categoryLabel` 用于展示。可选 `topic`、`topicLabel` 和 `topicPath` 组织主题；`topicPath` 每项包含 `id` 和可选 `label`。
 
-笔记的 `status` 是 `active` 或 `historical`，默认 `active`，与文章的草稿状态不同。还可设置 `tags`、`featured`、`indexable`、`language`、可选 `createdAt` 和 `canonicalPath`。`indexable` 默认为 `true`。
+笔记的 `status` 是 `active` 或 `historical`，默认 `active`，与文章的草稿状态不同。还可设置 `tags`、`featured`、`indexable`、`language`、可选 `createdAt` 和 `canonicalPath`。`indexable` 默认为 `true`。`defaultView` 可设为 `markdown` 或 `mindmap`，默认是 `markdown`；设置 `defaultView: mindmap` 后，浏览器启用 JavaScript 时会优先展示生成的思维导图。英文翻译继承原笔记的默认视图，但导图正文始终读取英文翻译自己的 Markdown。
+
+思维导图依据 Markdown 标题和嵌套列表生成，支持缩放、平移、全局适配、折叠和全屏；当前不直接解析 `.xmind` 文件。用法与双语示例参见[思维导图教程](../how-to/mindmap-notes.md)。
 
 笔记翻译必填 `title`、`description`、`translationOf`、`language`、`updatedAt`，正文填写翻译内容。例如原文是 `notes/go/memory.md`，英文翻译使用 `translationOf: go/memory`，关联到 `/en/notes/go/memory/`。
 

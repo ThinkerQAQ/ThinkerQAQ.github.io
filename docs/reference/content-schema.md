@@ -42,7 +42,9 @@ Drafts are excluded by default, including local preview. `INCLUDE_DRAFTS=true` e
 
 Notes require `title`, `description`, `sourcePath`, `category`, `categoryLabel`, positive integer `order`, and `updatedAt`. `sourcePath` records provenance; `category` is a route identifier and `categoryLabel` its display text. `topic`, `topicLabel`, and `topicPath` optionally organize topics; each `topicPath` item has an `id` and optional `label`.
 
-`status` is `active` or `historical` (default `active`), not the article draft/published status. `tags`, `featured`, `indexable`, `language`, optional `createdAt`, and optional `canonicalPath` control presentation and indexing. `indexable` defaults to `true`.
+`status` is `active` or `historical` (default `active`), not the article draft/published status. `tags`, `featured`, `indexable`, `language`, optional `createdAt`, and optional `canonicalPath` control presentation and indexing. `indexable` defaults to `true`. `defaultView` accepts `markdown` or `mindmap` and defaults to `markdown`; set `defaultView: mindmap` to prefer the generated mind map when JavaScript is available. A translated page inherits this preference from its original note but builds the map from its own translated Markdown body.
+
+The mind-map renderer is based on Markdown headings and nested lists, with zoom, pan, fit, collapse, and fullscreen controls. It does not parse `.xmind` files directly; see [mind-map authoring](../how-to/mindmap-notes.md) and the bilingual public template example.
 
 A note translation requires `title`, `description`, `translationOf`, `language`, and `updatedAt`; its body is translated Markdown. For an original `notes/go/memory.md`, use `translationOf: go/memory` to keep the English route `/en/notes/go/memory/` attached to that original.
 
