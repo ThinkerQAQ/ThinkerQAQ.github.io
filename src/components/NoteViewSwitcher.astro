@@ -39,8 +39,8 @@ const ui = NOTE_VIEW_UI[locale];
     data-pagefind-ignore="all"
     hidden
   >
-    <button type="button" data-note-view="markdown" aria-pressed="true">{ui.markdown}</button>
-    <button type="button" data-note-view="mindmap" aria-pressed="false">{ui.mindmap}</button>
+    <button type="button" data-note-view="markdown" aria-label="Markdown" aria-pressed="true">{ui.markdown}</button>
+    <button type="button" data-note-view="mindmap" aria-label={ui.mindmapLabel} aria-pressed="false">{ui.mindmap}</button>
   </div>
   <p
     class="note-view-switcher__status"
@@ -315,7 +315,15 @@ const ui = NOTE_VIEW_UI[locale];
 
     buttons.forEach((button) => {
       button.addEventListener("click", () => {
-        requestView(button.dataset.noteView === "mindmap" ? "mindmap" : "markdown");
+        const nextView = button.dataset.noteView === "mindmap" ? "mindmap" : "markdown";
+        if (nextView === activeView && nextView === requestedView) return;
+        requestView(nextView);
+        // A floating switch may be used far below the note's beginning.
+        // Bring the selected view into sight instead of leaving the reader below a collapsed page.
+        root.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          block: "start",
+        });
       });
     });
 
@@ -342,7 +350,27 @@ const ui = NOTE_VIEW_UI[locale];
       }));
     });
 
-    toolbar.hidden = false;
+    const askToggle = document.querySelector<HTMLElement>("[data-ask-toggle]");
+    const syncFloatingControls = () => {
+      const askOpen = askToggle?.getAttribute("aria-expanded") === "true";
+      const mobileNavigationOpen = document.body.classList.contains("mobile-reading-nav-open");
+      const mapFullscreen = document.fullscreenElement === mindmapPanel;
+      toolbar.hidden = Boolean(askOpen || mobileNavigationOpen || mapFullscreen);
+    };
+
+    if (askToggle) {
+      new MutationObserver(syncFloatingControls).observe(askToggle, {
+        attributes: true,
+        attributeFilter: ["aria-expanded"],
+      });
+    }
+    new MutationObserver(syncFloatingControls).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    document.addEventListener("fullscreenchange", syncFloatingControls);
+
+    syncFloatingControls();
     if (root.dataset.defaultView === "mindmap") requestView("mindmap");
   };
 
@@ -352,6 +380,7 @@ const ui = NOTE_VIEW_UI[locale];
 <style>
   .note-view-switcher {
     min-width: 0;
+    scroll-margin-top: calc(var(--site-header-height, 4rem) + 1rem);
   }
 
   .note-view-switcher [hidden] {
@@ -359,32 +388,56 @@ const ui = NOTE_VIEW_UI[locale];
   }
 
   .note-view-switcher__toolbar {
+    position: fixed;
+    z-index: 20;
+    right: var(--floating-action-edge);
+    bottom: calc(
+      var(--floating-action-edge) +
+      var(--floating-footer-offset) +
+      var(--floating-action-jump-offset) +
+      var(--floating-action-jump-size) +
+      var(--floating-action-stack-gap)
+    );
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin: 0 0 1rem;
-  }
-
-  .note-view-switcher__toolbar button {
-    padding: 0.42rem 0.82rem;
+    align-items: center;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0.22rem;
     border: 1px solid var(--border);
     border-radius: 999px;
     background: var(--surface);
-    color: var(--text);
+    box-shadow: var(--shadow);
+    transition: bottom 140ms ease, border-color 160ms ease;
+  }
+
+  .note-view-switcher__toolbar button {
+    min-height: 2.1rem;
+    padding: 0.35rem 0.65rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
     font: inherit;
-    font-size: 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
     cursor: pointer;
   }
 
   .note-view-switcher__toolbar button[aria-pressed="true"] {
-    border-color: var(--text);
     background: var(--text);
     color: var(--surface);
   }
 
+  .note-view-switcher__toolbar button:hover:not([aria-pressed="true"]) {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+
   .note-view-switcher__toolbar button:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: 3px;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .note-view-switcher__status {

@@ -180,9 +180,9 @@ export interface NoteViewUiCopy {
 
 export const NOTE_VIEW_UI: Record<Locale, NoteViewUiCopy> = {
   zh: {
-    controlsLabel: "笔记视图",
-    markdown: "Markdown",
-    mindmap: "思维导图",
+    controlsLabel: "笔记阅读模式",
+    markdown: "正文",
+    mindmap: "导图",
     loading: "正在生成思维导图…",
     loadFailed: "思维导图加载失败，已切回 Markdown。可以重试，正文仍然可读。",
     mindmapLabel: "笔记思维导图",
@@ -197,9 +197,9 @@ export const NOTE_VIEW_UI: Record<Locale, NoteViewUiCopy> = {
     interactionHint: "拖动可平移，滚轮缩放，点击节点可展开或折叠。大型导图默认折叠较深层级，可点击节点继续展开。",
   },
   en: {
-    controlsLabel: "Note view",
-    markdown: "Markdown",
-    mindmap: "Mind map",
+    controlsLabel: "Note reading mode",
+    markdown: "Read",
+    mindmap: "Map",
     loading: "Generating mind map…",
     loadFailed: "The mind map could not be loaded. Switched back to Markdown; the note remains readable.",
     mindmapLabel: "Note mind map",
