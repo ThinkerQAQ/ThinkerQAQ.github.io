@@ -33,7 +33,7 @@
     "test:umami": "node --test src/layouts/BaseLayout.umami.test.mjs",
     "test:blogctl-i18n": "node --test tools/blogctl/extension/tests/i18n.test.mjs",
     "build:template": "npm run assemble:template && npm run build",
-    "test:note-view": "node --test src/lib/note-source.test.mjs"
+    "test:note-view": "node --test src/lib/note-source.test.mjs src/lib/article-source.test.mjs"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",

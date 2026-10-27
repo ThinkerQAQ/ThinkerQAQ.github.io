@@ -78,6 +78,7 @@ const articles = defineCollection({
     tags: z.array(z.string()).default([]),
     status: z.enum(["draft", "published"]).default("draft"),
     featured: z.boolean().default(false),
+    defaultView: z.enum(["markdown", "mindmap"]).default("markdown"),
     series: z.string().optional(),
     project: z.string().optional(),
     translationOf: z.string().optional(),
