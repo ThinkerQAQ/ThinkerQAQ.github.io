@@ -92,3 +92,26 @@ func TestHashnodeEnglishSourceTrackingAndCanonical(t *testing.T) {
 		t.Fatalf("series metadata lost: %+v %v", article, err)
 	}
 }
+
+func TestCopyrightFooterWithLegacyCustomTemplate(t *testing.T) {
+	original := "https://thinkerqaq.com/articles/example/"
+	for _, language := range []string{"zh-CN", "en"} {
+		profile := defaultPlatformConfig("juejin")
+		profile.Language = language
+		profile.Footer.Template = "> {site} [{title}]({url})"
+		footer := renderFooter(profile, original, "Example")
+		if !strings.Contains(footer, "[Example]") || !strings.Contains(footer, "utm_source=juejin") {
+			t.Fatalf("legacy tracking footer changed: %s", footer)
+		}
+		if !strings.Contains(footer, "© ThinkerQAQ") || !strings.Contains(footer, original+")") {
+			t.Fatalf("missing copyright or untracked original link: %s", footer)
+		}
+		if strings.Count(footer, "© ThinkerQAQ") != 1 {
+			t.Fatalf("duplicate copyright: %s", footer)
+		}
+		profile.Footer.Enabled = false
+		if got := renderFooter(profile, original, "Example"); got != "" {
+			t.Fatalf("disabled footer must remain disabled: %s", got)
+		}
+	}
+}

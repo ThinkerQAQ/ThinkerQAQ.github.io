@@ -176,3 +176,14 @@ func TestMediumSectionReferencesUseOriginalArticleInsteadOfBrokenMediumFragments
 		t.Fatal("copy fallback has a broken fragment")
 	}
 }
+
+func TestMediumCopyrightFooterUsesOneNativeBlockquote(t *testing.T) {
+	profile := defaultPlatformConfig("medium")
+	footer := mediumFooter(Article{Title: "Example"}, "https://thinkerqaq.com/en/articles/example/", profile)
+	if footer == nil || !strings.Contains(footer.Text, "© ThinkerQAQ") || !strings.Contains(footer.Text, "Original article") {
+		t.Fatalf("missing copyright notice in Medium native footer: %+v", footer)
+	}
+	if strings.Contains(footer.Text, "> ") {
+		t.Fatalf("raw markdown leaked: %+v", footer)
+	}
+}

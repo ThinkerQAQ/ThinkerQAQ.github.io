@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	blogplatform "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/platform"
+	blogpublishing "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publishing"
 )
 
 type CompileOptions struct {
@@ -94,7 +95,10 @@ func renderFooter(config PlatformConfig, canonical, title string) string {
 	v = strings.ReplaceAll(v, "{url}", trackedURL(canonical, config))
 	v = strings.ReplaceAll(v, "{title}", title)
 	v = strings.ReplaceAll(v, "{site}", site)
-	return strings.TrimSpace(v)
+	// Preserve custom/legacy attribution templates while appending the same
+	// copyright policy displayed by the site. Keep the canonical URL untracked.
+	copy := blogpublishing.Copyright(config.Language)
+	return strings.TrimSpace(v) + "\n\n> " + copy.Syndication + " [" + copy.Source + "](" + canonical + ")"
 }
 func normalizeDevtoTags(tags []string) []string {
 	var result []string

@@ -77,6 +77,8 @@ Running indexing tasks block site edits. Queued tasks retain their site identity
 | `[publishing.assets]` | `store` (`r2`) |
 | `[publishing.assets.r2]` | `bucket`, `public_base_url`, `account_id`, `endpoint`, `access_key_id`, `secret_access_key` |
 
+When a platform's `.footer.enabled` is true, BlogCTL preserves its existing `template` (including UTM source links) and **appends a localized copyright notice plus the untracked original article URL**. The notice and Inkerio's page notice share `tools/blogctl/publishing/copyright.json`; rebuild BlogCTL to update an installed executable. Older `blogctl.toml` files keep their existing footer template and gain the new notice automatically. Turning off `.footer.enabled` disables both the traditional footer and the copyright notice. Native Canonical URL settings are unchanged. Existing remote posts are not rewritten until an explicitly requested Create/Update.
+
 Dotted rows are nested under the platform section, for example `[publishing.platforms.devto.footer]`. DEV.to, Medium and Hashnode default to English and native canonical mode; other registered platforms use their default language and footer mode. Article language selects an existing source translation; it does not translate text.
 
 Configure your own R2 bucket and credentials before publishing assets. The author's built-in public asset base grants no write access to that bucket.
