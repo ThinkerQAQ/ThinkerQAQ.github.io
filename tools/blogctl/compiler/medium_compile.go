@@ -73,6 +73,7 @@ func mediumFooter(article Article, canonical string, profile PlatformConfig) *me
 			markdown = markdown[1:]
 		}
 	}
+	markdown = strings.ReplaceAll(markdown, "\n\n> ", " ")
 	inline := parseMediumInline(strings.TrimSpace(markdown), nil)
 	return &inline
 }

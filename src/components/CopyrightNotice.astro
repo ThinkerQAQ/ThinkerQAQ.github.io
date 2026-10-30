@@ -1,0 +1,27 @@
+---
+import type { Locale } from "../config/i18n";
+import policy from "../../tools/blogctl/publishing/copyright.json";
+
+interface Props { locale: Locale; kind?: "content" | "photography"; }
+const { locale, kind = "content" } = Astro.props;
+const copy = policy[locale];
+---
+
+<aside class="copyright-notice" aria-label={copy.title}>
+  <p class="copyright-notice__title">{copy.title}</p>
+  <p>{kind === "photography" ? copy.photo : copy.notice}</p>
+</aside>
+
+<style>
+  .copyright-notice {
+    max-width: 48rem;
+    margin-block: 2.5rem 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.8;
+  }
+  .copyright-notice p { margin: 0; }
+  .copyright-notice .copyright-notice__title { font-weight: 600; margin-bottom: 0.3rem; }
+</style>

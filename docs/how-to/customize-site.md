@@ -44,3 +44,11 @@ Assemble your chosen content, run `npm run check`, then `npm run build` and `npm
 ## Article syndication domain
 
 BlogCTL currently builds canonical and root-relative publishing links from the `SiteOrigin` constant in `tools/blogctl/compiler/markdown.go`. Changing the website settings above or the indexing `[search]` configuration does not update that constant. Adapt and inspect compiled links before syndicating a fork. Also configure your own R2 asset store; the author’s public asset URL does not grant upload access.
+
+## Copyright notices for content and photography
+
+The `CopyrightNotice` component renders the same bilingual policy across article and note detail pages, Life record pages, and the Life index (with a shorter photography notice). It is shown before comments or reactions and does not alter canonical metadata or Markdown content. Site-wide `©` in the footer is a separate, short attribution.
+
+The **single source of text** for these notices and BlogCTL syndication is `tools/blogctl/publishing/copyright.json`. Edit the `zh` and `en` entries there to suit your site, including the author name and permissions; the Go publisher embeds this file at build time, and Astro imports it during its build. Rebuild and reinstall BlogCTL after changing the policy so the installed binary contains the new text. Content and code have separate licenses: the repository's MIT license for code does not license third-party materials or original photographs.
+
+Do not add the same legal notice to individual Markdown files: it causes duplicate notices when the layout renders the component. Third-party images, quoted works, and software examples still require their own attribution and licensing checks; a blanket notice does not establish ownership of them.
