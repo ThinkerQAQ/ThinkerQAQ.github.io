@@ -93,3 +93,11 @@ api_key = "YOUR_PERSONAL_BUFFER_API_KEY"
 The Bridge masks the saved key in API responses. `BUFFER_API_KEY` is a fallback when it is empty; Bash startup variables may not reach a Windows or noninteractive Bridge. See [Buffer publishing](../guide/social-publishing.md).
 
 Implementation: [Bridge config](../../bridge/config.go), [publishing config](../../publishing/config.go). Keep real configuration, credentials and Data files out of Git.
+
+## MCP and Secure Tunnel
+
+MCP does not introduce a new `[mcp]` permission section or modify your publishing settings. Use `blogctl -mcp-stdio` on the machine running the signed-in browser extension. Configure the Secure MCP Tunnel in a **private** tunnel-client profile (tunnel ID, API-key reference, and command path); never commit the profile, credential or the installed `Data/` directory. The existing Bridge still reads `blogctl.toml`. For the full setup and session refresh behavior, see [MCP integration](../MCP.md).
+
+### Local image upload authorization
+
+`upload_image_to_r2` only accepts images under `content_root` or local top-level `image_upload_roots = ['C:\Pictures']`. Do not permit broad system roots. These roots are not returned through the Bridge configuration API. Node.js, the Inkerio `engine_root` checkout and its `sharp` dependency must be installed. R2 uses the existing `[publishing.assets.r2]` settings; no credentials are added to MCP.

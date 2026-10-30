@@ -6,7 +6,7 @@
 
 | 命令 | 运行位置 |
 | --- | --- |
-| `help`、`install`、`uninstall` | 不要求引擎仓库 |
+| `help`、`install`、`uninstall`、`-mcp-stdio` | 不要求引擎仓库（MCP 复用本机 Bridge） |
 | `social ...` | 使用本地配置与指定内容，见 [Buffer 指南](../guide/social-publishing.md) |
 | `sync`、`toutiao` | 内容仓库，或通过环境变量显式定位工作区 |
 | `doctor`、`dev`、`preview`、`build`、`check`、`test`、`site`、`search`、`ai-search`、`diagrams` | Inkerio 引擎目录内 |
@@ -56,3 +56,7 @@ Dry-run 不需要浏览器连接，但可能安装 Node 依赖、在本地保存
 `blogctl social channels|source|create|list|show|stage|reconcile|publish` 管理本地短文和 Buffer 操作，[指南](../guide/social-publishing.md)说明输入及版本检查。
 
 `toutiao probe --har FILE` 是开发诊断，不作为日常发布入口。HAR 可能包含账号凭据，应保存在仓库外；日常使用已支持的工作台流程。
+
+## MCP / ChatGPT 集成
+
+`blogctl -mcp-stdio` 启动仅提供 STDIO 的 MCP 服务，直接调用已有 Bridge，不重复实现发布逻辑。Windows Edge 登录态需要使用同一 Windows 实例的 BlogCTL；WSL 的 Bridge 不会自动共享 Windows Cookie。参见 [MCP 接入](../../MCP.md)。

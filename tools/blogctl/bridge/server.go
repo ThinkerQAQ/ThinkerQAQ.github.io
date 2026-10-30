@@ -189,6 +189,7 @@ type Server struct {
 
 	mu             sync.Mutex
 	distributionMu sync.Mutex
+	sessionRefresh map[string]time.Time
 	sessions       map[string]platformSession
 	jobs           map[string]*syncJob
 	jobOrder       []string
@@ -224,6 +225,7 @@ func New(token string) (*Server, error) {
 		httpClient:      client,
 		config:          config,
 		sessions:        make(map[string]platformSession),
+		sessionRefresh:  make(map[string]time.Time),
 		mediumUploads:   newMediumBrowserUploadHub(),
 		toutiaoRequests: newToutiaoBrowserHub(),
 		jobs:            syncJobs,
@@ -286,6 +288,38 @@ func (s *Server) serveHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 
+	if request.URL.Path == "/v1/mcp/images/upload" {
+		if request.Header.Get("x-thinkerqaq-token") != s.token {
+			writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
+			return
+		}
+		s.handleMCPImageUpload(response, request)
+		return
+	}
+	if request.URL.Path == "/v1/mcp/session-refresh" {
+		if request.Header.Get("x-thinkerqaq-token") != s.token {
+			writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
+			return
+		}
+		s.handleMCPSessionRefresh(response, request)
+		return
+	}
+	if request.URL.Path == "/v1/mcp/platforms" && request.Method == http.MethodGet {
+		if request.Header.Get("x-thinkerqaq-token") != s.token {
+			writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
+			return
+		}
+		s.handleMCPPlatforms(response)
+		return
+	}
+	if strings.HasPrefix(request.URL.Path, "/v1/mcp/article/") && request.Method == http.MethodGet {
+		if request.Header.Get("x-thinkerqaq-token") != s.token {
+			writeAPIError(response, http.StatusUnauthorized, "unauthorized", "invalid bridge token", nil)
+			return
+		}
+		s.handleMCPArticle(response, request)
+		return
+	}
 	path := strings.Trim(request.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if path == "v1/remote/inventory" && request.Method == http.MethodPost {
@@ -1124,7 +1158,11 @@ func (s *Server) handleSyncStart(response http.ResponseWriter, request *http.Req
 		writeAPIError(response, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
-	job := s.startSyncJob(normalized)
+	job, err := s.startSyncJob(normalized)
+	if err != nil {
+		writeAPIError(response, http.StatusConflict, "duplicate_request", err.Error(), nil)
+		return
+	}
 	writeJSON(response, http.StatusAccepted, map[string]any{"ok": true, "job": job})
 }
 
@@ -1239,6 +1277,7 @@ func (s *Server) handleSession(response http.ResponseWriter, request *http.Reque
 		userAgent = userAgent[:512]
 	}
 	s.mu.Lock()
+	delete(s.sessionRefresh, platform)
 	s.sessions[platform] = platformSession{
 		Cookies:              cookies,
 		BrowserCookies:       append([]browserCookie{}, body.Cookies...),

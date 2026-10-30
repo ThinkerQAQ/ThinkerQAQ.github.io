@@ -68,3 +68,9 @@ curl http://127.0.0.1:32145/v1/health
 升级时保留 `Data/`，一起替换程序和扩展，再从浏览器扩展页重新加载、打开工作台。程序位置变化时重新注册。排查版本不一致时，先确认没有旧 Bridge 进程仍在运行。
 
 下一步查看[创建首个草稿](tutorial/first-publish.md)、[新机器教程](tutorial/first-run-on-new-machine.md)或[连接排查](how-to/debug-bridge.md)。
+
+## 可选：使用 ChatGPT MCP
+
+安装版本匹配的 BlogCTL 程序和 Edge/Chrome 扩展后，可通过独立的 Secure MCP Tunnel 启动 `blogctl -mcp-stdio`。MCP 调用已有 Bridge，并由浏览器扩展同步 Cookie。不要在 WSL 启动独立 Bridge 代替 Windows 的浏览器登录态。参见 [MCP 接入](../MCP.md)。
+
+需要图片上传时，配置 `engine_root`、Node.js 和 Sharp，以及 TOML 顶层 `image_upload_roots` 白名单；先用 `dry_run=true` 验证清理结果。参见 [MCP 图片上传](../MCP.md#private-image-upload-to-r2)。

@@ -6,7 +6,7 @@ Run `blogctl help` to inspect your installed executable. Source dispatch is in [
 
 | Commands | Where to run |
 | --- | --- |
-| `help`, `install`, `uninstall` | No engine checkout required |
+| `help`, `install`, `uninstall`, `-mcp-stdio` | No engine checkout required (`-mcp-stdio` uses the installed local Bridge) |
 | `social ...` | Uses local configuration and explicit content inputs; see [Buffer guide](../guide/social-publishing.md) |
 | `sync`, `toutiao` | Content checkout, or explicit workspace environment variables |
 | `doctor`, `dev`, `preview`, `build`, `check`, `test`, `site`, `search`, `ai-search`, `diagrams` | Inside the Inkerio engine checkout |
@@ -56,3 +56,7 @@ Registered IDs are in [`platform/capabilities.go`](../../platform/capabilities.g
 `blogctl social channels|source|create|list|show|stage|reconcile|publish` manages local drafts and Buffer operations. [The guide](../guide/social-publishing.md) defines inputs and revision checks.
 
 `toutiao probe --har FILE` is a developer diagnostic, not the recommended publication path. HAR files can contain account credentials; keep captures out of the repository and use the normal supported UI for everyday work.
+
+## MCP / ChatGPT integration
+
+`blogctl -mcp-stdio` starts a **STDIO-only** MCP server that delegates to the same local Bridge used by the Extension and Web Console. No repository checkout is needed when running the installed binary. Use the same Windows instance as the logged-in Edge extension; WSL/Linux processes have separate local Bridges. Available tools include article reads, publishing previews, explicitly targeted draft creation/update/publication, and task lookup. See [MCP integration](../MCP.md).

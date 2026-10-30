@@ -7,6 +7,7 @@ BlogCTL 是 Inkerio 配套的管理与分发工具，负责文章装配、多平
 | 要做什么 | 对应文档 |
 | --- | --- |
 | 安装程序和浏览器扩展 | [快速开始](quick-start.md) |
+| ChatGPT MCP 与本机 Bridge 集成 | [MCP 接入](../MCP.md) |
 | 在新机器安装并对照界面操作 | [新人上手教程](tutorial/first-run-on-new-machine.md) |
 | 创建第一篇远端草稿 | [第一次发布教程](tutorial/first-publish.md) |
 | 理解 Bridge、会话和发布模型 | [核心概念](concepts/index.md) |
