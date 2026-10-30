@@ -34,6 +34,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && (os.Args[1] == "-mcp-stdio" || os.Args[1] == "mcp-stdio") {
+		if err := runMCPStdio(); err != nil {
+			fmt.Fprintln(os.Stderr, "blogctl mcp:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--bridge" {
 		if err := runBridgeProcess(); err != nil {
 			fmt.Fprintln(os.Stderr, err)

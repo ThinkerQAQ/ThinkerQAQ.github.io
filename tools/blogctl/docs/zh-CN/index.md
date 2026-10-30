@@ -16,3 +16,5 @@ BlogCTL 是 Inkerio 配套的管理与分发工具，负责文章装配、多平
 | 理解模块边界 | [架构](architecture/index.md) |
 
 Agent 开发规则见仓库根目录的 [AGENTS.md](../../../../AGENTS.md) 和 [BlogCTL Agent Contract](../../AGENTS.md)。
+
+- [ChatGPT / MCP 接入说明](../MCP.md)

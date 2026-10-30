@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -46,6 +47,7 @@ type explicitTaskTarget struct {
 
 type syncRequest struct {
 	Targets                []explicitTaskTarget `json:"targets,omitempty"`
+	RequestID              string               `json:"requestId,omitempty"`
 	PublishAfter           bool                 `json:"publishAfter,omitempty"`
 	Article                string               `json:"article"`
 	Platforms              []string             `json:"platforms"`
@@ -851,6 +853,12 @@ func updatePublishing(config bridgeConfig, views []publishingPlatformView) (brid
 }
 
 func normalizeSyncRequest(request syncRequest) (syncRequest, error) {
+	if request.RequestID != "" {
+		if len(request.RequestID) > 128 || !mcpRequestID.MatchString(request.RequestID) {
+			return request, errors.New("invalid requestId")
+		}
+	}
+
 	// Explicit create/update/publish-draft use the same article/platform validation but a
 	// distinct task contract; they NEVER read PublicationBinding for targets.
 	operation := strings.ToLower(strings.TrimSpace(request.Operation))
@@ -1590,12 +1598,24 @@ func (s *Server) launchSyncJob(jobID string, request syncRequest, config bridgeC
 	}()
 }
 
-func (s *Server) startSyncJob(request syncRequest) *syncJob {
+func (s *Server) startSyncJob(request syncRequest) (*syncJob, error) {
 	startedAt := s.now().UTC()
 	job := newSyncJob(newJobID(), request, startedAt)
-	slog.Info("publishing task started", "jobId", job.ID, "article", request.Article, "operation", request.Operation, "platformCount", len(request.Platforms))
-
 	s.mu.Lock()
+	if request.RequestID != "" {
+		for _, existing := range s.jobs {
+			if existing == nil || existing.Request.RequestID != request.RequestID {
+				continue
+			}
+			if !reflect.DeepEqual(existing.Request, request) {
+				s.mu.Unlock()
+				return nil, errors.New("requestId was already used for a different publishing operation")
+			}
+			found := cloneSyncJob(existing)
+			s.mu.Unlock()
+			return found, nil
+		}
+	}
 	if s.jobs == nil {
 		s.jobs = map[string]*syncJob{}
 	}
@@ -1607,8 +1627,9 @@ func (s *Server) startSyncJob(request syncRequest) *syncJob {
 	response := cloneSyncJob(job)
 	s.mu.Unlock()
 
+	slog.Info("publishing task started", "jobId", job.ID, "article", request.Article, "operation", request.Operation, "platformCount", len(request.Platforms))
 	s.launchSyncJob(job.ID, request, config)
-	return response
+	return response, nil
 }
 
 func cloneSyncJob(job *syncJob) *syncJob {

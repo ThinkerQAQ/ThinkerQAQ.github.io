@@ -1743,8 +1743,32 @@ function beginMediumUploadPump() {
   void pollMediumUploads();
 }
 
+// MCP-driven publishing can start without opening the extension UI. MV3
+// alarms wake the background worker to refresh its ordinary browser session.
+const MCP_SESSION_ALARM = "blogctl-mcp-session-refresh";
+let mcpRefreshRunning = false;
+async function pollMCPSessionRefresh() {
+  if (mcpRefreshRunning) return;
+  mcpRefreshRunning = true;
+  try {
+    const response = await fetchJSON("/v1/mcp/session-refresh");
+    for (const platform of response?.pending ?? []) {
+      if (!PLATFORM_SESSIONS[platform]) continue;
+      try { await syncPlatformSession(platform); }
+      catch (error) { console.warn("BlogCTL MCP session refresh:", platform, errorMessage(error)); }
+    }
+  } catch (error) {
+    // Bridge is optional when no MCP operation is pending.
+    console.debug("BlogCTL MCP refresh poll:", errorMessage(error));
+  } finally {
+    mcpRefreshRunning = false;
+  }
+}
+chrome.alarms?.create(MCP_SESSION_ALARM, { periodInMinutes: 0.5 }).catch(() => {});
+
 chrome.alarms?.onAlarm.addListener((alarm) => {
   if (alarm.name === MEDIUM_UPLOAD_ALARM) { void pollMediumUploads(); void pollToutiaoRequests(); }
+  if (alarm.name === MCP_SESSION_ALARM) void pollMCPSessionRefresh();
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

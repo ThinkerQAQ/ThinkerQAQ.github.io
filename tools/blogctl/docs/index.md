@@ -16,3 +16,5 @@ BlogCTL is Inkerio's companion application for site assembly, browser-assisted p
 | Reviewing architectural boundaries | [Architecture](architecture/index.md) |
 
 For development, read the [root rules](../../../AGENTS.md) and [BlogCTL rules](../AGENTS.md).
+
+- [MCP / ChatGPT integration](MCP.md)

@@ -52,3 +52,7 @@ go run ./tools/blogctl/cmd/maint package
 构建产物位于 `.build/out/`。打包生成六个平台可执行文件、扩展 ZIP 和校验和。修改代码前请阅读[根目录规则](../../AGENTS.md)和 [BlogCTL 规则](AGENTS.md)。
 
 [MIT License](../../LICENSE)
+
+## MCP 集成
+
+使用现有 Go Bridge 和浏览器扩展为 ChatGPT 提供文章查询、发布与任务查询。运行 `blogctl -mcp-stdio`，详见 [MCP 接入文档](docs/MCP.md)。不需要额外 Skill 或 SQLite。
