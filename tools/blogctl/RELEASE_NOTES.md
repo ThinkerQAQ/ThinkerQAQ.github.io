@@ -1,3 +1,11 @@
+# BlogCTL v0.1.190
+
+MCP 新增本地图片隐私清理和 R2 上传：支持 JPEG/PNG/WebP、EXIF 自动旋转与去除元数据、实际输出校验、SHA-256 版本化地址、仅本地 Dry Run。允许读取路径限定为 content_root 或配置的 image_upload_roots，沿用 R2 配置，不修改原图、不传输原始图片到 MCP。已新增单元与 Sharp 真实元数据测试。
+
+版本：`0.1.190`
+
+---
+
 # BlogCTL v0.1.189
 
 新增原生 MCP STDIO 接口，复用原有 Bridge、发布编译器、浏览器扩展和任务状态，支持文章查询、发布预检、创建/更新草稿、发布及任务查询。MCP 通过本地 Bridge 发起浏览器登录态刷新，后台扩展自动同步已有会话，无需手动打开控制台；Cookie 和密钥不返回 MCP。新增 request_id 同任务去重及配套测试和文档。

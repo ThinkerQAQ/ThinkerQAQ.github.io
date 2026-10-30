@@ -59,6 +59,7 @@ type bridgeConfig struct {
 	UILocale     string `json:"uiLocale" toml:"ui_locale"`
 
 	ContentRoot                    string            `json:"contentRoot" toml:"content_root"`
+	ImageUploadRoots               []string          `json:"-" toml:"image_upload_roots"`
 	EngineRoot                     string            `json:"engineRoot" toml:"engine_root"`
 	DistributionRoot               string            `json:"distributionRoot" toml:"distribution_root"`
 	PublicationBindingsPath        string            `json:"publicationBindingsPath" toml:"publication_bindings_path"`
@@ -266,6 +267,20 @@ func normalizeBridgeConfig(config bridgeConfig) (bridgeConfig, error) {
 	config.Search = &site
 	config.ContentRoot = normalizeStoredPath(config.ContentRoot)
 	config.EngineRoot = normalizeStoredPath(config.EngineRoot)
+	if len(config.ImageUploadRoots) == 0 {
+		config.ImageUploadRoots = nil
+	}
+	if len(config.ImageUploadRoots) > 16 {
+		return config, errors.New("too many image_upload_roots")
+	}
+	for i, root := range config.ImageUploadRoots {
+		root = normalizeStoredPath(root)
+		if root == "" || !filepath.IsAbs(root) {
+			return config, errors.New("image_upload_roots must contain absolute paths")
+		}
+		config.ImageUploadRoots[i] = root
+	}
+
 	config.DistributionRoot = normalizeStoredPath(config.DistributionRoot)
 	config.PublicationBindingsPath = normalizeStoredPath(config.PublicationBindingsPath)
 	config.DevtoAPIKey = strings.TrimSpace(config.DevtoAPIKey)

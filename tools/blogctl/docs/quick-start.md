@@ -72,3 +72,5 @@ Continue with [first draft](tutorial/first-publish.md), [new-machine walkthrough
 ## Optional: connect ChatGPT with MCP
 
 After installing the **matching** BlogCTL binary and Edge/Chrome Extension, launch `blogctl -mcp-stdio` through a dedicated Secure MCP Tunnel. The MCP process calls the same local Bridge and uses the Extension's existing browser session; it does not require a second publishing backend. A tunnel alone cannot access Edge unless the MCP executable runs on the same Windows side as the Extension. See [MCP integration](MCP.md) for full instructions, tool names, and privacy notes.
+
+Image uploads require `engine_root`, Node.js + Inkerio's installed `sharp` dependency, and a configured `image_upload_roots` whitelist. Start with `dry_run=true` before uploading. See [MCP image uploads](MCP.md#private-image-upload-to-r2).

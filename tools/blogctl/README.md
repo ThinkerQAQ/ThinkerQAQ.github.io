@@ -56,3 +56,5 @@ Build output goes to `.build/out/`. Packaging produces six platform executables,
 ## ChatGPT / MCP
 
 Run `blogctl -mcp-stdio` from the installed machine to expose the existing Bridge as MCP over STDIO. The browser Extension continues to own browser sessions; no separate publisher or public HTTP endpoint is created. See [MCP integration](docs/MCP.md).
+
+The MCP tool `upload_image_to_r2` sanitizes images locally before uploading with the existing R2 credentials, and returns content-versioned Markdown URLs. Configure `image_upload_roots` in private TOML; see [MCP image uploads](docs/MCP.md#private-image-upload-to-r2).

@@ -56,3 +56,5 @@ go run ./tools/blogctl/cmd/maint package
 ## MCP 集成
 
 使用现有 Go Bridge 和浏览器扩展为 ChatGPT 提供文章查询、发布与任务查询。运行 `blogctl -mcp-stdio`，详见 [MCP 接入文档](docs/MCP.md)。不需要额外 Skill 或 SQLite。
+
+MCP 新增 `upload_image_to_r2`：读取授权目录中的本地图片，自动纠正方向、清理 EXIF 等元数据后使用已有 R2 配置上传，返回带处理版本的 Markdown 地址。授权目录在本机 TOML 顶层 `image_upload_roots` 配置，详见 [MCP 图片上传](docs/MCP.md#private-image-upload-to-r2)。

@@ -71,3 +71,23 @@ node --test extension/tests/*.test.mjs
 ```
 
 The added unit tests use a simulated Bridge and Extension session. They cannot prove a live Edge login or remote publication; those require a separate, explicitly authorized end-to-end acceptance test.
+
+## Private image upload to R2
+
+The `upload_image_to_r2` MCP tool is available in BlogCTL v0.1.190. It opens only an explicitly selected local JPEG/PNG/WebP inside a configured image root, auto-orients pixels, strips EXIF/GPS/XMP/IPTC/ICC with Sharp, verifies clean output, and calls the **existing** R2 uploader. The original is not modified and is never sent to ChatGPT or R2. Successful output includes `url`, `markdown`, `sha256`, `object_key`, `version`, `blogctl_version`, size and dimensions. `dry_run=true` checks locally without uploading.
+
+Example MCP input:
+
+```json
+{"local_path":"C:\\Pictures\\sunset.jpg","format":"webp","alt":"Sunset","dry_run":true}
+```
+
+Add only the required image folders to your **local** `Data/blogctl.toml` (top-level, not the R2 section):
+
+```toml
+image_upload_roots = ['C:\Pictures']
+```
+
+The existing `content_root` is also allowed. Paths must be absolute and resolve inside an authorized directory; symlink escapes, invalid formats, and oversized images fail closed. Source paths and credentials never appear in tool results. Continue using existing `[publishing.assets.r2]` for credentials. The sanitizer requires Node.js and the existing Inkerio `sharp` dependency installed under `engine_root` (e.g. `npm ci` from the engine checkout). The executable alone is insufficient. As with other MCP tools, the Windows Bridge must be updated to the same version as the MCP binary.
+
+Versioned objects use `images/v1/<first-32-hex-of-cleaned-SHA256>.<format>`. The full SHA-256 and processor version are returned. Changing the privacy processing algorithm should increment `v1`. The cleaned image contains no application EXIF version tag. Removing embedded metadata **cannot** remove visible faces, addresses, license plates, or other private content visible in pixels. Existing publishing R2 fallback behavior is unchanged in this phase.

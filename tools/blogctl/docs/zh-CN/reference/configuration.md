@@ -97,3 +97,7 @@ Bridge API 会遮蔽已保存 Key；配置为空时使用 `BUFFER_API_KEY`。Bas
 ## MCP 与安全隧道
 
 MCP 不新增 TOML 读写权限开关，也不改变发布配置。请在安装并登录浏览器扩展的 Windows 本机运行 `blogctl -mcp-stdio`。Tunnel ID、密钥引用及启动命令存放在独立的本地私有配置中，不能提交 Git。具体见 [MCP 接入](../../MCP.md)。
+
+### 本地图片上传目录
+
+`upload_image_to_r2` 仅允许读取 `content_root` 或本地 TOML 顶层配置的 `image_upload_roots = ['C:\Pictures']`，不要授权整块系统磁盘。白名单不会通过 Bridge 配置接口返回。需要已配置 `engine_root`、Node.js 和 Inkerio 的 Sharp 依赖；R2 继续复用 `[publishing.assets.r2]`，不在 MCP 暴露密钥。

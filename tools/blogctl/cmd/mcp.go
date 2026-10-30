@@ -183,7 +183,7 @@ func mcpTool(name, desc string, readOnly bool) *mcp.Tool {
 }
 
 func newBlogMCPServer(c *mcpBridgeClient) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "blogctl", Version: runtimeversion.Current}, &mcp.ServerOptions{Instructions: "BlogCTL MCP calls the existing local Bridge, never receives browser cookies or executes arbitrary commands. Read tools are safe. Create always creates a new draft; update requires an explicit remote target; publish-draft requires a draft ID. Ask for explicit publishing intent before side effects. Do not blindly retry a timed-out publishing action; use the same request_id to check the original task, inspect get_task and the remote platform state. Browser extension must be installed and signed in; session refresh is automatic. The MCP is not a content editor or Git/deployment tool."})
+	server := mcp.NewServer(&mcp.Implementation{Name: "blogctl", Version: runtimeversion.Current}, &mcp.ServerOptions{Instructions: "BlogCTL MCP calls the existing local Bridge, never receives browser cookies or executes arbitrary commands. Read tools are safe. Create always creates a new draft; update requires an explicit remote target; publish-draft requires a draft ID. Ask for explicit publishing intent before side effects. Do not blindly retry a timed-out publishing action; use the same request_id to check the original task, inspect get_task and the remote platform state. Browser extension must be installed and signed in; session refresh is automatic. Images may be sanitized and uploaded only from explicitly authorized local folders. The MCP is not a content editor or Git/deployment tool."})
 	addRead := func(name, desc, method, path string) {
 		mcp.AddTool(server, mcpTool(name, desc, true), func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, mcpResult, error) {
 			raw, err := c.call(ctx, method, path, nil)
@@ -212,6 +212,21 @@ func newBlogMCPServer(c *mcpBridgeClient) *mcp.Server {
 			return nil, mcpResult{}, errors.New("article required")
 		}
 		raw, err := c.call(ctx, "GET", "/v1/article-links?article="+url.QueryEscape(in.Article), nil)
+		return nil, mcpResult{raw}, err
+	})
+	imageTool := mcpTool("upload_image_to_r2", "Sanitize a local JPEG/PNG/WebP image, auto-orient, strip metadata, content-version, then upload cleaned image to R2. dry_run never uploads. Source must be in configured content_root or image_upload_roots.", false)
+	remoteWrite := true
+	imageTool.Annotations.OpenWorldHint = &remoteWrite
+	mcp.AddTool(server, imageTool, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
+		LocalPath string `json:"local_path" jsonschema:"Absolute local image path on BlogCTL host."`
+		Format    string `json:"format,omitempty" jsonschema:"webp (default), jpeg or png."`
+		Alt       string `json:"alt,omitempty" jsonschema:"Optional Markdown image alt text."`
+		DryRun    bool   `json:"dry_run,omitempty" jsonschema:"Sanitize locally, without uploading to R2."`
+	}) (*mcp.CallToolResult, mcpResult, error) {
+		if strings.TrimSpace(in.LocalPath) == "" {
+			return nil, mcpResult{}, errors.New("local_path required")
+		}
+		raw, err := c.call(ctx, "POST", "/v1/mcp/images/upload", map[string]any{"localPath": in.LocalPath, "format": in.Format, "alt": in.Alt, "dryRun": in.DryRun})
 		return nil, mcpResult{raw}, err
 	})
 	mcp.AddTool(server, mcpTool("get_task", "Get a publishing task by the ID returned from create/update/publish; includes per-platform result links.", true), func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
