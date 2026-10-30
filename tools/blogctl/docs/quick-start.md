@@ -68,3 +68,7 @@ A successful health response confirms HTTP is running; also check the Extension 
 For upgrades, preserve `Data/`, replace the binary and Extension together, reload the Extension in the browser and reopen the Console. If the binary moved, register it again. Avoid leaving an older Bridge running while diagnosing a version mismatch.
 
 Continue with [first draft](tutorial/first-publish.md), [new-machine walkthrough](tutorial/first-run-on-new-machine.md) or [connection troubleshooting](how-to/debug-bridge.md).
+
+## Optional: connect ChatGPT with MCP
+
+After installing the **matching** BlogCTL binary and Edge/Chrome Extension, launch `blogctl -mcp-stdio` through a dedicated Secure MCP Tunnel. The MCP process calls the same local Bridge and uses the Extension's existing browser session; it does not require a second publishing backend. A tunnel alone cannot access Edge unless the MCP executable runs on the same Windows side as the Extension. See [MCP integration](MCP.md) for full instructions, tool names, and privacy notes.

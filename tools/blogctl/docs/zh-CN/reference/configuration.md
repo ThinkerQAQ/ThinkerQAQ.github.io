@@ -93,3 +93,7 @@ api_key = "YOUR_PERSONAL_BUFFER_API_KEY"
 Bridge API 会遮蔽已保存 Key；配置为空时使用 `BUFFER_API_KEY`。Bash 启动变量不一定传递到 Windows 或非交互 Bridge。完整操作见 [Buffer 发布](../guide/social-publishing.md)。
 
 实现见 [Bridge 配置](../../../bridge/config.go)、[分发配置](../../../publishing/config.go)。真实配置、凭据和 Data 文件不要提交到 Git。
+
+## MCP 与安全隧道
+
+MCP 不新增 TOML 读写权限开关，也不改变发布配置。请在安装并登录浏览器扩展的 Windows 本机运行 `blogctl -mcp-stdio`。Tunnel ID、密钥引用及启动命令存放在独立的本地私有配置中，不能提交 Git。具体见 [MCP 接入](../../MCP.md)。
