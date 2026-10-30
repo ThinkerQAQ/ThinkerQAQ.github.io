@@ -86,6 +86,11 @@ const structuredData = data.kind === "record" ? {
         <ContentComments language={locale} threadPath={lifeHref(data.entry)} />
       </>
     )}
+    <p class="life-page__photo-copyright">
+      {zh
+        ? <>摄影作品除另有注明外，版权归作者所有。© {SITE.author}。引用请注明作者及原文链接；未经许可不得转载、修改或用于商业用途。</>
+        : <>Unless otherwise credited, photographs are © {SITE.author}. Please credit the author and link to the original page when referencing them. Reproduction, modification, or commercial use requires prior permission.</>}
+    </p>
   </div>
 </BaseLayout>
 
@@ -99,4 +104,13 @@ const structuredData = data.kind === "record" ? {
   .life-back { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
   .life-page__untitled { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .life-empty { padding-block: 3rem; color: var(--muted); }
+  .life-page__photo-copyright {
+    max-width: 44rem;
+    margin: 2rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.7;
+  }
 </style>
