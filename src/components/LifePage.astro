@@ -5,6 +5,7 @@ import Pagination from "./Pagination.astro";
 import ContentMediaViewer from "./ContentMediaViewer.astro";
 import ContentComments from "./ContentComments.astro";
 import ContentReaction from "./ContentReaction.astro";
+import CopyrightNotice from "./CopyrightNotice.astro";
 import { localizePath, SUPPORTED_LOCALES, type Locale } from "../config/i18n";
 import { lifeHref, lifeTitle, type LifePageData } from "../lib/life";
 import { SITE } from "../config/site";
@@ -73,6 +74,7 @@ const structuredData = data.kind === "record" ? {
         <Pagination currentPage={data.page} lastPage={data.pageCount} firstPageUrl={data.basePath}
           pageUrlPrefix={`${data.basePath}page/`} prevUrl={previous} nextUrl={next} locale={locale}
           ariaLabel={zh ? "生活记录分页" : "Life pagination"} />
+        <CopyrightNotice locale={locale} kind="photography" />
       </>
     ) : (
       <>
@@ -82,6 +84,7 @@ const structuredData = data.kind === "record" ? {
           <LifeRecord entry={data.entry} detail />
         </div>
         <ContentMediaViewer locale={locale} />
+        <CopyrightNotice locale={locale} />
         <ContentReaction contentType="life" contentId={data.entry.id} language={locale} />
         <ContentComments language={locale} threadPath={lifeHref(data.entry)} />
       </>
