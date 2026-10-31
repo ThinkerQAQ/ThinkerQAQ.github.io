@@ -12,7 +12,7 @@ Earlier BlogCTL releases through v0.1.193 included the `tls-client` / `fhttp` br
 
 ## Release collection
 
-The BlogCTL publication workflow runs pinned `github.com/google/go-licenses/v2@v2.0.1` before packaging/publishing a new version. Unknown or incompatible licenses fail this publication gate. Newly built BlogCTL binary ZIPs now include `THIRD_PARTY_LICENSES/` from the checked dependency graph and the project's MIT license, and packaging fails if third-party license files are missing. Existing v0.1.193 ZIPs include only the original project MIT license; the extension preserves i18next's MIT text. Do not describe legacy release bundles as fully audited or retroactively corrected.
+The BlogCTL publication workflow runs pinned `github.com/google/go-licenses/v2@v2.0.1` before packaging/publishing a new version. Unknown or incompatible licenses fail this publication gate. Newly built BlogCTL binary ZIPs now include `THIRD_PARTY_LICENSES/`, aggregated from all six Windows/macOS/Linux GOOS/GOARCH target graphs and the project's MIT license, and packaging fails if third-party license files are missing. Existing v0.1.193 ZIPs include only the original project MIT license; the extension preserves i18next's MIT text. Do not describe legacy release bundles as fully audited or retroactively corrected.
 
 The Astro engine is distributed as source with package-lock.json. `npm ci` installs dependencies with their upstream license files. If redistributing built site JavaScript, node_modules or a container, preserve licenses for the exact shipped packages, including `public/u.js.LICENSE.txt` and relevant bundler-generated notices. Do not assume a source checkout inventory covers a separately bundled deployment.
 
