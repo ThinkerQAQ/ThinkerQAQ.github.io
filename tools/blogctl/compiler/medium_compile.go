@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	blogpublishing "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publishing"
 )
 
 type compileContext struct {
@@ -14,6 +16,7 @@ type compileContext struct {
 	article   Article
 	sourceDir string
 	assetBase string
+	policy    blogpublishing.CopyrightText
 }
 
 type mediumImage struct {
@@ -62,8 +65,8 @@ type mediumPayload struct {
 	CoverImage   *mediumImage         `json:"coverImage"`
 }
 
-func mediumFooter(article Article, canonical string, profile PlatformConfig) *mediumInline {
-	markdown := strings.TrimSpace(renderFooter(profile, canonical, article.Title))
+func mediumFooter(article Article, canonical string, profile PlatformConfig, policy ...blogpublishing.CopyrightText) *mediumInline {
+	markdown := strings.TrimSpace(renderFooter(profile, canonical, article.Title, policy...))
 	if markdown == "" {
 		return nil
 	}
@@ -103,7 +106,7 @@ func resolveMediumFragmentLinks(blocks []mediumBlock, canonical string) {
 	}
 }
 
-func buildMediumPayload(article Article, slug string, profile PlatformConfig, compiledMarkdown string) (mediumPayload, []string) {
+func buildMediumPayload(article Article, slug string, profile PlatformConfig, compiledMarkdown string, policy ...blogpublishing.CopyrightText) (mediumPayload, []string) {
 	canonical := CanonicalURL(slug, profile.Language)
 	blocks, warnings := parseMediumBlocks(compiledMarkdown)
 	resolveMediumFragmentLinks(blocks, canonical)
@@ -135,7 +138,7 @@ func buildMediumPayload(article Article, slug string, profile PlatformConfig, co
 			Paragraph: mediumParagraphPayload{Type: block.ParagraphType, Text: block.Text, Markups: markups},
 		})
 	}
-	if footer := mediumFooter(article, canonical, profile); footer != nil {
+	if footer := mediumFooter(article, canonical, profile, policy...); footer != nil {
 		deltas = append(deltas, mediumDeltaPayload{
 			Type: 1, Index: len(deltas),
 			Paragraph: mediumParagraphPayload{Type: mediumBlockquote, Text: footer.Text, Markups: footer.Markups},
@@ -238,7 +241,7 @@ func renderMediumBlocks(blocks []mediumBlock) string {
 	return strings.Join(out, "\n")
 }
 
-func buildMediumCopyHTML(article Article, slug string, profile PlatformConfig, compiledMarkdown string) string {
+func buildMediumCopyHTML(article Article, slug string, profile PlatformConfig, compiledMarkdown string, policy ...blogpublishing.CopyrightText) string {
 	canonical := CanonicalURL(slug, profile.Language)
 	blocks, _ := parseMediumBlocks(compiledMarkdown)
 	resolveMediumFragmentLinks(blocks, canonical)
@@ -249,7 +252,7 @@ func buildMediumCopyHTML(article Article, slug string, profile PlatformConfig, c
 		coverHTML = "<figure class=\"cover\"><img src=\"" + mediumEscapeHTML(coverURL) + "\" alt=\"" + mediumEscapeHTML(article.CoverImageAlt) + "\"></figure>\n"
 	}
 	footerHTML := ""
-	if footer := mediumFooter(article, canonical, profile); footer != nil {
+	if footer := mediumFooter(article, canonical, profile, policy...); footer != nil {
 		footerHTML = "\n<hr>\n<blockquote><p>" + footer.HTML + "</p></blockquote>"
 	}
 	language := profile.Language
@@ -323,8 +326,8 @@ func compileMedium(ctx compileContext) (CompiledArticle, error) {
 		return CompiledArticle{}, err
 	}
 	portable = strings.TrimSpace(portable)
-	payload, warnings := buildMediumPayload(article, ctx.slug, ctx.profile, portable)
-	fallback := buildMediumCopyHTML(article, ctx.slug, ctx.profile, portable)
+	payload, warnings := buildMediumPayload(article, ctx.slug, ctx.profile, portable, ctx.policy)
+	fallback := buildMediumCopyHTML(article, ctx.slug, ctx.profile, portable, ctx.policy)
 	hashValue, err := jsonStringify(struct {
 		Payload          mediumPayload `json:"payload"`
 		FallbackHTML     string        `json:"fallbackHTML"`

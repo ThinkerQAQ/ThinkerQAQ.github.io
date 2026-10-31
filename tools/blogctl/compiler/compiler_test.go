@@ -1,8 +1,14 @@
 package compiler
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	blogpublishing "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publishing"
 )
 
 const articleFixture = `---
@@ -112,6 +118,64 @@ func TestCopyrightFooterWithLegacyCustomTemplate(t *testing.T) {
 		profile.Footer.Enabled = false
 		if got := renderFooter(profile, original, "Example"); got != "" {
 			t.Fatalf("disabled footer must remain disabled: %s", got)
+		}
+	}
+}
+
+func TestContentCopyrightChangesSyndicationFooterWithoutChangingTemplate(t *testing.T) {
+	profile := defaultPlatformConfig("devto")
+	canonical := "https://thinkerqaq.com/en/articles/example/"
+	source := blogpublishing.Copyright("en")
+	original := renderFooter(profile, canonical, "Article")
+	source.Syndication = "CUSTOM CONTENT COPYRIGHT"
+	footer := renderFooter(profile, canonical, "Article", source)
+	if !strings.Contains(footer, "CUSTOM CONTENT COPYRIGHT") || strings.Contains(original, "CUSTOM CONTENT COPYRIGHT") {
+		t.Fatalf("no override: %s", footer)
+	}
+	if !strings.Contains(footer, canonical+")") || !strings.Contains(footer, "utm_source=devto") {
+		t.Fatalf("lost existing canonical attribution: %s", footer)
+	}
+}
+
+func TestCompilePlatformReadsContentCopyrightForDevtoAndMedium(t *testing.T) {
+	contentRoot := t.TempDir()
+	policyRoot := filepath.Join(contentRoot, "src", "content", "site")
+	if err := os.MkdirAll(policyRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+	json := `{"zh":{"title":"版权","notice":"版权正文","photo":"摄影版权","syndication":"SYNDCUSTOM_ZH","source":"原文"},"en":{"title":"Copyright","notice":"Original text","photo":"Photography","syndication":"SYNDCUSTOM_EN","source":"Original"}}`
+	if err := os.WriteFile(filepath.Join(policyRoot, "copyright.json"), []byte(json), 0644); err != nil {
+		t.Fatal(err)
+	}
+	articleRoot := filepath.Join(contentRoot, "src", "content", "articles", "en")
+	if err := os.MkdirAll(articleRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(articleRoot, "example.md"), []byte(articleFixture), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("missing caller path")
+	}
+	engineRoot := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", ".."))
+	for _, platform := range []string{"devto", "medium"} {
+		options := CompileOptions{EngineRoot: engineRoot, ContentRoot: contentRoot, Publishing: blogpublishing.DefaultConfig(), Node: "node", Platform: platform, Articles: []string{"example"}, DryRun: true}
+		compiled, err := CompilePlatform(context.Background(), options)
+		if err != nil {
+			t.Fatalf("%s compile: %v", platform, err)
+		}
+		if len(compiled) != 1 {
+			t.Fatalf("%s results: %d", platform, len(compiled))
+		}
+		if platform == "devto" {
+			if !strings.Contains(compiled[0].Markdown, "SYNDCUSTOM_EN") || !strings.Contains(compiled[0].HTML, "SYNDCUSTOM_EN") {
+				t.Fatalf("%s did not load content policy", platform)
+			}
+		} else {
+			if !strings.Contains(compiled[0].HTML, "SYNDCUSTOM_EN") || !strings.Contains(string(compiled[0].Payload), "SYNDCUSTOM_EN") {
+				t.Fatalf("%s did not load content policy", platform)
+			}
 		}
 	}
 }
