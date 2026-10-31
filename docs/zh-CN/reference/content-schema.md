@@ -70,6 +70,8 @@ About 中文页面位于 `pages/about.md`，英文页面位于 `pages/en/about.m
 
 项目的 `translations.en` 提供英文标题、简介和可选标签；`project-translations/` 中的文件提供翻译正文，必填 `translationOf`、`language` 和 `updatedAt`。
 
+**首页项目置顶：** 首页最多展示 3 个项目，先按 `featured: true` 置顶，再按 `updatedAt` 倒序排列；多个置顶项目之间也按更新时间倒序。`featured` 未填写时默认为 `false`。`/projects/` 全量列表仍只按更新时间排序，不受置顶影响。英文首页仅展示存在 `translations.en` 元数据的项目。
+
 项目 `tutorials` 和 `documentation` 可以填写归属该项目的原始文章 ID，也可填写外部资源：
 
 ```yaml

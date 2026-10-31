@@ -70,6 +70,8 @@ Project status: `exploring`, `building`, `maintained`, `completed`. Series statu
 
 Project `translations.en` provides translated title, description and optional tags. A separate file under `project-translations/` supplies a translated body with required `translationOf`, `language`, and `updatedAt`.
 
+**Homepage project pinning:** The homepage shows up to 3 projects, prioritizing `featured: true` and then sorting by `updatedAt` descending; pinned projects are also ordered by update date. `featured` defaults to `false` when omitted. The full `/projects/` listing remains ordered only by update date. The English homepage includes only projects with `translations.en` metadata.
+
 Project `tutorials` and `documentation` accept either an associated root article ID or an external resource:
 
 ```yaml
