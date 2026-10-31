@@ -18,6 +18,20 @@ const localizedSummary = z.object({
   description: z.string(),
 });
 
+const pages = defineCollection({
+  loader: glob({
+    pattern: "**/*.md",
+    base: "./src/content/pages",
+    generateId: ({ entry }) => entry.replace(/\.md$/i, "").replaceAll("\\", "/"),
+  }),
+  schema: z.object({
+    title: z.string().min(1),
+    description: z.string().min(1),
+    seoDescription: z.string().min(1),
+    language: z.enum(SUPPORTED_LOCALES),
+  }),
+});
+
 const notes = defineCollection({
   loader: glob({
     pattern: "**/*.md",
@@ -224,4 +238,4 @@ const workoutSummaries = defineCollection({
   }).strict(),
 });
 
-export const collections = { notes, noteTranslations, articles, projects, projectTranslations, series, life, workoutSummaries };
+export const collections = { pages, notes, noteTranslations, articles, projects, projectTranslations, series, life, workoutSummaries };

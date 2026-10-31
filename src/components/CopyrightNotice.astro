@@ -1,6 +1,6 @@
 ---
 import type { Locale } from "../config/i18n";
-import policy from "../../tools/blogctl/publishing/copyright.json";
+import policy from "../content/site/copyright.json";
 
 interface Props { locale: Locale; kind?: "content" | "photography"; }
 const { locale, kind = "content" } = Astro.props;
