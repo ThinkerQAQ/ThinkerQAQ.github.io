@@ -29,12 +29,17 @@ func TestExecutableZipContainsLicenseAndPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(t.TempDir(), "binary.zip")
-	if err := zipExecutable(source, archive, []byte("MIT fixture license")); err != nil {
+	notices := t.TempDir()
+	if err := os.WriteFile(filepath.Join(notices, "dependency-LICENSE"), []byte("upstream license"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := zipExecutable(source, archive, []byte("MIT fixture license"), notices); err != nil {
 		t.Fatal(err)
 	}
 	checkZip(t, archive, map[string]string{
-		"blogctl-linux-amd64": "test binary",
-		"LICENSE":             "MIT fixture license",
+		"blogctl-linux-amd64":                     "test binary",
+		"THIRD_PARTY_LICENSES/dependency-LICENSE": "upstream license",
+		"LICENSE": "MIT fixture license",
 	})
 	z, err := zip.OpenReader(archive)
 	if err != nil {
