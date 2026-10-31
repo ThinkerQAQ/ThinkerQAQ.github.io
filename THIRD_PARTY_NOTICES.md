@@ -10,8 +10,8 @@ The current dependency `github.com/bogdanfinn/fhttp v0.6.9` has no LICENSE in it
 
 ## Release collection
 
-BlogCTL release packaging invokes pinned upstream `github.com/google/go-licenses/v2@v2.0.1` against each target's actual Go package graph. When this check passes, executable ZIPs include `THIRD_PARTY_LICENSES/`, full upstream license artifacts, `DEPENDENCIES.csv`, the Go runtime license and build target. Raw executables are accompanied by `THIRD_PARTY_LICENSES.zip`. Collection failure stops packaging. The extension preserves the i18next MIT text alongside the project MIT LICENSE.
+The BlogCTL publication workflow runs pinned `github.com/google/go-licenses/v2@v2.0.1` before packaging/publishing a new version. Unknown or incompatible licenses fail this publication gate. Per-target automatic full-license ZIP packaging is prepared separately and remains blocked until the dependency above is resolved. Existing v0.1.193 executable ZIPs include the project's MIT license; the extension also preserves i18next's MIT text. They must not be described as a completed transitive-license audit.
 
 The Astro engine is distributed as source with package-lock.json. `npm ci` installs dependencies with their upstream license files. If redistributing built site JavaScript, node_modules or a container, preserve licenses for the exact shipped packages, including `public/u.js.LICENSE.txt` and relevant bundler-generated notices. Do not assume a source checkout inventory covers a separately bundled deployment.
 
-Inkerio 与 BlogCTL 的原创代码采用 MIT，第三方代码、内容及素材的权利独立。BlogCTL 打包按目标平台自动生成完整 Go 依赖许可与版本清单，收集失败即中止；扩展保留 i18next 与项目许可。引擎源码通过 npm ci 安装上游依赖；再分发构建后的 JS、node_modules 或容器时，须保留实际交付组件的许可与生成声明，包括 Umami 的随附许可。个人文章、照片及用户内容不因引擎 MIT 授权而改变许可。
+Inkerio 与 BlogCTL 的原创代码采用 MIT，第三方代码、内容及素材的权利独立。BlogCTL 发布工作流在新版本打包前检查依赖授权，遇到未知许可即中止；按目标平台随包分发完整依赖许可的改动另行保留，待上游授权明确后完成。扩展保留 i18next 与项目许可。引擎源码通过 npm ci 安装上游依赖；再分发构建后的 JS、node_modules 或容器时，须保留实际交付组件的许可与生成声明，包括 Umami 的随附许可。个人文章、照片及用户内容不因引擎 MIT 授权而改变许可。

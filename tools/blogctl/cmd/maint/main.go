@@ -93,12 +93,6 @@ func verify() error {
 	return nil
 }
 func packageRelease() error {
-	if err := os.RemoveAll(filepath.Join(".build", "out", "licenses")); err != nil {
-		return err
-	}
-	if err := installLicenseCollector(); err != nil {
-		return err
-	}
 	if err := os.RemoveAll(releaseDir); err != nil {
 		return err
 	}
@@ -106,10 +100,6 @@ func packageRelease() error {
 		return err
 	}
 	for _, t := range targets {
-		notices := filepath.Join(".build", "out", "licenses", t.goos+"-"+t.goarch)
-		if err := collectGoLicenses(notices, t.goos, t.goarch); err != nil {
-			return err
-		}
 		fmt.Printf("Building %s/%s\n", t.goos, t.goarch)
 		if err := run([]string{"CGO_ENABLED=0", "GOOS=" + t.goos, "GOARCH=" + t.goarch},
 			"go", "build", "-trimpath", "-ldflags=-s -w", "-o", filepath.Join(releaseDir, t.name), "./tools/blogctl/cmd"); err != nil {
@@ -131,13 +121,9 @@ func packageRelease() error {
 	}
 	for _, t := range targets {
 		name := strings.TrimSuffix(t.name, ".exe") + ".zip"
-		notices := filepath.Join(".build", "out", "licenses", t.goos+"-"+t.goarch)
-		if err := zipExecutable(filepath.Join(releaseDir, t.name), filepath.Join(releaseDir, name), license, notices); err != nil {
+		if err := zipExecutable(filepath.Join(releaseDir, t.name), filepath.Join(releaseDir, name), license); err != nil {
 			return fmt.Errorf("bundle %s: %w", t.name, err)
 		}
-	}
-	if err := zipDirectory(filepath.Join(".build", "out", "licenses"), filepath.Join(releaseDir, "THIRD_PARTY_LICENSES.zip"), license); err != nil {
-		return err
 	}
 	if err := checksums(releaseDir); err != nil {
 		return err
@@ -199,7 +185,7 @@ func zipDirectory(source, destination string, license []byte) (result error) {
 
 // zipExecutable packages a native program with its MIT license without losing
 // executable permission bits needed by Unix and macOS consumers.
-func zipExecutable(source, destination string, license []byte, notices string) (result error) {
+func zipExecutable(source, destination string, license []byte) (result error) {
 	binary, err := os.Open(source)
 	if err != nil {
 		return err
@@ -241,10 +227,8 @@ func zipExecutable(source, destination string, license []byte, notices string) (
 	if err != nil {
 		return err
 	}
-	if _, err = entry.Write(license); err != nil {
-		return err
-	}
-	return addLicenseFiles(writer, notices)
+	_, err = entry.Write(license)
+	return err
 }
 
 func checksums(dir string) error {
