@@ -64,7 +64,7 @@ A note translation requires `title`, `description`, `translationOf`, `language`,
 | Project | `title`, `description`, `status`, `startedAt`, `updatedAt` | `github`, `tutorials`, `documentation`, `translations`, `tags`, `featured` |
 | Series | `title`, `description`, `status`, `updatedAt` | `project`, `relatedArticles`, `relatedNotes`, `relatedNoteCategories`, `relatedNoteScopes`, `translations`, `featured` |
 
-Project status: `exploring`, `building`, `maintained`, `completed`. Series status: `planned`, `active`, `complete`. These dates use date coercion and accept values such as `2026-10-22`.
+Project status: `exploring`, `building`, `maintained`, `completed`, `archived`. Use `maintained` for released projects still receiving updates, `completed` for finished work without planned active development, and `archived` only for retired/unmaintained work (verify repository archive state separately). Series status: `planned`, `active`, `complete`. These dates use date coercion and accept values such as `2026-10-22`.
 
 `relatedArticles` lists **root article IDs in reading order**. Add an article's `series` field as well so its page can find that series. English navigation uses translations of the listed originals.
 

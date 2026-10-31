@@ -150,7 +150,7 @@ const projects = defineCollection({
   schema: z.object({
     title: z.string(),
     description: z.string(),
-    status: z.enum(["exploring", "building", "maintained", "completed"]),
+    status: z.enum(["exploring", "building", "maintained", "completed", "archived"]),
     startedAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
     tags: z.array(z.string()).default([]),

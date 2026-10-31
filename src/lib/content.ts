@@ -51,10 +51,10 @@ export const includeDraftArticles = import.meta.env.INCLUDE_DRAFTS === "true";
 export const ROOT_NOTE_TOPIC = "__root";
 export const ROOT_NOTE_TOPIC_ROUTE = "overview";
 
-export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成" };
+export const projectStatus = { exploring: "探索中", building: "开发中", maintained: "维护中", completed: "已完成", archived: "已归档" };
 export const seriesStatus = { planned: "规划中", active: "持续更新", complete: "已完结" };
 
-const projectStatusEn = { exploring: "Exploring", building: "Building", maintained: "Maintained", completed: "Completed" };
+const projectStatusEn = { exploring: "Exploring", building: "Building", maintained: "Maintained", completed: "Completed", archived: "Archived" };
 const seriesStatusEn = { planned: "Planned", active: "Active", complete: "Complete" };
 
 export function projectStatusLabel(status: keyof typeof projectStatus, locale: Locale = DEFAULT_LOCALE): string {
