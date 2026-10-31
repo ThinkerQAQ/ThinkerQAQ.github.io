@@ -106,8 +106,24 @@ func packageRelease() error {
 			return err
 		}
 	}
-	if err := zipDirectory("tools/blogctl/extension", filepath.Join(releaseDir, "blogctl-extension.zip")); err != nil {
+	license, err := os.ReadFile("LICENSE")
+	if err != nil {
+		return fmt.Errorf("read MIT LICENSE: %w", err)
+	}
+	if len(strings.TrimSpace(string(license))) == 0 {
+		return fmt.Errorf("empty MIT LICENSE")
+	}
+	if err := os.WriteFile(filepath.Join(releaseDir, "LICENSE"), license, 0644); err != nil {
+		return fmt.Errorf("copy license into release: %w", err)
+	}
+	if err := zipDirectory("tools/blogctl/extension", filepath.Join(releaseDir, "blogctl-extension.zip"), license); err != nil {
 		return fmt.Errorf("extension: %w", err)
+	}
+	for _, t := range targets {
+		name := strings.TrimSuffix(t.name, ".exe") + ".zip"
+		if err := zipExecutable(filepath.Join(releaseDir, t.name), filepath.Join(releaseDir, name), license); err != nil {
+			return fmt.Errorf("bundle %s: %w", t.name, err)
+		}
 	}
 	if err := checksums(releaseDir); err != nil {
 		return err
@@ -115,7 +131,7 @@ func packageRelease() error {
 	fmt.Println("Release artifacts:", releaseDir)
 	return nil
 }
-func zipDirectory(source, destination string) (result error) {
+func zipDirectory(source, destination string, license []byte) (result error) {
 	out, err := os.Create(destination)
 	if err != nil {
 		return err
@@ -131,7 +147,7 @@ func zipDirectory(source, destination string) (result error) {
 			result = err
 		}
 	}()
-	return filepath.Walk(source, func(path string, info os.FileInfo, walkErr error) error {
+	if err := filepath.Walk(source, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -156,8 +172,65 @@ func zipDirectory(source, destination string) (result error) {
 			return copyErr
 		}
 		return closeErr
-	})
+	}); err != nil {
+		return err
+	}
+	entry, err := writer.Create("LICENSE")
+	if err != nil {
+		return err
+	}
+	_, err = entry.Write(license)
+	return err
 }
+
+// zipExecutable packages a native program with its MIT license without losing
+// executable permission bits needed by Unix and macOS consumers.
+func zipExecutable(source, destination string, license []byte) (result error) {
+	binary, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer binary.Close()
+	info, err := binary.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.Create(destination)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := out.Close(); result == nil {
+			result = err
+		}
+	}()
+	writer := zip.NewWriter(out)
+	defer func() {
+		if err := writer.Close(); result == nil {
+			result = err
+		}
+	}()
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		return err
+	}
+	header.Name = filepath.Base(source)
+	header.Method = zip.Deflate
+	entry, err := writer.CreateHeader(header)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(entry, binary); err != nil {
+		return err
+	}
+	entry, err = writer.Create("LICENSE")
+	if err != nil {
+		return err
+	}
+	_, err = entry.Write(license)
+	return err
+}
+
 func checksums(dir string) error {
 	files, err := os.ReadDir(dir)
 	if err != nil {

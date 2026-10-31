@@ -15,7 +15,7 @@ go run ./tools/blogctl/cmd help
 go run ./tools/blogctl/cmd doctor
 ```
 
-桌面安装时，从 Releases 下载匹配系统和架构的可执行文件以及扩展 ZIP，解压到固定目录，运行程序的 `install` 命令，然后在 Edge 或 Chrome 加载解压后的扩展。Windows 示例：
+桌面安装时，优先从 Releases 下载匹配系统与架构的 **ZIP 完整包**（可执行文件与 MIT LICENSE）及扩展 ZIP，并按 `SHA256SUMS` 校验；旧用户仍可下载单独的可执行文件，解压到固定目录，运行程序的 `install` 命令，然后在 Edge 或 Chrome 加载解压后的扩展。Windows 示例：
 
 ```powershell
 & C:\software\Coding\blogctl\blogctl-windows-amd64.exe install

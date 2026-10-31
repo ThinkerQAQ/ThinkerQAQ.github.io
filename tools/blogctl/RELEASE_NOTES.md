@@ -1,3 +1,13 @@
+# BlogCTL v0.1.193
+
+发行包整理：Windows、Linux、macOS 的 6 个 CPU/OS 目标现在同时提供含原项目 MIT 许可证的 ZIP 安装包，继续保留原始可执行文件供现有用户直接升级；浏览器扩展 ZIP 同时包含项目 LICENSE 和已有的 i18next 许可证。Release 根目录单独附带 LICENSE，全部产物计入 SHA256SUMS。
+
+没有改变本地 Native Messaging、MCP、第三方发布逻辑或个人配置目录。下载对应架构 ZIP、核对 SHA-256 后，解压并沿用原有 `blogctl install` 和浏览器扩展安装流程即可。
+
+Version: `0.1.193`
+
+---
+
 # BlogCTL v0.1.192
 
 与新版 Inkerio 内容配置一致：分发编译时从配置的内容根目录读取 `src/content/site/copyright.json`，与站点文章、笔记和摄影页面共用双语版权声明。调整版权文案后，新编译的分发文章即可生效，无需重新构建 BlogCTL；兼容没有该文件的旧内容库，已存在但无效的策略文件会阻止编译，避免错误授权声明发布。

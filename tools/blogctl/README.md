@@ -15,7 +15,7 @@ go run ./tools/blogctl/cmd help
 go run ./tools/blogctl/cmd doctor
 ```
 
-For a desktop installation, download the executable for your OS and architecture and the Extension ZIP from Releases. Extract them into persistent directories, run the executable's `install` command and load the unpacked Extension in Edge or Chrome. On Windows:
+For a desktop installation, download the **OS/architecture-specific ZIP bundle** (executable + MIT LICENSE) and the separate Extension ZIP from Releases, and verify their hashes using `SHA256SUMS`. Standalone executables remain available for existing users. Extract them into persistent directories, run the executable's `install` command and load the unpacked Extension in Edge or Chrome. On Windows:
 
 ```powershell
 & C:\software\Coding\blogctl\blogctl-windows-amd64.exe install
