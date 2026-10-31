@@ -1,5 +1,7 @@
 # Inkerio
 
+**Repository transition:** The reusable [Inkerio engine](https://github.com/ThinkerQAQ/inkerio) now lives in a separate repository. This repository is the ThinkerQAQ website deployment wrapper and still temporarily contains the legacy Astro source plus [BlogCTL](tools/blogctl/README.md) for rollback and publishing. The commands below describe the legacy monorepo. See the [deployment migration plan](docs/architecture/inkerio-deployment-migration.md).
+
 [简体中文](README_ZH.md) · [Live example](https://thinkerqaq.com/) · [Documentation](docs/index.md)
 
 Inkerio is a bilingual static blog engine built with Astro. Articles, notes, projects, series, photography and workout records live in a separate content repository. The engine builds pages, search indexes, RSS and sitemaps from that content.
