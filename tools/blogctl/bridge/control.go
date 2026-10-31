@@ -1093,7 +1093,6 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		ok = false
 	}
 	httpClient := p.server.httpClient
-	config := p.server.config
 	p.server.mu.Unlock()
 	if !ok {
 		return publisher.Session{}, nil, fmt.Errorf("%s browser session is required", platform)
@@ -1113,17 +1112,7 @@ func (p bridgeNativePublisher) publisherSession(platform string) (publisher.Sess
 		RequestHeaders:       cloneStringMap(session.RequestHeaders),
 		CookieHostSuffixes:   publisherCookieHostSuffixes(platform),
 	}
-	if platform == "medium" || platform == "51cto" {
-		// Tests inject a purpose-built transport. Production uses the normal
-		// *http.Transport and needs a browser TLS/HTTP2 fingerprint for Cloudflare.
-		if _, productionTransport := httpClient.Transport.(*http.Transport); productionTransport {
-			browserHTTPClient, err := newBrowserProfileHTTPClient(config, session.UserAgent, platform)
-			if err != nil {
-				return publisher.Session{}, nil, err
-			}
-			return publisherSession, browserHTTPClient, nil
-		}
-	}
+	// Reuse the standard Bridge HTTP client; do not spoof browser TLS fingerprints.
 	if platform == "toutiao" {
 		if base, production := httpClient.Transport.(*http.Transport); production {
 			copyClient := *httpClient

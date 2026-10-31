@@ -32,6 +32,13 @@ jobs:
       - name: Build BlogCTL
         run: go run ./tools/blogctl/cmd/maint build
 
+      - name: Collect redistributable third-party license texts
+        run: |
+          mkdir -p .build/tools
+          GOTOOLCHAIN="$(go env GOVERSION)" GOBIN="$PWD/.build/tools" go install github.com/google/go-licenses/v2@v2.0.1
+          rm -rf .build/out/publish-licenses
+          CGO_ENABLED=0 .build/tools/go-licenses save ./tools/blogctl/cmd --ignore=github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl --save_path="$PWD/.build/out/publish-licenses"
+
       - name: Package BlogCTL
         run: go run ./tools/blogctl/cmd/maint package
 

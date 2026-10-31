@@ -4,7 +4,7 @@
 
 BlogCTL is Inkerio's companion Go application. It assembles content, compiles articles for publishing platforms, submits URLs to search engines and runs the local Bridge used by the browser Extension and Web Console.
 
-The Extension accesses your logged-in browser sessions; the Bridge runs local jobs. Platform support varies: creating a draft, editing a draft and updating a published article are separate capabilities.
+The Extension accesses your logged-in browser sessions; the Bridge runs local jobs. Platform support varies: creating a draft, editing a draft and updating a published article are separate capabilities. **Browser sessions do not grant permission to automate unpublished platform APIs.** Medium has stopped issuing new integration tokens and restricts nonpublic API / scripted access. Use Medium’s official website import or manual publishing unless you have specific platform authorization; a successful HTTP request does not imply permission. Standard Go HTTP transport is used rather than TLS fingerprint spoofing.
 
 ## First use
 
