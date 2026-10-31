@@ -1,5 +1,7 @@
 # Inkerio
 
+**仓库拆分过渡：** 通用 [Inkerio 引擎](https://github.com/ThinkerQAQ/inkerio) 已独立。本仓库负责 ThinkerQAQ 网站配置和部署，暂时保留旧 Astro 代码及 [BlogCTL](tools/blogctl/README_ZH.md) 作为回滚和内容分发入口。下方命令仍是旧 Monorepo 用法，迁移方案见[部署文档](docs/architecture/inkerio-deployment-migration.md)。
+
 [English](README.md) · [实际站点](https://thinkerqaq.com/) · [中文文档](docs/zh-CN/index.md)
 
 Inkerio 是基于 Astro 的双语静态博客引擎。文章、笔记、项目、系列、摄影和健身记录保存在独立内容仓库中，引擎据此生成页面、搜索索引、RSS 和 Sitemap。
