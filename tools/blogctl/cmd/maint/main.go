@@ -93,6 +93,11 @@ func verify() error {
 	return nil
 }
 func packageRelease() error {
+	// Publish only if a fresh upstream license collection was produced.
+	licenseRoot := filepath.Join(buildDir, "publish-licenses")
+	if _, err := thirdPartyLicenseFiles(licenseRoot); err != nil {
+		return fmt.Errorf("third-party license bundle missing: %w; run go-licenses save first", err)
+	}
 	if err := os.RemoveAll(releaseDir); err != nil {
 		return err
 	}
@@ -121,7 +126,7 @@ func packageRelease() error {
 	}
 	for _, t := range targets {
 		name := strings.TrimSuffix(t.name, ".exe") + ".zip"
-		if err := zipExecutable(filepath.Join(releaseDir, t.name), filepath.Join(releaseDir, name), license); err != nil {
+		if err := zipExecutable(filepath.Join(releaseDir, t.name), filepath.Join(releaseDir, name), license, licenseRoot); err != nil {
 			return fmt.Errorf("bundle %s: %w", t.name, err)
 		}
 	}
@@ -185,7 +190,7 @@ func zipDirectory(source, destination string, license []byte) (result error) {
 
 // zipExecutable packages a native program with its MIT license without losing
 // executable permission bits needed by Unix and macOS consumers.
-func zipExecutable(source, destination string, license []byte) (result error) {
+func zipExecutable(source, destination string, license []byte, licenseRoot string) (result error) {
 	binary, err := os.Open(source)
 	if err != nil {
 		return err
@@ -227,8 +232,72 @@ func zipExecutable(source, destination string, license []byte) (result error) {
 	if err != nil {
 		return err
 	}
-	_, err = entry.Write(license)
-	return err
+	if _, err := entry.Write(license); err != nil {
+		return err
+	}
+	// Include complete third-party texts inside each downloadable binary ZIP.
+	return writeThirdPartyLicenses(writer, licenseRoot)
+}
+
+func thirdPartyLicenseFiles(root string) ([]string, error) {
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", root)
+	}
+	var files []string
+	err = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symlink in license bundle: %s", path)
+		}
+		if info.Mode().IsRegular() {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no license files found in %s", root)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func writeThirdPartyLicenses(writer *zip.Writer, licenseRoot string) error {
+	files, err := thirdPartyLicenseFiles(licenseRoot)
+	if err != nil {
+		return err
+	}
+	for _, path := range files {
+		relative, err := filepath.Rel(licenseRoot, path)
+		if err != nil {
+			return err
+		}
+		entry, err := writer.Create("THIRD_PARTY_LICENSES/" + filepath.ToSlash(relative))
+		if err != nil {
+			return err
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(entry, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
+	return nil
 }
 
 func checksums(dir string) error {

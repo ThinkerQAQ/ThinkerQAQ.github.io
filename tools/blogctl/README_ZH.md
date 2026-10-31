@@ -1,5 +1,7 @@
 # BlogCTL
 
+> **平台合规说明：** 浏览器已登录不等于获得非公开接口自动发布授权。Medium 已停止发放新的 API 集成 Token，且限制脚本化和非公开接口访问；无平台明确授权时，请通过 Medium 官方网页导入或手动发布。去除 TLS 指纹模拟并不等于所有平台发布接口已经合规。
+
 [English](README.md) · [中文文档](docs/zh-CN/index.md) · [Releases](https://github.com/ThinkerQAQ/ThinkerQAQ.github.io/releases/latest)
 
 BlogCTL 是 Inkerio 配套的 Go 应用，负责内容装配、面向发布平台的文章编译、搜索引擎提交，以及供浏览器扩展和工作台使用的本地 Bridge。

@@ -29,12 +29,20 @@ func TestExecutableZipContainsLicenseAndPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(t.TempDir(), "binary.zip")
-	if err := zipExecutable(source, archive, []byte("MIT fixture license")); err != nil {
+	licenses := filepath.Join(t.TempDir(), "licenses")
+	if err := os.MkdirAll(filepath.Join(licenses, "example.org", "library"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(licenses, "example.org", "library", "LICENSE"), []byte("BSD fixture license"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := zipExecutable(source, archive, []byte("MIT fixture license"), licenses); err != nil {
 		t.Fatal(err)
 	}
 	checkZip(t, archive, map[string]string{
 		"blogctl-linux-amd64": "test binary",
 		"LICENSE":             "MIT fixture license",
+		"THIRD_PARTY_LICENSES/example.org/library/LICENSE": "BSD fixture license",
 	})
 	z, err := zip.OpenReader(archive)
 	if err != nil {
@@ -45,6 +53,17 @@ func TestExecutableZipContainsLicenseAndPermissions(t *testing.T) {
 		if entry.Name == "blogctl-linux-amd64" && entry.Mode()&0111 == 0 {
 			t.Fatal("zip must preserve Unix executable permission")
 		}
+	}
+}
+
+func TestMissingThirdPartyLicensesPreventBundling(t *testing.T) {
+	root := t.TempDir()
+	_, err := thirdPartyLicenseFiles(filepath.Join(root, "missing"))
+	if err == nil {
+		t.Fatal("missing third-party licenses must fail")
+	}
+	if _, err := thirdPartyLicenseFiles(root); err == nil {
+		t.Fatal("empty third-party license directory must fail")
 	}
 }
 
