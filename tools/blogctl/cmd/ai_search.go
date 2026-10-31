@@ -124,7 +124,17 @@ func (a app) runAISearchPrepare(args []string) error {
 	if err != nil {
 		return err
 	}
-	prepared, err := blogaisearch.PrepareInput(filepath.Join(a.root, "src", "content"), resolvedOutput)
+	// After the engine split, content may live in its own checkout rather than
+	// beneath the legacy site repository. Honor the explicitly provided source.
+	sourceRoot := filepath.Join(a.root, "src", "content")
+	if strings.TrimSpace(contentRoot) != "" {
+		resolvedContent, err := filepath.Abs(contentRoot)
+		if err != nil {
+			return err
+		}
+		sourceRoot = filepath.Join(resolvedContent, "src", "content")
+	}
+	prepared, err := blogaisearch.PrepareInput(sourceRoot, resolvedOutput)
 	if err != nil {
 		return fmt.Errorf("prepare AI Search input: %w", err)
 	}
