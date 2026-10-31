@@ -11,7 +11,7 @@ Edit these files in your **engine checkout**:
 | [`src/config/site.ts`](../../src/config/site.ts) | `SITE.title`, `homeTitle`, `description`, `author`, `url`, `github`, `profiles`, `repository`, `contactEmail`, `alternateNames` |
 | [`src/config/i18n.ts`](../../src/config/i18n.ts) | Both locales' `homeTitle`, home accessibility labels, About and Search descriptions that contain the author's name |
 | [`astro.config.mjs`](../../astro.config.mjs) | `site`: use the same canonical HTTPS origin as `SITE.url` |
-| [`src/pages/about.astro`](../../src/pages/about.astro) and [`src/pages/[locale]/about.astro`](../../src/pages/[locale]/about.astro) | Personal biography, links and site explanation |
+| Content repository `src/content/pages/about.md` and `src/content/pages/en/about.md` | About biography, links, usage notice, lead and SEO descriptions; Inkerio only renders |
 | [`public/`](../../public/) | Your icons, domain/verification files and other site-owned static assets |
 
 Remove or replace `icpRecord`, `icpLookupUrl`, `publicSecurityRecord` and `publicSecurityLookupUrl` in `SITE`. They identify the author's site. Use your own applicable registration details; do not copy the template values as your site's registration.
@@ -49,6 +49,8 @@ BlogCTL currently builds canonical and root-relative publishing links from the `
 
 The `CopyrightNotice` component renders the same bilingual policy across article and note detail pages, Life record pages, and the Life index (with a shorter photography notice). It is shown before comments or reactions and does not alter canonical metadata or Markdown content. Site-wide `©` in the footer is a separate, short attribution.
 
-The **single source of text** for these notices and BlogCTL syndication is `tools/blogctl/publishing/copyright.json`. Edit the `zh` and `en` entries there to suit your site, including the author name and permissions; the Go publisher embeds this file at build time, and Astro imports it during its build. Rebuild and reinstall BlogCTL after changing the policy so the installed binary contains the new text. Content and code have separate licenses: the repository's MIT license for code does not license third-party materials or original photographs.
+The **authoritative policy** is in the content repository at `src/content/site/copyright.json` (`zh` and `en`, each containing `title`, `notice`, `photo`, `syndication`, and `source`). The site assembler copies it into Inkerio's generated `src/content/`, and Astro imports that assembled file. The About page is also content-owned: edit `src/content/pages/about.md` and `src/content/pages/en/about.md` (`title`, `description`, `seoDescription`, `language` frontmatter). Its "Copyright and Use" paragraph is a human-facing summary and should agree with the JSON policy.
+
+BlogCTL reads the **same content-root JSON at compile time**; changing copyright wording no longer requires releasing or reinstalling BlogCTL. If an older content checkout does not have a policy file, the Go publisher uses the previous embedded policy as a compatibility fallback. Invalid or incomplete present policies are rejected. Published copies on external sites are changed only by an explicit update. Inkerio's code is subject to its open-source license; this does not license original text or photography.
 
 Do not add the same legal notice to individual Markdown files: it causes duplicate notices when the layout renders the component. Third-party images, quoted works, and software examples still require their own attribution and licensing checks; a blanket notice does not establish ownership of them.
