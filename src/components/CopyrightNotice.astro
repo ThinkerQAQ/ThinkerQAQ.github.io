@@ -5,11 +5,14 @@ import policy from "../content/site/copyright.json";
 interface Props { locale: Locale; kind?: "content" | "photography"; }
 const { locale, kind = "content" } = Astro.props;
 const copy = policy[locale];
+const detailsHref = locale === "en" ? "/en/about/" : "/about/";
+const detailsLabel = locale === "en" ? "Read licensing details" : "查看使用与授权详情";
 ---
 
 <aside class="copyright-notice" aria-label={copy.title}>
   <p class="copyright-notice__title">{copy.title}</p>
   <p>{kind === "photography" ? copy.photo : copy.notice}</p>
+  <p class="copyright-notice__details"><a href={detailsHref}>{detailsLabel}</a></p>
 </aside>
 
 <style>
@@ -24,4 +27,6 @@ const copy = policy[locale];
   }
   .copyright-notice p { margin: 0; }
   .copyright-notice .copyright-notice__title { font-weight: 600; margin-bottom: 0.3rem; }
+  .copyright-notice .copyright-notice__details { margin-top: 0.3rem; }
+  .copyright-notice .copyright-notice__details a { text-decoration: underline; text-underline-offset: 0.15em; }
 </style>
