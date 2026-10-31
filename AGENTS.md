@@ -33,7 +33,7 @@ LSP servers require a client to initialize them and send protocol requests. The 
 
 Minimal core, pluggable extensions, configuration-first. Reuse mature packages and platform SDKs before writing new infrastructure.
 
-- `blog-content` owns canonical Markdown; this engine owns Astro/SEO/search/build/deploy; BlogCTL owns local orchestration; the browser Extension owns browser-controlled authentication.
+- `blog-content` owns canonical Markdown, bilingual About page prose and the site copyright JSON; this engine owns Astro/SEO/search/build/deploy; BlogCTL owns local orchestration and reads the content-owned policy at compile time; the browser Extension owns browser-controlled authentication.
 - Go owns the BlogCTL backend. JavaScript owns browser UI and the site toolchain.
 - Detection/listing is read-only. Creation, updates, publication, deletion and indexing require explicit side-effect authorization. Never blindly retry ambiguous remote writes.
 - Session credentials and cookies stay in authorized browser flows, never static assets, Git, logs or documentation.

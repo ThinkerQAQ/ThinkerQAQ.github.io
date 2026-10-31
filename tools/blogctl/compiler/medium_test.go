@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	blogpublishing "github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl/publishing"
 	"reflect"
 	"strings"
 	"testing"
@@ -185,5 +186,20 @@ func TestMediumCopyrightFooterUsesOneNativeBlockquote(t *testing.T) {
 	}
 	if strings.Contains(footer.Text, "> ") {
 		t.Fatalf("raw markdown leaked: %+v", footer)
+	}
+}
+
+func TestMediumNativePayloadUsesContentCopyright(t *testing.T) {
+	profile := defaultPlatformConfig("medium")
+	source := blogpublishing.Copyright("en")
+	source.Syndication = "CUSTOM MEDIUM RIGHTS"
+	article := Article{Title: "Test"}
+	payload, _ := buildMediumPayload(article, "example", profile, "Test content", source)
+	if len(payload.Deltas) == 0 || !strings.Contains(payload.Deltas[len(payload.Deltas)-1].Paragraph.Text, "CUSTOM MEDIUM RIGHTS") {
+		t.Fatalf("missing copyright in Medium delta: %+v", payload.Deltas)
+	}
+	html := buildMediumCopyHTML(article, "example", profile, "Test content", source)
+	if !strings.Contains(html, "CUSTOM MEDIUM RIGHTS") {
+		t.Fatalf("missing copyright in Medium fallback")
 	}
 }

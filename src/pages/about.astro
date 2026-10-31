@@ -1,20 +1,21 @@
 ---
-import AboutProfile from "../components/AboutProfile.astro";
+import { getEntry } from "astro:content";
+import AboutContent from "../components/AboutContent.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { profilePageSchema } from "../lib/structured-data";
 
-const description = "关于 ThinkerQAQ：一名关注后端工程与基础设施的软件工程师，记录技术、学习与生活。";
+const entry = await getEntry("pages", "about");
+if (!entry || entry.data.language !== "zh") {
+  throw new Error("Missing Chinese About page at src/content/pages/about.md");
+}
 const profileSchema = profilePageSchema({
   path: "/about/",
   name: "关于 ThinkerQAQ",
-  description,
+  description: entry.data.seoDescription,
   inLanguage: "zh-CN",
 });
 ---
-<BaseLayout
-  title="关于我"
-  description={description}
->
+<BaseLayout title={entry.data.title} description={entry.data.seoDescription}>
   <script
     is:inline
     slot="head"
@@ -22,6 +23,6 @@ const profileSchema = profilePageSchema({
     set:html={JSON.stringify(profileSchema).replaceAll("<", "\\u003c")}
   />
   <div class="shell page collection-page">
-    <AboutProfile locale="zh" />
+    <AboutContent entry={entry} />
   </div>
 </BaseLayout>

@@ -12,10 +12,17 @@
 | `projects/` | 项目简介、链接与正文 | 相对文件名去掉 `.md` |
 | `project-translations/` | 翻译后的项目正文 | `translationOf` 指向原项目 ID |
 | `series/` | 阅读顺序与相关笔记 | 相对文件名去掉 `.md` |
+| `pages/` | 固定页，例如 `about.md`、`en/about.md` | 相对文件名去掉 `.md` |
 | `life/` | 摄影图文记录 | 相对文件名去掉 `.md` |
 | `workout-summaries/` | 公开的月度健身汇总 | JSON 中的 `YYYY-MM` 月份 |
 
 图片放在 `public/media/`，正文通过 `/media/...` 引用。`src/data/content-manifest.json` 保存导入笔记的来源和索引元信息；需要可运行的 manifest 时，可从[内容模板](https://github.com/ThinkerQAQ/inkerio-content-template)开始。
+
+## 固定页面与版权配置
+
+About 中文页面位于 `pages/about.md`，英文页面位于 `pages/en/about.md`，对应 URL `/about/`、`/en/about/`。frontmatter 必填 `title`、`description`、`seoDescription`、`language`（`zh`/`en`），正文为普通 Markdown。页面布局和 SEO 由引擎读取这些字段进行渲染，缺失语言版本会导致构建错误。
+
+版权策略 `site/copyright.json` 是普通 JSON 配置文件，不是 Astro 内容集合；由内容装配器复制给引擎。包含 `zh` 和 `en` 两个对象，各自必填 `title`、`notice`（文章、笔记、生活详情）、`photo`（生活列表）、`syndication`（BlogCTL 分发）、`source`（原文链接标签）。About 中的版权说明是该策略的摘要，不是独立许可证。
 
 ## 文章
 

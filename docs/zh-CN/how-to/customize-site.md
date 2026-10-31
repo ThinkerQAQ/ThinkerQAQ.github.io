@@ -11,7 +11,7 @@
 | [`src/config/site.ts`](../../../src/config/site.ts) | `SITE.title`、`homeTitle`、`description`、`author`、`url`、`github`、`profiles`、`repository`、`contactEmail`、`alternateNames` |
 | [`src/config/i18n.ts`](../../../src/config/i18n.ts) | 中英文 `homeTitle`、首页无障碍标签，以及 About、Search 等含作者身份的描述 |
 | [`astro.config.mjs`](../../../astro.config.mjs) | `site`，与 `SITE.url` 使用同一个 HTTPS 站点源地址 |
-| [`src/pages/about.astro`](../../../src/pages/about.astro)、[`src/pages/[locale]/about.astro`](../../../src/pages/[locale]/about.astro) | 个人简介、链接与站点说明 |
+| 内容仓库 `src/content/pages/about.md`、`src/content/pages/en/about.md` | About 中英文正文、版权与使用说明、简介及 SEO 摘要；Inkerio 只负责渲染 |
 | [`public/`](../../../public/) | 自己的图标、域名及站长验证文件等站点资源 |
 
 同时删除或替换 `SITE` 中的 `icpRecord`、`icpLookupUrl`、`publicSecurityRecord`、`publicSecurityLookupUrl`。它们对应作者的个人站点，应按自己站点的实际情况填写，不能直接沿用。
@@ -44,3 +44,11 @@
 ## 站外分发域名
 
 BlogCTL 目前使用 `tools/blogctl/compiler/markdown.go` 的 `SiteOrigin` 常量生成 canonical 和根路径链接。修改上述站点配置或索引 `[search]` 不会同步改变它。Fork 用于自己的站外分发前，需要调整并检查编译后的链接，同时配置自己的 R2 素材存储；作者公开素材地址不代表拥有上传权限。
+
+## 内容驱动的 About 与版权声明
+
+About 的中英文内容保存在内容仓库 `src/content/pages/about.md` 和 `src/content/pages/en/about.md`。frontmatter 包含 `title`、`description`、`seoDescription`、`language`；正文普通 Markdown，工程只加载并渲染，保持 `/about/` 和 `/en/about/` 路由、SEO 与结构化数据。
+
+版权的**权威文案**存放于内容仓库 `src/content/site/copyright.json`，中文键 `zh`、英文键 `en`。每种语言包含 `title`、`notice`、`photo`、`syndication`、`source`。组合构建时由现有站点装配流程拷贝到引擎 `src/content/`，渲染文章、笔记、生活记录与生活首页时使用该文件。About 中的「版权与使用」是说明性摘要，应与 JSON 的授权规则保持一致。
+
+BlogCTL 在文章编译阶段通过配置的 `content_root` 读取同一个 JSON；修改文案后新编译的文章即可生效，**无需重新打包 BlogCTL**。为兼容旧版内容库，文件不存在时暂时使用内置旧声明；文件存在但 JSON 格式或必填字段错误时拒绝编译，以免发布错误授权说明。历史分发文章不会自动重写。内容库里的 About 两种语言文件必须同时存在，否则构建报错，不静默回退到引擎硬编码文案。

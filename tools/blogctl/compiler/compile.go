@@ -83,7 +83,7 @@ func trackedURL(canonical string, config PlatformConfig) string {
 	u.RawQuery = strings.Join(pairs, "&")
 	return u.String()
 }
-func renderFooter(config PlatformConfig, canonical, title string) string {
+func renderFooter(config PlatformConfig, canonical, title string, policy ...blogpublishing.CopyrightText) string {
 	if !config.Footer.Enabled {
 		return ""
 	}
@@ -98,6 +98,9 @@ func renderFooter(config PlatformConfig, canonical, title string) string {
 	// Preserve custom/legacy attribution templates while appending the same
 	// copyright policy displayed by the site. Keep the canonical URL untracked.
 	copy := blogpublishing.Copyright(config.Language)
+	if len(policy) > 0 {
+		copy = policy[0]
+	}
 	return strings.TrimSpace(v) + "\n\n> " + copy.Syndication + " [" + copy.Source + "](" + canonical + ")"
 }
 func normalizeDevtoTags(tags []string) []string {
@@ -210,14 +213,14 @@ func hashText(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
 }
-func compileOne(ctx context.Context, o CompileOptions, profile PlatformConfig, slug string, article Article, source, assetBase string) (CompiledArticle, error) {
+func compileOne(ctx context.Context, o CompileOptions, profile PlatformConfig, slug string, article Article, source, assetBase string, policy blogpublishing.CopyrightText) (CompiledArticle, error) {
 	canonical := CanonicalURL(slug, profile.Language)
 	body, assets, err := CompilePublishingMarkdown(article.Body, assetBase)
 	if err != nil {
 		return CompiledArticle{}, err
 	}
 	body = strings.TrimSpace(body)
-	footer := renderFooter(profile, canonical, article.Title)
+	footer := renderFooter(profile, canonical, article.Title, policy)
 	var compiled CompiledArticle
 	var hashSource string
 	if o.Platform == "devto" || o.Platform == "hashnode" {
@@ -298,6 +301,10 @@ func CompilePlatform(ctx context.Context, o CompileOptions) ([]CompiledArticle, 
 	if profile.Language == "" {
 		profile.Language = blogplatform.DefaultLanguage(o.Platform)
 	}
+	policy, err := blogpublishing.LoadCopyright(o.ContentRoot, profile.Language)
+	if err != nil {
+		return nil, err
+	}
 	slugs := append([]string{}, o.Articles...)
 	if o.All {
 		slugs, err = publishedSlugs(o.ContentRoot, profile.Language)
@@ -323,10 +330,10 @@ func CompilePlatform(ctx context.Context, o CompileOptions) ([]CompiledArticle, 
 		if o.Platform == "medium" {
 			compiled, err = compileMedium(compileContext{
 				options: o, profile: profile, slug: slug, article: article,
-				sourceDir: filepath.Dir(source), assetBase: config.Assets.R2.PublicBaseURL,
+				sourceDir: filepath.Dir(source), assetBase: config.Assets.R2.PublicBaseURL, policy: policy,
 			})
 		} else {
-			compiled, err = compileOne(ctx, o, profile, slug, article, source, config.Assets.R2.PublicBaseURL)
+			compiled, err = compileOne(ctx, o, profile, slug, article, source, config.Assets.R2.PublicBaseURL, policy)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("%s/%s: %w", o.Platform, slug, err)
