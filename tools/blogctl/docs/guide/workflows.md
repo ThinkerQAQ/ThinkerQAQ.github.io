@@ -40,7 +40,7 @@ Update requires a remote ID and never falls back to Create. Targets, their remot
 | Published Medium article | Save a pending editor revision; the user clicks **Save and publish** on Medium to make it public |
 | Other published articles | Not offered as a normal published-body update in the current UI |
 
-Medium's public body can remain unchanged after a successful pending-edit save. Verify the editor revision, not just the public URL. See [Medium editor integration](../medium-har-contract.md).
+Medium's public body can remain unchanged after a successful pending-edit save. Verify the editor revision in Medium, not just the public URL.
 
 ## Publish an existing draft
 
