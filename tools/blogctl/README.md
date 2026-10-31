@@ -66,3 +66,5 @@ BlogCTL is an open-source tool for content management and cross-platform publish
 Users are responsible for ensuring they have the necessary rights to access accounts and publish content, and for complying with applicable laws and third-party terms of service. The project must not be used for unauthorized access, infringement of third-party rights, or other unlawful activities.
 
 BlogCTL is licensed under the [MIT License](../../LICENSE). This license does not grant authorization to access third-party services. The software is provided "as is," subject to the disclaimers in the LICENSE file.
+
+The new dependency-license packaging check is currently blocked by fhttp v0.6.9; see [third-party notices](../../THIRD_PARTY_NOTICES.md). v0.1.193 includes project MIT files; it has not passed this new transitive-dependency review.

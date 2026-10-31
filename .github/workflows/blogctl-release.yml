@@ -59,6 +59,13 @@ jobs:
         if: steps.version.outputs.exists != 'true'
         run: go run ./tools/blogctl/cmd/maint verify
 
+      - name: Verify dependency redistribution permissions
+        if: steps.version.outputs.exists != 'true'
+        run: |
+          mkdir -p .build/tools
+          GOTOOLCHAIN="$(go env GOVERSION)" GOBIN="$PWD/.build/tools" go install github.com/google/go-licenses/v2@v2.0.1
+          CGO_ENABLED=0 .build/tools/go-licenses save ./tools/blogctl/cmd --ignore=github.com/ThinkerQAQ/ThinkerQAQ.github.io/tools/blogctl --save_path="$PWD/.build/out/publish-licenses"
+
       - name: Package BlogCTL
         if: steps.version.outputs.exists != 'true'
         run: go run ./tools/blogctl/cmd/maint package
