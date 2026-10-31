@@ -15,7 +15,7 @@ import {
   seriesHref,
   seriesStatusLabel,
   sortArticles,
-  sortProjects,
+  sortHomepageProjects,
   sortSeries,
 } from "../lib/content";
 import { localizeNoteMetadata, noteTranslationFor } from "../lib/note-i18n";
@@ -194,7 +194,7 @@ const recentNotes = selectRecentNotes(
 const localizedProjects = locale === "en"
   ? allProjects.filter((project) => Boolean(project.data.translations?.en))
   : allProjects;
-const projects = sortProjects(localizedProjects).slice(0, 3);
+const projects = sortHomepageProjects(localizedProjects).slice(0, 3);
 const projectItems = projects.map((project) => {
   const summary = localizedProjectSummary(project, locale);
   return {

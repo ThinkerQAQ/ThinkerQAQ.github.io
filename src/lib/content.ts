@@ -364,6 +364,16 @@ export function sortProjects(projects: ProjectEntry[]): ProjectEntry[] {
   );
 }
 
+// Featured projects are pinned on the homepage; the full projects index keeps the
+// ordinary update-date order.
+export function sortHomepageProjects(projects: ProjectEntry[]): ProjectEntry[] {
+  return [...projects].sort(
+    (left, right) =>
+      Number(right.data.featured) - Number(left.data.featured)
+      || right.data.updatedAt.getTime() - left.data.updatedAt.getTime(),
+  );
+}
+
 export function sortSeries(series: SeriesEntry[]): SeriesEntry[] {
   return [...series].sort(
     (left, right) => right.data.updatedAt.getTime() - left.data.updatedAt.getTime(),
