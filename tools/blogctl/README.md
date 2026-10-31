@@ -58,3 +58,11 @@ Build output goes to `.build/out/`. Packaging produces six platform executables,
 Run `blogctl -mcp-stdio` from the installed machine to expose the existing Bridge as MCP over STDIO. The browser Extension continues to own browser sessions; no separate publisher or public HTTP endpoint is created. See [MCP integration](docs/MCP.md).
 
 The MCP tool `upload_image_to_r2` sanitizes images locally before uploading with the existing R2 credentials, and returns content-versioned Markdown URLs. Configure `image_upload_roots` in private TOML; see [MCP image uploads](docs/MCP.md#private-image-upload-to-r2).
+
+## Legal Use and Third-Party Services
+
+BlogCTL is an open-source tool for content management and cross-platform publishing. It is not affiliated with or officially endorsed by any supported third-party platform.
+
+Users are responsible for ensuring they have the necessary rights to access accounts and publish content, and for complying with applicable laws and third-party terms of service. The project must not be used for unauthorized access, infringement of third-party rights, or other unlawful activities.
+
+BlogCTL is licensed under the [MIT License](../../LICENSE). This license does not grant authorization to access third-party services. The software is provided "as is," subject to the disclaimers in the LICENSE file.
