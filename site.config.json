@@ -23,5 +23,6 @@
   "locale": "zh-CN",
   "commentsRepository": "ThinkerQAQ/ThinkerQAQ.github.io",
   "publicSecurityIcon": "/gongan-beian.png",
-  "indexNowKey": "fb26fca3ba9449c6816b6d79b0a41cec"
+  "indexNowKey": "fb26fca3ba9449c6816b6d79b0a41cec",
+  "descriptionEn": "ThinkerQAQ's technical knowledge garden for backend engineering, concurrency, distributed systems, data systems, and software engineering."
 }
