@@ -74,15 +74,24 @@ jobs:
           # incremental diff fetch of content_before_sha in this same job.
           persist-credentials: true
 
+      - name: Checkout pinned private SyndiRelay (read-only)
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/syndirelay
+          ref: cc8e4baf354b941fd752bb5abe79d4ba079463d3
+          ssh-key: ${{ secrets.SYNDIRELAY_DEPLOY_KEY }}
+          path: relay
+          persist-credentials: false
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: site/go.work
+          go-version-file: relay/go.mod
           cache: false
 
-      - name: Build legacy search and AI Search CLI
-        working-directory: site/tools/blogctl
-        run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
+      - name: Build private search and AI Search CLI
+        working-directory: relay
+        run: go build -o "$RUNNER_TEMP/syndirelay" ./cmd
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -90,6 +99,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: engine/package-lock.json
+
+      - name: Load site origin from configuration
+        run: |
+          origin="$(node -p 'require("./site/site.config.json").url')"
+          echo "BLOG_ORIGIN=$origin" >> "$GITHUB_ENV"
 
       - name: Setup Java for PlantUML
         uses: actions/setup-java@v5
@@ -127,12 +141,12 @@ jobs:
       - name: Prepare AI Search input
         id: ai_search_prepare
         continue-on-error: true
-        working-directory: site
+        working-directory: relay
         env:
           CONTENT_SHA: ${{ inputs.content_sha || '' }}
           CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
           AI_SEARCH_FORCE_FULL_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
-        run: '"$RUNNER_TEMP/blogctl" ai-search prepare --output "$RUNNER_TEMP/ai-search-input" --content-root ../content-source'
+        run: '"$RUNNER_TEMP/syndirelay" ai-search prepare --output "$RUNNER_TEMP/ai-search-input" --content-root ../content-source'
 
       - name: Upload public AI Search input
         id: ai_search_upload
@@ -203,7 +217,7 @@ jobs:
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
-      AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/site/src/content/ai-search-changed-paths.txt
+      AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/relay/src/content/ai-search-changed-paths.txt
       AI_SEARCH_FORCE_FULL_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
     steps:
       - name: Checkout site deployment wrapper
@@ -212,25 +226,44 @@ jobs:
           ref: ${{ github.sha }}
           path: site
 
+      - name: Checkout pinned private SyndiRelay (read-only)
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/syndirelay
+          ref: cc8e4baf354b941fd752bb5abe79d4ba079463d3
+          ssh-key: ${{ secrets.SYNDIRELAY_DEPLOY_KEY }}
+          path: relay
+          persist-credentials: false
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: site/go.work
+          go-version-file: relay/go.mod
           cache: false
 
-      - name: Build legacy search and AI Search CLI
-        working-directory: site/tools/blogctl
-        run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
+      - name: Build private search and AI Search CLI
+        working-directory: relay
+        run: go build -o "$RUNNER_TEMP/syndirelay" ./cmd
+
+      - name: Setup Node for site configuration
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Load site origin from configuration
+        run: |
+          origin="$(node -p 'require("./site/site.config.json").url')"
+          echo "BLOG_ORIGIN=$origin" >> "$GITHUB_ENV"
 
       - name: Download public AI Search input
         uses: actions/download-artifact@v5
         with:
           name: ai-search-input
-          path: site/src/content
+          path: relay/src/content
 
       - name: Sync and verify AI Search
-        working-directory: site
-        run: '"$RUNNER_TEMP/blogctl" ai-search sync --verify'
+        working-directory: relay
+        run: '"$RUNNER_TEMP/syndirelay" ai-search sync --verify'
 
   notify-search:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
@@ -247,18 +280,32 @@ jobs:
           ref: ${{ github.sha }}
           path: site
 
+      - name: Checkout pinned private SyndiRelay (read-only)
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/syndirelay
+          ref: cc8e4baf354b941fd752bb5abe79d4ba079463d3
+          ssh-key: ${{ secrets.SYNDIRELAY_DEPLOY_KEY }}
+          path: relay
+          persist-credentials: false
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: site/go.work
+          go-version-file: relay/go.mod
           cache: false
 
-      - name: Build legacy search and AI Search CLI
-        working-directory: site/tools/blogctl
-        run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
+      - name: Build private search and AI Search CLI
+        working-directory: relay
+        run: go build -o "$RUNNER_TEMP/syndirelay" ./cmd
+
+      - name: Prepare isolated search settings
+        run: node site/scripts/prepare-search-notify.mjs --site site --relay relay --data "$RUNNER_TEMP/syndirelay-search"
 
       - name: Notify search engines
-        working-directory: site
+        working-directory: relay
+        env:
+          SYNDIRELAY_DATA_DIR: ${{ runner.temp }}/syndirelay-search
         shell: bash
         run: |
           set -euo pipefail
@@ -271,7 +318,7 @@ jobs:
             args+=(--google-service-account-file "$credentials")
           fi
 
-          "$RUNNER_TEMP/blogctl" "${args[@]}"
+          "$RUNNER_TEMP/syndirelay" "${args[@]}"
 
   record-content-state:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && inputs.content_sha != ''

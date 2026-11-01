@@ -22,5 +22,6 @@
   "contactEmail": "contact@mail.thinkerqaq.com",
   "locale": "zh-CN",
   "commentsRepository": "ThinkerQAQ/ThinkerQAQ.github.io",
-  "publicSecurityIcon": "/gongan-beian.png"
+  "publicSecurityIcon": "/gongan-beian.png",
+  "indexNowKey": "fb26fca3ba9449c6816b6d79b0a41cec"
 }
