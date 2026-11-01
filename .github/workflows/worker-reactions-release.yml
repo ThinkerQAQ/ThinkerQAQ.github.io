@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "workers/blog-reactions/**"
+      - "workers/blog-reactions/src/**"
+      - "workers/blog-reactions/wrangler.jsonc"
       - ".github/workflows/worker-reactions-release.yml"
   workflow_dispatch:
 

@@ -30,6 +30,6 @@ The reusable engine and content template maintain authoring and customization in
 
 **Never commit private content, service credentials or local data here.** Production credentials stay in GitHub Actions secrets. Changes to pinned dependencies must pass CI, site-overlay tests and a public-template engine build before deployment.
 
-Cloudflare AI and reactions Workers are site-specific production integrations; they are not part of Inkerio's reusable engine.
+Cloudflare AI, analytics, and reactions Workers are **site-specific production integrations**, not part of Inkerio's reusable engine. The website provides its own Umami `public/u.js` bundle, which is copied into the static site by the overlay script; the browser collector still uses the separately configured Worker origin. See [integration ownership and mainland collection constraints](docs/worker-integration-boundaries.md).
 
 [MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

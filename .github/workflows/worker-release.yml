@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "workers/blog-ai/**"
+      - "workers/blog-ai/src/**"
+      - "workers/blog-ai/wrangler.jsonc"
       - ".github/workflows/worker-release.yml"
   workflow_dispatch:
 

@@ -20,6 +20,13 @@ The checked-in configuration belongs to the author's deployment. Before deployin
 
 Leave the public Ask endpoint disabled until its configuration and frontend are ready. Do not remove the whole Worker to disable chat: the site may also use its `/u.js`, `/api/send` and analytics endpoints.
 
+### Ownership and mainland collection reliability
+
+`public/u.js` is a **site-owned pinned Umami browser bundle**. `scripts/prepare-inkerio-deployment.mjs` copies it to the built Inkerio site; the generic engine only conditionally emits a `<script src="/u.js">` tag. The bundle is served from the site domain, but it currently sends browser beacons to this Worker (`/api/send`) at `workers.dev`, which remains a separate origin. HTTP 200 from `/u.js` or `/analytics/health` does not prove that a particular mainland visitor successfully posted a beacon.
+
+For a site-specific alternative, provide a custom-domain Worker origin (after configuring Cloudflare ownership, TLS, DNS and the Worker's origin allowlist), and set the build variable `PUBLIC_UMAMI_PROXY_ORIGIN` to that origin. **Do not set the static site's origin unless a real POST-capable reverse proxy exists for `/api/send`**; GitHub Pages/EdgeOne static output cannot act as such a proxy by itself. Before switching, compare actual browser POST response rates and Umami counts across both paths and preserve the prior Worker origin as rollback. Keep the proxy and Cloudflare credentials in this site deployment layer, not Inkerio source.
+
+
 ## Analytics
 
 A cron at minute 7 of every hour collects complete UTC-hour snapshots and the previous two complete calendar weeks from Umami. A run backfills up to four missing hours; health reports the remaining backlog.
@@ -43,9 +50,9 @@ Visitors are deduplicated over the entire requested window, not summed across bu
 
 ## Optional AI Search pipeline
 
-BlogCTL's `ai-search prepare|sync|verify` commands own the indexing pipeline. The former `scripts/sync-ai-search.mjs` and `scripts/eval-ai-search.mjs` are no longer entry points.
+The separately maintained **SyndiRelay** CLI (`ai-search prepare|sync|verify`) owns the indexing pipeline. Its repository is currently private; the public website wrapper checks out a fixed audited commit in GitHub Actions. The former `scripts/sync-ai-search.mjs` and `scripts/eval-ai-search.mjs` are no longer entry points.
 
-From the engine root, inspect [the command implementation](../../tools/blogctl/cmd/ai_search.go) and [deployment workflow](../../.github/workflows/deploy.yml) before running a live sync. Synchronization writes to Cloudflare; verification queries the live index.
+From this **site wrapper repository**, review [the deployment workflow](../../.github/workflows/deploy.yml) and the private SyndiRelay `cmd/ai_search.go` implementation (requires access). Do not try to run deleted `tools/blogctl` source or checkout a site engine to invoke AI Search. Synchronization writes to Cloudflare; verification queries the live index.
 
 The pipeline uploads eligible public Markdown from assembled articles and notes; draft articles and notes with `indexable: false` are excluded. It removes stale items. The instance uses vector and keyword retrieval, trigram tokenization, RRF fusion, article-priority metadata and reranking. The Worker deduplicates results and selects up to five context documents. Pagefind remains the independent static-site search.
 
@@ -66,9 +73,9 @@ The current workflows use the token for AI Search and Worker deployment. Configu
 3. Store `TURNSTILE_SECRET_KEY` as a Worker secret.
 4. Optionally store `ASK_SESSION_SECRET` for independent session-key rotation. Otherwise session signing derives a separate key from the Turnstile secret.
 5. Set `ASK_BLOG_ENABLED` to `"true"` and deploy the Worker.
-6. Restore the `AskBlogSession` mount in `src/layouts/BaseLayout.astro`, configure `PUBLIC_ASK_BLOG_WORKER_URL` and `PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY`, then rebuild the site.
+6. On the **Inkerio build**, explicitly set `PUBLIC_ASK_BLOG_ENABLED=true`, `PUBLIC_ASK_BLOG_WORKER_URL` and `PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY`, then rebuild the static site. Inkerio mounts `AskBlogSession` only with all three settings; no engine source edit is needed. Keep this switch unset/false until a live Worker and Turnstile test pass.
 
-From the engine root:
+From the site wrapper repository root:
 
 ```bash
 npx wrangler@latest secret put TURNSTILE_SECRET_KEY --config workers/blog-ai/wrangler.jsonc

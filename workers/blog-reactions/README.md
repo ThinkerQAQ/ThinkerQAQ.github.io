@@ -80,7 +80,7 @@ The reaction component intentionally renders nothing while this variable is empt
 ## Local tests
 
 ```bash
-npm run test:reactions
+node --test workers/blog-reactions/src/index.test.js
 ```
 
 The tests cover empty state, duplicate `PUT`, duplicate `DELETE`, multiple visitors, origin validation, and rate limiting.
@@ -117,3 +117,7 @@ Response:
 ```
 
 `contentType` accepts `article`, `note`, `fitness` or `life`. Article, note and life IDs are the content collection entry IDs; fitness uses the `YYYY-MM` month. IDs are stable identifiers, not titles.
+
+## Integration boundaries
+
+The reusable **Inkerio** engine owns the optional [`ContentReaction` component](https://github.com/ThinkerQAQ/inkerio/blob/main/src/components/ContentReaction.astro). It is omitted when the site build variable `PUBLIC_REACTION_WORKER_URL` is unset. This Worker and its D1 data, deployment names, origin whitelist and secret belong to the **site wrapper** and must not be copied into the generic engine repository. A health check with an invalid or missing `X-Reaction-Visitor` header intentionally returns a client error; to verify availability without writing, send a valid random UUID in the read-only GET request. Never use PUT/DELETE for deployment smoke tests.
