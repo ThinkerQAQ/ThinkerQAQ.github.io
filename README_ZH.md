@@ -15,6 +15,8 @@
 
 `.github/workflows/deploy.yml` 使用不同的只读 Deploy Key 检出**固定提交版本**的 Inkerio、私有 SyndiRelay 和私有内容，通过 `scripts/prepare-inkerio-deployment.mjs` 注入本站配置与资源，构建统一静态产物并部署至 GitHub Pages 和 EdgeOne Makers。SyndiRelay 仅在 GitHub Actions 临时环境中用于 Cloudflare AI Search 同步与搜索引擎通知；`scripts/prepare-search-notify.mjs` 生成临时且与站点域名绑定的搜索配置。私有源码、凭据和本地数据不会进入静态网站产物。
 
+本网站的首页知识栏目、笔记分类及英译、RSS 筛选规则和旧链接跳转，均由 **`site.config.json`** 持有。构建后执行 `scripts/verify-site-features.mjs`，自动核对首页、RSS、Canonical 和 Sitemap，避免升级通用引擎时丢失历史地址。配置方式见[Inkerio 站点配置参考](https://github.com/ThinkerQAQ/inkerio/blob/main/docs/zh-CN/reference/site-features.md)。
+
 引擎运行、定制与内容管理请参阅：
 
 - [Inkerio 文档](https://github.com/ThinkerQAQ/inkerio/tree/main/docs)

@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ThinkerQAQ/inkerio
-          ref: e0a27ae5087754fb5a9006db77fd25443f2632c9
+          ref: c690493d0de3dab8ef9e05d6b2113f56908da4a5
           path: engine
           persist-credentials: false
 
@@ -137,6 +137,9 @@ jobs:
           npm run build
           mkdir -p ../publish-dist
           cp -a dist/. ../publish-dist/
+
+      - name: Verify configured home, RSS, and legacy redirect output
+        run: node site/scripts/verify-site-features.mjs --engine engine --site site
 
       - name: Prepare AI Search input
         id: ai_search_prepare
