@@ -84,7 +84,7 @@ const structuredData = data.kind === "record" ? {
           <LifeRecord entry={data.entry} detail />
         </div>
         <ContentMediaViewer locale={locale} />
-        <CopyrightNotice locale={locale} />
+        <CopyrightNotice locale={locale} kind="photography" />
         <ContentReaction contentType="life" contentId={data.entry.id} language={locale} />
         <ContentComments language={locale} threadPath={lifeHref(data.entry)} />
       </>
