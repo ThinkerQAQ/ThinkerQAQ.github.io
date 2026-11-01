@@ -66,9 +66,10 @@ jobs:
         run: |
           node --test site/scripts/prepare-search-notify.test.mjs
           node site/scripts/prepare-search-notify.mjs --site site --relay relay --data "$RUNNER_TEMP/search-settings"
-          SYNDIRELAY_DATA_DIR="$RUNNER_TEMP/search-settings" "$RUNNER_TEMP/syndirelay" search notify --site-url sc-domain:invalid.example > "$RUNNER_TEMP/negative-test.log" 2>&1 && {
-            echo "::error::Search notifier accepted a mismatched site; expected rejection"; exit 1;
-          }
+          if (cd relay && SYNDIRELAY_DATA_DIR="$RUNNER_TEMP/search-settings" "$RUNNER_TEMP/syndirelay" search notify --site-url sc-domain:invalid.example > "$RUNNER_TEMP/negative-test.log" 2>&1); then
+            echo "::error::Search notifier accepted a mismatched site; expected rejection"
+            exit 1
+          fi
           grep -q 'must match search.google_property' "$RUNNER_TEMP/negative-test.log"
 
       - name: Verify AI Search preparation without network writes
