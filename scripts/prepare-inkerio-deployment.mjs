@@ -23,6 +23,9 @@ export async function prepareDeployment({ engineRoot, siteRoot }) {
   for (const field of ["title", "homeTitle", "homeTitleEn", "author", "description", "url", "commentsRepository"]) {
     assert.equal(typeof config[field], "string", "Missing site config field: " + field);
   }
+  if (config.descriptionEn !== undefined) {
+    assert.equal(typeof config.descriptionEn, "string", "Site English description must be a string");
+  }
   if (!config.url.startsWith("https://")) throw new Error("Site origin must be HTTPS");
   const origin = new URL(config.url);
   if (origin.pathname !== "/" || origin.search || origin.hash || origin.username || origin.password) {

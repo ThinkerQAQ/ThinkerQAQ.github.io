@@ -41,3 +41,12 @@ test("rejects a URL containing user credentials or path", async () => {
   await writeFile(configPath, JSON.stringify(cfg));
   await assert.rejects(prepareDeployment(fixture), /Site config URL/);
 });
+
+test("rejects malformed optional English description", async () => {
+  const fixture = await createFixture();
+  const configPath = path.join(fixture.siteRoot, "site.config.json");
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  config.descriptionEn = 42;
+  await writeFile(configPath, JSON.stringify(config));
+  await assert.rejects(prepareDeployment(fixture), /English description/);
+});
