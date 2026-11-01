@@ -1,49 +1,43 @@
-# ThinkerQAQ website deployment
+# ThinkerQAQ website · Inkerio live example
 
-[简体中文](README_ZH.md) · [Website](https://thinkerqaq.com/) · [Inkerio](https://github.com/ThinkerQAQ/inkerio)
+[简体中文](README_ZH.md) · [Live website](https://thinkerqaq.com/) · [Inkerio](https://github.com/ThinkerQAQ/inkerio) · [Create your own site](https://github.com/ThinkerQAQ/inkerio-content-template)
 
-This repository is **the deployment and site-integration layer** for [ThinkerQAQ](https://thinkerqaq.com/), not a copy of the rendering engine or the author's writing.
+This is the **actual production deployment repository** behind [thinkerqaq.com](https://thinkerqaq.com/). It is a reference implementation, **not** the starter template. The Inkerio engine and the author's private content live elsewhere; this repository owns the deployment wrapper, public site configuration and optional Workers.
+
+## Quick Start — build your own blog
+
+To create a GitHub Pages blog, open [inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template), click **Use this template**, and name the repository `YOUR_USERNAME.github.io`. Configure the five fields in `site.config.json`, replace demonstration materials, and deploy with its included GitHub Pages Actions workflow. The bilingual [Inkerio README](https://github.com/ThinkerQAQ/inkerio) provides the complete first-site walkthrough.
+
+**Do not fork this site wrapper for ordinary blogging.** It includes private-content checkout paths, custom search integration and additional Workers that new users do not need.
+
+## What belongs where?
 
 | Repository | Responsibility |
 | --- | --- |
-| [Inkerio](https://github.com/ThinkerQAQ/inkerio) | Astro rendering, bilingual pages, static builds, sitemap, RSS and search |
-| `ThinkerQAQ/blog-content` (private) | Original articles, projects, photography, site prose and copyright policy |
-| [SyndiRelay](https://github.com/ThinkerQAQ/syndirelay) (public source) | Cross-platform syndication, drafts, Bridge, MCP and browser extension; site search/AI Search CI integration |
-| **This repository** | Site identity (`site.config.json`), public verification assets (`public/`), Worker integrations (`workers/`), GitHub Pages and EdgeOne deployment |
-
-## Releases and repository responsibility
-
-**This is a website deployment repository, not a software download channel.**
-It has no active release tags or binary releases. Reusable engine source
-releases belong to [Inkerio](https://github.com/ThinkerQAQ/inkerio/releases);
-the separate [SyndiRelay source](https://github.com/ThinkerQAQ/syndirelay)
-is public under MIT, but standalone binary and browser Extension releases
-require their own validation. The retired BlogCTL website downloads and tags
-are not supported installation options.
-
-## Site-owned integrations
-
-`workers/blog-ai`, `workers/blog-reactions`, `public/u.js`, hosting configuration
-and the production Umami/reactions endpoints remain owned by this website.
-Inkerio provides optional integration protocols and example backends; no
-production Worker, D1 database or Cloudflare credentials are transferred.
-See [integration boundaries](docs/worker-integration-boundaries.md).
+| [Inkerio](https://github.com/ThinkerQAQ/inkerio) | Reusable Astro renderer, article and note schema, bilingual routes, RSS, sitemap and static search |
+| `ThinkerQAQ/blog-content` (private) | Personal writing, photography, About page, real copyright policy |
+| [SyndiRelay](https://github.com/ThinkerQAQ/syndirelay) (public source) | Independently maintained CLI, Bridge, MCP and optional publishing/search automation |
+| **This repository** | Site identity, public assets, build overlay, GitHub Pages and EdgeOne deployments, Workers |
 
 ## Production deployment
 
-`.github/workflows/deploy.yml` checks out **pinned commits** of public Inkerio and SyndiRelay, plus the private content repository using its own read-only Deploy Key. It overlays this site's public configuration and assets via `scripts/prepare-inkerio-deployment.mjs`, builds one static output, then deploys the same artifact to GitHub Pages and EdgeOne Makers. SyndiRelay is used only inside the GitHub Actions runner to prepare/synchronize Cloudflare AI Search input and notify search engines. `scripts/prepare-search-notify.mjs` creates ephemeral, domain-scoped search settings outside the public checkout; neither private content, credentials, nor local user data enter the static output.
+The `.github/workflows/deploy.yml` workflow checks out **pinned Inkerio and SyndiRelay commits** and the private content repository using a separate read-only Deploy Key. `scripts/prepare-inkerio-deployment.mjs` overlays the public site configuration and assets before rendering. The same static build is then deployed to GitHub Pages and EdgeOne.
 
-The site's homepage knowledge sections, note taxonomy/translations, RSS inclusion cutoffs and legacy URL redirects are now configured **only** in `site.config.json`. `scripts/verify-site-features.mjs` verifies their output before publication, including legacy canonical links and sitemap exclusions. See the [engine configuration reference](https://github.com/ThinkerQAQ/inkerio/blob/main/docs/reference/site-features.md).
+The website-specific `site.config.json` controls home sections, note categories, translated routes, RSS filters and legacy redirects. `scripts/verify-site-features.mjs` checks generated canonical URLs, sitemaps, redirects and RSS before deployment. The site-owned search CI prepares temporary, domain-scoped inputs for optional SyndiRelay search notifications.
 
-The reusable engine and content template maintain authoring and customization instructions:
+**Security boundary:** secrets remain in GitHub Actions, not in code or the generated static website. The engine and the public template do not receive the private content repository, production Worker keys or databases.
 
-- [Inkerio documentation](https://github.com/ThinkerQAQ/inkerio/tree/main/docs)
-- [Public content template](https://github.com/ThinkerQAQ/inkerio-content-template)
+## Workers and optional integrations
 
-**Never commit private content, service credentials or local data here.** Production credentials stay in GitHub Actions secrets. Changes to pinned dependencies must pass CI, site-overlay tests and a public-template engine build before deployment.
+- `public/u.js` is hosted under the website's own origin; the browser's analytics POST still goes to the configured Worker endpoint. A same-origin script **does not imply a same-origin collector**, and no `/api/send` reverse proxy exists on the static site.
+- `workers/blog-ai` runs optional AI Search / Ask Blog and analytics services. It retains its own Worker/KV configuration.
+- `workers/blog-reactions` implements site-owned HTTP reactions with its own D1 storage and secrets.
+- The engine only renders optional Umami / HTTP reactions clients when site configuration enables them; it does not own production Cloudflare resources. Generic self-hosted examples are under Inkerio's `examples/cloudflare/`.
 
-Cloudflare AI, analytics, and reactions Workers are **site-specific production integrations**, not part of Inkerio's reusable engine. The website provides its own Umami `public/u.js` bundle, which is copied into the static site by the overlay script; the browser collector still uses the separately configured Worker origin. See [integration ownership and mainland collection constraints](docs/worker-integration-boundaries.md).
+Changing a production Worker endpoint, collector origin, D1/KV binding or domain requires separate tests and an authorized deployment. Do not treat a successful static-site build as a backend-migration test.
+
+## Maintenance and license
+
+Validate changes with the site overlay tests and its GitHub Actions checks. Production content, credentials and local user data must **never** be committed here. This deployment repository does not distribute software binaries or retain historical BlogCTL/Inkerio Release tags.
 
 [MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
-
-**Optional pluggable integrations:** `site.config.json` now selects the Umami analytics and HTTP reactions adapters, with deployment addresses and public IDs supplied by existing GitHub Actions variables. The reusable [Inkerio integration protocol](https://github.com/ThinkerQAQ/inkerio/blob/main/docs/reference/integrations.md) also supports disabled/custom analytics and other compatible reaction APIs. Self-hosted backend references live in Inkerio's `examples/cloudflare/`; this site **does not migrate** its production Workers or database.

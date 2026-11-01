@@ -46,7 +46,7 @@ Supply `start` and `end` together or omit both. The old `/analytics/hourly`, `/a
 /analytics/weekly-range?start=2026-09-28&end=2026-10-05
 ```
 
-Visitors are deduplicated over the entire requested window, not summed across buckets. Matching complete buckets reuse scheduled KV snapshots; other complete ranges can be cached for seven days. Recent or unfinished ranges use a 60-second response cache. Public responses omit website IDs, region/city breakdowns and raw internal errors. See the [full report contract](../../docs/reference/analytics.md).
+Visitors are deduplicated over the entire requested window, not summed across buckets. Matching complete buckets reuse scheduled KV snapshots; other complete ranges can be cached for seven days. Recent or unfinished ranges use a 60-second response cache. Public responses omit website IDs, region/city breakdowns and raw internal errors. See the [site analytics boundary](../../README.md#workers-and-optional-integrations).
 
 ## Optional AI Search pipeline
 
