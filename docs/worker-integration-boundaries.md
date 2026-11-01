@@ -11,6 +11,12 @@ The reusable [Inkerio engine](https://github.com/ThinkerQAQ/inkerio) renders opt
 | [`scripts/prepare-inkerio-deployment.mjs`](../scripts/prepare-inkerio-deployment.mjs) | Site wrapper | Overlays public verification assets and this site's `site.config.json` before engine build | Site CI |
 | [`scripts/prepare-search-notify.mjs`](../scripts/prepare-search-notify.mjs) | Site wrapper | Generates ephemeral domain-scoped search settings for the pinned SyndiRelay CLI | Site CI, private provider credentials |
 
+## Reusable integration contracts (independent of this deployment)
+
+The **Inkerio engine** now accepts a declarative `integrations.analytics` provider (`none`, `umami`, `script`) and `integrations.reactions` provider (`none`, `http`). For this site's production deployment, `site.config.json` selects `umami` with `/u.js` and `http` with `/v1/reactions`; public website ID, Umami collector and reaction endpoint still come from the **existing** CI variables. No secrets are moved into public config. This is an interface/configuration change, **not a Worker migration**.
+
+For third-party blog owners, the generic engine ships independent, non-production backend examples: [Umami collector](https://github.com/ThinkerQAQ/inkerio/tree/main/examples/cloudflare/umami-collector) and [D1 reactions](https://github.com/ThinkerQAQ/inkerio/tree/main/examples/cloudflare/reactions). Each example uses site-specific placeholders and must be deployed under **the adopter's own account**. The currently deployed `workers/blog-ai/` and `workers/blog-reactions/` continue using this wrapper's D1/KV, CI, DNS and restrictions; no data or URL is changed. Other compatible HTTP backends can implement the v1 reactions contract without Cloudflare.
+
 ## Chinese mainland availability
 
 The website serves `/u.js` as a **same-origin static file**, so browser script loading does not depend on `workers.dev`. However `data-host-url` currently points to `https://thinkerqaq-blog-ai.blog-ai.workers.dev`; browsers still POST analytics beacons cross-origin to its `/api/send` endpoint. This is **not a fully same-origin analytics pipeline**. An HTTP 200 from `/u.js`, the Worker's `/u.js`, or `/analytics/health` proves those resources are reachable from the testing network only; it does not prove collection succeeds for mainland visitors.

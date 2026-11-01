@@ -33,3 +33,5 @@ The reusable engine and content template maintain authoring and customization in
 Cloudflare AI, analytics, and reactions Workers are **site-specific production integrations**, not part of Inkerio's reusable engine. The website provides its own Umami `public/u.js` bundle, which is copied into the static site by the overlay script; the browser collector still uses the separately configured Worker origin. See [integration ownership and mainland collection constraints](docs/worker-integration-boundaries.md).
 
 [MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+**Optional pluggable integrations:** `site.config.json` now selects the Umami analytics and HTTP reactions adapters, with deployment addresses and public IDs supplied by existing GitHub Actions variables. The reusable [Inkerio integration protocol](https://github.com/ThinkerQAQ/inkerio/blob/main/docs/reference/integrations.md) also supports disabled/custom analytics and other compatible reaction APIs. Self-hosted backend references live in Inkerio's `examples/cloudflare/`; this site **does not migrate** its production Workers or database.

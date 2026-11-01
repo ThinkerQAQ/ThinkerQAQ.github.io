@@ -50,3 +50,18 @@ test("rejects malformed optional English description", async () => {
   await writeFile(configPath, JSON.stringify(config));
   await assert.rejects(prepareDeployment(fixture), /English description/);
 });
+
+test("preserves portable optional integration policy without importing service credentials", async () => {
+  const fixture = await createFixture();
+  const configPath = path.join(fixture.siteRoot, "site.config.json");
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  config.integrations = {
+    analytics: { provider: "umami", scriptSrc: "/u.js" },
+    reactions: { provider: "http", apiPath: "/v1/reactions" },
+  };
+  await writeFile(configPath, JSON.stringify(config));
+  await prepareDeployment(fixture);
+  const result = JSON.parse(await readFile(path.join(fixture.engineRoot, "site.config.json"), "utf8"));
+  assert.deepEqual(result.integrations, config.integrations);
+  assert.equal(JSON.stringify(result).includes("API_TOKEN"), false);
+});

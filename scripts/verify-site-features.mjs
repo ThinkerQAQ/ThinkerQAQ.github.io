@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -11,6 +11,7 @@ export async function verifySiteOutput({ engineRoot, siteRoot }) {
   const config = JSON.parse(await readFile(path.join(site, 'site.config.json'), 'utf8'));
   const { normalizeSiteFeatures } = await import(pathToFileURL(path.join(engine, 'src/lib/site-features.mjs')).href);
   const { isLegacyRoute } = await import(pathToFileURL(path.join(engine, 'src/lib/legacy-routes.mjs')).href);
+  const { resolveAnalyticsIntegration, resolveReactionIntegration } = await import(pathToFileURL(path.join(engine, 'src/lib/site-integrations.mjs')).href);
   const policies = normalizeSiteFeatures(config);
   const dist = path.join(engine, 'dist');
   const [home, enHome, rssZh, rssEn, sitemap] = await Promise.all([
@@ -27,6 +28,37 @@ export async function verifySiteOutput({ engineRoot, siteRoot }) {
   assert.ok(rssZh.includes(escapeXml(policies.rss.descriptions.zh)), 'RSS zh description changed');
   assert.ok(rssEn.includes(escapeXml(policies.rss.descriptions.en)), 'RSS en description changed');
 
+  const analytics = resolveAnalyticsIntegration(policies.integrations.analytics, process.env);
+  const reactions = resolveReactionIntegration(policies.integrations.reactions, process.env);
+  if (analytics?.provider === 'umami') {
+    assert.ok(home.includes(`data-website-id="${escapeXml(analytics.websiteId)}"`), 'Configured Umami website ID missing from homepage');
+    assert.ok(home.includes(`data-host-url="${escapeXml(analytics.collectorOrigin)}"`), 'Configured Umami collector origin changed');
+    assert.ok(home.includes(`src="${escapeXml(analytics.src)}"`), 'Configured Umami tracker script missing');
+    if (analytics.src.startsWith('/')) {
+      const scriptPath = path.join(dist, analytics.src.slice(1));
+      assert.ok((await readFile(scriptPath)).byteLength > 0, 'Site-local analytics script asset missing');
+    }
+  } else if (analytics?.provider === 'script') {
+    assert.ok(home.includes(`src="${escapeXml(analytics.src)}"`), 'Custom analytics script missing');
+  }
+  if (reactions) {
+    const articleEntries = await readdir(path.join(dist, 'articles'), { withFileTypes: true });
+    let found = false;
+    for (const item of articleEntries) {
+      if (!item.isDirectory() || item.name === 'en') continue;
+      let html;
+      try { html = await readFile(path.join(dist, 'articles', item.name, 'index.html'), 'utf8'); }
+      catch (error) { if (error?.code === 'ENOENT') continue; throw error; }
+      if (!html.includes('class="content-reaction"')) continue;
+      assert.ok(html.includes(`data-endpoint="${escapeXml(reactions.endpoint)}"`), 'Reaction endpoint changed in generated article');
+      assert.ok(html.includes(`data-api-path="${escapeXml(reactions.apiPath)}"`), 'Reaction API contract changed in generated article');
+      found = true;
+      break;
+    }
+    assert.ok(found, 'Reactions are configured but no article reaction UI was generated');
+  }
+
+
   const aliases = [...policies.legacyRedirects.exact, ...policies.legacyRedirects.categoryArchives];
   for (const { from, to } of aliases) {
     const content = await readFile(path.join(dist, from.slice(1), 'index.html'), 'utf8');
@@ -38,7 +70,7 @@ export async function verifySiteOutput({ engineRoot, siteRoot }) {
     const pathname = decodeURI(new URL(row).pathname);
     assert.equal(isLegacyRoute(pathname, policies.legacyRedirects), false, `Legacy URL leaked into sitemap: ${pathname}`);
   }
-  return { origin: config.url, verifiedCanonicalRedirects: aliases.length, sitemapUrls: urls.length };
+  return { origin: config.url, verifiedCanonicalRedirects: aliases.length, sitemapUrls: urls.length, analyticsProvider: analytics?.provider || 'none', reactionsEnabled: Boolean(reactions) };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
