@@ -17,6 +17,10 @@
 
 清理前的网站历史基线为 **24 个 Releases、194 个附件、累计 260 次附件下载**（不等于独立用户数）。已在[历史发布档案](docs/legacy-releases.md)保存各版本标签、日期与下载数。原 Git Tag 保留作源码溯源；退役后的历史附件链接可能失效，**线上站点部署不依赖这些 Release**。
 
+## 站点 Worker、统计与迁移边界
+
+**`public/u.js`、`workers/blog-ai` 和 `workers/blog-reactions` 均属于本站的生产部署**，不是遗漏在旧仓库中的通用引擎源码。Inkerio 只负责可配置的统计、点赞和 AI 问答客户端，缺失配置时默认不启用。`/u.js` 在站点同域加载，但统计上报目前仍走 `workers.dev`；尚未实现 `/api/send` 的同域反向代理，不能贸然把采集 URL 改为静态站点域名。详见[集成边界与大陆采集说明](docs/worker-integration-boundaries.md)。
+
 ## 生产部署
 
 `.github/workflows/deploy.yml` 使用不同的只读 Deploy Key 检出**固定提交版本**的 Inkerio、私有 SyndiRelay 和私有内容，通过 `scripts/prepare-inkerio-deployment.mjs` 注入本站配置与资源，构建统一静态产物并部署至 GitHub Pages 和 EdgeOne Makers。SyndiRelay 仅在 GitHub Actions 临时环境中用于 Cloudflare AI Search 同步与搜索引擎通知；`scripts/prepare-search-notify.mjs` 生成临时且与站点域名绑定的搜索配置。私有源码、凭据和本地数据不会进入静态网站产物。
