@@ -1,4 +1,4 @@
-name: Validate private search integration without publication
+name: Validate public search integration without publication
 
 on:
   pull_request:
@@ -14,8 +14,6 @@ permissions:
 
 jobs:
   verify:
-    # Never expose the private deploy key to untrusted fork PRs.
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor == 'ThinkerQAQ'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -25,12 +23,11 @@ jobs:
           path: site
           persist-credentials: false
 
-      - name: Checkout pinned private SyndiRelay
+      - name: Checkout pinned public SyndiRelay
         uses: actions/checkout@v6
         with:
           repository: ThinkerQAQ/syndirelay
           ref: cc8e4baf354b941fd752bb5abe79d4ba079463d3
-          ssh-key: ${{ secrets.SYNDIRELAY_DEPLOY_KEY }}
           path: relay
           persist-credentials: false
 
@@ -50,11 +47,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install private CLI renderer dependencies
+      - name: Install CLI renderer dependencies
         working-directory: relay
         run: npm ci
 
-      - name: Test and build private CLI
+      - name: Test and build site search CLI
         working-directory: relay
         run: |
           go test ./cmd ./aisearch ./search
