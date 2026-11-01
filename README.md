@@ -15,6 +15,8 @@ This repository is **the deployment and site-integration layer** for [ThinkerQAQ
 
 `.github/workflows/deploy.yml` checks out **pinned commits** of Inkerio and private SyndiRelay, plus the private content through distinct read-only Deploy Keys. It overlays this site's public configuration and assets via `scripts/prepare-inkerio-deployment.mjs`, builds one static output, then deploys the same artifact to GitHub Pages and EdgeOne Makers. Private SyndiRelay is used only inside the GitHub Actions runner to prepare/synchronize Cloudflare AI Search input and notify search engines. `scripts/prepare-search-notify.mjs` creates ephemeral, domain-scoped search settings outside the public checkout; neither private source, credentials, nor local data enter the static output.
 
+The site's homepage knowledge sections, note taxonomy/translations, RSS inclusion cutoffs and legacy URL redirects are now configured **only** in `site.config.json`. `scripts/verify-site-features.mjs` verifies their output before publication, including legacy canonical links and sitemap exclusions. See the [engine configuration reference](https://github.com/ThinkerQAQ/inkerio/blob/main/docs/reference/site-features.md).
+
 The reusable engine and content template maintain authoring and customization instructions:
 
 - [Inkerio documentation](https://github.com/ThinkerQAQ/inkerio/tree/main/docs)
