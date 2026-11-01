@@ -34,8 +34,6 @@ concurrency:
 
 env:
   ASTRO_TELEMETRY_DISABLED: 1
-  # Unset/legacy leaves current production deployment unchanged; standalone is opt-in.
-  INKERIO_DEPLOY_MODE: ${{ vars.INKERIO_DEPLOY_MODE || 'legacy' }}
 
 jobs:
   build:
@@ -50,15 +48,14 @@ jobs:
       PUBLIC_UMAMI_PROXY_ORIGIN: ${{ vars.PUBLIC_UMAMI_PROXY_ORIGIN || 'https://thinkerqaq-blog-ai.blog-ai.workers.dev' }}
       CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
     steps:
-      - name: Checkout site wrapper and BlogCTL
+      - name: Checkout site deployment wrapper
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
-          path: legacy
+          path: site
           fetch-depth: 2
 
-      - name: Checkout pinned standalone Inkerio
-        if: env.INKERIO_DEPLOY_MODE == 'standalone'
+      - name: Checkout pinned Inkerio
         uses: actions/checkout@v6
         with:
           repository: ThinkerQAQ/inkerio
@@ -80,11 +77,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: legacy/go.work
+          go-version-file: site/go.work
           cache: false
 
-      - name: Build BlogCTL
-        working-directory: legacy/tools/blogctl
+      - name: Build legacy search and AI Search CLI
+        working-directory: site/tools/blogctl
         run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
 
       - name: Setup Node
@@ -92,7 +89,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: legacy/package-lock.json
+          cache-dependency-path: engine/package-lock.json
 
       - name: Setup Java for PlantUML
         uses: actions/setup-java@v5
@@ -114,20 +111,10 @@ jobs:
         if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
         uses: actions/configure-pages@v5
 
-      - name: Build legacy site (safe rollback mode)
-        if: env.INKERIO_DEPLOY_MODE != 'standalone'
-        working-directory: legacy
-        run: |
-          "$RUNNER_TEMP/blogctl" site build --content-root ../content-source
-          mkdir -p ../publish-dist
-          cp -a dist/. ../publish-dist/
-
       - name: Inject site-specific configuration into pinned Inkerio
-        if: env.INKERIO_DEPLOY_MODE == 'standalone'
-        run: node legacy/scripts/prepare-inkerio-deployment.mjs --engine engine --site legacy
+        run: node site/scripts/prepare-inkerio-deployment.mjs --engine engine --site site
 
-      - name: Build standalone Inkerio
-        if: env.INKERIO_DEPLOY_MODE == 'standalone'
+      - name: Build pinned Inkerio
         working-directory: engine
         run: |
           npm ci
@@ -140,7 +127,7 @@ jobs:
       - name: Prepare AI Search input
         id: ai_search_prepare
         continue-on-error: true
-        working-directory: legacy
+        working-directory: site
         env:
           CONTENT_SHA: ${{ inputs.content_sha || '' }}
           CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
@@ -216,33 +203,33 @@ jobs:
       CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
       CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
       AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
-      AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/legacy/src/content/ai-search-changed-paths.txt
+      AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/site/src/content/ai-search-changed-paths.txt
       AI_SEARCH_FORCE_FULL_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
     steps:
-      - name: Checkout site wrapper and BlogCTL
+      - name: Checkout site deployment wrapper
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
-          path: legacy
+          path: site
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: legacy/go.work
+          go-version-file: site/go.work
           cache: false
 
-      - name: Build BlogCTL
-        working-directory: legacy/tools/blogctl
+      - name: Build legacy search and AI Search CLI
+        working-directory: site/tools/blogctl
         run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
 
       - name: Download public AI Search input
         uses: actions/download-artifact@v5
         with:
           name: ai-search-input
-          path: legacy/src/content
+          path: site/src/content
 
       - name: Sync and verify AI Search
-        working-directory: legacy
+        working-directory: site
         run: '"$RUNNER_TEMP/blogctl" ai-search sync --verify'
 
   notify-search:
@@ -254,24 +241,24 @@ jobs:
       GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'sc-domain:thinkerqaq.com' }}
     steps:
-      - name: Checkout site wrapper and BlogCTL
+      - name: Checkout site deployment wrapper
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
-          path: legacy
+          path: site
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: legacy/go.work
+          go-version-file: site/go.work
           cache: false
 
-      - name: Build BlogCTL
-        working-directory: legacy/tools/blogctl
+      - name: Build legacy search and AI Search CLI
+        working-directory: site/tools/blogctl
         run: go build -o "$RUNNER_TEMP/blogctl" ./cmd
 
       - name: Notify search engines
-        working-directory: legacy
+        working-directory: site
         shell: bash
         run: |
           set -euo pipefail

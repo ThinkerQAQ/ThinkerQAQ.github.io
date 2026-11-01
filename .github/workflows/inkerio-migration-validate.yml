@@ -23,16 +23,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Checkout site integration
+      - name: Checkout site deployment wrapper
         uses: actions/checkout@v6
         with:
-          path: legacy
+          path: site
 
       - name: Checkout pinned independent Inkerio
         uses: actions/checkout@v6
         with:
           repository: ThinkerQAQ/inkerio
-          ref: 31dad0ddccee09b188deb3fe915dfec51cfcf2ea
+          ref: 715ef65335a02b24cc65185e55de7a03bfe7e1c2
           path: engine
           persist-credentials: false
 
@@ -65,10 +65,10 @@ jobs:
           echo "MERMAID_PUPPETEER_CONFIG_FILE=$RUNNER_TEMP/mermaid-puppeteer.json" >> "$GITHUB_ENV"
 
       - name: Check site integration boundaries
-        run: node --test legacy/scripts/prepare-inkerio-deployment.test.mjs
+        run: node --test site/scripts/prepare-inkerio-deployment.test.mjs
 
       - name: Prepare public site overlay
-        run: node legacy/scripts/prepare-inkerio-deployment.mjs --engine engine --site legacy
+        run: node site/scripts/prepare-inkerio-deployment.mjs --engine engine --site site
 
       - name: Build engine with public content template
         working-directory: engine

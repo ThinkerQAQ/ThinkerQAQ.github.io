@@ -1,8 +1,0 @@
----
-import LifePage from "../../components/LifePage.astro";
-import { getLifePaths, type LifePageData } from "../../lib/life";
-export async function getStaticPaths() { return getLifePaths("zh"); }
-interface Props { data: LifePageData; }
-const { data } = Astro.props;
----
-<LifePage locale="zh" data={data} />

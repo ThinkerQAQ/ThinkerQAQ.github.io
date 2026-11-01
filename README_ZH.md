@@ -1,50 +1,31 @@
-# Inkerio
+# ThinkerQAQ 网站部署仓库
 
-**仓库拆分过渡：** 通用 [Inkerio 引擎](https://github.com/ThinkerQAQ/inkerio) 已独立。本仓库负责 ThinkerQAQ 网站配置和部署，暂时保留旧 Astro 代码及 [BlogCTL](tools/blogctl/README_ZH.md) 作为回滚和内容分发入口。下方命令仍是旧 Monorepo 用法，迁移方案见[部署文档](docs/architecture/inkerio-deployment-migration.md)。
+[English](README.md) · [线上网站](https://thinkerqaq.com/) · [Inkerio 引擎](https://github.com/ThinkerQAQ/inkerio)
 
-[English](README.md) · [实际站点](https://thinkerqaq.com/) · [中文文档](docs/zh-CN/index.md)
+本仓库**仅负责 ThinkerQAQ 个人网站的配置和生产部署**，不再维护通用博客引擎，也不存储文章原文。
 
-Inkerio 是基于 Astro 的双语静态博客引擎。文章、笔记、项目、系列、摄影和健身记录保存在独立内容仓库中，引擎据此生成页面、搜索索引、RSS 和 Sitemap。
-
-| 组成 | 用途 |
+| 仓库 | 职责 |
 | --- | --- |
-| **Inkerio** | 当前仓库中的网站渲染与静态构建 |
-| **[BlogCTL](tools/blogctl/README_ZH.md)** | 配套 Go CLI、浏览器扩展和本地工作台，负责装配与分发 |
-| **[inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template)** | 公开示例内容，也是创建自己内容仓库的起点 |
+| [Inkerio](https://github.com/ThinkerQAQ/inkerio) | Astro 页面、中英文展示、静态构建、RSS、站点地图和搜索 |
+| `ThinkerQAQ/blog-content`（私有） | 文章、项目、摄影、站点内容及版权文案 |
+| `ThinkerQAQ/syndirelay`（私有） | 多平台分发、远端草稿、Bridge、MCP 和浏览器扩展 |
+| **本仓库** | 网站身份配置 `site.config.json`、站点静态验证资源 `public/`、专属 Worker `workers/`、GitHub Pages 和 EdgeOne 部署 |
 
-[ThinkerQAQ](https://thinkerqaq.com/) 是作者的部署实例。引擎仓库保留现有名称 `ThinkerQAQ/ThinkerQAQ.github.io`；使用者可以设置自己的站点名称和域名。
+## 生产部署
 
-## 运行示例
+`.github/workflows/deploy.yml` 检出**固定提交版本的 Inkerio**，通过 `scripts/prepare-inkerio-deployment.mjs` 注入本站配置与公开资源，使用只读 Deploy Key 拉取私有内容，构建唯一的静态产物，并将同一产物部署至 GitHub Pages 和 EdgeOne Makers。工作流还会准备 AI Search 数据并执行搜索引擎通知。
 
-需要 Node.js 22.12+、npm 和 Go 1.27.1。
+引擎运行、定制与内容管理请参阅：
 
-```bash
-git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-cd ThinkerQAQ.github.io
-npm ci
-npm run dev:quick
-```
+- [Inkerio 文档](https://github.com/ThinkerQAQ/inkerio/tree/main/docs)
+- [公开内容模板](https://github.com/ThinkerQAQ/inkerio-content-template)
 
-访问 [localhost:4321](http://localhost:4321)。命令会在模板不存在时自动获取它、装配内容并启动 Astro，跳过图表预渲染。按 Ctrl+C 停止服务。
+**禁止将私有文章、服务密钥或本地数据提交到本仓库。** 生产凭据由 GitHub Actions Secrets 管理。升级固定的引擎版本时，先用公开内容模板完成构建验证。
 
-接着阅读[站点教程](docs/zh-CN/tutorial/first-site.md)，建立并编辑自己的内容仓库。装配会替换引擎的 `src/content`，原始写作内容应保存在内容仓库。
+## 尚待解除的过渡依赖
 
-## 配置自己的站点
+`tools/blogctl/` 暂时保留，**仅供部署工作流执行 AI Search 输入准备、同步和搜索引擎通知**，不再在本仓库维护分发工具或发布 Release。要删除此目录，需要先为 CI 提供经过验证的独立实现；目前 SyndiRelay 是私有仓库，公开站点工作流不能直接依赖它而不增加额外授权配置。
 
-| 任务 | 中文 | English |
-| --- | --- | --- |
-| 安装依赖并本地运行 | [快速开始](docs/zh-CN/quick-start.md) | [Quick Start](docs/quick-start.md) |
-| 添加内容与双语版本 | [站点教程](docs/zh-CN/tutorial/first-site.md) | [First site](docs/tutorial/first-site.md) |
-| 切换文章与笔记的思维导图 | [文章与笔记思维导图](docs/zh-CN/how-to/mindmap-notes.md) | [Article and note mind maps](docs/how-to/mindmap-notes.md) |
-| 替换作者身份与服务配置 | [站点个性化](docs/zh-CN/how-to/customize-site.md) | [Customize your site](docs/how-to/customize-site.md) |
-| 部署 Fork | [部署指南](docs/zh-CN/how-to/deploy.md) | [Deployment](docs/how-to/deploy.md) |
-| 查询字段和命令 | [参考手册](docs/zh-CN/reference/index.md) | [Reference](docs/reference/index.md) |
-| 向其他平台分发文章 | [BlogCTL 中文](tools/blogctl/README_ZH.md) | [BlogCTL](tools/blogctl/README.md) |
+Cloudflare AI Worker 和点赞 Worker 属于本网站的生产集成，不属于通用 Inkerio 引擎。
 
-评论、统计、点赞和问博客依赖独立服务，需要配置自己的资源；问博客目前处于关闭状态。部署前请阅读[集成参考](docs/zh-CN/reference/integrations.md)。
-
-## 开发
-
-[命令参考](docs/zh-CN/reference/commands.md)说明检查与构建方式，[系统架构](docs/zh-CN/concepts/system.md)说明数据流和职责。贡献者与编码 Agent 应阅读 [AGENTS.md](AGENTS.md)，BlogCTL 另有[目录规则](tools/blogctl/AGENTS.md)。
-
-[MIT License](LICENSE)
+[MIT 许可证](LICENSE) · [第三方许可说明](THIRD_PARTY_NOTICES.md)
