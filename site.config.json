@@ -363,5 +363,15 @@
         "经济学": "Economics"
       }
     }
+  },
+  "integrations": {
+    "analytics": {
+      "provider": "umami",
+      "scriptSrc": "/u.js"
+    },
+    "reactions": {
+      "provider": "http",
+      "apiPath": "/v1/reactions"
+    }
   }
 }
