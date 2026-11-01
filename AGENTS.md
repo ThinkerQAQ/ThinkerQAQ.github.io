@@ -1,53 +1,18 @@
-# Agent Contract — Inkerio
+# Site deployment wrapper — agent contract
 
-This repository contains Inkerio, the reusable Astro blog engine, and its companion BlogCTL application. ThinkerQAQ is the author and personal site identity, not the engine brand. Canonical articles live in the separate `ThinkerQAQ/blog-content` repository.
+This repository owns only the production integration of https://thinkerqaq.com. Never add generic Astro components, authoring content, publishing adapters, browser sessions, or private data here.
 
-## First minute
+- Reusable rendering, templates, and static site tooling belong to `ThinkerQAQ/inkerio`.
+- Source articles and bilingual copyright/About text belong to the private `ThinkerQAQ/blog-content` repository.
+- Multiplatform distribution and draft management belong to `ThinkerQAQ/syndirelay`.
+- This repository owns `site.config.json`, public site verification assets, site-specific Workers, and deployment workflows.
 
-Read [Quick Start](docs/quick-start.md), [commands](docs/reference/commands.md) and this contract. Check `git status` and the active worktree before editing: development may be underway in another worktree.
+## Working rules
 
-From the repository root:
+Check the branch and working tree first; fetch the latest `main`; use an isolated worktree. Changes go through a PR, use squash merge, and delete the merged branch. Never modify the content repository, local user data, or production secrets as part of site-wrapper cleanup.
 
-```sh
-go run ./tools/blogctl/cmd/maint verify
-go run ./tools/blogctl/cmd/maint build
-go run ./tools/blogctl/cmd/maint package
-```
+`deploy.yml` must keep a pinned Inkerio SHA and produce the same static artifact for GitHub Pages and EdgeOne. Validate the site overlay with `node --test scripts/prepare-inkerio-deployment.test.mjs` and the engine with the public content template. Preserve the scheduled monthly deployment, content watcher, search notification, AI Search sync, and Worker deployments.
 
-These commands are implemented in Go, independently of the product CLI. The existing `npm run` scripts remain authoritative for Astro, frontend, diagrams, and site previews. `package` generates cross-platform BlogCTL binaries, the browser extension ZIP and SHA-256 checksums in `.build/artifacts/blogctl-release/`. Never publish a release just because packaging succeeded.
+`tools/blogctl/` remains a temporary search CI dependency only; do not add features or make releases here. Replace this dependency in a separate verified migration before deleting it. The public checkout must not require access to private SyndiRelay in CI unless that access is explicitly configured and audited.
 
-## Native code intelligence
-
-Prefer existing LSP clients and upstream language servers, with explicit fallbacks:
-
-| Files | Server | Use |
-| --- | --- | --- |
-| Go, under `tools/blogctl/` | `gopls serve` | Symbols, definitions, references, implementations, call hierarchy, diagnostics |
-| Markdown, under `docs/` and `tools/blogctl/docs/` | `marksman server` | Headings, link definitions/references, diagnostics |
-| TypeScript/JavaScript, Astro, CSS | Editor's installed language servers when available | Definitions, references and diagnostics scoped to the language actually supported |
-| Mermaid diagrams | `merman-lsp` and `merman-cli` when available | Semantic navigation, parsing, linting, rendering |
-
-LSP servers require a client to initialize them and send protocol requests. The executable alone is not an Agent tool. Use direct `gopls symbols`/`gopls references`/`gopls check`, `rg`, scoped file reads, `node --check`, and existing npm scripts when no suitable client is available. Read long documents section by section; an outline cannot substitute for complete review. Do not add an LSP gateway or duplicate code index just to expose these tools.
-
-## Architecture and security
-
-Minimal core, pluggable extensions, configuration-first. Reuse mature packages and platform SDKs before writing new infrastructure.
-
-- `blog-content` owns canonical Markdown, bilingual About page prose and the site copyright JSON; this engine owns Astro/SEO/search/build/deploy; BlogCTL owns local orchestration and reads the content-owned policy at compile time; the browser Extension owns browser-controlled authentication.
-- Go owns the BlogCTL backend. JavaScript owns browser UI and the site toolchain.
-- Detection/listing is read-only. Creation, updates, publication, deletion and indexing require explicit side-effect authorization. Never blindly retry ambiguous remote writes.
-- Session credentials and cookies stay in authorized browser flows, never static assets, Git, logs or documentation.
-- Keep installed BlogCTL `Data/` and user configuration intact through deployment. Do not modify production credentials or site deployments without explicit approval.
-
-## Change workflow
-
-Inspect relevant code and docs, make the smallest coherent change, commit/push in small increments, and run native verification at milestones. Use isolated worktrees rather than modifying another Agent's active branch. Preserve existing release versioning and CI semantics. Confirm remote GitHub availability and job health before claiming CI passed. Do not merge unrelated work.
-
-## Documentation
-
-- [Quick Start](docs/quick-start.md), [Tutorial](docs/tutorial/first-site.md)
-- [Commands](docs/reference/commands.md), [How-to](docs/how-to/index.md)
-- [Architecture](docs/architecture/index.md)
-- [BlogCTL](tools/blogctl/docs/index.md), [BlogCTL agent scope](tools/blogctl/AGENTS.md)
-
-This is the repo-wide agent contract; nested contracts describe only subproject-specific rules.
+Confirm CI and production deployment status before describing a change as released. The private content checkout and all secrets must stay outside public build artifacts and Git history.

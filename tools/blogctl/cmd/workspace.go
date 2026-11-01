@@ -96,9 +96,16 @@ func findAncestor(start string, predicate func(string) bool) string {
 }
 
 func isEngineRoot(root string) bool {
-	return fileExists(filepath.Join(root, "package.json")) &&
-		fileExists(filepath.Join(root, "astro.config.mjs")) &&
-		directoryExists(filepath.Join(root, "tools", "blogctl"))
+	if !directoryExists(filepath.Join(root, "tools", "blogctl")) {
+		return false
+	}
+	// Keep compatibility with the historical Astro monorepo while the CI-only
+	// search commands move to an independent distribution tool.
+	legacyEngine := fileExists(filepath.Join(root, "package.json")) &&
+		fileExists(filepath.Join(root, "astro.config.mjs"))
+	siteWrapper := fileExists(filepath.Join(root, "site.config.json")) &&
+		fileExists(filepath.Join(root, "scripts", "prepare-inkerio-deployment.mjs"))
+	return legacyEngine || siteWrapper
 }
 
 func isContentRoot(root string) bool {

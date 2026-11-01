@@ -1,7 +1,9 @@
-name: Validate
+name: Validate site deployment wrapper
 
 on:
+  pull_request:
   push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -13,36 +15,28 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
 
+      - name: Validate site overlay and site identity
+        run: |
+          node --test scripts/prepare-inkerio-deployment.test.mjs
+          node -e 'const c=require("./site.config.json"); if (!c.url.startsWith("https://") || !c.commentsRepository) process.exit(1)'
+
+      - name: Test production Worker contracts
+        run: |
+          node --test workers/blog-ai/src/*.test.js
+          node --test workers/blog-reactions/src/index.test.js
+
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.27.1'
+          go-version-file: go.work
           cache: true
           cache-dependency-path: tools/blogctl/go.sum
 
-      - name: Test analytics Worker contracts
-        run: node --test workers/blog-ai/src/*.test.js
-
-      - name: Verify BlogCTL
-        run: go run ./tools/blogctl/cmd/maint verify
-
-      - name: Build BlogCTL
-        run: go run ./tools/blogctl/cmd/maint build
-
-      - name: Collect redistributable third-party license texts
+      - name: Check temporary search CLI dependency
+        working-directory: tools/blogctl
         run: |
-          mkdir -p .build/tools
-          GOTOOLCHAIN="$(go env GOVERSION)" GOBIN="$PWD/.build/tools" go install github.com/google/go-licenses/v2@v2.0.1
-          bash scripts/collect-blogctl-licenses.sh
-
-      - name: Package BlogCTL
-        run: go run ./tools/blogctl/cmd/maint package
-
-      - name: Verify release artifacts
-        run: |
-          test -s .build/out/blogctl
-          test -s .build/artifacts/blogctl-release/SHA256SUMS
-          (cd .build/artifacts/blogctl-release && sha256sum -c SHA256SUMS)
+          go test ./cmd ./aisearch ./search
+          go build -o "$RUNNER_TEMP/blogctl-search" ./cmd

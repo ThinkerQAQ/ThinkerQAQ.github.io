@@ -1,50 +1,31 @@
-# Inkerio
+# ThinkerQAQ website deployment
 
-**Repository transition:** The reusable [Inkerio engine](https://github.com/ThinkerQAQ/inkerio) now lives in a separate repository. This repository is the ThinkerQAQ website deployment wrapper and still temporarily contains the legacy Astro source plus [BlogCTL](tools/blogctl/README.md) for rollback and publishing. The commands below describe the legacy monorepo. See the [deployment migration plan](docs/architecture/inkerio-deployment-migration.md).
+[简体中文](README_ZH.md) · [Website](https://thinkerqaq.com/) · [Inkerio](https://github.com/ThinkerQAQ/inkerio)
 
-[简体中文](README_ZH.md) · [Live example](https://thinkerqaq.com/) · [Documentation](docs/index.md)
+This repository is **only the deployment and site-integration layer** for [ThinkerQAQ](https://thinkerqaq.com/). It is not the reusable blog engine or the canonical content store.
 
-Inkerio is a bilingual static blog engine built with Astro. Articles, notes, projects, series, photography and workout records live in a separate content repository. The engine builds pages, search indexes, RSS and sitemaps from that content.
-
-| Component | Purpose |
+| Repository | Responsibility |
 | --- | --- |
-| **Inkerio** | Site rendering and static builds in this repository |
-| **[BlogCTL](tools/blogctl/README.md)** | Go CLI, browser Extension and local Web Console for assembly and publishing |
-| **[inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template)** | Public sample content and a starting point for your own content repository |
+| [Inkerio](https://github.com/ThinkerQAQ/inkerio) | Astro rendering, bilingual pages, static builds, sitemap, RSS and search |
+| `ThinkerQAQ/blog-content` (private) | Original articles, projects, photography, site prose and copyright policy |
+| `ThinkerQAQ/syndirelay` (private) | Cross-platform syndication, drafts, Bridge, MCP and browser extension |
+| **This repository** | Site identity (`site.config.json`), public verification assets (`public/`), Worker integrations (`workers/`), GitHub Pages and EdgeOne deployment |
 
-[ThinkerQAQ](https://thinkerqaq.com/) is the author's deployment. The repository keeps its existing name, `ThinkerQAQ/ThinkerQAQ.github.io`; your website can use its own name and domain.
+## Production deployment
 
-## Run the sample
+`.github/workflows/deploy.yml` checks out a **pinned commit of Inkerio**, overlays this site's public configuration and assets via `scripts/prepare-inkerio-deployment.mjs`, checks out the private content via a read-only deploy key, and builds a single static output. The same artifact is deployed to GitHub Pages and EdgeOne Makers. It also prepares AI Search input and performs search-engine notifications.
 
-Requires Node.js 22.12+, npm and Go 1.27.1.
+The reusable engine and the content template maintain the local development, customization and authoring instructions:
 
-```bash
-git clone https://github.com/ThinkerQAQ/ThinkerQAQ.github.io.git
-cd ThinkerQAQ.github.io
-npm ci
-npm run dev:quick
-```
+- [Inkerio documentation](https://github.com/ThinkerQAQ/inkerio/tree/main/docs)
+- [Public content template](https://github.com/ThinkerQAQ/inkerio-content-template)
 
-Open [localhost:4321](http://localhost:4321). The command fetches the public template if absent, assembles its content and starts Astro. It skips diagram pre-rendering. Stop the server with Ctrl+C.
+**Do not put private content, service credentials or local data in this repository.** Production credentials remain in GitHub Actions secrets. Changes to the pinned engine must be verified against the public content template before deployment.
 
-Continue with the [first-site tutorial](docs/tutorial/first-site.md) to edit your own content checkout. Assembly replaces the engine's `src/content`; keep original writing in the content repository.
+## Remaining transition dependency
 
-## Set up your site
+`tools/blogctl/` is a **temporary legacy CLI checkout** used only by the deployment workflow's AI Search preparation/synchronization and search notifications. It is not the canonical publishing project, and releases are no longer made from this repository. Remove it only after those CI tasks use an independently validated replacement. The source remains here temporarily to avoid requiring private SyndiRelay credentials in a public repository's Actions workflow.
 
-| Task | English | 简体中文 |
-| --- | --- | --- |
-| Install dependencies and run locally | [Quick Start](docs/quick-start.md) | [快速开始](docs/zh-CN/quick-start.md) |
-| Create content and translations | [First site](docs/tutorial/first-site.md) | [站点教程](docs/zh-CN/tutorial/first-site.md) |
-| Switch articles and notes to mind maps | [Article and note mind maps](docs/how-to/mindmap-notes.md) | [文章与笔记思维导图](docs/zh-CN/how-to/mindmap-notes.md) |
-| Replace the author's identity and integrations | [Customize your site](docs/how-to/customize-site.md) | [站点个性化](docs/zh-CN/how-to/customize-site.md) |
-| Deploy a fork | [Deployment](docs/how-to/deploy.md) | [部署指南](docs/zh-CN/how-to/deploy.md) |
-| Check fields and commands | [Reference](docs/reference/index.md) | [参考手册](docs/zh-CN/reference/index.md) |
-| Publish to other platforms | [BlogCTL](tools/blogctl/README.md) | [BlogCTL 中文](tools/blogctl/README_ZH.md) |
+The Cloudflare AI and reactions Workers are site-specific production integrations; they are not part of Inkerio's reusable engine.
 
-Comments, analytics, reactions and Ask Blog use separate services. They need your own configuration; Ask Blog is currently disabled. See [integrations](docs/reference/integrations.md) before deploying.
-
-## Development
-
-See [commands](docs/reference/commands.md) for checks and builds, and [system architecture](docs/concepts/system.md) for ownership and data flow. Contributors and coding agents should read [AGENTS.md](AGENTS.md); BlogCTL also has a [local contract](tools/blogctl/AGENTS.md).
-
-[MIT License](LICENSE)
+[MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
