@@ -47,3 +47,7 @@ Cloudflare AI, analytics, and reactions Workers are **site-specific production i
 [MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 **Optional pluggable integrations:** `site.config.json` now selects the Umami analytics and HTTP reactions adapters, with deployment addresses and public IDs supplied by existing GitHub Actions variables. The reusable [Inkerio integration protocol](https://github.com/ThinkerQAQ/inkerio/blob/main/docs/reference/integrations.md) also supports disabled/custom analytics and other compatible reaction APIs. Self-hosted backend references live in Inkerio's `examples/cloudflare/`; this site **does not migrate** its production Workers or database.
+
+## Live reference for Inkerio
+
+This is the **live production implementation** behind [thinkerqaq.com](https://thinkerqaq.com/). Developers are welcome to inspect its pinned-engine builds, site-owned Workers and independent deployment configuration. **Do not copy this repository as a beginner template.** To create a single-repository `username.github.io` blog, start from [Inkerio](https://github.com/ThinkerQAQ/inkerio) and choose **Use this template** in [inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template). Advanced site-specific architecture is optional.

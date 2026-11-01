@@ -42,3 +42,7 @@ Cloudflare AI Worker 和点赞 Worker 属于本站生产集成，不属于 Inker
 [MIT 许可证](LICENSE) · [第三方许可说明](THIRD_PARTY_NOTICES.md)
 
 **可插拔统计与点赞：** `site.config.json` 现在明确选择 Umami 统计与 HTTP 点赞适配器，真实采集地址、公开站点 ID 与点赞地址仍由原有 GitHub Actions 变量提供。Inkerio 的[通用协议和自部署示例](https://github.com/ThinkerQAQ/inkerio/blob/main/docs/zh-CN/reference/integrations.md)支持不使用 Cloudflare 的后端。**不会迁移或覆盖**本站生产 Worker、D1/KV 数据和现有域名。
+
+## Inkerio 实际生产案例（Live Example）
+
+本仓库是 [thinkerqaq.com](https://thinkerqaq.com/) 的**实际生产部署代码**，包含固定版本的 Inkerio 引擎、站点专属 Worker 与独立的部署配置。可以参考其分仓、构建与集成方式，但**新用户不应该直接复制本仓库作为建站模板**。如果只是想创建 `username.github.io` 博客，请从 [Inkerio](https://github.com/ThinkerQAQ/inkerio) 入门，再通过 [inkerio-content-template](https://github.com/ThinkerQAQ/inkerio-content-template) 的 **Use this template** 创建单仓库站点。
