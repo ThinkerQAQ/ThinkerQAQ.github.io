@@ -9,7 +9,6 @@ npm-debug.log*
 
 # Local engineering build outputs.
 .build/
-go.work.sum
 
 # Private content is injected only at build time.
 /src/content/

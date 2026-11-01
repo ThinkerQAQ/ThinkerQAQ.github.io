@@ -21,22 +21,11 @@ jobs:
 
       - name: Validate site overlay and site identity
         run: |
-          node --test scripts/prepare-inkerio-deployment.test.mjs
+          node --test scripts/prepare-inkerio-deployment.test.mjs scripts/prepare-search-notify.test.mjs
+          test ! -e tools/blogctl && test ! -e go.work
           node -e 'const c=require("./site.config.json"); if (!c.url.startsWith("https://") || !c.commentsRepository) process.exit(1)'
 
       - name: Test production Worker contracts
         run: |
           node --test workers/blog-ai/src/*.test.js
           node --test workers/blog-reactions/src/index.test.js
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.work
-          cache: true
-          cache-dependency-path: tools/blogctl/go.sum
-
-      - name: Check temporary search CLI dependency
-        working-directory: tools/blogctl
-        run: |
-          go test ./cmd ./aisearch ./search
-          go build -o "$RUNNER_TEMP/blogctl-search" ./cmd

@@ -7,6 +7,8 @@ on:
       - ".github/workflows/inkerio-migration-validate.yml"
       - "scripts/prepare-inkerio-deployment.mjs"
       - "scripts/prepare-inkerio-deployment.test.mjs"
+      - "scripts/prepare-search-notify.mjs"
+      - "scripts/prepare-search-notify.test.mjs"
       - "site.config.json"
       - "public/**"
   workflow_dispatch:
@@ -65,7 +67,7 @@ jobs:
           echo "MERMAID_PUPPETEER_CONFIG_FILE=$RUNNER_TEMP/mermaid-puppeteer.json" >> "$GITHUB_ENV"
 
       - name: Check site integration boundaries
-        run: node --test site/scripts/prepare-inkerio-deployment.test.mjs
+        run: node --test site/scripts/prepare-inkerio-deployment.test.mjs site/scripts/prepare-search-notify.test.mjs
 
       - name: Prepare public site overlay
         run: node site/scripts/prepare-inkerio-deployment.mjs --engine engine --site site

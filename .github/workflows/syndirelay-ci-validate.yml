@@ -1,0 +1,79 @@
+name: Validate private search integration without publication
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/deploy.yml"
+      - ".github/workflows/syndirelay-ci-validate.yml"
+      - "site.config.json"
+      - "scripts/prepare-search-notify.mjs"
+      - "scripts/prepare-search-notify.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    # Never expose the private deploy key to untrusted fork PRs.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor == 'ThinkerQAQ'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout site wrapper
+        uses: actions/checkout@v6
+        with:
+          path: site
+          persist-credentials: false
+
+      - name: Checkout pinned private SyndiRelay
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/syndirelay
+          ref: cc8e4baf354b941fd752bb5abe79d4ba079463d3
+          ssh-key: ${{ secrets.SYNDIRELAY_DEPLOY_KEY }}
+          path: relay
+          persist-credentials: false
+
+      - name: Checkout public content template
+        uses: actions/checkout@v6
+        with:
+          repository: ThinkerQAQ/inkerio-content-template
+          path: content-source
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: relay/go.mod
+          cache: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install private CLI renderer dependencies
+        working-directory: relay
+        run: npm ci
+
+      - name: Test and build private CLI
+        working-directory: relay
+        run: |
+          go test ./cmd ./aisearch ./search
+          go build -o "$RUNNER_TEMP/syndirelay" ./cmd
+
+      - name: Verify site-specific transient search settings
+        env:
+          GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'sc-domain:thinkerqaq.com' }}
+        run: |
+          node --test site/scripts/prepare-search-notify.test.mjs
+          node site/scripts/prepare-search-notify.mjs --site site --relay relay --data "$RUNNER_TEMP/search-settings"
+          if (cd relay && SYNDIRELAY_DATA_DIR="$RUNNER_TEMP/search-settings" "$RUNNER_TEMP/syndirelay" search notify --site-url sc-domain:invalid.example > "$RUNNER_TEMP/negative-test.log" 2>&1); then
+            echo "::error::Search notifier accepted a mismatched site; expected rejection"
+            exit 1
+          fi
+          grep -q 'must match search.google_property' "$RUNNER_TEMP/negative-test.log"
+
+      - name: Verify AI Search preparation without network writes
+        working-directory: relay
+        run: |
+          "$RUNNER_TEMP/syndirelay" ai-search prepare --content-root ../content-source --output "$RUNNER_TEMP/ai-search-test"
+          test -d "$RUNNER_TEMP/ai-search-test/articles"
