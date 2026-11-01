@@ -50,6 +50,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install private CLI renderer dependencies
+        working-directory: relay
+        run: npm ci
+
       - name: Test and build private CLI
         working-directory: relay
         run: |
