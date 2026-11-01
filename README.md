@@ -11,6 +11,12 @@ This repository is **the deployment and site-integration layer** for [ThinkerQAQ
 | `ThinkerQAQ/syndirelay` (private) | Cross-platform syndication, drafts, Bridge, MCP and browser extension; site search/AI Search CI integration |
 | **This repository** | Site identity (`site.config.json`), public verification assets (`public/`), Worker integrations (`workers/`), GitHub Pages and EdgeOne deployment |
 
+## Software release migration
+
+**This website repository no longer publishes application Releases.** Inkerio has its own [source releases](https://github.com/ThinkerQAQ/inkerio/releases). The independent SyndiRelay publisher is private pending source/license/security review and does not have approved public binary/Extension packages. Do not install archived BlogCTL executable downloads as SyndiRelay.
+
+The original website repo once held **24 Releases / 194 downloadable assets / 260 aggregate file downloads**. Their metadata is preserved in the [legacy release archive](docs/legacy-releases.md) before retirement; downloads are not a unique-user count. Existing git tags remain for source provenance, but historic release asset URLs may no longer work. The website build/deployment process does not depend on those releases.
+
 ## Production deployment
 
 `.github/workflows/deploy.yml` checks out **pinned commits** of Inkerio and private SyndiRelay, plus the private content through distinct read-only Deploy Keys. It overlays this site's public configuration and assets via `scripts/prepare-inkerio-deployment.mjs`, builds one static output, then deploys the same artifact to GitHub Pages and EdgeOne Makers. Private SyndiRelay is used only inside the GitHub Actions runner to prepare/synchronize Cloudflare AI Search input and notify search engines. `scripts/prepare-search-notify.mjs` creates ephemeral, domain-scoped search settings outside the public checkout; neither private source, credentials, nor local data enter the static output.

@@ -11,6 +11,12 @@
 | `ThinkerQAQ/syndirelay`（私有） | 多平台分发、远端草稿、Bridge、MCP、浏览器扩展及搜索 CI 组件 |
 | **本仓库** | 网站身份配置 `site.config.json`、公开验证资源 `public/`、专属 Worker `workers/`、GitHub Pages 和 EdgeOne 部署 |
 
+## Release 迁移与历史记录
+
+**本网站仓库不再承担软件 Release 下载。** 通用引擎从 [Inkerio Releases](https://github.com/ThinkerQAQ/inkerio/releases) 获取源码版本。独立分发工具 SyndiRelay 目前仍为 Private，尚未完成源码公开、依赖许可及浏览器扩展发行审核；不要把历史 BlogCTL 安装包当作 SyndiRelay 新版。
+
+清理前的网站历史基线为 **24 个 Releases、194 个附件、累计 260 次附件下载**（不等于独立用户数）。已在[历史发布档案](docs/legacy-releases.md)保存各版本标签、日期与下载数。原 Git Tag 保留作源码溯源；退役后的历史附件链接可能失效，**线上站点部署不依赖这些 Release**。
+
 ## 生产部署
 
 `.github/workflows/deploy.yml` 使用不同的只读 Deploy Key 检出**固定提交版本**的 Inkerio、私有 SyndiRelay 和私有内容，通过 `scripts/prepare-inkerio-deployment.mjs` 注入本站配置与资源，构建统一静态产物并部署至 GitHub Pages 和 EdgeOne Makers。SyndiRelay 仅在 GitHub Actions 临时环境中用于 Cloudflare AI Search 同步与搜索引擎通知；`scripts/prepare-search-notify.mjs` 生成临时且与站点域名绑定的搜索配置。私有源码、凭据和本地数据不会进入静态网站产物。
