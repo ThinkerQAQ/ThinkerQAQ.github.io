@@ -132,6 +132,10 @@ jobs:
         run: |
           npm ci
           node scripts/assemble-content.mjs --content-root ../content-source
+          # Normalize only staged copies; original project READMEs stay untouched.
+          node ../site/scripts/normalize-project-readmes.mjs --engine .
+          # Pre-render Mermaid diagrams before astro check reads article content.
+          npm run diagrams
           npm run check
           npm run build
           mkdir -p ../publish-dist
