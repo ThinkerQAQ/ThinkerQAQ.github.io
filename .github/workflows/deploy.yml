@@ -132,8 +132,9 @@ jobs:
         run: |
           npm ci
           node scripts/assemble-content.mjs --content-root ../content-source
-          npm run check
+          node ../site/scripts/prepare-project-readme-frontmatter.mjs src/content/projects
           npm run build
+          npm run check
           mkdir -p ../publish-dist
           cp -a dist/. ../publish-dist/
 
