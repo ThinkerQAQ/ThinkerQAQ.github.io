@@ -166,6 +166,9 @@ jobs:
         with:
           path: publish-dist
 
+      - name: Generate EdgeOne 301 rules from site-owned aliases
+        run: node site/scripts/prepare-edgeone-redirects.mjs --site site --dist publish-dist
+
       - name: Upload EdgeOne artifact
         uses: actions/upload-artifact@v4
         with:
