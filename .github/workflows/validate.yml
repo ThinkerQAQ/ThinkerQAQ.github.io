@@ -21,7 +21,7 @@ jobs:
 
       - name: Validate site overlay and site identity
         run: |
-          node --test scripts/prepare-inkerio-deployment.test.mjs scripts/prepare-search-notify.test.mjs
+          node --test scripts/prepare-inkerio-deployment.test.mjs scripts/prepare-search-notify.test.mjs scripts/prepare-edgeone-redirects.test.mjs
           test ! -e tools/blogctl && test ! -e go.work
           node -e 'const c=require("./site.config.json"); if (!c.url.startsWith("https://") || !c.commentsRepository) process.exit(1)'
 

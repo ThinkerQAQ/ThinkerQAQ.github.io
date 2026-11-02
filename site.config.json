@@ -153,6 +153,30 @@
       {
         "from": "/notes/category/mysql-database/",
         "to": "/notes/category/database/topic/MySQL/"
+      },
+      {
+        "from": "/projects/personal-blog-system/",
+        "to": "/projects/inkerio/"
+      },
+      {
+        "from": "/en/projects/personal-blog-system/",
+        "to": "/en/projects/inkerio/"
+      },
+      {
+        "from": "/projects/blogctl/",
+        "to": "/projects/syndirelay/"
+      },
+      {
+        "from": "/en/projects/blogctl/",
+        "to": "/en/projects/syndirelay/"
+      },
+      {
+        "from": "/projects/downkit/",
+        "to": "/projects/vidotter/"
+      },
+      {
+        "from": "/en/projects/downkit/",
+        "to": "/en/projects/vidotter/"
       }
     ],
     "notePrefixes": [
