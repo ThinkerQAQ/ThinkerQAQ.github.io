@@ -55,9 +55,7 @@ jobs:
           ref: ${{ inputs.content_sha || '' }}
           ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
           path: content-source
-          # Keep the read-only deploy-key credential available for the later
-          # incremental diff fetch of content_before_sha in this same job.
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -191,7 +189,7 @@ jobs:
           go-version-file: relay/go.mod
           cache: false
 
-      - name: Build site search and AI Search CLI
+      - name: Build SyndiRelay for search notifications
         working-directory: relay
         run: go build -o "$RUNNER_TEMP/syndirelay" ./cmd
 
