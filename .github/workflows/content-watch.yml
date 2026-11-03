@@ -108,11 +108,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -n "$CONTENT_BEFORE_SHA" ]; then
-            payload="$(jq -n --arg ref "main" --arg content_sha "$CONTENT_SHA" --arg content_before_sha "$CONTENT_BEFORE_SHA" '{ref:$ref,inputs:{content_sha:$content_sha,content_before_sha:$content_before_sha,force_full_ai_search_sync:false}}')"
-          else
-            payload="$(jq -n --arg ref "main" --arg content_sha "$CONTENT_SHA" '{ref:$ref,inputs:{content_sha:$content_sha,content_before_sha:"",force_full_ai_search_sync:true}}')"
-          fi
+          payload="$(jq -n --arg ref "main" --arg content_sha "$CONTENT_SHA" '{ref:$ref,inputs:{content_sha:$content_sha}}')"
 
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/dispatches" --input - <<<"$payload"
           echo "Dispatched deploy.yml for content $CONTENT_SHA"
