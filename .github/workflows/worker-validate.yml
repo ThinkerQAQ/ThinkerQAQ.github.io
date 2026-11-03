@@ -3,7 +3,6 @@ name: Validate optional site Workers
 on:
   pull_request:
     paths:
-      - "workers/blog-ai/**"
       - "workers/blog-reactions/**"
       - ".github/workflows/worker-*.yml"
   workflow_dispatch:
@@ -19,10 +18,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - name: Test site-owned analytics, AI and reactions in isolation
+      - name: Test reactions Worker in isolation
         run: |
-          node --test workers/blog-ai/src/*.test.js
           node --test workers/blog-reactions/src/*.test.js
       - name: Check removed monorepo paths are not reintroduced
         run: |
-          ! grep -R -n 'tools/blogctl/' workers/blog-ai/README.md workers/blog-reactions/README.md
+          ! grep -R -n 'tools/blogctl/' workers/blog-reactions/README.md

@@ -27,5 +27,5 @@ jobs:
 
       - name: Test production Worker contracts
         run: |
-          node --test workers/blog-ai/src/*.test.js
+          node --test scripts/edgeone-analytics-proxy.test.mjs
           node --test workers/blog-reactions/src/index.test.js

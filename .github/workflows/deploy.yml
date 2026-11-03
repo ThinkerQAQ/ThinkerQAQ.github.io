@@ -1,4 +1,4 @@
-name: Deploy Astro site to GitHub Pages
+name: Deploy blog to GitHub Pages and EdgeOne
 
 on:
   push:
@@ -13,16 +13,6 @@ on:
         description: Optional private content commit to deploy
         required: false
         type: string
-      content_before_sha:
-        description: Optional previous private content commit for incremental AI Search sync
-        required: false
-        type: string
-      force_full_ai_search_sync:
-        description: Explicitly allow a full AI Search reconcile when no incremental base is available
-        required: false
-        default: false
-        type: boolean
-
 permissions:
   contents: read
   pages: write
@@ -38,14 +28,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      ai_search_artifact_ready: ${{ steps.ai_search_upload.outcome == 'success' }}
     env:
-      PUBLIC_ASK_BLOG_WORKER_URL: ${{ vars.PUBLIC_ASK_BLOG_WORKER_URL || 'https://thinkerqaq-blog-ai.blog-ai.workers.dev/chat' }}
-      PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY: ${{ vars.PUBLIC_ASK_BLOG_TURNSTILE_SITE_KEY }}
       PUBLIC_REACTION_WORKER_URL: ${{ vars.PUBLIC_REACTION_WORKER_URL }}
       PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.PUBLIC_UMAMI_WEBSITE_ID }}
-      PUBLIC_UMAMI_PROXY_ORIGIN: ${{ vars.PUBLIC_UMAMI_PROXY_ORIGIN || 'https://thinkerqaq-blog-ai.blog-ai.workers.dev' }}
       CONTENT_REPOSITORY: ${{ github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && 'ThinkerQAQ/blog-content' || vars.CONTENT_REPOSITORY }}
     steps:
       - name: Checkout site deployment wrapper
@@ -70,27 +55,7 @@ jobs:
           ref: ${{ inputs.content_sha || '' }}
           ssh-key: ${{ secrets.BLOG_CONTENT_DEPLOY_KEY }}
           path: content-source
-          # Keep the read-only deploy-key credential available for the later
-          # incremental diff fetch of content_before_sha in this same job.
-          persist-credentials: true
-
-      - name: Checkout pinned public SyndiRelay (read-only)
-        uses: actions/checkout@v6
-        with:
-          repository: ThinkerQAQ/syndirelay
-          ref: cc8e4baf354b941fd752bb5abe79d4ba079463d3
-          path: relay
           persist-credentials: false
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: relay/go.mod
-          cache: false
-
-      - name: Build site search and AI Search CLI
-        working-directory: relay
-        run: go build -o "$RUNNER_TEMP/syndirelay" ./cmd
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -141,27 +106,6 @@ jobs:
       - name: Verify configured home, RSS, and legacy redirect output
         run: node site/scripts/verify-site-features.mjs --engine engine --site site
 
-      - name: Prepare AI Search input
-        id: ai_search_prepare
-        continue-on-error: true
-        working-directory: relay
-        env:
-          CONTENT_SHA: ${{ inputs.content_sha || '' }}
-          CONTENT_BEFORE_SHA: ${{ inputs.content_before_sha || '' }}
-          AI_SEARCH_FORCE_FULL_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
-        run: '"$RUNNER_TEMP/syndirelay" ai-search prepare --output "$RUNNER_TEMP/ai-search-input" --content-root ../content-source'
-
-      - name: Upload public AI Search input
-        id: ai_search_upload
-        if: steps.ai_search_prepare.outcome == 'success'
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-search-input
-          path: ${{ runner.temp }}/ai-search-input
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -169,6 +113,11 @@ jobs:
 
       - name: Generate EdgeOne 301 rules from site-owned aliases
         run: node site/scripts/prepare-edgeone-redirects.mjs --site site --dist publish-dist
+
+      - name: Bundle the site-owned Umami proxy function
+        run: |
+          install -D -m 644 site/edge-functions/api/send.js publish-dist/edge-functions/api/send.js
+          test -s publish-dist/edge-functions/api/send.js
 
       - name: Upload EdgeOne artifact
         uses: actions/upload-artifact@v4
@@ -211,65 +160,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  sync-ai-search:
-    # Incremental sync needs a previous content SHA or explicit full reconcile.
-    # Failed preparation must not trigger a missing-artifact download.
-    if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io' && needs.build.outputs.ai_search_artifact_ready == 'true'
-    runs-on: ubuntu-latest
-    needs: [build, deploy-edgeone]
-    continue-on-error: true
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_AI_SEARCH_INSTANCE: ${{ vars.CLOUDFLARE_AI_SEARCH_INSTANCE }}
-      CLOUDFLARE_AI_SEARCH_TOKEN: ${{ secrets.CLOUDFLARE_AI_SEARCH_TOKEN }}
-      AI_SEARCH_REQUEST_TIMEOUT_MS: 120000
-      AI_SEARCH_CHANGE_MANIFEST: ${{ github.workspace }}/relay/src/content/ai-search-changed-paths.txt
-      AI_SEARCH_FORCE_FULL_SYNC: ${{ inputs.force_full_ai_search_sync == true && '1' || '0' }}
-    steps:
-      - name: Checkout site deployment wrapper
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.sha }}
-          path: site
-
-      - name: Checkout pinned public SyndiRelay (read-only)
-        uses: actions/checkout@v6
-        with:
-          repository: ThinkerQAQ/syndirelay
-          ref: cc8e4baf354b941fd752bb5abe79d4ba079463d3
-          path: relay
-          persist-credentials: false
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: relay/go.mod
-          cache: false
-
-      - name: Build site search and AI Search CLI
-        working-directory: relay
-        run: go build -o "$RUNNER_TEMP/syndirelay" ./cmd
-
-      - name: Setup Node for site configuration
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Load site origin from configuration
-        run: |
-          origin="$(node -p 'require("./site/site.config.json").url')"
-          echo "BLOG_ORIGIN=$origin" >> "$GITHUB_ENV"
-
-      - name: Download public AI Search input
-        uses: actions/download-artifact@v5
-        with:
-          name: ai-search-input
-          path: relay/src/content
-
-      - name: Sync and verify AI Search
-        working-directory: relay
-        run: '"$RUNNER_TEMP/syndirelay" ai-search sync --verify'
-
   notify-search:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
     runs-on: ubuntu-latest
@@ -299,7 +189,7 @@ jobs:
           go-version-file: relay/go.mod
           cache: false
 
-      - name: Build site search and AI Search CLI
+      - name: Build SyndiRelay for search notifications
         working-directory: relay
         run: go build -o "$RUNNER_TEMP/syndirelay" ./cmd
 

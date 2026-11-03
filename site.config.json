@@ -391,7 +391,8 @@
   "integrations": {
     "analytics": {
       "provider": "umami",
-      "scriptSrc": "/u.js"
+      "scriptSrc": "/u.js",
+      "collectorOrigin": "https://thinkerqaq.com"
     },
     "reactions": {
       "provider": "http",
