@@ -103,7 +103,6 @@ jobs:
         if: steps.content.outputs.changed == 'true' && steps.active.outputs.busy != 'true'
         env:
           CONTENT_SHA: ${{ steps.content.outputs.latest_sha }}
-          CONTENT_BEFORE_SHA: ${{ steps.content.outputs.previous_sha }}
         shell: bash
         run: |
           set -euo pipefail
