@@ -176,7 +176,6 @@ jobs:
     if: github.repository == 'ThinkerQAQ/ThinkerQAQ.github.io'
     runs-on: ubuntu-latest
     needs: deploy-edgeone
-    continue-on-error: true
     env:
       GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL || 'sc-domain:thinkerqaq.com' }}
