@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { verifyUnpublishedNoteCategories } from './verify-unpublished-note-categories.mjs';
 
 const escapeXml = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
@@ -70,7 +71,12 @@ export async function verifySiteOutput({ engineRoot, siteRoot }) {
     const pathname = decodeURI(new URL(row).pathname);
     assert.equal(isLegacyRoute(pathname, policies.legacyRedirects), false, `Legacy URL leaked into sitemap: ${pathname}`);
   }
-  return { origin: config.url, verifiedCanonicalRedirects: aliases.length, sitemapUrls: urls.length, analyticsProvider: analytics?.provider || 'none', reactionsEnabled: Boolean(reactions) };
+  const unpublished = await verifyUnpublishedNoteCategories({
+    distRoot: dist,
+    urls,
+    categories: config.unpublishedNoteCategories ?? [],
+  });
+  return { origin: config.url, verifiedCanonicalRedirects: aliases.length, sitemapUrls: urls.length, ...unpublished, analyticsProvider: analytics?.provider || 'none', reactionsEnabled: Boolean(reactions) };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
