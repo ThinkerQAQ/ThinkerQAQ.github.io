@@ -357,5 +357,12 @@
       "provider": "http",
       "apiPath": "/v1/reactions"
     }
-  }
+  },
+  "unpublishedNoteCategories": [
+    "developer-tools",
+    "economics",
+    "fitness",
+    "photography",
+    "investing"
+  ]
 }
