@@ -106,6 +106,18 @@ jobs:
       - name: Verify configured home, RSS, and legacy redirect output
         run: node site/scripts/verify-site-features.mjs --engine engine --site site
 
+      # Compare against the still-live previous deployment before replacing it.
+      - name: Prepare URL removals for IndexNow
+        run: node site/scripts/prepare-removed-url-notifications.mjs --site site --new-list publish-dist/sitemap-all.txt --output "$RUNNER_TEMP/removed-urls.txt"
+
+      - name: Retain private removal inventory for post-deploy notification
+        uses: actions/upload-artifact@v4
+        with:
+          name: removed-urls
+          path: ${{ runner.temp }}/removed-urls.txt
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -183,6 +195,12 @@ jobs:
           path: relay
           persist-credentials: false
 
+      - name: Download pre-deploy removed URL inventory
+        uses: actions/download-artifact@v5
+        with:
+          name: removed-urls
+          path: ${{ runner.temp }}/removed-urls
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -195,6 +213,21 @@ jobs:
 
       - name: Prepare isolated search settings
         run: node site/scripts/prepare-search-notify.mjs --site site --relay relay --data "$RUNNER_TEMP/syndirelay-search"
+
+      - name: Notify IndexNow of deleted pages
+        working-directory: relay
+        env:
+          SYNDIRELAY_DATA_DIR: ${{ runner.temp }}/syndirelay-search
+        shell: bash
+        run: |
+          set -euo pipefail
+          removed="$RUNNER_TEMP/removed-urls/removed-urls.txt"
+          test -f "$removed"
+          if [[ -s "$removed" ]]; then
+            "$RUNNER_TEMP/syndirelay" search submit --providers indexnow --site-url "$GOOGLE_SEARCH_CONSOLE_SITE_URL" --urls-file "$removed"
+          else
+            echo "[search:indexnow] no removed URLs to notify"
+          fi
 
       - name: Notify search engines
         working-directory: relay

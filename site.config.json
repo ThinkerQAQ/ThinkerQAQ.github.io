@@ -94,43 +94,6 @@
             }
           }
         ]
-      },
-      {
-        "id": "beyond",
-        "titles": {
-          "zh": "工程之外",
-          "en": "Beyond Engineering"
-        },
-        "categories": [
-          {
-            "id": "photography",
-            "labels": {
-              "zh": "摄影",
-              "en": "Photography"
-            }
-          },
-          {
-            "id": "investing",
-            "labels": {
-              "zh": "投资",
-              "en": "Investing"
-            }
-          },
-          {
-            "id": "economics",
-            "labels": {
-              "zh": "经济学",
-              "en": "Economics"
-            }
-          },
-          {
-            "id": "fitness",
-            "labels": {
-              "zh": "健身",
-              "en": "Fitness"
-            }
-          }
-        ]
       }
     ]
   },
@@ -208,11 +171,7 @@
       "security",
       "observability",
       "web-server-nginx",
-      "testing-performance",
-      "developer-tools",
-      "economics",
-      "investing",
-      "photography"
+      "testing-performance"
     ],
     "translationsEn": {
       "categories": {
@@ -398,5 +357,12 @@
       "provider": "http",
       "apiPath": "/v1/reactions"
     }
-  }
+  },
+  "unpublishedNoteCategories": [
+    "developer-tools",
+    "economics",
+    "fitness",
+    "photography",
+    "investing"
+  ]
 }
