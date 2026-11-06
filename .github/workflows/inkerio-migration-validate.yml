@@ -89,6 +89,11 @@ jobs:
           test -s dist/sitemap-inventory.json
           test -s dist/rss.xml
           test -s dist/pagefind/pagefind-entry.json
+          test ! -e dist/life/index.html
+          test ! -e dist/en/life/index.html
+          test ! -e dist/life/fitness/index.html
+          test ! -e dist/en/life/fitness/index.html
+          ! grep -q '/life/' dist/sitemap-all.txt
           test -s dist/gongan-beian.png
           test -s dist/favicon.ico
           grep -q 'thinkerqaq.com' dist/index.html
