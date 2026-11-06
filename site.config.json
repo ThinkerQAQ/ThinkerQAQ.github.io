@@ -104,11 +104,11 @@
     "timezone": "Asia/Shanghai",
     "minTrainingDays": 1,
     "includeDemoWorkouts": false,
-    "includePhotography": true,
-    "includeWorkouts": true,
+    "includePhotography": false,
+    "includeWorkouts": false,
     "descriptions": {
-      "zh": "技术文章、摄影记录与健身月报的更新。",
-      "en": "New articles, photography, and monthly fitness summaries."
+      "zh": "技术文章与工程实践的更新。",
+      "en": "Updates on engineering articles and software projects."
     }
   },
   "legacyRedirects": {
@@ -364,5 +364,8 @@
     "fitness",
     "photography",
     "investing"
-  ]
+  ],
+  "life": {
+    "enabled": false
+  }
 }

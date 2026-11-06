@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ThinkerQAQ/inkerio
-          ref: 2ef62f71a9b84368c022342cc5a12e43168944d9
+          ref: fd8c55c9de43f51bb15deb32f07114d2e48b8d06
           path: engine
           persist-credentials: false
 
@@ -89,6 +89,11 @@ jobs:
           test -s dist/sitemap-inventory.json
           test -s dist/rss.xml
           test -s dist/pagefind/pagefind-entry.json
+          test ! -e dist/life/index.html
+          test ! -e dist/en/life/index.html
+          test ! -e dist/life/fitness/index.html
+          test ! -e dist/en/life/fitness/index.html
+          ! grep -q '/life/' dist/sitemap-all.txt
           test -s dist/gongan-beian.png
           test -s dist/favicon.ico
           grep -q 'thinkerqaq.com' dist/index.html
